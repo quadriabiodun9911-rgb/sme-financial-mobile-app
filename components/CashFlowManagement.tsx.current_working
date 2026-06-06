@@ -1,0 +1,1808 @@
+import React, { useState, useMemo } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, TextInput } from 'react-native';
+import Modal from 'react-native-modal';
+
+// Define interfaces for SME cash flow management
+interface Receivable {
+    id: string;
+    customer: string;
+    invoiceDate: string;
+    dueDate: string;
+    amount: number;
+    status: 'paid' | 'overdue' | 'pending';
+    daysOverdue: number;
+    paymentTerms: string;
+    notes?: string;
+}
+
+interface Payable {
+    id: string;
+    supplier: string;
+    invoiceDate: string;
+    dueDate: string;
+    amount: number;
+    status: 'paid' | 'pending' | 'overdue';
+    daysUntilDue: number;
+    discountAvailable: boolean;
+    discountPercentage?: number;
+    discountDueDate?: string;
+    category: string;
+}
+
+interface CashReserveGoal {
+    id: string;
+    title: string;
+    targetAmount: number;
+    currentAmount: number;
+    deadline: string;
+    category: 'emergency' | 'investment' | 'operational';
+}
+
+interface PaymentTermTemplate {
+    id: string;
+    name: string;
+    description: string;
+    terms: string;
+    discountOffered: boolean;
+    discountPercentage?: number;
+    discountPeriod?: number; // days
+}
+
+interface CashFlowScenario {
+    id: string;
+    name: string;
+    description: string;
+    revenueMultiplier: number;
+    expenseMultiplier: number;
+    probability: number; // percentage
+}
+
+interface PaymentTermTemplate {
+    id: string;
+    name: string;
+    description: string;
+    terms: string;
+    discountOffered: boolean;
+    discountPercentage?: number;
+    discountPeriod?: number; // days
+}
+
+interface CashFlowAlert {
+    id: string;
+    type: 'low_cash' | 'payment_due' | 'overdue_invoice' | 'high_expense';
+    message: string;
+    severity: 'low' | 'medium' | 'high';
+    date: string;
+    resolved: boolean;
+}
+
+interface FinanceData {
+    income: number;
+    expense: number;
+    profit: number;
+    margin: number;
+    assets: number;
+    liabilities: number;
+    equity: number;
+}
+
+interface Props {
+    finance: FinanceData;
+    currency: string;
+    minReserve: string;
+    targetMargin: string;
+}
+
+const CashFlowManagement: React.FC<Props> = ({ finance, currency, minReserve, targetMargin }) => {
+    // State for cash flow management tabs
+    const [activeCashFlowTab, setActiveCashFlowTab] = useState<'dashboard' | 'forecast' | 'receivables' | 'payables' | 'reserves' | 'terms' | 'alerts'>('dashboard');
+
+    // State for optimization techniques
+    const [expandedOptimizations, setExpandedOptimizations] = useState({
+        forecasting: false,
+        expenseControl: false,
+        invoiceManagement: false,
+        inventory: false,
+        debt: false,
+        paymentTerms: false,
+        financing: false,
+        investments: false,
+        analysis: false
+    });
+
+    // State for cash flow forecasting
+    const [upcomingRevenue, setUpcomingRevenue] = useState<number>(0);
+    const [upcomingExpenses, setUpcomingExpenses] = useState<number>(0);
+    const [forecastResult, setForecastResult] = useState<number | null>(null);
+
+    // State for receivables management
+    const [receivables, setReceivables] = useState<Receivable[]>([
+        { id: 'rec-1', customer: 'ABC Corp', invoiceDate: '2026-05-15', dueDate: '2026-06-15', amount: 15000, status: 'pending', daysOverdue: 0, paymentTerms: 'Net 30' },
+        { id: 'rec-2', customer: 'XYZ Ltd', invoiceDate: '2026-05-10', dueDate: '2026-05-20', amount: 8500, status: 'overdue', daysOverdue: 17, paymentTerms: 'Net 10' },
+        { id: 'rec-3', customer: 'Tech Solutions', invoiceDate: '2026-05-25', dueDate: '2026-06-25', amount: 12000, status: 'pending', daysOverdue: 0, paymentTerms: 'Net 30' },
+    ]);
+
+    // State for payables management
+    const [payables, setPayables] = useState<Payable[]>([
+        { id: 'pay-1', supplier: 'Office Supplies Co', invoiceDate: '2026-05-18', dueDate: '2026-06-18', amount: 3200, status: 'pending', daysUntilDue: 13, discountAvailable: true, discountPercentage: 2, discountDueDate: '2026-06-03', category: 'Supplies' },
+        { id: 'pay-2', supplier: 'Cloud Services', invoiceDate: '2026-05-20', dueDate: '2026-06-20', amount: 1800, status: 'pending', daysUntilDue: 15, discountAvailable: false, category: 'Technology' },
+        { id: 'pay-3', supplier: 'Marketing Agency', invoiceDate: '2026-05-22', dueDate: '2026-06-22', amount: 5500, status: 'pending', daysUntilDue: 17, discountAvailable: true, discountPercentage: 2, discountDueDate: '2026-06-05', category: 'Marketing' },
+    ]);
+
+    // State for cash reserve goals
+    const [cashReserveGoals, setCashReserveGoals] = useState<CashReserveGoal[]>([
+        { id: 'goal-1', title: 'Emergency Fund', targetAmount: 25000, currentAmount: 12500, deadline: '2026-12-31', category: 'emergency' },
+        { id: 'goal-2', title: 'Equipment Upgrade', targetAmount: 15000, currentAmount: 4200, deadline: '2026-09-30', category: 'investment' },
+        { id: 'goal-3', title: 'Seasonal Buffer', targetAmount: 8000, currentAmount: 3100, deadline: '2026-08-15', category: 'operational' },
+    ]);
+
+    // State for cash flow scenarios
+    const [cashFlowScenarios, setCashFlowScenarios] = useState<CashFlowScenario[]>([
+        { id: 'scen-1', name: 'Best Case', description: 'Revenue +15%, Expenses -5%', revenueMultiplier: 1.15, expenseMultiplier: 0.95, probability: 30 },
+        { id: 'scen-2', name: 'Most Likely', description: 'Revenue +5%, Expenses +2%', revenueMultiplier: 1.05, expenseMultiplier: 1.02, probability: 50 },
+        { id: 'scen-3', name: 'Worst Case', description: 'Revenue -10%, Expenses +5%', revenueMultiplier: 0.90, expenseMultiplier: 1.05, probability: 20 },
+    ]);
+
+    const [selectedScenario, setSelectedScenario] = useState<string>('scen-2');
+
+    // State for payment terms templates
+    const [paymentTermTemplates, setPaymentTermTemplates] = useState<PaymentTermTemplate[]>([
+        { id: 'term-1', name: 'Standard Net 30', description: 'Payment due in 30 days', terms: 'Net 30', discountOffered: false },
+        { id: 'term-2', name: 'Early Payment Discount', description: '2% discount if paid within 10 days', terms: '2% 10 Net 30', discountOffered: true, discountPercentage: 2, discountPeriod: 10 },
+        { id: 'term-3', name: 'Extended Terms', description: 'Payment due in 60 days', terms: 'Net 60', discountOffered: false },
+    ]);
+
+    // State for cash flow alerts
+    const [cashFlowAlerts, setCashFlowAlerts] = useState<CashFlowAlert[]>([
+        { id: 'alert-1', type: 'low_cash', message: 'Cash reserve below safety threshold', severity: 'high', date: '2026-06-01', resolved: false },
+        { id: 'alert-2', type: 'payment_due', message: 'Upcoming payment of $3,200 due in 2 days', severity: 'medium', date: '2026-06-04', resolved: false },
+        { id: 'alert-3', type: 'overdue_invoice', message: 'Invoice from XYZ Ltd overdue by 17 days', severity: 'high', date: '2026-05-20', resolved: false },
+    ]);
+
+    const [alertThreshold, setAlertThreshold] = useState<number>(30); // days of cash runway
+
+    // State for new entries
+    const [newReceivable, setNewReceivable] = useState<Omit<Receivable, 'id' | 'status' | 'daysOverdue'>>({
+        customer: '',
+        invoiceDate: new Date().toISOString().split('T')[0],
+        dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        amount: 0,
+        paymentTerms: 'Net 30'
+    });
+
+    const [newPayable, setNewPayable] = useState<Omit<Payable, 'id' | 'status' | 'daysUntilDue'>>({
+        supplier: '',
+        invoiceDate: new Date().toISOString().split('T')[0],
+        dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        amount: 0,
+        discountAvailable: false,
+        category: ''
+    });
+
+    const [newPaymentTerm, setNewPaymentTerm] = useState<Omit<PaymentTermTemplate, 'id'>>({
+        name: '',
+        description: '',
+        terms: '',
+        discountOffered: false,
+        discountPercentage: undefined,
+        discountPeriod: undefined
+    });
+
+    const [showReceivablesModal, setShowReceivablesModal] = useState<boolean>(false);
+    const [showPayablesModal, setShowPayablesModal] = useState<boolean>(false);
+    const [showPaymentTermsModal, setShowPaymentTermsModal] = useState<boolean>(false);
+
+    // Functions for optimization techniques
+    const toggleOptimization = (optimization: keyof typeof expandedOptimizations) => {
+        setExpandedOptimizations(prev => ({
+            ...prev,
+            [optimization]: !prev[optimization]
+        }));
+    };
+
+    const calculateForecast = () => {
+        const result = upcomingRevenue - upcomingExpenses;
+        setForecastResult(result);
+    };
+
+    const monthlyCashFlow = finance.income - finance.expense;
+    const monthlyReserve = parseFloat(minReserve) || 1000;
+    const cashReserveDays = Math.floor(monthlyReserve / Math.max(finance.expense / 30, 1));
+    const liquidityRatio = monthlyCashFlow > 0 ? (finance.income / finance.expense) : 0;
+
+    // Calculate cash runway in days
+    const cashRunway = useMemo(() => {
+        if (monthlyCashFlow <= 0) {
+            // If negative cash flow, calculate how many days until cash runs out
+            const currentCash = monthlyReserve; // Using reserve as proxy for current cash
+            if (currentCash <= 0) return 0;
+            const dailyOutflow = finance.expense / 30;
+            return Math.floor(currentCash / dailyOutflow);
+        } else {
+            // If positive cash flow, technically infinite runway, but we'll return a high number
+            return 999;
+        }
+    }, [monthlyCashFlow, monthlyReserve, finance]);
+
+    // Calculate burn rate (negative cash flow per month)
+    const burnRate = useMemo(() => {
+        return monthlyCashFlow < 0 ? Math.abs(monthlyCashFlow) : 0;
+    }, [monthlyCashFlow]);
+
+    // Calculate cash conversion cycle (CCC)
+    const cashConversionCycle = useMemo(() => {
+        // Simplified calculation - in reality would need inventory data
+        // CCC = DIO + DSO - DPO
+        // DIO = Days Inventory Outstanding
+        // DSO = Days Sales Outstanding
+        // DPO = Days Payable Outstanding
+
+        // Using simplified values based on receivables and payables
+        const avgReceivables = receivables.reduce((sum, rec) => sum + rec.amount, 0) / receivables.length || 0;
+        const avgPayables = payables.reduce((sum, pay) => sum + pay.amount, 0) / payables.length || 0;
+
+        // These are approximations since we don't have full data
+        const dio = 30; // Days inventory outstanding (approximation)
+        const dso = receivables.filter(r => r.status === 'overdue').length > 0
+            ? receivables.filter(r => r.status === 'overdue').reduce((sum, r) => sum + r.daysOverdue, 0) / receivables.filter(r => r.status === 'overdue').length
+            : 15; // Days sales outstanding (approximation)
+        const dpo = payables.reduce((sum, p) => sum + (p.dueDate ? Math.max(0, Math.floor((new Date(p.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 30), 0) / payables.length || 30; // Days payable outstanding (approximation)
+
+        return dio + dso - dpo;
+    }, [receivables, payables]);
+
+    // 13-Week Cash Flow Forecast
+    const thirteenWeekCashForecast = useMemo(() => {
+        const scenario = cashFlowScenarios.find(s => s.id === selectedScenario);
+        if (!scenario) return { weeks: [] };
+
+        const baseWeeklyIncome = finance.income / 4; // Approximate weekly income
+        const baseWeeklyExpense = finance.expense / 4; // Approximate weekly expense
+        const adjustedWeeklyIncome = baseWeeklyIncome * scenario.revenueMultiplier;
+        const adjustedWeeklyExpense = baseWeeklyExpense * scenario.expenseMultiplier;
+
+        const weeks: Array<{ week: number; date: string; balance: number; income: number; expense: number; net: number; isBelowSafety: boolean }> = [];
+        let runningBalance = monthlyReserve; // Starting with cash reserve
+        const now = new Date();
+
+        for (let i = 0; i < 13; i++) {
+            runningBalance = runningBalance + adjustedWeeklyIncome - adjustedWeeklyExpense;
+            const date = new Date(now);
+            date.setDate(date.getDate() + (i + 1) * 7);
+            weeks.push({
+                week: i + 1,
+                date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                balance: Math.round(runningBalance),
+                income: Math.round(adjustedWeeklyIncome),
+                expense: Math.round(adjustedWeeklyExpense),
+                net: Math.round(adjustedWeeklyIncome - adjustedWeeklyExpense),
+                isBelowSafety: runningBalance < parseFloat(minReserve) * 0.5, // Below 50% of safety threshold
+            });
+        }
+
+        return { weeks };
+    }, [finance, selectedScenario, cashFlowScenarios, monthlyReserve, minReserve]);
+
+    // Function to add receivable
+    const addReceivable = () => {
+        const newRec: Receivable = {
+            ...newReceivable,
+            id: `rec-${Date.now()}`,
+            status: new Date(newReceivable.dueDate) < new Date() ? 'overdue' : 'pending',
+            daysOverdue: 0 // Will be calculated when the list is updated
+        };
+        setReceivables([...receivables, newRec]);
+        setNewReceivable({
+            customer: '',
+            invoiceDate: new Date().toISOString().split('T')[0],
+            dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            amount: 0,
+            paymentTerms: 'Net 30'
+        });
+        setShowReceivablesModal(false);
+    };
+
+    // Function to add payable
+    const addPayable = () => {
+        const newPay: Payable = {
+            ...newPayable,
+            id: `pay-${Date.now()}`,
+            status: new Date(newPayable.dueDate) < new Date() ? 'overdue' : 'pending',
+            daysUntilDue: 0 // Will be calculated when the list is updated
+        };
+        setPayables([...payables, newPay]);
+        setNewPayable({
+            supplier: '',
+            invoiceDate: new Date().toISOString().split('T')[0],
+            dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            amount: 0,
+            discountAvailable: false,
+            category: ''
+        });
+        setShowPayablesModal(false);
+    };
+
+    // Function to update receivables with calculated days overdue
+    const updatedReceivables = useMemo(() => {
+        return receivables.map(rec => {
+            const dueDate = new Date(rec.dueDate);
+            const today = new Date();
+            const timeDiff = today.getTime() - dueDate.getTime();
+            const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
+
+            return {
+                ...rec,
+                daysOverdue: Math.max(0, daysDiff),
+                status: daysDiff > 0 ? 'overdue' : 'pending'
+            };
+        });
+    }, [receivables]);
+
+    // Function to update payables with calculated days until due
+    const updatedPayables = useMemo(() => {
+        return payables.map(pay => {
+            const dueDate = new Date(pay.dueDate);
+            const today = new Date();
+            const timeDiff = dueDate.getTime() - today.getTime();
+            const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
+
+            return {
+                ...pay,
+                daysUntilDue: daysDiff,
+                status: daysDiff < 0 ? 'overdue' : daysDiff <= 7 ? 'pending' : 'pending'
+            };
+        });
+    }, [payables]);
+
+    // Function to add payment term
+    const addPaymentTerm = () => {
+        const newTerm: PaymentTermTemplate = {
+            ...newPaymentTerm,
+            id: `term-${Date.now()}`
+        };
+        setPaymentTermTemplates([...paymentTermTemplates, newTerm]);
+        setNewPaymentTerm({
+            name: '',
+            description: '',
+            terms: '',
+            discountOffered: false,
+            discountPercentage: undefined,
+            discountPeriod: undefined
+        });
+        setShowPaymentTermsModal(false);
+    };
+
+    // Function to check for emergency alerts
+    const checkForAlerts = () => {
+        const newAlerts: CashFlowAlert[] = [];
+
+        // Check for low cash reserves
+        if (monthlyReserve < parseFloat(minReserve)) {
+            newAlerts.push({
+                id: `alert-${Date.now()}-cash`,
+                type: 'low_cash',
+                message: `Cash reserve (${currency}${monthlyReserve}) is below minimum (${currency}${minReserve})`,
+                severity: 'high',
+                date: new Date().toISOString().split('T')[0],
+                resolved: false
+            });
+        }
+
+        // Check for upcoming payments
+        const upcomingPayments = updatedPayables.filter(p => p.daysUntilDue >= 0 && p.daysUntilDue <= 7);
+        if (upcomingPayments.length > 0) {
+            newAlerts.push({
+                id: `alert-${Date.now()}-payment`,
+                type: 'payment_due',
+                message: `${upcomingPayments.length} payment(s) due within 7 days totaling ${currency}${upcomingPayments.reduce((sum, p) => sum + p.amount, 0).toLocaleString()}`,
+                severity: 'medium',
+                date: new Date().toISOString().split('T')[0],
+                resolved: false
+            });
+        }
+
+        // Check for overdue receivables
+        const overdueReceivables = updatedReceivables.filter(r => r.status === 'overdue');
+        if (overdueReceivables.length > 0) {
+            newAlerts.push({
+                id: `alert-${Date.now()}-overdue`,
+                type: 'overdue_invoice',
+                message: `${overdueReceivables.length} invoice(s) overdue totaling ${currency}${overdueReceivables.reduce((sum, r) => sum + r.amount, 0).toLocaleString()}`,
+                severity: 'high',
+                date: new Date().toISOString().split('T')[0],
+                resolved: false
+            });
+        }
+
+        // Update alerts if new ones were found
+        if (newAlerts.length > 0) {
+            setCashFlowAlerts(prev => [...newAlerts, ...prev]);
+        }
+    };
+
+    // Check for alerts when component mounts or when data changes
+    useMemo(() => {
+        checkForAlerts();
+    }, [monthlyReserve, minReserve, updatedPayables, updatedReceivables]);
+
+    const cashFlowForecast = [
+        { month: 'Jan', inflow: finance.income * 1.1, outflow: finance.expense * 1.05 },
+        { month: 'Feb', inflow: finance.income * 1.15, outflow: finance.expense * 1.08 },
+        { month: 'Mar', inflow: finance.income * 1.05, outflow: finance.expense * 1.03 },
+        { month: 'Apr', inflow: finance.income * 1.2, outflow: finance.expense * 1.12 },
+        { month: 'May', inflow: finance.income * 1.18, outflow: finance.expense * 1.1 },
+        { month: 'Jun', inflow: finance.income * 1.12, outflow: finance.expense * 1.07 },
+    ];
+
+    // Calculate overdue receivables total
+    const overdueReceivablesTotal = useMemo(() => {
+        return updatedReceivables.filter(r => r.status === 'overdue').reduce((sum, r) => sum + r.amount, 0);
+    }, [updatedReceivables]);
+
+    // Calculate upcoming payables in next 7 days
+    const upcomingPayablesTotal = useMemo(() => {
+        return updatedPayables.filter(p => p.daysUntilDue >= 0 && p.daysUntilDue <= 7).reduce((sum, p) => sum + p.amount, 0);
+    }, [updatedPayables]);
+
+    return (
+        <ScrollView style={styles.container}>
+            {/* Tab Navigation */}
+            <View style={styles.tabContainer}>
+                <TouchableOpacity
+                    style={[styles.tabButton, activeCashFlowTab === 'dashboard' && styles.activeTabButton]}
+                    onPress={() => setActiveCashFlowTab('dashboard')}
+                >
+                    <Text style={[styles.tabButtonText, activeCashFlowTab === 'dashboard' && styles.activeTabButtonText]}>Dashboard</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={[styles.tabButton, activeCashFlowTab === 'forecast' && styles.activeTabButton]}
+                    onPress={() => setActiveCashFlowTab('forecast')}
+                >
+                    <Text style={[styles.tabButtonText, activeCashFlowTab === 'forecast' && styles.activeTabButtonText]}>Forecast</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={[styles.tabButton, activeCashFlowTab === 'receivables' && styles.activeTabButton]}
+                    onPress={() => setActiveCashFlowTab('receivables')}
+                >
+                    <Text style={[styles.tabButtonText, activeCashFlowTab === 'receivables' && styles.activeTabButtonText]}>Receivables</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={[styles.tabButton, activeCashFlowTab === 'payables' && styles.activeTabButton]}
+                    onPress={() => setActiveCashFlowTab('payables')}
+                >
+                    <Text style={[styles.tabButtonText, activeCashFlowTab === 'payables' && styles.activeTabButtonText]}>Payables</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={[styles.tabButton, activeCashFlowTab === 'reserves' && styles.activeTabButton]}
+                    onPress={() => setActiveCashFlowTab('reserves')}
+                >
+                    <Text style={[styles.tabButtonText, activeCashFlowTab === 'reserves' && styles.activeTabButtonText]}>Reserves</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={[styles.tabButton, activeCashFlowTab === 'terms' && styles.activeTabButton]}
+                    onPress={() => setActiveCashFlowTab('terms')}
+                >
+                    <Text style={[styles.tabButtonText, activeCashFlowTab === 'terms' && styles.activeTabButtonText]}>Terms</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={[styles.tabButton, activeCashFlowTab === 'alerts' && styles.activeTabButton]}
+                    onPress={() => setActiveCashFlowTab('alerts')}
+                >
+                    <Text style={[styles.tabButtonText, activeCashFlowTab === 'alerts' && styles.activeTabButtonText]}>Alerts</Text>
+                </TouchableOpacity>
+            </View>
+
+            {/* Dashboard Tab */}
+            {activeCashFlowTab === 'dashboard' && (
+                <>
+                    <View style={styles.infoCard}>
+                        <Text style={styles.infoTitle}>💧 EFFECTIVE CASH FLOW MANAGEMENT</Text>
+                        <Text style={styles.infoText}>
+                            Effective cash flow management ensures liquidity, supports sustainability, facilitates growth, reduces risk, and enhances credibility.
+                        </Text>
+                        <View style={styles.bulletPoint}>
+                            <Text style={styles.bullet}>•</Text>
+                            <Text style={styles.bulletText}>Ensures Liquidity: Covers daily operational expenses</Text>
+                        </View>
+                        <View style={styles.bulletPoint}>
+                            <Text style={styles.bullet}>•</Text>
+                            <Text style={styles.bulletText}>Supports Sustainability: Weathers economic downturns</Text>
+                        </View>
+                        <View style={styles.bulletPoint}>
+                            <Text style={styles.bullet}>•</Text>
+                            <Text style={styles.bulletText}>Facilitates Growth: Provides capital for expansion</Text>
+                        </View>
+                        <View style={styles.bulletPoint}>
+                            <Text style={styles.bullet}>•</Text>
+                            <Text style={styles.bulletText}>Reduces Risk: Minimizes expensive borrowing</Text>
+                        </View>
+                        <View style={styles.bulletPoint}>
+                            <Text style={styles.bullet}>•</Text>
+                            <Text style={styles.bulletText}>Enhances Credibility: Demonstrates responsibility</Text>
+                        </View>
+                    </View>
+
+                    <View style={styles.card}>
+                        <Text style={styles.cardTitle}>💰 CURRENT CASH POSITION</Text>
+                        <View style={styles.metricRow}>
+                            <Text style={styles.metricLabel}>Monthly Income</Text>
+                            <Text style={styles.positiveText}>{currency}{finance.income.toLocaleString()}</Text>
+                        </View>
+                        <View style={styles.metricRow}>
+                            <Text style={styles.metricLabel}>Monthly Expenses</Text>
+                            <Text style={styles.negativeText}>{currency}{finance.expense.toLocaleString()}</Text>
+                        </View>
+                        <View style={styles.metricRow}>
+                            <Text style={styles.metricLabel}>Monthly Cash Flow</Text>
+                            <Text style={monthlyCashFlow >= 0 ? styles.positiveText : styles.negativeText}>
+                                {monthlyCashFlow >= 0 ? '+' : ''}{currency}{monthlyCashFlow.toLocaleString()}
+                            </Text>
+                        </View>
+                        <View style={styles.metricRow}>
+                            <Text style={styles.metricLabel}>Cash Reserve</Text>
+                            <Text style={styles.normalText}>{currency}{monthlyReserve.toLocaleString()}</Text>
+                        </View>
+                        <View style={styles.metricRow}>
+                            <Text style={styles.metricLabel}>Liquidity Ratio</Text>
+                            <Text style={liquidityRatio >= 1 ? styles.positiveText : styles.negativeText}>
+                                {liquidityRatio.toFixed(2)}:1
+                            </Text>
+                        </View>
+                        <View style={styles.metricRow}>
+                            <Text style={styles.metricLabel}>Days of Coverage</Text>
+                            <Text style={cashReserveDays >= 30 ? styles.positiveText : styles.negativeText}>
+                                {cashReserveDays} days
+                            </Text>
+                        </View>
+                    </View>
+
+                    {/* SME-Specific Metrics */}
+                    <View style={styles.card}>
+                        <Text style={styles.cardTitle}>📈 SME CASH METRICS</Text>
+                        <View style={styles.metricRow}>
+                            <Text style={styles.metricLabel}>Cash Runway</Text>
+                            <Text style={cashRunway < alertThreshold ? styles.negativeText : cashRunway < 60 ? styles.warningText : styles.positiveText}>
+                                {cashRunway === 999 ? '∞' : `${cashRunway} days`}
+                            </Text>
+                        </View>
+                        <View style={styles.metricRow}>
+                            <Text style={styles.metricLabel}>Burn Rate</Text>
+                            <Text style={burnRate > 0 ? styles.negativeText : styles.positiveText}>
+                                {burnRate > 0 ? '-' : '+'}{currency}{burnRate.toLocaleString()}/mo
+                            </Text>
+                        </View>
+                        <View style={styles.metricRow}>
+                            <Text style={styles.metricLabel}>Cash Conversion Cycle</Text>
+                            <Text style={cashConversionCycle >= 0 ? styles.positiveText : styles.negativeText}>
+                                {cashConversionCycle} days
+                            </Text>
+                        </View>
+                        <View style={styles.metricRow}>
+                            <Text style={styles.metricLabel}>Overdue Receivables</Text>
+                            <Text style={styles.negativeText}>{currency}{overdueReceivablesTotal.toLocaleString()}</Text>
+                        </View>
+                        <View style={styles.metricRow}>
+                            <Text style={styles.metricLabel}>Upcoming Payables (7d)</Text>
+                            <Text style={styles.negativeText}>{currency}{upcomingPayablesTotal.toLocaleString()}</Text>
+                        </View>
+                    </View>
+                </>
+            )}
+
+            {/* Forecast Tab */}
+            {activeCashFlowTab === 'forecast' && (
+                <View style={styles.card}>
+                    <Text style={styles.cardTitle}>🔮 13-WEEK CASH FLOW FORECAST</Text>
+                    <Text style={styles.sectionSubtitle}>Projected cash position based on selected scenario</Text>
+
+                    <View style={styles.scenarioSelector}>
+                        <Text style={styles.metricLabel}>Scenario:</Text>
+                        {cashFlowScenarios.map(scenario => (
+                            <TouchableOpacity
+                                key={scenario.id}
+                                style={[styles.scenarioButton, selectedScenario === scenario.id && styles.activeScenarioButton]}
+                                onPress={() => setSelectedScenario(scenario.id)}
+                            >
+                                <Text style={[styles.scenarioButtonText, selectedScenario === scenario.id && styles.activeScenarioButtonText]}>
+                                    {scenario.name}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+
+                    <View style={styles.tableHeader}>
+                        <Text style={styles.columnHeader}>Week</Text>
+                        <Text style={styles.columnHeader}>Date</Text>
+                        <Text style={styles.columnHeader}>Income</Text>
+                        <Text style={styles.columnHeader}>Expense</Text>
+                        <Text style={styles.columnHeader}>Net</Text>
+                        <Text style={styles.columnHeader}>Balance</Text>
+                    </View>
+                    {thirteenWeekCashForecast.weeks.map((week, index) => (
+                        <View key={index} style={[styles.tableRow, week.isBelowSafety && styles.alertRow]}>
+                            <Text style={styles.cell}>{week.week}</Text>
+                            <Text style={styles.cell}>{week.date}</Text>
+                            <Text style={styles.positiveTextSmall}>{currency}{week.income.toLocaleString()}</Text>
+                            <Text style={styles.negativeTextSmall}>{currency}{week.expense.toLocaleString()}</Text>
+                            <Text style={week.net >= 0 ? styles.positiveTextSmall : styles.negativeTextSmall}>
+                                {week.net >= 0 ? '+' : ''}{currency}{week.net.toLocaleString()}
+                            </Text>
+                            <Text style={week.isBelowSafety ? styles.negativeTextSmall : styles.normalTextSmall}>
+                                {currency}{week.balance.toLocaleString()}
+                            </Text>
+                        </View>
+                    ))}
+                </View>
+            )}
+
+            {/* Receivables Tab */}
+            {activeCashFlowTab === 'receivables' && (
+                <View style={styles.card}>
+                    <View style={styles.rowBetween}>
+                        <Text style={styles.cardTitle}>💳 RECEIVABLES TRACKER</Text>
+                        <TouchableOpacity style={styles.addButton} onPress={() => setShowReceivablesModal(true)}>
+                            <Text style={styles.buttonText}>+ Add</Text>
+                        </TouchableOpacity>
+                    </View>
+                    <Text style={styles.sectionSubtitle}>Track outstanding customer payments</Text>
+
+                    {/* Aging Buckets */}
+                    <View style={styles.agingBuckets}>
+                        <View style={styles.agingBucket}>
+                            <Text style={styles.agingBucketTitle}>Current (0-30d)</Text>
+                            <Text style={styles.agingBucketValue}>
+                                {currency}{updatedReceivables.filter(r => r.status === 'pending' && r.daysOverdue <= 30).reduce((sum, r) => sum + r.amount, 0).toLocaleString()}
+                            </Text>
+                        </View>
+                        <View style={styles.agingBucket}>
+                            <Text style={styles.agingBucketTitle}>31-60d Overdue</Text>
+                            <Text style={styles.agingBucketValue}>
+                                {currency}{updatedReceivables.filter(r => r.daysOverdue > 30 && r.daysOverdue <= 60).reduce((sum, r) => sum + r.amount, 0).toLocaleString()}
+                            </Text>
+                        </View>
+                        <View style={styles.agingBucket}>
+                            <Text style={styles.agingBucketTitle}>61-90d Overdue</Text>
+                            <Text style={styles.agingBucketValue}>
+                                {currency}{updatedReceivables.filter(r => r.daysOverdue > 60 && r.daysOverdue <= 90).reduce((sum, r) => sum + r.amount, 0).toLocaleString()}
+                            </Text>
+                        </View>
+                        <View style={styles.agingBucket}>
+                            <Text style={styles.agingBucketTitle}>90d+ Overdue</Text>
+                            <Text style={[styles.agingBucketValue, styles.negativeText]}>
+                                {currency}{updatedReceivables.filter(r => r.daysOverdue > 90).reduce((sum, r) => sum + r.amount, 0).toLocaleString()}
+                            </Text>
+                        </View>
+                    </View>
+
+                    {/* Receivables List */}
+                    <View style={styles.tableHeader}>
+                        <Text style={styles.columnHeader}>Customer</Text>
+                        <Text style={styles.columnHeader}>Amount</Text>
+                        <Text style={styles.columnHeader}>Due Date</Text>
+                        <Text style={styles.columnHeader}>Days</Text>
+                        <Text style={styles.columnHeader}>Status</Text>
+                    </View>
+                    {updatedReceivables.map((receivable, index) => (
+                        <View key={index} style={styles.tableRow}>
+                            <Text style={styles.cell}>{receivable.customer}</Text>
+                            <Text style={styles.positiveTextSmall}>{currency}{receivable.amount.toLocaleString()}</Text>
+                            <Text style={styles.cell}>{receivable.dueDate}</Text>
+                            <Text style={receivable.daysOverdue > 0 ? styles.negativeTextSmall : styles.positiveTextSmall}>
+                                {receivable.daysOverdue > 0 ? `+${receivable.daysOverdue}` : receivable.daysOverdue}
+                            </Text>
+                            <Text style={
+                                receivable.status === 'paid' ? styles.positiveTextSmall :
+                                    receivable.status === 'overdue' ? styles.negativeTextSmall :
+                                        styles.warningTextSmall
+                            }>
+                                {receivable.status}
+                            </Text>
+                        </View>
+                    ))}
+                </View>
+            )}
+
+            {/* Payables Tab */}
+            {activeCashFlowTab === 'payables' && (
+                <View style={styles.card}>
+                    <View style={styles.rowBetween}>
+                        <Text style={styles.cardTitle}>💸 PAYABLES MANAGER</Text>
+                        <TouchableOpacity style={styles.addButton} onPress={() => setShowPayablesModal(true)}>
+                            <Text style={styles.buttonText}>+ Add</Text>
+                        </TouchableOpacity>
+                    </View>
+                    <Text style={styles.sectionSubtitle}>Manage upcoming supplier payments</Text>
+
+                    {/* Upcoming Payments Calendar */}
+                    <View style={styles.upcomingPayments}>
+                        <Text style={styles.sectionSubtitle}>Next 30 Days</Text>
+                        {updatedPayables.filter(p => p.daysUntilDue >= 0 && p.daysUntilDue <= 30).slice(0, 3).map((payable, index) => (
+                            <View key={index} style={styles.paymentItem}>
+                                <View style={styles.paymentInfo}>
+                                    <Text style={styles.paymentSupplier}>{payable.supplier}</Text>
+                                    <Text style={styles.paymentAmount}>{currency}{payable.amount.toLocaleString()}</Text>
+                                </View>
+                                <Text style={payable.daysUntilDue <= 7 ? styles.negativeTextSmall : styles.normalTextSmall}>
+                                    {payable.daysUntilDue} days
+                                </Text>
+                                {payable.discountAvailable && (
+                                    <Text style={styles.discountBadge}>2% off if paid in 10d</Text>
+                                )}
+                            </View>
+                        ))}
+                    </View>
+
+                    {/* Payment Optimization */}
+                    <View style={styles.optimizationSection}>
+                        <Text style={styles.optimizationTitle}>Payment Optimization</Text>
+                        <Text style={styles.optimizationDescription}>
+                            Opportunities to save money by taking advantage of early payment discounts
+                        </Text>
+                        <View style={styles.optimizationContent}>
+                            <Text style={styles.positiveTextSmall}>
+                                Potential savings: {currency}{updatedPayables.filter(p => p.discountAvailable).reduce((sum, p) => sum + (p.amount * 0.02), 0).toFixed(2)}
+                            </Text>
+                        </View>
+                    </View>
+
+                    {/* Payables List */}
+                    <View style={styles.tableHeader}>
+                        <Text style={styles.columnHeader}>Supplier</Text>
+                        <Text style={styles.columnHeader}>Amount</Text>
+                        <Text style={styles.columnHeader}>Due Date</Text>
+                        <Text style={styles.columnHeader}>Days</Text>
+                        <Text style={styles.columnHeader}>Status</Text>
+                    </View>
+                    {updatedPayables.map((payable, index) => (
+                        <View key={index} style={styles.tableRow}>
+                            <Text style={styles.cell}>{payable.supplier}</Text>
+                            <Text style={styles.negativeTextSmall}>{currency}{payable.amount.toLocaleString()}</Text>
+                            <Text style={styles.cell}>{payable.dueDate}</Text>
+                            <Text style={payable.daysUntilDue > 0 ? styles.warningTextSmall : styles.negativeTextSmall}>
+                                {payable.daysUntilDue > 0 ? `-${payable.daysUntilDue}` : `+${Math.abs(payable.daysUntilDue)}`}
+                            </Text>
+                            <Text style={
+                                payable.status === 'paid' ? styles.positiveTextSmall :
+                                    payable.status === 'overdue' ? styles.negativeTextSmall :
+                                        payable.daysUntilDue <= 7 ? styles.warningTextSmall :
+                                            styles.normalTextSmall
+                            }>
+                                {payable.status}
+                            </Text>
+                        </View>
+                    ))}
+                </View>
+            )}
+
+            {/* Reserves Tab */}
+            {activeCashFlowTab === 'reserves' && (
+                <View style={styles.card}>
+                    <Text style={styles.cardTitle}>🛡️ CASH RESERVE MONITOR</Text>
+                    <Text style={styles.sectionSubtitle}>Track progress toward financial goals</Text>
+
+                    {cashReserveGoals.map((goal, index) => {
+                        const progress = (goal.currentAmount / goal.targetAmount) * 100;
+                        return (
+                            <View key={index} style={styles.goalCard}>
+                                <View style={styles.rowBetween}>
+                                    <Text style={styles.goalTitle}>{goal.title}</Text>
+                                    <Text style={styles.goalAmount}>{currency}{goal.currentAmount.toLocaleString()} / {currency}{goal.targetAmount.toLocaleString()}</Text>
+                                </View>
+                                <View style={styles.progressBar}>
+                                    <View style={[styles.progressFill, { width: `${Math.min(progress, 100)}%` }]} />
+                                </View>
+                                <Text style={styles.goalProgress}>{progress.toFixed(1)}% complete</Text>
+                                <Text style={styles.goalDeadline}>Deadline: {goal.deadline}</Text>
+                            </View>
+                        );
+                    })}
+
+                    <View style={styles.reserveCalculation}>
+                        <Text style={styles.sectionSubtitle}>Monthly Savings Needed</Text>
+                        {cashReserveGoals.map((goal, index) => {
+                            const monthsLeft = Math.max(1, Math.ceil((new Date(goal.deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24 * 30)));
+                            const amountNeeded = goal.targetAmount - goal.currentAmount;
+                            const monthlySavings = amountNeeded / monthsLeft;
+
+                            return (
+                                <View key={index} style={styles.monthlySavingsItem}>
+                                    <Text style={styles.monthlySavingsGoal}>{goal.title}</Text>
+                                    <Text style={styles.monthlySavingsAmount}>{currency}{monthlySavings.toLocaleString()}/mo</Text>
+                                </View>
+                            );
+                        })}
+                    </View>
+                </View>
+            )}
+
+            {/* Continue with existing optimization techniques */}
+            <View style={styles.card}>
+                <Text style={styles.cardTitle}>📊 EXPENSE CONTROL</Text>
+                <Text style={styles.sectionSubtitle}>Monitor and control operating expenses</Text>
+                <View style={styles.metricRow}>
+                    <Text style={styles.metricLabel}>Expense Control Ratio</Text>
+                    <Text style={finance.expense <= finance.income * 0.7 ? styles.positiveText : styles.negativeText}>
+                        {finance.expense <= finance.income * 0.7 ? 'Good' : 'Needs Attention'}
+                    </Text>
+                </View>
+                <View style={styles.metricRow}>
+                    <Text style={styles.metricLabel}>Operating Expense Ratio</Text>
+                    <Text style={styles.normalText}>{((finance.expense / finance.income) * 100).toFixed(2)}%</Text>
+                </View>
+            </View>
+
+            <View style={styles.card}>
+                <Text style={styles.cardTitle}>🛡️ CASH RESERVES</Text>
+                <Text style={styles.sectionSubtitle}>Maintain reserves for unexpected expenses</Text>
+                <View style={styles.metricRow}>
+                    <Text style={styles.metricLabel}>Cash Buffer Ratio</Text>
+                    <Text style={monthlyReserve >= finance.expense ? styles.positiveText : styles.negativeText}>
+                        {((monthlyReserve / finance.expense) * 100).toFixed(2)}% of monthly expenses
+                    </Text>
+                </View>
+                <View style={styles.metricRow}>
+                    <Text style={styles.metricLabel}>Emergency Fund Status</Text>
+                    <Text style={cashReserveDays >= 60 ? styles.positiveText : cashReserveDays >= 30 ? styles.warningText : styles.negativeText}>
+                        {cashReserveDays >= 60 ? 'Strong' : cashReserveDays >= 30 ? 'Adequate' : 'Insufficient'}
+                    </Text>
+                </View>
+            </View>
+
+            <View style={styles.infoCard}>
+                <Text style={styles.infoTitle}>⚙️ OPTIMIZATION TECHNIQUES</Text>
+
+                {/* Cash Flow Forecasting */}
+                <View style={styles.optimizationSection}>
+                    <View style={styles.optimizationHeader}>
+                        <Text style={styles.optimizationTitle}>Cash Flow Forecasting</Text>
+                        <TouchableOpacity
+                            style={styles.expandButton}
+                            onPress={() => toggleOptimization('forecasting')}
+                        >
+                            <Text style={styles.expandText}>{expandedOptimizations.forecasting ? '−' : '+'}</Text>
+                        </TouchableOpacity>
+                    </View>
+                    {expandedOptimizations.forecasting && (
+                        <View style={styles.optimizationContent}>
+                            <Text style={styles.optimizationDescription}>Anticipate inflows/outflows to prepare for future cash needs</Text>
+
+                            <View style={styles.forecastControls}>
+                                <View style={styles.forecastInput}>
+                                    <Text style={styles.label}>Upcoming Revenue ($):</Text>
+                                    <TextInput
+                                        style={styles.input}
+                                        value={upcomingRevenue.toString()}
+                                        onChangeText={setUpcomingRevenue}
+                                        keyboardType="numeric"
+                                    />
+                                </View>
+
+                                <View style={styles.forecastInput}>
+                                    <Text style={styles.label}>Upcoming Expenses ($):</Text>
+                                    <TextInput
+                                        style={styles.input}
+                                        value={upcomingExpenses.toString()}
+                                        onChangeText={setUpcomingExpenses}
+                                        keyboardType="numeric"
+                                    />
+                                </View>
+
+                                <TouchableOpacity
+                                    style={styles.calculateButton}
+                                    onPress={calculateForecast}
+                                >
+                                    <Text style={styles.buttonText}>Calculate Forecast</Text>
+                                </TouchableOpacity>
+
+                                {forecastResult !== null && (
+                                    <View style={styles.forecastResult}>
+                                        <Text style={styles.forecastText}>
+                                            Projected Cash Flow: {forecastResult >= 0 ? '+' : ''}${forecastResult.toFixed(2)}
+                                        </Text>
+                                        <Text style={forecastResult >= 0 ? styles.positiveText : styles.negativeText}>
+                                            {forecastResult >= 0 ? 'Positive' : 'Negative'} outlook
+                                        </Text>
+                                    </View>
+                                )}
+                            </View>
+                        </View>
+                    )}
+
+                    {/* PAYMENT TERMS MANAGER TAB */}
+                    {activeCashFlowTab === 'terms' && (
+                        <View style={styles.infoCard}>
+                            <Text style={styles.infoTitle}>📋 PAYMENT TERMS MANAGER</Text>
+                            <Text style={styles.infoText}>
+                                Manage payment terms templates and apply them to invoices for improved cash flow.
+                            </Text>
+
+                            <TouchableOpacity style={styles.addButton} onPress={() => setShowPaymentTermsModal(true)}>
+                                <Text style={styles.btnText}>+ Add Payment Term Template</Text>
+                            </TouchableOpacity>
+
+                            {/* Payment Terms List */}
+                            <View style={{ marginTop: 16 }}>
+                                <Text style={styles.cardTitle}>PAYMENT TERM TEMPLATES</Text>
+                                {paymentTermTemplates.map((template) => (
+                                    <View key={template.id} style={styles.goalCard}>
+                                        <View style={styles.rowBetween}>
+                                            <Text style={styles.goalTitle}>{template.name}</Text>
+                                            {template.discountOffered && (
+                                                <Text style={styles.discountBadge}>
+                                                    {template.discountPercentage}% discount in {template.discountPeriod} days
+                                                </Text>
+                                            )}
+                                        </View>
+                                        <Text style={styles.goalAmount}>{template.terms}</Text>
+                                        <Text style={styles.normalTextSmall}>{template.description}</Text>
+                                    </View>
+                                ))}
+                            </View>
+
+                            {/* Payment Terms Analysis */}
+                            <View style={styles.card}>
+                                <Text style={styles.cardTitle}>PAYMENT TERMS ANALYSIS</Text>
+                                <View style={styles.metricRow}>
+                                    <Text style={styles.metricLabel}>Avg. Collection Period</Text>
+                                    <Text style={styles.normalText}>32 days</Text>
+                                </View>
+                                <View style={styles.metricRow}>
+                                    <Text style={styles.metricLabel}>Early Payment Rate</Text>
+                                    <Text style={styles.positiveText}>15%</Text>
+                                </View>
+                                <View style={styles.metricRow}>
+                                    <Text style={styles.metricLabel}>Discount Utilization</Text>
+                                    <Text style={styles.positiveText}>22%</Text>
+                                </View>
+                            </View>
+                        </View>
+                    )}
+
+                    {/* EMERGENCY ALERTS TAB */}
+                    {activeCashFlowTab === 'alerts' && (
+                        <View style={styles.infoCard}>
+                            <Text style={styles.infoTitle}>🚨 EMERGENCY ALERTS & NOTIFICATIONS</Text>
+                            <Text style={styles.infoText}>
+                                Monitor critical cash flow events and receive timely notifications to prevent financial distress.
+                            </Text>
+
+                            {/* Alert Threshold Configuration */}
+                            <View style={styles.card}>
+                                <Text style={styles.cardTitle}>CONFIGURE ALERT THRESHOLDS</Text>
+                                <View style={styles.formGroup}>
+                                    <Text style={styles.label}>Cash Runway Threshold (days)</Text>
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="Enter threshold in days"
+                                        placeholderTextColor="#64748b"
+                                        keyboardType="numeric"
+                                        value={alertThreshold.toString()}
+                                        onChangeText={(text) => setAlertThreshold(parseInt(text) || 30)}
+                                    />
+                                </View>
+                            </View>
+
+                            {/* Active Alerts */}
+                            <View style={{ marginTop: 16 }}>
+                                <Text style={styles.cardTitle}>ACTIVE ALERTS</Text>
+                                {cashFlowAlerts.filter(alert => !alert.resolved).map((alert) => (
+                                    <View
+                                        key={alert.id}
+                                        style={[
+                                            styles.goalCard,
+                                            alert.severity === 'high' ? styles.alertRow : {}
+                                        ]}
+                                    >
+                                        <View style={styles.rowBetween}>
+                                            <Text style={[
+                                                styles.goalTitle,
+                                                alert.severity === 'high' ? styles.negativeText :
+                                                    alert.severity === 'medium' ? styles.warningText :
+                                                        styles.normalText
+                                            ]}>
+                                                {alert.type === 'low_cash' && '💰 Low Cash Reserve'}
+                                                {alert.type === 'payment_due' && '📅 Payment Due Soon'}
+                                                {alert.type === 'overdue_invoice' && '⚠️ Overdue Invoice'}
+                                                {alert.type === 'high_expense' && '📈 High Expense Alert'}
+                                            </Text>
+                                            <Text style={styles.normalTextSmall}>{alert.date}</Text>
+                                        </View>
+                                        <Text style={styles.normalTextSmall}>{alert.message}</Text>
+                                    </View>
+                                ))}
+
+                                {cashFlowAlerts.filter(alert => !alert.resolved).length === 0 && (
+                                    <Text style={styles.normalText}>No active alerts at this time.</Text>
+                                )}
+                            </View>
+
+                            {/* Alert History */}
+                            <View style={{ marginTop: 16 }}>
+                                <Text style={styles.cardTitle}>ALERT HISTORY</Text>
+                                {cashFlowAlerts.slice(0, 5).map((alert) => (
+                                    <View key={alert.id} style={styles.goalCard}>
+                                        <View style={styles.rowBetween}>
+                                            <Text style={styles.goalTitle}>
+                                                {alert.type === 'low_cash' && '💰 Low Cash Reserve'}
+                                                {alert.type === 'payment_due' && '📅 Payment Due Soon'}
+                                                {alert.type === 'overdue_invoice' && '⚠️ Overdue Invoice'}
+                                                {alert.type === 'high_expense' && '📈 High Expense Alert'}
+                                            </Text>
+                                            <Text style={[
+                                                alert.severity === 'high' ? styles.negativeText :
+                                                    alert.severity === 'medium' ? styles.warningText :
+                                                        styles.positiveText
+                                            ]}>
+                                                {alert.severity.toUpperCase()}
+                                            </Text>
+                                        </View>
+                                        <Text style={styles.normalTextSmall}>{alert.message}</Text>
+                                        <Text style={styles.normalTextSmall}>Date: {alert.date}</Text>
+                                    </View>
+                                ))}
+                            </View>
+                        </View>
+                    )}
+                </View>
+
+                {/* Expense Control */}
+                <View style={styles.optimizationSection}>
+                    <View style={styles.optimizationHeader}>
+                        <Text style={styles.optimizationTitle}>Expense Control</Text>
+                        <TouchableOpacity
+                            style={styles.expandButton}
+                            onPress={() => toggleOptimization('expenseControl')}
+                        >
+                            <Text style={styles.expandText}>{expandedOptimizations.expenseControl ? '−' : '+'}</Text>
+                        </TouchableOpacity>
+                    </View>
+                    {expandedOptimizations.expenseControl && (
+                        <View style={styles.optimizationContent}>
+                            <Text style={styles.optimizationDescription}>Prevent unnecessary outflows by monitoring and categorizing expenses</Text>
+                        </View>
+                    )}
+                </View>
+
+                {/* Invoice Management */}
+                <View style={styles.optimizationSection}>
+                    <View style={styles.optimizationHeader}>
+                        <Text style={styles.optimizationTitle}>Invoice Management</Text>
+                        <TouchableOpacity
+                            style={styles.expandButton}
+                            onPress={() => toggleOptimization('invoiceManagement')}
+                        >
+                            <Text style={styles.expandText}>{expandedOptimizations.invoiceManagement ? '−' : '+'}</Text>
+                        </TouchableOpacity>
+                    </View>
+                    {expandedOptimizations.invoiceManagement && (
+                        <View style={styles.optimizationContent}>
+                            <Text style={styles.optimizationDescription}>Accelerate collections by tracking outstanding invoices</Text>
+                        </View>
+                    )}
+                </View>
+
+                {/* Inventory Management */}
+                <View style={styles.optimizationSection}>
+                    <View style={styles.optimizationHeader}>
+                        <Text style={styles.optimizationTitle}>Inventory Management</Text>
+                        <TouchableOpacity
+                            style={styles.expandButton}
+                            onPress={() => toggleOptimization('inventory')}
+                        >
+                            <Text style={styles.expandText}>{expandedOptimizations.inventory ? '−' : '+'}</Text>
+                        </TouchableOpacity>
+                    </View>
+                    {expandedOptimizations.inventory && (
+                        <View style={styles.optimizationContent}>
+                            <Text style={styles.optimizationDescription}>Reduce carrying costs by optimizing inventory levels</Text>
+                        </View>
+                    )}
+                </View>
+
+                {/* Debt Management */}
+                <View style={styles.optimizationSection}>
+                    <View style={styles.optimizationHeader}>
+                        <Text style={styles.optimizationTitle}>Debt Management</Text>
+                        <TouchableOpacity
+                            style={styles.expandButton}
+                            onPress={() => toggleOptimization('debt')}
+                        >
+                            <Text style={styles.expandText}>{expandedOptimizations.debt ? '−' : '+'}</Text>
+                        </TouchableOpacity>
+                    </View>
+                    {expandedOptimizations.debt && (
+                        <View style={styles.optimizationContent}>
+                            <Text style={styles.optimizationDescription}>Negotiate favorable terms to optimize debt obligations</Text>
+                        </View>
+                    )}
+                </View>
+
+                {/* Payment Terms */}
+                <View style={styles.optimizationSection}>
+                    <View style={styles.optimizationHeader}>
+                        <Text style={styles.optimizationTitle}>Payment Terms</Text>
+                        <TouchableOpacity
+                            style={styles.expandButton}
+                            onPress={() => toggleOptimization('paymentTerms')}
+                        >
+                            <Text style={styles.expandText}>{expandedOptimizations.paymentTerms ? '−' : '+'}</Text>
+                        </TouchableOpacity>
+                    </View>
+                    {expandedOptimizations.paymentTerms && (
+                        <View style={styles.optimizationContent}>
+                            <Text style={styles.optimizationDescription}>Optimize collections by managing payment terms</Text>
+                        </View>
+                    )}
+                </View>
+
+                {/* Short-Term Financing */}
+                <View style={styles.optimizationSection}>
+                    <View style={styles.optimizationHeader}>
+                        <Text style={styles.optimizationTitle}>Short-Term Financing</Text>
+                        <TouchableOpacity
+                            style={styles.expandButton}
+                            onPress={() => toggleOptimization('financing')}
+                        >
+                            <Text style={styles.expandText}>{expandedOptimizations.financing ? '−' : '+'}</Text>
+                        </TouchableOpacity>
+                    </View>
+                    {expandedOptimizations.financing && (
+                        <View style={styles.optimizationContent}>
+                            <Text style={styles.optimizationDescription}>Consider credit lines to bridge temporary cash gaps</Text>
+                        </View>
+                    )}
+                </View>
+
+                {/* Investing Idle Cash */}
+                <View style={styles.optimizationSection}>
+                    <View style={styles.optimizationHeader}>
+                        <Text style={styles.optimizationTitle}>Investing Idle Cash</Text>
+                        <TouchableOpacity
+                            style={styles.expandButton}
+                            onPress={() => toggleOptimization('investments')}
+                        >
+                            <Text style={styles.expandText}>{expandedOptimizations.investments ? '−' : '+'}</Text>
+                        </TouchableOpacity>
+                    </View>
+                    {expandedOptimizations.investments && (
+                        <View style={styles.optimizationContent}>
+                            <Text style={styles.optimizationDescription}>Earn returns safely on excess cash reserves</Text>
+                        </View>
+                    )}
+                </View>
+
+                {/* Regular Analysis */}
+                <View style={styles.optimizationSection}>
+                    <View style={styles.optimizationHeader}>
+                        <Text style={styles.optimizationTitle}>Regular Analysis</Text>
+                        <TouchableOpacity
+                            style={styles.expandButton}
+                            onPress={() => toggleOptimization('analysis')}
+                        >
+                            <Text style={styles.expandText}>{expandedOptimizations.analysis ? '−' : '+'}</Text>
+                        </TouchableOpacity>
+                    </View>
+                    {expandedOptimizations.analysis && (
+                        <View style={styles.optimizationContent}>
+                            <Text style={styles.optimizationDescription}>Review and adjust strategies regularly for optimal performance</Text>
+                        </View>
+                    )}
+                </View>
+            </View>
+
+            <View style={styles.card}>
+                <Text style={styles.cardTitle}>💡 RECOMMENDATIONS</Text>
+                {monthlyCashFlow < 0 && <Text style={styles.recommendationText}>⚠️ Negative cash flow - reduce expenses or increase revenue</Text>}
+                {cashReserveDays < 30 && <Text style={styles.recommendationText}>⚠️ Low reserves - build emergency fund for 30-60 days</Text>}
+                {finance.expense > finance.income * 0.8 && <Text style={styles.recommendationText}>⚠️ High expense ratio - focus on expense control</Text>}
+                <Text style={styles.recommendationText}>✓ Monitor cash flow weekly and update forecasts</Text>
+                <Text style={styles.recommendationText}>✓ Negotiate better payment terms with suppliers</Text>
+                <Text style={styles.recommendationText}>✓ Maintain adequate cash reserves for unexpected expenses</Text>
+            </View>
+
+            {/* RECEIVABLES MODAL */}
+            <Modal
+                backdropTransitionOutTiming={0}
+                isVisible={showReceivablesModal}
+                onBackdropPress={() => setShowReceivablesModal(false)}
+                onSwipeComplete={() => setShowReceivablesModal(false)}
+                swipeDirection={['down']}
+                style={styles.modalContainer}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>Add New Receivable</Text>
+
+                        <View style={styles.formGroup}>
+                            <Text style={styles.modalLabel}>Customer</Text>
+                            <TextInput
+                                style={styles.modalInput}
+                                placeholder="Enter customer name"
+                                placeholderTextColor="#64748b"
+                                value={newReceivable.customer}
+                                onChangeText={(text) => setNewReceivable({ ...newReceivable, customer: text })}
+                            />
+                        </View>
+
+                        <View style={styles.formGroup}>
+                            <Text style={styles.modalLabel}>Amount ($)</Text>
+                            <TextInput
+                                style={styles.modalInput}
+                                placeholder="0.00"
+                                placeholderTextColor="#64748b"
+                                keyboardType="numeric"
+                                value={newReceivable.amount.toString()}
+                                onChangeText={(text) => setNewReceivable({ ...newReceivable, amount: parseFloat(text) || 0 })}
+                            />
+                        </View>
+
+                        <View style={styles.formGroup}>
+                            <Text style={styles.modalLabel}>Invoice Date</Text>
+                            <TextInput
+                                style={styles.modalInput}
+                                placeholder="YYYY-MM-DD"
+                                placeholderTextColor="#64748b"
+                                value={newReceivable.invoiceDate}
+                                onChangeText={(text) => setNewReceivable({ ...newReceivable, invoiceDate: text })}
+                            />
+                        </View>
+
+                        <View style={styles.formGroup}>
+                            <Text style={styles.modalLabel}>Due Date</Text>
+                            <TextInput
+                                style={styles.modalInput}
+                                placeholder="YYYY-MM-DD"
+                                placeholderTextColor="#64748b"
+                                value={newReceivable.dueDate}
+                                onChangeText={(text) => setNewReceivable({ ...newReceivable, dueDate: text })}
+                            />
+                        </View>
+
+                        <View style={styles.formGroup}>
+                            <Text style={styles.modalLabel}>Payment Terms</Text>
+                            <TextInput
+                                style={styles.modalInput}
+                                placeholder="e.g., Net 30"
+                                placeholderTextColor="#64748b"
+                                value={newReceivable.paymentTerms}
+                                onChangeText={(text) => setNewReceivable({ ...newReceivable, paymentTerms: text })}
+                            />
+                        </View>
+
+                        <View style={styles.modalBtns}>
+                            <TouchableOpacity style={[styles.primaryBtn, { flex: 1, backgroundColor: '#475569', marginRight: 10 }]} onPress={() => setShowReceivablesModal(false)}>
+                                <Text style={styles.btnText}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.primaryBtn, { flex: 1, backgroundColor: '#10b981' }]} onPress={addReceivable}>
+                                <Text style={styles.btnText}>Add Receivable</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* PAYABLES MODAL */}
+            <Modal
+                backdropTransitionOutTiming={0}
+                isVisible={showPayablesModal}
+                onBackdropPress={() => setShowPayablesModal(false)}
+                onSwipeComplete={() => setShowPayablesModal(false)}
+                swipeDirection={['down']}
+                style={styles.modalContainer}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>Add New Payable</Text>
+
+                        <View style={styles.formGroup}>
+                            <Text style={styles.modalLabel}>Supplier</Text>
+                            <TextInput
+                                style={styles.modalInput}
+                                placeholder="Enter supplier name"
+                                placeholderTextColor="#64748b"
+                                value={newPayable.supplier}
+                                onChangeText={(text) => setNewPayable({ ...newPayable, supplier: text })}
+                            />
+                        </View>
+
+                        <View style={styles.formGroup}>
+                            <Text style={styles.modalLabel}>Amount ($)</Text>
+                            <TextInput
+                                style={styles.modalInput}
+                                placeholder="0.00"
+                                placeholderTextColor="#64748b"
+                                keyboardType="numeric"
+                                value={newPayable.amount.toString()}
+                                onChangeText={(text) => setNewPayable({ ...newPayable, amount: parseFloat(text) || 0 })}
+                            />
+                        </View>
+
+                        <View style={styles.formGroup}>
+                            <Text style={styles.modalLabel}>Invoice Date</Text>
+                            <TextInput
+                                style={styles.modalInput}
+                                placeholder="YYYY-MM-DD"
+                                placeholderTextColor="#64748b"
+                                value={newPayable.invoiceDate}
+                                onChangeText={(text) => setNewPayable({ ...newPayable, invoiceDate: text })}
+                            />
+                        </View>
+
+                        <View style={styles.formGroup}>
+                            <Text style={styles.modalLabel}>Due Date</Text>
+                            <TextInput
+                                style={styles.modalInput}
+                                placeholder="YYYY-MM-DD"
+                                placeholderTextColor="#64748b"
+                                value={newPayable.dueDate}
+                                onChangeText={(text) => setNewPayable({ ...newPayable, dueDate: text })}
+                            />
+                        </View>
+
+                        <View style={styles.formGroup}>
+                            <Text style={styles.modalLabel}>Category</Text>
+                            <TextInput
+                                style={styles.modalInput}
+                                placeholder="e.g., IT Services, Supplies"
+                                placeholderTextColor="#64748b"
+                                value={newPayable.category}
+                                onChangeText={(text) => setNewPayable({ ...newPayable, category: text })}
+                            />
+                        </View>
+
+                        <View style={styles.formGroup}>
+                            <Text style={styles.modalLabel}>Discount Available</Text>
+                            <TouchableOpacity
+                                style={[styles.actionBtn, { width: '100%' }]}
+                                onPress={() => setNewPayable({ ...newPayable, discountAvailable: !newPayable.discountAvailable })}
+                            >
+                                <Text style={styles.actionBtnText}>
+                                    {newPayable.discountAvailable ? 'Yes (2% if paid within 10 days)' : 'No Discount'}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.modalBtns}>
+                            <TouchableOpacity style={[styles.primaryBtn, { flex: 1, backgroundColor: '#475569', marginRight: 10 }]} onPress={() => setShowPayablesModal(false)}>
+                                <Text style={styles.btnText}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.primaryBtn, { flex: 1, backgroundColor: '#10b981' }]} onPress={addPayable}>
+                                <Text style={styles.btnText}>Add Payable</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* PAYMENT TERMS MODAL */}
+            <Modal
+                backdropTransitionOutTiming={0}
+                isVisible={showPaymentTermsModal}
+                onBackdropPress={() => setShowPaymentTermsModal(false)}
+                onSwipeComplete={() => setShowPaymentTermsModal(false)}
+                swipeDirection={['down']}
+                style={styles.modalContainer}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>Add New Payment Term Template</Text>
+
+                        <View style={styles.formGroup}>
+                            <Text style={styles.modalLabel}>Template Name</Text>
+                            <TextInput
+                                style={styles.modalInput}
+                                placeholder="e.g., Early Payment Discount"
+                                placeholderTextColor="#64748b"
+                                value={newPaymentTerm.name}
+                                onChangeText={(text) => setNewPaymentTerm({ ...newPaymentTerm, name: text })}
+                            />
+                        </View>
+
+                        <View style={styles.formGroup}>
+                            <Text style={styles.modalLabel}>Description</Text>
+                            <TextInput
+                                style={styles.modalInput}
+                                placeholder="Brief description of the terms"
+                                placeholderTextColor="#64748b"
+                                value={newPaymentTerm.description}
+                                onChangeText={(text) => setNewPaymentTerm({ ...newPaymentTerm, description: text })}
+                            />
+                        </View>
+
+                        <View style={styles.formGroup}>
+                            <Text style={styles.modalLabel}>Payment Terms</Text>
+                            <TextInput
+                                style={styles.modalInput}
+                                placeholder="e.g., Net 30, 2% 10 Net 30"
+                                placeholderTextColor="#64748b"
+                                value={newPaymentTerm.terms}
+                                onChangeText={(text) => setNewPaymentTerm({ ...newPaymentTerm, terms: text })}
+                            />
+                        </View>
+
+                        <View style={styles.formGroup}>
+                            <Text style={styles.modalLabel}>Discount Offered</Text>
+                            <TouchableOpacity
+                                style={[styles.actionBtn, { width: '100%' }]}
+                                onPress={() => setNewPaymentTerm({
+                                    ...newPaymentTerm,
+                                    discountOffered: !newPaymentTerm.discountOffered
+                                })}
+                            >
+                                <Text style={styles.actionBtnText}>
+                                    {newPaymentTerm.discountOffered ? 'Yes (configure below)' : 'No Discount'}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        {newPaymentTerm.discountOffered && (
+                            <>
+                                <View style={styles.formGroup}>
+                                    <Text style={styles.modalLabel}>Discount Percentage (%)</Text>
+                                    <TextInput
+                                        style={styles.modalInput}
+                                        placeholder="e.g., 2"
+                                        placeholderTextColor="#64748b"
+                                        keyboardType="numeric"
+                                        value={newPaymentTerm.discountPercentage?.toString() || ''}
+                                        onChangeText={(text) => setNewPaymentTerm({
+                                            ...newPaymentTerm,
+                                            discountPercentage: parseFloat(text) || undefined
+                                        })}
+                                    />
+                                </View>
+
+                                <View style={styles.formGroup}>
+                                    <Text style={styles.modalLabel}>Discount Period (days)</Text>
+                                    <TextInput
+                                        style={styles.modalInput}
+                                        placeholder="e.g., 10"
+                                        placeholderTextColor="#64748b"
+                                        keyboardType="numeric"
+                                        value={newPaymentTerm.discountPeriod?.toString() || ''}
+                                        onChangeText={(text) => setNewPaymentTerm({
+                                            ...newPaymentTerm,
+                                            discountPeriod: parseInt(text) || undefined
+                                        })}
+                                    />
+                                </View>
+                            </>
+                        )}
+
+                        <View style={styles.modalBtns}>
+                            <TouchableOpacity
+                                style={[styles.primaryBtn, { flex: 1, backgroundColor: '#475569', marginRight: 10 }]}
+                                onPress={() => setShowPaymentTermsModal(false)}
+                            >
+                                <Text style={styles.btnText}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.primaryBtn, { flex: 1, backgroundColor: '#10b981' }]}
+                                onPress={addPaymentTerm}
+                            >
+                                <Text style={styles.btnText}>Add Term Template</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+        </ScrollView>
+    );
+};
+
+const styles = StyleSheet.create({
+    container: { flex: 1, padding: 16, backgroundColor: '#0f172a' },
+    infoCard: { backgroundColor: '#1e293b', borderRadius: 12, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#334155' },
+    card: { backgroundColor: '#1e293b', borderRadius: 12, padding: 16, marginBottom: 16 },
+    cardTitle: { fontSize: 16, fontWeight: 'bold', color: '#f8fafc', marginBottom: 12 },
+    sectionSubtitle: { fontSize: 12, color: '#94a3b8', marginBottom: 12, fontStyle: 'italic' },
+    metricRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: '#334155' },
+    metricLabel: { fontSize: 14, color: '#cbd5e1', fontWeight: '500' },
+    positiveText: { color: '#10b981', fontWeight: '600', fontSize: 14 },
+    negativeText: { color: '#ef4444', fontWeight: '600', fontSize: 14 },
+    positiveTextSmall: { color: '#10b981', fontWeight: '600', fontSize: 11 },
+    negativeTextSmall: { color: '#ef4444', fontWeight: '600', fontSize: 11 },
+    normalText: { color: '#cbd5e1', fontWeight: '600', fontSize: 14 },
+    warningText: { color: '#f59e0b', fontWeight: '600', fontSize: 14 },
+    warningTextSmall: { color: '#f59e0b', fontWeight: '600', fontSize: 11 },
+    normalTextSmall: { color: '#cbd5e1', fontWeight: '600', fontSize: 11 },
+    infoTitle: { fontSize: 16, fontWeight: 'bold', color: '#f8fafc', marginBottom: 10 },
+    infoText: { fontSize: 12, color: '#94a3b8', marginBottom: 10, lineHeight: 16 },
+    bulletPoint: { flexDirection: 'row', marginBottom: 6 },
+    bullet: { color: '#f8fafc', fontSize: 14, fontWeight: 'bold', marginRight: 8 },
+    bulletText: { color: '#cbd5e1', fontSize: 12, flex: 1, lineHeight: 16 },
+    forecastSelector: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
+    periodButton: { flex: 1, paddingVertical: 6, paddingHorizontal: 12, backgroundColor: '#0f172a', alignItems: 'center', marginHorizontal: 4, borderRadius: 6 },
+    activePeriodButton: { backgroundColor: '#2563eb' },
+    periodButtonText: { color: '#94a3b8', fontSize: 12, fontWeight: '500' },
+    activePeriodButtonText: { color: '#f8fafc', fontWeight: 'bold' },
+    tableHeader: { flexDirection: 'row', backgroundColor: '#0f172a', paddingVertical: 8, marginBottom: 8 },
+    columnHeader: { flex: 1, color: '#f8fafc', fontSize: 11, fontWeight: 'bold', textAlign: 'center' },
+    tableRow: { flexDirection: 'row', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#334155' },
+    cell: { flex: 1, color: '#cbd5e1', fontSize: 11, textAlign: 'center' },
+    recommendationText: { fontSize: 12, color: '#cbd5e1', lineHeight: 18, marginBottom: 8 },
+
+    // Tab navigation styles
+    tabContainer: { flexDirection: 'row', marginBottom: 16, borderBottomWidth: 1, borderBottomColor: '#334155' },
+    tabButton: { flex: 1, paddingVertical: 10, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
+    activeTabButton: { borderBottomColor: '#3b82f6' },
+    tabButtonText: { color: '#94a3b8', fontSize: 12, fontWeight: '500' },
+    activeTabButtonText: { color: '#3b82f6', fontWeight: 'bold' },
+
+    // Alert styles
+    alertRow: { backgroundColor: '#7f1d1d' },
+
+    // Scenario selector styles
+    scenarioSelector: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 16 },
+    scenarioButton: { paddingVertical: 6, paddingHorizontal: 12, backgroundColor: '#0f172a', marginHorizontal: 4, marginVertical: 4, borderRadius: 6 },
+    activeScenarioButton: { backgroundColor: '#2563eb' },
+    scenarioButtonText: { color: '#94a3b8', fontSize: 12 },
+    activeScenarioButtonText: { color: '#f8fafc' },
+
+    // Aging bucket styles
+    agingBuckets: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 16 },
+    agingBucket: { flex: 1, minWidth: 80, alignItems: 'center', padding: 10, backgroundColor: '#0f172a', margin: 4, borderRadius: 6 },
+    agingBucketTitle: { fontSize: 10, color: '#94a3b8', textAlign: 'center', marginBottom: 4 },
+    agingBucketValue: { fontSize: 12, color: '#f8fafc', fontWeight: 'bold' },
+
+    // Upcoming payments styles
+    upcomingPayments: { marginBottom: 16 },
+    paymentItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#334155' },
+    paymentInfo: { flex: 1 },
+    paymentSupplier: { color: '#cbd5e1', fontSize: 12, fontWeight: '500' },
+    paymentAmount: { color: '#10b981', fontSize: 12, fontWeight: 'bold' },
+    discountBadge: { backgroundColor: '#10b981', color: '#0f172a', fontSize: 10, fontWeight: 'bold', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10 },
+
+    // Goal tracking styles
+    goalCard: { backgroundColor: '#0f172a', borderRadius: 8, padding: 12, marginBottom: 12 },
+    goalTitle: { color: '#f8fafc', fontSize: 14, fontWeight: 'bold' },
+    goalAmount: { color: '#10b981', fontSize: 12, fontWeight: 'bold' },
+    progressBar: { height: 8, backgroundColor: '#334155', borderRadius: 4, marginTop: 6, overflow: 'hidden' },
+    progressFill: { height: '100%', backgroundColor: '#10b981' },
+    goalProgress: { color: '#94a3b8', fontSize: 11, marginTop: 4 },
+    goalDeadline: { color: '#94a3b8', fontSize: 10, marginTop: 2 },
+
+    // Reserve calculation styles
+    reserveCalculation: { marginTop: 16 },
+    monthlySavingsItem: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
+    monthlySavingsGoal: { color: '#cbd5e1', fontSize: 12 },
+    monthlySavingsAmount: { color: '#10b981', fontSize: 12, fontWeight: 'bold' },
+
+    // Button styles
+    addButton: { backgroundColor: '#2563eb', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 },
+    rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+
+    // Optimization techniques styles
+    optimizationSection: {
+        borderBottomWidth: 1,
+        borderBottomColor: '#334155',
+        marginBottom: 8
+    },
+    optimizationHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 8
+    },
+    optimizationTitle: {
+        fontSize: 14,
+        fontWeight: 'bold',
+        color: '#f8fafc'
+    },
+    expandButton: {
+        backgroundColor: '#334155',
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center'
+    },
+    expandText: {
+        color: '#f8fafc',
+        fontSize: 14,
+        fontWeight: 'bold'
+    },
+    optimizationContent: {
+        paddingVertical: 8,
+        paddingLeft: 8
+    },
+    optimizationDescription: {
+        fontSize: 12,
+        color: '#94a3b8',
+        marginBottom: 8
+    },
+    forecastControls: {
+        marginLeft: 8
+    },
+    forecastInput: {
+        marginBottom: 8
+    },
+    label: {
+        fontSize: 12,
+        color: '#94a3b8',
+        marginBottom: 4
+    },
+    input: {
+        backgroundColor: '#0f172a',
+        borderColor: '#334155',
+        borderWidth: 1,
+        borderRadius: 6,
+        paddingHorizontal: 8,
+        paddingVertical: 6,
+        color: '#f8fafc',
+        fontSize: 12
+    },
+    calculateButton: {
+        backgroundColor: '#2563eb',
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        borderRadius: 6,
+        alignItems: 'center',
+        marginTop: 8,
+        alignSelf: 'flex-start'
+    },
+    buttonText: {
+        color: '#f8fafc',
+        fontSize: 12,
+        fontWeight: 'bold'
+    },
+    forecastResult: {
+        marginTop: 8,
+        padding: 8,
+        backgroundColor: '#0f172a',
+        borderRadius: 6
+    },
+    forecastText: {
+        color: '#f8fafc',
+        fontSize: 12,
+        fontWeight: 'bold'
+    },
+    expenseControl: {
+        marginLeft: 8
+    },
+    expenseItem: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingVertical: 4
+    },
+    expenseCategory: {
+        color: '#cbd5e1',
+        fontSize: 12
+    },
+    invoiceSection: {
+        marginLeft: 8
+    },
+    invoiceItem: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingVertical: 4
+    },
+    invoiceInfo: {
+        color: '#cbd5e1',
+        fontSize: 12,
+        flex: 1
+    },
+    invoiceAmount: {
+        color: '#10b981',
+        fontSize: 12,
+        fontWeight: 'bold',
+        marginHorizontal: 8
+    },
+    inventorySection: {
+        marginLeft: 8
+    },
+    debtSection: {
+        marginLeft: 8
+    },
+    paymentTermsSection: {
+        marginLeft: 8
+    },
+    financingSection: {
+        marginLeft: 8
+    },
+    investmentSection: {
+        marginLeft: 8
+    },
+    analysisSection: {
+        marginLeft: 8
+    },
+    checklistItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 2
+    },
+    checkmark: {
+        color: '#94a3b8',
+        fontSize: 12,
+        marginRight: 8
+    },
+    checklistText: {
+        color: '#cbd5e1',
+        fontSize: 12
+    },
+
+    // Modal styles
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    modalContent: {
+        backgroundColor: '#1e293b',
+        borderRadius: 16,
+        padding: 24,
+        width: '90%',
+        maxWidth: 500,
+        maxHeight: '80%',
+    },
+    modalTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#f8fafc',
+        marginBottom: 16,
+        textAlign: 'center'
+    },
+    formGroup: {
+        marginBottom: 16
+    },
+    modalLabel: {
+        fontSize: 14,
+        color: '#94a3b8',
+        marginBottom: 8
+    },
+    modalInput: {
+        backgroundColor: '#0f172a',
+        borderColor: '#334155',
+        borderWidth: 1,
+        borderRadius: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        color: '#f8fafc',
+        fontSize: 14
+    },
+    modalBtns: {
+        flexDirection: 'row',
+        marginTop: 20
+    },
+    primaryBtn: {
+        paddingVertical: 12,
+        paddingHorizontal: 20,
+        borderRadius: 8,
+        alignItems: 'center',
+    },
+    btnText: {
+        color: '#f8fafc',
+        fontWeight: 'bold',
+        fontSize: 14
+    },
+    actionBtn: {
+        backgroundColor: '#334155',
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        borderRadius: 6,
+        alignItems: 'center',
+    },
+    actionBtnText: {
+        color: '#f8fafc',
+        fontSize: 12,
+        fontWeight: '500'
+    },
+    modalContainer: {
+        justifyContent: 'flex-end',
+        margin: 0,
+    },
+    informationTitle: {
+        fontSize: 14,
+        fontWeight: 'bold',
+        color: '#f8fafc',
+        marginBottom: 8
+    },
+    informationText: {
+        fontSize: 12,
+        color: '#cbd5e1',
+        lineHeight: 16
+    }
+});
+
+export default CashFlowManagement;
