@@ -1,0 +1,1358 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import BudgetForecastingDashboard from './financial-planning/BudgetForecastingDashboard';
+import CashFlowStatement from './financial-planning/CashFlowStatement';
+import FinancialHealthAssessment from './financial-planning/FinancialHealthAssessment';
+import CashFlowManagement from './components/CashFlowManagement';
+import DebtManagement from './components/DebtManagement';
+import {
+    StyleSheet,
+    Text,
+    View,
+    ScrollView,
+    TouchableOpacity,
+    TextInput,
+    SafeAreaView,
+    StatusBar,
+    Modal,
+    Dimensions,
+    Share
+} from 'react-native';
+import Svg, { Rect, Circle, Line, Path, G } from 'react-native-svg';
+
+
+// Screen Types
+type Screen = 'login' | 'register' | 'onboarding' | 'dashboard' | 'reports' | 'transactions' | 'insights' | 'team' | 'budget_forecasting' | 'cash_flow' | 'debt_management_screen' | 'financial_health';
+type ReportTab = 'balancesheet' | 'pnl' | 'financial_planning' | 'cash_flow_statement' | 'cash_management' | 'debt_management' | 'financial_health';
+
+// Transaction Type
+interface Transaction {
+    id: string;
+    date: string;
+    description: string;
+    type: 'income' | 'expense';
+    category: string;
+    amount: number;
+    transactionCategory?: 'purchase' | 'sale' | 'expense' | 'cost' | 'other';
+    reference?: string; // Invoice number or reference
+    vendorCustomer?: string; // Vendor or customer name
+}
+
+export default function App() {
+    // Navigation & Authentication states
+    const [currentScreen, setCurrentScreen] = useState<Screen>('login');
+    const [user, setUser] = useState<{ email: string; businessName: string; role: string } | null>(null);
+    const [credentials, setLoginCredentials] = useState({ email: '', password: '', business: '' });
+
+    // App Onboarding Settings
+    const [businessType, setBusinessType] = useState('both');
+    const [currency, setCurrency] = useState('$');
+    const [minReserve, setMinReserve] = useState('5000');
+    const [targetMargin, setTargetMargin] = useState('65');
+
+    // Interactive Ledger State (Empty initially for user to populate)
+    const [transactions, setTransactions] = useState<Transaction[]>([
+        {
+            id: '1',
+            date: '2026-05-10',
+            description: 'Enterprise Software SLA License',
+            type: 'income',
+            category: 'Software sales',
+            amount: 85000,
+            transactionCategory: 'sale',
+            vendorCustomer: 'TechCorp Inc.',
+            reference: 'INV-001'
+        },
+        // Add similar updates to other transactions
+    ]);
+
+    // Transaction logging modal & form controllers
+    const [isTxModalOpen, setIsTxModalOpen] = useState(false);
+    const [newTx, setNewTx] = useState({
+        description: '',
+        amount: '',
+        type: 'expense' as 'income' | 'expense',
+        category: 'Personnel expenses',
+        transactionCategory: 'expense' as 'purchase' | 'sale' | 'expense' | 'cost' | 'other',
+        reference: '',
+        vendorCustomer: ''
+    });
+    // Report tab manager
+    const [activeReportTab, setActiveReportTab] = useState<ReportTab>('balancesheet');
+
+    // "One Thing" recommendation trigger rules
+    const oneThingInsight = useMemo(() => {
+        const totalIncome = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+        const totalExpense = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+        const netProfit = totalIncome - totalExpense;
+        const margin = totalIncome > 0 ? (netProfit / totalIncome) * 100 : 0;
+
+        if (parseFloat(minReserve) > (totalIncome - totalExpense)) {
+            return {
+                severity: 'critical',
+                title: 'Capital Reserve Threshold Breached',
+                action: `Your net liquid reserves are below your configured minimum buffer of ${currency}${minReserve}. Immediate cost-reallocation advised.`,
+                tag: 'LIQUIDITY WARNING'
+            };
+        } else if (margin < parseFloat(targetMargin)) {
+            return {
+                severity: 'warning',
+                title: 'Margins Are Dropping Below Target',
+                action: `Current profit margin is ${margin.toFixed(1)}% vs your goal of ${targetMargin}%. Review top cost categories now.`,
+                tag: 'MARGIN WARNING'
+            };
+        }
+        return {
+            severity: 'healthy',
+            title: 'Everything Looks Healthy Today',
+            action: 'Your core metrics are stable. Optional: review your top 3 highest-cost categories for optimization opportunities.',
+            tag: 'HEALTHY'
+        };
+    }, [transactions, minReserve, targetMargin, currency]);
+
+    // Combined Financial Aggregations based on Live Ledger State
+    const finance = useMemo(() => {
+        const income = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+        const expense = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+        const profit = income - expense;
+        const margin = income > 0 ? (profit / income) * 100 : 0;
+        const assets = income; // Dynamic assets tracking based on income
+        const liabilities = expense; // Dynamic liabilities tracking based on expenses
+        const equity = assets - liabilities;
+
+        return {
+            income,
+            expense,
+            profit,
+            margin,
+            assets,
+            liabilities,
+            equity
+        };
+    }, [transactions]);
+
+    // Log in workflow
+    const handleLogin = () => {
+        if (credentials.email && credentials.password) {
+            setUser({ email: credentials.email, businessName: credentials.business, role: 'Administrator' });
+            setCurrentScreen('onboarding');
+        }
+    };
+
+    // Log new transaction to local memory ledger
+    const handleAddTransaction = () => {
+        if (newTx.description && newTx.amount) {
+            const amt = parseFloat(newTx.amount);
+            if (!isNaN(amt)) {
+                const item: Transaction = {
+                    id: Math.random().toString(),
+                    date: new Date().toISOString().split('T')[0],
+                    description: newTx.description,
+                    type: newTx.type,
+                    category: newTx.category,
+                    amount: amt,
+                    transactionCategory: newTx.transactionCategory,
+                    reference: newTx.reference,
+                    vendorCustomer: newTx.vendorCustomer
+                };
+                setTransactions([item, ...transactions]);
+                setNewTx({
+                    description: '',
+                    amount: '',
+                    type: 'expense',
+                    category: 'Personnel expenses',
+                    transactionCategory: 'expense',
+                    reference: '',
+                    vendorCustomer: ''
+                });
+                setIsTxModalOpen(false);
+            }
+        }
+    };
+
+    const handleShareReport = async (title: string, content: string) => {
+        try {
+            await Share.share({
+                message: `${title}\n\n${content}`,
+            });
+        } catch (e) {
+            console.log('Share error', e);
+        }
+    };
+
+    // Render Navbar / Header
+    const renderHeader = () => (
+        <View style={styles.header}>
+            <View>
+                <Text style={styles.headerTitle}>FinanceBook</Text>
+                <Text style={styles.headerSubtitle}>{user?.businessName || 'Business Suite'}</Text>
+            </View>
+            <View style={styles.headerRight}>
+                <Text style={styles.headerUser}>{user?.email.split('@')[0] || 'Admin'}</Text>
+                <TouchableOpacity style={styles.signOutBtn} onPress={() => { setUser(null); setCurrentScreen('login'); }}>
+                    <Text style={styles.signOutText}>Sign Out</Text>
+                </TouchableOpacity>
+            </View>
+        </View>
+    );
+
+    // Render Sidebar / Bottom Navigation tab actions
+    const renderFooterNav = () => (
+        <View style={styles.footerNav}>
+            <View style={styles.navContainer}>
+                <TouchableOpacity style={styles.navItem} onPress={() => setCurrentScreen('dashboard')}>
+                    <Text style={styles.navText}>Dashboard</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.navItem} onPress={() => setCurrentScreen('reports')}>
+                    <Text style={styles.navText}>Reports</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.navItem} onPress={() => setCurrentScreen('transactions')}>
+                    <Text style={styles.navText}>Ledger</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.navItem} onPress={() => setCurrentScreen('insights')}>
+                    <Text style={styles.navText}>Insights</Text>
+                </TouchableOpacity>
+            </View>
+        </View>
+    );
+
+    // Render Login Screen
+    const renderLoginScreen = () => (
+        <SafeAreaView style={styles.safeContainer}>
+            <ScrollView contentContainerStyle={styles.centerScroll}>
+                <View style={styles.cardContainer}>
+                    <Text style={styles.mainTitle}>FinanceBook</Text>
+                    <Text style={styles.subTitle}>Business Financial Management Suite</Text>
+
+                    <View style={styles.formGroup}>
+                        <Text style={styles.label}>Email</Text>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="admin@example.com"
+                            placeholderTextColor="#64748b"
+                            value={credentials.email}
+                            onChangeText={(text) => setLoginCredentials({ ...credentials, email: text })}
+                        />
+                    </View>
+
+                    <View style={styles.formGroup}>
+                        <Text style={styles.label}>Password</Text>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="••••••••"
+                            placeholderTextColor="#64748b"
+                            secureTextEntry
+                            value={credentials.password}
+                            onChangeText={(text) => setLoginCredentials({ ...credentials, password: text })}
+                        />
+                    </View>
+
+                    <View style={styles.formGroup}>
+                        <Text style={styles.label}>Business Name</Text>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Acme Corp"
+                            placeholderTextColor="#64748b"
+                            value={credentials.business}
+                            onChangeText={(text) => setLoginCredentials({ ...credentials, business: text })}
+                        />
+                    </View>
+
+                    <TouchableOpacity style={styles.primaryBtn} onPress={handleLogin}>
+                        <Text style={styles.btnText}>Access Dashboard</Text>
+                    </TouchableOpacity>
+                </View>
+            </ScrollView>
+        </SafeAreaView>
+    );
+
+    // Render Onboarding Screen
+    const renderOnboardingScreen = () => (
+        <SafeAreaView style={styles.safeContainer}>
+            <View style={styles.onboardingContainer}>
+                <Text style={styles.onboardingTitle}>Welcome to FinanceBook</Text>
+                <Text style={styles.onboardingSubtitle}>Configure your business settings</Text>
+
+                <View style={styles.formGroup}>
+                    <Text style={styles.label}>Business Type</Text>
+                    <View style={styles.optionRow}>
+                        <TouchableOpacity
+                            style={[styles.optionButton, businessType === 'product' && styles.selectedOption]}
+                            onPress={() => setBusinessType('product')}
+                        >
+                            <Text style={styles.optionText}>Product</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.optionButton, businessType === 'service' && styles.selectedOption]}
+                            onPress={() => setBusinessType('service')}
+                        >
+                            <Text style={styles.optionText}>Service</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.optionButton, businessType === 'both' && styles.selectedOption]}
+                            onPress={() => setBusinessType('both')}
+                        >
+                            <Text style={styles.optionText}>Both</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+
+                <View style={styles.formGroup}>
+                    <Text style={styles.label}>Currency</Text>
+                    <View style={styles.optionRow}>
+                        <TouchableOpacity
+                            style={[styles.optionButton, currency === '$' && styles.selectedOption]}
+                            onPress={() => setCurrency('$')}
+                        >
+                            <Text style={styles.optionText}>USD ($)</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.optionButton, currency === '€' && styles.selectedOption]}
+                            onPress={() => setCurrency('€')}
+                        >
+                            <Text style={styles.optionText}>EUR (€)</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.optionButton, currency === '£' && styles.selectedOption]}
+                            onPress={() => setCurrency('£')}
+                        >
+                            <Text style={styles.optionText}>GBP (£)</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+
+                <View style={styles.formGroup}>
+                    <Text style={styles.label}>Minimum Cash Reserve</Text>
+                    <TextInput
+                        style={styles.input}
+                        placeholder="5000"
+                        placeholderTextColor="#64748b"
+                        value={minReserve}
+                        onChangeText={setMinReserve}
+                        keyboardType="numeric"
+                    />
+                </View>
+
+                <View style={styles.formGroup}>
+                    <Text style={styles.label}>Target Margin (%)</Text>
+                    <TextInput
+                        style={styles.input}
+                        placeholder="65"
+                        placeholderTextColor="#64748b"
+                        value={targetMargin}
+                        onChangeText={setTargetMargin}
+                        keyboardType="numeric"
+                    />
+                </View>
+
+                <TouchableOpacity
+                    style={styles.primaryBtn}
+                    onPress={() => {
+                        setCurrentScreen('dashboard');
+                    }}
+                >
+                    <Text style={styles.btnText}>Complete Setup</Text>
+                </TouchableOpacity>
+            </View>
+        </SafeAreaView>
+    );
+
+    // Render Dashboard Screen
+    const renderDashboardScreen = () => (
+        <SafeAreaView style={styles.safeContainer}>
+            {renderHeader()}
+            <ScrollView style={styles.scrollContainer}>
+                <View style={styles.contentPadding}>
+                    <Text style={styles.screenTitle}>Dashboard</Text>
+
+                    {/* One-Thing Recommendation Card */}
+                    <TouchableOpacity style={[
+                        styles.infoCard,
+                        oneThingInsight.severity === 'critical' && styles.criticalCard,
+                        oneThingInsight.severity === 'warning' && styles.warningCard,
+                        oneThingInsight.severity === 'healthy' && styles.healthyCard
+                    ]}>
+                        <View style={styles.insightHeader}>
+                            <Text style={[
+                                styles.insightTag,
+                                oneThingInsight.severity === 'critical' && styles.criticalTag,
+                                oneThingInsight.severity === 'warning' && styles.warningTag,
+                                oneThingInsight.severity === 'healthy' && styles.healthyTag
+                            ]}>{oneThingInsight.tag}</Text>
+                            <TouchableOpacity onPress={() => handleShareReport(oneThingInsight.title, oneThingInsight.action)}>
+                                <Text style={styles.shareText}>Share</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <Text style={styles.insightTitle}>{oneThingInsight.title}</Text>
+                        <Text style={styles.insightAction}>{oneThingInsight.action}</Text>
+                    </TouchableOpacity>
+
+                    {/* Financial Overview Cards */}
+                    <View style={styles.rowContainer}>
+                        <View style={[styles.card, { flex: 1, marginRight: 8 }]}>
+                            <Text style={styles.cardLabel}>Income</Text>
+                            <Text style={styles.incomeText}>{currency}{finance.income.toLocaleString()}</Text>
+                        </View>
+                        <View style={[styles.card, { flex: 1, marginLeft: 8 }]}>
+                            <Text style={styles.cardLabel}>Expenses</Text>
+                            <Text style={styles.expenseText}>{currency}{finance.expense.toLocaleString()}</Text>
+                        </View>
+                    </View>
+
+                    <View style={styles.card}>
+                        <Text style={styles.cardLabel}>Net Profit</Text>
+                        <Text style={finance.profit >= 0 ? styles.incomeText : styles.expenseText}>
+                            {finance.profit >= 0 ? '+' : ''}{currency}{finance.profit.toLocaleString()}
+                        </Text>
+                        <Text style={finance.margin >= 0 ? styles.positiveText : styles.negativeText}>
+                            {finance.margin.toFixed(2)}% margin
+                        </Text>
+                    </View>
+
+                    <View style={styles.rowContainer}>
+                        <View style={[styles.card, { flex: 1, marginRight: 8 }]}>
+                            <Text style={styles.cardLabel}>Assets</Text>
+                            <Text style={styles.assetText}>{currency}{finance.assets.toLocaleString()}</Text>
+                        </View>
+                        <View style={[styles.card, { flex: 1, marginLeft: 8 }]}>
+                            <Text style={styles.cardLabel}>Liabilities</Text>
+                            <Text style={styles.liabilityText}>{currency}{finance.liabilities.toLocaleString()}</Text>
+                        </View>
+                    </View>
+
+                    <View style={styles.card}>
+                        <Text style={styles.cardLabel}>Equity</Text>
+                        <Text style={styles.equityText}>{currency}{finance.equity.toLocaleString()}</Text>
+                    </View>
+
+                    <TouchableOpacity
+                        style={styles.primaryBtn}
+                        onPress={() => setCurrentScreen('reports')}
+                    >
+                        <Text style={styles.btnText}>View Detailed Reports</Text>
+                    </TouchableOpacity>
+                </View>
+            </ScrollView>
+            {renderFooterNav()}
+        </SafeAreaView>
+    );
+
+    // Render Reports Screen
+    const renderReportsScreen = () => (
+        <SafeAreaView style={styles.safeContainer}>
+            {renderHeader()}
+            <View style={styles.reportContainer}>
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.reportTabsContainer}
+                >
+                    <TouchableOpacity
+                        style={[styles.repTab, activeReportTab === 'balancesheet' && styles.repTabActive]}
+                        onPress={() => setActiveReportTab('balancesheet')}
+                    >
+                        <Text style={[styles.repTabText, activeReportTab === 'balancesheet' && styles.repTabActiveText]}>Balance Sheet</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.repTab, activeReportTab === 'pnl' && styles.repTabActive]}
+                        onPress={() => setActiveReportTab('pnl')}
+                    >
+                        <Text style={[styles.repTabText, activeReportTab === 'pnl' && styles.repTabActiveText]}>P&L Statement</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.repTab, activeReportTab === 'financial_planning' && styles.repTabActive]}
+                        onPress={() => setActiveReportTab('financial_planning')}
+                    >
+                        <Text style={[styles.repTabText, activeReportTab === 'financial_planning' && styles.repTabActiveText]}>Financial Planning</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.repTab, activeReportTab === 'cash_flow_statement' && styles.repTabActive]}
+                        onPress={() => setActiveReportTab('cash_flow_statement')}
+                    >
+                        <Text style={[styles.repTabText, activeReportTab === 'cash_flow_statement' && styles.repTabActiveText]}>Cash Flow Statement</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.repTab, activeReportTab === 'cash_management' && styles.repTabActive]}
+                        onPress={() => setActiveReportTab('cash_management')}
+                    >
+                        <Text style={[styles.repTabText, activeReportTab === 'cash_management' && styles.repTabActiveText]}>Cash Flow Management</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.repTab, activeReportTab === 'debt_management' && styles.repTabActive]}
+                        onPress={() => setActiveReportTab('debt_management')}
+                    >
+                        <Text style={[styles.repTabText, activeReportTab === 'debt_management' && styles.repTabActiveText]}>Debt Management</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.repTab, activeReportTab === 'financial_health' && styles.repTabActive]}
+                        onPress={() => setActiveReportTab('financial_health')}
+                    >
+                        <Text style={[styles.repTabText, activeReportTab === 'financial_health' && styles.repTabActiveText]}>Financial Health</Text>
+                    </TouchableOpacity>
+                </ScrollView>
+
+                <ScrollView style={styles.reportContent}>
+                    <View style={styles.contentPadding}>
+                        {/* TAB 1: BALANCE SHEET */}
+                        {activeReportTab === 'balancesheet' && (
+                            <View style={styles.card}>
+                                <Text style={styles.cardTitle}>Balance Sheet</Text>
+                                <View style={styles.metricRow}>
+                                    <Text style={styles.metricLabel}>Assets</Text>
+                                    <Text style={styles.incomeText}>{currency}{finance.assets.toLocaleString()}</Text>
+                                </View>
+                                <View style={styles.metricRow}>
+                                    <Text style={styles.metricLabel}>Liabilities</Text>
+                                    <Text style={styles.expenseText}>{currency}{finance.liabilities.toLocaleString()}</Text>
+                                </View>
+                                <View style={styles.metricRow}>
+                                    <Text style={styles.metricLabel}>Equity</Text>
+                                    <Text style={styles.equityText}>{currency}{finance.equity.toLocaleString()}</Text>
+                                </View>
+                                <Text style={styles.noteText}>Note: Assets = Liabilities + Equity</Text>
+                            </View>
+                        )}
+
+                        {/* TAB 2: P&L STATEMENT */}
+                        {activeReportTab === 'pnl' && (
+                            <View style={styles.card}>
+                                <Text style={styles.cardTitle}>Profit & Loss Statement</Text>
+                                <View style={styles.metricRow}>
+                                    <Text style={styles.metricLabel}>Total Income</Text>
+                                    <Text style={styles.incomeText}>{currency}{finance.income.toLocaleString()}</Text>
+                                </View>
+                                <View style={styles.metricRow}>
+                                    <Text style={styles.metricLabel}>Total Expenses</Text>
+                                    <Text style={styles.expenseText}>{currency}{finance.expense.toLocaleString()}</Text>
+                                </View>
+                                <View style={styles.metricRow}>
+                                    <Text style={styles.metricLabel}>Net Profit</Text>
+                                    <Text style={finance.profit >= 0 ? styles.incomeText : styles.expenseText}>
+                                        {finance.profit >= 0 ? '+' : ''}{currency}{finance.profit.toLocaleString()}
+                                    </Text>
+                                </View>
+                                <View style={styles.metricRow}>
+                                    <Text style={styles.metricLabel}>Profit Margin</Text>
+                                    <Text style={finance.margin >= 0 ? styles.incomeText : styles.expenseText}>
+                                        {finance.margin.toFixed(2)}%
+                                    </Text>
+                                </View>
+                            </View>
+                        )}
+
+                        {/* TAB 3: FINANCIAL PLANNING */}
+                        {activeReportTab === 'financial_planning' && (
+                            <BudgetForecastingDashboard
+                                finance={finance}
+                                currency={currency}
+                                minReserve={minReserve}
+                                targetMargin={targetMargin}
+                            />
+                        )}
+
+                        {/* TAB 4: CASH FLOW STATEMENT */}
+                        {activeReportTab === 'cash_flow_statement' && (
+                            <CashFlowStatement
+                                transactions={transactions}
+                                finance={finance}
+                                currency={currency}
+                                minReserve={minReserve}
+                                targetMargin={targetMargin}
+                            />
+                        )}
+
+                        {/* TAB 5: CASH FLOW MANAGEMENT */}
+                        {activeReportTab === 'cash_management' && (
+                            <CashFlowManagement
+                                finance={finance}
+                                currency={currency}
+                                minReserve={minReserve}
+                                targetMargin={targetMargin}
+                            />
+                        )}
+
+                        {/* TAB 6: DEBT MANAGEMENT */}
+                        {activeReportTab === 'debt_management' && (
+                            <DebtManagement
+                                finance={{
+                                    assets: finance.assets,
+                                    liabilities: finance.liabilities,
+                                    equity: finance.equity
+                                }}
+                                currency={currency}
+                            />
+                        )}
+
+                        {/* TAB 7: FINANCIAL HEALTH */}
+                        {activeReportTab === 'financial_health' && (
+                            <FinancialHealthAssessment
+                                finance={finance}
+                                currency={currency}
+                                minReserve={minReserve}
+                                targetMargin={targetMargin}
+                            />
+                        )}
+                    </View>
+                </ScrollView>
+            </View>
+            {renderFooterNav()}
+        </SafeAreaView>
+    );
+
+    // Render Transactions Screen
+    const renderTransactionsScreen = () => (
+        <SafeAreaView style={styles.safeContainer}>
+            {renderHeader()}
+            <ScrollView style={styles.scrollContainer}>
+                <View style={styles.contentPadding}>
+                    <View style={styles.rowBetween}>
+                        <Text style={styles.screenTitle}>Transaction Ledger</Text>
+                        <TouchableOpacity style={styles.primaryBtn} onPress={() => setIsTxModalOpen(true)}>
+                            <Text style={styles.btnText}>+ New Entry</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.legendContainer}>
+                        <View style={styles.legendItem}>
+                            <View style={[styles.legendColor, { backgroundColor: '#10b981' }]} />
+                            <Text style={styles.legendText}>Income</Text>
+                        </View>
+                        <View style={styles.legendItem}>
+                            <View style={[styles.legendColor, { backgroundColor: '#ef4444' }]} />
+                            <Text style={styles.legendText}>Expense</Text>
+                        </View>
+                    </View>
+
+                    {transactions.map((tx) => (
+                        <View key={tx.id} style={[styles.txCard, tx.type === 'income' ? styles.incomeCard : styles.expenseCard]}>
+                            <View style={styles.txHeader}>
+                                <Text style={styles.txDescription}>{tx.description}</Text>
+                                <Text style={tx.type === 'income' ? styles.incomeText : styles.expenseText}>
+                                    {tx.type === 'income' ? '+' : '-'}{currency}{tx.amount.toLocaleString()}
+                                </Text>
+                            </View>
+                            <View style={styles.txDetails}>
+                                <Text style={styles.txDate}>{tx.date}</Text>
+                                <Text style={styles.txCategory}>{tx.category}</Text>
+                                {tx.reference && <Text style={styles.txRef}>Ref: {tx.reference}</Text>}
+                                {tx.vendorCustomer && <Text style={styles.txVendor}>To/From: {tx.vendorCustomer}</Text>}
+                            </View>
+                        </View>
+                    ))}
+                </View>
+            </ScrollView>
+            {renderFooterNav()}
+
+            {/* TRANSACTION ENTRY MODAL */}
+            <Modal
+                animationType="slide"
+                transparent={true}
+                visible={isTxModalOpen}
+                onRequestClose={() => setIsTxModalOpen(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>Log New Transaction</Text>
+
+                        <View style={styles.formGroup}>
+                            <Text style={styles.modalLabel}>Description</Text>
+                            <TextInput
+                                style={styles.modalInput}
+                                placeholder="Enter transaction description"
+                                placeholderTextColor="#64748b"
+                                value={newTx.description}
+                                onChangeText={(text) => setNewTx({ ...newTx, description: text })}
+                            />
+                        </View>
+
+                        <View style={styles.formGroup}>
+                            <Text style={styles.modalLabel}>Amount ($)</Text>
+                            <TextInput
+                                style={styles.modalInput}
+                                placeholder="0.00"
+                                placeholderTextColor="#64748b"
+                                keyboardType="numeric"
+                                value={newTx.amount}
+                                onChangeText={(text) => setNewTx({ ...newTx, amount: text })}
+                            />
+                        </View>
+
+                        <View style={styles.formGroup}>
+                            <Text style={styles.modalLabel}>Type</Text>
+                            <View style={styles.optionRow}>
+                                <TouchableOpacity
+                                    style={[styles.optionButton, newTx.type === 'income' && styles.selectedOption]}
+                                    onPress={() => setNewTx({ ...newTx, type: 'income' })}
+                                >
+                                    <Text style={styles.optionText}>Income</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.optionButton, newTx.type === 'expense' && styles.selectedOption]}
+                                    onPress={() => setNewTx({ ...newTx, type: 'expense' })}
+                                >
+                                    <Text style={styles.optionText}>Expense</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+
+                        <View style={styles.formGroup}>
+                            <Text style={styles.modalLabel}>Category</Text>
+                            <TextInput
+                                style={styles.modalInput}
+                                placeholder="e.g., Personnel expenses"
+                                placeholderTextColor="#64748b"
+                                value={newTx.category}
+                                onChangeText={(text) => setNewTx({ ...newTx, category: text })}
+                            />
+                        </View>
+
+                        <View style={styles.formGroup}>
+                            <Text style={styles.modalLabel}>Transaction Category</Text>
+                            <View style={styles.optionRow}>
+                                <TouchableOpacity
+                                    style={[styles.optionButton, newTx.transactionCategory === 'purchase' && styles.selectedOption]}
+                                    onPress={() => setNewTx({ ...newTx, transactionCategory: 'purchase' })}
+                                >
+                                    <Text style={styles.optionText}>Purchase</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.optionButton, newTx.transactionCategory === 'sale' && styles.selectedOption]}
+                                    onPress={() => setNewTx({ ...newTx, transactionCategory: 'sale' })}
+                                >
+                                    <Text style={styles.optionText}>Sale</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.optionButton, newTx.transactionCategory === 'expense' && styles.selectedOption]}
+                                    onPress={() => setNewTx({ ...newTx, transactionCategory: 'expense' })}
+                                >
+                                    <Text style={styles.optionText}>Expense</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.optionButton, newTx.transactionCategory === 'cost' && styles.selectedOption]}
+                                    onPress={() => setNewTx({ ...newTx, transactionCategory: 'cost' })}
+                                >
+                                    <Text style={styles.optionText}>Cost</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+
+                        <View style={styles.formGroup}>
+                            <Text style={styles.modalLabel}>Reference (Optional)</Text>
+                            <TextInput
+                                style={styles.modalInput}
+                                placeholder="Invoice number, receipt ID, etc."
+                                placeholderTextColor="#64748b"
+                                value={newTx.reference}
+                                onChangeText={(text) => setNewTx({ ...newTx, reference: text })}
+                            />
+                        </View>
+
+                        <View style={styles.formGroup}>
+                            <Text style={styles.modalLabel}>Vendor/Customer (Optional)</Text>
+                            <TextInput
+                                style={styles.modalInput}
+                                placeholder="Vendor or customer name"
+                                placeholderTextColor="#64748b"
+                                value={newTx.vendorCustomer}
+                                onChangeText={(text) => setNewTx({ ...newTx, vendorCustomer: text })}
+                            />
+                        </View>
+
+                        <View style={styles.modalBtns}>
+                            <TouchableOpacity style={[styles.primaryBtn, { flex: 1, backgroundColor: '#475569', marginRight: 10 }]} onPress={() => setIsTxModalOpen(false)}>
+                                <Text style={styles.btnText}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.primaryBtn, { flex: 1, backgroundColor: '#10b981' }]} onPress={handleAddTransaction}>
+                                <Text style={styles.btnText}>Commit Ledger</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+        </SafeAreaView>
+    );
+
+    // Render Insights Screen
+    const renderInsightsScreen = () => (
+        <SafeAreaView style={styles.safeContainer}>
+            {renderHeader()}
+            <ScrollView style={styles.scrollContainer}>
+                <View style={styles.contentPadding}>
+                    <Text style={styles.screenTitle}>Financial Insights</Text>
+
+                    <View style={styles.card}>
+                        <Text style={styles.cardTitle}>Performance Overview</Text>
+                        <View style={styles.metricRow}>
+                            <Text style={styles.metricLabel}>Current Margin</Text>
+                            <Text style={finance.margin >= 0 ? styles.incomeText : styles.expenseText}>
+                                {finance.margin.toFixed(2)}%
+                            </Text>
+                        </View>
+                        <View style={styles.metricRow}>
+                            <Text style={styles.metricLabel}>Target Margin</Text>
+                            <Text style={styles.normalText}>{targetMargin}%</Text>
+                        </View>
+                        <View style={styles.metricRow}>
+                            <Text style={styles.metricLabel}>Difference</Text>
+                            <Text style={Math.abs(finance.margin - parseFloat(targetMargin)) <= 5 ? styles.incomeText : styles.expenseText}>
+                                {(finance.margin - parseFloat(targetMargin)).toFixed(2)}%
+                            </Text>
+                        </View>
+                    </View>
+
+                    <View style={styles.card}>
+                        <Text style={styles.cardTitle}>Cash Position</Text>
+                        <View style={styles.metricRow}>
+                            <Text style={styles.metricLabel}>Monthly Income</Text>
+                            <Text style={styles.incomeText}>{currency}{finance.income.toLocaleString()}</Text>
+                        </View>
+                        <View style={styles.metricRow}>
+                            <Text style={styles.metricLabel}>Monthly Expenses</Text>
+                            <Text style={styles.expenseText}>{currency}{finance.expense.toLocaleString()}</Text>
+                        </View>
+                        <View style={styles.metricRow}>
+                            <Text style={styles.metricLabel}>Monthly Cash Flow</Text>
+                            <Text style={finance.profit >= 0 ? styles.incomeText : styles.expenseText}>
+                                {finance.profit >= 0 ? '+' : ''}{currency}{finance.profit.toLocaleString()}
+                            </Text>
+                        </View>
+                        <View style={styles.metricRow}>
+                            <Text style={styles.metricLabel}>Minimum Reserve</Text>
+                            <Text style={styles.normalText}>{currency}{minReserve}</Text>
+                        </View>
+                    </View>
+
+                    <View style={styles.card}>
+                        <Text style={styles.cardTitle}>Top Expense Categories</Text>
+                        {Array.from(
+                            transactions
+                                .filter(t => t.type === 'expense')
+                                .reduce((acc, t) => {
+                                    acc.set(t.category, (acc.get(t.category) || 0) + t.amount);
+                                    return acc;
+                                }, new Map())
+                        )
+                            .sort((a, b) => b[1] - a[1])
+                            .slice(0, 3)
+                            .map(([category, amount], index) => (
+                                <View key={index} style={styles.expenseCategoryRow}>
+                                    <Text style={styles.expenseCategory}>{category}</Text>
+                                    <Text style={styles.expenseText}>{currency}{amount.toLocaleString()}</Text>
+                                </View>
+                            ))}
+                    </View>
+
+                    <View style={styles.card}>
+                        <Text style={styles.cardTitle}>Income Sources</Text>
+                        {Array.from(
+                            transactions
+                                .filter(t => t.type === 'income')
+                                .reduce((acc, t) => {
+                                    acc.set(t.category, (acc.get(t.category) || 0) + t.amount);
+                                    return acc;
+                                }, new Map())
+                        )
+                            .sort((a, b) => b[1] - a[1])
+                            .slice(0, 3)
+                            .map(([category, amount], index) => (
+                                <View key={index} style={styles.incomeCategoryRow}>
+                                    <Text style={styles.incomeCategory}>{category}</Text>
+                                    <Text style={styles.incomeText}>{currency}{amount.toLocaleString()}</Text>
+                                </View>
+                            ))}
+                    </View>
+                </View>
+            </ScrollView>
+            {renderFooterNav()}
+        </SafeAreaView>
+    );
+
+    // Render Current Screen
+    return (
+        <View style={{ flex: 1 }}>
+            {currentScreen === 'login' && renderLoginScreen()}
+            {currentScreen === 'onboarding' && renderOnboardingScreen()}
+            {currentScreen === 'dashboard' && renderDashboardScreen()}
+            {currentScreen === 'reports' && renderReportsScreen()}
+            {currentScreen === 'transactions' && renderTransactionsScreen()}
+            {currentScreen === 'insights' && renderInsightsScreen()}
+        </View>
+    );
+}
+
+const styles = StyleSheet.create({
+    safeContainer: {
+        flex: 1,
+        backgroundColor: '#0f172a'
+    },
+    centerScroll: {
+        flexGrow: 1,
+        justifyContent: 'center',
+        padding: 20,
+    },
+    cardContainer: {
+        backgroundColor: '#1e293b',
+        borderRadius: 16,
+        padding: 24,
+        shadowColor: '#000',
+        shadowOpacity: 0.3,
+        shadowRadius: 10,
+        elevation: 5,
+    },
+    mainTitle: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        color: '#f8fafc',
+        textAlign: 'center',
+    },
+    subTitle: {
+        fontSize: 14,
+        color: '#94a3b8',
+        textAlign: 'center',
+        marginBottom: 20,
+    },
+    formGroup: {
+        marginBottom: 16,
+    },
+    label: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#cbd5e1',
+        marginBottom: 6,
+    },
+    input: {
+        backgroundColor: '#0f172a',
+        borderColor: '#334155',
+        borderWidth: 1,
+        borderRadius: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        color: '#f8fafc',
+        fontSize: 14
+    },
+    primaryBtn: {
+        backgroundColor: '#2563eb',
+        paddingVertical: 12,
+        paddingHorizontal: 20,
+        borderRadius: 8,
+        alignItems: 'center',
+    },
+    btnText: {
+        color: '#f8fafc',
+        fontWeight: 'bold',
+        fontSize: 14
+    },
+    onboardingContainer: {
+        flex: 1,
+        padding: 20,
+        justifyContent: 'center',
+        backgroundColor: '#0f172a'
+    },
+    onboardingTitle: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        color: '#f8fafc',
+        textAlign: 'center',
+        marginBottom: 8
+    },
+    onboardingSubtitle: {
+        fontSize: 14,
+        color: '#94a3b8',
+        textAlign: 'center',
+        marginBottom: 30
+    },
+    optionRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between'
+    },
+    optionButton: {
+        flex: 1,
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+        backgroundColor: '#1e293b',
+        borderWidth: 1,
+        borderColor: '#334155',
+        borderRadius: 6,
+        alignItems: 'center',
+        marginHorizontal: 4
+    },
+    selectedOption: {
+        backgroundColor: '#2563eb',
+        borderColor: '#3b82f6'
+    },
+    optionText: {
+        color: '#cbd5e1',
+        fontSize: 12,
+        fontWeight: '500'
+    },
+    scrollContainer: {
+        flex: 1,
+        backgroundColor: '#0f172a'
+    },
+    contentPadding: {
+        padding: 16
+    },
+    screenTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#f8fafc',
+        marginBottom: 16
+    },
+    header: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: 16,
+        backgroundColor: '#1e293b',
+        borderBottomWidth: 1,
+        borderBottomColor: '#334155'
+    },
+    headerTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#f8fafc'
+    },
+    headerSubtitle: {
+        fontSize: 12,
+        color: '#94a3b8'
+    },
+    headerRight: {
+        alignItems: 'flex-end'
+    },
+    headerUser: {
+        fontSize: 12,
+        color: '#94a3b8',
+        marginBottom: 4
+    },
+    signOutBtn: {
+        backgroundColor: '#dc2626',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 6
+    },
+    signOutText: {
+        color: '#f8fafc',
+        fontSize: 12,
+        fontWeight: '500'
+    },
+    infoCard: {
+        backgroundColor: '#1e293b',
+        borderRadius: 12,
+        padding: 16,
+        marginBottom: 16
+    },
+    criticalCard: {
+        borderLeftWidth: 4,
+        borderLeftColor: '#dc2626'
+    },
+    warningCard: {
+        borderLeftWidth: 4,
+        borderLeftColor: '#f59e0b'
+    },
+    healthyCard: {
+        borderLeftWidth: 4,
+        borderLeftColor: '#10b981'
+    },
+    insightHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 8
+    },
+    insightTag: {
+        fontSize: 10,
+        fontWeight: 'bold',
+        paddingVertical: 4,
+        paddingHorizontal: 8,
+        borderRadius: 12
+    },
+    criticalTag: {
+        backgroundColor: '#dc2626',
+        color: '#f8fafc'
+    },
+    warningTag: {
+        backgroundColor: '#f59e0b',
+        color: '#0f172a'
+    },
+    healthyTag: {
+        backgroundColor: '#10b981',
+        color: '#0f172a'
+    },
+    shareText: {
+        color: '#94a3b8',
+        fontSize: 12
+    },
+    insightTitle: {
+        fontSize: 14,
+        fontWeight: 'bold',
+        color: '#f8fafc',
+        marginBottom: 4
+    },
+    insightAction: {
+        fontSize: 12,
+        color: '#cbd5e1',
+        lineHeight: 16
+    },
+    rowContainer: {
+        flexDirection: 'row',
+        marginBottom: 16
+    },
+    card: {
+        backgroundColor: '#1e293b',
+        borderRadius: 12,
+        padding: 16,
+        marginBottom: 16
+    },
+    cardLabel: {
+        fontSize: 12,
+        color: '#94a3b8',
+        marginBottom: 8
+    },
+    cardTitle: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#f8fafc',
+        marginBottom: 12
+    },
+    incomeText: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#10b981'
+    },
+    expenseText: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#ef4444'
+    },
+    assetText: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#3b82f6'
+    },
+    liabilityText: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#f97316'
+    },
+    equityText: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#8b5cf6'
+    },
+    positiveText: {
+        color: '#10b981',
+        fontWeight: '500'
+    },
+    negativeText: {
+        color: '#ef4444',
+        fontWeight: '500'
+    },
+    noteText: {
+        fontSize: 11,
+        color: '#94a3b8',
+        fontStyle: 'italic',
+        marginTop: 8
+    },
+    footerNav: {
+        borderTopWidth: 1,
+        borderTopColor: '#334155',
+        backgroundColor: '#1e293b'
+    },
+    navContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+        paddingVertical: 12
+    },
+    navItem: {
+        alignItems: 'center',
+        flex: 1
+    },
+    navText: {
+        color: '#cbd5e1',
+        fontSize: 12,
+        marginTop: 4
+    },
+    reportContainer: {
+        flex: 1,
+        backgroundColor: '#0f172a'
+    },
+    reportTabsContainer: {
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        backgroundColor: '#1e293b',
+        borderBottomWidth: 1,
+        borderBottomColor: '#334155'
+    },
+    repTab: {
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        marginRight: 8,
+        backgroundColor: '#0f172a',
+        borderRadius: 20
+    },
+    repTabActive: {
+        backgroundColor: '#2563eb'
+    },
+    repTabText: {
+        color: '#94a3b8',
+        fontSize: 12,
+        fontWeight: '500'
+    },
+    repTabActiveText: {
+        color: '#f8fafc',
+        fontWeight: 'bold'
+    },
+    reportContent: {
+        flex: 1,
+        backgroundColor: '#0f172a'
+    },
+    metricRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingVertical: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: '#334155'
+    },
+    metricLabel: {
+        fontSize: 14,
+        color: '#cbd5e1',
+        fontWeight: '500'
+    },
+    legendContainer: {
+        flexDirection: 'row',
+        marginBottom: 16
+    },
+    legendItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginRight: 16
+    },
+    legendColor: {
+        width: 12,
+        height: 12,
+        borderRadius: 6,
+        marginRight: 6
+    },
+    legendText: {
+        fontSize: 12,
+        color: '#94a3b8'
+    },
+    txCard: {
+        backgroundColor: '#1e293b',
+        borderRadius: 8,
+        padding: 12,
+        marginBottom: 8
+    },
+    incomeCard: {
+        borderLeftWidth: 3,
+        borderLeftColor: '#10b981'
+    },
+    expenseCard: {
+        borderLeftWidth: 3,
+        borderLeftColor: '#ef4444'
+    },
+    txHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 6
+    },
+    txDescription: {
+        fontSize: 14,
+        color: '#f8fafc',
+        flex: 1,
+        marginRight: 8
+    },
+    txDetails: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap'
+    },
+    txDate: {
+        fontSize: 11,
+        color: '#94a3b8',
+        marginRight: 8
+    },
+    txCategory: {
+        fontSize: 11,
+        color: '#94a3b8',
+        marginRight: 8
+    },
+    txRef: {
+        fontSize: 11,
+        color: '#94a3b8'
+    },
+    txVendor: {
+        fontSize: 11,
+        color: '#94a3b8',
+        flex: 1,
+        textAlign: 'right'
+    },
+    rowBetween: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 16
+    },
+    expenseCategoryRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingVertical: 6
+    },
+    expenseCategory: {
+        fontSize: 12,
+        color: '#f8fafc'
+    },
+    incomeCategoryRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingVertical: 6
+    },
+    incomeCategory: {
+        fontSize: 12,
+        color: '#f8fafc'
+    },
+    normalText: {
+        color: '#cbd5e1',
+        fontWeight: '500'
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    modalContent: {
+        backgroundColor: '#1e293b',
+        borderRadius: 16,
+        padding: 24,
+        width: '90%',
+        maxWidth: 500,
+        maxHeight: '80%',
+    },
+    modalTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#f8fafc',
+        marginBottom: 16,
+        textAlign: 'center'
+    },
+    modalLabel: {
+        fontSize: 14,
+        color: '#94a3b8',
+        marginBottom: 8
+    },
+    modalInput: {
+        backgroundColor: '#0f172a',
+        borderColor: '#334155',
+        borderWidth: 1,
+        borderRadius: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        color: '#f8fafc',
+        fontSize: 14
+    },
+    modalBtns: {
+        flexDirection: 'row',
+        marginTop: 20
+    }
+});
