@@ -6,6 +6,7 @@ import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import AgingReport from '../components/AgingReport';
 import TaxSummary from '../components/TaxSummary';
+import SwotAnalysis from '../components/SwotAnalysis';
 import { ReportTab } from '../types';
 import BudgetForecastingDashboard from '../../financial-planning/BudgetForecastingDashboard';
 import CashFlowStatement from '../../financial-planning/CashFlowStatement';
@@ -23,6 +24,7 @@ const TABS: { key: ReportTab; label: string }[] = [
     { key: 'cash_management', label: 'Cash Mgmt' },
     { key: 'debt_management', label: 'Debt' },
     { key: 'financial_health', label: 'Health' },
+    { key: 'swot', label: 'SWOT' },
 ];
 
 export default function ReportsScreen() {
@@ -142,6 +144,8 @@ export default function ReportsScreen() {
                             targetMargin={targetMargin}
                         />
                     )}
+
+                    {activeTab === 'swot' && <SwotAnalysis />}
                 </View>
             </ScrollView>
             <FooterNav />

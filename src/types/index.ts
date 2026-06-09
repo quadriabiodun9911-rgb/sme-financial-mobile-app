@@ -4,7 +4,8 @@ export type Screen =
     | 'reports'
     | 'transactions'
     | 'insights'
-    | 'settings';
+    | 'settings'
+    | 'goals';
 
 export type ReportTab =
     | 'balancesheet'
@@ -15,10 +16,62 @@ export type ReportTab =
     | 'debt_management'
     | 'financial_health'
     | 'aging'
-    | 'tax';
+    | 'tax'
+    | 'swot';
 
 export type TransactionStatus = 'paid' | 'pending' | 'overdue';
 export type RecurringFrequency = 'weekly' | 'monthly' | 'quarterly';
+
+export type GoalType =
+    | 'revenue_growth'
+    | 'margin_improvement'
+    | 'cost_reduction'
+    | 'cash_reserve'
+    | 'reduce_overdue_ar'
+    | 'custom';
+
+export type GoalStatus = 'on_track' | 'at_risk' | 'off_track' | 'achieved';
+
+export interface FinancialGoal {
+    id: string;
+    type: GoalType;
+    title: string;
+    description: string;
+    targetValue: number;       // e.g. 20 (for 20% revenue growth)
+    unit: string;              // e.g. '%', currency symbol, 'days'
+    baselineValue: number;     // value at time of goal creation
+    currentValue: number;      // latest computed value
+    deadline: string;          // ISO date
+    createdAt: string;         // ISO date
+    status: GoalStatus;
+    progress: number;          // 0–100 %
+}
+
+export interface GoalStrategy {
+    goalId: string;
+    actions: StrategyAction[];
+    generatedAt: string;
+}
+
+export interface StrategyAction {
+    priority: 'high' | 'medium' | 'low';
+    title: string;
+    detail: string;
+    metric?: string;           // e.g. "Current margin: 42%" — live metric shown alongside
+}
+
+export interface SwotItem {
+    text: string;
+    metric?: string;           // live data point supporting this item
+}
+
+export interface SwotAnalysis {
+    strengths: SwotItem[];
+    weaknesses: SwotItem[];
+    opportunities: SwotItem[];
+    threats: SwotItem[];
+    generatedAt: string;
+}
 
 export interface Transaction {
     id: string;
@@ -30,19 +83,13 @@ export interface Transaction {
     transactionCategory?: 'purchase' | 'sale' | 'expense' | 'cost' | 'other';
     reference?: string;
     vendorCustomer?: string;
-
-    // Tax fields
-    taxRate?: number;       // percentage e.g. 10 for 10%
-    taxAmount?: number;     // computed: amount * taxRate / 100
-
-    // AR/AP tracking
+    taxRate?: number;
+    taxAmount?: number;
     status?: TransactionStatus;
-    dueDate?: string;       // ISO date string
-
-    // Recurring
+    dueDate?: string;
     isRecurring?: boolean;
     recurringFrequency?: RecurringFrequency;
-    nextRecurringDate?: string;  // ISO date of next auto-entry
+    nextRecurringDate?: string;
 }
 
 export interface FinanceData {
@@ -56,9 +103,9 @@ export interface FinanceData {
     assets: number;
     liabilities: number;
     equity: number;
-    totalTaxCollected: number;   // tax on income transactions
-    totalTaxPaid: number;        // tax on expense transactions
-    netTaxPosition: number;      // collected - paid
+    totalTaxCollected: number;
+    totalTaxPaid: number;
+    netTaxPosition: number;
 }
 
 export interface User {
@@ -74,7 +121,7 @@ export interface BusinessSettings {
     targetMargin: string;
     openingAssets: string;
     openingLiabilities: string;
-    defaultTaxRate: string;   // default tax rate % for new transactions
+    defaultTaxRate: string;
 }
 
 export interface AgingBucket {

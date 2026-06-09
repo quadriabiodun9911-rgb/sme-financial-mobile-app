@@ -1,34 +1,33 @@
 import React, { createContext, useContext, useState, useMemo, useEffect, ReactNode } from 'react';
-import { Transaction, FinanceData, User, BusinessSettings, Screen } from '../types';
+import { Transaction, FinanceData, User, BusinessSettings, Screen, FinancialGoal, GoalType } from '../types';
 import { computeFinance, computeOneThingInsight, computeRecurringDates } from '../utils/finance';
 import { generateId } from '../utils/uuid';
-import { saveTransactions, loadTransactions, saveSettings, loadSettings } from '../utils/storage';
+import { saveTransactions, loadTransactions, saveSettings, loadSettings, saveGoals, loadGoals } from '../utils/storage';
+import { refreshGoal, goalDefaults } from '../utils/goals';
 
 interface AppContextValue {
-    // Navigation
     currentScreen: Screen;
     setCurrentScreen: (s: Screen) => void;
 
-    // Auth
     user: User | null;
     login: (email: string, password: string, business: string) => boolean;
     logout: () => void;
 
-    // Settings
     settings: BusinessSettings;
     updateSettings: (patch: Partial<BusinessSettings>) => void;
 
-    // Transactions
     transactions: Transaction[];
     addTransaction: (tx: Omit<Transaction, 'id' | 'date'>) => void;
     deleteTransaction: (id: string) => void;
     updateTransaction: (id: string, patch: Partial<Transaction>) => void;
 
-    // Derived
+    goals: FinancialGoal[];
+    addGoal: (type: GoalType, overrides: Partial<FinancialGoal>) => void;
+    deleteGoal: (id: string) => void;
+    updateGoalCurrentValue: (id: string, value: number) => void;
+
     finance: FinanceData;
     insight: ReturnType<typeof computeOneThingInsight>;
-
-    // Loading state
     isLoading: boolean;
 }
 
@@ -71,8 +70,6 @@ function processDueRecurring(transactions: Transaction[]): { updated: Transactio
             updated.push(tx);
             continue;
         }
-
-        // Generate the new recurring entry
         const newTx: Transaction = {
             ...tx,
             id: generateId(),
@@ -80,8 +77,6 @@ function processDueRecurring(transactions: Transaction[]): { updated: Transactio
             nextRecurringDate: computeRecurringDates(tx.nextRecurringDate, tx.recurringFrequency!),
         };
         newEntries.push(newTx);
-
-        // Update the original template's nextRecurringDate
         updated.push({ ...tx, nextRecurringDate: newTx.nextRecurringDate });
     }
 
@@ -93,42 +88,43 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [settings, setSettings] = useState<BusinessSettings>(DEFAULT_SETTINGS);
     const [transactions, setTransactions] = useState<Transaction[]>(SEED_TRANSACTIONS);
+    const [goals, setGoals] = useState<FinancialGoal[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     // Load persisted data on mount
     useEffect(() => {
         (async () => {
             try {
-                const [savedTx, savedSettings] = await Promise.all([
+                const [savedTx, savedSettings, savedGoals] = await Promise.all([
                     loadTransactions(),
                     loadSettings(),
+                    loadGoals(),
                 ]);
                 if (savedTx) {
                     const { updated, newEntries } = processDueRecurring(savedTx);
                     setTransactions([...newEntries, ...updated]);
                 }
-                if (savedSettings) {
-                    setSettings({ ...DEFAULT_SETTINGS, ...savedSettings });
-                }
+                if (savedSettings) setSettings({ ...DEFAULT_SETTINGS, ...savedSettings });
+                if (savedGoals) setGoals(savedGoals);
             } finally {
                 setIsLoading(false);
             }
         })();
     }, []);
 
-    // Persist transactions whenever they change (skip initial load)
-    useEffect(() => {
-        if (!isLoading) {
-            saveTransactions(transactions).catch(() => {});
-        }
-    }, [transactions, isLoading]);
+    useEffect(() => { if (!isLoading) saveTransactions(transactions).catch(() => {}); }, [transactions, isLoading]);
+    useEffect(() => { if (!isLoading) saveSettings(settings).catch(() => {}); }, [settings, isLoading]);
+    useEffect(() => { if (!isLoading) saveGoals(goals).catch(() => {}); }, [goals, isLoading]);
 
-    // Persist settings whenever they change (skip initial load)
+    const finance = useMemo(() => computeFinance(transactions, settings), [transactions, settings]);
+    const insight = useMemo(() => computeOneThingInsight(finance, settings), [finance, settings]);
+
+    // Refresh all goal progress whenever finance data changes
     useEffect(() => {
-        if (!isLoading) {
-            saveSettings(settings).catch(() => {});
-        }
-    }, [settings, isLoading]);
+        if (isLoading || goals.length === 0) return;
+        setGoals(prev => prev.map(g => refreshGoal(g, finance, transactions)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [finance, isLoading]);
 
     const login = (email: string, password: string, business: string): boolean => {
         if (!email || !password) return false;
@@ -137,14 +133,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return true;
     };
 
-    const logout = () => {
-        setUser(null);
-        setCurrentScreen('login');
-    };
+    const logout = () => { setUser(null); setCurrentScreen('login'); };
 
-    const updateSettings = (patch: Partial<BusinessSettings>) => {
-        setSettings(prev => ({ ...prev, ...patch }));
-    };
+    const updateSettings = (patch: Partial<BusinessSettings>) => setSettings(prev => ({ ...prev, ...patch }));
 
     const addTransaction = (tx: Omit<Transaction, 'id' | 'date'>) => {
         const today = new Date().toISOString().split('T')[0];
@@ -161,9 +152,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setTransactions(prev => [item, ...prev]);
     };
 
-    const deleteTransaction = (id: string) => {
-        setTransactions(prev => prev.filter(t => t.id !== id));
-    };
+    const deleteTransaction = (id: string) => setTransactions(prev => prev.filter(t => t.id !== id));
 
     const updateTransaction = (id: string, patch: Partial<Transaction>) => {
         setTransactions(prev => prev.map(t => {
@@ -176,31 +165,47 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }));
     };
 
-    const finance = useMemo(
-        () => computeFinance(transactions, settings),
-        [transactions, settings]
-    );
+    const addGoal = (type: GoalType, overrides: Partial<FinancialGoal>) => {
+        const defaults = goalDefaults(type, finance, settings);
+        const now = new Date().toISOString().split('T')[0];
+        const goal: FinancialGoal = {
+            id: generateId(),
+            type,
+            title: '',
+            description: '',
+            targetValue: 0,
+            baselineValue: 0,
+            currentValue: 0,
+            deadline: now,
+            createdAt: now,
+            status: 'on_track',
+            progress: 0,
+            unit: '$',
+            ...defaults,
+            ...overrides,
+        };
+        const refreshed = refreshGoal(goal, finance, transactions);
+        setGoals(prev => [refreshed, ...prev]);
+    };
 
-    const insight = useMemo(
-        () => computeOneThingInsight(finance, settings),
-        [finance, settings]
-    );
+    const deleteGoal = (id: string) => setGoals(prev => prev.filter(g => g.id !== id));
+
+    const updateGoalCurrentValue = (id: string, value: number) => {
+        setGoals(prev => prev.map(g => {
+            if (g.id !== id) return g;
+            const updated = { ...g, currentValue: value };
+            const progress = refreshGoal(updated, finance, transactions).progress;
+            return refreshGoal({ ...updated, progress }, finance, transactions);
+        }));
+    };
 
     const value: AppContextValue = {
-        currentScreen,
-        setCurrentScreen,
-        user,
-        login,
-        logout,
-        settings,
-        updateSettings,
-        transactions,
-        addTransaction,
-        deleteTransaction,
-        updateTransaction,
-        finance,
-        insight,
-        isLoading,
+        currentScreen, setCurrentScreen,
+        user, login, logout,
+        settings, updateSettings,
+        transactions, addTransaction, deleteTransaction, updateTransaction,
+        goals, addGoal, deleteGoal, updateGoalCurrentValue,
+        finance, insight, isLoading,
     };
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

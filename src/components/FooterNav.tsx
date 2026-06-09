@@ -4,11 +4,12 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { Screen } from '../types';
 
-const TABS: { label: string; screen: Screen }[] = [
-    { label: 'Dashboard', screen: 'dashboard' },
-    { label: 'Reports', screen: 'reports' },
-    { label: 'Ledger', screen: 'transactions' },
-    { label: 'Insights', screen: 'insights' },
+const TABS: { label: string; screen: Screen; icon: string }[] = [
+    { label: 'Dashboard', screen: 'dashboard', icon: '⬛' },
+    { label: 'Reports', screen: 'reports', icon: '📊' },
+    { label: 'Ledger', screen: 'transactions', icon: '📒' },
+    { label: 'Goals', screen: 'goals', icon: '🎯' },
+    { label: 'Insights', screen: 'insights', icon: '💡' },
 ];
 
 export default function FooterNav() {
@@ -16,18 +17,20 @@ export default function FooterNav() {
 
     return (
         <View style={styles.footer}>
-            {TABS.map(tab => (
-                <TouchableOpacity
-                    key={tab.screen}
-                    style={styles.item}
-                    onPress={() => setCurrentScreen(tab.screen)}
-                >
-                    <Text style={[styles.text, currentScreen === tab.screen && styles.active]}>
-                        {tab.label}
-                    </Text>
-                    {currentScreen === tab.screen && <View style={styles.indicator} />}
-                </TouchableOpacity>
-            ))}
+            {TABS.map(tab => {
+                const active = currentScreen === tab.screen;
+                return (
+                    <TouchableOpacity
+                        key={tab.screen}
+                        style={styles.item}
+                        onPress={() => setCurrentScreen(tab.screen)}
+                    >
+                        <Text style={styles.icon}>{tab.icon}</Text>
+                        <Text style={[styles.text, active && styles.active]}>{tab.label}</Text>
+                        {active && <View style={styles.indicator} />}
+                    </TouchableOpacity>
+                );
+            })}
         </View>
     );
 }
@@ -36,13 +39,15 @@ const styles = StyleSheet.create({
     footer: {
         flexDirection: 'row',
         justifyContent: 'space-around',
-        paddingVertical: 12,
+        paddingVertical: 10,
+        paddingBottom: 14,
         backgroundColor: Colors.surface,
         borderTopWidth: 1,
         borderTopColor: Colors.border,
     },
     item: { alignItems: 'center', flex: 1 },
-    text: { color: Colors.textMuted, fontSize: 12 },
+    icon: { fontSize: 14, marginBottom: 2 },
+    text: { color: Colors.textMuted, fontSize: 10 },
     active: { color: Colors.primary, fontWeight: 'bold' },
     indicator: {
         width: 4,

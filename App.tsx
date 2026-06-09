@@ -7,6 +7,7 @@ import ReportsScreen from './src/screens/ReportsScreen';
 import TransactionsScreen from './src/screens/TransactionsScreen';
 import InsightsScreen from './src/screens/InsightsScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
+import GoalsScreen from './src/screens/GoalsScreen';
 
 function Navigator() {
     const { currentScreen } = useApp();
@@ -19,6 +20,7 @@ function Navigator() {
             {currentScreen === 'transactions' && <TransactionsScreen />}
             {currentScreen === 'insights' && <InsightsScreen />}
             {currentScreen === 'settings' && <SettingsScreen />}
+            {currentScreen === 'goals' && <GoalsScreen />}
         </View>
     );
 }

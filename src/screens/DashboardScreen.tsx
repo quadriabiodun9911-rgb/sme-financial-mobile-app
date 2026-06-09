@@ -107,6 +107,21 @@ export default function DashboardScreen() {
                         <Text style={styles.hint}>Assets − Liabilities</Text>
                     </View>
 
+                    {/* Goals & SWOT quick-access row */}
+                    <View style={styles.row}>
+                        <TouchableOpacity style={[styles.quickCard, styles.flex]} onPress={() => setCurrentScreen('goals')}>
+                            <Text style={styles.quickIcon}>🎯</Text>
+                            <Text style={styles.quickLabel}>Financial Goals</Text>
+                            <Text style={styles.quickSub}>Track targets & strategy</Text>
+                        </TouchableOpacity>
+                        <View style={styles.spacer} />
+                        <TouchableOpacity style={[styles.quickCard, styles.flex]} onPress={() => setCurrentScreen('reports')}>
+                            <Text style={styles.quickIcon}>📊</Text>
+                            <Text style={styles.quickLabel}>SWOT Analysis</Text>
+                            <Text style={styles.quickSub}>Strengths & threats</Text>
+                        </TouchableOpacity>
+                    </View>
+
                     <TouchableOpacity style={styles.btn} onPress={() => setCurrentScreen('reports')}>
                         <Text style={styles.btnText}>View Detailed Reports</Text>
                     </TouchableOpacity>
@@ -149,4 +164,8 @@ const styles = StyleSheet.create({
     insightAction: { fontSize: 12, color: Colors.textSecondary, lineHeight: 16 },
     btn: { backgroundColor: Colors.primary, paddingVertical: 12, borderRadius: 8, alignItems: 'center', marginTop: 4 },
     btnText: { color: Colors.textPrimary, fontWeight: 'bold', fontSize: 14 },
+    quickCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
+    quickIcon: { fontSize: 22, marginBottom: 4 },
+    quickLabel: { fontSize: 12, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 2 },
+    quickSub: { fontSize: 10, color: Colors.textMuted, textAlign: 'center' },
 });
