@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useMemo, useEffect, ReactNode } from 'react';
-import { Transaction, FinanceData, User, BusinessSettings, Screen, FinancialGoal, GoalType, NavParams, Invoice, InvoiceStatus } from '../types';
+import { Transaction, FinanceData, User, BusinessSettings, Screen, FinancialGoal, GoalType, NavParams, Invoice, InvoiceStatus, TeamMember, UserRole } from '../types';
 import { computeFinance, computeOneThingInsight, computeRecurringDates } from '../utils/finance';
 import { generateId } from '../utils/uuid';
 import {
@@ -10,6 +10,8 @@ import {
     savePin, loadPin,
     saveProfile, loadProfile,
     exportAllData, importAllData, clearAllData,
+    loadTeamMembers, inviteTeamMember, removeTeamMember, joinTeamWithCode,
+    setWorkspaceOwner, clearWorkspaceOwner,
     AppBackup,
 } from '../utils/storage';
 import { refreshGoal, goalDefaults } from '../utils/goals';
@@ -23,9 +25,11 @@ interface AppContextValue {
 
     // Auth
     user: User | null;
-    isFirstLaunch: boolean;          // no PIN set yet
+    userRole: UserRole;
+    isFirstLaunch: boolean;
     setupAccount: (email: string, businessName: string, pin: string, loadDemo: boolean) => Promise<void>;
     login: (pin: string) => boolean;
+    joinTeam: (email: string, pin: string, inviteCode: string) => Promise<void>;
     logout: () => void;
     changePin: (currentPin: string, newPin: string) => boolean;
 
@@ -48,11 +52,16 @@ interface AppContextValue {
     deleteInvoice: (id: string) => void;
     markInvoiceStatus: (id: string, status: InvoiceStatus) => void;
 
+    // Team
+    teamMembers: TeamMember[];
+    inviteMember: (email: string, role: 'accountant' | 'staff') => Promise<string>;
+    removeMember: (id: string) => Promise<void>;
+    refreshTeam: () => Promise<void>;
+
     finance: FinanceData;
     insight: ReturnType<typeof computeOneThingInsight>;
     isLoading: boolean;
 
-    // Data management
     exportData: () => Promise<string>;
     importData: (json: string) => Promise<void>;
     clearData: () => Promise<void>;
@@ -123,11 +132,9 @@ function processDueRecurring(transactions: Transaction[]): { updated: Transactio
     const today = new Date().toISOString().split('T')[0];
     const updated: Transaction[] = [];
     const newEntries: Transaction[] = [];
-
     for (const tx of transactions) {
         if (!tx.isRecurring || !tx.nextRecurringDate || tx.nextRecurringDate > today) {
-            updated.push(tx);
-            continue;
+            updated.push(tx); continue;
         }
         const newTx: Transaction = {
             ...tx,
@@ -138,7 +145,6 @@ function processDueRecurring(transactions: Transaction[]): { updated: Transactio
         newEntries.push(newTx);
         updated.push({ ...tx, nextRecurringDate: newTx.nextRecurringDate });
     }
-
     return { updated, newEntries };
 }
 
@@ -146,14 +152,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const [currentScreen, setCurrentScreen] = useState<Screen>('login');
     const [navParams, setNavParams]         = useState<NavParams | null>(null);
     const [user, setUser]                   = useState<User | null>(null);
+    const [userRole, setUserRole]           = useState<UserRole>('owner');
     const [storedPin, setStoredPin]         = useState<string | null>(null);
     const [settings, setSettings]           = useState<BusinessSettings>(DEFAULT_SETTINGS);
     const [transactions, setTransactions]   = useState<Transaction[]>([]);
     const [goals, setGoals]                 = useState<FinancialGoal[]>([]);
     const [invoices, setInvoices]           = useState<Invoice[]>([]);
+    const [teamMembers, setTeamMembers]     = useState<TeamMember[]>([]);
     const [isLoading, setIsLoading]         = useState(true);
 
-    // Load persisted data on mount
     useEffect(() => {
         (async () => {
             try {
@@ -165,18 +172,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
                     loadPin(),
                     loadProfile(),
                 ]);
-
                 if (pin) setStoredPin(pin);
-
                 if (savedTx) {
                     const { updated, newEntries } = processDueRecurring(savedTx);
                     setTransactions([...newEntries, ...updated]);
                 }
                 if (savedSettings) setSettings({ ...DEFAULT_SETTINGS, ...savedSettings });
-                if (savedGoals) setGoals(savedGoals);
+                if (savedGoals)    setGoals(savedGoals);
                 if (savedInvoices) setInvoices(savedInvoices);
-
-                // If PIN exists and profile exists, pre-populate user so login only needs PIN
                 if (pin && profile) {
                     setUser({ email: profile.email, businessName: profile.businessName, role: 'Administrator' });
                 }
@@ -205,32 +208,54 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setCurrentScreen(s);
     };
 
-    // First launch: create Supabase account, save PIN locally, optionally load demo data
     const setupAccount = async (email: string, businessName: string, pin: string, loadDemo: boolean) => {
-        // Sign up with Supabase — password is the PIN (we handle PIN UX ourselves)
         const { error } = await supabase.auth.signUp({ email, password: pin });
-        if (error && error.message !== 'User already registered') {
-            throw new Error(error.message);
-        }
+        if (error && error.message !== 'User already registered') throw new Error(error.message);
         if (error?.message === 'User already registered') {
-            // Account exists — sign in instead
             const { error: signInError } = await supabase.auth.signInWithPassword({ email, password: pin });
             if (signInError) throw new Error('Account exists but PIN is incorrect.');
         }
+        await clearWorkspaceOwner(); // owner always uses own workspace
         await savePin(pin);
         await saveProfile({ email, businessName });
         setStoredPin(pin);
+        setUserRole('owner');
         setUser({ email, businessName, role: 'Administrator' });
-        if (loadDemo) {
-            setTransactions(DEMO_TRANSACTIONS);
-        }
+        if (loadDemo) setTransactions(DEMO_TRANSACTIONS);
         setCurrentScreen('dashboard');
     };
 
-    // Return login: validate PIN locally, then sign in to Supabase for sync
+    // Team member join — creates Supabase account then links to owner workspace
+    const joinTeam = async (email: string, pin: string, inviteCode: string) => {
+        const { data, error } = await supabase.auth.signUp({ email, password: pin });
+        if (error && error.message !== 'User already registered') throw new Error(error.message);
+        let userId = data?.user?.id;
+        if (error?.message === 'User already registered') {
+            const { data: sd, error: se } = await supabase.auth.signInWithPassword({ email, password: pin });
+            if (se || !sd.user) throw new Error('Sign-in failed. Check your email and PIN.');
+            userId = sd.user.id;
+        }
+        if (!userId) throw new Error('Could not get user ID after sign-up.');
+        const { ownerId, role } = await joinTeamWithCode(userId, inviteCode);
+        await setWorkspaceOwner(ownerId);
+        await savePin(pin);
+        await saveProfile({ email, businessName: '' });
+        setStoredPin(pin);
+        setUserRole(role);
+        setUser({ email, businessName: '', role: role === 'accountant' ? 'Accountant' : 'Staff' });
+        // Load owner's data
+        const [savedTx, savedSettings, savedGoals, savedInvoices] = await Promise.all([
+            loadTransactions(), loadSettings(), loadGoals(), loadInvoices(),
+        ]);
+        if (savedTx) { const { updated, newEntries } = processDueRecurring(savedTx); setTransactions([...newEntries, ...updated]); }
+        if (savedSettings) setSettings({ ...DEFAULT_SETTINGS, ...savedSettings });
+        if (savedGoals)    setGoals(savedGoals);
+        if (savedInvoices) setInvoices(savedInvoices);
+        setCurrentScreen('dashboard');
+    };
+
     const login = (pin: string): boolean => {
         if (pin !== storedPin) return false;
-        // Fire-and-forget Supabase sign-in for cloud sync (non-blocking)
         loadProfile().then(profile => {
             if (profile) {
                 supabase.auth.signInWithPassword({ email: profile.email, password: pin }).catch(() => {});
@@ -249,7 +274,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (currentPin !== storedPin) return false;
         setStoredPin(newPin);
         savePin(newPin).catch(() => {});
-        // Update Supabase password to keep auth in sync
         supabase.auth.updateUser({ password: newPin }).catch(() => {});
         return true;
     };
@@ -261,13 +285,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const date = tx.date || today;
         const taxAmount = tx.taxRate ? Math.round(tx.amount * (tx.taxRate / 100) * 100) / 100 : 0;
         const item: Transaction = {
-            ...tx,
-            id: generateId(),
-            date,
-            taxAmount,
+            ...tx, id: generateId(), date, taxAmount,
             nextRecurringDate: tx.isRecurring && tx.recurringFrequency
-                ? computeRecurringDates(date, tx.recurringFrequency)
-                : undefined,
+                ? computeRecurringDates(date, tx.recurringFrequency) : undefined,
         };
         setTransactions(prev => [item, ...prev]);
     };
@@ -289,23 +309,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const defaults = goalDefaults(type, finance, settings);
         const now = new Date().toISOString().split('T')[0];
         const goal: FinancialGoal = {
-            id: generateId(),
-            type,
-            title: '',
-            description: '',
-            targetValue: 0,
-            baselineValue: 0,
-            currentValue: 0,
-            deadline: now,
-            createdAt: now,
-            status: 'on_track',
-            progress: 0,
-            unit: '$',
-            ...defaults,
-            ...overrides,
+            id: generateId(), type, title: '', description: '',
+            targetValue: 0, baselineValue: 0, currentValue: 0,
+            deadline: now, createdAt: now, status: 'on_track', progress: 0, unit: '$',
+            ...defaults, ...overrides,
         };
-        const refreshed = refreshGoal(goal, finance, transactions);
-        setGoals(prev => [refreshed, ...prev]);
+        setGoals(prev => [refreshGoal(goal, finance, transactions), ...prev]);
     };
 
     const deleteGoal = (id: string) => setGoals(prev => prev.filter(g => g.id !== id));
@@ -314,8 +323,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setGoals(prev => prev.map(g => {
             if (g.id !== id) return g;
             const updated = { ...g, currentValue: value };
-            const progress = refreshGoal(updated, finance, transactions).progress;
-            return refreshGoal({ ...updated, progress }, finance, transactions);
+            return refreshGoal({ ...updated, progress: refreshGoal(updated, finance, transactions).progress }, finance, transactions);
         }));
     };
 
@@ -323,16 +331,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const now = new Date().toISOString().split('T')[0];
         const item: Invoice = { ...inv, id: generateId(), createdAt: now };
         setInvoices(prev => [item, ...prev]);
-        // Auto-create a pending income transaction
         addTransaction({
             description: `Invoice ${inv.invoiceNumber} – ${inv.clientName}`,
-            type: 'income',
-            category: 'Invoice',
-            amount: inv.total,
-            status: 'pending',
-            dueDate: inv.dueDate,
-            vendorCustomer: inv.clientName,
-            reference: inv.invoiceNumber,
+            type: 'income', category: 'Invoice', amount: inv.total,
+            status: 'pending', dueDate: inv.dueDate,
+            vendorCustomer: inv.clientName, reference: inv.invoiceNumber,
         });
     };
 
@@ -343,7 +346,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const markInvoiceStatus = (id: string, status: InvoiceStatus) => {
         setInvoices(prev => prev.map(inv => inv.id === id ? { ...inv, status } : inv));
-        // If marked paid, update the matching transaction to paid
         if (status === 'paid') {
             const inv = invoices.find(i => i.id === id);
             if (inv) {
@@ -351,6 +353,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 if (match) updateTransaction(match.id, { status: 'paid' });
             }
         }
+    };
+
+    const inviteMember = async (email: string, role: 'accountant' | 'staff'): Promise<string> => {
+        const code = await inviteTeamMember(email, role);
+        await refreshTeam();
+        return code;
+    };
+
+    const removeMember = async (id: string) => {
+        await removeTeamMember(id);
+        setTeamMembers(prev => prev.filter(m => m.id !== id));
+    };
+
+    const refreshTeam = async () => {
+        const members = await loadTeamMembers();
+        setTeamMembers(members);
     };
 
     const exportData = () => exportAllData(transactions, settings, goals);
@@ -364,21 +382,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const clearData = async () => {
         await clearAllData();
-        setTransactions([]);
-        setGoals([]);
-        setSettings(DEFAULT_SETTINGS);
+        setTransactions([]); setGoals([]); setSettings(DEFAULT_SETTINGS); setInvoices([]);
     };
 
     const value: AppContextValue = {
         currentScreen, setCurrentScreen,
         navParams, navigate,
-        user,
+        user, userRole,
         isFirstLaunch: storedPin === null && !isLoading,
-        setupAccount, login, logout, changePin,
+        setupAccount, login, joinTeam, logout, changePin,
         settings, updateSettings,
         transactions, addTransaction, deleteTransaction, updateTransaction,
         goals, addGoal, deleteGoal, updateGoalCurrentValue,
         invoices, addInvoice, updateInvoice, deleteInvoice, markInvoiceStatus,
+        teamMembers, inviteMember, removeMember, refreshTeam,
         finance, insight, isLoading,
         exportData, importData, clearData,
     };

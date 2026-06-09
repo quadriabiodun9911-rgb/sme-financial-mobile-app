@@ -131,6 +131,19 @@ export interface NavParams {
     goalType?: GoalType;
 }
 
+export type UserRole = 'owner' | 'accountant' | 'staff';
+
+export interface TeamMember {
+    id: string;
+    ownerUserId: string;
+    memberEmail: string;
+    memberUserId: string | null;
+    role: 'accountant' | 'staff';
+    status: 'pending' | 'active';
+    inviteCode: string;
+    invitedAt: string;
+}
+
 export interface AgingBucket {
     label: string;
     transactions: Transaction[];

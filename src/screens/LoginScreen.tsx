@@ -6,44 +6,48 @@ import {
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 
+type Mode = 'owner-setup' | 'owner-login' | 'join-team';
+
 export default function LoginScreen() {
-    const { isFirstLaunch, setupAccount, login } = useApp();
+    const { isFirstLaunch, setupAccount, login, joinTeam } = useApp();
 
-    // Setup state
-    const [email, setEmail]         = useState('');
-    const [business, setBusiness]   = useState('');
-    const [pin, setPin]             = useState('');
-    const [confirmPin, setConfirm]  = useState('');
-    const [loadDemo, setLoadDemo]   = useState(false);
+    const [mode, setMode] = useState<Mode>(isFirstLaunch ? 'owner-setup' : 'owner-login');
 
-    // Return-visit state
+    // Owner setup
+    const [email, setEmail]       = useState('');
+    const [business, setBusiness] = useState('');
+    const [pin, setPin]           = useState('');
+    const [confirmPin, setConfirm]= useState('');
+    const [loadDemo, setLoadDemo] = useState(false);
+
+    // Owner return
     const [returnPin, setReturnPin] = useState('');
+
+    // Join team
+    const [joinEmail, setJoinEmail]   = useState('');
+    const [joinPin, setJoinPin]       = useState('');
+    const [joinConfirm, setJoinConfirm] = useState('');
+    const [inviteCode, setInviteCode] = useState('');
 
     const handleSetup = async () => {
         if (!email.trim() || !business.trim()) {
-            Alert.alert('Missing fields', 'Please enter your email and business name.');
-            return;
+            Alert.alert('Missing fields', 'Please enter your email and business name.'); return;
         }
         if (!/^\d{4}$/.test(pin)) {
-            Alert.alert('Invalid PIN', 'PIN must be exactly 4 digits.');
-            return;
+            Alert.alert('Invalid PIN', 'PIN must be exactly 4 digits.'); return;
         }
         if (pin !== confirmPin) {
-            Alert.alert('PIN mismatch', 'PINs do not match. Please try again.');
-            return;
+            Alert.alert('PIN mismatch', 'PINs do not match.'); return;
         }
         try {
             await setupAccount(email.trim(), business.trim(), pin, loadDemo);
-        } catch {
-            Alert.alert('Error', 'Could not save your account. Please try again.');
+        } catch (e: any) {
+            Alert.alert('Error', e?.message ?? 'Could not create account. Please try again.');
         }
     };
 
     const handleLogin = () => {
-        if (!returnPin) {
-            Alert.alert('Enter PIN', 'Please enter your 4-digit PIN.');
-            return;
-        }
+        if (!returnPin) { Alert.alert('Enter PIN', 'Please enter your 4-digit PIN.'); return; }
         const ok = login(returnPin);
         if (!ok) {
             Alert.alert('Incorrect PIN', 'The PIN you entered is incorrect.');
@@ -51,75 +55,97 @@ export default function LoginScreen() {
         }
     };
 
-    if (isFirstLaunch) {
+    const handleJoinTeam = async () => {
+        if (!joinEmail.trim()) { Alert.alert('Required', 'Please enter your email.'); return; }
+        if (!/^\d{4}$/.test(joinPin)) { Alert.alert('Invalid PIN', 'PIN must be exactly 4 digits.'); return; }
+        if (joinPin !== joinConfirm) { Alert.alert('PIN mismatch', 'PINs do not match.'); return; }
+        if (!inviteCode.trim()) { Alert.alert('Required', 'Please enter your invite code.'); return; }
+        try {
+            await joinTeam(joinEmail.trim(), joinPin, inviteCode.trim());
+        } catch (e: any) {
+            Alert.alert('Join Failed', e?.message ?? 'Invalid invite code or account error.');
+        }
+    };
+
+    // ── Join Team screen ──────────────────────────────────────────────────────
+    if (mode === 'join-team') {
+        return (
+            <SafeAreaView style={styles.safe}>
+                <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+                    <View style={styles.card}>
+                        <Text style={styles.title}>Join a Team</Text>
+                        <Text style={styles.subtitle}>Enter the invite code your business owner shared with you</Text>
+
+                        <Field label="Your Email">
+                            <TextInput style={styles.input} value={joinEmail} onChangeText={setJoinEmail}
+                                placeholder="you@example.com" placeholderTextColor={Colors.muted}
+                                autoCapitalize="none" keyboardType="email-address" />
+                        </Field>
+                        <Field label="Create PIN (4 digits)">
+                            <TextInput style={styles.input} value={joinPin} onChangeText={setJoinPin}
+                                placeholder="••••" placeholderTextColor={Colors.muted}
+                                secureTextEntry keyboardType="number-pad" maxLength={4} />
+                        </Field>
+                        <Field label="Confirm PIN">
+                            <TextInput style={styles.input} value={joinConfirm} onChangeText={setJoinConfirm}
+                                placeholder="••••" placeholderTextColor={Colors.muted}
+                                secureTextEntry keyboardType="number-pad" maxLength={4} />
+                        </Field>
+                        <Field label="Invite Code">
+                            <TextInput style={[styles.input, styles.codeInput]} value={inviteCode}
+                                onChangeText={v => setInviteCode(v.toUpperCase())}
+                                placeholder="ABC123" placeholderTextColor={Colors.muted}
+                                autoCapitalize="characters" maxLength={6} />
+                        </Field>
+
+                        <TouchableOpacity style={styles.btn} onPress={handleJoinTeam}>
+                            <Text style={styles.btnText}>Join Team</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.switchBtn} onPress={() => setMode(isFirstLaunch ? 'owner-setup' : 'owner-login')}>
+                            <Text style={styles.switchText}>Back to sign in</Text>
+                        </TouchableOpacity>
+                    </View>
+                </ScrollView>
+            </SafeAreaView>
+        );
+    }
+
+    // ── Owner first-launch setup ──────────────────────────────────────────────
+    if (mode === 'owner-setup') {
         return (
             <SafeAreaView style={styles.safe}>
                 <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
                     <View style={styles.card}>
                         <Text style={styles.title}>FinanceBook</Text>
-                        <Text style={styles.subtitle}>Set up your account to get started</Text>
+                        <Text style={styles.subtitle}>Set up your business account</Text>
 
                         <Field label="Email">
-                            <TextInput
-                                style={styles.input}
-                                placeholder="admin@yourbusiness.com"
-                                placeholderTextColor={Colors.muted}
-                                value={email}
-                                onChangeText={setEmail}
-                                autoCapitalize="none"
-                                keyboardType="email-address"
-                            />
+                            <TextInput style={styles.input} value={email} onChangeText={setEmail}
+                                placeholder="admin@yourbusiness.com" placeholderTextColor={Colors.muted}
+                                autoCapitalize="none" keyboardType="email-address" />
                         </Field>
-
                         <Field label="Business Name">
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Acme Corp"
-                                placeholderTextColor={Colors.muted}
-                                value={business}
-                                onChangeText={setBusiness}
-                            />
+                            <TextInput style={styles.input} value={business} onChangeText={setBusiness}
+                                placeholder="Acme Corp" placeholderTextColor={Colors.muted} />
                         </Field>
-
                         <Field label="Create 4-Digit PIN">
-                            <TextInput
-                                style={styles.input}
-                                placeholder="••••"
-                                placeholderTextColor={Colors.muted}
-                                secureTextEntry
-                                keyboardType="number-pad"
-                                maxLength={4}
-                                value={pin}
-                                onChangeText={setPin}
-                            />
+                            <TextInput style={styles.input} value={pin} onChangeText={setPin}
+                                placeholder="••••" placeholderTextColor={Colors.muted}
+                                secureTextEntry keyboardType="number-pad" maxLength={4} />
                         </Field>
-
                         <Field label="Confirm PIN">
-                            <TextInput
-                                style={styles.input}
-                                placeholder="••••"
-                                placeholderTextColor={Colors.muted}
-                                secureTextEntry
-                                keyboardType="number-pad"
-                                maxLength={4}
-                                value={confirmPin}
-                                onChangeText={setConfirm}
-                            />
+                            <TextInput style={styles.input} value={confirmPin} onChangeText={setConfirm}
+                                placeholder="••••" placeholderTextColor={Colors.muted}
+                                secureTextEntry keyboardType="number-pad" maxLength={4} />
                         </Field>
 
                         <Text style={styles.sectionLabel}>Starting data</Text>
                         <View style={styles.demoRow}>
-                            <TouchableOpacity
-                                style={[styles.demoOpt, !loadDemo && styles.demoOptActive]}
-                                onPress={() => setLoadDemo(false)}
-                            >
+                            <TouchableOpacity style={[styles.demoOpt, !loadDemo && styles.demoOptActive]} onPress={() => setLoadDemo(false)}>
                                 <Text style={[styles.demoOptText, !loadDemo && styles.demoOptTextActive]}>Start Fresh</Text>
                                 <Text style={styles.demoOptSub}>Empty ledger, ready for real data</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[styles.demoOpt, loadDemo && styles.demoOptActive]}
-                                onPress={() => setLoadDemo(true)}
-                            >
+                            <TouchableOpacity style={[styles.demoOpt, loadDemo && styles.demoOptActive]} onPress={() => setLoadDemo(true)}>
                                 <Text style={[styles.demoOptText, loadDemo && styles.demoOptTextActive]}>Load Demo Data</Text>
                                 <Text style={styles.demoOptSub}>Explore with sample transactions</Text>
                             </TouchableOpacity>
@@ -128,12 +154,16 @@ export default function LoginScreen() {
                         <TouchableOpacity style={styles.btn} onPress={handleSetup}>
                             <Text style={styles.btnText}>Create Account</Text>
                         </TouchableOpacity>
+                        <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('join-team')}>
+                            <Text style={styles.switchText}>Joining a team instead? →</Text>
+                        </TouchableOpacity>
                     </View>
                 </ScrollView>
             </SafeAreaView>
         );
     }
 
+    // ── Owner return login ────────────────────────────────────────────────────
     return (
         <SafeAreaView style={styles.safe}>
             <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
@@ -144,20 +174,18 @@ export default function LoginScreen() {
                     <View style={styles.pinContainer}>
                         <TextInput
                             style={styles.pinInput}
-                            placeholder="••••"
-                            placeholderTextColor={Colors.muted}
-                            secureTextEntry
-                            keyboardType="number-pad"
-                            maxLength={4}
-                            value={returnPin}
-                            onChangeText={setReturnPin}
-                            onSubmitEditing={handleLogin}
-                            autoFocus
+                            placeholder="••••" placeholderTextColor={Colors.muted}
+                            secureTextEntry keyboardType="number-pad" maxLength={4}
+                            value={returnPin} onChangeText={setReturnPin}
+                            onSubmitEditing={handleLogin} autoFocus
                         />
                     </View>
 
                     <TouchableOpacity style={styles.btn} onPress={handleLogin}>
                         <Text style={styles.btnText}>Unlock</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('join-team')}>
+                        <Text style={styles.switchText}>Joining a team instead? →</Text>
                     </TouchableOpacity>
                 </View>
             </ScrollView>
@@ -178,13 +206,8 @@ const styles = StyleSheet.create({
     safe:   { flex: 1, backgroundColor: Colors.bg },
     scroll: { flexGrow: 1, justifyContent: 'center', padding: 20 },
     card: {
-        backgroundColor: Colors.surface,
-        borderRadius: 16,
-        padding: 24,
-        shadowColor: '#000',
-        shadowOpacity: 0.3,
-        shadowRadius: 10,
-        elevation: 5,
+        backgroundColor: Colors.surface, borderRadius: 16, padding: 24,
+        shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 10, elevation: 5,
     },
     title:    { fontSize: 26, fontWeight: 'bold', color: Colors.textPrimary, textAlign: 'center' },
     subtitle: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', marginBottom: 24, marginTop: 4 },
@@ -192,43 +215,33 @@ const styles = StyleSheet.create({
     group: { marginBottom: 14 },
     label: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary, marginBottom: 6 },
     input: {
-        backgroundColor: Colors.bg,
-        borderColor: Colors.border,
-        borderWidth: 1,
-        borderRadius: 8,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        color: Colors.textPrimary,
-        fontSize: 14,
+        backgroundColor: Colors.bg, borderColor: Colors.border, borderWidth: 1,
+        borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10,
+        color: Colors.textPrimary, fontSize: 14,
     },
+    codeInput: { fontSize: 20, letterSpacing: 8, textAlign: 'center', fontWeight: 'bold' },
 
     sectionLabel: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary, marginBottom: 8, marginTop: 4 },
-    demoRow:      { flexDirection: 'row', gap: 10, marginBottom: 20 },
+    demoRow: { flexDirection: 'row', gap: 10, marginBottom: 20 },
     demoOpt: {
         flex: 1, borderWidth: 1, borderColor: Colors.border,
-        borderRadius: 10, padding: 12, alignItems: 'center',
-        backgroundColor: Colors.bg,
+        borderRadius: 10, padding: 12, alignItems: 'center', backgroundColor: Colors.bg,
     },
-    demoOptActive:    { borderColor: Colors.primary, backgroundColor: Colors.primary + '22' },
-    demoOptText:      { fontSize: 13, fontWeight: '600', color: Colors.textSecondary, marginBottom: 4 },
-    demoOptTextActive:{ color: Colors.primary },
-    demoOptSub:       { fontSize: 10, color: Colors.textMuted, textAlign: 'center', lineHeight: 14 },
+    demoOptActive:     { borderColor: Colors.primary, backgroundColor: Colors.primary + '22' },
+    demoOptText:       { fontSize: 13, fontWeight: '600', color: Colors.textSecondary, marginBottom: 4 },
+    demoOptTextActive: { color: Colors.primary },
+    demoOptSub:        { fontSize: 10, color: Colors.textMuted, textAlign: 'center', lineHeight: 14 },
 
     pinContainer: { alignItems: 'center', marginVertical: 24 },
     pinInput: {
-        backgroundColor: Colors.bg,
-        borderColor: Colors.border,
-        borderWidth: 1,
-        borderRadius: 10,
-        paddingHorizontal: 24,
-        paddingVertical: 14,
-        color: Colors.textPrimary,
-        fontSize: 28,
-        letterSpacing: 12,
-        textAlign: 'center',
-        width: 180,
+        backgroundColor: Colors.bg, borderColor: Colors.border, borderWidth: 1,
+        borderRadius: 10, paddingHorizontal: 24, paddingVertical: 14,
+        color: Colors.textPrimary, fontSize: 28, letterSpacing: 12,
+        textAlign: 'center', width: 180,
     },
 
-    btn:     { backgroundColor: Colors.primary, paddingVertical: 13, borderRadius: 8, alignItems: 'center', marginTop: 4 },
-    btnText: { color: Colors.textPrimary, fontWeight: 'bold', fontSize: 15 },
+    btn:        { backgroundColor: Colors.primary, paddingVertical: 13, borderRadius: 8, alignItems: 'center', marginTop: 4 },
+    btnText:    { color: Colors.textPrimary, fontWeight: 'bold', fontSize: 15 },
+    switchBtn:  { paddingVertical: 14, alignItems: 'center' },
+    switchText: { color: Colors.primary, fontSize: 13 },
 });

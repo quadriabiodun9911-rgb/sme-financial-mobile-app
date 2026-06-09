@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
     TouchableOpacity, StyleSheet, Alert, Modal, Share,
@@ -28,6 +28,7 @@ export default function SettingsScreen() {
     const {
         settings, updateSettings, setCurrentScreen,
         changePin, exportData, importData, clearData, logout,
+        userRole, teamMembers, inviteMember, removeMember, refreshTeam,
     } = useApp();
 
     const [form, setForm] = useState({ ...settings });
@@ -40,6 +41,17 @@ export default function SettingsScreen() {
     // Import modal
     const [importModal, setImportModal] = useState(false);
     const [importJson, setImportJson]   = useState('');
+
+    // Team invite modal
+    const [inviteModal, setInviteModal]   = useState(false);
+    const [inviteEmail, setInviteEmail]   = useState('');
+    const [inviteRole, setInviteRole]     = useState<'accountant' | 'staff'>('accountant');
+    const [pendingCode, setPendingCode]   = useState<string | null>(null);
+
+    useEffect(() => {
+        if (userRole === 'owner') refreshTeam().catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const handleSave = () => {
         if (isNaN(parseFloat(form.minReserve)) || parseFloat(form.minReserve) < 0) {
@@ -103,6 +115,24 @@ export default function SettingsScreen() {
         } catch (e: any) {
             Alert.alert('Import failed', e?.message ?? 'Invalid backup file.');
         }
+    };
+
+    const handleInvite = async () => {
+        if (!inviteEmail.trim()) { Alert.alert('Required', 'Please enter the member\'s email.'); return; }
+        try {
+            const code = await inviteMember(inviteEmail.trim(), inviteRole);
+            setInviteEmail('');
+            setPendingCode(code);
+        } catch (e: any) {
+            Alert.alert('Invite failed', e?.message ?? 'Could not create invite.');
+        }
+    };
+
+    const handleRemoveMember = (id: string, email: string) => {
+        Alert.alert('Remove member', `Remove ${email} from your team?`, [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Remove', style: 'destructive', onPress: () => removeMember(id) },
+        ]);
     };
 
     const handleClearData = () => {
@@ -241,9 +271,112 @@ export default function SettingsScreen() {
                             <Text style={styles.dangerBtnText}>Clear All Data</Text>
                         </TouchableOpacity>
                     </Section>
+
+                    {/* Team Management — owner only */}
+                    {userRole === 'owner' && (
+                        <Section title="Team Management">
+                            <Text style={styles.hint}>
+                                Invite team members to access your business data. Accountants can view and export. Staff can add transactions.
+                            </Text>
+                            <TouchableOpacity style={styles.dataBtn} onPress={() => { setPendingCode(null); setInviteModal(true); }}>
+                                <Text style={styles.dataBtnText}>+ Invite Team Member</Text>
+                            </TouchableOpacity>
+
+                            {teamMembers.length > 0 && (
+                                <View style={{ marginTop: 14 }}>
+                                    {teamMembers.map(m => (
+                                        <View key={m.id} style={styles.memberRow}>
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={styles.memberEmail}>{m.memberEmail}</Text>
+                                                <View style={styles.memberMeta}>
+                                                    <View style={[styles.roleBadge, { backgroundColor: m.role === 'accountant' ? Colors.primary + '22' : Colors.warning + '22' }]}>
+                                                        <Text style={[styles.roleText, { color: m.role === 'accountant' ? Colors.primary : Colors.warning }]}>
+                                                            {m.role.toUpperCase()}
+                                                        </Text>
+                                                    </View>
+                                                    <View style={[styles.roleBadge, { backgroundColor: m.status === 'active' ? Colors.income + '22' : Colors.textMuted + '22' }]}>
+                                                        <Text style={[styles.roleText, { color: m.status === 'active' ? Colors.income : Colors.textMuted }]}>
+                                                            {m.status.toUpperCase()}
+                                                        </Text>
+                                                    </View>
+                                                </View>
+                                            </View>
+                                            <TouchableOpacity onPress={() => handleRemoveMember(m.id, m.memberEmail)}>
+                                                <Text style={{ color: Colors.expense, fontSize: 12, fontWeight: '600' }}>Remove</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    ))}
+                                </View>
+                            )}
+                        </Section>
+                    )}
+
+                    {/* Role info for non-owners */}
+                    {userRole !== 'owner' && (
+                        <Section title="Your Access">
+                            <Text style={styles.hint}>
+                                {userRole === 'accountant'
+                                    ? 'You have Accountant access — you can view all data and export reports, but cannot modify transactions or settings.'
+                                    : 'You have Staff access — you can add transactions. Contact your business owner for full access.'}
+                            </Text>
+                        </Section>
+                    )}
                 </View>
             </ScrollView>
             <FooterNav />
+
+            {/* Invite Modal */}
+            <Modal visible={inviteModal} animationType="slide" transparent>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalCard}>
+                        <Text style={styles.modalTitle}>Invite Team Member</Text>
+                        {pendingCode ? (
+                            <>
+                                <Text style={styles.hint}>Invite created! Share this code with your team member:</Text>
+                                <View style={styles.codeBox}>
+                                    <Text style={styles.codeText}>{pendingCode}</Text>
+                                </View>
+                                <Text style={[styles.hint, { marginTop: 8 }]}>
+                                    They enter this code on the "Join a Team" screen in the app along with their email and a new PIN.
+                                </Text>
+                                <TouchableOpacity style={styles.saveBtn} onPress={async () => {
+                                    await Share.share({ message: `Your FinanceBook invite code: ${pendingCode}` });
+                                }}>
+                                    <Text style={styles.saveBtnText}>Share Code</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.cancelBtn} onPress={() => { setInviteModal(false); setPendingCode(null); }}>
+                                    <Text style={styles.cancelBtnText}>Done</Text>
+                                </TouchableOpacity>
+                            </>
+                        ) : (
+                            <>
+                                <Text style={styles.label}>Member Email</Text>
+                                <TextInput style={styles.input} value={inviteEmail} onChangeText={setInviteEmail}
+                                    placeholder="colleague@company.com" placeholderTextColor={Colors.muted}
+                                    autoCapitalize="none" keyboardType="email-address" />
+                                <Text style={styles.label}>Role</Text>
+                                <View style={styles.optRow}>
+                                    <Opt label="Accountant" active={inviteRole === 'accountant'} onPress={() => setInviteRole('accountant')} />
+                                    <Opt label="Staff" active={inviteRole === 'staff'} onPress={() => setInviteRole('staff')} />
+                                </View>
+                                <Text style={[styles.hint, { marginTop: 10 }]}>
+                                    {inviteRole === 'accountant'
+                                        ? 'Accountant: can view all data and export reports.'
+                                        : 'Staff: can add transactions only.'}
+                                </Text>
+                                <View style={[styles.modalBtns, { marginTop: 16 }]}>
+                                    <TouchableOpacity style={styles.cancelBtn} onPress={() => setInviteModal(false)}>
+                                        <Text style={styles.cancelBtnText}>Cancel</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity style={[styles.saveBtn, { flex: 1, marginBottom: 0 }]} onPress={handleInvite}>
+                                        <Text style={styles.saveBtnText}>Create Invite</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </>
+                        )}
+                    </View>
+                </View>
+            </Modal>
 
             {/* Import Modal */}
             <Modal visible={importModal} animationType="slide" transparent>
@@ -330,4 +463,13 @@ const styles = StyleSheet.create({
     modalTitle:   { fontSize: 17, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 8 },
     importArea:   { height: 180, marginBottom: 16 },
     modalBtns:    { flexDirection: 'row', gap: 12, alignItems: 'center' },
+
+    memberRow:   { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    memberEmail: { fontSize: 13, color: Colors.textPrimary, marginBottom: 4 },
+    memberMeta:  { flexDirection: 'row', gap: 6 },
+    roleBadge:   { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+    roleText:    { fontSize: 10, fontWeight: 'bold' },
+
+    codeBox:  { backgroundColor: Colors.bg, borderRadius: 10, padding: 20, alignItems: 'center', marginVertical: 12 },
+    codeText: { fontSize: 32, fontWeight: 'bold', color: Colors.primary, letterSpacing: 8 },
 });
