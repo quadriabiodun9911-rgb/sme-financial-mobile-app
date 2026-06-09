@@ -13,7 +13,12 @@ export type ReportTab =
     | 'cash_flow_statement'
     | 'cash_management'
     | 'debt_management'
-    | 'financial_health';
+    | 'financial_health'
+    | 'aging'
+    | 'tax';
+
+export type TransactionStatus = 'paid' | 'pending' | 'overdue';
+export type RecurringFrequency = 'weekly' | 'monthly' | 'quarterly';
 
 export interface Transaction {
     id: string;
@@ -25,6 +30,19 @@ export interface Transaction {
     transactionCategory?: 'purchase' | 'sale' | 'expense' | 'cost' | 'other';
     reference?: string;
     vendorCustomer?: string;
+
+    // Tax fields
+    taxRate?: number;       // percentage e.g. 10 for 10%
+    taxAmount?: number;     // computed: amount * taxRate / 100
+
+    // AR/AP tracking
+    status?: TransactionStatus;
+    dueDate?: string;       // ISO date string
+
+    // Recurring
+    isRecurring?: boolean;
+    recurringFrequency?: RecurringFrequency;
+    nextRecurringDate?: string;  // ISO date of next auto-entry
 }
 
 export interface FinanceData {
@@ -35,11 +53,12 @@ export interface FinanceData {
     cashBalance: number;
     totalRevenue: number;
     totalCosts: number;
-    /** True balance sheet assets (cash + manual opening assets) */
     assets: number;
-    /** True balance sheet liabilities (manual opening liabilities) */
     liabilities: number;
     equity: number;
+    totalTaxCollected: number;   // tax on income transactions
+    totalTaxPaid: number;        // tax on expense transactions
+    netTaxPosition: number;      // collected - paid
 }
 
 export interface User {
@@ -55,4 +74,11 @@ export interface BusinessSettings {
     targetMargin: string;
     openingAssets: string;
     openingLiabilities: string;
+    defaultTaxRate: string;   // default tax rate % for new transactions
+}
+
+export interface AgingBucket {
+    label: string;
+    transactions: Transaction[];
+    total: number;
 }

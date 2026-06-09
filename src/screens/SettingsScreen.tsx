@@ -26,7 +26,6 @@ const BUSINESS_TYPES: { label: string; value: BusinessSettings['businessType'] }
 
 export default function SettingsScreen() {
     const { settings, updateSettings, setCurrentScreen } = useApp();
-
     const [form, setForm] = useState({ ...settings });
 
     const handleSave = () => {
@@ -36,6 +35,11 @@ export default function SettingsScreen() {
         }
         if (isNaN(parseFloat(form.targetMargin)) || parseFloat(form.targetMargin) < 0 || parseFloat(form.targetMargin) > 100) {
             Alert.alert('Invalid value', 'Target margin must be between 0 and 100.');
+            return;
+        }
+        const taxRate = parseFloat(form.defaultTaxRate);
+        if (isNaN(taxRate) || taxRate < 0 || taxRate > 100) {
+            Alert.alert('Invalid value', 'Default tax rate must be between 0 and 100.');
             return;
         }
         updateSettings(form);
@@ -52,94 +56,69 @@ export default function SettingsScreen() {
                     <Text style={styles.title}>Settings</Text>
 
                     {/* Business Type */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Business Type</Text>
+                    <Section title="Business Type">
                         <View style={styles.optRow}>
                             {BUSINESS_TYPES.map(bt => (
-                                <TouchableOpacity
-                                    key={bt.value}
-                                    style={[styles.opt, form.businessType === bt.value && styles.optActive]}
-                                    onPress={() => setForm(f => ({ ...f, businessType: bt.value }))}
-                                >
-                                    <Text style={styles.optText}>{bt.label}</Text>
-                                </TouchableOpacity>
+                                <Opt key={bt.value} label={bt.label} active={form.businessType === bt.value}
+                                    onPress={() => setForm(f => ({ ...f, businessType: bt.value }))} />
                             ))}
                         </View>
-                    </View>
+                    </Section>
 
                     {/* Currency */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Currency</Text>
+                    <Section title="Currency">
                         <View style={styles.optRow}>
                             {CURRENCIES.map(c => (
-                                <TouchableOpacity
-                                    key={c.value}
-                                    style={[styles.opt, form.currency === c.value && styles.optActive]}
-                                    onPress={() => setForm(f => ({ ...f, currency: c.value }))}
-                                >
-                                    <Text style={styles.optText}>{c.label}</Text>
-                                </TouchableOpacity>
+                                <Opt key={c.value} label={c.label} active={form.currency === c.value}
+                                    onPress={() => setForm(f => ({ ...f, currency: c.value }))} />
                             ))}
                         </View>
-                    </View>
+                    </Section>
 
                     {/* Financial thresholds */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Financial Thresholds</Text>
-
-                        <Text style={styles.label}>Minimum Cash Reserve ({form.currency})</Text>
-                        <TextInput
-                            style={styles.input}
-                            value={form.minReserve}
+                    <Section title="Financial Thresholds">
+                        <FieldLabel>Minimum Cash Reserve ({form.currency})</FieldLabel>
+                        <TextInput style={styles.input} value={form.minReserve}
                             onChangeText={v => setForm(f => ({ ...f, minReserve: v }))}
-                            keyboardType="numeric"
-                            placeholder="5000"
-                            placeholderTextColor={Colors.muted}
-                        />
+                            keyboardType="numeric" placeholder="5000" placeholderTextColor={Colors.muted} />
 
-                        <Text style={styles.label}>Target Profit Margin (%)</Text>
-                        <TextInput
-                            style={styles.input}
-                            value={form.targetMargin}
+                        <FieldLabel>Target Profit Margin (%)</FieldLabel>
+                        <TextInput style={styles.input} value={form.targetMargin}
                             onChangeText={v => setForm(f => ({ ...f, targetMargin: v }))}
-                            keyboardType="numeric"
-                            placeholder="65"
-                            placeholderTextColor={Colors.muted}
-                        />
-                    </View>
+                            keyboardType="numeric" placeholder="65" placeholderTextColor={Colors.muted} />
+                    </Section>
+
+                    {/* Tax */}
+                    <Section title="Tax Settings">
+                        <FieldLabel>Default Tax Rate (%)</FieldLabel>
+                        <Text style={styles.hint}>
+                            Applied automatically to new transactions. Can be overridden per transaction.
+                        </Text>
+                        <TextInput style={styles.input} value={form.defaultTaxRate}
+                            onChangeText={v => setForm(f => ({ ...f, defaultTaxRate: v }))}
+                            keyboardType="numeric" placeholder="0" placeholderTextColor={Colors.muted} />
+                    </Section>
 
                     {/* Balance Sheet Opening Balances */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Opening Balance Sheet</Text>
+                    <Section title="Opening Balance Sheet">
                         <Text style={styles.hint}>
-                            Enter pre-existing asset and liability balances. These are added to your transaction-derived cash position to produce correct balance sheet totals.
+                            Enter pre-existing asset and liability balances. Added to cash position to produce correct balance sheet totals.
                         </Text>
 
-                        <Text style={styles.label}>Opening Assets ({form.currency})</Text>
-                        <TextInput
-                            style={styles.input}
-                            value={form.openingAssets}
+                        <FieldLabel>Opening Assets ({form.currency})</FieldLabel>
+                        <TextInput style={styles.input} value={form.openingAssets}
                             onChangeText={v => setForm(f => ({ ...f, openingAssets: v }))}
-                            keyboardType="numeric"
-                            placeholder="0"
-                            placeholderTextColor={Colors.muted}
-                        />
+                            keyboardType="numeric" placeholder="0" placeholderTextColor={Colors.muted} />
 
-                        <Text style={styles.label}>Opening Liabilities ({form.currency})</Text>
-                        <TextInput
-                            style={styles.input}
-                            value={form.openingLiabilities}
+                        <FieldLabel>Opening Liabilities ({form.currency})</FieldLabel>
+                        <TextInput style={styles.input} value={form.openingLiabilities}
                             onChangeText={v => setForm(f => ({ ...f, openingLiabilities: v }))}
-                            keyboardType="numeric"
-                            placeholder="0"
-                            placeholderTextColor={Colors.muted}
-                        />
-                    </View>
+                            keyboardType="numeric" placeholder="0" placeholderTextColor={Colors.muted} />
+                    </Section>
 
                     <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
                         <Text style={styles.saveBtnText}>Save Settings</Text>
                     </TouchableOpacity>
-
                     <TouchableOpacity style={styles.cancelBtn} onPress={() => setCurrentScreen('dashboard')}>
                         <Text style={styles.cancelBtnText}>Cancel</Text>
                     </TouchableOpacity>
@@ -150,6 +129,27 @@ export default function SettingsScreen() {
     );
 }
 
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+    return (
+        <View style={styles.section}>
+            <Text style={styles.sectionTitle}>{title}</Text>
+            {children}
+        </View>
+    );
+}
+
+function FieldLabel({ children }: { children: React.ReactNode }) {
+    return <Text style={styles.label}>{children}</Text>;
+}
+
+function Opt({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+    return (
+        <TouchableOpacity style={[styles.opt, active && styles.optActive]} onPress={onPress}>
+            <Text style={styles.optText}>{label}</Text>
+        </TouchableOpacity>
+    );
+}
+
 const styles = StyleSheet.create({
     safe: { flex: 1, backgroundColor: Colors.bg },
     scroll: { flex: 1 },
@@ -157,7 +157,7 @@ const styles = StyleSheet.create({
     title: { fontSize: 20, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 20 },
     section: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 16 },
     sectionTitle: { fontSize: 15, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 12 },
-    hint: { fontSize: 12, color: Colors.textMuted, lineHeight: 18, marginBottom: 12 },
+    hint: { fontSize: 12, color: Colors.textMuted, lineHeight: 18, marginBottom: 8 },
     label: { fontSize: 12, color: Colors.textSecondary, fontWeight: '600', marginBottom: 6, marginTop: 10 },
     input: {
         backgroundColor: Colors.bg,

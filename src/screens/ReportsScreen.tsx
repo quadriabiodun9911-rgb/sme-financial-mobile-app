@@ -4,6 +4,8 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
+import AgingReport from '../components/AgingReport';
+import TaxSummary from '../components/TaxSummary';
 import { ReportTab } from '../types';
 import BudgetForecastingDashboard from '../../financial-planning/BudgetForecastingDashboard';
 import CashFlowStatement from '../../financial-planning/CashFlowStatement';
@@ -13,12 +15,14 @@ import DebtManagement from '../../components/DebtManagement';
 
 const TABS: { key: ReportTab; label: string }[] = [
     { key: 'balancesheet', label: 'Balance Sheet' },
-    { key: 'pnl', label: 'P&L Statement' },
-    { key: 'financial_planning', label: 'Financial Planning' },
-    { key: 'cash_flow_statement', label: 'Cash Flow Statement' },
-    { key: 'cash_management', label: 'Cash Management' },
-    { key: 'debt_management', label: 'Debt Management' },
-    { key: 'financial_health', label: 'Financial Health' },
+    { key: 'pnl', label: 'P&L' },
+    { key: 'aging', label: 'AR / AP Aging' },
+    { key: 'tax', label: 'Tax Summary' },
+    { key: 'financial_planning', label: 'Budget Forecast' },
+    { key: 'cash_flow_statement', label: 'Cash Flow' },
+    { key: 'cash_management', label: 'Cash Mgmt' },
+    { key: 'debt_management', label: 'Debt' },
+    { key: 'financial_health', label: 'Health' },
 ];
 
 export default function ReportsScreen() {
@@ -61,7 +65,7 @@ export default function ReportsScreen() {
                             <Row label="Owner's Equity" value={`${currency}${finance.equity.toLocaleString()}`} color={Colors.equity} />
                             <Text style={styles.note}>
                                 Assets = Cash Balance + Opening Assets.{'\n'}
-                                Update opening balances in Settings to reflect non-cash assets and outstanding liabilities.
+                                Update opening balances in Settings for a complete picture.
                             </Text>
                         </View>
                     )}
@@ -82,8 +86,14 @@ export default function ReportsScreen() {
                                 color={finance.margin >= parseFloat(targetMargin) ? Colors.income : Colors.expense}
                             />
                             <Row label="Target Margin" value={`${targetMargin}%`} color={Colors.textSecondary} />
+                            <Row label="Tax Collected" value={`${currency}${finance.totalTaxCollected.toLocaleString()}`} color={Colors.warning} />
+                            <Row label="Tax Paid" value={`${currency}${finance.totalTaxPaid.toLocaleString()}`} color={Colors.warning} />
                         </View>
                     )}
+
+                    {activeTab === 'aging' && <AgingReport />}
+
+                    {activeTab === 'tax' && <TaxSummary />}
 
                     {activeTab === 'financial_planning' && (
                         <BudgetForecastingDashboard
@@ -158,7 +168,7 @@ const styles = StyleSheet.create({
     safe: { flex: 1, backgroundColor: Colors.bg },
     tabBar: { maxHeight: 56, backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border },
     tabContent: { paddingHorizontal: 12, paddingVertical: 10, alignItems: 'center' },
-    tab: { paddingHorizontal: 16, paddingVertical: 6, marginRight: 8, backgroundColor: Colors.bg, borderRadius: 20 },
+    tab: { paddingHorizontal: 14, paddingVertical: 6, marginRight: 8, backgroundColor: Colors.bg, borderRadius: 20 },
     tabActive: { backgroundColor: Colors.primary },
     tabText: { color: Colors.textMuted, fontSize: 12, fontWeight: '500' },
     tabTextActive: { color: Colors.textPrimary, fontWeight: 'bold' },

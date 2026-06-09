@@ -1,147 +1,268 @@
-import { computeFinance, computeOneThingInsight, getTopCategories } from '../src/utils/finance';
+import {
+    computeFinance,
+    computeOneThingInsight,
+    getTopCategories,
+    computeAgingBuckets,
+    computeRecurringDates,
+    transactionsToCSV,
+} from '../src/utils/finance';
 import { Transaction } from '../src/types';
 
-const makeTransaction = (overrides: Partial<Transaction>): Transaction => ({
+const makeTx = (overrides: Partial<Transaction>): Transaction => ({
     id: 'test',
     date: '2026-01-01',
     description: 'Test',
     type: 'income',
     category: 'Sales',
     amount: 1000,
+    status: 'paid',
     ...overrides,
 });
 
-describe('computeFinance', () => {
-    const settings = { openingAssets: '0', openingLiabilities: '0' };
+const settings = { openingAssets: '0', openingLiabilities: '0' };
 
+// ─── computeFinance ───────────────────────────────────────────────────────────
+
+describe('computeFinance', () => {
     it('returns zeros for empty transactions', () => {
-        const result = computeFinance([], settings);
-        expect(result.income).toBe(0);
-        expect(result.expense).toBe(0);
-        expect(result.profit).toBe(0);
-        expect(result.margin).toBe(0);
-        expect(result.equity).toBe(0);
+        const r = computeFinance([], settings);
+        expect(r.income).toBe(0);
+        expect(r.expense).toBe(0);
+        expect(r.profit).toBe(0);
+        expect(r.margin).toBe(0);
+        expect(r.equity).toBe(0);
     });
 
     it('correctly sums income and expenses', () => {
-        const txs: Transaction[] = [
-            makeTransaction({ type: 'income', amount: 10000 }),
-            makeTransaction({ type: 'expense', amount: 3000 }),
-            makeTransaction({ type: 'expense', amount: 2000 }),
+        const txs = [
+            makeTx({ type: 'income', amount: 10000 }),
+            makeTx({ type: 'expense', amount: 3000 }),
+            makeTx({ type: 'expense', amount: 2000 }),
         ];
-        const result = computeFinance(txs, settings);
-        expect(result.income).toBe(10000);
-        expect(result.expense).toBe(5000);
-        expect(result.profit).toBe(5000);
+        const r = computeFinance(txs, settings);
+        expect(r.income).toBe(10000);
+        expect(r.expense).toBe(5000);
+        expect(r.profit).toBe(5000);
     });
 
     it('calculates margin correctly', () => {
-        const txs: Transaction[] = [
-            makeTransaction({ type: 'income', amount: 10000 }),
-            makeTransaction({ type: 'expense', amount: 2500 }),
+        const txs = [
+            makeTx({ type: 'income', amount: 10000 }),
+            makeTx({ type: 'expense', amount: 2500 }),
         ];
-        const result = computeFinance(txs, settings);
-        expect(result.margin).toBeCloseTo(75, 5);
+        expect(computeFinance(txs, settings).margin).toBeCloseTo(75, 5);
     });
 
     it('margin is 0 when income is 0', () => {
-        const txs: Transaction[] = [
-            makeTransaction({ type: 'expense', amount: 1000 }),
-        ];
-        const result = computeFinance(txs, settings);
-        expect(result.margin).toBe(0);
+        const txs = [makeTx({ type: 'expense', amount: 1000 })];
+        expect(computeFinance(txs, settings).margin).toBe(0);
     });
 
     it('assets = opening assets + cash balance', () => {
-        const txs: Transaction[] = [
-            makeTransaction({ type: 'income', amount: 5000 }),
-        ];
-        const result = computeFinance(txs, { openingAssets: '10000', openingLiabilities: '0' });
-        expect(result.assets).toBe(15000);
+        const txs = [makeTx({ type: 'income', amount: 5000 })];
+        const r = computeFinance(txs, { openingAssets: '10000', openingLiabilities: '0' });
+        expect(r.assets).toBe(15000);
     });
 
     it('liabilities = opening liabilities', () => {
-        const result = computeFinance([], { openingAssets: '0', openingLiabilities: '8000' });
-        expect(result.liabilities).toBe(8000);
+        const r = computeFinance([], { openingAssets: '0', openingLiabilities: '8000' });
+        expect(r.liabilities).toBe(8000);
     });
 
-    it('equity = assets - liabilities (accounting equation)', () => {
-        const txs: Transaction[] = [
-            makeTransaction({ type: 'income', amount: 20000 }),
-            makeTransaction({ type: 'expense', amount: 5000 }),
+    it('equity = assets - liabilities (accounting equation holds)', () => {
+        const txs = [
+            makeTx({ type: 'income', amount: 20000 }),
+            makeTx({ type: 'expense', amount: 5000 }),
         ];
-        const result = computeFinance(txs, { openingAssets: '50000', openingLiabilities: '30000' });
-        expect(result.equity).toBe(result.assets - result.liabilities);
+        const r = computeFinance(txs, { openingAssets: '50000', openingLiabilities: '30000' });
+        expect(r.equity).toBe(r.assets - r.liabilities);
     });
 
     it('handles negative cash balance (net loss)', () => {
-        const txs: Transaction[] = [
-            makeTransaction({ type: 'expense', amount: 8000 }),
+        const txs = [makeTx({ type: 'expense', amount: 8000 })];
+        const r = computeFinance(txs, settings);
+        expect(r.profit).toBe(-8000);
+        expect(r.cashBalance).toBe(-8000);
+    });
+
+    it('computes totalTaxCollected from income transactions', () => {
+        const txs = [
+            makeTx({ type: 'income', amount: 10000, taxRate: 10, taxAmount: 1000 }),
+            makeTx({ type: 'income', amount: 5000, taxRate: 10, taxAmount: 500 }),
+            makeTx({ type: 'expense', amount: 2000, taxRate: 10, taxAmount: 200 }),
         ];
-        const result = computeFinance(txs, settings);
-        expect(result.profit).toBe(-8000);
-        expect(result.cashBalance).toBe(-8000);
+        const r = computeFinance(txs, settings);
+        expect(r.totalTaxCollected).toBe(1500);
+        expect(r.totalTaxPaid).toBe(200);
+        expect(r.netTaxPosition).toBe(1300);
+    });
+
+    it('netTaxPosition is 0 when no tax is recorded', () => {
+        const txs = [makeTx({ type: 'income', amount: 5000 })];
+        const r = computeFinance(txs, settings);
+        expect(r.totalTaxCollected).toBe(0);
+        expect(r.totalTaxPaid).toBe(0);
+        expect(r.netTaxPosition).toBe(0);
     });
 });
 
+// ─── computeOneThingInsight ───────────────────────────────────────────────────
+
 describe('computeOneThingInsight', () => {
-    const baseSettings = { currency: '$', minReserve: '5000', targetMargin: '65' };
+    const base = { currency: '$', minReserve: '5000', targetMargin: '65' };
+
+    const makeFinance = (cashBalance: number, margin: number) => ({
+        cashBalance, margin, income: 10000, expense: 0, profit: cashBalance,
+        assets: cashBalance, liabilities: 0, equity: cashBalance,
+        totalRevenue: 10000, totalCosts: 0, totalTaxCollected: 0, totalTaxPaid: 0, netTaxPosition: 0,
+    });
 
     it('returns critical when cash balance < min reserve', () => {
-        const finance = { cashBalance: 1000, margin: 80, income: 10000, expense: 0, profit: 10000, assets: 1000, liabilities: 0, equity: 1000, totalRevenue: 10000, totalCosts: 0 };
-        const result = computeOneThingInsight(finance, baseSettings);
-        expect(result.severity).toBe('critical');
+        expect(computeOneThingInsight(makeFinance(1000, 80), base).severity).toBe('critical');
     });
 
     it('returns warning when margin < target', () => {
-        const finance = { cashBalance: 10000, margin: 40, income: 10000, expense: 6000, profit: 4000, assets: 10000, liabilities: 0, equity: 10000, totalRevenue: 10000, totalCosts: 6000 };
-        const result = computeOneThingInsight(finance, baseSettings);
-        expect(result.severity).toBe('warning');
+        expect(computeOneThingInsight(makeFinance(10000, 40), base).severity).toBe('warning');
     });
 
     it('returns healthy when both thresholds are met', () => {
-        const finance = { cashBalance: 20000, margin: 70, income: 10000, expense: 3000, profit: 7000, assets: 20000, liabilities: 0, equity: 20000, totalRevenue: 10000, totalCosts: 3000 };
-        const result = computeOneThingInsight(finance, baseSettings);
-        expect(result.severity).toBe('healthy');
+        expect(computeOneThingInsight(makeFinance(20000, 70), base).severity).toBe('healthy');
     });
 
     it('critical takes precedence over margin warning', () => {
-        const finance = { cashBalance: 0, margin: 10, income: 100, expense: 90, profit: 10, assets: 0, liabilities: 0, equity: 0, totalRevenue: 100, totalCosts: 90 };
-        const result = computeOneThingInsight(finance, baseSettings);
-        expect(result.severity).toBe('critical');
+        expect(computeOneThingInsight(makeFinance(0, 10), base).severity).toBe('critical');
     });
 });
 
+// ─── getTopCategories ─────────────────────────────────────────────────────────
+
 describe('getTopCategories', () => {
     const txs: Transaction[] = [
-        makeTransaction({ type: 'expense', category: 'Marketing', amount: 3000 }),
-        makeTransaction({ type: 'expense', category: 'Personnel', amount: 10000 }),
-        makeTransaction({ type: 'expense', category: 'Marketing', amount: 2000 }),
-        makeTransaction({ type: 'expense', category: 'Software', amount: 500 }),
-        makeTransaction({ type: 'income', category: 'Sales', amount: 20000 }),
+        makeTx({ type: 'expense', category: 'Marketing', amount: 3000 }),
+        makeTx({ type: 'expense', category: 'Personnel', amount: 10000 }),
+        makeTx({ type: 'expense', category: 'Marketing', amount: 2000 }),
+        makeTx({ type: 'expense', category: 'Software', amount: 500 }),
+        makeTx({ type: 'income', category: 'Sales', amount: 20000 }),
     ];
 
-    it('aggregates categories and sorts by amount descending', () => {
-        const result = getTopCategories(txs, 'expense', 3);
-        expect(result[0].category).toBe('Personnel');
-        expect(result[0].amount).toBe(10000);
-        expect(result[1].category).toBe('Marketing');
-        expect(result[1].amount).toBe(5000);
+    it('aggregates and sorts by amount descending', () => {
+        const r = getTopCategories(txs, 'expense', 3);
+        expect(r[0]).toEqual({ category: 'Personnel', amount: 10000 });
+        expect(r[1]).toEqual({ category: 'Marketing', amount: 5000 });
     });
 
     it('only includes the specified type', () => {
-        const result = getTopCategories(txs, 'income', 3);
-        expect(result).toHaveLength(1);
-        expect(result[0].category).toBe('Sales');
+        const r = getTopCategories(txs, 'income', 3);
+        expect(r).toHaveLength(1);
+        expect(r[0].category).toBe('Sales');
     });
 
     it('respects the limit', () => {
-        const result = getTopCategories(txs, 'expense', 2);
-        expect(result).toHaveLength(2);
+        expect(getTopCategories(txs, 'expense', 2)).toHaveLength(2);
     });
 
-    it('returns empty array for no matching transactions', () => {
-        const result = getTopCategories([], 'expense', 3);
-        expect(result).toHaveLength(0);
+    it('returns empty for no matching transactions', () => {
+        expect(getTopCategories([], 'expense', 3)).toHaveLength(0);
+    });
+});
+
+// ─── computeAgingBuckets ─────────────────────────────────────────────────────
+
+describe('computeAgingBuckets', () => {
+    const today = new Date();
+    const daysAgo = (n: number) => {
+        const d = new Date(today);
+        d.setDate(d.getDate() - n);
+        return d.toISOString().split('T')[0];
+    };
+
+    it('places a 10-day overdue invoice in the 0-30 bucket', () => {
+        const txs = [makeTx({ type: 'income', status: 'overdue', dueDate: daysAgo(10), amount: 500 })];
+        const buckets = computeAgingBuckets(txs, 'income');
+        expect(buckets[0].total).toBe(500);
+        expect(buckets[1].total).toBe(0);
+    });
+
+    it('places a 45-day overdue invoice in the 31-60 bucket', () => {
+        const txs = [makeTx({ type: 'income', status: 'overdue', dueDate: daysAgo(45), amount: 1000 })];
+        const buckets = computeAgingBuckets(txs, 'income');
+        expect(buckets[1].total).toBe(1000);
+    });
+
+    it('places a 95-day overdue invoice in the 90+ bucket', () => {
+        const txs = [makeTx({ type: 'income', status: 'overdue', dueDate: daysAgo(95), amount: 750 })];
+        const buckets = computeAgingBuckets(txs, 'income');
+        expect(buckets[3].total).toBe(750);
+    });
+
+    it('excludes paid transactions', () => {
+        const txs = [makeTx({ type: 'income', status: 'paid', dueDate: daysAgo(10), amount: 999 })];
+        const buckets = computeAgingBuckets(txs, 'income');
+        expect(buckets.every(b => b.total === 0)).toBe(true);
+    });
+
+    it('excludes transactions with no due date', () => {
+        const txs = [makeTx({ type: 'income', status: 'overdue', dueDate: undefined, amount: 500 })];
+        const buckets = computeAgingBuckets(txs, 'income');
+        expect(buckets.every(b => b.total === 0)).toBe(true);
+    });
+
+    it('separates AR and AP by type', () => {
+        const txs = [
+            makeTx({ type: 'income', status: 'pending', dueDate: daysAgo(5), amount: 1000 }),
+            makeTx({ type: 'expense', status: 'pending', dueDate: daysAgo(5), amount: 2000 }),
+        ];
+        const ar = computeAgingBuckets(txs, 'income');
+        const ap = computeAgingBuckets(txs, 'expense');
+        expect(ar[0].total).toBe(1000);
+        expect(ap[0].total).toBe(2000);
+    });
+});
+
+// ─── computeRecurringDates ────────────────────────────────────────────────────
+
+describe('computeRecurringDates', () => {
+    it('adds 7 days for weekly', () => {
+        expect(computeRecurringDates('2026-01-01', 'weekly')).toBe('2026-01-08');
+    });
+
+    it('adds 1 month for monthly', () => {
+        expect(computeRecurringDates('2026-01-01', 'monthly')).toBe('2026-02-01');
+    });
+
+    it('adds 3 months for quarterly', () => {
+        expect(computeRecurringDates('2026-01-01', 'quarterly')).toBe('2026-04-01');
+    });
+});
+
+// ─── transactionsToCSV ────────────────────────────────────────────────────────
+
+describe('transactionsToCSV', () => {
+    it('produces a header row plus one data row per transaction', () => {
+        const txs = [makeTx({ id: 'a1', description: 'Sale', amount: 1000, type: 'income' })];
+        const csv = transactionsToCSV(txs);
+        const lines = csv.split('\n');
+        expect(lines).toHaveLength(2);
+        expect(lines[0]).toContain('ID');
+        expect(lines[1]).toContain('a1');
+    });
+
+    it('escapes commas in values', () => {
+        const txs = [makeTx({ description: 'Sale, invoice' })];
+        const csv = transactionsToCSV(txs);
+        expect(csv).toContain('"Sale, invoice"');
+    });
+
+    it('returns only the header for an empty list', () => {
+        const csv = transactionsToCSV([]);
+        expect(csv.split('\n')).toHaveLength(1);
+    });
+
+    it('includes recurring and tax fields', () => {
+        const txs = [makeTx({ isRecurring: true, recurringFrequency: 'monthly', taxRate: 10, taxAmount: 100 })];
+        const csv = transactionsToCSV(txs);
+        expect(csv).toContain('Yes');
+        expect(csv).toContain('monthly');
+        expect(csv).toContain('10');
     });
 });
