@@ -17,7 +17,7 @@ interface AppContextValue {
     updateSettings: (patch: Partial<BusinessSettings>) => void;
 
     transactions: Transaction[];
-    addTransaction: (tx: Omit<Transaction, 'id' | 'date'>) => void;
+    addTransaction: (tx: Omit<Transaction, 'id' | 'date'> & { date?: string }) => void;
     deleteTransaction: (id: string) => void;
     updateTransaction: (id: string, patch: Partial<Transaction>) => void;
 
@@ -137,16 +137,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const updateSettings = (patch: Partial<BusinessSettings>) => setSettings(prev => ({ ...prev, ...patch }));
 
-    const addTransaction = (tx: Omit<Transaction, 'id' | 'date'>) => {
+    const addTransaction = (tx: Omit<Transaction, 'id' | 'date'> & { date?: string }) => {
         const today = new Date().toISOString().split('T')[0];
+        const date = tx.date || today;
         const taxAmount = tx.taxRate ? Math.round(tx.amount * (tx.taxRate / 100) * 100) / 100 : 0;
         const item: Transaction = {
             ...tx,
             id: generateId(),
-            date: today,
+            date,
             taxAmount,
             nextRecurringDate: tx.isRecurring && tx.recurringFrequency
-                ? computeRecurringDates(today, tx.recurringFrequency)
+                ? computeRecurringDates(date, tx.recurringFrequency)
                 : undefined,
         };
         setTransactions(prev => [item, ...prev]);
