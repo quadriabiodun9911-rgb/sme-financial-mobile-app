@@ -13,7 +13,7 @@ export default function FooterNav() {
         { labelKey: 'reports',    screen: 'reports',      icon: '📊' },
         { labelKey: 'invoices',   screen: 'invoices',     icon: '🧾' },
         { labelKey: 'ledger',     screen: 'transactions', icon: '📒' },
-        { labelKey: 'goals',      screen: 'goals',        icon: '🎯' },
+        { labelKey: 'assets',     screen: 'assets',       icon: '🏭' },
     ];
 
     return (

@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Transaction, BusinessSettings, FinancialGoal, Invoice, TeamMember, Language } from '../types';
+import { Transaction, BusinessSettings, FinancialGoal, Invoice, TeamMember, Language, Asset } from '../types';
 import { supabase } from './supabase';
 
 const KEYS = {
@@ -11,6 +11,7 @@ const KEYS = {
     invoices:       '@financebook/invoices',
     workspaceOwner: '@financebook/workspaceOwner',
     language:       '@financebook/language',
+    assets:         '@financebook/assets',
 };
 
 // ─── Auth helpers ─────────────────────────────────────────────────────────────
@@ -173,6 +174,43 @@ export async function loadInvoices(): Promise<Invoice[] | null> {
     return raw ? (JSON.parse(raw) as Invoice[]) : null;
 }
 
+// ─── Assets ───────────────────────────────────────────────────────────────────
+export async function saveAssets(assets: Asset[]): Promise<void> {
+    await AsyncStorage.setItem(KEYS.assets, JSON.stringify(assets));
+    const ownerId = await getWorkspaceOwnerId();
+    if (!ownerId) return;
+    if (assets.length > 0) {
+        const rows = assets.map(a => ({ id: a.id, user_id: ownerId, data: a, updated_at: new Date().toISOString() }));
+        await supabase.from('assets').upsert(rows, { onConflict: 'id' });
+    }
+    const { data: remote } = await supabase.from('assets').select('id').eq('user_id', ownerId);
+    if (remote) {
+        const localIds = new Set(assets.map(a => a.id));
+        const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
+        if (toDelete.length > 0) {
+            await supabase.from('assets').delete().in('id', toDelete);
+        }
+    }
+}
+
+export async function loadAssets(): Promise<Asset[] | null> {
+    const ownerId = await getWorkspaceOwnerId();
+    if (ownerId) {
+        const { data, error } = await supabase
+            .from('assets')
+            .select('data')
+            .eq('user_id', ownerId)
+            .order('updated_at', { ascending: false });
+        if (!error && data && data.length > 0) {
+            const list = data.map(r => r.data as Asset);
+            await AsyncStorage.setItem(KEYS.assets, JSON.stringify(list));
+            return list;
+        }
+    }
+    const raw = await AsyncStorage.getItem(KEYS.assets);
+    return raw ? (JSON.parse(raw) as Asset[]) : null;
+}
+
 // ─── Team Members ─────────────────────────────────────────────────────────────
 export async function loadTeamMembers(): Promise<TeamMember[]> {
     const ownerId = await getAuthUserId();
@@ -304,7 +342,7 @@ export async function importAllData(json: string): Promise<AppBackup> {
 }
 
 export async function clearAllData(): Promise<void> {
-    await AsyncStorage.multiRemove([KEYS.transactions, KEYS.settings, KEYS.goals, KEYS.invoices]);
+    await AsyncStorage.multiRemove([KEYS.transactions, KEYS.settings, KEYS.goals, KEYS.invoices, KEYS.assets]);
     const ownerId = await getWorkspaceOwnerId();
     if (ownerId) {
         await Promise.all([
@@ -312,6 +350,7 @@ export async function clearAllData(): Promise<void> {
             supabase.from('goals').delete().eq('user_id', ownerId),
             supabase.from('settings').delete().eq('user_id', ownerId),
             supabase.from('invoices').delete().eq('user_id', ownerId),
+            supabase.from('assets').delete().eq('user_id', ownerId),
         ]);
     }
 }

@@ -6,7 +6,8 @@ export type Screen =
     | 'insights'
     | 'settings'
     | 'goals'
-    | 'invoices';
+    | 'invoices'
+    | 'assets';
 
 export type ReportTab =
     | 'balancesheet'
@@ -132,7 +133,25 @@ export interface NavParams {
 }
 
 export type UserRole = 'owner' | 'accountant' | 'staff';
-export type Language = 'en' | 'zh' | 'yo' | 'ha';
+export type Language = 'en' | 'zh';
+
+export type AssetCategory = 'equipment' | 'vehicle' | 'furniture' | 'property' | 'intangible' | 'other';
+export type AssetStatus = 'active' | 'disposed';
+
+export interface Asset {
+    id: string;
+    name: string;
+    category: AssetCategory;
+    description: string;
+    purchaseDate: string;       // ISO date
+    purchaseCost: number;
+    usefulLifeYears: number;
+    residualValue: number;
+    status: AssetStatus;
+    disposalDate?: string;
+    disposalValue?: number;
+    createdAt: string;
+}
 
 export interface TeamMember {
     id: string;

@@ -1,8 +1,26 @@
-import { Transaction, FinanceData, BusinessSettings, AgingBucket } from '../types';
+import { Transaction, FinanceData, BusinessSettings, AgingBucket, Asset } from '../types';
+
+// Returns the straight-line book value of an asset as of today (never below residualValue)
+export function computeAssetCurrentValue(asset: Asset): number {
+    if (asset.status === 'disposed') return asset.disposalValue ?? 0;
+    const purchaseDate = new Date(asset.purchaseDate);
+    const today = new Date();
+    const yearsElapsed = Math.max(0, (today.getTime() - purchaseDate.getTime()) / (365.25 * 24 * 3600 * 1000));
+    const depreciable = asset.purchaseCost - asset.residualValue;
+    const annualDep = asset.usefulLifeYears > 0 ? depreciable / asset.usefulLifeYears : 0;
+    const accumulated = Math.min(depreciable, annualDep * yearsElapsed);
+    return Math.max(asset.residualValue, asset.purchaseCost - accumulated);
+}
+
+export function computeAssetAnnualDepreciation(asset: Asset): number {
+    if (asset.usefulLifeYears <= 0) return 0;
+    return (asset.purchaseCost - asset.residualValue) / asset.usefulLifeYears;
+}
 
 export function computeFinance(
     transactions: Transaction[],
-    settings: Pick<BusinessSettings, 'openingAssets' | 'openingLiabilities'>
+    settings: Pick<BusinessSettings, 'openingAssets' | 'openingLiabilities'>,
+    registeredAssetsValue = 0,
 ): FinanceData {
     const income = transactions
         .filter(t => t.type === 'income')
@@ -19,7 +37,7 @@ export function computeFinance(
     const openingAssets = parseFloat(settings.openingAssets) || 0;
     const openingLiabilities = parseFloat(settings.openingLiabilities) || 0;
 
-    const assets = openingAssets + cashBalance;
+    const assets = openingAssets + cashBalance + registeredAssetsValue;
     const liabilities = openingLiabilities;
     const equity = assets - liabilities;
 

@@ -1,13 +1,14 @@
 import React, { createContext, useContext, useState, useMemo, useEffect, ReactNode } from 'react';
 import { Alert } from 'react-native';
-import { Transaction, FinanceData, User, BusinessSettings, Screen, FinancialGoal, GoalType, NavParams, Invoice, InvoiceStatus, TeamMember, UserRole, Language } from '../types';
-import { computeFinance, computeOneThingInsight, computeRecurringDates } from '../utils/finance';
+import { Transaction, FinanceData, User, BusinessSettings, Screen, FinancialGoal, GoalType, NavParams, Invoice, InvoiceStatus, TeamMember, UserRole, Language, Asset } from '../types';
+import { computeFinance, computeOneThingInsight, computeRecurringDates, computeAssetCurrentValue } from '../utils/finance';
 import { generateId } from '../utils/uuid';
 import {
     saveTransactions, loadTransactions,
     saveSettings, loadSettings,
     saveGoals, loadGoals,
     saveInvoices, loadInvoices,
+    saveAssets, loadAssets,
     savePin, loadPin,
     saveProfile, loadProfile,
     saveLanguage, loadLanguage,
@@ -54,6 +55,12 @@ interface AppContextValue {
     updateInvoice: (id: string, patch: Partial<Invoice>) => void;
     deleteInvoice: (id: string) => void;
     markInvoiceStatus: (id: string, status: InvoiceStatus) => void;
+
+    assets: Asset[];
+    addAsset: (a: Omit<Asset, 'id' | 'createdAt'>) => void;
+    updateAsset: (id: string, patch: Partial<Asset>) => void;
+    deleteAsset: (id: string) => void;
+    disposeAsset: (id: string, disposalDate: string, disposalValue: number) => void;
 
     // Team
     teamMembers: TeamMember[];
@@ -165,6 +172,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const [transactions, setTransactions]   = useState<Transaction[]>([]);
     const [goals, setGoals]                 = useState<FinancialGoal[]>([]);
     const [invoices, setInvoices]           = useState<Invoice[]>([]);
+    const [assets, setAssets]               = useState<Asset[]>([]);
     const [teamMembers, setTeamMembers]     = useState<TeamMember[]>([]);
     const [language, setLang]              = useState<Language>('en');
     const [isLoading, setIsLoading]         = useState(true);
@@ -177,11 +185,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         (async () => {
             try {
-                const [savedTx, savedSettings, savedGoals, savedInvoices, pin, profile, lang] = await Promise.all([
+                const [savedTx, savedSettings, savedGoals, savedInvoices, savedAssets, pin, profile, lang] = await Promise.all([
                     loadTransactions(),
                     loadSettings(),
                     loadGoals(),
                     loadInvoices(),
+                    loadAssets(),
                     loadPin(),
                     loadProfile(),
                     loadLanguage(),
@@ -195,6 +204,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 if (savedSettings) setSettings({ ...DEFAULT_SETTINGS, ...savedSettings });
                 if (savedGoals)    setGoals(savedGoals);
                 if (savedInvoices) setInvoices(savedInvoices);
+                if (savedAssets)   setAssets(savedAssets);
                 if (pin && profile) {
                     setUser({ email: profile.email, businessName: profile.businessName, role: 'Administrator' });
                 }
@@ -208,8 +218,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     useEffect(() => { if (!isLoading) saveSettings(settings).catch(() => {}); }, [settings, isLoading]);
     useEffect(() => { if (!isLoading) saveGoals(goals).catch(() => {}); }, [goals, isLoading]);
     useEffect(() => { if (!isLoading) saveInvoices(invoices).catch(() => {}); }, [invoices, isLoading]);
+    useEffect(() => { if (!isLoading) saveAssets(assets).catch(() => {}); }, [assets, isLoading]);
 
-    const finance = useMemo(() => computeFinance(transactions, settings), [transactions, settings]);
+    const registeredAssetsValue = useMemo(
+        () => assets.filter(a => a.status === 'active').reduce((sum, a) => sum + computeAssetCurrentValue(a), 0),
+        [assets],
+    );
+    const finance = useMemo(() => computeFinance(transactions, settings, registeredAssetsValue), [transactions, settings, registeredAssetsValue]);
     const insight = useMemo(() => computeOneThingInsight(finance, settings), [finance, settings]);
 
     useEffect(() => {
@@ -271,13 +286,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setUserRole(role);
         setUser({ email, businessName: '', role: role === 'accountant' ? 'Accountant' : 'Staff' });
         // Load owner's data
-        const [savedTx, savedSettings, savedGoals, savedInvoices] = await Promise.all([
-            loadTransactions(), loadSettings(), loadGoals(), loadInvoices(),
+        const [savedTx, savedSettings, savedGoals, savedInvoices, savedAssets2] = await Promise.all([
+            loadTransactions(), loadSettings(), loadGoals(), loadInvoices(), loadAssets(),
         ]);
         if (savedTx) { const { updated, newEntries } = processDueRecurring(savedTx); setTransactions([...newEntries, ...updated]); }
         if (savedSettings) setSettings({ ...DEFAULT_SETTINGS, ...savedSettings });
         if (savedGoals)    setGoals(savedGoals);
         if (savedInvoices) setInvoices(savedInvoices);
+        if (savedAssets2)  setAssets(savedAssets2);
         setCurrentScreen('dashboard');
     };
 
@@ -400,6 +416,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
     };
 
+    const addAsset = (a: Omit<Asset, 'id' | 'createdAt'>) => {
+        if (!canManage) { denyManage(); return; }
+        const item: Asset = { ...a, id: generateId(), createdAt: new Date().toISOString() };
+        setAssets(prev => [item, ...prev]);
+    };
+
+    const updateAsset = (id: string, patch: Partial<Asset>) => {
+        if (!canManage) { denyManage(); return; }
+        setAssets(prev => prev.map(a => a.id === id ? { ...a, ...patch } : a));
+    };
+
+    const deleteAsset = (id: string) => {
+        if (!canManage) { denyManage(); return; }
+        setAssets(prev => prev.filter(a => a.id !== id));
+    };
+
+    const disposeAsset = (id: string, disposalDate: string, disposalValue: number) => {
+        if (!canManage) { denyManage(); return; }
+        setAssets(prev => prev.map(a => a.id === id ? { ...a, status: 'disposed' as const, disposalDate, disposalValue } : a));
+    };
+
     const inviteMember = async (email: string, role: 'accountant' | 'staff'): Promise<string> => {
         const code = await inviteTeamMember(email, role);
         await refreshTeam();
@@ -427,7 +464,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const clearData = async () => {
         await clearAllData();
-        setTransactions([]); setGoals([]); setSettings(DEFAULT_SETTINGS); setInvoices([]);
+        setTransactions([]); setGoals([]); setSettings(DEFAULT_SETTINGS); setInvoices([]); setAssets([]);
     };
 
     const value: AppContextValue = {
@@ -440,6 +477,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         transactions, addTransaction, deleteTransaction, updateTransaction,
         goals, addGoal, deleteGoal, updateGoalCurrentValue,
         invoices, addInvoice, updateInvoice, deleteInvoice, markInvoiceStatus,
+        assets, addAsset, updateAsset, deleteAsset, disposeAsset,
         teamMembers, inviteMember, removeMember, refreshTeam,
         language, setLanguage,
         finance, insight, isLoading,
