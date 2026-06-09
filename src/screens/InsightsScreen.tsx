@@ -109,7 +109,7 @@ const SOURCE_LABELS = {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function InsightsScreen() {
-    const { finance, settings, transactions, setCurrentScreen } = useApp();
+    const { finance, settings, transactions, setCurrentScreen, navigate } = useApp();
     const { currency, targetMargin, minReserve } = settings;
 
     const [swotExpanded, setSwotExpanded] = useState(true);
@@ -162,9 +162,12 @@ export default function InsightsScreen() {
                     </View>
 
                     {overdueCount > 0 && (
-                        <TouchableOpacity style={styles.alertBanner} onPress={() => setCurrentScreen('reports')}>
+                        <TouchableOpacity
+                            style={styles.alertBanner}
+                            onPress={() => navigate('reports', { reportSection: 'operations', reportTab: 'aging' })}
+                        >
                             <Text style={styles.alertText}>
-                                ⚠ {overdueCount} overdue transaction{overdueCount > 1 ? 's' : ''} — tap to view AR/AP Aging report
+                                ⚠ {overdueCount} overdue transaction{overdueCount > 1 ? 's' : ''} — tap to view AR/AP Aging
                             </Text>
                         </TouchableOpacity>
                     )}
@@ -236,7 +239,7 @@ export default function InsightsScreen() {
                                                 <View style={styles.sourceRow}>
                                                     <Text style={styles.sourceLabel}>📌 {SOURCE_LABELS[action.source]}</Text>
                                                     {action.source === 'opportunity' && (
-                                                        <TouchableOpacity onPress={() => setCurrentScreen('goals')}>
+                                                        <TouchableOpacity onPress={() => navigate('goals', { goalType: 'custom' })}>
                                                             <Text style={styles.goalLink}>Set a goal →</Text>
                                                         </TouchableOpacity>
                                                     )}
@@ -248,7 +251,10 @@ export default function InsightsScreen() {
                             })}
 
                             {/* Link to full SWOT */}
-                            <TouchableOpacity style={styles.fullSwotBtn} onPress={() => setCurrentScreen('reports')}>
+                            <TouchableOpacity
+                                style={styles.fullSwotBtn}
+                                onPress={() => navigate('reports', { reportSection: 'analysis', reportTab: 'swot' })}
+                            >
                                 <Text style={styles.fullSwotText}>View full SWOT Analysis in Reports →</Text>
                             </TouchableOpacity>
                         </View>
@@ -280,7 +286,7 @@ export default function InsightsScreen() {
                         <Row label="Tax Collected" value={`${currency}${finance.totalTaxCollected.toLocaleString()}`} valueStyle={styles.yellow} />
                         <Row label="Tax Paid" value={`${currency}${finance.totalTaxPaid.toLocaleString()}`} valueStyle={styles.yellow} />
                         <Row label="Net Tax Position" value={`${finance.netTaxPosition >= 0 ? '+' : ''}${currency}${finance.netTaxPosition.toLocaleString()}`} valueStyle={finance.netTaxPosition >= 0 ? styles.green : styles.red} />
-                        <TouchableOpacity onPress={() => setCurrentScreen('reports')}>
+                        <TouchableOpacity onPress={() => navigate('reports', { reportSection: 'operations', reportTab: 'tax' })}>
                             <Text style={styles.linkText}>View full Tax Summary →</Text>
                         </TouchableOpacity>
                     </View>

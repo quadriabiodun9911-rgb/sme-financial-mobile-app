@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text,
     TouchableOpacity, StyleSheet, Dimensions, Share,
@@ -10,10 +10,10 @@ import FooterNav from '../components/FooterNav';
 import AgingReport from '../components/AgingReport';
 import TaxSummary from '../components/TaxSummary';
 import SwotAnalysis from '../components/SwotAnalysis';
-import BudgetForecastingDashboard from '../../financial-planning/BudgetForecastingDashboard';
 import FinancialHealthAssessment from '../../financial-planning/FinancialHealthAssessment';
-import CashFlowManagement from '../../components/CashFlowManagement';
-import DebtManagement from '../../components/DebtManagement';
+import BudgetForecast from '../components/BudgetForecast';
+import CashManagement from '../components/CashManagement';
+import DebtAnalysis from '../components/DebtAnalysis';
 import CashFlowStatement from '../components/CashFlowStatement';
 import { filterByPeriod, computeFinance, computeMonthlyTrend, transactionsToCSV, ReportPeriod, MonthlyPoint } from '../utils/finance';
 
@@ -64,7 +64,7 @@ const PERIODS: { key: ReportPeriod; label: string }[] = [
 ];
 
 export default function ReportsScreen() {
-    const { finance: allFinance, settings, transactions } = useApp();
+    const { finance: allFinance, settings, transactions, navParams } = useApp();
     const { currency, minReserve, targetMargin } = settings;
 
     const [section, setSection]     = useState<SectionKey>('statements');
@@ -80,6 +80,20 @@ export default function ReportsScreen() {
         [filteredTx, settings]
     );
     const trend = useMemo(() => computeMonthlyTrend(transactions, 6), [transactions]);
+
+    // Deep-link from navParams (e.g. from Dashboard or Insights)
+    useEffect(() => {
+        if (navParams?.reportSection) {
+            const s = navParams.reportSection as SectionKey;
+            setSection(s);
+            if (navParams.reportTab) {
+                setActiveTab(navParams.reportTab as SubTab);
+            } else {
+                setActiveTab(SECTION_TABS[s][0].key);
+            }
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const periodActive = PERIOD_AWARE.includes(activeTab);
 
@@ -158,13 +172,15 @@ export default function ReportsScreen() {
                             <PeriodLabel period={period} />
                             <View style={styles.card}>
                                 <Text style={styles.cardTitle}>Balance Sheet</Text>
-                                <StatRow label="Cash Balance"      value={`${currency}${finance.cashBalance.toLocaleString()}`}   color={Colors.income} />
-                                <StatRow label="Total Assets"      value={`${currency}${finance.assets.toLocaleString()}`}        color={Colors.asset} />
-                                <StatRow label="Total Liabilities" value={`${currency}${finance.liabilities.toLocaleString()}`}   color={Colors.liability} />
-                                <StatRow label="Owner's Equity"    value={`${currency}${finance.equity.toLocaleString()}`}        color={Colors.equity} />
+                                <StatRow label="Cash Balance (net profit)"  value={`${currency}${finance.cashBalance.toLocaleString()}`}                             color={Colors.income} />
+                                <StatRow label="Opening Assets"             value={`${currency}${(parseFloat(settings.openingAssets)||0).toLocaleString()}`}     color={Colors.asset} />
+                                <StatRow label="Total Assets"               value={`${currency}${finance.assets.toLocaleString()}`}                              color={Colors.asset} />
+                                <StatRow label="Opening Liabilities"        value={`${currency}${(parseFloat(settings.openingLiabilities)||0).toLocaleString()}`} color={Colors.liability} />
+                                <StatRow label="Total Liabilities"          value={`${currency}${finance.liabilities.toLocaleString()}`}                         color={Colors.liability} />
+                                <StatRow label="Owner's Equity"             value={`${currency}${finance.equity.toLocaleString()}`}                              color={Colors.equity} />
                                 <Text style={styles.note}>
-                                    Assets = Opening Assets + Cash Balance.{'\n'}
-                                    Update opening balances in Settings for a complete picture.
+                                    Assets = Opening Assets + Cash Balance.  Liabilities = Opening Liabilities.{'\n'}
+                                    Update opening balances in Settings → Opening Balance Sheet.
                                 </Text>
                             </View>
                             <KpiRow items={[
@@ -215,10 +231,10 @@ export default function ReportsScreen() {
 
                     {/* ── BUDGET FORECAST ──────────────────────────────── */}
                     {activeTab === 'budget' && (
-                        <BudgetForecastingDashboard
+                        <BudgetForecast
                             finance={allFinance}
+                            transactions={transactions}
                             currency={currency}
-                            minReserve={minReserve}
                             targetMargin={targetMargin}
                         />
                     )}
@@ -233,22 +249,18 @@ export default function ReportsScreen() {
 
                     {/* ── CASH MGMT ────────────────────────────────────── */}
                     {activeTab === 'cashmgmt' && (
-                        <CashFlowManagement
+                        <CashManagement
                             finance={allFinance}
+                            transactions={transactions}
                             currency={currency}
                             minReserve={minReserve}
-                            targetMargin={targetMargin}
                         />
                     )}
 
                     {/* ── DEBT ─────────────────────────────────────────── */}
                     {activeTab === 'debt' && (
-                        <DebtManagement
-                            finance={{
-                                assets: allFinance.assets,
-                                liabilities: allFinance.liabilities,
-                                equity: allFinance.equity,
-                            }}
+                        <DebtAnalysis
+                            finance={allFinance}
                             currency={currency}
                         />
                     )}

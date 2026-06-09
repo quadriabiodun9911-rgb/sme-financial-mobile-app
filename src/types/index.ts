@@ -124,6 +124,12 @@ export interface BusinessSettings {
     defaultTaxRate: string;
 }
 
+export interface NavParams {
+    reportSection?: 'statements' | 'operations' | 'planning' | 'analysis';
+    reportTab?: string;
+    goalType?: GoalType;
+}
+
 export interface AgingBucket {
     label: string;
     transactions: Transaction[];

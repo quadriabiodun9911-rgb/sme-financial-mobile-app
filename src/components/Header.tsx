@@ -13,10 +13,13 @@ export default function Header() {
                 <Text style={styles.subtitle}>{user?.businessName || 'Business Suite'}</Text>
             </TouchableOpacity>
             <View style={styles.right}>
-                <TouchableOpacity onPress={() => setCurrentScreen('settings')}>
-                    <Text style={styles.userText}>{user?.email.split('@')[0] || 'Admin'}</Text>
-                    <Text style={styles.settingsHint}>Tap to settings</Text>
+                <TouchableOpacity style={styles.settingsBtn} onPress={() => setCurrentScreen('settings')}>
+                    <Text style={styles.settingsIcon}>⚙</Text>
                 </TouchableOpacity>
+                <View style={styles.userBlock}>
+                    <Text style={styles.userText}>{user?.email.split('@')[0] || 'Admin'}</Text>
+                    <Text style={styles.userRole}>{user?.role || 'Administrator'}</Text>
+                </View>
                 <TouchableOpacity style={styles.signOutBtn} onPress={logout}>
                     <Text style={styles.signOutText}>Sign Out</Text>
                 </TouchableOpacity>
@@ -30,21 +33,29 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: 16,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
         backgroundColor: Colors.surface,
         borderBottomWidth: 1,
         borderBottomColor: Colors.border,
     },
-    title: { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary },
-    subtitle: { fontSize: 12, color: Colors.textMuted },
-    right: { alignItems: 'flex-end' },
-    userText: { fontSize: 12, color: Colors.textMuted, marginBottom: 2 },
-    settingsHint: { fontSize: 10, color: Colors.primary, marginBottom: 4 },
+    title:    { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary },
+    subtitle: { fontSize: 11, color: Colors.textMuted },
+    right:    { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    settingsBtn: {
+        width: 34, height: 34, borderRadius: 17,
+        backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border,
+        alignItems: 'center', justifyContent: 'center',
+    },
+    settingsIcon: { fontSize: 16, color: Colors.textMuted },
+    userBlock:  { alignItems: 'flex-end' },
+    userText:   { fontSize: 12, color: Colors.textPrimary, fontWeight: '600' },
+    userRole:   { fontSize: 10, color: Colors.textMuted },
     signOutBtn: {
         backgroundColor: Colors.criticalBorder,
-        paddingHorizontal: 12,
-        paddingVertical: 6,
+        paddingHorizontal: 10,
+        paddingVertical: 5,
         borderRadius: 6,
     },
-    signOutText: { color: Colors.textPrimary, fontSize: 12, fontWeight: '500' },
+    signOutText: { color: Colors.textPrimary, fontSize: 11, fontWeight: '600' },
 });

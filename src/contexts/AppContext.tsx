@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useMemo, useEffect, ReactNode } from 'react';
-import { Transaction, FinanceData, User, BusinessSettings, Screen, FinancialGoal, GoalType } from '../types';
+import { Transaction, FinanceData, User, BusinessSettings, Screen, FinancialGoal, GoalType, NavParams } from '../types';
 import { computeFinance, computeOneThingInsight, computeRecurringDates } from '../utils/finance';
 import { generateId } from '../utils/uuid';
 import { saveTransactions, loadTransactions, saveSettings, loadSettings, saveGoals, loadGoals } from '../utils/storage';
@@ -8,6 +8,8 @@ import { refreshGoal, goalDefaults } from '../utils/goals';
 interface AppContextValue {
     currentScreen: Screen;
     setCurrentScreen: (s: Screen) => void;
+    navParams: NavParams | null;
+    navigate: (s: Screen, params?: NavParams) => void;
 
     user: User | null;
     login: (email: string, password: string, business: string) => boolean;
@@ -85,6 +87,7 @@ function processDueRecurring(transactions: Transaction[]): { updated: Transactio
 
 export function AppProvider({ children }: { children: ReactNode }) {
     const [currentScreen, setCurrentScreen] = useState<Screen>('login');
+    const [navParams, setNavParams] = useState<NavParams | null>(null);
     const [user, setUser] = useState<User | null>(null);
     const [settings, setSettings] = useState<BusinessSettings>(DEFAULT_SETTINGS);
     const [transactions, setTransactions] = useState<Transaction[]>(SEED_TRANSACTIONS);
@@ -125,6 +128,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setGoals(prev => prev.map(g => refreshGoal(g, finance, transactions)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [finance, isLoading]);
+
+    const navigate = (s: Screen, params?: NavParams) => {
+        setNavParams(params ?? null);
+        setCurrentScreen(s);
+    };
 
     const login = (email: string, password: string, business: string): boolean => {
         if (!email || !password) return false;
@@ -202,6 +210,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const value: AppContextValue = {
         currentScreen, setCurrentScreen,
+        navParams, navigate,
         user, login, logout,
         settings, updateSettings,
         transactions, addTransaction, deleteTransaction, updateTransaction,

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
     TouchableOpacity, Modal, StyleSheet, Alert,
@@ -36,7 +36,7 @@ const STATUS_LABELS: Record<FinancialGoal['status'], string> = {
 const PRIORITY_COLORS = { high: Colors.expense, medium: Colors.warning, low: Colors.textMuted };
 
 export default function GoalsScreen() {
-    const { goals, addGoal, deleteGoal, finance, transactions, settings } = useApp();
+    const { goals, addGoal, deleteGoal, finance, transactions, settings, navParams } = useApp();
     const { currency } = settings;
 
     const [addModalOpen, setAddModalOpen] = useState(false);
@@ -60,6 +60,15 @@ export default function GoalsScreen() {
         () => strategyGoal ? generateStrategy(strategyGoal, finance, transactions, settings) : null,
         [strategyGoal, finance, transactions, settings]
     );
+
+    // Auto-open add modal if navigated here with a goalType param
+    useEffect(() => {
+        if (navParams?.goalType) {
+            setAddModalOpen(true);
+            openAddModal(navParams.goalType);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const openAddModal = (type: GoalType) => {
         setSelectedType(type);
@@ -109,7 +118,7 @@ export default function GoalsScreen() {
                         Set measurable business targets. The app tracks your progress daily and builds a personalised strategy to help you reach each goal.
                     </Text>
 
-                    {/* Active Goals */}
+                    {/* Goals list */}
                     {goals.length === 0 ? (
                         <View style={styles.emptyCard}>
                             <Text style={styles.emptyIcon}>🎯</Text>
@@ -119,16 +128,35 @@ export default function GoalsScreen() {
                             </Text>
                         </View>
                     ) : (
-                        goals.map(goal => (
-                            <GoalCard
-                                key={goal.id}
-                                goal={goal}
-                                currency={currency}
-                                daysRemaining={daysRemaining(goal.deadline)}
-                                onStrategy={() => setStrategyGoalId(goal.id)}
-                                onDelete={() => handleDelete(goal.id, goal.title)}
-                            />
-                        ))
+                        <>
+                            {/* Active goals */}
+                            {goals.filter(g => g.status !== 'achieved').map(goal => (
+                                <GoalCard
+                                    key={goal.id}
+                                    goal={goal}
+                                    currency={currency}
+                                    daysRemaining={daysRemaining(goal.deadline)}
+                                    onStrategy={() => setStrategyGoalId(goal.id)}
+                                    onDelete={() => handleDelete(goal.id, goal.title)}
+                                />
+                            ))}
+                            {/* Achieved goals */}
+                            {goals.filter(g => g.status === 'achieved').length > 0 && (
+                                <>
+                                    <Text style={styles.achievedHeader}>Achieved Goals</Text>
+                                    {goals.filter(g => g.status === 'achieved').map(goal => (
+                                        <GoalCard
+                                            key={goal.id}
+                                            goal={goal}
+                                            currency={currency}
+                                            daysRemaining={daysRemaining(goal.deadline)}
+                                            onStrategy={() => setStrategyGoalId(goal.id)}
+                                            onDelete={() => handleDelete(goal.id, goal.title)}
+                                        />
+                                    ))}
+                                </>
+                            )}
+                        </>
                     )}
 
                     {/* Add Goal */}
@@ -243,10 +271,14 @@ function GoalCard({ goal, currency, daysRemaining, onStrategy, onDelete }: {
     const isReduction = goal.type === 'cost_reduction' || goal.type === 'reduce_overdue_ar';
     const unit = goal.unit === '%' ? '%' : currency;
 
+    const isAchieved = goal.status === 'achieved';
     return (
-        <View style={[cardStyles.card, { borderTopColor: statusColor }]}>
+        <View style={[cardStyles.card, { borderTopColor: statusColor }, isAchieved && cardStyles.achievedCard]}>
             <View style={cardStyles.header}>
-                <Text style={cardStyles.title} numberOfLines={2}>{goal.title}</Text>
+                <View style={cardStyles.titleRow}>
+                    {isAchieved && <Text style={cardStyles.trophy}>🏆 </Text>}
+                    <Text style={cardStyles.title} numberOfLines={2}>{goal.title}</Text>
+                </View>
                 <View style={[cardStyles.statusBadge, { backgroundColor: statusColor + '22' }]}>
                     <Text style={[cardStyles.statusText, { color: statusColor }]}>{STATUS_LABELS[goal.status]}</Text>
                 </View>
@@ -254,12 +286,23 @@ function GoalCard({ goal, currency, daysRemaining, onStrategy, onDelete }: {
 
             {goal.description ? <Text style={cardStyles.desc}>{goal.description}</Text> : null}
 
-            {/* Progress bar */}
+            {/* Progress bar + key numbers */}
             <View style={cardStyles.progressSection}>
                 <View style={cardStyles.progressTrack}>
-                    <View style={[cardStyles.progressFill, { width: `${goal.progress}%` as any, backgroundColor: statusColor }]} />
+                    <View style={[cardStyles.progressFill, { width: `${Math.min(goal.progress, 100)}%` as any, backgroundColor: statusColor }]} />
                 </View>
                 <Text style={[cardStyles.progressPct, { color: statusColor }]}>{goal.progress.toFixed(0)}%</Text>
+            </View>
+            <View style={cardStyles.bigNumbers}>
+                <View style={cardStyles.bigNum}>
+                    <Text style={cardStyles.bigNumVal}>{unit}{goal.currentValue.toLocaleString()}</Text>
+                    <Text style={cardStyles.bigNumLabel}>Current</Text>
+                </View>
+                <Text style={cardStyles.bigNumArrow}>→</Text>
+                <View style={cardStyles.bigNum}>
+                    <Text style={[cardStyles.bigNumVal, { color: statusColor }]}>{unit}{goal.targetValue.toLocaleString()}</Text>
+                    <Text style={cardStyles.bigNumLabel}>Target</Text>
+                </View>
             </View>
 
             {/* Metrics row */}
@@ -300,8 +343,16 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
 
 const cardStyles = StyleSheet.create({
     card: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 14, borderTopWidth: 3 },
+    achievedCard: { backgroundColor: 'rgba(16,185,129,0.06)', borderTopColor: Colors.income },
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 },
-    title: { fontSize: 15, fontWeight: 'bold', color: Colors.textPrimary, flex: 1, marginRight: 8 },
+    titleRow: { flexDirection: 'row', flex: 1, alignItems: 'flex-start', marginRight: 8 },
+    trophy: { fontSize: 14 },
+    title: { fontSize: 15, fontWeight: 'bold', color: Colors.textPrimary, flex: 1 },
+    bigNumbers: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 12, backgroundColor: Colors.bg, borderRadius: 10, padding: 10 },
+    bigNum: { alignItems: 'center' },
+    bigNumVal: { fontSize: 16, fontWeight: 'bold', color: Colors.textPrimary },
+    bigNumLabel: { fontSize: 10, color: Colors.textMuted, marginTop: 2 },
+    bigNumArrow: { fontSize: 18, color: Colors.textMuted },
     statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
     statusText: { fontSize: 10, fontWeight: 'bold' },
     desc: { fontSize: 12, color: Colors.textMuted, marginBottom: 12, lineHeight: 18 },
@@ -325,6 +376,7 @@ const styles = StyleSheet.create({
     pad: { padding: 16 },
     title: { fontSize: 22, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 8 },
     subtitle: { fontSize: 13, color: Colors.textMuted, lineHeight: 20, marginBottom: 20 },
+    achievedHeader: { fontSize: 13, fontWeight: '700', color: Colors.income, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10, marginTop: 4 },
     emptyCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: 28, alignItems: 'center', marginBottom: 24 },
     emptyIcon: { fontSize: 36, marginBottom: 10 },
     emptyTitle: { fontSize: 16, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 8 },

@@ -115,7 +115,8 @@ export default function TransactionsScreen() {
                 tx.description.toLowerCase().includes(q) ||
                 tx.category.toLowerCase().includes(q) ||
                 (tx.vendorCustomer?.toLowerCase().includes(q) ?? false) ||
-                (tx.reference?.toLowerCase().includes(q) ?? false)
+                (tx.reference?.toLowerCase().includes(q) ?? false) ||
+                String(tx.amount).includes(q)
             )) return false;
             return true;
         });
@@ -284,7 +285,7 @@ export default function TransactionsScreen() {
                             {items.map(tx => (
                                 <TouchableOpacity
                                     key={tx.id}
-                                    style={[styles.txCard, tx.type === 'income' ? styles.incomeCard : styles.expenseCard]}
+                                    style={[styles.txCard, tx.type === 'income' ? styles.incomeCard : styles.expenseCard, tx.status === 'overdue' && styles.overdueCard]}
                                     onPress={() => openEdit(tx)}
                                     activeOpacity={0.8}
                                 >
@@ -630,6 +631,7 @@ const styles = StyleSheet.create({
     txCard:    { backgroundColor: Colors.surface, borderRadius: 10, padding: 12, marginBottom: 8, borderLeftWidth: 3 },
     incomeCard:  { borderLeftColor: Colors.income },
     expenseCard: { borderLeftColor: Colors.expense },
+    overdueCard: { backgroundColor: 'rgba(239,68,68,0.07)', borderLeftColor: Colors.expense },
     txTop:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
     txDesc:    { fontSize: 14, color: Colors.textPrimary, fontWeight: '600', flex: 1, marginRight: 8 },
     incAmt:    { fontSize: 14, fontWeight: 'bold', color: Colors.income },
