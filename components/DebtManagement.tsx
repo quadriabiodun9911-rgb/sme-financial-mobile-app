@@ -2823,6 +2823,12 @@ const styles = StyleSheet.create({
         color: '#f8fafc',
         marginBottom: 8,
     },
+    informationText: {
+        fontSize: 13,
+        color: '#cbd5e1',
+        marginBottom: 6,
+        lineHeight: 20,
+    },
     informationSubtitle: {
         fontSize: 12,
         color: '#94a3b8',

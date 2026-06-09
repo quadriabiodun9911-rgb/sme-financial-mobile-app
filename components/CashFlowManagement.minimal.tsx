@@ -114,7 +114,7 @@ const CashFlowManagement: React.FC<Props> = ({ finance, currency, minReserve, ta
                             <TextInput
                                 style={styles.input}
                                 value={upcomingRevenue.toString()}
-                                onChangeText={setUpcomingRevenue}
+                                onChangeText={(text) => setUpcomingRevenue(parseFloat(text) || 0)}
                                 keyboardType="numeric"
                             />
                         </View>
@@ -124,7 +124,7 @@ const CashFlowManagement: React.FC<Props> = ({ finance, currency, minReserve, ta
                             <TextInput
                                 style={styles.input}
                                 value={upcomingExpenses.toString()}
-                                onChangeText={setUpcomingExpenses}
+                                onChangeText={(text) => setUpcomingExpenses(parseFloat(text) || 0)}
                                 keyboardType="numeric"
                             />
                         </View>
