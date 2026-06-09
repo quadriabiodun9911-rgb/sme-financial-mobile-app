@@ -51,6 +51,7 @@
     "runtimeVersion": {
       "policy": "appVersion"
     },
+    "owner": "quadriabiodun9911",
     "extra": {
       "eas": {
         "projectId": "5577b2eb-04eb-4a01-bfad-6412b3cf1e29"
@@ -58,7 +59,6 @@
     },
     "updates": {
       "url": "https://u.expo.dev/5577b2eb-04eb-4a01-bfad-6412b3cf1e29"
-    },
-    "owner": "quadriabiodun9911"
+    }
   }
 }
