@@ -48,15 +48,6 @@
         }
       ]
     ],
-    "extra": {
-      "eas": {
-        "projectId": "df520474-87c0-4ced-aac6-f1621a359546"
-      }
-    },
-    "updates": {
-      "fallbackToCacheTimeout": 0,
-      "url": "https://u.expo.dev/df520474-87c0-4ced-aac6-f1621a359546"
-    },
     "runtimeVersion": {
       "policy": "appVersion"
     }
