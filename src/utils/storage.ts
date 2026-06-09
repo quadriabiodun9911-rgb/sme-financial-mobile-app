@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Transaction, BusinessSettings, FinancialGoal, Invoice, TeamMember } from '../types';
+import { Transaction, BusinessSettings, FinancialGoal, Invoice, TeamMember, Language } from '../types';
 import { supabase } from './supabase';
 
 const KEYS = {
@@ -10,6 +10,7 @@ const KEYS = {
     profile:        '@financebook/profile',
     invoices:       '@financebook/invoices',
     workspaceOwner: '@financebook/workspaceOwner',
+    language:       '@financebook/language',
 };
 
 // ─── Auth helpers ─────────────────────────────────────────────────────────────
@@ -233,6 +234,15 @@ export async function joinTeamWithCode(
         .update({ member_user_id: memberUserId, status: 'active' })
         .eq('id', data.id);
     return { ownerId: data.owner_user_id, role: data.role };
+}
+
+// ─── Language (per-device, not synced) ───────────────────────────────────────
+export async function saveLanguage(lang: Language): Promise<void> {
+    await AsyncStorage.setItem(KEYS.language, lang);
+}
+export async function loadLanguage(): Promise<Language> {
+    const raw = await AsyncStorage.getItem(KEYS.language);
+    return (raw as Language) ?? 'en';
 }
 
 // ─── PIN (local only — never sent to server) ──────────────────────────────────

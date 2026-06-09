@@ -7,9 +7,10 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
+import { t } from '../utils/i18n';
 
 export default function DashboardScreen() {
-    const { finance, insight, settings, goals, transactions, navigate, setCurrentScreen } = useApp();
+    const { finance, insight, settings, goals, transactions, navigate, setCurrentScreen, language } = useApp();
     const { currency, targetMargin, minReserve } = settings;
 
     const insightBorder =
@@ -33,7 +34,7 @@ export default function DashboardScreen() {
             <Header />
             <ScrollView style={styles.scroll} contentContainerStyle={styles.pad}>
 
-                <Text style={styles.title}>Dashboard</Text>
+                <Text style={styles.title}>{t(language, 'dashboard')}</Text>
 
                 {/* ── Overdue alert ───────────────────────────────────────── */}
                 {overdueCount > 0 && (
@@ -42,7 +43,7 @@ export default function DashboardScreen() {
                         onPress={() => navigate('reports', { reportSection: 'operations', reportTab: 'aging' })}
                     >
                         <Text style={styles.alertText}>
-                            ⚠ {overdueCount} overdue item{overdueCount > 1 ? 's' : ''} — tap to view AR/AP Aging
+                            ⚠ {overdueCount} {t(language, 'overdueAlert')}
                         </Text>
                     </TouchableOpacity>
                 )}
@@ -54,7 +55,7 @@ export default function DashboardScreen() {
                             <Text style={[styles.tagText, { color: tagColor }]}>{insight.tag}</Text>
                         </View>
                         <TouchableOpacity onPress={() => setCurrentScreen('insights')}>
-                            <Text style={styles.insightLink}>Full Insights →</Text>
+                            <Text style={styles.insightLink}>{t(language, 'fullInsights')}</Text>
                         </TouchableOpacity>
                     </View>
                     <Text style={styles.insightTitle}>{insight.title}</Text>
@@ -63,38 +64,38 @@ export default function DashboardScreen() {
 
                 {/* ── Income / Expenses ───────────────────────────────────── */}
                 <View style={styles.row}>
-                    <MetricCard label="Income"   value={`${currency}${finance.income.toLocaleString()}`}   color={Colors.income} />
-                    <MetricCard label="Expenses" value={`${currency}${finance.expense.toLocaleString()}`}  color={Colors.expense} />
+                    <MetricCard label={t(language, 'totalIncome')}   value={`${currency}${finance.income.toLocaleString()}`}   color={Colors.income} />
+                    <MetricCard label={t(language, 'totalExpenses')} value={`${currency}${finance.expense.toLocaleString()}`}  color={Colors.expense} />
                 </View>
 
                 {/* ── Net Profit ──────────────────────────────────────────── */}
                 <View style={styles.card}>
-                    <Text style={styles.cardLabel}>Net Profit</Text>
+                    <Text style={styles.cardLabel}>{t(language, 'netProfit')}</Text>
                     <Text style={[styles.bigNum, { color: finance.profit >= 0 ? Colors.income : Colors.expense }]}>
                         {finance.profit >= 0 ? '+' : ''}{currency}{finance.profit.toLocaleString()}
                     </Text>
                     <View style={styles.marginRow}>
                         <Text style={[styles.marginText, { color: finance.margin >= parseFloat(targetMargin) ? Colors.income : Colors.expense }]}>
-                            {finance.margin.toFixed(2)}% margin
+                            {finance.margin.toFixed(2)}% {t(language, 'margin')}
                         </Text>
-                        <Text style={styles.marginTarget}>target {targetMargin}%</Text>
+                        <Text style={styles.marginTarget}>{t(language, 'target')} {targetMargin}%</Text>
                     </View>
                 </View>
 
                 {/* ── Cash Balance ────────────────────────────────────────── */}
                 <View style={styles.card}>
-                    <Text style={styles.cardLabel}>Cash Balance</Text>
+                    <Text style={styles.cardLabel}>{t(language, 'cashBalance')}</Text>
                     <Text style={[styles.bigNum, { color: Colors.income }]}>
                         {currency}{finance.cashBalance.toLocaleString()}
                     </Text>
                     <View style={styles.marginRow}>
-                        <Text style={styles.hint}>Min. reserve: {currency}{minReserve}</Text>
+                        <Text style={styles.hint}>{t(language, 'minReserve')}: {currency}{minReserve}</Text>
                         <View style={[styles.reserveBadge, {
                             backgroundColor: finance.cashBalance >= parseFloat(minReserve)
                                 ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
                         }]}>
                             <Text style={{ fontSize: 10, fontWeight: '700', color: finance.cashBalance >= parseFloat(minReserve) ? Colors.income : Colors.expense }}>
-                                {finance.cashBalance >= parseFloat(minReserve) ? 'Reserve OK' : 'Below Reserve'}
+                                {finance.cashBalance >= parseFloat(minReserve) ? t(language, 'reserveOk') : t(language, 'belowReserve')}
                             </Text>
                         </View>
                     </View>
@@ -103,17 +104,17 @@ export default function DashboardScreen() {
                 {/* ── Tax summary ─────────────────────────────────────────── */}
                 <View style={[styles.card, styles.taxRow]}>
                     <View style={styles.taxItem}>
-                        <Text style={styles.taxLabel}>Tax Collected</Text>
+                        <Text style={styles.taxLabel}>{t(language, 'taxCollected')}</Text>
                         <Text style={[styles.taxVal, { color: Colors.warning }]}>{currency}{finance.totalTaxCollected.toLocaleString()}</Text>
                     </View>
                     <View style={styles.taxDivider} />
                     <View style={styles.taxItem}>
-                        <Text style={styles.taxLabel}>Tax Paid</Text>
+                        <Text style={styles.taxLabel}>{t(language, 'taxPaid')}</Text>
                         <Text style={[styles.taxVal, { color: Colors.warning }]}>{currency}{finance.totalTaxPaid.toLocaleString()}</Text>
                     </View>
                     <View style={styles.taxDivider} />
                     <View style={styles.taxItem}>
-                        <Text style={styles.taxLabel}>Net Tax</Text>
+                        <Text style={styles.taxLabel}>{t(language, 'netTax')}</Text>
                         <Text style={[styles.taxVal, { color: finance.netTaxPosition >= 0 ? Colors.income : Colors.expense }]}>
                             {finance.netTaxPosition >= 0 ? '+' : ''}{currency}{finance.netTaxPosition.toLocaleString()}
                         </Text>
@@ -122,15 +123,15 @@ export default function DashboardScreen() {
 
                 {/* ── Assets / Liabilities ────────────────────────────────── */}
                 <View style={styles.row}>
-                    <MetricCard label="Total Assets"       value={`${currency}${finance.assets.toLocaleString()}`}      color={Colors.asset} />
-                    <MetricCard label="Total Liabilities"  value={`${currency}${finance.liabilities.toLocaleString()}`} color={Colors.liability} />
+                    <MetricCard label={t(language, 'totalAssets')}      value={`${currency}${finance.assets.toLocaleString()}`}      color={Colors.asset} />
+                    <MetricCard label={t(language, 'totalLiabilities')}  value={`${currency}${finance.liabilities.toLocaleString()}`} color={Colors.liability} />
                 </View>
                 <View style={styles.card}>
-                    <Text style={styles.cardLabel}>Owner's Equity</Text>
+                    <Text style={styles.cardLabel}>{t(language, 'ownersEquity')}</Text>
                     <Text style={[styles.bigNum, { color: Colors.equity }]}>
                         {currency}{finance.equity.toLocaleString()}
                     </Text>
-                    <Text style={styles.hint}>Assets − Liabilities</Text>
+                    <Text style={styles.hint}>{t(language, 'assetsMinusLiabilities')}</Text>
                 </View>
 
                 {/* ── Goals quick card ────────────────────────────────────── */}
@@ -138,13 +139,13 @@ export default function DashboardScreen() {
                     <View style={styles.quickCardLeft}>
                         <Text style={styles.quickIcon}>🎯</Text>
                         <View>
-                            <Text style={styles.quickLabel}>Financial Goals</Text>
+                            <Text style={styles.quickLabel}>{t(language, 'financialGoals')}</Text>
                             {goals.length === 0 ? (
-                                <Text style={styles.quickSub}>No goals set yet — tap to add</Text>
+                                <Text style={styles.quickSub}>{t(language, 'noGoalsYet')}</Text>
                             ) : (
                                 <Text style={styles.quickSub}>
-                                    {activeGoals.length} active · {achievedGoals.length} achieved
-                                    {offTrack.length > 0 ? ` · ${offTrack.length} need attention` : ''}
+                                    {activeGoals.length} {t(language, 'active')} · {achievedGoals.length} {t(language, 'achieved')}
+                                    {offTrack.length > 0 ? ` · ${offTrack.length} ${t(language, 'needAttention')}` : ''}
                                 </Text>
                             )}
                         </View>
@@ -160,15 +161,15 @@ export default function DashboardScreen() {
                     <View style={styles.quickCardLeft}>
                         <Text style={styles.quickIcon}>📊</Text>
                         <View>
-                            <Text style={styles.quickLabel}>SWOT Analysis</Text>
-                            <Text style={styles.quickSub}>Live strengths, weaknesses, opportunities & threats</Text>
+                            <Text style={styles.quickLabel}>{t(language, 'swotAnalysis')}</Text>
+                            <Text style={styles.quickSub}>{t(language, 'swotSub')}</Text>
                         </View>
                     </View>
                     <Text style={styles.quickArrow}>›</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={styles.btn} onPress={() => setCurrentScreen('reports')}>
-                    <Text style={styles.btnText}>View Detailed Reports</Text>
+                    <Text style={styles.btnText}>{t(language, 'viewDetailedReports')}</Text>
                 </TouchableOpacity>
             </ScrollView>
 

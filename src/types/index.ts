@@ -132,6 +132,7 @@ export interface NavParams {
 }
 
 export type UserRole = 'owner' | 'accountant' | 'staff';
+export type Language = 'en' | 'zh' | 'yo' | 'ha';
 
 export interface TeamMember {
     id: string;

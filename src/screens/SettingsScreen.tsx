@@ -8,14 +8,15 @@ import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { BusinessSettings } from '../types';
+import { t, LANGUAGES } from '../utils/i18n';
 
 const CURRENCIES = [
-    { label: 'USD ($)',  value: '$'   },
-    { label: 'EUR (€)',  value: '€'   },
-    { label: 'GBP (£)',  value: '£'   },
-    { label: 'NGN (₦)',  value: '₦'   },
-    { label: 'JPY (¥)',  value: '¥'   },
-    { label: 'CAD (CA$)',value: 'CA$' },
+    { label: 'USD ($)',   value: '$'   },
+    { label: 'EUR (€)',   value: '€'   },
+    { label: 'GBP (£)',   value: '£'   },
+    { label: 'NGN (₦)',   value: '₦'   },
+    { label: 'CNY (¥)',   value: '¥'   },
+    { label: 'CAD (CA$)', value: 'CA$' },
 ];
 
 const BUSINESS_TYPES: { label: string; value: BusinessSettings['businessType'] }[] = [
@@ -29,6 +30,7 @@ export default function SettingsScreen() {
         settings, updateSettings, setCurrentScreen,
         changePin, exportData, importData, clearData, logout,
         userRole, teamMembers, inviteMember, removeMember, refreshTeam,
+        language, setLanguage,
     } = useApp();
 
     const [form, setForm] = useState({ ...settings });
@@ -53,24 +55,37 @@ export default function SettingsScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    const doSave = () => {
+        updateSettings(form);
+        Alert.alert(t(language, 'success'), 'Settings updated successfully.', [
+            { text: t(language, 'done'), onPress: () => setCurrentScreen('dashboard') },
+        ]);
+    };
+
     const handleSave = () => {
         if (isNaN(parseFloat(form.minReserve)) || parseFloat(form.minReserve) < 0) {
-            Alert.alert('Invalid value', 'Minimum reserve must be a non-negative number.');
-            return;
+            Alert.alert('Invalid value', 'Minimum reserve must be a non-negative number.'); return;
         }
         if (isNaN(parseFloat(form.targetMargin)) || parseFloat(form.targetMargin) < 0 || parseFloat(form.targetMargin) > 100) {
-            Alert.alert('Invalid value', 'Target margin must be between 0 and 100.');
-            return;
+            Alert.alert('Invalid value', 'Target margin must be between 0 and 100.'); return;
         }
         const taxRate = parseFloat(form.defaultTaxRate);
         if (isNaN(taxRate) || taxRate < 0 || taxRate > 100) {
-            Alert.alert('Invalid value', 'Default tax rate must be between 0 and 100.');
+            Alert.alert('Invalid value', 'Default tax rate must be between 0 and 100.'); return;
+        }
+        // Warn if currency changed
+        if (form.currency !== settings.currency) {
+            Alert.alert(
+                t(language, 'currencyChangeTitle'),
+                t(language, 'currencyChangeWarning'),
+                [
+                    { text: t(language, 'cancel'), style: 'cancel' },
+                    { text: t(language, 'confirm'), onPress: doSave },
+                ],
+            );
             return;
         }
-        updateSettings(form);
-        Alert.alert('Saved', 'Settings updated successfully.', [
-            { text: 'OK', onPress: () => setCurrentScreen('dashboard') },
-        ]);
+        doSave();
     };
 
     const handleChangePin = () => {
@@ -170,8 +185,18 @@ export default function SettingsScreen() {
                         </View>
                     </Section>
 
+                    {/* Language */}
+                    <Section title={t(language, 'language')}>
+                        <View style={styles.optRow}>
+                            {LANGUAGES.map(l => (
+                                <Opt key={l.code} label={l.nativeLabel} active={language === l.code}
+                                    onPress={() => setLanguage(l.code)} />
+                            ))}
+                        </View>
+                    </Section>
+
                     {/* Currency */}
-                    <Section title="Currency">
+                    <Section title={t(language, 'currency')}>
                         <View style={styles.optRow}>
                             {CURRENCIES.map(c => (
                                 <Opt key={c.value} label={c.label} active={form.currency === c.value}

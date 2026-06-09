@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useMemo, useEffect, ReactNode } from 'react';
-import { Transaction, FinanceData, User, BusinessSettings, Screen, FinancialGoal, GoalType, NavParams, Invoice, InvoiceStatus, TeamMember, UserRole } from '../types';
+import { Alert } from 'react-native';
+import { Transaction, FinanceData, User, BusinessSettings, Screen, FinancialGoal, GoalType, NavParams, Invoice, InvoiceStatus, TeamMember, UserRole, Language } from '../types';
 import { computeFinance, computeOneThingInsight, computeRecurringDates } from '../utils/finance';
 import { generateId } from '../utils/uuid';
 import {
@@ -9,6 +10,7 @@ import {
     saveInvoices, loadInvoices,
     savePin, loadPin,
     saveProfile, loadProfile,
+    saveLanguage, loadLanguage,
     exportAllData, importAllData, clearAllData,
     loadTeamMembers, inviteTeamMember, removeTeamMember, joinTeamWithCode,
     setWorkspaceOwner, clearWorkspaceOwner,
@@ -16,6 +18,7 @@ import {
 } from '../utils/storage';
 import { refreshGoal, goalDefaults } from '../utils/goals';
 import { supabase } from '../utils/supabase';
+import { t } from '../utils/i18n';
 
 interface AppContextValue {
     currentScreen: Screen;
@@ -57,6 +60,10 @@ interface AppContextValue {
     inviteMember: (email: string, role: 'accountant' | 'staff') => Promise<string>;
     removeMember: (id: string) => Promise<void>;
     refreshTeam: () => Promise<void>;
+
+    // Language
+    language: Language;
+    setLanguage: (lang: Language) => void;
 
     finance: FinanceData;
     insight: ReturnType<typeof computeOneThingInsight>;
@@ -159,19 +166,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const [goals, setGoals]                 = useState<FinancialGoal[]>([]);
     const [invoices, setInvoices]           = useState<Invoice[]>([]);
     const [teamMembers, setTeamMembers]     = useState<TeamMember[]>([]);
+    const [language, setLang]              = useState<Language>('en');
     const [isLoading, setIsLoading]         = useState(true);
+
+    useEffect(() => {
+        // Keep Supabase free-tier project alive on every app launch
+        void supabase.from('profiles').select('id').limit(1);
+    }, []);
 
     useEffect(() => {
         (async () => {
             try {
-                const [savedTx, savedSettings, savedGoals, savedInvoices, pin, profile] = await Promise.all([
+                const [savedTx, savedSettings, savedGoals, savedInvoices, pin, profile, lang] = await Promise.all([
                     loadTransactions(),
                     loadSettings(),
                     loadGoals(),
                     loadInvoices(),
                     loadPin(),
                     loadProfile(),
+                    loadLanguage(),
                 ]);
+                setLang(lang);
                 if (pin) setStoredPin(pin);
                 if (savedTx) {
                     const { updated, newEntries } = processDueRecurring(savedTx);
@@ -207,6 +222,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setNavParams(params ?? null);
         setCurrentScreen(s);
     };
+
+    const setLanguage = (lang: Language) => {
+        setLang(lang);
+        saveLanguage(lang).catch(() => {});
+    };
+
+    // Role permission helpers
+    const canWrite  = userRole === 'owner' || userRole === 'staff';
+    const canManage = userRole === 'owner';
+
+    const denyWrite  = () => Alert.alert(t(language, 'permissionDenied'), t(language, 'staffPermission'));
+    const denyManage = () => Alert.alert(t(language, 'permissionDenied'), t(language, 'accountantPermission'));
 
     const setupAccount = async (email: string, businessName: string, pin: string, loadDemo: boolean) => {
         const { error } = await supabase.auth.signUp({ email, password: pin });
@@ -278,9 +305,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return true;
     };
 
-    const updateSettings = (patch: Partial<BusinessSettings>) => setSettings(prev => ({ ...prev, ...patch }));
+    const updateSettings = (patch: Partial<BusinessSettings>) => {
+        if (!canManage) { denyManage(); return; }
+        setSettings(prev => ({ ...prev, ...patch }));
+    };
 
     const addTransaction = (tx: Omit<Transaction, 'id' | 'date'> & { date?: string }) => {
+        if (!canWrite) { denyWrite(); return; }
         const today = new Date().toISOString().split('T')[0];
         const date = tx.date || today;
         const taxAmount = tx.taxRate ? Math.round(tx.amount * (tx.taxRate / 100) * 100) / 100 : 0;
@@ -292,9 +323,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setTransactions(prev => [item, ...prev]);
     };
 
-    const deleteTransaction = (id: string) => setTransactions(prev => prev.filter(t => t.id !== id));
+    const deleteTransaction = (id: string) => {
+        if (!canManage) { denyManage(); return; }
+        setTransactions(prev => prev.filter(t => t.id !== id));
+    };
 
     const updateTransaction = (id: string, patch: Partial<Transaction>) => {
+        if (!canManage) { denyManage(); return; }
         setTransactions(prev => prev.map(t => {
             if (t.id !== id) return t;
             const merged = { ...t, ...patch };
@@ -306,6 +341,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
 
     const addGoal = (type: GoalType, overrides: Partial<FinancialGoal>) => {
+        if (!canManage) { denyManage(); return; }
         const defaults = goalDefaults(type, finance, settings);
         const now = new Date().toISOString().split('T')[0];
         const goal: FinancialGoal = {
@@ -317,7 +353,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setGoals(prev => [refreshGoal(goal, finance, transactions), ...prev]);
     };
 
-    const deleteGoal = (id: string) => setGoals(prev => prev.filter(g => g.id !== id));
+    const deleteGoal = (id: string) => {
+        if (!canManage) { denyManage(); return; }
+        setGoals(prev => prev.filter(g => g.id !== id));
+    };
 
     const updateGoalCurrentValue = (id: string, value: number) => {
         setGoals(prev => prev.map(g => {
@@ -328,6 +367,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
 
     const addInvoice = (inv: Omit<Invoice, 'id' | 'createdAt'>) => {
+        if (!canManage) { denyManage(); return; }
         const now = new Date().toISOString().split('T')[0];
         const item: Invoice = { ...inv, id: generateId(), createdAt: now };
         setInvoices(prev => [item, ...prev]);
@@ -339,10 +379,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         });
     };
 
-    const updateInvoice = (id: string, patch: Partial<Invoice>) =>
+    const updateInvoice = (id: string, patch: Partial<Invoice>) => {
+        if (!canManage) { denyManage(); return; }
         setInvoices(prev => prev.map(inv => inv.id === id ? { ...inv, ...patch } : inv));
+    };
 
-    const deleteInvoice = (id: string) => setInvoices(prev => prev.filter(inv => inv.id !== id));
+    const deleteInvoice = (id: string) => {
+        if (!canManage) { denyManage(); return; }
+        setInvoices(prev => prev.filter(inv => inv.id !== id));
+    };
 
     const markInvoiceStatus = (id: string, status: InvoiceStatus) => {
         setInvoices(prev => prev.map(inv => inv.id === id ? { ...inv, status } : inv));
@@ -396,6 +441,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         goals, addGoal, deleteGoal, updateGoalCurrentValue,
         invoices, addInvoice, updateInvoice, deleteInvoice, markInvoiceStatus,
         teamMembers, inviteMember, removeMember, refreshTeam,
+        language, setLanguage,
         finance, insight, isLoading,
         exportData, importData, clearData,
     };

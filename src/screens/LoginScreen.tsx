@@ -5,61 +5,68 @@ import {
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
+import { t, LANGUAGES, Language } from '../utils/i18n';
+
+const CURRENCIES = [
+    { label: 'USD ($)',   value: '$'   },
+    { label: 'EUR (€)',   value: '€'   },
+    { label: 'GBP (£)',   value: '£'   },
+    { label: 'NGN (₦)',   value: '₦'   },
+    { label: 'CNY (¥)',   value: '¥'   },
+    { label: 'CAD (CA$)', value: 'CA$' },
+];
 
 type Mode = 'owner-setup' | 'owner-login' | 'join-team';
 
 export default function LoginScreen() {
-    const { isFirstLaunch, setupAccount, login, joinTeam } = useApp();
-
+    const { isFirstLaunch, setupAccount, login, joinTeam, language, setLanguage, updateSettings } = useApp();
     const [mode, setMode] = useState<Mode>(isFirstLaunch ? 'owner-setup' : 'owner-login');
 
     // Owner setup
-    const [email, setEmail]       = useState('');
-    const [business, setBusiness] = useState('');
-    const [pin, setPin]           = useState('');
-    const [confirmPin, setConfirm]= useState('');
-    const [loadDemo, setLoadDemo] = useState(false);
+    const [email, setEmail]         = useState('');
+    const [business, setBusiness]   = useState('');
+    const [pin, setPin]             = useState('');
+    const [confirmPin, setConfirm]  = useState('');
+    const [loadDemo, setLoadDemo]   = useState(false);
+    const [currency, setCurrency]   = useState('$');
+    const [setupLang, setSetupLang] = useState<Language>(language);
 
     // Owner return
     const [returnPin, setReturnPin] = useState('');
 
     // Join team
-    const [joinEmail, setJoinEmail]   = useState('');
-    const [joinPin, setJoinPin]       = useState('');
+    const [joinEmail, setJoinEmail]     = useState('');
+    const [joinPin, setJoinPin]         = useState('');
     const [joinConfirm, setJoinConfirm] = useState('');
-    const [inviteCode, setInviteCode] = useState('');
+    const [inviteCode, setInviteCode]   = useState('');
 
     const handleSetup = async () => {
         if (!email.trim() || !business.trim()) {
-            Alert.alert('Missing fields', 'Please enter your email and business name.'); return;
+            Alert.alert(t(setupLang, 'missingFields'), t(setupLang, 'email') + ' & ' + t(setupLang, 'businessName')); return;
         }
-        if (!/^\d{4}$/.test(pin)) {
-            Alert.alert('Invalid PIN', 'PIN must be exactly 4 digits.'); return;
-        }
-        if (pin !== confirmPin) {
-            Alert.alert('PIN mismatch', 'PINs do not match.'); return;
-        }
+        if (!/^\d{4}$/.test(pin)) { Alert.alert(t(setupLang, 'error'), t(setupLang, 'invalidPin')); return; }
+        if (pin !== confirmPin)   { Alert.alert(t(setupLang, 'error'), t(setupLang, 'pinMismatch')); return; }
         try {
+            setLanguage(setupLang);
             await setupAccount(email.trim(), business.trim(), pin, loadDemo);
+            // Apply chosen currency immediately after account creation
+            updateSettings({ currency });
         } catch (e: any) {
-            Alert.alert('Error', e?.message ?? 'Could not create account. Please try again.');
+            Alert.alert(t(setupLang, 'error'), e?.message ?? 'Could not create account. Please try again.');
         }
     };
 
     const handleLogin = () => {
-        if (!returnPin) { Alert.alert('Enter PIN', 'Please enter your 4-digit PIN.'); return; }
+        if (!returnPin) { Alert.alert(t(language, 'error'), 'Please enter your 4-digit PIN.'); return; }
         const ok = login(returnPin);
-        if (!ok) {
-            Alert.alert('Incorrect PIN', 'The PIN you entered is incorrect.');
-            setReturnPin('');
-        }
+        if (!ok) { Alert.alert(t(language, 'error'), t(language, 'incorrectPin')); setReturnPin(''); }
     };
 
     const handleJoinTeam = async () => {
-        if (!joinEmail.trim()) { Alert.alert('Required', 'Please enter your email.'); return; }
-        if (!/^\d{4}$/.test(joinPin)) { Alert.alert('Invalid PIN', 'PIN must be exactly 4 digits.'); return; }
-        if (joinPin !== joinConfirm) { Alert.alert('PIN mismatch', 'PINs do not match.'); return; }
-        if (!inviteCode.trim()) { Alert.alert('Required', 'Please enter your invite code.'); return; }
+        if (!joinEmail.trim()) { Alert.alert(t(language, 'required'), t(language, 'email')); return; }
+        if (!/^\d{4}$/.test(joinPin)) { Alert.alert(t(language, 'error'), t(language, 'invalidPin')); return; }
+        if (joinPin !== joinConfirm)  { Alert.alert(t(language, 'error'), t(language, 'pinMismatch')); return; }
+        if (!inviteCode.trim())       { Alert.alert(t(language, 'required'), t(language, 'inviteCode')); return; }
         try {
             await joinTeam(joinEmail.trim(), joinPin, inviteCode.trim());
         } catch (e: any) {
@@ -67,42 +74,42 @@ export default function LoginScreen() {
         }
     };
 
-    // ── Join Team screen ──────────────────────────────────────────────────────
+    // ── Join Team ─────────────────────────────────────────────────────────────
     if (mode === 'join-team') {
         return (
             <SafeAreaView style={styles.safe}>
                 <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
                     <View style={styles.card}>
-                        <Text style={styles.title}>Join a Team</Text>
-                        <Text style={styles.subtitle}>Enter the invite code your business owner shared with you</Text>
+                        <Text style={styles.title}>{t(language, 'joinTeam')}</Text>
+                        <Text style={styles.subtitle}>{t(language, 'joinSubtitle')}</Text>
 
-                        <Field label="Your Email">
+                        <Field label={t(language, 'yourEmail')}>
                             <TextInput style={styles.input} value={joinEmail} onChangeText={setJoinEmail}
                                 placeholder="you@example.com" placeholderTextColor={Colors.muted}
                                 autoCapitalize="none" keyboardType="email-address" />
                         </Field>
-                        <Field label="Create PIN (4 digits)">
+                        <Field label={t(language, 'newPin')}>
                             <TextInput style={styles.input} value={joinPin} onChangeText={setJoinPin}
                                 placeholder="••••" placeholderTextColor={Colors.muted}
                                 secureTextEntry keyboardType="number-pad" maxLength={4} />
                         </Field>
-                        <Field label="Confirm PIN">
+                        <Field label={t(language, 'confirmPin')}>
                             <TextInput style={styles.input} value={joinConfirm} onChangeText={setJoinConfirm}
                                 placeholder="••••" placeholderTextColor={Colors.muted}
                                 secureTextEntry keyboardType="number-pad" maxLength={4} />
                         </Field>
-                        <Field label="Invite Code">
-                            <TextInput style={[styles.input, styles.codeInput]} value={inviteCode}
-                                onChangeText={v => setInviteCode(v.toUpperCase())}
+                        <Field label={t(language, 'inviteCode')}>
+                            <TextInput style={[styles.input, styles.codeInput]}
+                                value={inviteCode} onChangeText={v => setInviteCode(v.toUpperCase())}
                                 placeholder="ABC123" placeholderTextColor={Colors.muted}
                                 autoCapitalize="characters" maxLength={6} />
                         </Field>
 
                         <TouchableOpacity style={styles.btn} onPress={handleJoinTeam}>
-                            <Text style={styles.btnText}>Join Team</Text>
+                            <Text style={styles.btnText}>{t(language, 'joinTeamBtn')}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.switchBtn} onPress={() => setMode(isFirstLaunch ? 'owner-setup' : 'owner-login')}>
-                            <Text style={styles.switchText}>Back to sign in</Text>
+                            <Text style={styles.switchText}>{t(language, 'backToSignIn')}</Text>
                         </TouchableOpacity>
                     </View>
                 </ScrollView>
@@ -116,46 +123,75 @@ export default function LoginScreen() {
             <SafeAreaView style={styles.safe}>
                 <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
                     <View style={styles.card}>
-                        <Text style={styles.title}>FinanceBook</Text>
-                        <Text style={styles.subtitle}>Set up your business account</Text>
+                        <Text style={styles.title}>{t(setupLang, 'appName')}</Text>
+                        <Text style={styles.subtitle}>{t(setupLang, 'setupSubtitle')}</Text>
 
-                        <Field label="Email">
+                        {/* Language picker — shown first so the rest renders in chosen language */}
+                        <Text style={styles.sectionLabel}>{t(setupLang, 'preferredLanguage')}</Text>
+                        <View style={styles.chipRow}>
+                            {LANGUAGES.map(l => (
+                                <TouchableOpacity key={l.code}
+                                    style={[styles.chip, setupLang === l.code && styles.chipActive]}
+                                    onPress={() => setSetupLang(l.code)}>
+                                    <Text style={[styles.chipText, setupLang === l.code && styles.chipTextActive]}>
+                                        {l.nativeLabel}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
+                        <Field label={t(setupLang, 'email')}>
                             <TextInput style={styles.input} value={email} onChangeText={setEmail}
                                 placeholder="admin@yourbusiness.com" placeholderTextColor={Colors.muted}
                                 autoCapitalize="none" keyboardType="email-address" />
                         </Field>
-                        <Field label="Business Name">
+                        <Field label={t(setupLang, 'businessName')}>
                             <TextInput style={styles.input} value={business} onChangeText={setBusiness}
                                 placeholder="Acme Corp" placeholderTextColor={Colors.muted} />
                         </Field>
-                        <Field label="Create 4-Digit PIN">
+                        <Field label={t(setupLang, 'createPin')}>
                             <TextInput style={styles.input} value={pin} onChangeText={setPin}
                                 placeholder="••••" placeholderTextColor={Colors.muted}
                                 secureTextEntry keyboardType="number-pad" maxLength={4} />
                         </Field>
-                        <Field label="Confirm PIN">
+                        <Field label={t(setupLang, 'confirmPin')}>
                             <TextInput style={styles.input} value={confirmPin} onChangeText={setConfirm}
                                 placeholder="••••" placeholderTextColor={Colors.muted}
                                 secureTextEntry keyboardType="number-pad" maxLength={4} />
                         </Field>
 
-                        <Text style={styles.sectionLabel}>Starting data</Text>
+                        {/* Currency picker */}
+                        <Text style={styles.sectionLabel}>{t(setupLang, 'preferredCurrency')}</Text>
+                        <View style={styles.chipRow}>
+                            {CURRENCIES.map(c => (
+                                <TouchableOpacity key={c.value}
+                                    style={[styles.chip, currency === c.value && styles.chipActive]}
+                                    onPress={() => setCurrency(c.value)}>
+                                    <Text style={[styles.chipText, currency === c.value && styles.chipTextActive]}>
+                                        {c.label}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
+                        {/* Starting data */}
+                        <Text style={styles.sectionLabel}>{t(setupLang, 'startingData')}</Text>
                         <View style={styles.demoRow}>
                             <TouchableOpacity style={[styles.demoOpt, !loadDemo && styles.demoOptActive]} onPress={() => setLoadDemo(false)}>
-                                <Text style={[styles.demoOptText, !loadDemo && styles.demoOptTextActive]}>Start Fresh</Text>
-                                <Text style={styles.demoOptSub}>Empty ledger, ready for real data</Text>
+                                <Text style={[styles.demoOptText, !loadDemo && styles.demoOptTextActive]}>{t(setupLang, 'startFresh')}</Text>
+                                <Text style={styles.demoOptSub}>{t(setupLang, 'startFreshSub')}</Text>
                             </TouchableOpacity>
                             <TouchableOpacity style={[styles.demoOpt, loadDemo && styles.demoOptActive]} onPress={() => setLoadDemo(true)}>
-                                <Text style={[styles.demoOptText, loadDemo && styles.demoOptTextActive]}>Load Demo Data</Text>
-                                <Text style={styles.demoOptSub}>Explore with sample transactions</Text>
+                                <Text style={[styles.demoOptText, loadDemo && styles.demoOptTextActive]}>{t(setupLang, 'loadDemo')}</Text>
+                                <Text style={styles.demoOptSub}>{t(setupLang, 'loadDemoSub')}</Text>
                             </TouchableOpacity>
                         </View>
 
                         <TouchableOpacity style={styles.btn} onPress={handleSetup}>
-                            <Text style={styles.btnText}>Create Account</Text>
+                            <Text style={styles.btnText}>{t(setupLang, 'createAccount')}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('join-team')}>
-                            <Text style={styles.switchText}>Joining a team instead? →</Text>
+                            <Text style={styles.switchText}>{t(setupLang, 'joiningTeam')}</Text>
                         </TouchableOpacity>
                     </View>
                 </ScrollView>
@@ -168,24 +204,22 @@ export default function LoginScreen() {
         <SafeAreaView style={styles.safe}>
             <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
                 <View style={styles.card}>
-                    <Text style={styles.title}>FinanceBook</Text>
-                    <Text style={styles.subtitle}>Enter your PIN to continue</Text>
+                    <Text style={styles.title}>{t(language, 'appName')}</Text>
+                    <Text style={styles.subtitle}>{t(language, 'loginSubtitle')}</Text>
 
                     <View style={styles.pinContainer}>
-                        <TextInput
-                            style={styles.pinInput}
+                        <TextInput style={styles.pinInput}
                             placeholder="••••" placeholderTextColor={Colors.muted}
                             secureTextEntry keyboardType="number-pad" maxLength={4}
                             value={returnPin} onChangeText={setReturnPin}
-                            onSubmitEditing={handleLogin} autoFocus
-                        />
+                            onSubmitEditing={handleLogin} autoFocus />
                     </View>
 
                     <TouchableOpacity style={styles.btn} onPress={handleLogin}>
-                        <Text style={styles.btnText}>Unlock</Text>
+                        <Text style={styles.btnText}>{t(language, 'unlock')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('join-team')}>
-                        <Text style={styles.switchText}>Joining a team instead? →</Text>
+                        <Text style={styles.switchText}>{t(language, 'joiningTeam')}</Text>
                     </TouchableOpacity>
                 </View>
             </ScrollView>
@@ -210,7 +244,7 @@ const styles = StyleSheet.create({
         shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 10, elevation: 5,
     },
     title:    { fontSize: 26, fontWeight: 'bold', color: Colors.textPrimary, textAlign: 'center' },
-    subtitle: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', marginBottom: 24, marginTop: 4 },
+    subtitle: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', marginBottom: 20, marginTop: 4 },
 
     group: { marginBottom: 14 },
     label: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary, marginBottom: 6 },
@@ -222,6 +256,13 @@ const styles = StyleSheet.create({
     codeInput: { fontSize: 20, letterSpacing: 8, textAlign: 'center', fontWeight: 'bold' },
 
     sectionLabel: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary, marginBottom: 8, marginTop: 4 },
+
+    chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
+    chip:         { paddingHorizontal: 12, paddingVertical: 7, borderWidth: 1, borderColor: Colors.border, borderRadius: 20, backgroundColor: Colors.bg },
+    chipActive:   { borderColor: Colors.primary, backgroundColor: Colors.primary + '22' },
+    chipText:     { fontSize: 12, color: Colors.textMuted },
+    chipTextActive: { color: Colors.primary, fontWeight: '600' },
+
     demoRow: { flexDirection: 'row', gap: 10, marginBottom: 20 },
     demoOpt: {
         flex: 1, borderWidth: 1, borderColor: Colors.border,

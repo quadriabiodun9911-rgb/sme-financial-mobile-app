@@ -3,17 +3,18 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { Screen } from '../types';
-
-const TABS: { label: string; screen: Screen; icon: string }[] = [
-    { label: 'Dashboard', screen: 'dashboard',   icon: '⬛' },
-    { label: 'Reports',   screen: 'reports',     icon: '📊' },
-    { label: 'Invoices',  screen: 'invoices',    icon: '🧾' },
-    { label: 'Ledger',    screen: 'transactions', icon: '📒' },
-    { label: 'Goals',     screen: 'goals',       icon: '🎯' },
-];
+import { t } from '../utils/i18n';
 
 export default function FooterNav() {
-    const { currentScreen, setCurrentScreen } = useApp();
+    const { currentScreen, setCurrentScreen, language } = useApp();
+
+    const TABS: { labelKey: Parameters<typeof t>[1]; screen: Screen; icon: string }[] = [
+        { labelKey: 'dashboard',  screen: 'dashboard',    icon: '⬛' },
+        { labelKey: 'reports',    screen: 'reports',      icon: '📊' },
+        { labelKey: 'invoices',   screen: 'invoices',     icon: '🧾' },
+        { labelKey: 'ledger',     screen: 'transactions', icon: '📒' },
+        { labelKey: 'goals',      screen: 'goals',        icon: '🎯' },
+    ];
 
     return (
         <View style={styles.footer}>
@@ -26,7 +27,7 @@ export default function FooterNav() {
                         onPress={() => setCurrentScreen(tab.screen)}
                     >
                         <Text style={styles.icon}>{tab.icon}</Text>
-                        <Text style={[styles.text, active && styles.active]}>{tab.label}</Text>
+                        <Text style={[styles.text, active && styles.active]}>{t(language, tab.labelKey)}</Text>
                         {active && <View style={styles.indicator} />}
                     </TouchableOpacity>
                 );
