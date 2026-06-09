@@ -1,14 +1,119 @@
-import React from 'react';
-import { SafeAreaView, ScrollView, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import {
+    SafeAreaView, ScrollView, View, Text, StyleSheet,
+    TouchableOpacity, LayoutAnimation, Platform, UIManager,
+} from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { getTopCategories } from '../utils/finance';
+import { generateSwot } from '../utils/swot';
+import { SwotItem } from '../types';
+
+if (Platform.OS === 'android') {
+    UIManager.setLayoutAnimationEnabledExperimental?.(true);
+}
+
+// ─── Derive prioritised actions from SWOT data ────────────────────────────────
+
+interface ActionItem {
+    urgency: 'urgent' | 'important' | 'opportunity';
+    title: string;
+    detail: string;
+    metric?: string;
+    source: 'weakness' | 'threat' | 'opportunity' | 'strength';
+}
+
+function deriveActions(
+    swot: ReturnType<typeof generateSwot>,
+    currency: string,
+): ActionItem[] {
+    const actions: ActionItem[] = [];
+
+    // Threats → urgent actions
+    swot.threats.forEach((item: SwotItem) => {
+        if (item.text.includes('critically low') || item.text.includes('net loss') || item.text.includes('overdue payable')) {
+            actions.push({
+                urgency: 'urgent',
+                title: extractTitle(item.text),
+                detail: item.text,
+                metric: item.metric,
+                source: 'threat',
+            });
+        }
+    });
+
+    // Weaknesses → important actions
+    swot.weaknesses.forEach((item: SwotItem) => {
+        if (!item.text.includes('Log more')) {
+            actions.push({
+                urgency: 'important',
+                title: extractTitle(item.text),
+                detail: item.text,
+                metric: item.metric,
+                source: 'weakness',
+            });
+        }
+    });
+
+    // Remaining threats not already captured
+    swot.threats.forEach((item: SwotItem) => {
+        const alreadyAdded = actions.some(a => a.detail === item.text);
+        if (!alreadyAdded) {
+            actions.push({
+                urgency: 'important',
+                title: extractTitle(item.text),
+                detail: item.text,
+                metric: item.metric,
+                source: 'threat',
+            });
+        }
+    });
+
+    // Opportunities → opportunity actions
+    swot.opportunities.forEach((item: SwotItem) => {
+        if (!item.text.includes('expand transaction')) {
+            actions.push({
+                urgency: 'opportunity',
+                title: extractTitle(item.text),
+                detail: item.text,
+                metric: item.metric,
+                source: 'opportunity',
+            });
+        }
+    });
+
+    return actions;
+}
+
+function extractTitle(text: string): string {
+    // Pull first clause before comma or period as the title
+    const chunk = text.split(/[.,]/)[0];
+    return chunk.length > 60 ? chunk.slice(0, 57) + '…' : chunk;
+}
+
+const URGENCY_CONFIG = {
+    urgent: { label: 'URGENT', color: Colors.expense, bg: 'rgba(239,68,68,0.1)', icon: '🔴' },
+    important: { label: 'IMPORTANT', color: Colors.warning, bg: 'rgba(245,158,11,0.1)', icon: '🟡' },
+    opportunity: { label: 'OPPORTUNITY', color: Colors.income, bg: 'rgba(16,185,129,0.1)', icon: '🟢' },
+};
+
+const SOURCE_LABELS = {
+    threat: 'Threat identified',
+    weakness: 'Weakness identified',
+    opportunity: 'Opportunity identified',
+    strength: 'Leverage strength',
+};
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function InsightsScreen() {
     const { finance, settings, transactions, setCurrentScreen } = useApp();
     const { currency, targetMargin, minReserve } = settings;
+
+    const [swotExpanded, setSwotExpanded] = useState(true);
+    const [expandedAction, setExpandedAction] = useState<number | null>(null);
 
     const topExpenses = getTopCategories(transactions, 'expense', 5);
     const topIncome = getTopCategories(transactions, 'income', 5);
@@ -22,6 +127,22 @@ export default function InsightsScreen() {
     const totalAP = pendingAP.reduce((s, t) => s + t.amount, 0);
     const recurringCount = transactions.filter(t => t.isRecurring).length;
     const overdueCount = transactions.filter(t => t.status === 'overdue').length;
+
+    const swot = useMemo(
+        () => generateSwot(finance, transactions, settings),
+        [finance, transactions, settings]
+    );
+
+    const actions = useMemo(() => deriveActions(swot, currency), [swot, currency]);
+
+    const urgentCount = actions.filter(a => a.urgency === 'urgent').length;
+    const importantCount = actions.filter(a => a.urgency === 'important').length;
+    const opportunityCount = actions.filter(a => a.urgency === 'opportunity').length;
+
+    const toggleAction = (i: number) => {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        setExpandedAction(prev => (prev === i ? null : i));
+    };
 
     return (
         <SafeAreaView style={styles.safe}>
@@ -43,12 +164,97 @@ export default function InsightsScreen() {
                     {overdueCount > 0 && (
                         <TouchableOpacity style={styles.alertBanner} onPress={() => setCurrentScreen('reports')}>
                             <Text style={styles.alertText}>
-                                ⚠ {overdueCount} overdue transaction{overdueCount > 1 ? 's' : ''} — view AR/AP Aging report
+                                ⚠ {overdueCount} overdue transaction{overdueCount > 1 ? 's' : ''} — tap to view AR/AP Aging report
                             </Text>
                         </TouchableOpacity>
                     )}
 
-                    {/* Performance */}
+                    {/* ── SWOT Action Plan ─────────────────────────────────── */}
+                    <TouchableOpacity
+                        style={styles.swotHeader}
+                        onPress={() => {
+                            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                            setSwotExpanded(e => !e);
+                        }}
+                        activeOpacity={0.8}
+                    >
+                        <View>
+                            <Text style={styles.swotHeaderTitle}>🔍 SWOT Action Plan</Text>
+                            <Text style={styles.swotHeaderSub}>
+                                Personalised actions derived from your live financial data
+                            </Text>
+                        </View>
+                        <Text style={styles.chevron}>{swotExpanded ? '▲' : '▼'}</Text>
+                    </TouchableOpacity>
+
+                    {swotExpanded && (
+                        <View style={styles.swotBody}>
+                            {/* Action count summary */}
+                            <View style={styles.actionSummaryRow}>
+                                <ActionBadge count={urgentCount} label="Urgent" color={Colors.expense} />
+                                <ActionBadge count={importantCount} label="Important" color={Colors.warning} />
+                                <ActionBadge count={opportunityCount} label="Opportunity" color={Colors.income} />
+                            </View>
+
+                            <Text style={styles.actionListTitle}>Your Action List</Text>
+
+                            {actions.length === 0 && (
+                                <Text style={styles.empty}>Log more transactions to generate your personalised action plan.</Text>
+                            )}
+
+                            {actions.map((action, i) => {
+                                const cfg = URGENCY_CONFIG[action.urgency];
+                                const isOpen = expandedAction === i;
+                                return (
+                                    <TouchableOpacity
+                                        key={i}
+                                        style={[styles.actionCard, { borderLeftColor: cfg.color, backgroundColor: isOpen ? cfg.bg : Colors.surface }]}
+                                        onPress={() => toggleAction(i)}
+                                        activeOpacity={0.85}
+                                    >
+                                        <View style={styles.actionTop}>
+                                            <View style={styles.actionLeft}>
+                                                <Text style={styles.actionIcon}>{cfg.icon}</Text>
+                                                <View style={styles.actionTitleBlock}>
+                                                    <View style={[styles.urgencyPill, { backgroundColor: cfg.bg }]}>
+                                                        <Text style={[styles.urgencyLabel, { color: cfg.color }]}>{cfg.label}</Text>
+                                                    </View>
+                                                    <Text style={styles.actionTitle}>{action.title}</Text>
+                                                </View>
+                                            </View>
+                                            <Text style={[styles.expandIcon, { color: cfg.color }]}>{isOpen ? '−' : '+'}</Text>
+                                        </View>
+
+                                        {isOpen && (
+                                            <View style={styles.actionExpanded}>
+                                                <Text style={styles.actionDetail}>{action.detail}</Text>
+                                                {action.metric && (
+                                                    <View style={[styles.metricPill, { backgroundColor: cfg.bg, borderColor: cfg.color + '44' }]}>
+                                                        <Text style={[styles.metricText, { color: cfg.color }]}>{action.metric}</Text>
+                                                    </View>
+                                                )}
+                                                <View style={styles.sourceRow}>
+                                                    <Text style={styles.sourceLabel}>📌 {SOURCE_LABELS[action.source]}</Text>
+                                                    {action.source === 'opportunity' && (
+                                                        <TouchableOpacity onPress={() => setCurrentScreen('goals')}>
+                                                            <Text style={styles.goalLink}>Set a goal →</Text>
+                                                        </TouchableOpacity>
+                                                    )}
+                                                </View>
+                                            </View>
+                                        )}
+                                    </TouchableOpacity>
+                                );
+                            })}
+
+                            {/* Link to full SWOT */}
+                            <TouchableOpacity style={styles.fullSwotBtn} onPress={() => setCurrentScreen('reports')}>
+                                <Text style={styles.fullSwotText}>View full SWOT Analysis in Reports →</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+
+                    {/* ── Performance ─────────────────────────────────────── */}
                     <View style={styles.card}>
                         <Text style={styles.cardTitle}>Performance Overview</Text>
                         <Row label="Current Margin" value={`${finance.margin.toFixed(2)}%`} valueStyle={finance.margin >= parseFloat(targetMargin) ? styles.green : styles.red} />
@@ -56,7 +262,7 @@ export default function InsightsScreen() {
                         <Row label="Difference" value={`${marginDiff >= 0 ? '+' : ''}${marginDiff.toFixed(2)}%`} valueStyle={marginDiff >= 0 ? styles.green : styles.red} />
                     </View>
 
-                    {/* Cash Position */}
+                    {/* ── Cash Position ────────────────────────────────────── */}
                     <View style={styles.card}>
                         <Text style={styles.cardTitle}>Cash Position</Text>
                         <Row label="Total Income" value={`${currency}${finance.income.toLocaleString()}`} valueStyle={styles.green} />
@@ -68,7 +274,7 @@ export default function InsightsScreen() {
                         </View>
                     </View>
 
-                    {/* Tax */}
+                    {/* ── Tax ──────────────────────────────────────────────── */}
                     <View style={styles.card}>
                         <Text style={styles.cardTitle}>Tax Position</Text>
                         <Row label="Tax Collected" value={`${currency}${finance.totalTaxCollected.toLocaleString()}`} valueStyle={styles.yellow} />
@@ -79,7 +285,7 @@ export default function InsightsScreen() {
                         </TouchableOpacity>
                     </View>
 
-                    {/* Balance Sheet */}
+                    {/* ── Balance Sheet ─────────────────────────────────────── */}
                     <View style={styles.card}>
                         <Text style={styles.cardTitle}>Balance Sheet Summary</Text>
                         <Row label="Total Assets" value={`${currency}${finance.assets.toLocaleString()}`} valueStyle={styles.blue} />
@@ -88,7 +294,7 @@ export default function InsightsScreen() {
                         <Text style={styles.note}>Update opening balances in Settings for a complete balance sheet.</Text>
                     </View>
 
-                    {/* Top Expense Categories */}
+                    {/* ── Top Expenses ─────────────────────────────────────── */}
                     <View style={styles.card}>
                         <Text style={styles.cardTitle}>Top Expense Categories</Text>
                         {topExpenses.length === 0 && <Text style={styles.empty}>No expense transactions yet.</Text>}
@@ -97,7 +303,7 @@ export default function InsightsScreen() {
                         ))}
                     </View>
 
-                    {/* Income Sources */}
+                    {/* ── Income Sources ────────────────────────────────────── */}
                     <View style={styles.card}>
                         <Text style={styles.cardTitle}>Income Sources</Text>
                         {topIncome.length === 0 && <Text style={styles.empty}>No income transactions yet.</Text>}
@@ -111,6 +317,23 @@ export default function InsightsScreen() {
         </SafeAreaView>
     );
 }
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function ActionBadge({ count, label, color }: { count: number; label: string; color: string }) {
+    return (
+        <View style={[badgeStyles.box, { borderColor: color + '55', backgroundColor: color + '15' }]}>
+            <Text style={[badgeStyles.count, { color }]}>{count}</Text>
+            <Text style={[badgeStyles.label, { color }]}>{label}</Text>
+        </View>
+    );
+}
+
+const badgeStyles = StyleSheet.create({
+    box: { flex: 1, alignItems: 'center', padding: 10, borderRadius: 10, borderWidth: 1 },
+    count: { fontSize: 20, fontWeight: 'bold' },
+    label: { fontSize: 10, fontWeight: '600', marginTop: 2 },
+});
 
 function StatCard({ label, value, sub, color }: { label: string; value: string; sub: string; color: string }) {
     return (
@@ -144,14 +367,58 @@ const rowStyles = StyleSheet.create({
     value: { fontSize: 14, fontWeight: '600' },
 });
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
     safe: { flex: 1, backgroundColor: Colors.bg },
     scroll: { flex: 1 },
     pad: { padding: 16 },
     title: { fontSize: 20, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 16 },
     statRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
-    alertBanner: { backgroundColor: 'rgba(239,68,68,0.12)', borderWidth: 1, borderColor: Colors.expense, borderRadius: 8, padding: 12, marginBottom: 12 },
+    alertBanner: {
+        backgroundColor: 'rgba(239,68,68,0.12)', borderWidth: 1,
+        borderColor: Colors.expense, borderRadius: 8, padding: 12, marginBottom: 12,
+    },
     alertText: { color: Colors.expense, fontSize: 13, fontWeight: '600', textAlign: 'center' },
+
+    // SWOT action plan
+    swotHeader: {
+        flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+        backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 0,
+        borderBottomLeftRadius: 0, borderBottomRightRadius: 0,
+        borderBottomWidth: 1, borderBottomColor: Colors.border,
+    },
+    swotHeaderTitle: { fontSize: 16, fontWeight: 'bold', color: Colors.textPrimary },
+    swotHeaderSub: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
+    chevron: { fontSize: 12, color: Colors.textMuted },
+    swotBody: {
+        backgroundColor: Colors.surface, borderRadius: 12, padding: 14,
+        borderTopLeftRadius: 0, borderTopRightRadius: 0, marginBottom: 14,
+    },
+    actionSummaryRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
+    actionListTitle: { fontSize: 13, fontWeight: 'bold', color: Colors.textMuted, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
+    actionCard: {
+        borderRadius: 10, borderLeftWidth: 4, padding: 12, marginBottom: 8,
+    },
+    actionTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+    actionLeft: { flexDirection: 'row', flex: 1, gap: 10, alignItems: 'flex-start' },
+    actionIcon: { fontSize: 16, marginTop: 2 },
+    actionTitleBlock: { flex: 1 },
+    urgencyPill: { alignSelf: 'flex-start', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, marginBottom: 4 },
+    urgencyLabel: { fontSize: 9, fontWeight: 'bold' },
+    actionTitle: { fontSize: 13, fontWeight: '600', color: Colors.textPrimary, lineHeight: 18 },
+    expandIcon: { fontSize: 20, fontWeight: 'bold', marginLeft: 8 },
+    actionExpanded: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.border },
+    actionDetail: { fontSize: 13, color: Colors.textSecondary, lineHeight: 20, marginBottom: 8 },
+    metricPill: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, marginBottom: 8 },
+    metricText: { fontSize: 11, fontWeight: '600' },
+    sourceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    sourceLabel: { fontSize: 11, color: Colors.textMuted },
+    goalLink: { fontSize: 12, color: Colors.primary, fontWeight: '600' },
+    fullSwotBtn: { alignItems: 'center', paddingVertical: 12, marginTop: 4 },
+    fullSwotText: { color: Colors.primary, fontSize: 13, fontWeight: '600' },
+
+    // Shared
     card: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 14 },
     cardTitle: { fontSize: 16, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 12 },
     green: { color: Colors.income },
