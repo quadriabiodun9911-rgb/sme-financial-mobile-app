@@ -1,0 +1,22 @@
+# Local development files — excluded from EAS builds
+.env
+.env.local
+.env.*
+google-service-account.json
+*.keystore
+*.jks
+
+# Test files
+__tests__/
+jest.config.*
+*.test.ts
+*.test.tsx
+*.spec.ts
+
+# Docs
+*.md
+financial-planning/
+
+# CI/editor
+.github/
+.vscode/

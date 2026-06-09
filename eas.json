@@ -10,6 +10,10 @@
             "ios": {
                 "simulator": true
             },
+            "android": {
+                "buildType": "apk",
+                "gradleCommand": ":app:assembleDebug"
+            },
             "env": {
                 "APP_ENV": "development"
             }
@@ -18,7 +22,8 @@
             "distribution": "internal",
             "channel": "preview",
             "ios": {
-                "simulator": false
+                "simulator": false,
+                "enterpriseProvisioning": "adhoc"
             },
             "android": {
                 "buildType": "apk"
@@ -29,6 +34,7 @@
         },
         "production": {
             "channel": "production",
+            "autoIncrement": true,
             "ios": {
                 "buildConfiguration": "Release"
             },
@@ -44,7 +50,8 @@
         "production": {
             "android": {
                 "serviceAccountKeyPath": "./google-service-account.json",
-                "track": "internal"
+                "track": "internal",
+                "releaseStatus": "draft"
             },
             "ios": {
                 "appleId": "your-apple-id@email.com",
