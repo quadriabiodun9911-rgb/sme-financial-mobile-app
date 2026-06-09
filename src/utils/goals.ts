@@ -29,18 +29,18 @@ export function computeGoalProgress(goal: FinancialGoal): number {
     const { type, baselineValue, targetValue, currentValue } = goal;
 
     if (type === 'cost_reduction' || type === 'reduce_overdue_ar') {
-        // Progress = how much we've reduced relative to what needs reducing
         const needed = baselineValue - targetValue;
-        if (needed <= 0) return 100;
+        if (!isFinite(needed) || needed <= 0) return currentValue <= targetValue ? 100 : 0;
         const achieved = baselineValue - currentValue;
-        return Math.min(100, Math.max(0, (achieved / needed) * 100));
+        const pct = (achieved / needed) * 100;
+        return isFinite(pct) ? Math.min(100, Math.max(0, pct)) : 0;
     }
 
-    // For growth goals: progress toward target from baseline
     const needed = targetValue - baselineValue;
-    if (needed <= 0) return 100;
+    if (!isFinite(needed) || needed <= 0) return currentValue >= targetValue ? 100 : 0;
     const achieved = currentValue - baselineValue;
-    return Math.min(100, Math.max(0, (achieved / needed) * 100));
+    const pct = (achieved / needed) * 100;
+    return isFinite(pct) ? Math.min(100, Math.max(0, pct)) : 0;
 }
 
 export function computeGoalStatus(goal: FinancialGoal): GoalStatus {

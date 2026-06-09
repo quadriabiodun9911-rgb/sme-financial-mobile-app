@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useMemo, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useMemo, useEffect, useRef, ReactNode } from 'react';
 import { Alert } from 'react-native';
 import { Transaction, FinanceData, User, BusinessSettings, Screen, FinancialGoal, GoalType, NavParams, Invoice, InvoiceStatus, TeamMember, UserRole, Language, Asset } from '../types';
 import { computeFinance, computeOneThingInsight, computeRecurringDates, computeAssetCurrentValue } from '../utils/finance';
@@ -146,13 +146,18 @@ function processDueRecurring(transactions: Transaction[]): { updated: Transactio
     const today = new Date().toISOString().split('T')[0];
     const updated: Transaction[] = [];
     const newEntries: Transaction[] = [];
+    const seenIds = new Set(transactions.map(t => t.id));
     for (const tx of transactions) {
         if (!tx.isRecurring || !tx.nextRecurringDate || tx.nextRecurringDate > today) {
             updated.push(tx); continue;
         }
+        const newId = generateId();
+        // Guard against duplicate IDs (extremely rare but possible)
+        if (seenIds.has(newId)) { updated.push(tx); continue; }
+        seenIds.add(newId);
         const newTx: Transaction = {
             ...tx,
-            id: generateId(),
+            id: newId,
             date: tx.nextRecurringDate,
             nextRecurringDate: computeRecurringDates(tx.nextRecurringDate, tx.recurringFrequency!),
         };
@@ -176,6 +181,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const [teamMembers, setTeamMembers]     = useState<TeamMember[]>([]);
     const [language, setLang]              = useState<Language>('en');
     const [isLoading, setIsLoading]         = useState(true);
+    const initRan                           = useRef(false);
 
     useEffect(() => {
         // Keep Supabase free-tier project alive on every app launch
@@ -183,6 +189,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }, []);
 
     useEffect(() => {
+        // Guard against React Strict Mode double-invocation
+        if (initRan.current) return;
+        initRan.current = true;
         (async () => {
             try {
                 const [savedTx, savedSettings, savedGoals, savedInvoices, savedAssets, pin, profile, lang] = await Promise.all([
@@ -214,11 +223,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         })();
     }, []);
 
-    useEffect(() => { if (!isLoading) saveTransactions(transactions).catch(() => {}); }, [transactions, isLoading]);
-    useEffect(() => { if (!isLoading) saveSettings(settings).catch(() => {}); }, [settings, isLoading]);
-    useEffect(() => { if (!isLoading) saveGoals(goals).catch(() => {}); }, [goals, isLoading]);
-    useEffect(() => { if (!isLoading) saveInvoices(invoices).catch(() => {}); }, [invoices, isLoading]);
-    useEffect(() => { if (!isLoading) saveAssets(assets).catch(() => {}); }, [assets, isLoading]);
+    const persistError = (label: string) => (err: unknown) => {
+        console.error(`[FinanceBook] Failed to persist ${label}:`, err);
+        Alert.alert('Save Warning', `Could not save ${label}. Your changes may be lost if the app closes. Check your network connection.`);
+    };
+
+    useEffect(() => { if (!isLoading) saveTransactions(transactions).catch(persistError('transactions')); }, [transactions, isLoading]);
+    useEffect(() => { if (!isLoading) saveSettings(settings).catch(persistError('settings')); }, [settings, isLoading]);
+    useEffect(() => { if (!isLoading) saveGoals(goals).catch(persistError('goals')); }, [goals, isLoading]);
+    useEffect(() => { if (!isLoading) saveInvoices(invoices).catch(persistError('invoices')); }, [invoices, isLoading]);
+    useEffect(() => { if (!isLoading) saveAssets(assets).catch(persistError('assets')); }, [assets, isLoading]);
 
     const registeredAssetsValue = useMemo(
         () => assets.filter(a => a.status === 'active').reduce((sum, a) => sum + computeAssetCurrentValue(a), 0),

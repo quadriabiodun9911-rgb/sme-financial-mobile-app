@@ -1,7 +1,7 @@
 import React from 'react';
 import {
     SafeAreaView, ScrollView, View, Text,
-    TouchableOpacity, StyleSheet,
+    TouchableOpacity, StyleSheet, ActivityIndicator,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -10,7 +10,20 @@ import FooterNav from '../components/FooterNav';
 import { t } from '../utils/i18n';
 
 export default function DashboardScreen() {
-    const { finance, insight, settings, goals, transactions, navigate, setCurrentScreen, language } = useApp();
+    const { finance, insight, settings, goals, transactions, navigate, setCurrentScreen, language, isLoading } = useApp();
+
+    if (isLoading) {
+        return (
+            <SafeAreaView style={styles.safe}>
+                <Header />
+                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                    <ActivityIndicator size="large" color={Colors.primary} />
+                    <Text style={{ color: Colors.textMuted, marginTop: 12, fontSize: 13 }}>{t(language, 'loading')}</Text>
+                </View>
+                <FooterNav />
+            </SafeAreaView>
+        );
+    }
     const { currency, targetMargin, minReserve } = settings;
 
     const insightBorder =

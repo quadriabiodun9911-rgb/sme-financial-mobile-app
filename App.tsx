@@ -1,6 +1,7 @@
 import React from 'react';
 import { View } from 'react-native';
 import { AppProvider, useApp } from './src/contexts/AppContext';
+import ErrorBoundary from './src/components/ErrorBoundary';
 import LoginScreen from './src/screens/LoginScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
 import ReportsScreen from './src/screens/ReportsScreen';
@@ -31,8 +32,12 @@ function Navigator() {
 
 export default function App() {
     return (
-        <AppProvider>
-            <Navigator />
-        </AppProvider>
+        <ErrorBoundary>
+            <AppProvider>
+                <ErrorBoundary>
+                    <Navigator />
+                </ErrorBoundary>
+            </AppProvider>
+        </ErrorBoundary>
     );
 }

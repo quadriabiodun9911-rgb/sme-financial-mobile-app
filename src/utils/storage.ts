@@ -14,10 +14,19 @@ const KEYS = {
     assets:         '@financebook/assets',
 };
 
+function logSyncError(table: string, op: string, error: unknown) {
+    console.error(`[FinanceBook] Supabase ${op} on "${table}" failed:`, error);
+}
+
 // ─── Auth helpers ─────────────────────────────────────────────────────────────
 export async function getAuthUserId(): Promise<string | null> {
-    const { data } = await supabase.auth.getSession();
-    return data.session?.user?.id ?? null;
+    try {
+        const { data } = await supabase.auth.getSession();
+        return data.session?.user?.id ?? null;
+    } catch (e) {
+        logSyncError('auth', 'getSession', e);
+        return null;
+    }
 }
 
 // For data operations — owners use their own ID; team members use their owner's ID
@@ -41,32 +50,45 @@ export async function saveTransactions(t: Transaction[]): Promise<void> {
     await AsyncStorage.setItem(KEYS.transactions, JSON.stringify(t));
     const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return;
-    if (t.length > 0) {
-        const rows = t.map(tx => ({ id: tx.id, user_id: ownerId, data: tx, updated_at: new Date().toISOString() }));
-        await supabase.from('transactions').upsert(rows, { onConflict: 'id' });
-    }
-    const { data: remote } = await supabase.from('transactions').select('id').eq('user_id', ownerId);
-    if (remote) {
-        const localIds = new Set(t.map(tx => tx.id));
-        const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
-        if (toDelete.length > 0) {
-            await supabase.from('transactions').delete().in('id', toDelete);
+    try {
+        if (t.length > 0) {
+            const rows = t.map(tx => ({ id: tx.id, user_id: ownerId, data: tx, updated_at: new Date().toISOString() }));
+            const { error } = await supabase.from('transactions').upsert(rows, { onConflict: 'id' });
+            if (error) logSyncError('transactions', 'upsert', error);
         }
+        const { data: remote, error: fetchErr } = await supabase.from('transactions').select('id').eq('user_id', ownerId);
+        if (fetchErr) { logSyncError('transactions', 'select', fetchErr); return; }
+        if (remote) {
+            const localIds = new Set(t.map(tx => tx.id));
+            const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
+            if (toDelete.length > 0) {
+                const { error: delErr } = await supabase.from('transactions').delete().in('id', toDelete);
+                if (delErr) logSyncError('transactions', 'delete', delErr);
+            }
+        }
+    } catch (e) {
+        logSyncError('transactions', 'sync', e);
+        throw e; // re-throw so AppContext can surface the warning to user
     }
 }
 
 export async function loadTransactions(): Promise<Transaction[] | null> {
     const ownerId = await getWorkspaceOwnerId();
     if (ownerId) {
-        const { data, error } = await supabase
-            .from('transactions')
-            .select('data')
-            .eq('user_id', ownerId)
-            .order('updated_at', { ascending: false });
-        if (!error && data && data.length > 0) {
-            const txs = data.map(r => r.data as Transaction);
-            await AsyncStorage.setItem(KEYS.transactions, JSON.stringify(txs));
-            return txs;
+        try {
+            const { data, error } = await supabase
+                .from('transactions')
+                .select('data')
+                .eq('user_id', ownerId)
+                .order('updated_at', { ascending: false });
+            if (error) { logSyncError('transactions', 'load', error); }
+            else if (data && data.length > 0) {
+                const txs = data.map(r => r.data as Transaction);
+                await AsyncStorage.setItem(KEYS.transactions, JSON.stringify(txs));
+                return txs;
+            }
+        } catch (e) {
+            logSyncError('transactions', 'load', e);
         }
     }
     const raw = await AsyncStorage.getItem(KEYS.transactions);
@@ -78,23 +100,34 @@ export async function saveSettings(s: BusinessSettings): Promise<void> {
     await AsyncStorage.setItem(KEYS.settings, JSON.stringify(s));
     const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return;
-    await supabase.from('settings').upsert(
-        { user_id: ownerId, data: s, updated_at: new Date().toISOString() },
-        { onConflict: 'user_id' },
-    );
+    try {
+        const { error } = await supabase.from('settings').upsert(
+            { user_id: ownerId, data: s, updated_at: new Date().toISOString() },
+            { onConflict: 'user_id' },
+        );
+        if (error) { logSyncError('settings', 'upsert', error); throw new Error(error.message); }
+    } catch (e) {
+        logSyncError('settings', 'sync', e);
+        throw e;
+    }
 }
 
 export async function loadSettings(): Promise<BusinessSettings | null> {
     const ownerId = await getWorkspaceOwnerId();
     if (ownerId) {
-        const { data, error } = await supabase
-            .from('settings')
-            .select('data')
-            .eq('user_id', ownerId)
-            .single();
-        if (!error && data) {
-            await AsyncStorage.setItem(KEYS.settings, JSON.stringify(data.data));
-            return data.data as BusinessSettings;
+        try {
+            const { data, error } = await supabase
+                .from('settings')
+                .select('data')
+                .eq('user_id', ownerId)
+                .single();
+            if (error) { logSyncError('settings', 'load', error); }
+            else if (data) {
+                await AsyncStorage.setItem(KEYS.settings, JSON.stringify(data.data));
+                return data.data as BusinessSettings;
+            }
+        } catch (e) {
+            logSyncError('settings', 'load', e);
         }
     }
     const raw = await AsyncStorage.getItem(KEYS.settings);
@@ -106,31 +139,44 @@ export async function saveGoals(g: FinancialGoal[]): Promise<void> {
     await AsyncStorage.setItem(KEYS.goals, JSON.stringify(g));
     const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return;
-    if (g.length > 0) {
-        const rows = g.map(goal => ({ id: goal.id, user_id: ownerId, data: goal, updated_at: new Date().toISOString() }));
-        await supabase.from('goals').upsert(rows, { onConflict: 'id' });
-    }
-    const { data: remote } = await supabase.from('goals').select('id').eq('user_id', ownerId);
-    if (remote) {
-        const localIds = new Set(g.map(goal => goal.id));
-        const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
-        if (toDelete.length > 0) {
-            await supabase.from('goals').delete().in('id', toDelete);
+    try {
+        if (g.length > 0) {
+            const rows = g.map(goal => ({ id: goal.id, user_id: ownerId, data: goal, updated_at: new Date().toISOString() }));
+            const { error } = await supabase.from('goals').upsert(rows, { onConflict: 'id' });
+            if (error) logSyncError('goals', 'upsert', error);
         }
+        const { data: remote, error: fetchErr } = await supabase.from('goals').select('id').eq('user_id', ownerId);
+        if (fetchErr) { logSyncError('goals', 'select', fetchErr); return; }
+        if (remote) {
+            const localIds = new Set(g.map(goal => goal.id));
+            const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
+            if (toDelete.length > 0) {
+                const { error: delErr } = await supabase.from('goals').delete().in('id', toDelete);
+                if (delErr) logSyncError('goals', 'delete', delErr);
+            }
+        }
+    } catch (e) {
+        logSyncError('goals', 'sync', e);
+        throw e;
     }
 }
 
 export async function loadGoals(): Promise<FinancialGoal[] | null> {
     const ownerId = await getWorkspaceOwnerId();
     if (ownerId) {
-        const { data, error } = await supabase
-            .from('goals')
-            .select('data')
-            .eq('user_id', ownerId);
-        if (!error && data && data.length > 0) {
-            const goals = data.map(r => r.data as FinancialGoal);
-            await AsyncStorage.setItem(KEYS.goals, JSON.stringify(goals));
-            return goals;
+        try {
+            const { data, error } = await supabase
+                .from('goals')
+                .select('data')
+                .eq('user_id', ownerId);
+            if (error) { logSyncError('goals', 'load', error); }
+            else if (data && data.length > 0) {
+                const goals = data.map(r => r.data as FinancialGoal);
+                await AsyncStorage.setItem(KEYS.goals, JSON.stringify(goals));
+                return goals;
+            }
+        } catch (e) {
+            logSyncError('goals', 'load', e);
         }
     }
     const raw = await AsyncStorage.getItem(KEYS.goals);
@@ -142,32 +188,45 @@ export async function saveInvoices(invoices: Invoice[]): Promise<void> {
     await AsyncStorage.setItem(KEYS.invoices, JSON.stringify(invoices));
     const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return;
-    if (invoices.length > 0) {
-        const rows = invoices.map(inv => ({ id: inv.id, user_id: ownerId, data: inv, updated_at: new Date().toISOString() }));
-        await supabase.from('invoices').upsert(rows, { onConflict: 'id' });
-    }
-    const { data: remote } = await supabase.from('invoices').select('id').eq('user_id', ownerId);
-    if (remote) {
-        const localIds = new Set(invoices.map(inv => inv.id));
-        const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
-        if (toDelete.length > 0) {
-            await supabase.from('invoices').delete().in('id', toDelete);
+    try {
+        if (invoices.length > 0) {
+            const rows = invoices.map(inv => ({ id: inv.id, user_id: ownerId, data: inv, updated_at: new Date().toISOString() }));
+            const { error } = await supabase.from('invoices').upsert(rows, { onConflict: 'id' });
+            if (error) logSyncError('invoices', 'upsert', error);
         }
+        const { data: remote, error: fetchErr } = await supabase.from('invoices').select('id').eq('user_id', ownerId);
+        if (fetchErr) { logSyncError('invoices', 'select', fetchErr); return; }
+        if (remote) {
+            const localIds = new Set(invoices.map(inv => inv.id));
+            const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
+            if (toDelete.length > 0) {
+                const { error: delErr } = await supabase.from('invoices').delete().in('id', toDelete);
+                if (delErr) logSyncError('invoices', 'delete', delErr);
+            }
+        }
+    } catch (e) {
+        logSyncError('invoices', 'sync', e);
+        throw e;
     }
 }
 
 export async function loadInvoices(): Promise<Invoice[] | null> {
     const ownerId = await getWorkspaceOwnerId();
     if (ownerId) {
-        const { data, error } = await supabase
-            .from('invoices')
-            .select('data')
-            .eq('user_id', ownerId)
-            .order('updated_at', { ascending: false });
-        if (!error && data && data.length > 0) {
-            const invoices = data.map(r => r.data as Invoice);
-            await AsyncStorage.setItem(KEYS.invoices, JSON.stringify(invoices));
-            return invoices;
+        try {
+            const { data, error } = await supabase
+                .from('invoices')
+                .select('data')
+                .eq('user_id', ownerId)
+                .order('updated_at', { ascending: false });
+            if (error) { logSyncError('invoices', 'load', error); }
+            else if (data && data.length > 0) {
+                const list = data.map(r => r.data as Invoice);
+                await AsyncStorage.setItem(KEYS.invoices, JSON.stringify(list));
+                return list;
+            }
+        } catch (e) {
+            logSyncError('invoices', 'load', e);
         }
     }
     const raw = await AsyncStorage.getItem(KEYS.invoices);
@@ -179,32 +238,45 @@ export async function saveAssets(assets: Asset[]): Promise<void> {
     await AsyncStorage.setItem(KEYS.assets, JSON.stringify(assets));
     const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return;
-    if (assets.length > 0) {
-        const rows = assets.map(a => ({ id: a.id, user_id: ownerId, data: a, updated_at: new Date().toISOString() }));
-        await supabase.from('assets').upsert(rows, { onConflict: 'id' });
-    }
-    const { data: remote } = await supabase.from('assets').select('id').eq('user_id', ownerId);
-    if (remote) {
-        const localIds = new Set(assets.map(a => a.id));
-        const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
-        if (toDelete.length > 0) {
-            await supabase.from('assets').delete().in('id', toDelete);
+    try {
+        if (assets.length > 0) {
+            const rows = assets.map(a => ({ id: a.id, user_id: ownerId, data: a, updated_at: new Date().toISOString() }));
+            const { error } = await supabase.from('assets').upsert(rows, { onConflict: 'id' });
+            if (error) logSyncError('assets', 'upsert', error);
         }
+        const { data: remote, error: fetchErr } = await supabase.from('assets').select('id').eq('user_id', ownerId);
+        if (fetchErr) { logSyncError('assets', 'select', fetchErr); return; }
+        if (remote) {
+            const localIds = new Set(assets.map(a => a.id));
+            const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
+            if (toDelete.length > 0) {
+                const { error: delErr } = await supabase.from('assets').delete().in('id', toDelete);
+                if (delErr) logSyncError('assets', 'delete', delErr);
+            }
+        }
+    } catch (e) {
+        logSyncError('assets', 'sync', e);
+        throw e;
     }
 }
 
 export async function loadAssets(): Promise<Asset[] | null> {
     const ownerId = await getWorkspaceOwnerId();
     if (ownerId) {
-        const { data, error } = await supabase
-            .from('assets')
-            .select('data')
-            .eq('user_id', ownerId)
-            .order('updated_at', { ascending: false });
-        if (!error && data && data.length > 0) {
-            const list = data.map(r => r.data as Asset);
-            await AsyncStorage.setItem(KEYS.assets, JSON.stringify(list));
-            return list;
+        try {
+            const { data, error } = await supabase
+                .from('assets')
+                .select('data')
+                .eq('user_id', ownerId)
+                .order('updated_at', { ascending: false });
+            if (error) { logSyncError('assets', 'load', error); }
+            else if (data && data.length > 0) {
+                const list = data.map(r => r.data as Asset);
+                await AsyncStorage.setItem(KEYS.assets, JSON.stringify(list));
+                return list;
+            }
+        } catch (e) {
+            logSyncError('assets', 'load', e);
         }
     }
     const raw = await AsyncStorage.getItem(KEYS.assets);
@@ -215,22 +287,27 @@ export async function loadAssets(): Promise<Asset[] | null> {
 export async function loadTeamMembers(): Promise<TeamMember[]> {
     const ownerId = await getAuthUserId();
     if (!ownerId) return [];
-    const { data, error } = await supabase
-        .from('team_members')
-        .select('*')
-        .eq('owner_user_id', ownerId)
-        .order('invited_at', { ascending: false });
-    if (error || !data) return [];
-    return data.map(r => ({
-        id:           r.id,
-        ownerUserId:  r.owner_user_id,
-        memberEmail:  r.member_email,
-        memberUserId: r.member_user_id,
-        role:         r.role,
-        status:       r.status,
-        inviteCode:   r.invite_code,
-        invitedAt:    r.invited_at,
-    }));
+    try {
+        const { data, error } = await supabase
+            .from('team_members')
+            .select('*')
+            .eq('owner_user_id', ownerId)
+            .order('invited_at', { ascending: false });
+        if (error || !data) { logSyncError('team_members', 'load', error); return []; }
+        return data.map(r => ({
+            id:           r.id,
+            ownerUserId:  r.owner_user_id,
+            memberEmail:  r.member_email,
+            memberUserId: r.member_user_id,
+            role:         r.role,
+            status:       r.status,
+            inviteCode:   r.invite_code,
+            invitedAt:    r.invited_at,
+        }));
+    } catch (e) {
+        logSyncError('team_members', 'load', e);
+        return [];
+    }
 }
 
 export async function inviteTeamMember(
@@ -239,7 +316,10 @@ export async function inviteTeamMember(
 ): Promise<string> {
     const ownerId = await getAuthUserId();
     if (!ownerId) throw new Error('Not authenticated.');
-    const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+    // Use two segments of random to reduce collision probability
+    const seg1 = Math.random().toString(36).substring(2, 5).toUpperCase();
+    const seg2 = Math.random().toString(36).substring(2, 5).toUpperCase();
+    const inviteCode = (seg1 + seg2).substring(0, 6);
     const { error } = await supabase.from('team_members').insert({
         owner_user_id: ownerId,
         member_email:  memberEmail.toLowerCase().trim(),
@@ -252,7 +332,8 @@ export async function inviteTeamMember(
 }
 
 export async function removeTeamMember(memberId: string): Promise<void> {
-    await supabase.from('team_members').delete().eq('id', memberId);
+    const { error } = await supabase.from('team_members').delete().eq('id', memberId);
+    if (error) logSyncError('team_members', 'delete', error);
 }
 
 // Called when a team member joins using their invite code
@@ -267,10 +348,10 @@ export async function joinTeamWithCode(
         .eq('status', 'pending')
         .single();
     if (error || !data) throw new Error('Invalid or already used invite code.');
-    // Link this user to the invite
-    await supabase.from('team_members')
+    const { error: updateErr } = await supabase.from('team_members')
         .update({ member_user_id: memberUserId, status: 'active' })
         .eq('id', data.id);
+    if (updateErr) throw new Error('Could not activate team membership: ' + updateErr.message);
     return { ownerId: data.owner_user_id, role: data.role };
 }
 
@@ -298,10 +379,15 @@ export async function saveProfile(p: StoredProfile): Promise<void> {
     await AsyncStorage.setItem(KEYS.profile, JSON.stringify(p));
     const userId = await getAuthUserId();
     if (!userId) return;
-    await supabase.from('profiles').upsert(
-        { id: userId, email: p.email, business_name: p.businessName },
-        { onConflict: 'id' },
-    );
+    try {
+        const { error } = await supabase.from('profiles').upsert(
+            { id: userId, email: p.email, business_name: p.businessName },
+            { onConflict: 'id' },
+        );
+        if (error) logSyncError('profiles', 'upsert', error);
+    } catch (e) {
+        logSyncError('profiles', 'sync', e);
+    }
 }
 
 export async function loadProfile(): Promise<StoredProfile | null> {
@@ -345,12 +431,15 @@ export async function clearAllData(): Promise<void> {
     await AsyncStorage.multiRemove([KEYS.transactions, KEYS.settings, KEYS.goals, KEYS.invoices, KEYS.assets]);
     const ownerId = await getWorkspaceOwnerId();
     if (ownerId) {
-        await Promise.all([
+        const results = await Promise.allSettled([
             supabase.from('transactions').delete().eq('user_id', ownerId),
             supabase.from('goals').delete().eq('user_id', ownerId),
             supabase.from('settings').delete().eq('user_id', ownerId),
             supabase.from('invoices').delete().eq('user_id', ownerId),
             supabase.from('assets').delete().eq('user_id', ownerId),
         ]);
+        results.forEach((r, i) => {
+            if (r.status === 'rejected') logSyncError(['transactions','goals','settings','invoices','assets'][i], 'clear', r.reason);
+        });
     }
 }
