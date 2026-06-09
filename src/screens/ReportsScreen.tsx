@@ -15,7 +15,7 @@ import BudgetForecast from '../components/BudgetForecast';
 import CashManagement from '../components/CashManagement';
 import DebtAnalysis from '../components/DebtAnalysis';
 import CashFlowStatement from '../components/CashFlowStatement';
-import { filterByPeriod, computeFinance, computeMonthlyTrend, transactionsToCSV, ReportPeriod, MonthlyPoint } from '../utils/finance';
+import { filterByPeriod, computeFinance, computeMonthlyTrend, computeEnhancedPnL, computeWorkingCapitalMetrics, classifyBusinessSize, sizeLabel, transactionsToCSV, ReportPeriod, MonthlyPoint } from '../utils/finance';
 
 // ─── Section groups ────────────────────────────────────────────────────────────
 type SectionKey = 'statements' | 'operations' | 'planning' | 'analysis';
@@ -64,7 +64,7 @@ const PERIODS: { key: ReportPeriod; label: string }[] = [
 ];
 
 export default function ReportsScreen() {
-    const { finance: allFinance, settings, transactions, navParams } = useApp();
+    const { finance: allFinance, settings, transactions, assets, navParams } = useApp();
     const { currency, minReserve, targetMargin } = settings;
 
     const [section, setSection]     = useState<SectionKey>('statements');
@@ -79,7 +79,10 @@ export default function ReportsScreen() {
         () => computeFinance(filteredTx, settings),
         [filteredTx, settings]
     );
-    const trend = useMemo(() => computeMonthlyTrend(transactions, 6), [transactions]);
+    const trend      = useMemo(() => computeMonthlyTrend(transactions, 6), [transactions]);
+    const enhPnL     = useMemo(() => computeEnhancedPnL(filteredTx, assets), [filteredTx, assets]);
+    const wcMetrics  = useMemo(() => computeWorkingCapitalMetrics(filteredTx), [filteredTx]);
+    const bizSize    = classifyBusinessSize(enhPnL.revenue);
 
     // Deep-link from navParams (e.g. from Dashboard or Insights)
     useEffect(() => {
@@ -171,15 +174,25 @@ export default function ReportsScreen() {
                         <View>
                             <PeriodLabel period={period} />
                             <View style={styles.card}>
-                                <Text style={styles.cardTitle}>Balance Sheet</Text>
-                                <StatRow label="Cash Balance (net profit)"  value={`${currency}${finance.cashBalance.toLocaleString()}`}                             color={Colors.income} />
-                                <StatRow label="Opening Assets"             value={`${currency}${(parseFloat(settings.openingAssets)||0).toLocaleString()}`}     color={Colors.asset} />
-                                <StatRow label="Total Assets"               value={`${currency}${finance.assets.toLocaleString()}`}                              color={Colors.asset} />
-                                <StatRow label="Opening Liabilities"        value={`${currency}${(parseFloat(settings.openingLiabilities)||0).toLocaleString()}`} color={Colors.liability} />
-                                <StatRow label="Total Liabilities"          value={`${currency}${finance.liabilities.toLocaleString()}`}                         color={Colors.liability} />
-                                <StatRow label="Owner's Equity"             value={`${currency}${finance.equity.toLocaleString()}`}                              color={Colors.equity} />
+                                <View style={styles.cardHeaderRow}>
+                                    <Text style={styles.cardTitle}>Balance Sheet</Text>
+                                    <Text style={styles.sizeBadge}>{sizeLabel(bizSize)}</Text>
+                                </View>
+                                <SectionHeader label="ASSETS" />
+                                <StatRow label="Cash / Net Operating Cash"  value={`${currency}${finance.cashBalance.toLocaleString()}`}     color={Colors.income} />
+                                <StatRow label="Accounts Receivable (AR)"  value={`${currency}${wcMetrics.accountsReceivable.toLocaleString()}`} color={Colors.income} />
+                                <StatRow label="Current Assets Total"      value={`${currency}${(finance.cashBalance + wcMetrics.accountsReceivable).toLocaleString()}`} color={Colors.asset} bold />
+                                <StatRow label="Fixed Assets (Opening)"    value={`${currency}${(parseFloat(settings.openingAssets)||0).toLocaleString()}`} color={Colors.asset} />
+                                <StatRow label="Fixed Assets (Registered)" value={`${currency}${assets.filter(a=>a.status==='active').reduce((s,a)=>{const yr=(Date.now()-new Date(a.purchaseDate).getTime())/(1000*60*60*24*365);const dep=Math.min(yr*(a.purchaseCost-a.residualValue)/a.usefulLifeYears,a.purchaseCost-a.residualValue);return s+Math.max(a.residualValue,a.purchaseCost-dep);},0).toLocaleString()}`} color={Colors.asset} />
+                                <StatRow label="Total Assets"              value={`${currency}${finance.assets.toLocaleString()}`}           color={Colors.asset} bold />
+                                <SectionHeader label="LIABILITIES" />
+                                <StatRow label="Accounts Payable (AP)"     value={`${currency}${wcMetrics.accountsPayable.toLocaleString()}`} color={Colors.liability} />
+                                <StatRow label="Other Liabilities"         value={`${currency}${(parseFloat(settings.openingLiabilities)||0).toLocaleString()}`} color={Colors.liability} />
+                                <StatRow label="Total Liabilities"         value={`${currency}${finance.liabilities.toLocaleString()}`}      color={Colors.liability} bold />
+                                <SectionHeader label="EQUITY" />
+                                <StatRow label="Owner's Equity"            value={`${currency}${finance.equity.toLocaleString()}`}           color={Colors.equity} bold />
+                                <StatRow label="Net Working Capital"       value={`${currency}${wcMetrics.netWorkingCapital.toLocaleString()}`} color={wcMetrics.netWorkingCapital >= 0 ? Colors.income : Colors.expense} />
                                 <Text style={styles.note}>
-                                    Assets = Opening Assets + Cash Balance.  Liabilities = Opening Liabilities.{'\n'}
                                     Update opening balances in Settings → Opening Balance Sheet.
                                 </Text>
                             </View>
@@ -202,21 +215,30 @@ export default function ReportsScreen() {
                                         <Text style={styles.exportText}>Export CSV</Text>
                                     </TouchableOpacity>
                                 </View>
-                                <StatRow label="Total Revenue"  value={`${currency}${finance.income.toLocaleString()}`}            color={Colors.income} />
-                                <StatRow label="Total Expenses" value={`${currency}${finance.expense.toLocaleString()}`}           color={Colors.expense} />
-                                <StatRow
-                                    label="Net Profit"
-                                    value={`${finance.profit >= 0 ? '+' : ''}${currency}${finance.profit.toLocaleString()}`}
-                                    color={finance.profit >= 0 ? Colors.income : Colors.expense}
-                                />
-                                <StatRow
-                                    label="Profit Margin"
-                                    value={`${finance.margin.toFixed(2)}%`}
-                                    color={finance.margin >= parseFloat(targetMargin) ? Colors.income : Colors.expense}
-                                />
-                                <StatRow label="Target Margin"  value={`${targetMargin}%`}                                        color={Colors.textMuted} />
-                                <StatRow label="Tax Collected"  value={`${currency}${finance.totalTaxCollected.toLocaleString()}`} color={Colors.warning} />
-                                <StatRow label="Tax Paid"       value={`${currency}${finance.totalTaxPaid.toLocaleString()}`}     color={Colors.warning} />
+                                <StatRow label="Revenue"           value={`${currency}${enhPnL.revenue.toLocaleString()}`}                       color={Colors.income} />
+                                <StatRow label="  Cost of Goods Sold (COGS)" value={`-${currency}${enhPnL.cogs.toLocaleString()}`}              color={Colors.expense} indent />
+                                <StatRow label="Gross Profit"      value={`${currency}${enhPnL.grossProfit.toLocaleString()}`}                   color={enhPnL.grossProfit >= 0 ? Colors.income : Colors.expense} bold />
+                                <StatRow label="  Gross Margin"    value={`${enhPnL.grossMargin.toFixed(1)}%`}                                   color={Colors.textMuted} indent />
+                                <StatRow label="  SG&A Expenses"   value={`-${currency}${enhPnL.sgaExpenses.toLocaleString()}`}                  color={Colors.expense} indent />
+                                <StatRow label="EBIT"              value={`${enhPnL.ebit >= 0 ? '+' : ''}${currency}${enhPnL.ebit.toLocaleString()}`} color={enhPnL.ebit >= 0 ? Colors.income : Colors.expense} bold />
+                                <StatRow label="  EBIT Margin"     value={`${enhPnL.ebitMargin.toFixed(1)}%`}                                    color={Colors.textMuted} indent />
+                                <StatRow label="  Depreciation & Amortisation" value={`+${currency}${enhPnL.depreciation.toLocaleString()}`}     color={Colors.textMuted} indent />
+                                <StatRow label="EBITDA"            value={`${enhPnL.ebitda >= 0 ? '+' : ''}${currency}${enhPnL.ebitda.toLocaleString()}`} color={enhPnL.ebitda >= 0 ? Colors.income : Colors.expense} bold />
+                                <StatRow label="Net Profit"        value={`${enhPnL.netProfit >= 0 ? '+' : ''}${currency}${enhPnL.netProfit.toLocaleString()}`} color={enhPnL.netProfit >= 0 ? Colors.income : Colors.expense} bold />
+                                <StatRow label="Net Margin"        value={`${enhPnL.netMargin.toFixed(1)}%`}                                     color={enhPnL.netMargin >= parseFloat(targetMargin) ? Colors.income : Colors.expense} />
+                                <StatRow label="Target Margin"     value={`${targetMargin}%`}                                                     color={Colors.textMuted} />
+                                <StatRow label="Tax Collected"     value={`${currency}${finance.totalTaxCollected.toLocaleString()}`}             color={Colors.warning} />
+                                <StatRow label="Tax Paid"          value={`${currency}${finance.totalTaxPaid.toLocaleString()}`}                  color={Colors.warning} />
+                            </View>
+
+                            <View style={styles.card}>
+                                <Text style={styles.cardTitle}>Working Capital</Text>
+                                <StatRow label="Accounts Receivable"  value={`${currency}${wcMetrics.accountsReceivable.toLocaleString()}`}  color={Colors.income} />
+                                <StatRow label="Accounts Payable"     value={`${currency}${wcMetrics.accountsPayable.toLocaleString()}`}     color={Colors.liability} />
+                                <StatRow label="Net Working Capital"  value={`${currency}${wcMetrics.netWorkingCapital.toLocaleString()}`}   color={wcMetrics.netWorkingCapital >= 0 ? Colors.income : Colors.expense} bold />
+                                <StatRow label="DSO (Days Sales Outstanding)" value={`${wcMetrics.dso.toFixed(0)} days`}                    color={Colors.textSecondary} />
+                                <StatRow label="DPO (Days Payable Outstanding)" value={`${wcMetrics.dpo.toFixed(0)} days`}                  color={Colors.textSecondary} />
+                                <StatRow label="CCC (Cash Conversion Cycle)" value={`${wcMetrics.ccc.toFixed(0)} days`}                     color={wcMetrics.ccc <= 30 ? Colors.income : wcMetrics.ccc <= 60 ? Colors.warning : Colors.expense} />
                             </View>
 
                             <MonthlyChart trend={trend} currency={currency} />
@@ -243,6 +265,7 @@ export default function ReportsScreen() {
                     {activeTab === 'cashflow' && (
                         <CashFlowStatement
                             transactions={transactions}
+                            assets={assets}
                             currency={currency}
                         />
                     )}
@@ -269,6 +292,8 @@ export default function ReportsScreen() {
                     {activeTab === 'health' && (
                         <FinancialHealthAssessment
                             finance={allFinance}
+                            transactions={transactions}
+                            assets={assets}
                             currency={currency}
                             minReserve={minReserve}
                             targetMargin={targetMargin}
@@ -296,13 +321,17 @@ function PeriodLabel({ period }: { period: ReportPeriod }) {
     return <Text style={styles.periodLabel}>{labels[period]}</Text>;
 }
 
-function StatRow({ label, value, color }: { label: string; value: string; color: string }) {
+function StatRow({ label, value, color, bold, indent }: { label: string; value: string; color: string; bold?: boolean; indent?: boolean }) {
     return (
         <View style={rowStyles.row}>
-            <Text style={rowStyles.label}>{label}</Text>
-            <Text style={[rowStyles.value, { color }]}>{value}</Text>
+            <Text style={[rowStyles.label, bold && rowStyles.labelBold, indent && rowStyles.labelIndent]}>{label}</Text>
+            <Text style={[rowStyles.value, { color }, bold && rowStyles.valueBold]}>{value}</Text>
         </View>
     );
+}
+
+function SectionHeader({ label }: { label: string }) {
+    return <Text style={rowStyles.sectionHeader}>{label}</Text>;
 }
 
 function KpiRow({ items }: { items: { label: string; value: string; color: string }[] }) {
@@ -391,14 +420,19 @@ const styles = StyleSheet.create({
     cardTitle:     { fontSize: 16, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 12 },
     cardHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
     note:          { fontSize: 11, color: Colors.textMuted, fontStyle: 'italic', marginTop: 10, lineHeight: 16 },
+    sizeBadge:     { fontSize: 11, color: Colors.primary, fontWeight: '600', backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.primary, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
     exportBtn:     { paddingHorizontal: 10, paddingVertical: 4, backgroundColor: Colors.primary, borderRadius: 8 },
     exportText:    { fontSize: 11, color: Colors.textPrimary, fontWeight: '600' },
 });
 
 const rowStyles = StyleSheet.create({
-    row:   { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border },
-    label: { fontSize: 14, color: Colors.textSecondary, fontWeight: '500' },
-    value: { fontSize: 14, fontWeight: '600' },
+    row:           { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    label:         { fontSize: 13, color: Colors.textSecondary, fontWeight: '500', flex: 1, marginRight: 8 },
+    labelBold:     { fontWeight: '700', color: Colors.textPrimary },
+    labelIndent:   { paddingLeft: 12, color: Colors.textMuted, fontSize: 12 },
+    value:         { fontSize: 13, fontWeight: '600' },
+    valueBold:     { fontSize: 14, fontWeight: 'bold' },
+    sectionHeader: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, letterSpacing: 1, marginTop: 10, marginBottom: 2 },
 });
 
 const kpiStyles = StyleSheet.create({
