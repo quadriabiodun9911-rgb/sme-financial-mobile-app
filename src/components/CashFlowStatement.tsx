@@ -1,129 +1,114 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Transaction } from '../types';
+import { Transaction, Asset } from '../types';
 import { Colors } from '../theme/colors';
-import { computeMonthlyTrend } from '../utils/finance';
+import { computeProperCashFlow, computeMonthlyTrend } from '../utils/finance';
 
 interface Props {
     transactions: Transaction[];
+    assets: Asset[];
     currency: string;
 }
 
-type CfView = 'summary' | 'monthly';
+type CfView = 'statement' | 'monthly';
 
-export default function CashFlowStatement({ transactions, currency }: Props) {
-    const [view, setView] = useState<CfView>('summary');
+export default function CashFlowStatement({ transactions, assets, currency }: Props) {
+    const [view, setView] = useState<CfView>('statement');
 
-    // ── Operating activities ─────────────────────────────────────────────
-    const operating = useMemo(() => {
-        const cashInflows = transactions
-            .filter(t => t.type === 'income' && t.status !== 'pending' && t.status !== 'overdue')
-            .reduce((s, t) => s + t.amount, 0);
-
-        const cashOutflows = transactions
-            .filter(t => t.type === 'expense' && t.status !== 'pending' && t.status !== 'overdue')
-            .reduce((s, t) => s + t.amount, 0);
-
-        const pendingAR = transactions
-            .filter(t => t.type === 'income' && (t.status === 'pending' || t.status === 'overdue'))
-            .reduce((s, t) => s + t.amount, 0);
-
-        const pendingAP = transactions
-            .filter(t => t.type === 'expense' && (t.status === 'pending' || t.status === 'overdue'))
-            .reduce((s, t) => s + t.amount, 0);
-
-        return { cashInflows, cashOutflows, pendingAR, pendingAP, net: cashInflows - cashOutflows };
-    }, [transactions]);
-
-    // ── Monthly trend ────────────────────────────────────────────────────
+    const cf    = useMemo(() => computeProperCashFlow(transactions, assets), [transactions, assets]);
     const trend = useMemo(() => computeMonthlyTrend(transactions, 6), [transactions]);
-
     const maxAbsProfit = Math.max(...trend.map(p => Math.abs(p.profit)), 1);
 
     return (
         <View>
-            {/* Toggle */}
-            <View style={styles.toggle}>
-                <TouchableOpacity
-                    style={[styles.toggleBtn, view === 'summary' && styles.toggleActive]}
-                    onPress={() => setView('summary')}
-                >
-                    <Text style={[styles.toggleText, view === 'summary' && styles.toggleTextActive]}>Summary</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.toggleBtn, view === 'monthly' && styles.toggleActive]}
-                    onPress={() => setView('monthly')}
-                >
-                    <Text style={[styles.toggleText, view === 'monthly' && styles.toggleTextActive]}>Monthly</Text>
-                </TouchableOpacity>
+            <View style={s.toggle}>
+                <ToggleBtn label="Statement" active={view === 'statement'} onPress={() => setView('statement')} />
+                <ToggleBtn label="Monthly"   active={view === 'monthly'}   onPress={() => setView('monthly')} />
             </View>
 
-            {view === 'summary' && (
+            {view === 'statement' && (
                 <View>
-                    {/* Operating activities */}
-                    <View style={styles.card}>
-                        <Text style={styles.cardTitle}>Operating Cash Flow</Text>
-                        <Row label="Cash inflows (collected)"       value={operating.cashInflows} currency={currency} positive />
-                        <Row label="Cash outflows (paid)"           value={-operating.cashOutflows} currency={currency} />
-                        <Row label="Net operating cash flow"        value={operating.net} currency={currency} total />
-                    </View>
-
-                    {/* Working capital */}
-                    <View style={styles.card}>
-                        <Text style={styles.cardTitle}>Working Capital</Text>
-                        <Row label="Uncollected receivables (AR)"   value={operating.pendingAR} currency={currency} positive />
-                        <Row label="Unpaid payables (AP)"           value={-operating.pendingAP} currency={currency} />
-                        <Row label="Net working capital position"   value={operating.pendingAR - operating.pendingAP} currency={currency} total />
-                        <Text style={styles.hint}>
-                            Collecting outstanding AR would add {currency}{operating.pendingAR.toLocaleString()} to cash.
+                    {/* Operating Activities */}
+                    <SectionCard title="Operating Activities (Indirect Method)">
+                        <CFRow label="Net Profit (collected)"        value={cf.netProfit}     currency={currency} />
+                        <CFRow label="Add: Depreciation & Amortisation" value={cf.depreciation} currency={currency} indent />
+                        <CFRow label="Add: Increase in Payables (AP)" value={cf.changeInAP}   currency={currency} indent />
+                        <CFRow label="Less: Increase in Receivables (AR)" value={cf.changeInAR} currency={currency} indent />
+                        <CFRow label="Net Operating Cash Flow"        value={cf.operatingCF}  currency={currency} total />
+                        <Text style={s.hint}>
+                            AR outstanding: {currency}{cf.uncollectedAR.toLocaleString()} · AP outstanding: {currency}{cf.unpaidAP.toLocaleString()}
                         </Text>
-                    </View>
+                    </SectionCard>
 
-                    {/* Net position */}
-                    <View style={[styles.card, styles.netCard]}>
-                        <Text style={styles.netLabel}>Total Net Cash Position</Text>
-                        <Text style={[styles.netValue, { color: operating.net >= 0 ? Colors.income : Colors.expense }]}>
-                            {operating.net >= 0 ? '+' : ''}{currency}{operating.net.toLocaleString()}
+                    {/* Investing Activities */}
+                    <SectionCard title="Investing Activities">
+                        {cf.assetPurchases > 0
+                            ? <CFRow label="Asset Purchases (capital expenditure)" value={-cf.assetPurchases} currency={currency} />
+                            : <Text style={s.emptyLine}>No assets registered yet</Text>
+                        }
+                        {cf.assetDisposals > 0 && (
+                            <CFRow label="Asset Disposals / Sale Proceeds" value={cf.assetDisposals} currency={currency} />
+                        )}
+                        <CFRow label="Net Investing Cash Flow" value={cf.investingCF} currency={currency} total />
+                    </SectionCard>
+
+                    {/* Financing Activities */}
+                    <SectionCard title="Financing Activities">
+                        <Text style={s.emptyLine}>Loan tracking not yet configured. Add loan repayments as expense transactions to capture financing outflows.</Text>
+                        <CFRow label="Net Financing Cash Flow" value={cf.financingCF} currency={currency} total />
+                    </SectionCard>
+
+                    {/* Net change */}
+                    <View style={[s.card, s.netCard]}>
+                        <Text style={s.netLabel}>Net Change in Cash</Text>
+                        <Text style={[s.netValue, { color: cf.netCashChange >= 0 ? Colors.income : Colors.expense }]}>
+                            {cf.netCashChange >= 0 ? '+' : ''}{currency}{cf.netCashChange.toLocaleString()}
                         </Text>
-                        <Text style={styles.hint}>Based on {transactions.length} transactions</Text>
+                        <View style={s.netBreakRow}>
+                            <NetChip label="Operating" value={cf.operatingCF} currency={currency} />
+                            <NetChip label="Investing"  value={cf.investingCF}  currency={currency} />
+                            <NetChip label="Financing"  value={cf.financingCF}  currency={currency} />
+                        </View>
                     </View>
                 </View>
             )}
 
             {view === 'monthly' && (
                 <View>
-                    <View style={styles.card}>
-                        <Text style={styles.cardTitle}>Monthly Net Cash Flow</Text>
+                    <View style={s.card}>
+                        <Text style={s.cardTitle}>Monthly Net Cash Flow (last 6 months)</Text>
                         {trend.map((pt, i) => {
                             const barW = Math.round((Math.abs(pt.profit) / maxAbsProfit) * 100);
-                            const isPositive = pt.profit >= 0;
+                            const pos  = pt.profit >= 0;
                             return (
-                                <View key={i} style={styles.monthRow}>
-                                    <Text style={styles.monthLabel}>{pt.label}</Text>
-                                    <View style={styles.barTrack}>
-                                        <View style={[
-                                            styles.barFill,
-                                            { width: `${barW}%` as any, backgroundColor: isPositive ? Colors.income : Colors.expense }
-                                        ]} />
+                                <View key={i} style={s.monthRow}>
+                                    <Text style={s.monthLabel}>{pt.label}</Text>
+                                    <View style={s.barTrack}>
+                                        <View style={[s.barFill, { width: `${barW}%` as any, backgroundColor: pos ? Colors.income : Colors.expense }]} />
                                     </View>
-                                    <Text style={[styles.monthVal, { color: isPositive ? Colors.income : Colors.expense }]}>
-                                        {isPositive ? '+' : ''}{currency}{Math.abs(pt.profit).toLocaleString()}
+                                    <Text style={[s.monthVal, { color: pos ? Colors.income : Colors.expense }]}>
+                                        {pos ? '+' : ''}{currency}{Math.abs(pt.profit).toLocaleString()}
                                     </Text>
                                 </View>
                             );
                         })}
                     </View>
 
-                    <View style={styles.card}>
-                        <Text style={styles.cardTitle}>Monthly Breakdown</Text>
+                    <View style={s.card}>
+                        <Text style={s.cardTitle}>Monthly Breakdown</Text>
+                        <View style={s.breakdownHeader}>
+                            <Text style={[s.monthLabel, { fontWeight: '700', color: Colors.textPrimary }]}>Month</Text>
+                            <Text style={[s.breakVal, { color: Colors.income }]}>Revenue</Text>
+                            <Text style={[s.breakVal, { color: Colors.expense }]}>Costs</Text>
+                            <Text style={[s.breakVal, { color: Colors.textPrimary }]}>Net</Text>
+                        </View>
                         {trend.map((pt, i) => (
-                            <View key={i} style={styles.breakdownRow}>
-                                <Text style={styles.monthLabel}>{pt.label}</Text>
-                                <Text style={[styles.smallVal, { color: Colors.income }]}>
-                                    +{currency}{pt.income.toLocaleString()}
-                                </Text>
-                                <Text style={[styles.smallVal, { color: Colors.expense }]}>
-                                    -{currency}{pt.expense.toLocaleString()}
+                            <View key={i} style={s.breakdownRow}>
+                                <Text style={s.monthLabel}>{pt.label}</Text>
+                                <Text style={[s.breakVal, { color: Colors.income }]}>+{currency}{pt.income.toLocaleString()}</Text>
+                                <Text style={[s.breakVal, { color: Colors.expense }]}>-{currency}{pt.expense.toLocaleString()}</Text>
+                                <Text style={[s.breakVal, { color: pt.profit >= 0 ? Colors.income : Colors.expense }]}>
+                                    {pt.profit >= 0 ? '+' : ''}{currency}{Math.abs(pt.profit).toLocaleString()}
                                 </Text>
                             </View>
                         ))}
@@ -134,49 +119,85 @@ export default function CashFlowStatement({ transactions, currency }: Props) {
     );
 }
 
-function Row({
-    label, value, currency, positive = false, total = false,
-}: { label: string; value: number; currency: string; positive?: boolean; total?: boolean }) {
+function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
+    return (
+        <View style={s.card}>
+            <Text style={s.cardTitle}>{title}</Text>
+            {children}
+        </View>
+    );
+}
+
+function ToggleBtn({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+    return (
+        <TouchableOpacity style={[s.toggleBtn, active && s.toggleActive]} onPress={onPress}>
+            <Text style={[s.toggleText, active && s.toggleTextActive]}>{label}</Text>
+        </TouchableOpacity>
+    );
+}
+
+function CFRow({ label, value, currency, total = false, indent = false }: {
+    label: string; value: number; currency: string; total?: boolean; indent?: boolean;
+}) {
     const color = value >= 0 ? Colors.income : Colors.expense;
     return (
-        <View style={[rowStyles.row, total && rowStyles.totalRow]}>
-            <Text style={[rowStyles.label, total && rowStyles.totalLabel]}>{label}</Text>
-            <Text style={[rowStyles.value, { color: total ? color : value >= 0 ? Colors.income : Colors.expense }, total && rowStyles.totalValue]}>
+        <View style={[s.cfRow, total && s.cfTotal]}>
+            <Text style={[s.cfLabel, total && s.cfTotalLabel, indent && s.cfIndent]}>{label}</Text>
+            <Text style={[s.cfValue, { color }, total && s.cfTotalValue]}>
                 {value >= 0 ? '+' : ''}{currency}{Math.abs(value).toLocaleString()}
             </Text>
         </View>
     );
 }
 
-const styles = StyleSheet.create({
-    toggle: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-    toggleBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 8, borderWidth: 1, borderColor: Colors.border },
-    toggleActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-    toggleText: { color: Colors.textMuted, fontSize: 13, fontWeight: '500' },
-    toggleTextActive: { color: Colors.textPrimary, fontWeight: 'bold' },
+function NetChip({ label, value, currency }: { label: string; value: number; currency: string }) {
+    const col = value >= 0 ? Colors.income : value === 0 ? Colors.textMuted : Colors.expense;
+    return (
+        <View style={s.chip}>
+            <Text style={s.chipLabel}>{label}</Text>
+            <Text style={[s.chipValue, { color: col }]}>
+                {value >= 0 ? '+' : ''}{currency}{Math.abs(value).toLocaleString()}
+            </Text>
+        </View>
+    );
+}
 
-    card: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 12 },
-    cardTitle: { fontSize: 15, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 10 },
-    netCard: { alignItems: 'center', paddingVertical: 20 },
-    netLabel: { fontSize: 13, color: Colors.textMuted, marginBottom: 6 },
-    netValue: { fontSize: 30, fontWeight: 'bold', marginBottom: 4 },
-    hint: { fontSize: 11, color: Colors.textMuted, marginTop: 8, fontStyle: 'italic' },
+const s = StyleSheet.create({
+    toggle:          { flexDirection: 'row', gap: 8, marginBottom: 12 },
+    toggleBtn:       { flex: 1, paddingVertical: 10, alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 8, borderWidth: 1, borderColor: Colors.border },
+    toggleActive:    { backgroundColor: Colors.primary, borderColor: Colors.primary },
+    toggleText:      { color: Colors.textMuted, fontSize: 13, fontWeight: '500' },
+    toggleTextActive:{ color: Colors.textPrimary, fontWeight: 'bold' },
 
-    monthRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 8 },
+    card:      { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 12 },
+    cardTitle: { fontSize: 14, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 10 },
+
+    cfRow:        { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    cfTotal:      { borderBottomWidth: 0, borderTopWidth: 1, borderTopColor: Colors.textMuted, marginTop: 4, paddingTop: 10 },
+    cfLabel:      { fontSize: 13, color: Colors.textSecondary, flex: 1, marginRight: 8 },
+    cfTotalLabel: { fontWeight: '700', color: Colors.textPrimary },
+    cfIndent:     { paddingLeft: 12, color: Colors.textMuted },
+    cfValue:      { fontSize: 13, fontWeight: '600' },
+    cfTotalValue: { fontSize: 15, fontWeight: 'bold' },
+
+    hint:      { fontSize: 11, color: Colors.textMuted, fontStyle: 'italic', marginTop: 8 },
+    emptyLine: { fontSize: 12, color: Colors.textMuted, fontStyle: 'italic', paddingVertical: 6 },
+
+    netCard:     { alignItems: 'center', paddingVertical: 20 },
+    netLabel:    { fontSize: 13, color: Colors.textMuted, marginBottom: 6 },
+    netValue:    { fontSize: 30, fontWeight: 'bold', marginBottom: 12 },
+    netBreakRow: { flexDirection: 'row', gap: 8 },
+    chip:        { flex: 1, alignItems: 'center', backgroundColor: Colors.bg, borderRadius: 8, padding: 8 },
+    chipLabel:   { fontSize: 10, color: Colors.textMuted, marginBottom: 2 },
+    chipValue:   { fontSize: 12, fontWeight: '700' },
+
+    monthRow:   { flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 8 },
     monthLabel: { fontSize: 12, color: Colors.textMuted, width: 30 },
-    barTrack: { flex: 1, height: 8, backgroundColor: Colors.bg, borderRadius: 4, overflow: 'hidden' },
-    barFill: { height: 8, borderRadius: 4, minWidth: 2 },
-    monthVal: { fontSize: 12, fontWeight: '600', width: 80, textAlign: 'right' },
+    barTrack:   { flex: 1, height: 8, backgroundColor: Colors.bg, borderRadius: 4, overflow: 'hidden' },
+    barFill:    { height: 8, borderRadius: 4, minWidth: 2 },
+    monthVal:   { fontSize: 12, fontWeight: '600', width: 80, textAlign: 'right' },
 
-    breakdownRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: Colors.border },
-    smallVal: { fontSize: 12, fontWeight: '500', flex: 1, textAlign: 'right' },
-});
-
-const rowStyles = StyleSheet.create({
-    row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: Colors.border },
-    totalRow: { marginTop: 6, borderBottomWidth: 0, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 10 },
-    label: { fontSize: 13, color: Colors.textSecondary, flex: 1, marginRight: 8 },
-    totalLabel: { fontWeight: '700', color: Colors.textPrimary },
-    value: { fontSize: 13, fontWeight: '600' },
-    totalValue: { fontSize: 15, fontWeight: 'bold' },
+    breakdownHeader: { flexDirection: 'row', paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: Colors.border, marginBottom: 4 },
+    breakdownRow:    { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    breakVal:        { flex: 1, fontSize: 11, fontWeight: '500', textAlign: 'right' },
 });
