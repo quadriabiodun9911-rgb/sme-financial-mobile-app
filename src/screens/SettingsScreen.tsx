@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
-    TouchableOpacity, StyleSheet, Alert,
+    TouchableOpacity, StyleSheet, Alert, Modal, Share,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -10,23 +10,36 @@ import FooterNav from '../components/FooterNav';
 import { BusinessSettings } from '../types';
 
 const CURRENCIES = [
-    { label: 'USD ($)', value: '$' },
-    { label: 'EUR (€)', value: '€' },
-    { label: 'GBP (£)', value: '£' },
-    { label: 'NGN (₦)', value: '₦' },
-    { label: 'JPY (¥)', value: '¥' },
-    { label: 'CAD (CA$)', value: 'CA$' },
+    { label: 'USD ($)',  value: '$'   },
+    { label: 'EUR (€)',  value: '€'   },
+    { label: 'GBP (£)',  value: '£'   },
+    { label: 'NGN (₦)',  value: '₦'   },
+    { label: 'JPY (¥)',  value: '¥'   },
+    { label: 'CAD (CA$)',value: 'CA$' },
 ];
 
 const BUSINESS_TYPES: { label: string; value: BusinessSettings['businessType'] }[] = [
     { label: 'Product', value: 'product' },
     { label: 'Service', value: 'service' },
-    { label: 'Both', value: 'both' },
+    { label: 'Both',    value: 'both'    },
 ];
 
 export default function SettingsScreen() {
-    const { settings, updateSettings, setCurrentScreen } = useApp();
+    const {
+        settings, updateSettings, setCurrentScreen,
+        changePin, exportData, importData, clearData, logout,
+    } = useApp();
+
     const [form, setForm] = useState({ ...settings });
+
+    // Change PIN
+    const [currentPin, setCurrentPin] = useState('');
+    const [newPin, setNewPin]         = useState('');
+    const [confirmPin, setConfirmPin] = useState('');
+
+    // Import modal
+    const [importModal, setImportModal] = useState(false);
+    const [importJson, setImportJson]   = useState('');
 
     const handleSave = () => {
         if (isNaN(parseFloat(form.minReserve)) || parseFloat(form.minReserve) < 0) {
@@ -46,6 +59,68 @@ export default function SettingsScreen() {
         Alert.alert('Saved', 'Settings updated successfully.', [
             { text: 'OK', onPress: () => setCurrentScreen('dashboard') },
         ]);
+    };
+
+    const handleChangePin = () => {
+        if (!/^\d{4}$/.test(newPin)) {
+            Alert.alert('Invalid PIN', 'New PIN must be exactly 4 digits.');
+            return;
+        }
+        if (newPin !== confirmPin) {
+            Alert.alert('PIN mismatch', 'New PINs do not match.');
+            return;
+        }
+        const ok = changePin(currentPin, newPin);
+        if (!ok) {
+            Alert.alert('Incorrect PIN', 'Current PIN is incorrect.');
+            return;
+        }
+        setCurrentPin('');
+        setNewPin('');
+        setConfirmPin('');
+        Alert.alert('Success', 'PIN changed successfully.');
+    };
+
+    const handleExport = async () => {
+        try {
+            const json = await exportData();
+            await Share.share({ message: json, title: 'FinanceBook Backup' });
+        } catch {
+            Alert.alert('Export failed', 'Could not export data. Please try again.');
+        }
+    };
+
+    const handleImport = async () => {
+        if (!importJson.trim()) {
+            Alert.alert('Empty input', 'Please paste your backup JSON.');
+            return;
+        }
+        try {
+            await importData(importJson.trim());
+            setImportModal(false);
+            setImportJson('');
+            Alert.alert('Imported', 'Data restored successfully.');
+        } catch (e: any) {
+            Alert.alert('Import failed', e?.message ?? 'Invalid backup file.');
+        }
+    };
+
+    const handleClearData = () => {
+        Alert.alert(
+            'Clear All Data',
+            'This will permanently delete all transactions, goals, and settings. This cannot be undone.',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete Everything',
+                    style: 'destructive',
+                    onPress: async () => {
+                        await clearData();
+                        logout();
+                    },
+                },
+            ],
+        );
     };
 
     return (
@@ -99,12 +174,11 @@ export default function SettingsScreen() {
                             keyboardType="numeric" placeholder="0" placeholderTextColor={Colors.muted} />
                     </Section>
 
-                    {/* Balance Sheet Opening Balances */}
+                    {/* Opening Balances */}
                     <Section title="Opening Balance Sheet">
                         <Text style={styles.hint}>
-                            Enter pre-existing asset and liability balances. Added to cash position to produce correct balance sheet totals.
+                            Enter pre-existing asset and liability balances. Added to cash position for correct balance sheet totals.
                         </Text>
-
                         <FieldLabel>Opening Assets ({form.currency})</FieldLabel>
                         <TextInput style={styles.input} value={form.openingAssets}
                             onChangeText={v => setForm(f => ({ ...f, openingAssets: v }))}
@@ -122,9 +196,81 @@ export default function SettingsScreen() {
                     <TouchableOpacity style={styles.cancelBtn} onPress={() => setCurrentScreen('dashboard')}>
                         <Text style={styles.cancelBtnText}>Cancel</Text>
                     </TouchableOpacity>
+
+                    {/* Change PIN */}
+                    <Section title="Change PIN">
+                        <FieldLabel>Current PIN</FieldLabel>
+                        <TextInput style={styles.input} value={currentPin}
+                            onChangeText={setCurrentPin}
+                            secureTextEntry keyboardType="number-pad" maxLength={4}
+                            placeholder="••••" placeholderTextColor={Colors.muted} />
+                        <FieldLabel>New PIN</FieldLabel>
+                        <TextInput style={styles.input} value={newPin}
+                            onChangeText={setNewPin}
+                            secureTextEntry keyboardType="number-pad" maxLength={4}
+                            placeholder="••••" placeholderTextColor={Colors.muted} />
+                        <FieldLabel>Confirm New PIN</FieldLabel>
+                        <TextInput style={styles.input} value={confirmPin}
+                            onChangeText={setConfirmPin}
+                            secureTextEntry keyboardType="number-pad" maxLength={4}
+                            placeholder="••••" placeholderTextColor={Colors.muted} />
+                        <TouchableOpacity style={[styles.saveBtn, { marginTop: 12, marginBottom: 0 }]} onPress={handleChangePin}>
+                            <Text style={styles.saveBtnText}>Update PIN</Text>
+                        </TouchableOpacity>
+                    </Section>
+
+                    {/* Data Management */}
+                    <Section title="Data Management">
+                        <Text style={styles.hint}>
+                            Export a full JSON backup of all your transactions, goals, and settings. Import to restore on a new device.
+                        </Text>
+                        <TouchableOpacity style={styles.dataBtn} onPress={handleExport}>
+                            <Text style={styles.dataBtnText}>Export All Data</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[styles.dataBtn, { marginTop: 8 }]} onPress={() => setImportModal(true)}>
+                            <Text style={styles.dataBtnText}>Import Data</Text>
+                        </TouchableOpacity>
+                    </Section>
+
+                    {/* Danger Zone */}
+                    <Section title="Danger Zone">
+                        <Text style={styles.hint}>
+                            Permanently deletes all transactions, goals, and settings. You will be returned to setup.
+                        </Text>
+                        <TouchableOpacity style={styles.dangerBtn} onPress={handleClearData}>
+                            <Text style={styles.dangerBtnText}>Clear All Data</Text>
+                        </TouchableOpacity>
+                    </Section>
                 </View>
             </ScrollView>
             <FooterNav />
+
+            {/* Import Modal */}
+            <Modal visible={importModal} animationType="slide" transparent>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalCard}>
+                        <Text style={styles.modalTitle}>Import Backup</Text>
+                        <Text style={styles.hint}>Paste your FinanceBook JSON backup below.</Text>
+                        <TextInput
+                            style={[styles.input, styles.importArea]}
+                            value={importJson}
+                            onChangeText={setImportJson}
+                            multiline
+                            placeholder={'{ "version": 1, ... }'}
+                            placeholderTextColor={Colors.muted}
+                            textAlignVertical="top"
+                        />
+                        <View style={styles.modalBtns}>
+                            <TouchableOpacity style={styles.cancelBtn} onPress={() => { setImportModal(false); setImportJson(''); }}>
+                                <Text style={styles.cancelBtnText}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.saveBtn, { flex: 1, marginBottom: 0 }]} onPress={handleImport}>
+                                <Text style={styles.saveBtnText}>Import</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 }
@@ -137,11 +283,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
         </View>
     );
 }
-
 function FieldLabel({ children }: { children: React.ReactNode }) {
     return <Text style={styles.label}>{children}</Text>;
 }
-
 function Opt({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
     return (
         <TouchableOpacity style={[styles.opt, active && styles.optActive]} onPress={onPress}>
@@ -151,30 +295,39 @@ function Opt({ label, active, onPress }: { label: string; active: boolean; onPre
 }
 
 const styles = StyleSheet.create({
-    safe: { flex: 1, backgroundColor: Colors.bg },
+    safe:   { flex: 1, backgroundColor: Colors.bg },
     scroll: { flex: 1 },
-    pad: { padding: 16 },
-    title: { fontSize: 20, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 20 },
-    section: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 16 },
+    pad:    { padding: 16 },
+    title:  { fontSize: 20, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 20 },
+
+    section:      { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 16 },
     sectionTitle: { fontSize: 15, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 12 },
-    hint: { fontSize: 12, color: Colors.textMuted, lineHeight: 18, marginBottom: 8 },
+    hint:  { fontSize: 12, color: Colors.textMuted, lineHeight: 18, marginBottom: 8 },
     label: { fontSize: 12, color: Colors.textSecondary, fontWeight: '600', marginBottom: 6, marginTop: 10 },
     input: {
-        backgroundColor: Colors.bg,
-        borderWidth: 1,
-        borderColor: Colors.border,
-        borderRadius: 8,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        color: Colors.textPrimary,
-        fontSize: 14,
+        backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border,
+        borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10,
+        color: Colors.textPrimary, fontSize: 14,
     },
-    optRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-    opt: { paddingHorizontal: 14, paddingVertical: 8, backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: 8 },
+    optRow:    { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    opt:       { paddingHorizontal: 14, paddingVertical: 8, backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: 8 },
     optActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-    optText: { color: Colors.textSecondary, fontSize: 13 },
-    saveBtn: { backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginBottom: 12 },
+    optText:   { color: Colors.textSecondary, fontSize: 13 },
+
+    saveBtn:     { backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginBottom: 12 },
     saveBtnText: { color: Colors.textPrimary, fontWeight: 'bold', fontSize: 15 },
-    cancelBtn: { paddingVertical: 12, alignItems: 'center' },
+    cancelBtn:   { paddingVertical: 12, alignItems: 'center' },
     cancelBtnText: { color: Colors.textMuted, fontSize: 14 },
+
+    dataBtn:     { backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.primary, paddingVertical: 12, borderRadius: 8, alignItems: 'center' },
+    dataBtnText: { color: Colors.primary, fontWeight: '600', fontSize: 14 },
+
+    dangerBtn:     { backgroundColor: 'rgba(239,68,68,0.12)', borderWidth: 1, borderColor: Colors.expense, paddingVertical: 12, borderRadius: 8, alignItems: 'center' },
+    dangerBtnText: { color: Colors.expense, fontWeight: '700', fontSize: 14 },
+
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+    modalCard:    { backgroundColor: Colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 36 },
+    modalTitle:   { fontSize: 17, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 8 },
+    importArea:   { height: 180, marginBottom: 16 },
+    modalBtns:    { flexDirection: 'row', gap: 12, alignItems: 'center' },
 });

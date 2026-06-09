@@ -2,7 +2,15 @@ import React, { createContext, useContext, useState, useMemo, useEffect, ReactNo
 import { Transaction, FinanceData, User, BusinessSettings, Screen, FinancialGoal, GoalType, NavParams } from '../types';
 import { computeFinance, computeOneThingInsight, computeRecurringDates } from '../utils/finance';
 import { generateId } from '../utils/uuid';
-import { saveTransactions, loadTransactions, saveSettings, loadSettings, saveGoals, loadGoals } from '../utils/storage';
+import {
+    saveTransactions, loadTransactions,
+    saveSettings, loadSettings,
+    saveGoals, loadGoals,
+    savePin, loadPin,
+    saveProfile, loadProfile,
+    exportAllData, importAllData, clearAllData,
+    AppBackup,
+} from '../utils/storage';
 import { refreshGoal, goalDefaults } from '../utils/goals';
 
 interface AppContextValue {
@@ -11,9 +19,13 @@ interface AppContextValue {
     navParams: NavParams | null;
     navigate: (s: Screen, params?: NavParams) => void;
 
+    // Auth
     user: User | null;
-    login: (email: string, password: string, business: string) => boolean;
+    isFirstLaunch: boolean;          // no PIN set yet
+    setupAccount: (email: string, businessName: string, pin: string, loadDemo: boolean) => Promise<void>;
+    login: (pin: string) => boolean;
     logout: () => void;
+    changePin: (currentPin: string, newPin: string) => boolean;
 
     settings: BusinessSettings;
     updateSettings: (patch: Partial<BusinessSettings>) => void;
@@ -31,6 +43,11 @@ interface AppContextValue {
     finance: FinanceData;
     insight: ReturnType<typeof computeOneThingInsight>;
     isLoading: boolean;
+
+    // Data management
+    exportData: () => Promise<string>;
+    importData: (json: string) => Promise<void>;
+    clearData: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -45,10 +62,10 @@ const DEFAULT_SETTINGS: BusinessSettings = {
     defaultTaxRate: '0',
 };
 
-const SEED_TRANSACTIONS: Transaction[] = [
+const DEMO_TRANSACTIONS: Transaction[] = [
     {
-        id: 'seed-1',
-        date: '2026-05-10',
+        id: 'demo-1',
+        date: new Date().toISOString().split('T')[0],
         description: 'Enterprise Software SLA License',
         type: 'income',
         category: 'Software sales',
@@ -59,6 +76,38 @@ const SEED_TRANSACTIONS: Transaction[] = [
         vendorCustomer: 'TechCorp Inc.',
         reference: 'INV-001',
         status: 'paid',
+    },
+    {
+        id: 'demo-2',
+        date: new Date().toISOString().split('T')[0],
+        description: 'Office Rent – June',
+        type: 'expense',
+        category: 'Office & Admin',
+        amount: 3200,
+        status: 'paid',
+    },
+    {
+        id: 'demo-3',
+        date: new Date().toISOString().split('T')[0],
+        description: 'Consulting Retainer',
+        type: 'income',
+        category: 'Consulting',
+        amount: 12000,
+        status: 'pending',
+        dueDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+        vendorCustomer: 'BuildCo Ltd.',
+        reference: 'INV-002',
+    },
+    {
+        id: 'demo-4',
+        date: new Date().toISOString().split('T')[0],
+        description: 'Cloud Infrastructure',
+        type: 'expense',
+        category: 'Equipment',
+        amount: 1800,
+        status: 'paid',
+        isRecurring: true,
+        recurringFrequency: 'monthly',
     },
 ];
 
@@ -87,28 +136,39 @@ function processDueRecurring(transactions: Transaction[]): { updated: Transactio
 
 export function AppProvider({ children }: { children: ReactNode }) {
     const [currentScreen, setCurrentScreen] = useState<Screen>('login');
-    const [navParams, setNavParams] = useState<NavParams | null>(null);
-    const [user, setUser] = useState<User | null>(null);
-    const [settings, setSettings] = useState<BusinessSettings>(DEFAULT_SETTINGS);
-    const [transactions, setTransactions] = useState<Transaction[]>(SEED_TRANSACTIONS);
-    const [goals, setGoals] = useState<FinancialGoal[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const [navParams, setNavParams]         = useState<NavParams | null>(null);
+    const [user, setUser]                   = useState<User | null>(null);
+    const [storedPin, setStoredPin]         = useState<string | null>(null);
+    const [settings, setSettings]           = useState<BusinessSettings>(DEFAULT_SETTINGS);
+    const [transactions, setTransactions]   = useState<Transaction[]>([]);
+    const [goals, setGoals]                 = useState<FinancialGoal[]>([]);
+    const [isLoading, setIsLoading]         = useState(true);
 
     // Load persisted data on mount
     useEffect(() => {
         (async () => {
             try {
-                const [savedTx, savedSettings, savedGoals] = await Promise.all([
+                const [savedTx, savedSettings, savedGoals, pin, profile] = await Promise.all([
                     loadTransactions(),
                     loadSettings(),
                     loadGoals(),
+                    loadPin(),
+                    loadProfile(),
                 ]);
+
+                if (pin) setStoredPin(pin);
+
                 if (savedTx) {
                     const { updated, newEntries } = processDueRecurring(savedTx);
                     setTransactions([...newEntries, ...updated]);
                 }
                 if (savedSettings) setSettings({ ...DEFAULT_SETTINGS, ...savedSettings });
                 if (savedGoals) setGoals(savedGoals);
+
+                // If PIN exists and profile exists, pre-populate user so login only needs PIN
+                if (pin && profile) {
+                    setUser({ email: profile.email, businessName: profile.businessName, role: 'Administrator' });
+                }
             } finally {
                 setIsLoading(false);
             }
@@ -122,7 +182,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const finance = useMemo(() => computeFinance(transactions, settings), [transactions, settings]);
     const insight = useMemo(() => computeOneThingInsight(finance, settings), [finance, settings]);
 
-    // Refresh all goal progress whenever finance data changes
     useEffect(() => {
         if (isLoading || goals.length === 0) return;
         setGoals(prev => prev.map(g => refreshGoal(g, finance, transactions)));
@@ -134,14 +193,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setCurrentScreen(s);
     };
 
-    const login = (email: string, password: string, business: string): boolean => {
-        if (!email || !password) return false;
-        setUser({ email, businessName: business, role: 'Administrator' });
+    // First launch: set up PIN, profile, and optionally load demo data
+    const setupAccount = async (email: string, businessName: string, pin: string, loadDemo: boolean) => {
+        await savePin(pin);
+        await saveProfile({ email, businessName });
+        setStoredPin(pin);
+        setUser({ email, businessName, role: 'Administrator' });
+        if (loadDemo) {
+            setTransactions(DEMO_TRANSACTIONS);
+        }
+        setCurrentScreen('dashboard');
+    };
+
+    // Return login: validate PIN
+    const login = (pin: string): boolean => {
+        if (pin !== storedPin) return false;
         setCurrentScreen('dashboard');
         return true;
     };
 
-    const logout = () => { setUser(null); setCurrentScreen('login'); };
+    const logout = () => { setCurrentScreen('login'); };
+
+    const changePin = (currentPin: string, newPin: string): boolean => {
+        if (currentPin !== storedPin) return false;
+        setStoredPin(newPin);
+        savePin(newPin).catch(() => {});
+        return true;
+    };
 
     const updateSettings = (patch: Partial<BusinessSettings>) => setSettings(prev => ({ ...prev, ...patch }));
 
@@ -208,14 +286,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }));
     };
 
+    const exportData = () => exportAllData(transactions, settings, goals);
+
+    const importData = async (json: string) => {
+        const backup: AppBackup = await importAllData(json);
+        setTransactions(backup.transactions);
+        setSettings({ ...DEFAULT_SETTINGS, ...backup.settings });
+        setGoals(backup.goals ?? []);
+    };
+
+    const clearData = async () => {
+        await clearAllData();
+        setTransactions([]);
+        setGoals([]);
+        setSettings(DEFAULT_SETTINGS);
+    };
+
     const value: AppContextValue = {
         currentScreen, setCurrentScreen,
         navParams, navigate,
-        user, login, logout,
+        user,
+        isFirstLaunch: storedPin === null && !isLoading,
+        setupAccount, login, logout, changePin,
         settings, updateSettings,
         transactions, addTransaction, deleteTransaction, updateTransaction,
         goals, addGoal, deleteGoal, updateGoalCurrentValue,
         finance, insight, isLoading,
+        exportData, importData, clearData,
     };
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
