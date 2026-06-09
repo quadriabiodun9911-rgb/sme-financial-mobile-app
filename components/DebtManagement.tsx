@@ -1400,7 +1400,7 @@ const DebtManagement: React.FC<DebtManagementProps> = ({ currency, finance }) =>
                             </View>
 
                             <Text style={styles.subSectionTitle}>Alternative to bankruptcy (if creditors agree):</Text>
-                            <Text style={styles.informationText}>
+                            <Text style={styles.informationTitle}>
                                 <Text style={styles.boldText}>Assignment for the Benefit of Creditors (ABC)</Text> — A state-law alternative to bankruptcy that is often:
                             </Text>
 
@@ -1467,7 +1467,7 @@ const DebtManagement: React.FC<DebtManagementProps> = ({ currency, finance }) =>
                         {/* Step 4.1: Create 13-Week Cash Flow Forecast */}
                         <View style={styles.informationSection}>
                             <Text style={styles.informationTitle}>Step 4.1: Create 13-Week Cash Flow Forecast</Text>
-                            <Text style={styles.informationText}>This is the single most important tool for debt execution. Update it weekly.</Text>
+                            <Text style={styles.informationTitle}>This is the single most important tool for debt execution. Update it weekly.</Text>
 
                             <Text style={styles.subSectionTitle}>13-Week Cash Flow Forecast</Text>
 
@@ -1634,7 +1634,7 @@ const DebtManagement: React.FC<DebtManagementProps> = ({ currency, finance }) =>
                                 </View>
                             </View>
 
-                            <Text style={styles.informationText}>
+                            <Text style={styles.informationTitle}>
                                 <Text style={styles.boldText}>Critical rule:</Text> If Ending Cash ever drops below your safety threshold (e.g., 2 weeks of expenses), trigger immediate action.
                             </Text>
                         </View>
@@ -1740,7 +1740,7 @@ const DebtManagement: React.FC<DebtManagementProps> = ({ currency, finance }) =>
                         {/* Step 4.4: Execute the Payment Plan */}
                         <View style={styles.informationSection}>
                             <Text style={styles.informationTitle}>Step 4.4: Execute the Payment Plan</Text>
-                            <Text style={styles.informationText}>Based on your priority ranking from Stage 2, execute payments in this order each month:</Text>
+                            <Text style={styles.informationTitle}>Based on your priority ranking from Stage 2, execute payments in this order each month:</Text>
 
                             <Text style={styles.subSectionTitle}>Weekly Payment Routine (every Friday, 30 minutes):</Text>
 
@@ -1871,9 +1871,9 @@ const DebtManagement: React.FC<DebtManagementProps> = ({ currency, finance }) =>
                             </View>
 
                             <Text style={styles.informationSubtitle}>Status definitions:</Text>
-                            <Text style={styles.informationText}>🟢 Green = On target, no action needed</Text>
-                            <Text style={styles.informationText}>🟡 Yellow = Warning zone, monitor closely, plan corrective action</Text>
-                            <Text style={styles.informationText}>🔴 Red = Critical, take action within 7 days</Text>
+                            <Text style={styles.informationTitle}>🟢 Green = On target, no action needed</Text>
+                            <Text style={styles.informationTitle}>🟡 Yellow = Warning zone, monitor closely, plan corrective action</Text>
+                            <Text style={styles.informationTitle}>🔴 Red = Critical, take action within 7 days</Text>
                         </View>
 
                         {/* Step 5.2: Monthly Debt Review */}
