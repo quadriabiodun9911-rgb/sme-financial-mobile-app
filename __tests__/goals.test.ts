@@ -20,7 +20,7 @@ const makeGoal = (overrides: Partial<FinancialGoal> = {}): FinancialGoal => ({
 
 const settings = {
     businessType: 'both' as const, currency: '$', minReserve: '5000',
-    targetMargin: '65', openingAssets: '0', openingLiabilities: '0', defaultTaxRate: '0',
+    targetMargin: '65', openingAssets: '0', openingLiabilities: '0', openingLoans: '0', openingOtherAssets: '0', defaultTaxRate: '0',
 };
 
 // ─── computeGoalProgress ─────────────────────────────────────────────────────

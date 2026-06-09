@@ -184,7 +184,7 @@ export function computeAssetAnnualDepreciation(asset: Asset): number {
 
 export function computeFinance(
     transactions: Transaction[],
-    settings: Pick<BusinessSettings, 'openingAssets' | 'openingLiabilities'>,
+    settings: Pick<BusinessSettings, 'openingAssets' | 'openingLiabilities' | 'openingLoans' | 'openingOtherAssets'>,
     registeredAssetsValue = 0,
 ): FinanceData {
     const income = transactions

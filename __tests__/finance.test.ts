@@ -19,7 +19,7 @@ const makeTx = (overrides: Partial<Transaction>): Transaction => ({
     ...overrides,
 });
 
-const settings = { openingAssets: '0', openingLiabilities: '0' };
+const settings = { openingAssets: '0', openingLiabilities: '0', openingLoans: '0', openingOtherAssets: '0' };
 
 // ─── computeFinance ───────────────────────────────────────────────────────────
 
@@ -60,12 +60,12 @@ describe('computeFinance', () => {
 
     it('assets = opening assets + cash balance', () => {
         const txs = [makeTx({ type: 'income', amount: 5000 })];
-        const r = computeFinance(txs, { openingAssets: '10000', openingLiabilities: '0' });
+        const r = computeFinance(txs, { openingAssets: '10000', openingLiabilities: '0', openingLoans: '0', openingOtherAssets: '0' });
         expect(r.assets).toBe(15000);
     });
 
     it('liabilities = opening liabilities', () => {
-        const r = computeFinance([], { openingAssets: '0', openingLiabilities: '8000' });
+        const r = computeFinance([], { openingAssets: '0', openingLiabilities: '8000', openingLoans: '0', openingOtherAssets: '0' });
         expect(r.liabilities).toBe(8000);
     });
 
@@ -74,7 +74,7 @@ describe('computeFinance', () => {
             makeTx({ type: 'income', amount: 20000 }),
             makeTx({ type: 'expense', amount: 5000 }),
         ];
-        const r = computeFinance(txs, { openingAssets: '50000', openingLiabilities: '30000' });
+        const r = computeFinance(txs, { openingAssets: '50000', openingLiabilities: '30000', openingLoans: '0', openingOtherAssets: '0' });
         expect(r.equity).toBe(r.assets - r.liabilities);
     });
 

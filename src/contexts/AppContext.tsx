@@ -90,6 +90,8 @@ const DEFAULT_SETTINGS: BusinessSettings = {
     targetMargin: '65',
     openingAssets: '0',
     openingLiabilities: '0',
+    openingLoans: '0',
+    openingOtherAssets: '0',
     defaultTaxRate: '0',
 };
 

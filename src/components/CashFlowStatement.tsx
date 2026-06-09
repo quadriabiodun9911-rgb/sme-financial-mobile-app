@@ -22,51 +22,51 @@ export default function CashFlowStatement({ transactions, assets, currency }: Pr
     return (
         <View>
             <View style={s.toggle}>
-                <ToggleBtn label="Statement" active={view === 'statement'} onPress={() => setView('statement')} />
-                <ToggleBtn label="Monthly"   active={view === 'monthly'}   onPress={() => setView('monthly')} />
+                <ToggleBtn label="Cash Summary" active={view === 'statement'} onPress={() => setView('statement')} />
+                <ToggleBtn label="Month by Month" active={view === 'monthly'} onPress={() => setView('monthly')} />
             </View>
 
             {view === 'statement' && (
                 <View>
                     {/* Operating Activities */}
-                    <SectionCard title="Operating Activities (Indirect Method)">
-                        <CFRow label="Net Profit (collected)"        value={cf.netProfit}     currency={currency} />
-                        <CFRow label="Add: Depreciation & Amortisation" value={cf.depreciation} currency={currency} indent />
-                        <CFRow label="Add: Increase in Payables (AP)" value={cf.changeInAP}   currency={currency} indent />
-                        <CFRow label="Less: Increase in Receivables (AR)" value={cf.changeInAR} currency={currency} indent />
-                        <CFRow label="Net Operating Cash Flow"        value={cf.operatingCF}  currency={currency} total />
+                    <SectionCard title="Cash from Running the Business">
+                        <CFRow label="Net Profit Earned"                               value={cf.netProfit}     currency={currency} />
+                        <CFRow label="  Add Back: Asset Wear & Tear (not real cash)"   value={cf.depreciation} currency={currency} indent />
+                        <CFRow label="  Add: More Bills Owed to Suppliers (saves cash)" value={cf.changeInAP}  currency={currency} indent />
+                        <CFRow label="  Less: More Customers Owe You (cash not received yet)" value={cf.changeInAR} currency={currency} indent />
+                        <CFRow label="Total Cash from Business Operations"             value={cf.operatingCF}  currency={currency} total />
                         <Text style={s.hint}>
-                            AR outstanding: {currency}{cf.uncollectedAR.toLocaleString()} · AP outstanding: {currency}{cf.unpaidAP.toLocaleString()}
+                            Customers still owe you: {currency}{cf.uncollectedAR.toLocaleString()} · You still owe suppliers: {currency}{cf.unpaidAP.toLocaleString()}
                         </Text>
                     </SectionCard>
 
                     {/* Investing Activities */}
-                    <SectionCard title="Investing Activities">
+                    <SectionCard title="Cash Spent on / from Equipment & Property">
                         {cf.assetPurchases > 0
-                            ? <CFRow label="Asset Purchases (capital expenditure)" value={-cf.assetPurchases} currency={currency} />
-                            : <Text style={s.emptyLine}>No assets registered yet</Text>
+                            ? <CFRow label="Bought Equipment or Property" value={-cf.assetPurchases} currency={currency} />
+                            : <Text style={s.emptyLine}>No assets in the register yet — add assets in the Assets tab</Text>
                         }
                         {cf.assetDisposals > 0 && (
-                            <CFRow label="Asset Disposals / Sale Proceeds" value={cf.assetDisposals} currency={currency} />
+                            <CFRow label="Sold Equipment or Property" value={cf.assetDisposals} currency={currency} />
                         )}
-                        <CFRow label="Net Investing Cash Flow" value={cf.investingCF} currency={currency} total />
+                        <CFRow label="Total Cash In/Out from Assets" value={cf.investingCF} currency={currency} total />
                     </SectionCard>
 
                     {/* Financing Activities */}
-                    <SectionCard title="Financing Activities">
-                        <Text style={s.emptyLine}>Loan tracking not yet configured. Add loan repayments as expense transactions to capture financing outflows.</Text>
-                        <CFRow label="Net Financing Cash Flow" value={cf.financingCF} currency={currency} total />
+                    <SectionCard title="Cash from Loans & Owner Contributions">
+                        <Text style={s.emptyLine}>To track loan repayments, record them as expense transactions. Owner withdrawals can be recorded as expenses too.</Text>
+                        <CFRow label="Total Cash from Financing" value={cf.financingCF} currency={currency} total />
                     </SectionCard>
 
                     {/* Net change */}
                     <View style={[s.card, s.netCard]}>
-                        <Text style={s.netLabel}>Net Change in Cash</Text>
+                        <Text style={s.netLabel}>Overall Cash Change This Period</Text>
                         <Text style={[s.netValue, { color: cf.netCashChange >= 0 ? Colors.income : Colors.expense }]}>
                             {cf.netCashChange >= 0 ? '+' : ''}{currency}{cf.netCashChange.toLocaleString()}
                         </Text>
                         <View style={s.netBreakRow}>
-                            <NetChip label="Operating" value={cf.operatingCF} currency={currency} />
-                            <NetChip label="Investing"  value={cf.investingCF}  currency={currency} />
+                            <NetChip label="Operations" value={cf.operatingCF} currency={currency} />
+                            <NetChip label="Assets"     value={cf.investingCF}  currency={currency} />
                             <NetChip label="Financing"  value={cf.financingCF}  currency={currency} />
                         </View>
                     </View>
@@ -76,7 +76,7 @@ export default function CashFlowStatement({ transactions, assets, currency }: Pr
             {view === 'monthly' && (
                 <View>
                     <View style={s.card}>
-                        <Text style={s.cardTitle}>Monthly Net Cash Flow (last 6 months)</Text>
+                        <Text style={s.cardTitle}>Monthly Profit / Loss (last 6 months)</Text>
                         {trend.map((pt, i) => {
                             const barW = Math.round((Math.abs(pt.profit) / maxAbsProfit) * 100);
                             const pos  = pt.profit >= 0;

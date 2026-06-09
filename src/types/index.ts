@@ -123,6 +123,8 @@ export interface BusinessSettings {
     targetMargin: string;
     openingAssets: string;
     openingLiabilities: string;
+    openingLoans: string;
+    openingOtherAssets: string;
     defaultTaxRate: string;
 }
 

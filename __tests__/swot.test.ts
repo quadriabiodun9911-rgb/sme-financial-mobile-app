@@ -3,7 +3,7 @@ import { FinanceData, Transaction } from '../src/types';
 
 const settings = {
     businessType: 'both' as const, currency: '$', minReserve: '5000',
-    targetMargin: '65', openingAssets: '0', openingLiabilities: '0', defaultTaxRate: '0',
+    targetMargin: '65', openingAssets: '0', openingLiabilities: '0', openingLoans: '0', openingOtherAssets: '0', defaultTaxRate: '0',
 };
 
 const makeFinance = (overrides: Partial<FinanceData> = {}): FinanceData => ({

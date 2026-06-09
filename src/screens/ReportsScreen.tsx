@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text,
-    TouchableOpacity, StyleSheet, Dimensions, Share,
+    TouchableOpacity, StyleSheet, Dimensions, Share, TextInput,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -64,7 +64,7 @@ const PERIODS: { key: ReportPeriod; label: string }[] = [
 ];
 
 export default function ReportsScreen() {
-    const { finance: allFinance, settings, transactions, assets, navParams } = useApp();
+    const { finance: allFinance, settings, updateSettings, transactions, assets, navParams } = useApp();
     const { currency, minReserve, targetMargin } = settings;
 
     const [section, setSection]     = useState<SectionKey>('statements');
@@ -171,37 +171,15 @@ export default function ReportsScreen() {
 
                     {/* ── BALANCE SHEET ────────────────────────────────── */}
                     {activeTab === 'balancesheet' && (
-                        <View>
-                            <PeriodLabel period={period} />
-                            <View style={styles.card}>
-                                <View style={styles.cardHeaderRow}>
-                                    <Text style={styles.cardTitle}>Balance Sheet</Text>
-                                    <Text style={styles.sizeBadge}>{sizeLabel(bizSize)}</Text>
-                                </View>
-                                <SectionHeader label="ASSETS" />
-                                <StatRow label="Cash / Net Operating Cash"  value={`${currency}${finance.cashBalance.toLocaleString()}`}     color={Colors.income} />
-                                <StatRow label="Accounts Receivable (AR)"  value={`${currency}${wcMetrics.accountsReceivable.toLocaleString()}`} color={Colors.income} />
-                                <StatRow label="Current Assets Total"      value={`${currency}${(finance.cashBalance + wcMetrics.accountsReceivable).toLocaleString()}`} color={Colors.asset} bold />
-                                <StatRow label="Fixed Assets (Opening)"    value={`${currency}${(parseFloat(settings.openingAssets)||0).toLocaleString()}`} color={Colors.asset} />
-                                <StatRow label="Fixed Assets (Registered)" value={`${currency}${assets.filter(a=>a.status==='active').reduce((s,a)=>{const yr=(Date.now()-new Date(a.purchaseDate).getTime())/(1000*60*60*24*365);const dep=Math.min(yr*(a.purchaseCost-a.residualValue)/a.usefulLifeYears,a.purchaseCost-a.residualValue);return s+Math.max(a.residualValue,a.purchaseCost-dep);},0).toLocaleString()}`} color={Colors.asset} />
-                                <StatRow label="Total Assets"              value={`${currency}${finance.assets.toLocaleString()}`}           color={Colors.asset} bold />
-                                <SectionHeader label="LIABILITIES" />
-                                <StatRow label="Accounts Payable (AP)"     value={`${currency}${wcMetrics.accountsPayable.toLocaleString()}`} color={Colors.liability} />
-                                <StatRow label="Other Liabilities"         value={`${currency}${(parseFloat(settings.openingLiabilities)||0).toLocaleString()}`} color={Colors.liability} />
-                                <StatRow label="Total Liabilities"         value={`${currency}${finance.liabilities.toLocaleString()}`}      color={Colors.liability} bold />
-                                <SectionHeader label="EQUITY" />
-                                <StatRow label="Owner's Equity"            value={`${currency}${finance.equity.toLocaleString()}`}           color={Colors.equity} bold />
-                                <StatRow label="Net Working Capital"       value={`${currency}${wcMetrics.netWorkingCapital.toLocaleString()}`} color={wcMetrics.netWorkingCapital >= 0 ? Colors.income : Colors.expense} />
-                                <Text style={styles.note}>
-                                    Update opening balances in Settings → Opening Balance Sheet.
-                                </Text>
-                            </View>
-                            <KpiRow items={[
-                                { label: 'Revenue',  value: `${currency}${finance.income.toLocaleString()}`,  color: Colors.income },
-                                { label: 'Expenses', value: `${currency}${finance.expense.toLocaleString()}`, color: Colors.expense },
-                                { label: 'Profit',   value: `${currency}${finance.profit.toLocaleString()}`,  color: finance.profit >= 0 ? Colors.income : Colors.expense },
-                            ]} />
-                        </View>
+                        <BalanceSheetTab
+                            finance={finance}
+                            wcMetrics={wcMetrics}
+                            assets={assets}
+                            settings={settings}
+                            updateSettings={updateSettings}
+                            currency={currency}
+                            bizSize={bizSize}
+                        />
                     )}
 
                     {/* ── P & L ────────────────────────────────────────── */}
@@ -215,30 +193,30 @@ export default function ReportsScreen() {
                                         <Text style={styles.exportText}>Export CSV</Text>
                                     </TouchableOpacity>
                                 </View>
-                                <StatRow label="Revenue"           value={`${currency}${enhPnL.revenue.toLocaleString()}`}                       color={Colors.income} />
-                                <StatRow label="  Cost of Goods Sold (COGS)" value={`-${currency}${enhPnL.cogs.toLocaleString()}`}              color={Colors.expense} indent />
-                                <StatRow label="Gross Profit"      value={`${currency}${enhPnL.grossProfit.toLocaleString()}`}                   color={enhPnL.grossProfit >= 0 ? Colors.income : Colors.expense} bold />
-                                <StatRow label="  Gross Margin"    value={`${enhPnL.grossMargin.toFixed(1)}%`}                                   color={Colors.textMuted} indent />
-                                <StatRow label="  SG&A Expenses"   value={`-${currency}${enhPnL.sgaExpenses.toLocaleString()}`}                  color={Colors.expense} indent />
-                                <StatRow label="EBIT"              value={`${enhPnL.ebit >= 0 ? '+' : ''}${currency}${enhPnL.ebit.toLocaleString()}`} color={enhPnL.ebit >= 0 ? Colors.income : Colors.expense} bold />
-                                <StatRow label="  EBIT Margin"     value={`${enhPnL.ebitMargin.toFixed(1)}%`}                                    color={Colors.textMuted} indent />
-                                <StatRow label="  Depreciation & Amortisation" value={`+${currency}${enhPnL.depreciation.toLocaleString()}`}     color={Colors.textMuted} indent />
-                                <StatRow label="EBITDA"            value={`${enhPnL.ebitda >= 0 ? '+' : ''}${currency}${enhPnL.ebitda.toLocaleString()}`} color={enhPnL.ebitda >= 0 ? Colors.income : Colors.expense} bold />
-                                <StatRow label="Net Profit"        value={`${enhPnL.netProfit >= 0 ? '+' : ''}${currency}${enhPnL.netProfit.toLocaleString()}`} color={enhPnL.netProfit >= 0 ? Colors.income : Colors.expense} bold />
-                                <StatRow label="Net Margin"        value={`${enhPnL.netMargin.toFixed(1)}%`}                                     color={enhPnL.netMargin >= parseFloat(targetMargin) ? Colors.income : Colors.expense} />
-                                <StatRow label="Target Margin"     value={`${targetMargin}%`}                                                     color={Colors.textMuted} />
-                                <StatRow label="Tax Collected"     value={`${currency}${finance.totalTaxCollected.toLocaleString()}`}             color={Colors.warning} />
-                                <StatRow label="Tax Paid"          value={`${currency}${finance.totalTaxPaid.toLocaleString()}`}                  color={Colors.warning} />
+                                <StatRow label="Total Sales"                          value={`${currency}${enhPnL.revenue.toLocaleString()}`}                                           color={Colors.income} />
+                                <StatRow label="  Direct Costs (materials, delivery, production)" value={`-${currency}${enhPnL.cogs.toLocaleString()}`}               color={Colors.expense} indent />
+                                <StatRow label="Sales Profit"                         value={`${currency}${enhPnL.grossProfit.toLocaleString()}`}                                  color={enhPnL.grossProfit >= 0 ? Colors.income : Colors.expense} bold />
+                                <StatRow label="  Sales Profit %"                     value={`${enhPnL.grossMargin.toFixed(1)}%`}                                                   color={Colors.textMuted} indent />
+                                <StatRow label="  Overheads (rent, salaries, admin)"  value={`-${currency}${enhPnL.sgaExpenses.toLocaleString()}`}                                  color={Colors.expense} indent />
+                                <StatRow label="Operating Profit"                     value={`${enhPnL.ebit >= 0 ? '+' : ''}${currency}${enhPnL.ebit.toLocaleString()}`}           color={enhPnL.ebit >= 0 ? Colors.income : Colors.expense} bold />
+                                <StatRow label="  Operating Profit %"                 value={`${enhPnL.ebitMargin.toFixed(1)}%`}                                                    color={Colors.textMuted} indent />
+                                <StatRow label="  Add Back: Asset Wear & Tear (non-cash)" value={`+${currency}${enhPnL.depreciation.toLocaleString()}`}                           color={Colors.textMuted} indent />
+                                <StatRow label="Cash Operating Profit"                value={`${enhPnL.ebitda >= 0 ? '+' : ''}${currency}${enhPnL.ebitda.toLocaleString()}`}      color={enhPnL.ebitda >= 0 ? Colors.income : Colors.expense} bold />
+                                <StatRow label="Net Profit (Bottom Line)"             value={`${enhPnL.netProfit >= 0 ? '+' : ''}${currency}${enhPnL.netProfit.toLocaleString()}`} color={enhPnL.netProfit >= 0 ? Colors.income : Colors.expense} bold />
+                                <StatRow label="Net Profit %"                         value={`${enhPnL.netMargin.toFixed(1)}%`}                                                    color={enhPnL.netMargin >= parseFloat(targetMargin) ? Colors.income : Colors.expense} />
+                                <StatRow label="Your Profit Target"                   value={`${targetMargin}%`}                                                                    color={Colors.textMuted} />
+                                <StatRow label="Tax Added to Customer Bills"          value={`${currency}${finance.totalTaxCollected.toLocaleString()}`}                           color={Colors.warning} />
+                                <StatRow label="Tax You Have Paid"                    value={`${currency}${finance.totalTaxPaid.toLocaleString()}`}                                color={Colors.warning} />
                             </View>
 
                             <View style={styles.card}>
-                                <Text style={styles.cardTitle}>Working Capital</Text>
-                                <StatRow label="Accounts Receivable"  value={`${currency}${wcMetrics.accountsReceivable.toLocaleString()}`}  color={Colors.income} />
-                                <StatRow label="Accounts Payable"     value={`${currency}${wcMetrics.accountsPayable.toLocaleString()}`}     color={Colors.liability} />
-                                <StatRow label="Net Working Capital"  value={`${currency}${wcMetrics.netWorkingCapital.toLocaleString()}`}   color={wcMetrics.netWorkingCapital >= 0 ? Colors.income : Colors.expense} bold />
-                                <StatRow label="DSO (Days Sales Outstanding)" value={`${wcMetrics.dso.toFixed(0)} days`}                    color={Colors.textSecondary} />
-                                <StatRow label="DPO (Days Payable Outstanding)" value={`${wcMetrics.dpo.toFixed(0)} days`}                  color={Colors.textSecondary} />
-                                <StatRow label="CCC (Cash Conversion Cycle)" value={`${wcMetrics.ccc.toFixed(0)} days`}                     color={wcMetrics.ccc <= 30 ? Colors.income : wcMetrics.ccc <= 60 ? Colors.warning : Colors.expense} />
+                                <Text style={styles.cardTitle}>Cash Flow Health</Text>
+                                <StatRow label="Customers Who Owe You"              value={`${currency}${wcMetrics.accountsReceivable.toLocaleString()}`}  color={Colors.income} />
+                                <StatRow label="Suppliers You Still Owe"            value={`${currency}${wcMetrics.accountsPayable.toLocaleString()}`}     color={Colors.liability} />
+                                <StatRow label="Cash Buffer (Owed to you − You owe)" value={`${currency}${wcMetrics.netWorkingCapital.toLocaleString()}`}  color={wcMetrics.netWorkingCapital >= 0 ? Colors.income : Colors.expense} bold />
+                                <StatRow label="Avg. Days to Get Paid"              value={`${wcMetrics.dso.toFixed(0)} days`}                            color={Colors.textSecondary} />
+                                <StatRow label="Avg. Days You Take to Pay Suppliers" value={`${wcMetrics.dpo.toFixed(0)} days`}                           color={Colors.textSecondary} />
+                                <StatRow label="Days Your Cash Is Tied Up"          value={`${wcMetrics.ccc.toFixed(0)} days`}                            color={wcMetrics.ccc <= 30 ? Colors.income : wcMetrics.ccc <= 60 ? Colors.warning : Colors.expense} />
                             </View>
 
                             <MonthlyChart trend={trend} currency={currency} />
@@ -310,6 +288,154 @@ export default function ReportsScreen() {
         </SafeAreaView>
     );
 }
+
+// ─── Balance Sheet Tab ─────────────────────────────────────────────────────────
+
+function BalanceSheetTab({ finance, wcMetrics, assets, settings, updateSettings, currency, bizSize }: {
+    finance: any; wcMetrics: any; assets: any[]; settings: any;
+    updateSettings: (s: any) => void; currency: string; bizSize: any;
+}) {
+    const [openingAssets,     setOpeningAssets]     = useState(settings.openingAssets);
+    const [openingLiabilities,setOpeningLiabilities]= useState(settings.openingLiabilities);
+    const [openingLoans,      setOpeningLoans]       = useState(settings.openingLoans || '0');
+    const [openingOtherAssets,setOpeningOtherAssets]= useState(settings.openingOtherAssets || '0');
+    const [editing, setEditing] = useState(false);
+
+    const save = () => {
+        updateSettings({ ...settings, openingAssets, openingLiabilities, openingLoans, openingOtherAssets });
+        setEditing(false);
+    };
+
+    const registeredAssetValue = assets
+        .filter(a => a.status === 'active')
+        .reduce((sum, a) => {
+            const yr  = (Date.now() - new Date(a.purchaseDate).getTime()) / (1000 * 60 * 60 * 24 * 365);
+            const dep = Math.min(yr * (a.purchaseCost - a.residualValue) / a.usefulLifeYears, a.purchaseCost - a.residualValue);
+            return sum + Math.max(a.residualValue, a.purchaseCost - dep);
+        }, 0);
+
+    const manualAssets    = parseFloat(openingAssets) || 0;
+    const otherAssets     = parseFloat(openingOtherAssets) || 0;
+    const manualLiab      = parseFloat(openingLiabilities) || 0;
+    const loans           = parseFloat(openingLoans) || 0;
+    const currentAssets   = finance.cashBalance + wcMetrics.accountsReceivable;
+    const totalAssets     = currentAssets + registeredAssetValue + manualAssets + otherAssets;
+    const totalLiab       = wcMetrics.accountsPayable + manualLiab + loans;
+    const equity          = totalAssets - totalLiab;
+
+    const InputRow = ({ label, hint, value, onChange }: { label: string; hint: string; value: string; onChange: (v: string) => void }) => (
+        <View style={bsStyles.inputRow}>
+            <View style={bsStyles.inputLabelCol}>
+                <Text style={bsStyles.inputLabel}>{label}</Text>
+                <Text style={bsStyles.inputHint}>{hint}</Text>
+            </View>
+            <View style={bsStyles.inputWrap}>
+                <Text style={bsStyles.currencyPrefix}>{currency}</Text>
+                <TextInput
+                    style={bsStyles.input}
+                    value={value}
+                    onChangeText={onChange}
+                    keyboardType="decimal-pad"
+                    placeholder="0"
+                    placeholderTextColor={Colors.textMuted}
+                />
+            </View>
+        </View>
+    );
+
+    return (
+        <View>
+            <View style={styles.card}>
+                <View style={styles.cardHeaderRow}>
+                    <Text style={styles.cardTitle}>Balance Sheet</Text>
+                    <Text style={styles.sizeBadge}>{sizeLabel(bizSize)}</Text>
+                </View>
+
+                <SectionHeader label="WHAT YOU OWN (ASSETS)" />
+                <StatRow label="Cash on Hand"                       value={`${currency}${finance.cashBalance.toLocaleString()}`}              color={Colors.income} />
+                <StatRow label="  Money Owed to You by Customers"   value={`${currency}${wcMetrics.accountsReceivable.toLocaleString()}`}     color={Colors.income} indent />
+                <StatRow label="Short-Term Assets Total"            value={`${currency}${currentAssets.toLocaleString()}`}                   color={Colors.asset} bold />
+                <StatRow label="  Equipment & Property (Asset Register)" value={`${currency}${registeredAssetValue.toLocaleString()}`}       color={Colors.asset} indent />
+                <StatRow label="  Equipment & Property (Manual Entry)"   value={`${currency}${manualAssets.toLocaleString()}`}               color={Colors.asset} indent />
+                <StatRow label="  Other Assets You Own"             value={`${currency}${otherAssets.toLocaleString()}`}                     color={Colors.asset} indent />
+                <StatRow label="Everything You Own"                 value={`${currency}${totalAssets.toLocaleString()}`}                     color={Colors.asset} bold />
+
+                <SectionHeader label="WHAT YOU OWE (DEBTS)" />
+                <StatRow label="  Bills Owed to Suppliers"          value={`${currency}${wcMetrics.accountsPayable.toLocaleString()}`}       color={Colors.liability} indent />
+                <StatRow label="  Bank Loans & Other Debt"          value={`${currency}${loans.toLocaleString()}`}                          color={Colors.liability} indent />
+                <StatRow label="  Other Amounts Owed"               value={`${currency}${manualLiab.toLocaleString()}`}                     color={Colors.liability} indent />
+                <StatRow label="Everything You Owe"                 value={`${currency}${totalLiab.toLocaleString()}`}                      color={Colors.liability} bold />
+
+                <SectionHeader label="YOUR BUSINESS VALUE" />
+                <StatRow label="Net Worth (Assets − Debts)"         value={`${currency}${equity.toLocaleString()}`}                         color={equity >= 0 ? Colors.equity : Colors.expense} bold />
+                <StatRow label="Day-to-Day Cash Buffer"             value={`${currency}${wcMetrics.netWorkingCapital.toLocaleString()}`}     color={wcMetrics.netWorkingCapital >= 0 ? Colors.income : Colors.expense} />
+
+                <TouchableOpacity style={bsStyles.editBtn} onPress={() => setEditing(e => !e)}>
+                    <Text style={bsStyles.editBtnText}>{editing ? 'Cancel' : 'Edit Manual Values'}</Text>
+                </TouchableOpacity>
+
+                {editing && (
+                    <View style={bsStyles.editPanel}>
+                        <Text style={bsStyles.editTitle}>Enter Your Known Values</Text>
+                        <InputRow
+                            label="Equipment & Property"
+                            hint="Value of buildings, machinery, vehicles you own (not in Asset Register)"
+                            value={openingAssets}
+                            onChange={setOpeningAssets}
+                        />
+                        <InputRow
+                            label="Other Assets"
+                            hint="Investments, stock/inventory, deposits, prepaid expenses"
+                            value={openingOtherAssets}
+                            onChange={setOpeningOtherAssets}
+                        />
+                        <InputRow
+                            label="Bank Loans & Debt"
+                            hint="Total outstanding loan balances, overdrafts, credit lines"
+                            value={openingLoans}
+                            onChange={setOpeningLoans}
+                        />
+                        <InputRow
+                            label="Other Amounts Owed"
+                            hint="Tax owed, accrued expenses, any other debts not listed above"
+                            value={openingLiabilities}
+                            onChange={setOpeningLiabilities}
+                        />
+                        <TouchableOpacity style={bsStyles.saveBtn} onPress={save}>
+                            <Text style={bsStyles.saveBtnText}>Save Changes</Text>
+                        </TouchableOpacity>
+                        <Text style={bsStyles.editNote}>
+                            Tip: Figures from your transactions (cash, customer invoices, supplier bills) are filled in automatically. Only enter values that are not tracked as transactions.
+                        </Text>
+                    </View>
+                )}
+            </View>
+
+            <KpiRow items={[
+                { label: 'Sales',    value: `${currency}${finance.income.toLocaleString()}`,  color: Colors.income },
+                { label: 'Costs',    value: `${currency}${finance.expense.toLocaleString()}`, color: Colors.expense },
+                { label: 'Profit',   value: `${currency}${finance.profit.toLocaleString()}`,  color: finance.profit >= 0 ? Colors.income : Colors.expense },
+            ]} />
+        </View>
+    );
+}
+
+const bsStyles = StyleSheet.create({
+    editBtn:      { marginTop: 14, paddingVertical: 8, alignItems: 'center', borderRadius: 8, borderWidth: 1, borderColor: Colors.primary },
+    editBtnText:  { fontSize: 13, color: Colors.primary, fontWeight: '600' },
+    editPanel:    { marginTop: 12, backgroundColor: Colors.bg, borderRadius: 10, padding: 12 },
+    editTitle:    { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: 10 },
+    inputRow:     { marginBottom: 12 },
+    inputLabelCol:{ marginBottom: 4 },
+    inputLabel:   { fontSize: 13, fontWeight: '600', color: Colors.textPrimary },
+    inputHint:    { fontSize: 11, color: Colors.textMuted, marginTop: 1 },
+    inputWrap:    { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 10 },
+    currencyPrefix: { fontSize: 14, color: Colors.textMuted, marginRight: 4 },
+    input:        { flex: 1, paddingVertical: 10, fontSize: 14, color: Colors.textPrimary },
+    saveBtn:      { backgroundColor: Colors.primary, borderRadius: 8, paddingVertical: 12, alignItems: 'center', marginTop: 4, marginBottom: 8 },
+    saveBtnText:  { fontSize: 14, color: Colors.textPrimary, fontWeight: 'bold' },
+    editNote:     { fontSize: 11, color: Colors.textMuted, fontStyle: 'italic', lineHeight: 16 },
+});
 
 // ─── Helper components ─────────────────────────────────────────────────────────
 
