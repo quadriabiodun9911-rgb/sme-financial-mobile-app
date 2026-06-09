@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Transaction, BusinessSettings, FinancialGoal } from '../types';
+import { Transaction, BusinessSettings, FinancialGoal, Invoice } from '../types';
 import { supabase } from './supabase';
 
 const KEYS = {
@@ -8,6 +8,7 @@ const KEYS = {
     goals:        '@financebook/goals',
     pin:          '@financebook/pin',
     profile:      '@financebook/profile',
+    invoices:     '@financebook/invoices',
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -116,6 +117,43 @@ export async function loadGoals(): Promise<FinancialGoal[] | null> {
     }
     const raw = await AsyncStorage.getItem(KEYS.goals);
     return raw ? (JSON.parse(raw) as FinancialGoal[]) : null;
+}
+
+// ─── Invoices ─────────────────────────────────────────────────────────────────
+export async function saveInvoices(invoices: Invoice[]): Promise<void> {
+    await AsyncStorage.setItem(KEYS.invoices, JSON.stringify(invoices));
+    const userId = await getUserId();
+    if (!userId) return;
+    if (invoices.length > 0) {
+        const rows = invoices.map(inv => ({ id: inv.id, user_id: userId, data: inv, updated_at: new Date().toISOString() }));
+        await supabase.from('invoices').upsert(rows, { onConflict: 'id' });
+    }
+    const { data: remote } = await supabase.from('invoices').select('id').eq('user_id', userId);
+    if (remote) {
+        const localIds = new Set(invoices.map(inv => inv.id));
+        const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
+        if (toDelete.length > 0) {
+            await supabase.from('invoices').delete().in('id', toDelete);
+        }
+    }
+}
+
+export async function loadInvoices(): Promise<Invoice[] | null> {
+    const userId = await getUserId();
+    if (userId) {
+        const { data, error } = await supabase
+            .from('invoices')
+            .select('data')
+            .eq('user_id', userId)
+            .order('updated_at', { ascending: false });
+        if (!error && data && data.length > 0) {
+            const invoices = data.map(r => r.data as Invoice);
+            await AsyncStorage.setItem(KEYS.invoices, JSON.stringify(invoices));
+            return invoices;
+        }
+    }
+    const raw = await AsyncStorage.getItem(KEYS.invoices);
+    return raw ? (JSON.parse(raw) as Invoice[]) : null;
 }
 
 // ─── PIN (local only — never sent to server) ──────────────────────────────────

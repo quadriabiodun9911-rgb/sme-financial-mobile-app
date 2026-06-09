@@ -1,11 +1,12 @@
 import React, { createContext, useContext, useState, useMemo, useEffect, ReactNode } from 'react';
-import { Transaction, FinanceData, User, BusinessSettings, Screen, FinancialGoal, GoalType, NavParams } from '../types';
+import { Transaction, FinanceData, User, BusinessSettings, Screen, FinancialGoal, GoalType, NavParams, Invoice, InvoiceStatus } from '../types';
 import { computeFinance, computeOneThingInsight, computeRecurringDates } from '../utils/finance';
 import { generateId } from '../utils/uuid';
 import {
     saveTransactions, loadTransactions,
     saveSettings, loadSettings,
     saveGoals, loadGoals,
+    saveInvoices, loadInvoices,
     savePin, loadPin,
     saveProfile, loadProfile,
     exportAllData, importAllData, clearAllData,
@@ -40,6 +41,12 @@ interface AppContextValue {
     addGoal: (type: GoalType, overrides: Partial<FinancialGoal>) => void;
     deleteGoal: (id: string) => void;
     updateGoalCurrentValue: (id: string, value: number) => void;
+
+    invoices: Invoice[];
+    addInvoice: (inv: Omit<Invoice, 'id' | 'createdAt'>) => void;
+    updateInvoice: (id: string, patch: Partial<Invoice>) => void;
+    deleteInvoice: (id: string) => void;
+    markInvoiceStatus: (id: string, status: InvoiceStatus) => void;
 
     finance: FinanceData;
     insight: ReturnType<typeof computeOneThingInsight>;
@@ -143,16 +150,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const [settings, setSettings]           = useState<BusinessSettings>(DEFAULT_SETTINGS);
     const [transactions, setTransactions]   = useState<Transaction[]>([]);
     const [goals, setGoals]                 = useState<FinancialGoal[]>([]);
+    const [invoices, setInvoices]           = useState<Invoice[]>([]);
     const [isLoading, setIsLoading]         = useState(true);
 
     // Load persisted data on mount
     useEffect(() => {
         (async () => {
             try {
-                const [savedTx, savedSettings, savedGoals, pin, profile] = await Promise.all([
+                const [savedTx, savedSettings, savedGoals, savedInvoices, pin, profile] = await Promise.all([
                     loadTransactions(),
                     loadSettings(),
                     loadGoals(),
+                    loadInvoices(),
                     loadPin(),
                     loadProfile(),
                 ]);
@@ -165,6 +174,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 }
                 if (savedSettings) setSettings({ ...DEFAULT_SETTINGS, ...savedSettings });
                 if (savedGoals) setGoals(savedGoals);
+                if (savedInvoices) setInvoices(savedInvoices);
 
                 // If PIN exists and profile exists, pre-populate user so login only needs PIN
                 if (pin && profile) {
@@ -179,6 +189,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     useEffect(() => { if (!isLoading) saveTransactions(transactions).catch(() => {}); }, [transactions, isLoading]);
     useEffect(() => { if (!isLoading) saveSettings(settings).catch(() => {}); }, [settings, isLoading]);
     useEffect(() => { if (!isLoading) saveGoals(goals).catch(() => {}); }, [goals, isLoading]);
+    useEffect(() => { if (!isLoading) saveInvoices(invoices).catch(() => {}); }, [invoices, isLoading]);
 
     const finance = useMemo(() => computeFinance(transactions, settings), [transactions, settings]);
     const insight = useMemo(() => computeOneThingInsight(finance, settings), [finance, settings]);
@@ -308,6 +319,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }));
     };
 
+    const addInvoice = (inv: Omit<Invoice, 'id' | 'createdAt'>) => {
+        const now = new Date().toISOString().split('T')[0];
+        const item: Invoice = { ...inv, id: generateId(), createdAt: now };
+        setInvoices(prev => [item, ...prev]);
+        // Auto-create a pending income transaction
+        addTransaction({
+            description: `Invoice ${inv.invoiceNumber} – ${inv.clientName}`,
+            type: 'income',
+            category: 'Invoice',
+            amount: inv.total,
+            status: 'pending',
+            dueDate: inv.dueDate,
+            vendorCustomer: inv.clientName,
+            reference: inv.invoiceNumber,
+        });
+    };
+
+    const updateInvoice = (id: string, patch: Partial<Invoice>) =>
+        setInvoices(prev => prev.map(inv => inv.id === id ? { ...inv, ...patch } : inv));
+
+    const deleteInvoice = (id: string) => setInvoices(prev => prev.filter(inv => inv.id !== id));
+
+    const markInvoiceStatus = (id: string, status: InvoiceStatus) => {
+        setInvoices(prev => prev.map(inv => inv.id === id ? { ...inv, status } : inv));
+        // If marked paid, update the matching transaction to paid
+        if (status === 'paid') {
+            const inv = invoices.find(i => i.id === id);
+            if (inv) {
+                const match = transactions.find(t => t.reference === inv.invoiceNumber && t.type === 'income');
+                if (match) updateTransaction(match.id, { status: 'paid' });
+            }
+        }
+    };
+
     const exportData = () => exportAllData(transactions, settings, goals);
 
     const importData = async (json: string) => {
@@ -333,6 +378,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         settings, updateSettings,
         transactions, addTransaction, deleteTransaction, updateTransaction,
         goals, addGoal, deleteGoal, updateGoalCurrentValue,
+        invoices, addInvoice, updateInvoice, deleteInvoice, markInvoiceStatus,
         finance, insight, isLoading,
         exportData, importData, clearData,
     };

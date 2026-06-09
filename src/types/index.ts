@@ -5,7 +5,8 @@ export type Screen =
     | 'transactions'
     | 'insights'
     | 'settings'
-    | 'goals';
+    | 'goals'
+    | 'invoices';
 
 export type ReportTab =
     | 'balancesheet'
@@ -134,4 +135,30 @@ export interface AgingBucket {
     label: string;
     transactions: Transaction[];
     total: number;
+}
+
+export type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'overdue';
+
+export interface InvoiceLineItem {
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    taxRate: number;
+}
+
+export interface Invoice {
+    id: string;
+    invoiceNumber: string;
+    clientName: string;
+    clientEmail: string;
+    clientAddress: string;
+    issueDate: string;
+    dueDate: string;
+    lineItems: InvoiceLineItem[];
+    notes: string;
+    status: InvoiceStatus;
+    subtotal: number;
+    taxTotal: number;
+    total: number;
+    createdAt: string;
 }

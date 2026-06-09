@@ -5,11 +5,11 @@ import { Colors } from '../theme/colors';
 import { Screen } from '../types';
 
 const TABS: { label: string; screen: Screen; icon: string }[] = [
-    { label: 'Dashboard', screen: 'dashboard', icon: '⬛' },
-    { label: 'Reports', screen: 'reports', icon: '📊' },
-    { label: 'Ledger', screen: 'transactions', icon: '📒' },
-    { label: 'Goals', screen: 'goals', icon: '🎯' },
-    { label: 'Insights', screen: 'insights', icon: '💡' },
+    { label: 'Dashboard', screen: 'dashboard',   icon: '⬛' },
+    { label: 'Reports',   screen: 'reports',     icon: '📊' },
+    { label: 'Invoices',  screen: 'invoices',    icon: '🧾' },
+    { label: 'Ledger',    screen: 'transactions', icon: '📒' },
+    { label: 'Goals',     screen: 'goals',       icon: '🎯' },
 ];
 
 export default function FooterNav() {
