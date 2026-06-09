@@ -12,6 +12,7 @@ import {
     AppBackup,
 } from '../utils/storage';
 import { refreshGoal, goalDefaults } from '../utils/goals';
+import { supabase } from '../utils/supabase';
 
 interface AppContextValue {
     currentScreen: Screen;
@@ -193,8 +194,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setCurrentScreen(s);
     };
 
-    // First launch: set up PIN, profile, and optionally load demo data
+    // First launch: create Supabase account, save PIN locally, optionally load demo data
     const setupAccount = async (email: string, businessName: string, pin: string, loadDemo: boolean) => {
+        // Sign up with Supabase — password is the PIN (we handle PIN UX ourselves)
+        const { error } = await supabase.auth.signUp({ email, password: pin });
+        if (error && error.message !== 'User already registered') {
+            throw new Error(error.message);
+        }
+        if (error?.message === 'User already registered') {
+            // Account exists — sign in instead
+            const { error: signInError } = await supabase.auth.signInWithPassword({ email, password: pin });
+            if (signInError) throw new Error('Account exists but PIN is incorrect.');
+        }
         await savePin(pin);
         await saveProfile({ email, businessName });
         setStoredPin(pin);
@@ -205,19 +216,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setCurrentScreen('dashboard');
     };
 
-    // Return login: validate PIN
+    // Return login: validate PIN locally, then sign in to Supabase for sync
     const login = (pin: string): boolean => {
         if (pin !== storedPin) return false;
+        // Fire-and-forget Supabase sign-in for cloud sync (non-blocking)
+        loadProfile().then(profile => {
+            if (profile) {
+                supabase.auth.signInWithPassword({ email: profile.email, password: pin }).catch(() => {});
+            }
+        });
         setCurrentScreen('dashboard');
         return true;
     };
 
-    const logout = () => { setCurrentScreen('login'); };
+    const logout = () => {
+        supabase.auth.signOut().catch(() => {});
+        setCurrentScreen('login');
+    };
 
     const changePin = (currentPin: string, newPin: string): boolean => {
         if (currentPin !== storedPin) return false;
         setStoredPin(newPin);
         savePin(newPin).catch(() => {});
+        // Update Supabase password to keep auth in sync
+        supabase.auth.updateUser({ password: newPin }).catch(() => {});
         return true;
     };
 
