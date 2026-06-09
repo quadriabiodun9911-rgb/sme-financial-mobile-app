@@ -146,6 +146,47 @@ export function computeRecurringDates(
     return d.toISOString().split('T')[0];
 }
 
+export type ReportPeriod = 'month' | 'quarter' | 'year' | 'all';
+
+export function filterByPeriod(transactions: Transaction[], period: ReportPeriod): Transaction[] {
+    if (period === 'all') return transactions;
+    const now = new Date();
+    const cutoff = new Date(now);
+    if (period === 'month') cutoff.setMonth(now.getMonth() - 1);
+    else if (period === 'quarter') cutoff.setMonth(now.getMonth() - 3);
+    else cutoff.setFullYear(now.getFullYear() - 1);
+    const cutoffStr = cutoff.toISOString().split('T')[0];
+    return transactions.filter(t => t.date >= cutoffStr);
+}
+
+export interface MonthlyPoint {
+    label: string;   // e.g. "Jan"
+    income: number;
+    expense: number;
+    profit: number;
+}
+
+export function computeMonthlyTrend(transactions: Transaction[], months = 6): MonthlyPoint[] {
+    const now = new Date();
+    const points: MonthlyPoint[] = [];
+    for (let i = months - 1; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const yr = d.getFullYear();
+        const mo = d.getMonth(); // 0-based
+        const prefix = `${yr}-${String(mo + 1).padStart(2, '0')}`;
+        const monthTx = transactions.filter(t => t.date.startsWith(prefix));
+        const income = monthTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+        const expense = monthTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+        points.push({
+            label: d.toLocaleString('default', { month: 'short' }),
+            income,
+            expense,
+            profit: income - expense,
+        });
+    }
+    return points;
+}
+
 export function transactionsToCSV(transactions: Transaction[]): string {
     const headers = [
         'ID', 'Date', 'Description', 'Type', 'Category', 'Amount',
