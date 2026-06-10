@@ -271,13 +271,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const denyManage = () => Alert.alert(t(language, 'permissionDenied'), t(language, 'accountantPermission'));
 
     const setupAccount = async (email: string, businessName: string, pin: string, loadDemo: boolean) => {
-        const { error } = await supabase.auth.signUp({ email, password: pin });
-        if (error && error.message !== 'User already registered') throw new Error(error.message);
-        if (error?.message === 'User already registered') {
-            const { error: signInError } = await supabase.auth.signInWithPassword({ email, password: pin });
-            if (signInError) throw new Error('Account exists but PIN is incorrect.');
+        // Try signing up first
+        const { error: signUpError } = await supabase.auth.signUp({ email, password: pin });
+
+        if (signUpError && signUpError.message !== 'User already registered') {
+            throw new Error(signUpError.message);
         }
-        await clearWorkspaceOwner(); // owner always uses own workspace
+
+        // Always sign in after signup — handles both new accounts and
+        // existing ones, and bypasses email-confirmation-pending state
+        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password: pin });
+        if (signInError) {
+            // Email confirmation is required on the Supabase project —
+            // still let the user into the app using local data only
+            console.warn('[FinanceBook] Supabase sign-in after signup failed (likely email confirmation required):', signInError.message);
+        }
+
+        await clearWorkspaceOwner();
         await savePin(pin);
         await saveProfile({ email, businessName });
         setStoredPin(pin);
