@@ -6,6 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
+    "owner": "songhao",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
@@ -51,7 +52,6 @@
     "runtimeVersion": {
       "policy": "appVersion"
     },
-    "owner": "quadriabiodun9911",
     "extra": {
       "eas": {
         "projectId": "5577b2eb-04eb-4a01-bfad-6412b3cf1e29"
