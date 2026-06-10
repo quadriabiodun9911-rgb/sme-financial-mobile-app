@@ -271,20 +271,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const denyManage = () => Alert.alert(t(language, 'permissionDenied'), t(language, 'accountantPermission'));
 
     const setupAccount = async (email: string, businessName: string, pin: string, loadDemo: boolean) => {
-        // Try signing up first
-        const { error: signUpError } = await supabase.auth.signUp({ email, password: pin });
-
-        if (signUpError && signUpError.message !== 'User already registered') {
-            throw new Error(signUpError.message);
-        }
-
-        // Always sign in after signup — handles both new accounts and
-        // existing ones, and bypasses email-confirmation-pending state
-        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password: pin });
-        if (signInError) {
-            // Email confirmation is required on the Supabase project —
-            // still let the user into the app using local data only
-            console.warn('[FinanceBook] Supabase sign-in after signup failed (likely email confirmation required):', signInError.message);
+        // Supabase auth is best-effort — never block registration if it fails
+        try {
+            const { error: signUpError } = await supabase.auth.signUp({ email, password: pin });
+            if (!signUpError || signUpError.message === 'User already registered') {
+                await supabase.auth.signInWithPassword({ email, password: pin }).catch(() => {});
+            }
+        } catch {
+            // Network error or Supabase down — continue with local storage
         }
 
         await clearWorkspaceOwner();
@@ -293,8 +287,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setStoredPin(pin);
         setHasProfile(true);
         setUserRole('owner');
-        setUser({ email, businessName, role: 'Administrator' });
         if (loadDemo) setTransactions(DEMO_TRANSACTIONS);
+        setUser({ email, businessName, role: 'Administrator' });
         setCurrentScreen('dashboard');
     };
 
