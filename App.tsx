@@ -1,5 +1,5 @@
 import React from 'react';
-import { View } from 'react-native';
+import { View, ActivityIndicator } from 'react-native';
 import { AppProvider, useApp } from './src/contexts/AppContext';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import LoginScreen from './src/screens/LoginScreen';
@@ -13,7 +13,15 @@ import InvoicesScreen from './src/screens/InvoicesScreen';
 import AssetsScreen from './src/screens/AssetsScreen';
 
 function Navigator() {
-    const { currentScreen } = useApp();
+    const { currentScreen, isLoading } = useApp();
+
+    if (isLoading) {
+        return (
+            <View style={{ flex: 1, backgroundColor: '#0f172a', justifyContent: 'center', alignItems: 'center' }}>
+                <ActivityIndicator size="large" color="#3b82f6" />
+            </View>
+        );
+    }
 
     return (
         <View style={{ flex: 1 }}>

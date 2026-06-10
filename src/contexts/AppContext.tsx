@@ -175,6 +175,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const [user, setUser]                   = useState<User | null>(null);
     const [userRole, setUserRole]           = useState<UserRole>('owner');
     const [storedPin, setStoredPin]         = useState<string | null>(null);
+    const [hasProfile, setHasProfile]       = useState(false);
     const [settings, setSettings]           = useState<BusinessSettings>(DEFAULT_SETTINGS);
     const [transactions, setTransactions]   = useState<Transaction[]>([]);
     const [goals, setGoals]                 = useState<FinancialGoal[]>([]);
@@ -208,6 +209,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 ]);
                 setLang(lang);
                 if (pin) setStoredPin(pin);
+                if (profile) setHasProfile(true);
                 if (savedTx) {
                     const { updated, newEntries } = processDueRecurring(savedTx);
                     setTransactions([...newEntries, ...updated]);
@@ -277,6 +279,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         await savePin(pin);
         await saveProfile({ email, businessName });
         setStoredPin(pin);
+        setHasProfile(true);
         setUserRole('owner');
         setUser({ email, businessName, role: 'Administrator' });
         if (loadDemo) setTransactions(DEMO_TRANSACTIONS);
@@ -487,7 +490,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         currentScreen, setCurrentScreen,
         navParams, navigate,
         user, userRole,
-        isFirstLaunch: storedPin === null && !isLoading,
+        isFirstLaunch: !hasProfile && !isLoading,
         setupAccount, login, joinTeam, logout, changePin,
         settings, updateSettings,
         transactions, addTransaction, deleteTransaction, updateTransaction,
