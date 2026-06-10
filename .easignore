@@ -15,7 +15,6 @@ jest.config.*
 
 # Docs
 *.md
-financial-planning/
 
 # CI/editor
 .github/
