@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
     TouchableOpacity, StyleSheet, Alert,
@@ -21,6 +21,10 @@ type Mode = 'owner-setup' | 'owner-login' | 'join-team';
 export default function LoginScreen() {
     const { isFirstLaunch, setupAccount, login, joinTeam, language, setLanguage, updateSettings } = useApp();
     const [mode, setMode] = useState<Mode>(isFirstLaunch ? 'owner-setup' : 'owner-login');
+
+    useEffect(() => {
+        setMode(isFirstLaunch ? 'owner-setup' : 'owner-login');
+    }, [isFirstLaunch]);
 
     // Owner setup
     const [email, setEmail]         = useState('');
