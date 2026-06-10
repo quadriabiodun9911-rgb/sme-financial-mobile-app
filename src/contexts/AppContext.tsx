@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useMemo, useEffect, useRef, ReactNode } from 'react';
 import { Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Transaction, FinanceData, User, BusinessSettings, Screen, FinancialGoal, GoalType, NavParams, Invoice, InvoiceStatus, TeamMember, UserRole, Language, Asset } from '../types';
 import { computeFinance, computeOneThingInsight, computeRecurringDates, computeAssetCurrentValue } from '../utils/finance';
 import { generateId } from '../utils/uuid';
@@ -79,6 +80,7 @@ interface AppContextValue {
     exportData: () => Promise<string>;
     importData: (json: string) => Promise<void>;
     clearData: () => Promise<void>;
+    resetApp: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -486,6 +488,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setTransactions([]); setGoals([]); setSettings(DEFAULT_SETTINGS); setInvoices([]); setAssets([]);
     };
 
+    const resetApp = async () => {
+        await clearAllData();
+        await savePin('').catch(() => {});
+        await AsyncStorage.multiRemove(['@financebook/pin', '@financebook/profile', '@financebook/language', '@financebook/workspaceOwner']);
+        await supabase.auth.signOut().catch(() => {});
+        setStoredPin(null);
+        setHasProfile(false);
+        setUser(null);
+        setUserRole('owner');
+        setTransactions([]);
+        setGoals([]);
+        setSettings(DEFAULT_SETTINGS);
+        setInvoices([]);
+        setAssets([]);
+        setCurrentScreen('login');
+    };
+
     const value: AppContextValue = {
         currentScreen, setCurrentScreen,
         navParams, navigate,
@@ -500,7 +519,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         teamMembers, inviteMember, removeMember, refreshTeam,
         language, setLanguage,
         finance, insight, isLoading,
-        exportData, importData, clearData,
+        exportData, importData, clearData, resetApp,
     };
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

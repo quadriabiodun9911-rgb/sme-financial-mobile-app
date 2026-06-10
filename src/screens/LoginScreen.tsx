@@ -19,7 +19,7 @@ const CURRENCIES = [
 type Mode = 'owner-setup' | 'owner-login' | 'join-team';
 
 export default function LoginScreen() {
-    const { isFirstLaunch, setupAccount, login, joinTeam, language, setLanguage, updateSettings } = useApp();
+    const { isFirstLaunch, setupAccount, login, joinTeam, language, setLanguage, updateSettings, resetApp } = useApp();
     const [mode, setMode] = useState<Mode>(isFirstLaunch ? 'owner-setup' : 'owner-login');
 
     useEffect(() => {
@@ -225,6 +225,18 @@ export default function LoginScreen() {
                     <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('join-team')}>
                         <Text style={styles.switchText}>{t(language, 'joiningTeam')}</Text>
                     </TouchableOpacity>
+                    <TouchableOpacity style={styles.resetBtn} onPress={() => {
+                        Alert.alert(
+                            'Start Fresh?',
+                            'This will erase all local data and let you register a new account. Cloud data is not deleted.',
+                            [
+                                { text: 'Cancel', style: 'cancel' },
+                                { text: 'Start Fresh', style: 'destructive', onPress: () => resetApp() },
+                            ]
+                        );
+                    }}>
+                        <Text style={styles.resetText}>Forgot PIN / Start Fresh</Text>
+                    </TouchableOpacity>
                 </View>
             </ScrollView>
         </SafeAreaView>
@@ -289,4 +301,6 @@ const styles = StyleSheet.create({
     btnText:    { color: Colors.textPrimary, fontWeight: 'bold', fontSize: 15 },
     switchBtn:  { paddingVertical: 14, alignItems: 'center' },
     switchText: { color: Colors.primary, fontSize: 13 },
+    resetBtn:   { paddingVertical: 10, alignItems: 'center' },
+    resetText:  { color: '#ef4444', fontSize: 12 },
 });
