@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
-    TouchableOpacity, StyleSheet, Alert,
+    TouchableOpacity, StyleSheet, Alert, ActivityIndicator,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -31,9 +31,9 @@ export default function LoginScreen() {
     const [business, setBusiness]   = useState('');
     const [pin, setPin]             = useState('');
     const [confirmPin, setConfirm]  = useState('');
-    const [loadDemo, setLoadDemo]   = useState(false);
     const [currency, setCurrency]   = useState('$');
     const [setupLang, setSetupLang] = useState<Language>(language);
+    const [submitting, setSubmitting] = useState(false);
 
     // Owner return
     const [returnPin, setReturnPin] = useState('');
@@ -43,6 +43,7 @@ export default function LoginScreen() {
     const [joinPin, setJoinPin]         = useState('');
     const [joinConfirm, setJoinConfirm] = useState('');
     const [inviteCode, setInviteCode]   = useState('');
+    const [joiningTeam, setJoiningTeam] = useState(false);
 
     const handleSetup = async () => {
         if (!email.trim() || !business.trim()) {
@@ -50,13 +51,14 @@ export default function LoginScreen() {
         }
         if (!/^\d{4}$/.test(pin)) { Alert.alert(t(setupLang, 'error'), t(setupLang, 'invalidPin')); return; }
         if (pin !== confirmPin)   { Alert.alert(t(setupLang, 'error'), t(setupLang, 'pinMismatch')); return; }
+        setSubmitting(true);
         try {
             setLanguage(setupLang);
-            await setupAccount(email.trim(), business.trim(), pin, loadDemo);
-            // Apply chosen currency immediately after account creation
+            await setupAccount(email.trim(), business.trim(), pin, false);
             updateSettings({ currency });
         } catch (e: any) {
             Alert.alert(t(setupLang, 'error'), e?.message ?? 'Could not create account. Please try again.');
+            setSubmitting(false);
         }
     };
 
@@ -71,10 +73,12 @@ export default function LoginScreen() {
         if (!/^\d{4}$/.test(joinPin)) { Alert.alert(t(language, 'error'), t(language, 'invalidPin')); return; }
         if (joinPin !== joinConfirm)  { Alert.alert(t(language, 'error'), t(language, 'pinMismatch')); return; }
         if (!inviteCode.trim())       { Alert.alert(t(language, 'required'), t(language, 'inviteCode')); return; }
+        setJoiningTeam(true);
         try {
             await joinTeam(joinEmail.trim(), joinPin, inviteCode.trim());
         } catch (e: any) {
             Alert.alert('Join Failed', e?.message ?? 'Invalid invite code or account error.');
+            setJoiningTeam(false);
         }
     };
 
@@ -109,8 +113,11 @@ export default function LoginScreen() {
                                 autoCapitalize="characters" maxLength={6} />
                         </Field>
 
-                        <TouchableOpacity style={styles.btn} onPress={handleJoinTeam}>
-                            <Text style={styles.btnText}>{t(language, 'joinTeamBtn')}</Text>
+                        <TouchableOpacity style={[styles.btn, joiningTeam && styles.btnDisabled]} onPress={handleJoinTeam} disabled={joiningTeam}>
+                            {joiningTeam
+                                ? <ActivityIndicator color="#fff" />
+                                : <Text style={styles.btnText}>{t(language, 'joinTeamBtn')}</Text>
+                            }
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.switchBtn} onPress={() => setMode(isFirstLaunch ? 'owner-setup' : 'owner-login')}>
                             <Text style={styles.switchText}>{t(language, 'backToSignIn')}</Text>
@@ -178,21 +185,11 @@ export default function LoginScreen() {
                             ))}
                         </View>
 
-                        {/* Starting data */}
-                        <Text style={styles.sectionLabel}>{t(setupLang, 'startingData')}</Text>
-                        <View style={styles.demoRow}>
-                            <TouchableOpacity style={[styles.demoOpt, !loadDemo && styles.demoOptActive]} onPress={() => setLoadDemo(false)}>
-                                <Text style={[styles.demoOptText, !loadDemo && styles.demoOptTextActive]}>{t(setupLang, 'startFresh')}</Text>
-                                <Text style={styles.demoOptSub}>{t(setupLang, 'startFreshSub')}</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={[styles.demoOpt, loadDemo && styles.demoOptActive]} onPress={() => setLoadDemo(true)}>
-                                <Text style={[styles.demoOptText, loadDemo && styles.demoOptTextActive]}>{t(setupLang, 'loadDemo')}</Text>
-                                <Text style={styles.demoOptSub}>{t(setupLang, 'loadDemoSub')}</Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        <TouchableOpacity style={styles.btn} onPress={handleSetup}>
-                            <Text style={styles.btnText}>{t(setupLang, 'createAccount')}</Text>
+                        <TouchableOpacity style={[styles.btn, submitting && styles.btnDisabled]} onPress={handleSetup} disabled={submitting}>
+                            {submitting
+                                ? <ActivityIndicator color="#fff" />
+                                : <Text style={styles.btnText}>{t(setupLang, 'createAccount')}</Text>
+                            }
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('join-team')}>
                             <Text style={styles.switchText}>{t(setupLang, 'joiningTeam')}</Text>
@@ -298,6 +295,7 @@ const styles = StyleSheet.create({
     },
 
     btn:        { backgroundColor: Colors.primary, paddingVertical: 13, borderRadius: 8, alignItems: 'center', marginTop: 4 },
+    btnDisabled: { opacity: 0.6 },
     btnText:    { color: Colors.textPrimary, fontWeight: 'bold', fontSize: 15 },
     switchBtn:  { paddingVertical: 14, alignItems: 'center' },
     switchText: { color: Colors.primary, fontSize: 13 },
