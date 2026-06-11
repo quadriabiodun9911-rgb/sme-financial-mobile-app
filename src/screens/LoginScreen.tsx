@@ -269,22 +269,18 @@ export default function LoginScreen() {
                     )}
 
                     {/* Login Method Tabs */}
-                    <View style={styles.loginTabs}>
+                    <View style={{ flexDirection: 'row', marginBottom: 16 }}>
                         <TouchableOpacity
-                            style={[styles.loginTab, loginMethod === 'pin' && styles.loginTabActive]}
+                            style={{ flex: 1, paddingVertical: 12, backgroundColor: loginMethod === 'pin' ? '#0066cc' : '#cccccc', borderRadius: 6, marginRight: 8 }}
                             onPress={() => setLoginMethod('pin')}
                         >
-                            <Text style={[styles.loginTabText, loginMethod === 'pin' && styles.loginTabTextActive]}>
-                                PIN Login
-                            </Text>
+                            <Text style={{ textAlign: 'center', color: '#fff', fontWeight: 'bold' }}>PIN</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
-                            style={[styles.loginTab, loginMethod === 'email' && styles.loginTabActive]}
+                            style={{ flex: 1, paddingVertical: 12, backgroundColor: loginMethod === 'email' ? '#0066cc' : '#cccccc', borderRadius: 6 }}
                             onPress={() => setLoginMethod('email')}
                         >
-                            <Text style={[styles.loginTabText, loginMethod === 'email' && styles.loginTabTextActive]}>
-                                Email Login
-                            </Text>
+                            <Text style={{ textAlign: 'center', color: '#fff', fontWeight: 'bold' }}>Email</Text>
                         </TouchableOpacity>
                     </View>
 
