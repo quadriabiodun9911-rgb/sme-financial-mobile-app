@@ -17,11 +17,13 @@ const CURRENCIES = [
 ];
 
 type Mode = 'owner-setup' | 'owner-login' | 'join-team';
+type LoginMethod = 'pin' | 'email';
 
 export default function LoginScreen() {
     const { isFirstLaunch, setupAccount, login, joinTeam, language, setLanguage, updateSettings, resetApp, isLockedOut, lockoutUntil } = useApp();
     const [mode, setMode] = useState<Mode>(isFirstLaunch ? 'owner-setup' : 'owner-login');
     const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
+    const [loginMethod, setLoginMethod] = useState<LoginMethod>('pin');
 
     useEffect(() => {
         setMode(isFirstLaunch ? 'owner-setup' : 'owner-login');
@@ -58,6 +60,8 @@ export default function LoginScreen() {
 
     // Owner return
     const [returnPin, setReturnPin] = useState('');
+    const [emailLoginEmail, setEmailLoginEmail] = useState('');
+    const [emailLoginPin, setEmailLoginPin] = useState('');
 
     // Join team
     const [joinEmail, setJoinEmail]     = useState('');
@@ -96,6 +100,23 @@ export default function LoginScreen() {
         if (!ok) {
             Alert.alert(t(language, 'error'), 'Incorrect PIN. Please try again.');
             setReturnPin('');
+        }
+    };
+
+    const handleEmailLogin = () => {
+        if (isLockedOut && timeRemaining !== null && timeRemaining > 0) {
+            Alert.alert(
+                'Account Locked',
+                `Too many failed login attempts. Please try again in ${Math.ceil(timeRemaining / 60)} minute${Math.ceil(timeRemaining / 60) !== 1 ? 's' : ''}.`,
+            );
+            return;
+        }
+        if (!emailLoginEmail.trim()) { Alert.alert(t(language, 'error'), 'Please enter your email.'); return; }
+        if (!emailLoginPin) { Alert.alert(t(language, 'error'), 'Please enter your 4-digit PIN.'); return; }
+        const ok = login(emailLoginPin);
+        if (!ok) {
+            Alert.alert(t(language, 'error'), 'Incorrect email or PIN. Please try again.');
+            setEmailLoginPin('');
         }
     };
 
@@ -247,17 +268,71 @@ export default function LoginScreen() {
                         </View>
                     )}
 
-                    <View style={styles.pinContainer}>
-                        <TextInput style={styles.pinInput}
-                            placeholder="••••" placeholderTextColor={Colors.muted}
-                            secureTextEntry keyboardType="number-pad" maxLength={4}
-                            value={returnPin} onChangeText={setReturnPin}
-                            onSubmitEditing={handleLogin} autoFocus />
+                    {/* Login Method Tabs */}
+                    <View style={styles.loginTabs}>
+                        <TouchableOpacity
+                            style={[styles.loginTab, loginMethod === 'pin' && styles.loginTabActive]}
+                            onPress={() => setLoginMethod('pin')}
+                        >
+                            <Text style={[styles.loginTabText, loginMethod === 'pin' && styles.loginTabTextActive]}>
+                                PIN Login
+                            </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.loginTab, loginMethod === 'email' && styles.loginTabActive]}
+                            onPress={() => setLoginMethod('email')}
+                        >
+                            <Text style={[styles.loginTabText, loginMethod === 'email' && styles.loginTabTextActive]}>
+                                Email Login
+                            </Text>
+                        </TouchableOpacity>
                     </View>
 
-                    <TouchableOpacity style={styles.btn} onPress={handleLogin}>
-                        <Text style={styles.btnText}>{t(language, 'unlock')}</Text>
-                    </TouchableOpacity>
+                    {loginMethod === 'pin' ? (
+                        // PIN Login Form
+                        <>
+                            <View style={styles.pinContainer}>
+                                <TextInput style={styles.pinInput}
+                                    placeholder="••••" placeholderTextColor={Colors.muted}
+                                    secureTextEntry keyboardType="number-pad" maxLength={4}
+                                    value={returnPin} onChangeText={setReturnPin}
+                                    onSubmitEditing={handleLogin} autoFocus />
+                            </View>
+                            <TouchableOpacity style={styles.btn} onPress={handleLogin}>
+                                <Text style={styles.btnText}>{t(language, 'unlock')}</Text>
+                            </TouchableOpacity>
+                        </>
+                    ) : (
+                        // Email Login Form
+                        <>
+                            <Field label="Email Address">
+                                <TextInput style={styles.input}
+                                    placeholder="your@email.com"
+                                    placeholderTextColor={Colors.muted}
+                                    autoCapitalize="none"
+                                    keyboardType="email-address"
+                                    value={emailLoginEmail}
+                                    onChangeText={setEmailLoginEmail}
+                                />
+                            </Field>
+                            <Field label="PIN">
+                                <TextInput style={styles.input}
+                                    placeholder="••••"
+                                    placeholderTextColor={Colors.muted}
+                                    secureTextEntry
+                                    keyboardType="number-pad"
+                                    maxLength={4}
+                                    value={emailLoginPin}
+                                    onChangeText={setEmailLoginPin}
+                                    onSubmitEditing={handleEmailLogin}
+                                />
+                            </Field>
+                            <TouchableOpacity style={styles.btn} onPress={handleEmailLogin}>
+                                <Text style={styles.btnText}>Unlock</Text>
+                            </TouchableOpacity>
+                        </>
+                    )}
+
                     <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('join-team')}>
                         <Text style={styles.switchText}>{t(language, 'joiningTeam')}</Text>
                     </TouchableOpacity>
@@ -346,4 +421,21 @@ const styles = StyleSheet.create({
         borderRadius: 10, padding: 12, marginBottom: 16,
     },
     lockoutText: { color: '#ef4444', fontSize: 13, fontWeight: '600', textAlign: 'center' },
+
+    loginTabs: {
+        flexDirection: 'row', gap: 10, marginBottom: 20, borderBottomWidth: 1, borderBottomColor: Colors.border,
+    },
+    loginTab: {
+        flex: 1, paddingVertical: 12, paddingHorizontal: 8, alignItems: 'center',
+        borderBottomWidth: 2, borderBottomColor: 'transparent',
+    },
+    loginTabActive: {
+        borderBottomColor: Colors.primary,
+    },
+    loginTabText: {
+        fontSize: 14, fontWeight: '600', color: Colors.textMuted,
+    },
+    loginTabTextActive: {
+        color: Colors.primary,
+    },
 });
