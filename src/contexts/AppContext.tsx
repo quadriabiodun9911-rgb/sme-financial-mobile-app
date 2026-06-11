@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useMemo, useEffect, useRef, ReactNode } from 'react';
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Transaction, FinanceData, User, BusinessSettings, Screen, FinancialGoal, GoalType, NavParams, Invoice, InvoiceStatus, TeamMember, UserRole, Language, Asset } from '../types';
+import { Transaction, FinanceData, User, BusinessSettings, Screen, FinancialGoal, GoalType, NavParams, Invoice, InvoiceStatus, TeamMember, UserRole, Language, Asset, InventoryItem } from '../types';
 import { computeFinance, computeOneThingInsight, computeRecurringDates, computeAssetCurrentValue } from '../utils/finance';
 import { generateId } from '../utils/uuid';
 import {
@@ -10,6 +10,7 @@ import {
     saveGoals, loadGoals,
     saveInvoices, loadInvoices,
     saveAssets, loadAssets,
+    saveInventory, loadInventory,
     savePin, loadPin,
     saveProfile, loadProfile,
     saveLanguage, loadLanguage,
@@ -62,6 +63,11 @@ interface AppContextValue {
     updateAsset: (id: string, patch: Partial<Asset>) => void;
     deleteAsset: (id: string) => void;
     disposeAsset: (id: string, disposalDate: string, disposalValue: number) => void;
+
+    inventory: InventoryItem[];
+    addInventoryItem: (item: Omit<InventoryItem, 'id' | 'createdAt' | 'updatedAt'>) => void;
+    updateInventoryItem: (id: string, patch: Partial<InventoryItem>) => void;
+    deleteInventoryItem: (id: string) => void;
 
     // Team
     teamMembers: TeamMember[];
@@ -183,6 +189,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const [goals, setGoals]                 = useState<FinancialGoal[]>([]);
     const [invoices, setInvoices]           = useState<Invoice[]>([]);
     const [assets, setAssets]               = useState<Asset[]>([]);
+    const [inventory, setInventory]         = useState<InventoryItem[]>([]);
     const [teamMembers, setTeamMembers]     = useState<TeamMember[]>([]);
     const [language, setLang]              = useState<Language>('en');
     const [isLoading, setIsLoading]         = useState(true);
@@ -199,12 +206,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         initRan.current = true;
         (async () => {
             try {
-                const [savedTx, savedSettings, savedGoals, savedInvoices, savedAssets, pin, profile, lang] = await Promise.all([
+                const [savedTx, savedSettings, savedGoals, savedInvoices, savedAssets, savedInventory, pin, profile, lang] = await Promise.all([
                     loadTransactions(),
                     loadSettings(),
                     loadGoals(),
                     loadInvoices(),
                     loadAssets(),
+                    loadInventory(),
                     loadPin(),
                     loadProfile(),
                     loadLanguage(),
@@ -220,6 +228,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 if (savedGoals)    setGoals(savedGoals);
                 if (savedInvoices) setInvoices(savedInvoices);
                 if (savedAssets)   setAssets(savedAssets);
+                if (savedInventory) setInventory(savedInventory);
                 if (pin && profile) {
                     setUser({ email: profile.email, businessName: profile.businessName, role: 'Administrator' });
                 }
@@ -239,6 +248,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     useEffect(() => { if (!isLoading) saveGoals(goals).catch(persistError('goals')); }, [goals, isLoading]);
     useEffect(() => { if (!isLoading) saveInvoices(invoices).catch(persistError('invoices')); }, [invoices, isLoading]);
     useEffect(() => { if (!isLoading) saveAssets(assets).catch(persistError('assets')); }, [assets, isLoading]);
+    useEffect(() => { if (!isLoading) saveInventory(inventory).catch(persistError('inventory')); }, [inventory, isLoading]);
 
     const registeredAssetsValue = useMemo(
         () => assets.filter(a => a.status === 'active').reduce((sum, a) => sum + computeAssetCurrentValue(a), 0),
@@ -462,6 +472,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setAssets(prev => prev.map(a => a.id === id ? { ...a, status: 'disposed' as const, disposalDate, disposalValue } : a));
     };
 
+    const addInventoryItem = (item: Omit<InventoryItem, 'id' | 'createdAt' | 'updatedAt'>) => {
+        const now = new Date().toISOString();
+        const newItem: InventoryItem = { ...item, id: generateId(), createdAt: now, updatedAt: now };
+        setInventory(prev => [newItem, ...prev]);
+    };
+
+    const updateInventoryItem = (id: string, patch: Partial<InventoryItem>) => {
+        setInventory(prev => prev.map(i => i.id === id ? { ...i, ...patch, updatedAt: new Date().toISOString() } : i));
+    };
+
+    const deleteInventoryItem = (id: string) => {
+        setInventory(prev => prev.filter(i => i.id !== id));
+    };
+
     const inviteMember = async (email: string, role: 'accountant' | 'staff'): Promise<string> => {
         const code = await inviteTeamMember(email, role);
         await refreshTeam();
@@ -520,6 +544,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         goals, addGoal, deleteGoal, updateGoalCurrentValue,
         invoices, addInvoice, updateInvoice, deleteInvoice, markInvoiceStatus,
         assets, addAsset, updateAsset, deleteAsset, disposeAsset,
+        inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem,
         teamMembers, inviteMember, removeMember, refreshTeam,
         language, setLanguage,
         finance, insight, isLoading,

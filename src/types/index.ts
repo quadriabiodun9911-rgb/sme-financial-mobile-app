@@ -7,7 +7,8 @@ export type Screen =
     | 'settings'
     | 'goals'
     | 'invoices'
-    | 'assets';
+    | 'assets'
+    | 'inventory';
 
 export type ReportTab =
     | 'balancesheet'
@@ -153,6 +154,19 @@ export interface Asset {
     disposalDate?: string;
     disposalValue?: number;
     createdAt: string;
+}
+
+export interface InventoryItem {
+    id: string;
+    name: string;
+    category: string;
+    quantity: number;
+    unit: string; // 'pcs', 'kg', 'litres', etc.
+    costPrice: number;     // what you paid per unit
+    sellingPrice: number;  // what you sell for per unit
+    lowStockThreshold: number;
+    createdAt: string;
+    updatedAt: string;
 }
 
 export interface TeamMember {

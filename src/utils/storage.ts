@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Transaction, BusinessSettings, FinancialGoal, Invoice, TeamMember, Language, Asset } from '../types';
+import { Transaction, BusinessSettings, FinancialGoal, Invoice, TeamMember, Language, Asset, InventoryItem } from '../types';
 import { supabase } from './supabase';
 
 const KEYS = {
@@ -353,6 +353,15 @@ export async function joinTeamWithCode(
         .eq('id', data.id);
     if (updateErr) throw new Error('Could not activate team membership: ' + updateErr.message);
     return { ownerId: data.owner_user_id, role: data.role };
+}
+
+// ─── Inventory (AsyncStorage only — no Supabase sync) ────────────────────────
+export async function saveInventory(items: InventoryItem[]): Promise<void> {
+    await AsyncStorage.setItem('@financebook/inventory', JSON.stringify(items));
+}
+export async function loadInventory(): Promise<InventoryItem[] | null> {
+    const raw = await AsyncStorage.getItem('@financebook/inventory');
+    return raw ? JSON.parse(raw) as InventoryItem[] : null;
 }
 
 // ─── Language (per-device, not synced) ───────────────────────────────────────

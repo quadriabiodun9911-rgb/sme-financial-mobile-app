@@ -70,6 +70,47 @@ export default function DashboardScreen() {
 
                 <Text style={styles.title}>{t(language, 'dashboard')}</Text>
 
+                {/* ── Profitability Hero Card ──────────────────────────────── */}
+                <View style={[styles.heroCard, { borderColor: finance.profit >= 0 ? Colors.income : Colors.expense }]}>
+                    <Text style={[styles.heroStatus, { color: finance.profit >= 0 ? Colors.income : Colors.expense }]}>
+                        {finance.profit >= 0 ? 'PROFITABLE ✓' : 'LOSING MONEY ✗'}
+                    </Text>
+                    <Text style={[styles.heroProfit, { color: finance.profit >= 0 ? Colors.income : Colors.expense }]}>
+                        {finance.profit >= 0 ? '+' : ''}{currency}{finance.profit.toLocaleString()}
+                    </Text>
+                    <View style={styles.heroSubRow}>
+                        <Text style={[styles.heroMargin, { color: finance.margin >= parseFloat(targetMargin) ? Colors.income : Colors.expense }]}>
+                            {finance.margin.toFixed(2)}% margin
+                        </Text>
+                        <Text style={styles.heroTarget}>target {targetMargin}%</Text>
+                    </View>
+                    <View style={styles.heroMetricsRow}>
+                        <View style={styles.heroMetric}>
+                            <Text style={styles.heroMetricLabel}>Income</Text>
+                            <Text style={[styles.heroMetricVal, { color: Colors.income }]}>{currency}{finance.income.toLocaleString()}</Text>
+                        </View>
+                        <View style={styles.heroMetricDivider} />
+                        <View style={styles.heroMetric}>
+                            <Text style={styles.heroMetricLabel}>Expenses</Text>
+                            <Text style={[styles.heroMetricVal, { color: Colors.expense }]}>{currency}{finance.expense.toLocaleString()}</Text>
+                        </View>
+                        <View style={styles.heroMetricDivider} />
+                        <View style={styles.heroMetric}>
+                            <Text style={styles.heroMetricLabel}>Net Profit</Text>
+                            <Text style={[styles.heroMetricVal, { color: finance.profit >= 0 ? Colors.income : Colors.expense }]}>
+                                {finance.profit >= 0 ? '+' : ''}{currency}{finance.profit.toLocaleString()}
+                            </Text>
+                        </View>
+                    </View>
+                </View>
+
+                {/* ── Spending alert ───────────────────────────────────────── */}
+                {finance.profit < 0 && (
+                    <View style={styles.spendingAlert}>
+                        <Text style={styles.spendingAlertText}>⚠ You are spending more than you earn — review your expenses</Text>
+                    </View>
+                )}
+
                 {/* ── Overdue invoice banner ──────────────────────────────── */}
                 {overdueInvoices.length > 0 && (
                     <TouchableOpacity style={styles.invoiceBanner} onPress={() => setCurrentScreen('invoices')}>
@@ -113,26 +154,6 @@ export default function DashboardScreen() {
                     <Text style={styles.insightAction}>{insight.action}</Text>
                 </View>
 
-                {/* ── Income / Expenses ───────────────────────────────────── */}
-                <View style={styles.row}>
-                    <MetricCard label={t(language, 'totalIncome')}   value={`${currency}${finance.income.toLocaleString()}`}   color={Colors.income} />
-                    <MetricCard label={t(language, 'totalExpenses')} value={`${currency}${finance.expense.toLocaleString()}`}  color={Colors.expense} />
-                </View>
-
-                {/* ── Net Profit ──────────────────────────────────────────── */}
-                <View style={styles.card}>
-                    <Text style={styles.cardLabel}>{t(language, 'netProfit')}</Text>
-                    <Text style={[styles.bigNum, { color: finance.profit >= 0 ? Colors.income : Colors.expense }]}>
-                        {finance.profit >= 0 ? '+' : ''}{currency}{finance.profit.toLocaleString()}
-                    </Text>
-                    <View style={styles.marginRow}>
-                        <Text style={[styles.marginText, { color: finance.margin >= parseFloat(targetMargin) ? Colors.income : Colors.expense }]}>
-                            {finance.margin.toFixed(2)}% {t(language, 'margin')}
-                        </Text>
-                        <Text style={styles.marginTarget}>{t(language, 'target')} {targetMargin}%</Text>
-                    </View>
-                </View>
-
                 {/* ── Cash Balance ────────────────────────────────────────── */}
                 <View style={styles.card}>
                     <Text style={styles.cardLabel}>{t(language, 'cashBalance')}</Text>
@@ -151,6 +172,29 @@ export default function DashboardScreen() {
                         </View>
                     </View>
                 </View>
+
+                {/* ── Cash Runway ─────────────────────────────────────────── */}
+                {(() => {
+                    const runwayDays = finance.expense > 0 ? Math.floor(finance.cashBalance / (finance.expense / 30)) : null;
+                    const runwayColor = runwayDays === null ? Colors.income : runwayDays < 30 ? Colors.expense : runwayDays < 60 ? Colors.warning : Colors.income;
+                    return (
+                        <View style={styles.card}>
+                            <Text style={styles.cardLabel}>Cash Runway</Text>
+                            <Text style={[styles.bigNum, { color: runwayColor }]}>
+                                {runwayDays === null ? '∞' : `~${runwayDays} days`}
+                            </Text>
+                            <Text style={[styles.hint, { color: runwayColor }]}>
+                                {runwayDays === null
+                                    ? 'No expenses recorded'
+                                    : runwayDays < 30
+                                    ? 'Critical — refill cash soon!'
+                                    : runwayDays < 60
+                                    ? 'Your cash will last ~' + runwayDays + ' days — keep watch'
+                                    : 'Your cash will last ~' + runwayDays + ' days'}
+                            </Text>
+                        </View>
+                    );
+                })()}
 
                 {/* ── Tax summary ─────────────────────────────────────────── */}
                 <View style={[styles.card, styles.taxRow]}>
@@ -199,6 +243,18 @@ export default function DashboardScreen() {
                                     {offTrack.length > 0 ? ` · ${offTrack.length} ${t(language, 'needAttention')}` : ''}
                                 </Text>
                             )}
+                        </View>
+                    </View>
+                    <Text style={styles.quickArrow}>›</Text>
+                </TouchableOpacity>
+
+                {/* ── Inventory quick card ────────────────────────────────── */}
+                <TouchableOpacity style={styles.quickCard} onPress={() => setCurrentScreen('inventory')}>
+                    <View style={styles.quickCardLeft}>
+                        <Text style={styles.quickIcon}>📦</Text>
+                        <View>
+                            <Text style={styles.quickLabel}>Inventory & Stock</Text>
+                            <Text style={styles.quickSub}>Track stock levels, costs & margins</Text>
                         </View>
                     </View>
                     <Text style={styles.quickArrow}>›</Text>
@@ -296,6 +352,27 @@ const styles = StyleSheet.create({
     title: { fontSize: 22, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 14 },
     row:   { flexDirection: 'row', gap: 12, marginBottom: 12 },
     flex:  { flex: 1 },
+
+    heroCard: {
+        backgroundColor: Colors.surface, borderRadius: 14, padding: 18,
+        marginBottom: 12, borderWidth: 2,
+    },
+    heroStatus:     { fontSize: 13, fontWeight: '800', letterSpacing: 1, marginBottom: 4 },
+    heroProfit:     { fontSize: 36, fontWeight: 'bold', marginBottom: 4 },
+    heroSubRow:     { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
+    heroMargin:     { fontSize: 13, fontWeight: '700' },
+    heroTarget:     { fontSize: 12, color: Colors.textMuted },
+    heroMetricsRow: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 12 },
+    heroMetric:     { flex: 1, alignItems: 'center' },
+    heroMetricLabel:{ fontSize: 10, color: Colors.textMuted, marginBottom: 3 },
+    heroMetricVal:  { fontSize: 13, fontWeight: '700' },
+    heroMetricDivider: { width: 1, backgroundColor: Colors.border },
+
+    spendingAlert: {
+        backgroundColor: 'rgba(239,68,68,0.12)', borderWidth: 1,
+        borderColor: Colors.expense, borderRadius: 8, padding: 10, marginBottom: 12,
+    },
+    spendingAlertText: { color: Colors.expense, fontSize: 12, fontWeight: '600', textAlign: 'center' },
 
     alertBanner: {
         backgroundColor: 'rgba(239,68,68,0.12)', borderWidth: 1,
