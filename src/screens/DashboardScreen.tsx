@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text,
     TouchableOpacity, StyleSheet, ActivityIndicator,
+    Modal, TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -10,7 +11,22 @@ import FooterNav from '../components/FooterNav';
 import { t } from '../utils/i18n';
 
 export default function DashboardScreen() {
-    const { finance, insight, settings, goals, transactions, navigate, setCurrentScreen, language, isLoading } = useApp();
+    const { finance, insight, settings, goals, transactions, invoices, navigate, setCurrentScreen, language, isLoading, addTransaction } = useApp();
+
+    // Quick-add modal state
+    const [fabOpen, setFabOpen]         = useState(false);
+    const [qaType, setQaType]           = useState<'income' | 'expense'>('income');
+    const [qaAmount, setQaAmount]       = useState('');
+    const [qaDesc, setQaDesc]           = useState('');
+    const [qaSubmitting, setQaSubmitting] = useState(false);
+
+    const submitQuickAdd = () => {
+        const amt = parseFloat(qaAmount);
+        if (!qaDesc.trim() || isNaN(amt) || amt <= 0) return;
+        setQaSubmitting(true);
+        addTransaction({ type: qaType, amount: amt, description: qaDesc.trim(), category: qaType === 'income' ? 'Sales' : 'General', status: 'paid' });
+        setQaAmount(''); setQaDesc(''); setQaSubmitting(false); setFabOpen(false);
+    };
 
     if (isLoading) {
         return (
@@ -39,8 +55,13 @@ export default function DashboardScreen() {
     const achievedGoals = goals.filter(g => g.status === 'achieved');
     const offTrack     = goals.filter(g => g.status === 'off_track' || g.status === 'at_risk');
 
-    // Overdue count
+    // Overdue counts
     const overdueCount = transactions.filter(t => t.status === 'overdue').length;
+    const overdueInvoices = invoices.filter(inv => inv.status === 'overdue');
+
+    // Daily nudge — no transactions logged today
+    const today = new Date().toISOString().split('T')[0];
+    const loggedToday = transactions.some(tx => tx.date === today);
 
     return (
         <SafeAreaView style={styles.safe}>
@@ -48,6 +69,23 @@ export default function DashboardScreen() {
             <ScrollView style={styles.scroll} contentContainerStyle={styles.pad}>
 
                 <Text style={styles.title}>{t(language, 'dashboard')}</Text>
+
+                {/* ── Overdue invoice banner ──────────────────────────────── */}
+                {overdueInvoices.length > 0 && (
+                    <TouchableOpacity style={styles.invoiceBanner} onPress={() => setCurrentScreen('invoices')}>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.invoiceBannerTitle}>💰 {overdueInvoices.length} unpaid invoice{overdueInvoices.length > 1 ? 's' : ''} overdue</Text>
+                            <Text style={styles.invoiceBannerSub}>Tap to chase payment →</Text>
+                        </View>
+                    </TouchableOpacity>
+                )}
+
+                {/* ── Daily nudge ─────────────────────────────────────────── */}
+                {!loggedToday && (
+                    <TouchableOpacity style={styles.nudgeBanner} onPress={() => setFabOpen(true)}>
+                        <Text style={styles.nudgeText}>📝 Nothing logged today — tap to add a transaction</Text>
+                    </TouchableOpacity>
+                )}
 
                 {/* ── Overdue alert ───────────────────────────────────────── */}
                 {overdueCount > 0 && (
@@ -187,11 +225,57 @@ export default function DashboardScreen() {
             </ScrollView>
 
             {/* ── Quick-add FAB ────────────────────────────────────────────── */}
-            <TouchableOpacity style={styles.fab} onPress={() => setCurrentScreen('transactions')}>
+            <TouchableOpacity style={styles.fab} onPress={() => setFabOpen(true)}>
                 <Text style={styles.fabText}>+</Text>
             </TouchableOpacity>
 
             <FooterNav />
+
+            {/* ── Quick-add modal ──────────────────────────────────────────── */}
+            <Modal visible={fabOpen} transparent animationType="slide" onRequestClose={() => setFabOpen(false)}>
+                <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setFabOpen(false)} />
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalSheet}>
+                    <View style={styles.modalHandle} />
+                    <Text style={styles.modalTitle}>Quick Add</Text>
+
+                    {/* Income / Expense toggle */}
+                    <View style={styles.typeRow}>
+                        <TouchableOpacity
+                            style={[styles.typeBtn, qaType === 'income' && styles.typeBtnIncome]}
+                            onPress={() => setQaType('income')}>
+                            <Text style={[styles.typeBtnText, qaType === 'income' && { color: '#fff' }]}>+ Income</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.typeBtn, qaType === 'expense' && styles.typeBtnExpense]}
+                            onPress={() => setQaType('expense')}>
+                            <Text style={[styles.typeBtnText, qaType === 'expense' && { color: '#fff' }]}>− Expense</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    <TextInput
+                        style={styles.modalInput}
+                        placeholder={`Amount (${settings.currency})`}
+                        placeholderTextColor={Colors.textMuted}
+                        keyboardType="decimal-pad"
+                        value={qaAmount}
+                        onChangeText={setQaAmount}
+                    />
+                    <TextInput
+                        style={styles.modalInput}
+                        placeholder="Description (e.g. Client payment, Rent)"
+                        placeholderTextColor={Colors.textMuted}
+                        value={qaDesc}
+                        onChangeText={setQaDesc}
+                    />
+
+                    <TouchableOpacity
+                        style={[styles.modalSubmit, { backgroundColor: qaType === 'income' ? Colors.income : Colors.expense }, (!qaDesc.trim() || !qaAmount) && { opacity: 0.5 }]}
+                        onPress={submitQuickAdd}
+                        disabled={qaSubmitting || !qaDesc.trim() || !qaAmount}>
+                        <Text style={styles.modalSubmitText}>Add {qaType === 'income' ? 'Income' : 'Expense'}</Text>
+                    </TouchableOpacity>
+                </KeyboardAvoidingView>
+            </Modal>
         </SafeAreaView>
     );
 }
@@ -259,12 +343,45 @@ const styles = StyleSheet.create({
     btn:     { backgroundColor: Colors.primary, paddingVertical: 13, borderRadius: 10, alignItems: 'center', marginTop: 4 },
     btnText: { color: Colors.textPrimary, fontWeight: 'bold', fontSize: 14 },
 
+    invoiceBanner: {
+        backgroundColor: 'rgba(245,158,11,0.12)', borderWidth: 1,
+        borderColor: Colors.warning, borderRadius: 10, padding: 12, marginBottom: 10,
+    },
+    invoiceBannerTitle: { color: Colors.warning, fontWeight: '700', fontSize: 13 },
+    invoiceBannerSub:   { color: Colors.warning, fontSize: 11, marginTop: 2, opacity: 0.8 },
+
+    nudgeBanner: {
+        backgroundColor: 'rgba(59,130,246,0.1)', borderWidth: 1,
+        borderColor: Colors.primary, borderRadius: 10, padding: 12, marginBottom: 10,
+    },
+    nudgeText: { color: Colors.primary, fontSize: 12, fontWeight: '600' },
+
     fab: {
         position: 'absolute', right: 20, bottom: 80,
-        width: 54, height: 54, borderRadius: 27,
+        width: 56, height: 56, borderRadius: 28,
         backgroundColor: Colors.income, alignItems: 'center', justifyContent: 'center',
         shadowColor: '#000', shadowOffset: { width: 0, height: 3 },
         shadowOpacity: 0.3, shadowRadius: 6, elevation: 8,
     },
-    fabText: { fontSize: 28, color: Colors.textPrimary, lineHeight: 32 },
+    fabText: { fontSize: 30, color: Colors.textPrimary, lineHeight: 34 },
+
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
+    modalSheet: {
+        backgroundColor: Colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20,
+        padding: 24, paddingBottom: 40,
+    },
+    modalHandle: { width: 40, height: 4, backgroundColor: Colors.border, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
+    modalTitle:  { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 16 },
+    typeRow:     { flexDirection: 'row', gap: 10, marginBottom: 14 },
+    typeBtn:     { flex: 1, paddingVertical: 10, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.bg },
+    typeBtnIncome:  { backgroundColor: Colors.income, borderColor: Colors.income },
+    typeBtnExpense: { backgroundColor: Colors.expense, borderColor: Colors.expense },
+    typeBtnText: { fontWeight: '700', fontSize: 14, color: Colors.textSecondary },
+    modalInput:  {
+        backgroundColor: Colors.bg, borderColor: Colors.border, borderWidth: 1,
+        borderRadius: 8, paddingHorizontal: 12, paddingVertical: 11,
+        color: Colors.textPrimary, fontSize: 14, marginBottom: 12,
+    },
+    modalSubmit:     { paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginTop: 4 },
+    modalSubmitText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
 });
