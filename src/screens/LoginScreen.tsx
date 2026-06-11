@@ -423,17 +423,26 @@ const styles = StyleSheet.create({
     lockoutText: { color: '#ef4444', fontSize: 13, fontWeight: '600', textAlign: 'center' },
 
     loginTabs: {
-        flexDirection: 'row', gap: 10, marginBottom: 20, borderBottomWidth: 1, borderBottomColor: Colors.border,
+        flexDirection: 'row',
+        marginBottom: 20,
+        borderBottomWidth: 1,
+        borderBottomColor: Colors.border,
     },
     loginTab: {
-        flex: 1, paddingVertical: 12, paddingHorizontal: 8, alignItems: 'center',
-        borderBottomWidth: 2, borderBottomColor: 'transparent',
+        flex: 1,
+        paddingVertical: 12,
+        paddingHorizontal: 8,
+        alignItems: 'center',
+        borderBottomWidth: 2,
+        borderBottomColor: 'transparent',
     },
     loginTabActive: {
         borderBottomColor: Colors.primary,
     },
     loginTabText: {
-        fontSize: 14, fontWeight: '600', color: Colors.textMuted,
+        fontSize: 14,
+        fontWeight: '600',
+        color: Colors.textMuted,
     },
     loginTabTextActive: {
         color: Colors.primary,
