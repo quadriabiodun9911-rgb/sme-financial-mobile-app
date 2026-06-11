@@ -18,7 +18,7 @@ export default function AccrualCashFlow({ transactions, invoices, finance, curre
 
     const unpaidInvoicesTotal = invoices
         .filter(inv => inv.status === 'sent' || inv.status === 'overdue')
-        .reduce((s, inv) => s + inv.total, 0);
+        .reduce((s, inv) => s + (inv.total ?? (inv as any).totalAmount ?? 0), 0);
 
     const accrualRevenue = cashIncome + unpaidInvoicesTotal;
 
@@ -46,24 +46,24 @@ export default function AccrualCashFlow({ transactions, invoices, finance, curre
 
     return (
         <View>
-            {/* Section 1 */}
+            {/* Section 1 — Accrual Revenue */}
             <SectionCard title="Accrual Revenue">
-                <CFRow label="Cash income received" value={cashIncome} currency={currency} />
-                <CFRow label="  Add: Invoices sent but unpaid" value={unpaidInvoicesTotal} currency={currency} indent />
-                <CFRow label="Total Accrual Revenue" value={accrualRevenue} currency={currency} total />
+                <CFRow label="Cash income received"              value={cashIncome}          currency={currency} />
+                <CFRow label="  Add: Invoices sent but unpaid"   value={unpaidInvoicesTotal} currency={currency} indent />
+                <CFRow label="Total Accrual Revenue"             value={accrualRevenue}      currency={currency} total />
             </SectionCard>
 
-            {/* Section 2 */}
+            {/* Section 2 — Accrual Expenses */}
             <SectionCard title="Accrual Expenses">
-                <CFRow label="Cash expenses paid" value={cashExpenses} currency={currency} />
-                <CFRow label="  Add: Expenses incurred but unpaid" value={unpaidExpenses} currency={currency} indent />
-                <CFRow label="Total Accrual Expenses" value={accrualExpenses} currency={currency} total />
+                <CFRow label="Cash expenses paid"                    value={cashExpenses}   currency={currency} />
+                <CFRow label="  Add: Expenses incurred but unpaid"   value={unpaidExpenses} currency={currency} indent />
+                <CFRow label="Total Accrual Expenses"                value={accrualExpenses} currency={currency} total />
             </SectionCard>
 
-            {/* Section 3 */}
+            {/* Section 3 — Accrual Profit */}
             <SectionCard title="Accrual Profit">
-                <CFRow label="Accrual Net Profit" value={accrualNetProfit} currency={currency} total />
-                <CFRow label="Cash Net Profit (for comparison)" value={cashNetProfit} currency={currency} />
+                <CFRow label="Accrual Net Profit"             value={accrualNetProfit} currency={currency} total />
+                <CFRow label="Cash Net Profit (for comparison)" value={cashNetProfit}   currency={currency} />
                 <View style={s.diffRow}>
                     <Text style={s.diffLabel}>
                         {difference >= 0
@@ -72,19 +72,19 @@ export default function AccrualCashFlow({ transactions, invoices, finance, curre
                         }
                     </Text>
                     <Text style={[s.diffValue, { color: difference >= 0 ? Colors.income : Colors.expense }]}>
-                        {difference >= 0 ? '+' : ''}{currency}{difference.toLocaleString()}
+                        {difference >= 0 ? '+' : ''}{currency}{Math.abs(difference).toLocaleString()}
                     </Text>
                 </View>
             </SectionCard>
 
-            {/* Section 4 */}
+            {/* Section 4 — Working Capital */}
             <SectionCard title="Working Capital">
-                <CFRow label="Receivables (unpaid invoices)" value={receivables} currency={currency} />
-                <CFRow label="Payables (unpaid expense transactions)" value={payables} currency={currency} />
-                <CFRow label="Net Working Capital" value={netWorkingCapital} currency={currency} total />
-                <View style={s.cfRow}>
-                    <Text style={s.cfLabel}>Days Sales Outstanding</Text>
-                    <Text style={[s.cfValue, { color: dso <= 30 ? Colors.income : dso <= 60 ? Colors.warning : Colors.expense }]}>
+                <CFRow label="Receivables (unpaid invoices)"          value={receivables}      currency={currency} />
+                <CFRow label="Payables (unpaid expense transactions)"  value={payables}         currency={currency} />
+                <CFRow label="Net Working Capital"                     value={netWorkingCapital} currency={currency} total />
+                <View style={s.dsoRow}>
+                    <Text style={s.dsoLabel}>Days Sales Outstanding (DSO)</Text>
+                    <Text style={[s.dsoValue, { color: dso <= 30 ? Colors.income : dso <= 60 ? Colors.warning : Colors.expense }]}>
                         {dso.toFixed(0)} days
                     </Text>
                 </View>
@@ -131,4 +131,8 @@ const s = StyleSheet.create({
     diffRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, marginTop: 4 },
     diffLabel: { fontSize: 12, color: Colors.textMuted, flex: 1, marginRight: 8, fontStyle: 'italic' },
     diffValue: { fontSize: 13, fontWeight: '700' },
+
+    dsoRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10, marginTop: 4, borderTopWidth: 1, borderTopColor: Colors.border },
+    dsoLabel: { fontSize: 13, color: Colors.textSecondary },
+    dsoValue: { fontSize: 14, fontWeight: 'bold' },
 });

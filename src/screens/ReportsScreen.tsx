@@ -15,7 +15,9 @@ import BudgetForecast from '../components/BudgetForecast';
 import CashManagement from '../components/CashManagement';
 import DebtAnalysis from '../components/DebtAnalysis';
 import CashFlowStatement from '../components/CashFlowStatement';
+import AccrualCashFlow from '../components/AccrualCashFlow';
 import { filterByPeriod, computeFinance, computeMonthlyTrend, computeEnhancedPnL, computeWorkingCapitalMetrics, classifyBusinessSize, sizeLabel, transactionsToCSV, ReportPeriod, MonthlyPoint } from '../utils/finance';
+import { InventoryItem } from '../types';
 
 // ─── Section groups ────────────────────────────────────────────────────────────
 type SectionKey = 'statements' | 'operations' | 'planning' | 'analysis';
@@ -28,7 +30,7 @@ const SECTIONS: { key: SectionKey; label: string }[] = [
 ];
 
 type SubTab =
-    | 'balancesheet' | 'pnl'
+    | 'balancesheet' | 'pnl' | 'inventory' | 'accrual'
     | 'aging' | 'tax'
     | 'budget' | 'cashflow' | 'cashmgmt' | 'debt'
     | 'health' | 'swot';
@@ -37,6 +39,8 @@ const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
     statements: [
         { key: 'balancesheet', label: 'Balance Sheet' },
         { key: 'pnl',          label: 'P & L' },
+        { key: 'inventory',    label: 'Inventory' },
+        { key: 'accrual',      label: 'Accrual' },
     ],
     operations: [
         { key: 'aging', label: 'AR / AP Aging' },
@@ -54,7 +58,7 @@ const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
     ],
 };
 
-const PERIOD_AWARE: SubTab[] = ['balancesheet', 'pnl', 'aging', 'tax'];
+const PERIOD_AWARE: SubTab[] = ['balancesheet', 'pnl', 'aging', 'tax', 'inventory'];
 
 const PERIODS: { key: ReportPeriod; label: string }[] = [
     { key: 'month',   label: 'This Month' },
@@ -64,7 +68,7 @@ const PERIODS: { key: ReportPeriod; label: string }[] = [
 ];
 
 export default function ReportsScreen() {
-    const { finance: allFinance, settings, updateSettings, transactions, assets, navParams } = useApp();
+    const { finance: allFinance, settings, updateSettings, transactions, assets, navParams, inventory, invoices } = useApp();
     const { currency, minReserve, targetMargin } = settings;
 
     const [section, setSection]     = useState<SectionKey>('statements');
@@ -223,6 +227,21 @@ export default function ReportsScreen() {
                         </View>
                     )}
 
+                    {/* ── INVENTORY ────────────────────────────────────── */}
+                    {activeTab === 'inventory' && (
+                        <InventoryReportTab inventory={inventory} finance={allFinance} transactions={transactions} currency={currency} />
+                    )}
+
+                    {/* ── ACCRUAL ──────────────────────────────────────── */}
+                    {activeTab === 'accrual' && (
+                        <AccrualCashFlow
+                            transactions={transactions}
+                            invoices={invoices}
+                            finance={allFinance}
+                            currency={currency}
+                        />
+                    )}
+
                     {/* ── AGING ────────────────────────────────────────── */}
                     {activeTab === 'aging' && <AgingReport />}
 
@@ -288,6 +307,136 @@ export default function ReportsScreen() {
         </SafeAreaView>
     );
 }
+
+// ─── Inventory Report Tab ─────────────────────────────────────────────────────
+
+function InventoryReportTab({ inventory, finance, transactions, currency }: {
+    inventory: InventoryItem[];
+    finance: any;
+    transactions: any[];
+    currency: string;
+}) {
+    const totalStockCost    = inventory.reduce((s, i) => s + i.quantity * i.costPrice, 0);
+    const potentialRevenue  = inventory.reduce((s, i) => s + i.quantity * i.sellingPrice, 0);
+    const potentialProfit   = potentialRevenue - totalStockCost;
+    const grossMargin       = potentialRevenue > 0 ? (potentialProfit / potentialRevenue) * 100 : 0;
+
+    const totalRevenue = transactions.filter(t => t.type === 'income').reduce((s: number, t: any) => s + t.amount, 0);
+    const stockToRevRatio = totalRevenue > 0 ? (totalStockCost / totalRevenue) * 100 : 0;
+    const ratioColor = stockToRevRatio < 30 ? Colors.income : stockToRevRatio < 60 ? Colors.warning : Colors.expense;
+
+    // Category table
+    const catMap = new Map<string, { items: InventoryItem[] }>();
+    for (const item of inventory) {
+        const cat = item.category || 'General';
+        if (!catMap.has(cat)) catMap.set(cat, { items: [] });
+        catMap.get(cat)!.items.push(item);
+    }
+    const catRows = Array.from(catMap.entries()).map(([cat, { items }]) => {
+        const units     = items.reduce((s, i) => s + i.quantity, 0);
+        const stockCost = items.reduce((s, i) => s + i.quantity * i.costPrice, 0);
+        const sellVal   = items.reduce((s, i) => s + i.quantity * i.sellingPrice, 0);
+        const margin    = sellVal > 0 ? ((sellVal - stockCost) / sellVal) * 100 : 0;
+        return { cat, count: items.length, units, stockCost, sellVal, margin };
+    });
+
+    return (
+        <View>
+            <Text style={styles.cardTitle}>Inventory & Cost of Goods Report</Text>
+            <Text style={[styles.note, { marginBottom: 12 }]}>Current Stock Snapshot</Text>
+
+            {/* COGS Analysis */}
+            <View style={styles.card}>
+                <Text style={styles.cardTitle}>COGS Analysis</Text>
+                <StatRow label="Total Stock Cost Value"    value={`${currency}${totalStockCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}   color={Colors.expense} />
+                <StatRow label="Potential Revenue"         value={`${currency}${potentialRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}  color={Colors.income} />
+                <StatRow label="Potential Gross Profit"    value={`${currency}${potentialProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}   color={potentialProfit >= 0 ? Colors.income : Colors.expense} bold />
+                <StatRow label="Gross Margin %"            value={`${grossMargin.toFixed(1)}%`}                                                              color={Colors.textMuted} />
+                <Text style={styles.note}>Add stock expenses as transactions to include in P&L</Text>
+            </View>
+
+            {/* Category Table */}
+            <View style={styles.card}>
+                <Text style={styles.cardTitle}>Category Breakdown</Text>
+                <View style={invStyles.tableHeader}>
+                    <Text style={[invStyles.colCat, invStyles.headerText]}>Category</Text>
+                    <Text style={[invStyles.colNum, invStyles.headerText]}>Items</Text>
+                    <Text style={[invStyles.colNum, invStyles.headerText]}>Units</Text>
+                    <Text style={[invStyles.colVal, invStyles.headerText]}>Cost</Text>
+                    <Text style={[invStyles.colVal, invStyles.headerText]}>Sell</Text>
+                    <Text style={[invStyles.colNum, invStyles.headerText]}>Margin</Text>
+                </View>
+                {catRows.map(r => (
+                    <View key={r.cat} style={invStyles.tableRow}>
+                        <Text style={[invStyles.colCat, invStyles.cellText]}>{r.cat}</Text>
+                        <Text style={[invStyles.colNum, invStyles.cellText]}>{r.count}</Text>
+                        <Text style={[invStyles.colNum, invStyles.cellText]}>{r.units}</Text>
+                        <Text style={[invStyles.colVal, invStyles.cellText]}>{currency}{r.stockCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                        <Text style={[invStyles.colVal, invStyles.cellText]}>{currency}{r.sellVal.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                        <Text style={[invStyles.colNum, { color: r.margin >= 20 ? Colors.income : r.margin >= 10 ? Colors.warning : Colors.expense, fontSize: 11 }]}>{r.margin.toFixed(1)}%</Text>
+                    </View>
+                ))}
+                {catRows.length === 0 && <Text style={styles.note}>No inventory items yet.</Text>}
+            </View>
+
+            {/* Full Item Table */}
+            <View style={styles.card}>
+                <Text style={styles.cardTitle}>Full Item List</Text>
+                <View style={invStyles.tableHeader}>
+                    <Text style={[invStyles.colItem, invStyles.headerText]}>Item</Text>
+                    <Text style={[invStyles.colNum, invStyles.headerText]}>Qty</Text>
+                    <Text style={[invStyles.colVal, invStyles.headerText]}>Cost</Text>
+                    <Text style={[invStyles.colVal, invStyles.headerText]}>Sell</Text>
+                    <Text style={[invStyles.colNum, invStyles.headerText]}>Margin</Text>
+                    <Text style={[invStyles.colVal, invStyles.headerText]}>Value</Text>
+                </View>
+                {inventory.map(item => {
+                    const margin = item.sellingPrice > 0 ? ((item.sellingPrice - item.costPrice) / item.sellingPrice) * 100 : 0;
+                    const stockVal = item.quantity * item.costPrice;
+                    return (
+                        <View key={item.id} style={invStyles.tableRow}>
+                            <Text style={[invStyles.colItem, invStyles.cellText]} numberOfLines={1}>{item.name}</Text>
+                            <Text style={[invStyles.colNum, invStyles.cellText]}>{item.quantity}</Text>
+                            <Text style={[invStyles.colVal, invStyles.cellText]}>{currency}{item.costPrice.toLocaleString()}</Text>
+                            <Text style={[invStyles.colVal, invStyles.cellText]}>{currency}{item.sellingPrice.toLocaleString()}</Text>
+                            <Text style={[invStyles.colNum, { color: margin >= 20 ? Colors.income : margin >= 10 ? Colors.warning : Colors.expense, fontSize: 11 }]}>{margin.toFixed(1)}%</Text>
+                            <Text style={[invStyles.colVal, invStyles.cellText]}>{currency}{stockVal.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                        </View>
+                    );
+                })}
+                {inventory.length === 0 && <Text style={styles.note}>No inventory items yet.</Text>}
+            </View>
+
+            {/* Inventory-to-Revenue Ratio */}
+            <View style={styles.card}>
+                <Text style={styles.cardTitle}>Inventory-to-Revenue Ratio</Text>
+                <StatRow label="Stock Value"    value={`${currency}${totalStockCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}  color={Colors.asset} />
+                <StatRow label="Total Revenue"  value={`${currency}${totalRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}    color={Colors.income} />
+                <StatRow label="Ratio"          value={`${stockToRevRatio.toFixed(1)}%`}                                                        color={ratioColor} bold />
+                <Text style={styles.note}>
+                    For every $1 of revenue you have ${(totalRevenue > 0 ? totalStockCost / totalRevenue : 0).toFixed(2)} of stock tied up
+                </Text>
+            </View>
+
+            <View style={[styles.card, { borderWidth: 1, borderColor: Colors.primary }]}>
+                <Text style={styles.note}>
+                    Tip: Record inventory purchases as 'Cost of Goods' expenses to include them in your P&L automatically.
+                </Text>
+            </View>
+        </View>
+    );
+}
+
+const invStyles = StyleSheet.create({
+    tableHeader: { flexDirection: 'row', paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: Colors.border, marginBottom: 4 },
+    tableRow:    { flexDirection: 'row', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: Colors.border, alignItems: 'center' },
+    headerText:  { fontSize: 10, color: Colors.textMuted, fontWeight: '700' },
+    cellText:    { fontSize: 11, color: Colors.textSecondary },
+    colCat:      { flex: 2 },
+    colItem:     { flex: 2 },
+    colNum:      { flex: 1, textAlign: 'right' },
+    colVal:      { flex: 1.5, textAlign: 'right' },
+});
 
 // ─── Balance Sheet Tab ─────────────────────────────────────────────────────────
 
