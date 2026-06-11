@@ -12,6 +12,7 @@ import GoalsScreen from './src/screens/GoalsScreen';
 import InvoicesScreen from './src/screens/InvoicesScreen';
 import AssetsScreen from './src/screens/AssetsScreen';
 import InventoryScreen from './src/screens/InventoryScreen';
+import GrowthIntelligenceScreen from './src/screens/GrowthIntelligenceScreen';
 
 function Navigator() {
     const { currentScreen, isLoading } = useApp();
@@ -36,6 +37,7 @@ function Navigator() {
             {currentScreen === 'invoices'     && <InvoicesScreen />}
             {currentScreen === 'assets'       && <AssetsScreen />}
             {currentScreen === 'inventory'    && <InventoryScreen />}
+            {currentScreen === 'growth'       && <GrowthIntelligenceScreen />}
         </View>
     );
 }

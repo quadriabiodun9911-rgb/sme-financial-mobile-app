@@ -10,7 +10,7 @@ const T = {
         // Navigation
         dashboard: 'Dashboard', reports: 'Reports', invoices: 'Invoices',
         ledger: 'Ledger', goals: 'Goals', insights: 'Insights', settings: 'Settings',
-        assets: 'Assets',
+        assets: 'Assets', growth: 'Growth',
 
         // Auth / Setup
         appName: 'FinanceBook',
@@ -117,7 +117,7 @@ const T = {
     zh: {
         dashboard: '仪表板', reports: '报告', invoices: '发票',
         ledger: '账本', goals: '目标', insights: '洞察', settings: '设置',
-        assets: '资产',
+        assets: '资产', growth: '增长',
 
         appName: 'FinanceBook',
         setupSubtitle: '设置您的企业账户',

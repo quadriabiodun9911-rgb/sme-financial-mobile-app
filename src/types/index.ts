@@ -8,7 +8,8 @@ export type Screen =
     | 'goals'
     | 'invoices'
     | 'assets'
-    | 'inventory';
+    | 'inventory'
+    | 'growth';
 
 export type ReportTab =
     | 'balancesheet'

@@ -11,9 +11,9 @@ export default function FooterNav() {
     const TABS: { labelKey: Parameters<typeof t>[1]; screen: Screen; icon: string }[] = [
         { labelKey: 'dashboard',  screen: 'dashboard',    icon: '⬛' },
         { labelKey: 'reports',    screen: 'reports',      icon: '📊' },
+        { labelKey: 'growth',     screen: 'growth',       icon: '📈' },
         { labelKey: 'invoices',   screen: 'invoices',     icon: '🧾' },
         { labelKey: 'ledger',     screen: 'transactions', icon: '📒' },
-        { labelKey: 'assets',     screen: 'assets',       icon: '🏭' },
     ];
 
     return (
