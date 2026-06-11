@@ -2,13 +2,14 @@ import React, { useState } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text,
     TouchableOpacity, StyleSheet, ActivityIndicator,
-    Modal, TextInput, KeyboardAvoidingView, Platform,
+    Modal, TextInput, KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { t } from '../utils/i18n';
+import { validateAmount, validateDescription } from '../utils/validation';
 
 export default function DashboardScreen() {
     const { finance, insight, settings, goals, transactions, invoices, navigate, setCurrentScreen, language, isLoading, addTransaction } = useApp();
@@ -22,10 +23,36 @@ export default function DashboardScreen() {
 
     const submitQuickAdd = () => {
         const amt = parseFloat(qaAmount);
-        if (!qaDesc.trim() || isNaN(amt) || amt <= 0) return;
+
+        // Validate amount
+        const amountError = validateAmount(amt);
+        if (amountError) {
+            Alert.alert('Invalid Amount', amountError.message);
+            return;
+        }
+
+        // Validate description
+        const descError = validateDescription(qaDesc.trim());
+        if (descError) {
+            Alert.alert('Invalid Description', descError.message);
+            return;
+        }
+
         setQaSubmitting(true);
-        addTransaction({ type: qaType, amount: amt, description: qaDesc.trim(), category: qaType === 'income' ? 'Sales' : 'General', status: 'paid' });
-        setQaAmount(''); setQaDesc(''); setQaSubmitting(false); setFabOpen(false);
+        try {
+            addTransaction({
+                type: qaType,
+                amount: amt,
+                description: qaDesc.trim(),
+                category: qaType === 'income' ? 'Sales' : 'General',
+                status: 'paid',
+            });
+            setQaAmount('');
+            setQaDesc('');
+            setFabOpen(false);
+        } finally {
+            setQaSubmitting(false);
+        }
     };
 
     if (isLoading) {

@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Transaction, BusinessSettings, FinancialGoal, Invoice, TeamMember, Language, Asset, InventoryItem } from '../types';
 import { supabase } from './supabase';
+import { savePinSecurely, loadPinSecurely, clearPinSecurely, clearAllSecureData } from './secureStorage';
 
 const KEYS = {
     transactions:   '@financebook/transactions',
@@ -374,11 +375,12 @@ export async function loadLanguage(): Promise<Language> {
 }
 
 // ─── PIN (local only — never sent to server) ──────────────────────────────────
+// PIN is now stored securely using expo-secure-store
 export async function savePin(pin: string): Promise<void> {
-    await AsyncStorage.setItem(KEYS.pin, pin);
+    await savePinSecurely(pin);
 }
 export async function loadPin(): Promise<string | null> {
-    return AsyncStorage.getItem(KEYS.pin);
+    return loadPinSecurely();
 }
 
 // ─── Profile ──────────────────────────────────────────────────────────────────
@@ -437,7 +439,8 @@ export async function importAllData(json: string): Promise<AppBackup> {
 }
 
 export async function clearAllData(): Promise<void> {
-    await AsyncStorage.multiRemove([KEYS.transactions, KEYS.settings, KEYS.goals, KEYS.invoices, KEYS.assets]);
+    await AsyncStorage.multiRemove([KEYS.transactions, KEYS.settings, KEYS.goals, KEYS.invoices, KEYS.assets, KEYS.pin, KEYS.profile]);
+    await clearAllSecureData();
     const ownerId = await getWorkspaceOwnerId();
     if (ownerId) {
         const results = await Promise.allSettled([
@@ -446,9 +449,10 @@ export async function clearAllData(): Promise<void> {
             supabase.from('settings').delete().eq('user_id', ownerId),
             supabase.from('invoices').delete().eq('user_id', ownerId),
             supabase.from('assets').delete().eq('user_id', ownerId),
+            supabase.from('audit_logs').delete().eq('user_id', ownerId),
         ]);
         results.forEach((r, i) => {
-            if (r.status === 'rejected') logSyncError(['transactions','goals','settings','invoices','assets'][i], 'clear', r.reason);
+            if (r.status === 'rejected') logSyncError(['transactions','goals','settings','invoices','assets','audit_logs'][i], 'clear', r.reason);
         });
     }
 }

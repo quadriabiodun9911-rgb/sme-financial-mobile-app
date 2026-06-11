@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Transaction, FinanceData, User, BusinessSettings, Screen, FinancialGoal, GoalType, NavParams, Invoice, InvoiceStatus, TeamMember, UserRole, Language, Asset, InventoryItem } from '../types';
 import { computeFinance, computeOneThingInsight, computeRecurringDates, computeAssetCurrentValue } from '../utils/finance';
 import { generateId } from '../utils/uuid';
+import { auditEvents } from '../utils/auditLog';
 import {
     saveTransactions, loadTransactions,
     saveSettings, loadSettings,
@@ -38,6 +39,9 @@ interface AppContextValue {
     joinTeam: (email: string, pin: string, inviteCode: string) => Promise<void>;
     logout: () => void;
     changePin: (currentPin: string, newPin: string) => boolean;
+    // Security: Lockout info
+    isLockedOut: boolean;
+    lockoutUntil: number | null;
 
     settings: BusinessSettings;
     updateSettings: (patch: Partial<BusinessSettings>) => void;
@@ -193,6 +197,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const [teamMembers, setTeamMembers]     = useState<TeamMember[]>([]);
     const [language, setLang]              = useState<Language>('en');
     const [isLoading, setIsLoading]         = useState(true);
+    // Security: Rate limiting for login attempts
+    const [loginAttempts, setLoginAttempts]       = useState(0);
+    const [isLockedOut, setIsLockedOut]           = useState(false);
+    const [lockoutUntil, setLockoutUntil]         = useState<number | null>(null);
     const initRan                           = useRef(false);
 
     useEffect(() => {
@@ -333,7 +341,43 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
 
     const login = (pin: string): boolean => {
-        if (pin !== storedPin) return false;
+        // Rate limiting: check if locked out
+        if (isLockedOut && lockoutUntil && Date.now() < lockoutUntil) {
+            return false; // Still locked out
+        }
+        // Reset lockout if time has passed
+        if (isLockedOut && lockoutUntil && Date.now() >= lockoutUntil) {
+            setIsLockedOut(false);
+            setLockoutUntil(null);
+            setLoginAttempts(0);
+        }
+
+        // Validate PIN
+        if (pin !== storedPin) {
+            const newAttempts = loginAttempts + 1;
+            setLoginAttempts(newAttempts);
+
+            // Log failed login attempt
+            auditEvents.loginFailed('Invalid PIN');
+
+            // Lockout after 5 failed attempts for 15 minutes
+            if (newAttempts >= 5) {
+                const lockoutTime = Date.now() + (15 * 60 * 1000);
+                setIsLockedOut(true);
+                setLockoutUntil(lockoutTime);
+                auditEvents.accountLocked();
+            }
+            return false;
+        }
+
+        // Successful login: reset attempts
+        setLoginAttempts(0);
+        setIsLockedOut(false);
+        setLockoutUntil(null);
+
+        // Log successful login
+        auditEvents.login();
+
         loadProfile().then(profile => {
             if (profile) {
                 supabase.auth.signInWithPassword({ email: profile.email, password: pin }).catch(() => {});
@@ -539,6 +583,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         user, userRole,
         isFirstLaunch: !hasProfile && !isLoading,
         setupAccount, login, joinTeam, logout, changePin,
+        isLockedOut, lockoutUntil,
         settings, updateSettings,
         transactions, addTransaction, deleteTransaction, updateTransaction,
         goals, addGoal, deleteGoal, updateGoalCurrentValue,

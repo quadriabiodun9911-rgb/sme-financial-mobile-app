@@ -19,12 +19,33 @@ const CURRENCIES = [
 type Mode = 'owner-setup' | 'owner-login' | 'join-team';
 
 export default function LoginScreen() {
-    const { isFirstLaunch, setupAccount, login, joinTeam, language, setLanguage, updateSettings, resetApp } = useApp();
+    const { isFirstLaunch, setupAccount, login, joinTeam, language, setLanguage, updateSettings, resetApp, isLockedOut, lockoutUntil } = useApp();
     const [mode, setMode] = useState<Mode>(isFirstLaunch ? 'owner-setup' : 'owner-login');
+    const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
 
     useEffect(() => {
         setMode(isFirstLaunch ? 'owner-setup' : 'owner-login');
     }, [isFirstLaunch]);
+
+    // Update lockout timer
+    useEffect(() => {
+        if (!isLockedOut || !lockoutUntil) {
+            setTimeRemaining(null);
+            return;
+        }
+        const updateTimer = () => {
+            const now = Date.now();
+            const remaining = Math.max(0, lockoutUntil - now);
+            if (remaining === 0) {
+                setTimeRemaining(null);
+            } else {
+                setTimeRemaining(Math.ceil(remaining / 1000));
+            }
+        };
+        updateTimer();
+        const interval = setInterval(updateTimer, 1000);
+        return () => clearInterval(interval);
+    }, [isLockedOut, lockoutUntil]);
 
     // Owner setup
     const [email, setEmail]         = useState('');
@@ -63,9 +84,19 @@ export default function LoginScreen() {
     };
 
     const handleLogin = () => {
+        if (isLockedOut && timeRemaining !== null && timeRemaining > 0) {
+            Alert.alert(
+                'Account Locked',
+                `Too many failed login attempts. Please try again in ${Math.ceil(timeRemaining / 60)} minute${Math.ceil(timeRemaining / 60) !== 1 ? 's' : ''}.`,
+            );
+            return;
+        }
         if (!returnPin) { Alert.alert(t(language, 'error'), 'Please enter your 4-digit PIN.'); return; }
         const ok = login(returnPin);
-        if (!ok) { Alert.alert(t(language, 'error'), t(language, 'incorrectPin')); setReturnPin(''); }
+        if (!ok) {
+            Alert.alert(t(language, 'error'), 'Incorrect PIN. Please try again.');
+            setReturnPin('');
+        }
     };
 
     const handleJoinTeam = async () => {
@@ -208,6 +239,14 @@ export default function LoginScreen() {
                     <Text style={styles.title}>{t(language, 'appName')}</Text>
                     <Text style={styles.subtitle}>{t(language, 'loginSubtitle')}</Text>
 
+                    {isLockedOut && timeRemaining !== null && timeRemaining > 0 && (
+                        <View style={styles.lockoutBanner}>
+                            <Text style={styles.lockoutText}>
+                                🔒 Too many failed attempts. Try again in {Math.ceil(timeRemaining / 60)}:{String(timeRemaining % 60).padStart(2, '0')}
+                            </Text>
+                        </View>
+                    )}
+
                     <View style={styles.pinContainer}>
                         <TextInput style={styles.pinInput}
                             placeholder="••••" placeholderTextColor={Colors.muted}
@@ -301,4 +340,10 @@ const styles = StyleSheet.create({
     switchText: { color: Colors.primary, fontSize: 13 },
     resetBtn:   { paddingVertical: 10, alignItems: 'center' },
     resetText:  { color: '#ef4444', fontSize: 12 },
+
+    lockoutBanner: {
+        backgroundColor: 'rgba(239,68,68,0.15)', borderWidth: 1, borderColor: '#ef4444',
+        borderRadius: 10, padding: 12, marginBottom: 16,
+    },
+    lockoutText: { color: '#ef4444', fontSize: 13, fontWeight: '600', textAlign: 'center' },
 });
