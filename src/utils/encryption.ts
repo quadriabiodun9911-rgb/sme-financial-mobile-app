@@ -117,15 +117,11 @@ export function decryptTransaction(
             if (value) {
                 decrypted[field] = isNaN(Number(value)) ? value : Number(value);
             }
-            delete decrypted[encryptedField];
         }
     }
 
-    delete decrypted.encrypted;
-    delete decrypted.version;
-    delete decrypted.timestamp;
-
-    return decrypted;
+    const { encrypted: _, version: __, timestamp: ___, ...cleanDecrypted } = decrypted;
+    return cleanDecrypted;
 }
 
 /**
@@ -169,15 +165,11 @@ export function decryptInvoice(
             if (value) {
                 decrypted[field] = isNaN(Number(value)) ? value : Number(value);
             }
-            delete decrypted[encryptedField];
         }
     }
 
-    delete decrypted.encrypted;
-    delete decrypted.version;
-    delete decrypted.timestamp;
-
-    return decrypted;
+    const { encrypted: _, version: __, timestamp: ___, ...cleanDecrypted } = decrypted;
+    return cleanDecrypted;
 }
 
 /**
@@ -221,15 +213,11 @@ export function decryptAsset(
             if (value) {
                 decrypted[field] = isNaN(Number(value)) ? value : Number(value);
             }
-            delete decrypted[encryptedField];
         }
     }
 
-    delete decrypted.encrypted;
-    delete decrypted.version;
-    delete decrypted.timestamp;
-
-    return decrypted;
+    const { encrypted: _, version: __, timestamp: ___, ...cleanDecrypted } = decrypted;
+    return cleanDecrypted;
 }
 
 /**
@@ -273,15 +261,11 @@ export function decryptInventoryItem(
             if (value) {
                 decrypted[field] = isNaN(Number(value)) ? value : Number(value);
             }
-            delete decrypted[encryptedField];
         }
     }
 
-    delete decrypted.encrypted;
-    delete decrypted.version;
-    delete decrypted.timestamp;
-
-    return decrypted;
+    const { encrypted: _, version: __, timestamp: ___, ...cleanDecrypted } = decrypted;
+    return cleanDecrypted;
 }
 
 /**

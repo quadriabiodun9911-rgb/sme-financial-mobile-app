@@ -169,8 +169,8 @@ describe('Encryption Utilities', () => {
     });
 
     describe('generateEncryptionKey', () => {
-        test('should generate valid encryption key', () => {
-            const key = generateEncryptionKey();
+        test('should generate valid encryption key', async () => {
+            const key = await generateEncryptionKey();
             expect(key).toBeDefined();
             expect(key.length).toBeGreaterThan(0);
 
@@ -179,9 +179,9 @@ describe('Encryption Utilities', () => {
             expect(isValid).toBe(true);
         });
 
-        test('should generate different keys each time', () => {
-            const key1 = generateEncryptionKey();
-            const key2 = generateEncryptionKey();
+        test('should generate different keys each time', async () => {
+            const key1 = await generateEncryptionKey();
+            const key2 = await generateEncryptionKey();
 
             expect(key1).not.toBe(key2);
         });
