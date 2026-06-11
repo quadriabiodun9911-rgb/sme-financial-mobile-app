@@ -16,18 +16,23 @@ import CashManagement from '../components/CashManagement';
 import DebtAnalysis from '../components/DebtAnalysis';
 import EnhancedDebtManagement from '../components/EnhancedDebtManagement';
 import AssetProductivityAnalysis from '../components/AssetProductivityAnalysis';
+import CustomerProfitability from '../components/CustomerProfitability';
+import ProductPerformance from '../components/ProductPerformance';
+import GrowthMetrics from '../components/GrowthMetrics';
+import PricingOptimizer from '../components/PricingOptimizer';
 import CashFlowStatement from '../components/CashFlowStatement';
 import AccrualCashFlow from '../components/AccrualCashFlow';
 import { filterByPeriod, computeFinance, computeMonthlyTrend, computeEnhancedPnL, computeWorkingCapitalMetrics, classifyBusinessSize, sizeLabel, transactionsToCSV, ReportPeriod, MonthlyPoint } from '../utils/finance';
 import { InventoryItem } from '../types';
 
 // ─── Section groups ────────────────────────────────────────────────────────────
-type SectionKey = 'statements' | 'operations' | 'planning' | 'analysis';
+type SectionKey = 'statements' | 'operations' | 'planning' | 'analysis' | 'growth';
 
 const SECTIONS: { key: SectionKey; label: string }[] = [
     { key: 'statements', label: 'Statements' },
     { key: 'operations', label: 'Operations' },
     { key: 'planning',   label: 'Planning' },
+    { key: 'growth',     label: 'Growth' },
     { key: 'analysis',   label: 'Analysis' },
 ];
 
@@ -35,7 +40,8 @@ type SubTab =
     | 'balancesheet' | 'pnl' | 'inventory' | 'accrual'
     | 'aging' | 'tax'
     | 'budget' | 'cashflow' | 'cashmgmt' | 'debt' | 'assets'
-    | 'health' | 'swot';
+    | 'health' | 'swot'
+    | 'customers' | 'products' | 'growth' | 'pricing';
 
 const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
     statements: [
@@ -54,6 +60,12 @@ const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
         { key: 'cashmgmt', label: 'Cash Mgmt' },
         { key: 'debt',     label: 'Debt Management' },
         { key: 'assets',   label: 'Asset Productivity' },
+    ],
+    growth: [
+        { key: 'growth',    label: 'Growth Metrics' },
+        { key: 'customers', label: 'Customer Profitability' },
+        { key: 'products',  label: 'Product Performance' },
+        { key: 'pricing',   label: 'Pricing Optimizer' },
     ],
     analysis: [
         { key: 'health', label: 'Health Score' },
@@ -311,6 +323,42 @@ export default function ReportsScreen() {
 
                     {/* ── SWOT ─────────────────────────────────────────── */}
                     {activeTab === 'swot' && <SwotAnalysis />}
+
+                    {/* ── GROWTH METRICS ───────────────────────────────── */}
+                    {activeTab === 'growth' && (
+                        <GrowthMetrics
+                            transactions={transactions}
+                            currency={currency}
+                            finance={allFinance}
+                        />
+                    )}
+
+                    {/* ── CUSTOMER PROFITABILITY ───────────────────────── */}
+                    {activeTab === 'customers' && (
+                        <CustomerProfitability
+                            invoices={invoices}
+                            transactions={transactions}
+                            currency={currency}
+                        />
+                    )}
+
+                    {/* ── PRODUCT PERFORMANCE ──────────────────────────── */}
+                    {activeTab === 'products' && (
+                        <ProductPerformance
+                            transactions={transactions}
+                            inventory={inventory}
+                            currency={currency}
+                        />
+                    )}
+
+                    {/* ── PRICING OPTIMIZER ────────────────────────────── */}
+                    {activeTab === 'pricing' && (
+                        <PricingOptimizer
+                            currentRevenue={allFinance.income}
+                            currentMargin={allFinance.margin}
+                            currency={currency}
+                        />
+                    )}
 
                 </View>
             </ScrollView>
