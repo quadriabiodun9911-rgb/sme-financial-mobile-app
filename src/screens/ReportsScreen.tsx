@@ -14,6 +14,8 @@ import FinancialHealthAssessment from '../../financial-planning/FinancialHealthA
 import BudgetForecast from '../components/BudgetForecast';
 import CashManagement from '../components/CashManagement';
 import DebtAnalysis from '../components/DebtAnalysis';
+import EnhancedDebtManagement from '../components/EnhancedDebtManagement';
+import AssetProductivityAnalysis from '../components/AssetProductivityAnalysis';
 import CashFlowStatement from '../components/CashFlowStatement';
 import AccrualCashFlow from '../components/AccrualCashFlow';
 import { filterByPeriod, computeFinance, computeMonthlyTrend, computeEnhancedPnL, computeWorkingCapitalMetrics, classifyBusinessSize, sizeLabel, transactionsToCSV, ReportPeriod, MonthlyPoint } from '../utils/finance';
@@ -32,7 +34,7 @@ const SECTIONS: { key: SectionKey; label: string }[] = [
 type SubTab =
     | 'balancesheet' | 'pnl' | 'inventory' | 'accrual'
     | 'aging' | 'tax'
-    | 'budget' | 'cashflow' | 'cashmgmt' | 'debt'
+    | 'budget' | 'cashflow' | 'cashmgmt' | 'debt' | 'assets'
     | 'health' | 'swot';
 
 const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
@@ -50,7 +52,8 @@ const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
         { key: 'budget',   label: 'Budget Forecast' },
         { key: 'cashflow', label: 'Cash Flow' },
         { key: 'cashmgmt', label: 'Cash Mgmt' },
-        { key: 'debt',     label: 'Debt' },
+        { key: 'debt',     label: 'Debt Management' },
+        { key: 'assets',   label: 'Asset Productivity' },
     ],
     analysis: [
         { key: 'health', label: 'Health Score' },
@@ -277,10 +280,19 @@ export default function ReportsScreen() {
                         />
                     )}
 
-                    {/* ── DEBT ─────────────────────────────────────────── */}
+                    {/* ── DEBT MANAGEMENT ──────────────────────────────── */}
                     {activeTab === 'debt' && (
-                        <DebtAnalysis
+                        <EnhancedDebtManagement
                             finance={allFinance}
+                            currency={currency}
+                        />
+                    )}
+
+                    {/* ── ASSET PRODUCTIVITY ───────────────────────────── */}
+                    {activeTab === 'assets' && (
+                        <AssetProductivityAnalysis
+                            finance={allFinance}
+                            assets={assets}
                             currency={currency}
                         />
                     )}
