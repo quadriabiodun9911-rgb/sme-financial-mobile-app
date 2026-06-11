@@ -356,11 +356,73 @@ export async function joinTeamWithCode(
     return { ownerId: data.owner_user_id, role: data.role };
 }
 
-// ─── Inventory (AsyncStorage only — no Supabase sync) ────────────────────────
+// ─── Inventory (now synced with Supabase for backup) ──────────────────────────
 export async function saveInventory(items: InventoryItem[]): Promise<void> {
     await AsyncStorage.setItem('@financebook/inventory', JSON.stringify(items));
+    const ownerId = await getWorkspaceOwnerId();
+    if (!ownerId) return;
+    try {
+        if (items.length > 0) {
+            const rows = items.map(item => ({
+                id: item.id,
+                user_id: ownerId,
+                name: item.name,
+                category: item.category,
+                quantity: item.quantity,
+                unit: item.unit,
+                cost_price: item.costPrice,
+                selling_price: item.sellingPrice,
+                low_stock_threshold: item.lowStockThreshold,
+                created_at: item.createdAt,
+                updated_at: item.updatedAt,
+            }));
+            const { error } = await supabase.from('inventory').upsert(rows, { onConflict: 'id' });
+            if (error) logSyncError('inventory', 'upsert', error);
+        }
+        const { data: remote, error: fetchErr } = await supabase.from('inventory').select('id').eq('user_id', ownerId);
+        if (fetchErr) { logSyncError('inventory', 'select', fetchErr); return; }
+        if (remote) {
+            const localIds = new Set(items.map(i => i.id));
+            const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
+            if (toDelete.length > 0) {
+                const { error: delErr } = await supabase.from('inventory').delete().in('id', toDelete);
+                if (delErr) logSyncError('inventory', 'delete', delErr);
+            }
+        }
+    } catch (e) {
+        logSyncError('inventory', 'sync', e);
+    }
 }
 export async function loadInventory(): Promise<InventoryItem[] | null> {
+    const ownerId = await getWorkspaceOwnerId();
+    if (ownerId) {
+        try {
+            const { data, error } = await supabase
+                .from('inventory')
+                .select('*')
+                .eq('user_id', ownerId)
+                .order('updated_at', { ascending: false });
+            if (error) { logSyncError('inventory', 'load', error); }
+            else if (data && data.length > 0) {
+                const items = data.map(row => ({
+                    id: row.id,
+                    name: row.name,
+                    category: row.category,
+                    quantity: row.quantity,
+                    unit: row.unit,
+                    costPrice: row.cost_price,
+                    sellingPrice: row.selling_price,
+                    lowStockThreshold: row.low_stock_threshold,
+                    createdAt: row.created_at,
+                    updatedAt: row.updated_at,
+                } as InventoryItem));
+                await AsyncStorage.setItem('@financebook/inventory', JSON.stringify(items));
+                return items;
+            }
+        } catch (e) {
+            logSyncError('inventory', 'load', e);
+        }
+    }
     const raw = await AsyncStorage.getItem('@financebook/inventory');
     return raw ? JSON.parse(raw) as InventoryItem[] : null;
 }
