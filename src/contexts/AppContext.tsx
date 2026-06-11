@@ -561,20 +561,49 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
 
     const resetApp = async () => {
-        await clearAllData();
-        await savePin('').catch(() => {});
-        await AsyncStorage.multiRemove(['@financebook/pin', '@financebook/profile', '@financebook/language', '@financebook/workspaceOwner']);
-        await supabase.auth.signOut().catch(() => {});
-        setStoredPin(null);
-        setHasProfile(false);
-        setUser(null);
-        setUserRole('owner');
-        setTransactions([]);
-        setGoals([]);
-        setSettings(DEFAULT_SETTINGS);
-        setInvoices([]);
-        setAssets([]);
-        setCurrentScreen('login');
+        try {
+            // Clear all data storage
+            await clearAllData().catch(() => {});
+
+            // Clear all auth and app storage
+            await AsyncStorage.multiRemove([
+                '@financebook/pin',
+                '@financebook/profile',
+                '@financebook/language',
+                '@financebook/workspaceOwner',
+                '@financebook/encryption-key',
+                '@financebook/inventory',
+                '@financebook/transactions',
+                '@financebook/goals',
+                '@financebook/invoices',
+                '@financebook/assets',
+            ]).catch(() => {});
+
+            // Sign out from Supabase
+            await supabase.auth.signOut().catch(() => {});
+
+            // Reset all state variables
+            setStoredPin(null);
+            setHasProfile(false);
+            setUser(null);
+            setUserRole('owner');
+            setTransactions([]);
+            setGoals([]);
+            setSettings(DEFAULT_SETTINGS);
+            setInvoices([]);
+            setAssets([]);
+            setInventory([]);
+            setCurrentScreen('login');
+
+            // Force a page reload to fully clear browser state
+            if (typeof window !== 'undefined') {
+                setTimeout(() => {
+                    window.location.reload();
+                }, 500);
+            }
+        } catch (error) {
+            console.error('Error resetting app:', error);
+        }
     };
 
     const value: AppContextValue = {
