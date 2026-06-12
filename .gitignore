@@ -1,2 +1,15 @@
 node_modules
+.env
 .env.local
+.env*.local
+*.pem
+*.key
+.DS_Store
+dist/
+build/
+.expo/
+.next/
+.watchmanconfig
+.env.local
+dist/
+node_modules/

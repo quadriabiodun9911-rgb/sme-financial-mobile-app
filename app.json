@@ -1,11 +1,12 @@
 {
   "expo": {
-    "name": "SME Financial Report",
-    "slug": "sme-financial-reporting-mobile",
+    "name": "FinanceBook",
+    "slug": "financebooks-smd",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
+    "owner": "songhao",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
@@ -16,14 +17,24 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.smefinancial.report"
+      "bundleIdentifier": "com.financebook.sme",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Used to scan QR codes for team invite codes.",
+        "NSPhotoLibraryUsageDescription": "Used to attach receipts to transactions."
+      }
     },
     "android": {
-      "package": "com.smefinancial.report",
+      "package": "com.financebook.sme",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0f172a"
-      }
+      },
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -32,10 +43,16 @@
       "expo-secure-store",
       "expo-font"
     ],
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "extra": {
       "eas": {
-        "projectId": "df520474-87c0-4ced-aac6-f1621a359546"
+        "projectId": "5577b2eb-04eb-4a01-bfad-6412b3cf1e29"
       }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/5577b2eb-04eb-4a01-bfad-6412b3cf1e29"
     }
   }
 }
