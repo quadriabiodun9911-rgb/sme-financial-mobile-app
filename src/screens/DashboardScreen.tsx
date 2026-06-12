@@ -90,12 +90,48 @@ export default function DashboardScreen() {
     const today = new Date().toISOString().split('T')[0];
     const loggedToday = transactions.some(tx => tx.date === today);
 
+    // Onboarding checklist — shown until all 3 steps are done
+    const hasTransaction = transactions.length > 0;
+    const hasGoal        = goals.length > 0;
+    const allDone        = hasTransaction && hasGoal;
+    const showOnboarding = !allDone;
+
     return (
         <SafeAreaView style={styles.safe}>
             <Header />
             <ScrollView style={styles.scroll} contentContainerStyle={styles.pad}>
 
                 <Text style={styles.title}>{t(language, 'dashboard')}</Text>
+
+                {/* ── Onboarding Checklist ─────────────────────────────────── */}
+                {showOnboarding && (
+                    <View style={styles.onboardCard}>
+                        <Text style={styles.onboardTitle}>🚀 Get started — 3 quick steps</Text>
+                        <Text style={styles.onboardSub}>Complete these to unlock your full financial picture</Text>
+                        <View style={styles.onboardStep}>
+                            <Text style={styles.onboardCheck}>✅</Text>
+                            <Text style={[styles.onboardStepText, styles.onboardDone]}>Create your account</Text>
+                        </View>
+                        <TouchableOpacity style={styles.onboardStep} onPress={() => setFabOpen(true)}>
+                            <Text style={styles.onboardCheck}>{hasTransaction ? '✅' : '⬜'}</Text>
+                            <View style={{ flex: 1 }}>
+                                <Text style={[styles.onboardStepText, hasTransaction && styles.onboardDone]}>
+                                    Add your first transaction
+                                </Text>
+                                {!hasTransaction && <Text style={styles.onboardStepHint}>Tap to add income or expense →</Text>}
+                            </View>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.onboardStep} onPress={() => setCurrentScreen('goals')}>
+                            <Text style={styles.onboardCheck}>{hasGoal ? '✅' : '⬜'}</Text>
+                            <View style={{ flex: 1 }}>
+                                <Text style={[styles.onboardStepText, hasGoal && styles.onboardDone]}>
+                                    Set a financial goal
+                                </Text>
+                                {!hasGoal && <Text style={styles.onboardStepHint}>Tap to set a savings or revenue goal →</Text>}
+                            </View>
+                        </TouchableOpacity>
+                    </View>
+                )}
 
                 {/* ── Profitability Hero Card ──────────────────────────────── */}
                 <View style={[styles.heroCard, { borderColor: finance.profit >= 0 ? Colors.income : Colors.expense }]}>
@@ -379,6 +415,18 @@ const styles = StyleSheet.create({
     title: { fontSize: 22, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 14 },
     row:   { flexDirection: 'row', gap: 12, marginBottom: 12 },
     flex:  { flex: 1 },
+
+    onboardCard: {
+        backgroundColor: Colors.surface, borderRadius: 14, padding: 16,
+        marginBottom: 14, borderWidth: 1, borderColor: Colors.primary,
+    },
+    onboardTitle:    { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },
+    onboardSub:      { fontSize: 12, color: Colors.textMuted, marginBottom: 12 },
+    onboardStep:     { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10, gap: 10 },
+    onboardCheck:    { fontSize: 16, width: 22 },
+    onboardStepText: { fontSize: 14, color: Colors.textPrimary, fontWeight: '600' },
+    onboardDone:     { color: Colors.textMuted, textDecorationLine: 'line-through' },
+    onboardStepHint: { fontSize: 11, color: Colors.primary, marginTop: 1 },
 
     heroCard: {
         backgroundColor: Colors.surface, borderRadius: 14, padding: 18,

@@ -418,6 +418,7 @@ export default function LoginScreen() {
                                 : <Text style={styles.btnText}>{t(setupLang, 'createAccount')}</Text>
                             }
                         </TouchableOpacity>
+                        <Text style={styles.trustNote}>🔒 Your data is encrypted and stored securely. We never share your information.</Text>
                         <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('join-team')}>
                             <Text style={styles.switchText}>{t(setupLang, 'joiningTeam')}</Text>
                         </TouchableOpacity>
@@ -586,6 +587,7 @@ const styles = StyleSheet.create({
     switchText: { color: Colors.primary, fontSize: 13 },
     resetBtn:   { paddingVertical: 10, alignItems: 'center' },
     resetText:  { color: '#ef4444', fontSize: 12 },
+    trustNote:  { fontSize: 11, color: Colors.textMuted, textAlign: 'center', marginTop: 10, lineHeight: 16 },
 
     infoBox: {
         backgroundColor: 'rgba(0,102,204,0.12)', borderWidth: 1, borderColor: Colors.primary,
