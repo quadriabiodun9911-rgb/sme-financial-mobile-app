@@ -90,7 +90,19 @@ export default function LoginScreen() {
             await setupAccount(email.trim(), business.trim(), pin, false);
             updateSettings({ currency });
         } catch (e: any) {
-            Alert.alert(t(setupLang, 'error'), e?.message ?? 'Could not create account. Please try again.');
+            const msg: string = e?.message ?? '';
+            if (msg.toLowerCase().includes('already registered') || msg.toLowerCase().includes('already been registered') || msg.toLowerCase().includes('user already exists') || msg.toLowerCase().includes('email address is already')) {
+                Alert.alert(
+                    'Email Already Registered',
+                    'An account with this email already exists. Please sign in instead, or use a different email address.',
+                    [
+                        { text: 'Sign In', onPress: () => { setMode('owner-login'); setLoginMethod('email'); setEmailLoginEmail(email.trim()); } },
+                        { text: 'Use Different Email', style: 'cancel' },
+                    ]
+                );
+            } else {
+                Alert.alert(t(setupLang, 'error'), msg || 'Could not create account. Please try again.');
+            }
             setSubmitting(false);
         }
     };
@@ -489,6 +501,9 @@ export default function LoginScreen() {
                         </>
                     )}
 
+                    <TouchableOpacity style={styles.switchBtn} onPress={() => { setEmail(''); setBusiness(''); setPin(''); setConfirm(''); setMode('owner-setup'); }}>
+                        <Text style={styles.switchText}>Don't have an account? Sign Up →</Text>
+                    </TouchableOpacity>
                     <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('join-team')}>
                         <Text style={styles.switchText}>{t(language, 'joiningTeam')}</Text>
                     </TouchableOpacity>
@@ -497,25 +512,6 @@ export default function LoginScreen() {
                         setMode('reset-pin');
                     }}>
                         <Text style={styles.resetText}>Forgot PIN?</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.resetBtn} onPress={() => {
-                        if (typeof window !== 'undefined' && window.confirm) {
-                            const confirmed = window.confirm(
-                                'Start Fresh?\n\nThis will erase all local data and let you register a new account. Cloud data is not deleted.'
-                            );
-                            if (confirmed) resetApp();
-                        } else {
-                            Alert.alert(
-                                'Start Fresh?',
-                                'This will erase all local data and let you register a new account. Cloud data is not deleted.',
-                                [
-                                    { text: 'Cancel', style: 'cancel' },
-                                    { text: 'Start Fresh', style: 'destructive', onPress: () => resetApp() },
-                                ]
-                            );
-                        }
-                    }}>
-                        <Text style={[styles.resetText, { color: '#999', fontSize: 11 }]}>Start Fresh (erase local data)</Text>
                     </TouchableOpacity>
                 </View>
             </ScrollView>
