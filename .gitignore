@@ -10,3 +10,4 @@ build/
 .expo/
 .next/
 .watchmanconfig
+.env.local
