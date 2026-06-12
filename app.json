@@ -41,13 +41,7 @@
     },
     "plugins": [
       "expo-secure-store",
-      "expo-font",
-      [
-        "expo-camera",
-        {
-          "cameraPermission": "Used to scan QR codes for team invite codes."
-        }
-      ]
+      "expo-font"
     ],
     "runtimeVersion": {
       "policy": "appVersion"
