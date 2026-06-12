@@ -355,14 +355,22 @@ export default function LoginScreen() {
                         <Text style={styles.switchText}>{t(language, 'joiningTeam')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.resetBtn} onPress={() => {
-                        Alert.alert(
-                            'Start Fresh?',
-                            'This will erase all local data and let you register a new account. Cloud data is not deleted.',
-                            [
-                                { text: 'Cancel', style: 'cancel' },
-                                { text: 'Start Fresh', style: 'destructive', onPress: () => resetApp() },
-                            ]
-                        );
+                        // Use window.confirm on web (Alert.alert buttons don't work on web)
+                        if (typeof window !== 'undefined' && window.confirm) {
+                            const confirmed = window.confirm(
+                                'Start Fresh?\n\nThis will erase all local data and let you register a new account. Cloud data is not deleted.'
+                            );
+                            if (confirmed) resetApp();
+                        } else {
+                            Alert.alert(
+                                'Start Fresh?',
+                                'This will erase all local data and let you register a new account. Cloud data is not deleted.',
+                                [
+                                    { text: 'Cancel', style: 'cancel' },
+                                    { text: 'Start Fresh', style: 'destructive', onPress: () => resetApp() },
+                                ]
+                            );
+                        }
                     }}>
                         <Text style={styles.resetText}>Forgot PIN / Start Fresh</Text>
                     </TouchableOpacity>
