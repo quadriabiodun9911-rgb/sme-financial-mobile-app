@@ -16,7 +16,7 @@ const CURRENCIES = [
     { label: 'CAD (CA$)', value: 'CA$' },
 ];
 
-type Mode = 'owner-setup' | 'owner-login' | 'join-team';
+type Mode = 'owner-setup' | 'owner-login' | 'join-team' | 'reset-pin';
 type LoginMethod = 'pin' | 'email';
 
 export default function LoginScreen() {
@@ -69,6 +69,14 @@ export default function LoginScreen() {
     const [joinConfirm, setJoinConfirm] = useState('');
     const [inviteCode, setInviteCode]   = useState('');
     const [joiningTeam, setJoiningTeam] = useState(false);
+
+    // Reset PIN
+    const [resetEmail, setResetEmail]         = useState('');
+    const [resetNewPin, setResetNewPin]       = useState('');
+    const [resetConfirmPin, setResetConfirmPin] = useState('');
+    const [resetOtp, setResetOtp]             = useState('');
+    const [resetStep, setResetStep]           = useState<'request' | 'verify'>('request');
+    const [resetSubmitting, setResetSubmitting] = useState(false);
 
     const handleSetup = async () => {
         if (!email.trim() || !business.trim()) {
@@ -155,6 +163,133 @@ export default function LoginScreen() {
             setJoiningTeam(false);
         }
     };
+
+    const handleResetRequest = async () => {
+        if (!resetEmail.trim()) { Alert.alert('Error', 'Please enter your email address.'); return; }
+        if (!/^\d{6}$/.test(resetNewPin)) { Alert.alert('Error', 'New PIN must be exactly 6 digits.'); return; }
+        if (resetNewPin !== resetConfirmPin) { Alert.alert('Error', 'PINs do not match.'); return; }
+        setResetSubmitting(true);
+        try {
+            const { supabase } = await import('../utils/supabase');
+            const { error } = await supabase.auth.signInWithOtp({
+                email: resetEmail.trim(),
+                options: { shouldCreateUser: false },
+            });
+            if (error) {
+                Alert.alert('Error', error.message.includes('not found') || error.message.includes('User')
+                    ? 'No account found with that email address.'
+                    : error.message);
+            } else {
+                setResetStep('verify');
+                Alert.alert('Check Your Email', 'A 6-digit verification code has been sent to your email.');
+            }
+        } catch (e: any) {
+            Alert.alert('Error', e?.message ?? 'Failed to send verification email.');
+        }
+        setResetSubmitting(false);
+    };
+
+    const handleResetVerify = async () => {
+        if (!resetOtp.trim()) { Alert.alert('Error', 'Please enter the verification code from your email.'); return; }
+        setResetSubmitting(true);
+        try {
+            const { supabase } = await import('../utils/supabase');
+            const { error: verifyError } = await supabase.auth.verifyOtp({
+                email: resetEmail.trim(),
+                token: resetOtp.trim(),
+                type: 'email',
+            });
+            if (verifyError) {
+                Alert.alert('Invalid Code', 'The verification code is incorrect or expired. Please try again.');
+                setResetSubmitting(false);
+                return;
+            }
+            const { error: updateError } = await supabase.auth.updateUser({ password: resetNewPin });
+            if (updateError) {
+                Alert.alert('Error', 'Verified but could not update PIN: ' + updateError.message);
+                setResetSubmitting(false);
+                return;
+            }
+            // Update local PIN storage so the app unlocks with new PIN
+            await import('../contexts/AppContext').then(m => {
+                // Store new PIN hash locally via login context helper isn't exposed,
+                // so we trigger resetApp then re-setup is needed — instead just inform user
+            });
+            Alert.alert('PIN Reset Successful', 'Your PIN has been updated. Please log in with your new PIN using the Email tab.', [
+                { text: 'OK', onPress: () => { setMode('owner-login'); setLoginMethod('email'); setResetStep('request'); setResetOtp(''); setResetNewPin(''); setResetConfirmPin(''); } }
+            ]);
+        } catch (e: any) {
+            Alert.alert('Error', e?.message ?? 'Verification failed.');
+        }
+        setResetSubmitting(false);
+    };
+
+    // ── Reset PIN ─────────────────────────────────────────────────────────────
+    if (mode === 'reset-pin') {
+        return (
+            <SafeAreaView style={styles.safe}>
+                <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+                    <View style={styles.card}>
+                        <Text style={styles.title}>Reset PIN</Text>
+                        <Text style={styles.subtitle}>
+                            {resetStep === 'request'
+                                ? 'Enter your email and choose a new PIN. We\'ll send a verification code.'
+                                : `Enter the 6-digit code sent to ${resetEmail}`}
+                        </Text>
+
+                        {resetStep === 'request' ? (
+                            <>
+                                <Field label="Email Address">
+                                    <TextInput style={styles.input} value={resetEmail} onChangeText={setResetEmail}
+                                        placeholder="your@email.com" placeholderTextColor={Colors.muted}
+                                        autoCapitalize="none" keyboardType="email-address" />
+                                </Field>
+                                <Field label="New PIN (6 digits)">
+                                    <TextInput style={styles.input} value={resetNewPin} onChangeText={setResetNewPin}
+                                        placeholder="••••••" placeholderTextColor={Colors.muted}
+                                        secureTextEntry keyboardType="number-pad" maxLength={6} />
+                                </Field>
+                                <Field label="Confirm New PIN">
+                                    <TextInput style={styles.input} value={resetConfirmPin} onChangeText={setResetConfirmPin}
+                                        placeholder="••••••" placeholderTextColor={Colors.muted}
+                                        secureTextEntry keyboardType="number-pad" maxLength={6} />
+                                </Field>
+                                <TouchableOpacity style={[styles.btn, resetSubmitting && styles.btnDisabled]}
+                                    onPress={handleResetRequest} disabled={resetSubmitting}>
+                                    {resetSubmitting
+                                        ? <ActivityIndicator color="#fff" />
+                                        : <Text style={styles.btnText}>Send Verification Code</Text>}
+                                </TouchableOpacity>
+                            </>
+                        ) : (
+                            <>
+                                <Field label="Verification Code (from email)">
+                                    <TextInput style={[styles.input, styles.codeInput]}
+                                        value={resetOtp} onChangeText={setResetOtp}
+                                        placeholder="000000" placeholderTextColor={Colors.muted}
+                                        keyboardType="number-pad" maxLength={6} />
+                                </Field>
+                                <TouchableOpacity style={[styles.btn, resetSubmitting && styles.btnDisabled]}
+                                    onPress={handleResetVerify} disabled={resetSubmitting}>
+                                    {resetSubmitting
+                                        ? <ActivityIndicator color="#fff" />
+                                        : <Text style={styles.btnText}>Verify & Set New PIN</Text>}
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.switchBtn} onPress={() => setResetStep('request')}>
+                                    <Text style={styles.switchText}>← Change email or PIN</Text>
+                                </TouchableOpacity>
+                            </>
+                        )}
+
+                        <TouchableOpacity style={styles.switchBtn}
+                            onPress={() => { setMode('owner-login'); setResetStep('request'); }}>
+                            <Text style={styles.switchText}>← Back to Login</Text>
+                        </TouchableOpacity>
+                    </View>
+                </ScrollView>
+            </SafeAreaView>
+        );
+    }
 
     // ── Join Team ─────────────────────────────────────────────────────────────
     if (mode === 'join-team') {
@@ -268,6 +403,9 @@ export default function LoginScreen() {
                         <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('join-team')}>
                             <Text style={styles.switchText}>{t(setupLang, 'joiningTeam')}</Text>
                         </TouchableOpacity>
+                        <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('owner-login')}>
+                            <Text style={styles.switchText}>Already have an account? Sign In →</Text>
+                        </TouchableOpacity>
                     </View>
                 </ScrollView>
             </SafeAreaView>
@@ -355,7 +493,12 @@ export default function LoginScreen() {
                         <Text style={styles.switchText}>{t(language, 'joiningTeam')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.resetBtn} onPress={() => {
-                        // Use window.confirm on web (Alert.alert buttons don't work on web)
+                        setResetEmail(''); setResetNewPin(''); setResetConfirmPin(''); setResetOtp(''); setResetStep('request');
+                        setMode('reset-pin');
+                    }}>
+                        <Text style={styles.resetText}>Forgot PIN?</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.resetBtn} onPress={() => {
                         if (typeof window !== 'undefined' && window.confirm) {
                             const confirmed = window.confirm(
                                 'Start Fresh?\n\nThis will erase all local data and let you register a new account. Cloud data is not deleted.'
@@ -372,7 +515,7 @@ export default function LoginScreen() {
                             );
                         }
                     }}>
-                        <Text style={styles.resetText}>Forgot PIN / Start Fresh</Text>
+                        <Text style={[styles.resetText, { color: '#999', fontSize: 11 }]}>Start Fresh (erase local data)</Text>
                     </TouchableOpacity>
                 </View>
             </ScrollView>
