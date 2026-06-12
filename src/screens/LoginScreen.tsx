@@ -103,7 +103,7 @@ export default function LoginScreen() {
         }
     };
 
-    const handleEmailLogin = () => {
+    const handleEmailLogin = async () => {
         if (isLockedOut && timeRemaining !== null && timeRemaining > 0) {
             Alert.alert(
                 'Account Locked',
@@ -111,13 +111,35 @@ export default function LoginScreen() {
             );
             return;
         }
-        if (!emailLoginEmail.trim()) { Alert.alert(t(language, 'error'), 'Please enter your email.'); return; }
+        if (!emailLoginEmail.trim()) { Alert.alert(t(language, 'error'), 'Please enter your email address.'); return; }
         if (!emailLoginPin) { Alert.alert(t(language, 'error'), 'Please enter your 6-digit PIN.'); return; }
+
+        // First try local PIN match
         const ok = login(emailLoginPin);
-        if (!ok) {
+        if (ok) return;
+
+        // If local fails, try Supabase to give specific error
+        try {
+            const { error } = await import('../utils/supabase').then(m =>
+                m.supabase.auth.signInWithPassword({ email: emailLoginEmail.trim(), password: emailLoginPin })
+            );
+            if (error) {
+                if (error.message.toLowerCase().includes('invalid login') || error.message.toLowerCase().includes('invalid credentials')) {
+                    Alert.alert('Incorrect Details', 'The email or PIN you entered does not match any account. Please check and try again.');
+                } else if (error.message.toLowerCase().includes('email not confirmed')) {
+                    Alert.alert('Email Not Verified', 'Please check your inbox and confirm your email before logging in.');
+                } else if (error.message.toLowerCase().includes('too many requests')) {
+                    Alert.alert('Too Many Attempts', 'Too many login attempts. Please wait a few minutes and try again.');
+                } else {
+                    Alert.alert(t(language, 'error'), 'Incorrect email or PIN. Please try again.');
+                }
+            } else {
+                Alert.alert(t(language, 'error'), 'Incorrect PIN. Please try again.');
+            }
+        } catch {
             Alert.alert(t(language, 'error'), 'Incorrect email or PIN. Please try again.');
-            setEmailLoginPin('');
         }
+        setEmailLoginPin('');
     };
 
     const handleJoinTeam = async () => {
