@@ -183,52 +183,51 @@ export default function LoginScreen() {
         setResetSubmitting(true);
         try {
             const { supabase } = await import('../utils/supabase');
-            const { error } = await supabase.auth.signInWithOtp({
-                email: resetEmail.trim(),
-                options: { shouldCreateUser: false },
-            });
+            const redirectTo = typeof window !== 'undefined'
+                ? `${window.location.origin}/?reset=1`
+                : undefined;
+            const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), { redirectTo });
             if (error) {
-                Alert.alert('Error', error.message.includes('not found') || error.message.includes('User')
-                    ? 'No account found with that email address.'
-                    : error.message);
+                const msg = error.message.toLowerCase();
+                if (msg.includes('user not found') || msg.includes('not found')) {
+                    Alert.alert('No Account Found', 'No account exists with that email address. Please check and try again.');
+                } else {
+                    Alert.alert('Error', error.message);
+                }
             } else {
                 setResetStep('verify');
-                Alert.alert('Check Your Email', 'A 6-digit verification code has been sent to your email.');
             }
         } catch (e: any) {
-            Alert.alert('Error', e?.message ?? 'Failed to send verification email.');
+            Alert.alert('Error', e?.message ?? 'Failed to send reset email.');
         }
         setResetSubmitting(false);
     };
 
     const handleResetVerify = async () => {
-        if (!resetOtp.trim()) { Alert.alert('Error', 'Please enter the verification code from your email.'); return; }
+        if (!/^\d{6}$/.test(resetOtp.trim())) { Alert.alert('Error', 'Please enter the 6-digit code from the email link.'); return; }
         setResetSubmitting(true);
         try {
             const { supabase } = await import('../utils/supabase');
+            // On web the reset link sets a session automatically via the URL hash;
+            // verify the OTP token directly for environments that support it
             const { error: verifyError } = await supabase.auth.verifyOtp({
                 email: resetEmail.trim(),
                 token: resetOtp.trim(),
-                type: 'email',
+                type: 'recovery',
             });
             if (verifyError) {
-                Alert.alert('Invalid Code', 'The verification code is incorrect or expired. Please try again.');
+                Alert.alert('Invalid Code', 'The code is incorrect or has expired. Please request a new reset email.');
                 setResetSubmitting(false);
                 return;
             }
             const { error: updateError } = await supabase.auth.updateUser({ password: resetNewPin });
             if (updateError) {
-                Alert.alert('Error', 'Verified but could not update PIN: ' + updateError.message);
+                Alert.alert('Error', 'Could not update PIN: ' + updateError.message);
                 setResetSubmitting(false);
                 return;
             }
-            // Update local PIN storage so the app unlocks with new PIN
-            await import('../contexts/AppContext').then(m => {
-                // Store new PIN hash locally via login context helper isn't exposed,
-                // so we trigger resetApp then re-setup is needed — instead just inform user
-            });
-            Alert.alert('PIN Reset Successful', 'Your PIN has been updated. Please log in with your new PIN using the Email tab.', [
-                { text: 'OK', onPress: () => { setMode('owner-login'); setLoginMethod('email'); setResetStep('request'); setResetOtp(''); setResetNewPin(''); setResetConfirmPin(''); } }
+            Alert.alert('PIN Reset Successful', 'Your PIN has been updated. Please log in with your new PIN.', [
+                { text: 'OK', onPress: () => { setMode('owner-login'); setLoginMethod('email'); setEmailLoginEmail(resetEmail.trim()); setResetStep('request'); setResetOtp(''); setResetNewPin(''); setResetConfirmPin(''); } }
             ]);
         } catch (e: any) {
             Alert.alert('Error', e?.message ?? 'Verification failed.');
@@ -245,8 +244,8 @@ export default function LoginScreen() {
                         <Text style={styles.title}>Reset PIN</Text>
                         <Text style={styles.subtitle}>
                             {resetStep === 'request'
-                                ? 'Enter your email and choose a new PIN. We\'ll send a verification code.'
-                                : `Enter the 6-digit code sent to ${resetEmail}`}
+                                ? 'Enter your email and new PIN. We\'ll send a reset link to your inbox.'
+                                : `Check your inbox at ${resetEmail} — open the link, then enter the 6-digit code from the email here.`}
                         </Text>
 
                         {resetStep === 'request' ? (
@@ -270,12 +269,19 @@ export default function LoginScreen() {
                                     onPress={handleResetRequest} disabled={resetSubmitting}>
                                     {resetSubmitting
                                         ? <ActivityIndicator color="#fff" />
-                                        : <Text style={styles.btnText}>Send Verification Code</Text>}
+                                        : <Text style={styles.btnText}>Send Reset Email</Text>}
                                 </TouchableOpacity>
                             </>
                         ) : (
                             <>
-                                <Field label="Verification Code (from email)">
+                                <View style={styles.infoBox}>
+                                    <Text style={styles.infoText}>
+                                        📧 A reset email has been sent to{'\n'}<Text style={{ fontWeight: 'bold' }}>{resetEmail}</Text>{'\n\n'}
+                                        Open the email → click the link → come back here and enter the 6-digit code shown in the email.{'\n\n'}
+                                        ⚠️ Check your spam/junk folder if you don't see it.
+                                    </Text>
+                                </View>
+                                <Field label="6-Digit Code from Email">
                                     <TextInput style={[styles.input, styles.codeInput]}
                                         value={resetOtp} onChangeText={setResetOtp}
                                         placeholder="000000" placeholderTextColor={Colors.muted}
@@ -288,7 +294,7 @@ export default function LoginScreen() {
                                         : <Text style={styles.btnText}>Verify & Set New PIN</Text>}
                                 </TouchableOpacity>
                                 <TouchableOpacity style={styles.switchBtn} onPress={() => setResetStep('request')}>
-                                    <Text style={styles.switchText}>← Change email or PIN</Text>
+                                    <Text style={styles.switchText}>← Resend or change email</Text>
                                 </TouchableOpacity>
                             </>
                         )}
@@ -580,6 +586,12 @@ const styles = StyleSheet.create({
     switchText: { color: Colors.primary, fontSize: 13 },
     resetBtn:   { paddingVertical: 10, alignItems: 'center' },
     resetText:  { color: '#ef4444', fontSize: 12 },
+
+    infoBox: {
+        backgroundColor: 'rgba(0,102,204,0.12)', borderWidth: 1, borderColor: Colors.primary,
+        borderRadius: 10, padding: 14, marginBottom: 16,
+    },
+    infoText: { color: Colors.textSecondary, fontSize: 13, lineHeight: 20, textAlign: 'center' },
 
     lockoutBanner: {
         backgroundColor: 'rgba(239,68,68,0.15)', borderWidth: 1, borderColor: '#ef4444',
