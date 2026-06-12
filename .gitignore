@@ -5,11 +5,9 @@ node_modules
 *.pem
 *.key
 .DS_Store
-dist/
 build/
 .expo/
 .next/
 .watchmanconfig
 .env.local
-dist/
 node_modules/
