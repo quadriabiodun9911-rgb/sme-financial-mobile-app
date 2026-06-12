@@ -172,12 +172,12 @@ export default function LoginScreen() {
                         </Field>
                         <Field label={t(language, 'newPin')}>
                             <TextInput style={styles.input} value={joinPin} onChangeText={setJoinPin}
-                                placeholder="••••" placeholderTextColor={Colors.muted}
+                                placeholder="••••••" placeholderTextColor={Colors.muted}
                                 secureTextEntry keyboardType="number-pad" maxLength={6} />
                         </Field>
                         <Field label={t(language, 'confirmPin')}>
                             <TextInput style={styles.input} value={joinConfirm} onChangeText={setJoinConfirm}
-                                placeholder="••••" placeholderTextColor={Colors.muted}
+                                placeholder="••••••" placeholderTextColor={Colors.muted}
                                 secureTextEntry keyboardType="number-pad" maxLength={6} />
                         </Field>
                         <Field label={t(language, 'inviteCode')}>
@@ -236,12 +236,12 @@ export default function LoginScreen() {
                         </Field>
                         <Field label={t(setupLang, 'createPin')}>
                             <TextInput style={styles.input} value={pin} onChangeText={setPin}
-                                placeholder="••••" placeholderTextColor={Colors.muted}
+                                placeholder="••••••" placeholderTextColor={Colors.muted}
                                 secureTextEntry keyboardType="number-pad" maxLength={6} />
                         </Field>
                         <Field label={t(setupLang, 'confirmPin')}>
                             <TextInput style={styles.input} value={confirmPin} onChangeText={setConfirm}
-                                placeholder="••••" placeholderTextColor={Colors.muted}
+                                placeholder="••••••" placeholderTextColor={Colors.muted}
                                 secureTextEntry keyboardType="number-pad" maxLength={6} />
                         </Field>
 
@@ -311,7 +311,7 @@ export default function LoginScreen() {
                         <>
                             <View style={styles.pinContainer}>
                                 <TextInput style={styles.pinInput}
-                                    placeholder="••••" placeholderTextColor={Colors.muted}
+                                    placeholder="••••••" placeholderTextColor={Colors.muted}
                                     secureTextEntry keyboardType="number-pad" maxLength={6}
                                     value={returnPin} onChangeText={setReturnPin}
                                     onSubmitEditing={handleLogin} autoFocus />
@@ -335,7 +335,7 @@ export default function LoginScreen() {
                             </Field>
                             <Field label="PIN">
                                 <TextInput style={styles.input}
-                                    placeholder="••••"
+                                    placeholder="••••••"
                                     placeholderTextColor={Colors.muted}
                                     secureTextEntry
                                     keyboardType="number-pad"
