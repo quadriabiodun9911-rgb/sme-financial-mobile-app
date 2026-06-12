@@ -74,7 +74,7 @@ export default function LoginScreen() {
         if (!email.trim() || !business.trim()) {
             Alert.alert(t(setupLang, 'missingFields'), t(setupLang, 'email') + ' & ' + t(setupLang, 'businessName')); return;
         }
-        if (!/^\d{4}$/.test(pin)) { Alert.alert(t(setupLang, 'error'), t(setupLang, 'invalidPin')); return; }
+        if (!/^\d{6}$/.test(pin)) { Alert.alert(t(setupLang, 'error'), t(setupLang, 'invalidPin')); return; }
         if (pin !== confirmPin)   { Alert.alert(t(setupLang, 'error'), t(setupLang, 'pinMismatch')); return; }
         setSubmitting(true);
         try {
@@ -95,7 +95,7 @@ export default function LoginScreen() {
             );
             return;
         }
-        if (!returnPin) { Alert.alert(t(language, 'error'), 'Please enter your 4-digit PIN.'); return; }
+        if (!returnPin) { Alert.alert(t(language, 'error'), 'Please enter your 6-digit PIN.'); return; }
         const ok = login(returnPin);
         if (!ok) {
             Alert.alert(t(language, 'error'), 'Incorrect PIN. Please try again.');
@@ -112,7 +112,7 @@ export default function LoginScreen() {
             return;
         }
         if (!emailLoginEmail.trim()) { Alert.alert(t(language, 'error'), 'Please enter your email.'); return; }
-        if (!emailLoginPin) { Alert.alert(t(language, 'error'), 'Please enter your 4-digit PIN.'); return; }
+        if (!emailLoginPin) { Alert.alert(t(language, 'error'), 'Please enter your 6-digit PIN.'); return; }
         const ok = login(emailLoginPin);
         if (!ok) {
             Alert.alert(t(language, 'error'), 'Incorrect email or PIN. Please try again.');
@@ -122,7 +122,7 @@ export default function LoginScreen() {
 
     const handleJoinTeam = async () => {
         if (!joinEmail.trim()) { Alert.alert(t(language, 'required'), t(language, 'email')); return; }
-        if (!/^\d{4}$/.test(joinPin)) { Alert.alert(t(language, 'error'), t(language, 'invalidPin')); return; }
+        if (!/^\d{6}$/.test(joinPin)) { Alert.alert(t(language, 'error'), t(language, 'invalidPin')); return; }
         if (joinPin !== joinConfirm)  { Alert.alert(t(language, 'error'), t(language, 'pinMismatch')); return; }
         if (!inviteCode.trim())       { Alert.alert(t(language, 'required'), t(language, 'inviteCode')); return; }
         setJoiningTeam(true);
@@ -151,12 +151,12 @@ export default function LoginScreen() {
                         <Field label={t(language, 'newPin')}>
                             <TextInput style={styles.input} value={joinPin} onChangeText={setJoinPin}
                                 placeholder="••••" placeholderTextColor={Colors.muted}
-                                secureTextEntry keyboardType="number-pad" maxLength={4} />
+                                secureTextEntry keyboardType="number-pad" maxLength={6} />
                         </Field>
                         <Field label={t(language, 'confirmPin')}>
                             <TextInput style={styles.input} value={joinConfirm} onChangeText={setJoinConfirm}
                                 placeholder="••••" placeholderTextColor={Colors.muted}
-                                secureTextEntry keyboardType="number-pad" maxLength={4} />
+                                secureTextEntry keyboardType="number-pad" maxLength={6} />
                         </Field>
                         <Field label={t(language, 'inviteCode')}>
                             <TextInput style={[styles.input, styles.codeInput]}
@@ -215,12 +215,12 @@ export default function LoginScreen() {
                         <Field label={t(setupLang, 'createPin')}>
                             <TextInput style={styles.input} value={pin} onChangeText={setPin}
                                 placeholder="••••" placeholderTextColor={Colors.muted}
-                                secureTextEntry keyboardType="number-pad" maxLength={4} />
+                                secureTextEntry keyboardType="number-pad" maxLength={6} />
                         </Field>
                         <Field label={t(setupLang, 'confirmPin')}>
                             <TextInput style={styles.input} value={confirmPin} onChangeText={setConfirm}
                                 placeholder="••••" placeholderTextColor={Colors.muted}
-                                secureTextEntry keyboardType="number-pad" maxLength={4} />
+                                secureTextEntry keyboardType="number-pad" maxLength={6} />
                         </Field>
 
                         {/* Currency picker */}
@@ -290,7 +290,7 @@ export default function LoginScreen() {
                             <View style={styles.pinContainer}>
                                 <TextInput style={styles.pinInput}
                                     placeholder="••••" placeholderTextColor={Colors.muted}
-                                    secureTextEntry keyboardType="number-pad" maxLength={4}
+                                    secureTextEntry keyboardType="number-pad" maxLength={6}
                                     value={returnPin} onChangeText={setReturnPin}
                                     onSubmitEditing={handleLogin} autoFocus />
                             </View>
@@ -317,7 +317,7 @@ export default function LoginScreen() {
                                     placeholderTextColor={Colors.muted}
                                     secureTextEntry
                                     keyboardType="number-pad"
-                                    maxLength={4}
+                                    maxLength={6}
                                     value={emailLoginPin}
                                     onChangeText={setEmailLoginPin}
                                     onSubmitEditing={handleEmailLogin}
