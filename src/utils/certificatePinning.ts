@@ -1,5 +1,5 @@
 /**
- * Certificate Pinning for FinanceBook
+ * Certificate Pinning for Quad360
  *
  * Prevents Man-in-the-Middle (MITM) attacks by pinning SSL/TLS certificates
  * This ensures the app only communicates with the legitimate Supabase server
@@ -55,13 +55,13 @@ export async function verifyCertificatePin(hostname: string, certificate: string
     const pins = CERTIFICATE_PINS.supabase[hostname as keyof typeof CERTIFICATE_PINS.supabase];
 
     if (!pins) {
-        console.warn(`[FinanceBook] No pins configured for ${hostname}`);
+        console.warn(`[Quad360] No pins configured for ${hostname}`);
         return false; // Reject if no pins configured (fail secure)
     }
 
     // In production, extract actual SPKI hash from certificate
     // For now, this is a placeholder
-    console.log(`[FinanceBook] Certificate pinning would be verified for ${hostname}`);
+    console.log(`[Quad360] Certificate pinning would be verified for ${hostname}`);
 
     return true;
 }
@@ -81,7 +81,7 @@ export async function pinnedFetch(
 
     // Verify hostname is in our pins list
     if (!(hostname in CERTIFICATE_PINS.supabase)) {
-        console.warn(`[FinanceBook] Unverified hostname: ${hostname}`);
+        console.warn(`[Quad360] Unverified hostname: ${hostname}`);
         // In strict mode, throw error
         // throw new Error(`Certificate pinning not configured for ${hostname}`);
     }
@@ -183,7 +183,7 @@ export function isHTTPS(url: string): boolean {
 export function enforceHTTPS(url: string): string {
     if (!isHTTPS(url)) {
         const httpsUrl = url.replace('http://', 'https://');
-        console.warn(`[FinanceBook] Upgrading HTTP to HTTPS: ${url} → ${httpsUrl}`);
+        console.warn(`[Quad360] Upgrading HTTP to HTTPS: ${url} → ${httpsUrl}`);
         return httpsUrl;
     }
     return url;
@@ -225,7 +225,7 @@ export async function validateSSLConnection(hostname: string): Promise<boolean> 
 
         return response.ok && hasSecurityHeaders;
     } catch (e) {
-        console.error(`[FinanceBook] SSL/TLS validation failed for ${hostname}:`, e);
+        console.error(`[Quad360] SSL/TLS validation failed for ${hostname}:`, e);
         return false;
     }
 }

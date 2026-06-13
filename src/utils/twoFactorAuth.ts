@@ -1,5 +1,5 @@
 /**
- * Two-Factor Authentication for FinanceBook
+ * Two-Factor Authentication for Quad360
  *
  * Supports:
  * - TOTP (Time-based One-Time Password) - Google Authenticator, Authy, Microsoft Authenticator
@@ -34,8 +34,8 @@ export interface TwoFactorConfig {
     lastUsedAt?: string;
 }
 
-const TOTP_ISSUER = 'FinanceBook';
-const TOTP_LABEL = 'FinanceBook';
+const TOTP_ISSUER = 'Quad360';
+const TOTP_LABEL = 'Quad360';
 const BACKUP_CODES_COUNT = 10;
 
 /**
@@ -75,7 +75,7 @@ export function verifyTOTPCode(secret: string, code: string): boolean {
 
         return verified === true;
     } catch (e) {
-        console.error('[FinanceBook] TOTP verification failed:', e);
+        console.error('[Quad360] TOTP verification failed:', e);
         return false;
     }
 }
@@ -138,7 +138,7 @@ export async function saveTwoFactorConfig(config: Omit<TwoFactorConfig, 'userId'
             throw new Error(`Failed to save 2FA config: ${error.message}`);
         }
     } catch (e) {
-        console.error('[FinanceBook] Failed to save 2FA config:', e);
+        console.error('[Quad360] Failed to save 2FA config:', e);
         throw e;
     }
 }
@@ -178,7 +178,7 @@ export async function loadTwoFactorConfig(): Promise<TwoFactorConfig | null> {
             lastUsedAt: data.last_used_at,
         };
     } catch (e) {
-        console.error('[FinanceBook] Failed to load 2FA config:', e);
+        console.error('[Quad360] Failed to load 2FA config:', e);
         return null;
     }
 }
@@ -197,7 +197,7 @@ export async function disableTwoFactor(): Promise<void> {
             throw new Error(`Failed to disable 2FA: ${error.message}`);
         }
     } catch (e) {
-        console.error('[FinanceBook] Failed to disable 2FA:', e);
+        console.error('[Quad360] Failed to disable 2FA:', e);
         throw e;
     }
 }
@@ -213,13 +213,13 @@ export async function verifyTwoFactorLogin(
     const config = await loadTwoFactorConfig();
 
     if (!config || config.status !== 'enabled') {
-        console.warn('[FinanceBook] 2FA not enabled for this user');
+        console.warn('[Quad360] 2FA not enabled for this user');
         return false;
     }
 
     if (config.method === 'totp' && method === 'totp') {
         if (!config.secret) {
-            console.error('[FinanceBook] TOTP secret not found');
+            console.error('[Quad360] TOTP secret not found');
             return false;
         }
         return verifyTOTPCode(config.secret, code);

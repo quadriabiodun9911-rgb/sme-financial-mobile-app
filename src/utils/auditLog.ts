@@ -56,11 +56,11 @@ export async function logAudit(entry: AuditLogEntry): Promise<void> {
         });
 
         if (error) {
-            console.warn('[FinanceBook] Audit log failed:', error);
+            console.warn('[Quad360] Audit log failed:', error);
         }
     } catch (e) {
         // Silently fail — don't block app operations for logging failures
-        console.warn('[FinanceBook] Audit log error:', e);
+        console.warn('[Quad360] Audit log error:', e);
     }
 }
 

@@ -1,5 +1,5 @@
 /**
- * End-to-End Encryption for FinanceBook
+ * End-to-End Encryption for Quad360
  *
  * Encrypts sensitive financial data before sending to Supabase
  * Decrypts when loading from cloud
@@ -9,7 +9,7 @@
 import CryptoJS from 'crypto-js';
 import * as SecureStore from 'expo-secure-store';
 
-const ENCRYPTION_KEY_STORAGE = '@financebook/encryption-key';
+const ENCRYPTION_KEY_STORAGE = '@quad360/encryption-key';
 const ENCRYPTED_FIELDS = {
     transactions: ['amount', 'description', 'category'],
     invoices: ['amount', 'description', 'clientName', 'clientEmail'],
@@ -35,7 +35,7 @@ export async function generateEncryptionKey(): Promise<string> {
     try {
         await SecureStore.setItemAsync(ENCRYPTION_KEY_STORAGE, key);
     } catch {
-        console.warn('[FinanceBook] Failed to store encryption key securely, using memory storage');
+        console.warn('[Quad360] Failed to store encryption key securely, using memory storage');
     }
 
     return key;
@@ -69,7 +69,7 @@ export function decryptValue(encrypted: string, key: string): string | null {
         const decrypted = CryptoJS.AES.decrypt(encrypted, key).toString(CryptoJS.enc.Utf8);
         return decrypted || null;
     } catch (e) {
-        console.error('[FinanceBook] Decryption failed:', e);
+        console.error('[Quad360] Decryption failed:', e);
         return null;
     }
 }

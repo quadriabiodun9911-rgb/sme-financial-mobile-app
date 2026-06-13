@@ -257,7 +257,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }, []);
 
     const persistError = (label: string) => (err: unknown) => {
-        console.error(`[FinanceBook] Failed to persist ${label}:`, err);
+        console.error(`[Quad360] Failed to persist ${label}:`, err);
         Alert.alert('Save Warning', `Could not save ${label}. Your changes may be lost if the app closes. Check your network connection.`);
     };
 
@@ -608,16 +608,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
             // Clear all auth and app storage
             await AsyncStorage.multiRemove([
-                '@financebook/pin',
-                '@financebook/profile',
-                '@financebook/language',
-                '@financebook/workspaceOwner',
-                '@financebook/encryption-key',
-                '@financebook/inventory',
-                '@financebook/transactions',
-                '@financebook/goals',
-                '@financebook/invoices',
-                '@financebook/assets',
+                '@quad360/pin',
+                '@quad360/profile',
+                '@quad360/language',
+                '@quad360/workspaceOwner',
+                '@quad360/encryption-key',
+                '@quad360/inventory',
+                '@quad360/transactions',
+                '@quad360/goals',
+                '@quad360/invoices',
+                '@quad360/assets',
             ]).catch(() => {});
 
             // Sign out from Supabase

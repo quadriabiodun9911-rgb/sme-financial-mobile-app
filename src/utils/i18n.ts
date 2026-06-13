@@ -13,7 +13,7 @@ const T = {
         assets: 'Assets', growth: 'Growth',
 
         // Auth / Setup
-        appName: 'FinanceBook',
+        appName: 'Quad360',
         setupSubtitle: 'Set up your business account',
         loginSubtitle: 'Enter your PIN to continue',
         joinSubtitle: 'Enter the invite code your business owner shared with you',
@@ -119,7 +119,7 @@ const T = {
         ledger: '账本', goals: '目标', insights: '洞察', settings: '设置',
         assets: '资产', growth: '增长',
 
-        appName: 'FinanceBook',
+        appName: 'Quad360',
         setupSubtitle: '设置您的企业账户',
         loginSubtitle: '输入PIN码继续',
         joinSubtitle: '输入您的业务所有者分享的邀请码',

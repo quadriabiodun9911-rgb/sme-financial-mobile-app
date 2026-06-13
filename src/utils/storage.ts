@@ -4,20 +4,20 @@ import { supabase } from './supabase';
 import { savePinSecurely, loadPinSecurely, clearPinSecurely, clearAllSecureData } from './secureStorage';
 
 const KEYS = {
-    transactions:   '@financebook/transactions',
-    settings:       '@financebook/settings',
-    goals:          '@financebook/goals',
-    pin:            '@financebook/pin',
-    profile:        '@financebook/profile',
-    invoices:       '@financebook/invoices',
-    workspaceOwner: '@financebook/workspaceOwner',
-    language:       '@financebook/language',
-    assets:         '@financebook/assets',
-    loans:          '@financebook/loans',
+    transactions:   '@quad360/transactions',
+    settings:       '@quad360/settings',
+    goals:          '@quad360/goals',
+    pin:            '@quad360/pin',
+    profile:        '@quad360/profile',
+    invoices:       '@quad360/invoices',
+    workspaceOwner: '@quad360/workspaceOwner',
+    language:       '@quad360/language',
+    assets:         '@quad360/assets',
+    loans:          '@quad360/loans',
 };
 
 function logSyncError(table: string, op: string, error: unknown) {
-    console.error(`[FinanceBook] Supabase ${op} on "${table}" failed:`, error);
+    console.error(`[Quad360] Supabase ${op} on "${table}" failed:`, error);
 }
 
 // ─── Auth helpers ─────────────────────────────────────────────────────────────
@@ -369,7 +369,7 @@ export async function joinTeamWithCode(
 
 // ─── Inventory (now synced with Supabase for backup) ──────────────────────────
 export async function saveInventory(items: InventoryItem[]): Promise<void> {
-    await AsyncStorage.setItem('@financebook/inventory', JSON.stringify(items));
+    await AsyncStorage.setItem('@quad360/inventory', JSON.stringify(items));
     const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return;
     try {
@@ -427,14 +427,14 @@ export async function loadInventory(): Promise<InventoryItem[] | null> {
                     createdAt: row.created_at,
                     updatedAt: row.updated_at,
                 } as InventoryItem));
-                await AsyncStorage.setItem('@financebook/inventory', JSON.stringify(items));
+                await AsyncStorage.setItem('@quad360/inventory', JSON.stringify(items));
                 return items;
             }
         } catch (e) {
             logSyncError('inventory', 'load', e);
         }
     }
-    const raw = await AsyncStorage.getItem('@financebook/inventory');
+    const raw = await AsyncStorage.getItem('@quad360/inventory');
     return raw ? JSON.parse(raw) as InventoryItem[] : null;
 }
 
@@ -501,7 +501,7 @@ export async function importAllData(json: string): Promise<AppBackup> {
     try { parsed = JSON.parse(json) as AppBackup; }
     catch { throw new Error('Invalid JSON — could not parse the backup file.'); }
     if (!parsed.version || !Array.isArray(parsed.transactions)) {
-        throw new Error('Invalid backup format. Make sure you are pasting a FinanceBook backup.');
+        throw new Error('Invalid backup format. Make sure you are pasting a Quad360 backup.');
     }
     await Promise.all([
         saveTransactions(parsed.transactions),

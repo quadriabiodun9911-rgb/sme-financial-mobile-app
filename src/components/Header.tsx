@@ -9,7 +9,7 @@ export default function Header() {
     return (
         <View style={styles.header}>
             <TouchableOpacity onPress={() => setCurrentScreen('dashboard')}>
-                <Text style={styles.title}>FinanceBook</Text>
+                <Text style={styles.title}>Quad360</Text>
                 <Text style={styles.subtitle}>{user?.businessName || 'Business Suite'}</Text>
             </TouchableOpacity>
             <View style={styles.right}>

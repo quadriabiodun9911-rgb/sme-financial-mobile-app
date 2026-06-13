@@ -2,8 +2,8 @@ import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const SECURE_KEYS = {
-    pin: '@financebook/secure/pin',
-    sessionToken: '@financebook/secure/session',
+    pin: '@quad360/secure/pin',
+    sessionToken: '@quad360/secure/session',
 };
 
 async function safeSecureStoreOperation<T>(
@@ -13,7 +13,7 @@ async function safeSecureStoreOperation<T>(
     try {
         return await operation();
     } catch (e) {
-        console.warn('[FinanceBook] SecureStore failed, falling back to AsyncStorage:', e);
+        console.warn('[Quad360] SecureStore failed, falling back to AsyncStorage:', e);
         return fallback();
     }
 }

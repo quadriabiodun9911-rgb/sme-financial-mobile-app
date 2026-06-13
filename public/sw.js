@@ -1,4 +1,4 @@
-const CACHE = 'financebook-v1';
+const CACHE = 'quad360-v1';
 const ASSETS = [
     '/',
     '/index.html',

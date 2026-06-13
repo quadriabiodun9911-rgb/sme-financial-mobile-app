@@ -1,7 +1,7 @@
 {
-  "name": "FinanceBook SME",
-  "short_name": "FinanceBook",
-  "description": "Financial management for small businesses",
+  "name": "Quad360",
+  "short_name": "Quad360",
+  "description": "360° financial clarity for your business",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f172a",

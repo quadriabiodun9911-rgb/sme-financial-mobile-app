@@ -187,7 +187,7 @@ export default function TransactionsScreen() {
 
     const handleExportCSV = async () => {
         try {
-            await Share.share({ message: transactionsToCSV(filtered), title: 'FinanceBook Export' });
+            await Share.share({ message: transactionsToCSV(filtered), title: 'Quad360 Export' });
         } catch (_) {}
     };
 
