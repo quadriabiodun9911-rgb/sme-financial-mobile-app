@@ -37,7 +37,12 @@
       ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "themeColor": "#0066cc",
+      "backgroundColor": "#0f172a",
+      "meta": {
+        "theme-color": "#0066cc"
+      }
     },
     "plugins": [
       "expo-secure-store",

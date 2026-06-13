@@ -160,17 +160,24 @@ export default function DashboardScreen() {
                         <View style={styles.heroMetricDivider} />
                         <View style={styles.heroMetric}>
                             <Text style={styles.heroMetricLabel}>Net Profit</Text>
-                            <Text style={[styles.heroMetricVal, { color: finance.profit >= 0 ? Colors.income : Colors.expense }]}>
-                                {finance.profit >= 0 ? '+' : ''}{currency}{finance.profit.toLocaleString()}
+                            <Text style={[styles.heroMetricVal, { color: finance.depreciationAdjustedProfit >= 0 ? Colors.income : Colors.expense }]}>
+                                {finance.depreciationAdjustedProfit >= 0 ? '+' : ''}{currency}{finance.depreciationAdjustedProfit.toLocaleString()}
                             </Text>
                         </View>
                     </View>
+                    {finance.annualDepreciation > 0 && (
+                        <View style={{ borderTopWidth: 1, borderTopColor: Colors.border, marginTop: 10, paddingTop: 8 }}>
+                            <Text style={{ fontSize: 10, color: Colors.textMuted, textAlign: 'center' }}>
+                                Includes {currency}{Math.round(finance.annualDepreciation).toLocaleString()} asset depreciation · Cash profit: {currency}{finance.profit.toLocaleString()}
+                            </Text>
+                        </View>
+                    )}
                 </View>
 
                 {/* ── Spending alert ───────────────────────────────────────── */}
-                {finance.profit < 0 && (
+                {finance.depreciationAdjustedProfit < 0 && (
                     <View style={styles.spendingAlert}>
-                        <Text style={styles.spendingAlertText}>⚠ You are spending more than you earn — review your expenses</Text>
+                        <Text style={styles.spendingAlertText}>⚠ {finance.profit >= 0 ? 'Cash positive but loss after depreciation' : 'Spending more than you earn'} — review your expenses</Text>
                     </View>
                 )}
 
@@ -322,6 +329,28 @@ export default function DashboardScreen() {
                     </View>
                     <Text style={styles.quickArrow}>›</Text>
                 </TouchableOpacity>
+
+                {/* ── Assets & Loans quick cards ──────────────────────────── */}
+                <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
+                    <TouchableOpacity style={[styles.quickCard, { flex: 1, marginBottom: 0 }]} onPress={() => setCurrentScreen('assets')}>
+                        <View style={styles.quickCardLeft}>
+                            <Text style={styles.quickIcon}>🏗️</Text>
+                            <View>
+                                <Text style={styles.quickLabel}>Assets</Text>
+                                <Text style={styles.quickSub}>Track & depreciate assets</Text>
+                            </View>
+                        </View>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.quickCard, { flex: 1, marginBottom: 0 }]} onPress={() => setCurrentScreen('loans')}>
+                        <View style={styles.quickCardLeft}>
+                            <Text style={styles.quickIcon}>🏦</Text>
+                            <View>
+                                <Text style={styles.quickLabel}>Loans</Text>
+                                <Text style={styles.quickSub}>Track debt & repayments</Text>
+                            </View>
+                        </View>
+                    </TouchableOpacity>
+                </View>
 
                 {/* ── SWOT quick card ─────────────────────────────────────── */}
                 <TouchableOpacity

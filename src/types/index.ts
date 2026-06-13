@@ -111,6 +111,8 @@ export interface FinanceData {
     totalTaxCollected: number;
     totalTaxPaid: number;
     netTaxPosition: number;
+    annualDepreciation: number;   // total depreciation charge for the year
+    depreciationAdjustedProfit: number; // profit after depreciation
 }
 
 export interface User {

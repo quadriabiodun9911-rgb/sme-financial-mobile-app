@@ -186,6 +186,7 @@ export function computeFinance(
     transactions: Transaction[],
     settings: Pick<BusinessSettings, 'openingAssets' | 'openingLiabilities' | 'openingLoans' | 'openingOtherAssets'>,
     registeredAssetsValue = 0,
+    activeAssets: Asset[] = [],
 ): FinanceData {
     const income = transactions
         .filter(t => t.type === 'income')
@@ -195,9 +196,24 @@ export function computeFinance(
         .filter(t => t.type === 'expense')
         .reduce((sum, t) => sum + t.amount, 0);
 
+    // Annual depreciation prorated to the period covered by transactions
+    const annualDepreciation = activeAssets.reduce((s, a) => s + computeAssetAnnualDepreciation(a), 0);
+
+    // Prorate depreciation: if transactions span less than a year, charge proportionally
+    const dates = transactions.map(t => t.date).sort();
+    let depreciationCharge = annualDepreciation;
+    if (dates.length >= 2) {
+        const spanDays = (new Date(dates[dates.length - 1]).getTime() - new Date(dates[0]).getTime()) / 86400000;
+        const spanYears = Math.min(1, spanDays / 365);
+        depreciationCharge = annualDepreciation * spanYears;
+    } else if (dates.length === 0) {
+        depreciationCharge = 0;
+    }
+
     const profit = income - expense;
-    const margin = income > 0 ? (profit / income) * 100 : 0;
-    const cashBalance = profit;
+    const depreciationAdjustedProfit = profit - depreciationCharge;
+    const margin = income > 0 ? (depreciationAdjustedProfit / income) * 100 : 0;
+    const cashBalance = profit; // cash is not reduced by non-cash depreciation
 
     const openingAssets = parseFloat(settings.openingAssets) || 0;
     const openingLiabilities = parseFloat(settings.openingLiabilities) || 0;
@@ -230,6 +246,8 @@ export function computeFinance(
         totalTaxCollected,
         totalTaxPaid,
         netTaxPosition,
+        annualDepreciation,
+        depreciationAdjustedProfit,
     };
 }
 

@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useMemo, useEffect, useRef,
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Transaction, FinanceData, User, BusinessSettings, Screen, FinancialGoal, GoalType, NavParams, Invoice, InvoiceStatus, TeamMember, UserRole, Language, Asset, InventoryItem, Loan, LoanPayment } from '../types';
-import { computeFinance, computeOneThingInsight, computeRecurringDates, computeAssetCurrentValue } from '../utils/finance';
+import { computeFinance, computeOneThingInsight, computeRecurringDates, computeAssetCurrentValue, computeAssetAnnualDepreciation } from '../utils/finance';
 import { generateId } from '../utils/uuid';
 import { auditEvents } from '../utils/auditLog';
 import {
@@ -269,11 +269,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     useEffect(() => { if (!isLoading) saveLoans(loans).catch(persistError('loans')); }, [loans, isLoading]);
     useEffect(() => { if (!isLoading) saveInventory(inventory).catch(persistError('inventory')); }, [inventory, isLoading]);
 
+    const activeAssets = useMemo(() => assets.filter(a => a.status === 'active'), [assets]);
     const registeredAssetsValue = useMemo(
-        () => assets.filter(a => a.status === 'active').reduce((sum, a) => sum + computeAssetCurrentValue(a), 0),
-        [assets],
+        () => activeAssets.reduce((sum, a) => sum + computeAssetCurrentValue(a), 0),
+        [activeAssets],
     );
-    const finance = useMemo(() => computeFinance(transactions, settings, registeredAssetsValue), [transactions, settings, registeredAssetsValue]);
+    const finance = useMemo(() => computeFinance(transactions, settings, registeredAssetsValue, activeAssets), [transactions, settings, registeredAssetsValue, activeAssets]);
     const insight = useMemo(() => computeOneThingInsight(finance, settings), [finance, settings]);
 
     useEffect(() => {
