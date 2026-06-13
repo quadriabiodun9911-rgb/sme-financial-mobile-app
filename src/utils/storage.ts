@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Transaction, BusinessSettings, FinancialGoal, Invoice, TeamMember, Language, Asset, InventoryItem } from '../types';
+import { Transaction, BusinessSettings, FinancialGoal, Invoice, TeamMember, Language, Asset, InventoryItem, Loan } from '../types';
 import { supabase } from './supabase';
 import { savePinSecurely, loadPinSecurely, clearPinSecurely, clearAllSecureData } from './secureStorage';
 
@@ -13,6 +13,7 @@ const KEYS = {
     workspaceOwner: '@financebook/workspaceOwner',
     language:       '@financebook/language',
     assets:         '@financebook/assets',
+    loans:          '@financebook/loans',
 };
 
 function logSyncError(table: string, op: string, error: unknown) {
@@ -282,6 +283,16 @@ export async function loadAssets(): Promise<Asset[] | null> {
     }
     const raw = await AsyncStorage.getItem(KEYS.assets);
     return raw ? (JSON.parse(raw) as Asset[]) : null;
+}
+
+// ─── Loans ────────────────────────────────────────────────────────────────────
+export async function saveLoans(loans: Loan[]): Promise<void> {
+    await AsyncStorage.setItem(KEYS.loans, JSON.stringify(loans));
+}
+
+export async function loadLoans(): Promise<Loan[] | null> {
+    const raw = await AsyncStorage.getItem(KEYS.loans);
+    return raw ? (JSON.parse(raw) as Loan[]) : null;
 }
 
 // ─── Team Members ─────────────────────────────────────────────────────────────

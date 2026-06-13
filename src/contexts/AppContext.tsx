@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useMemo, useEffect, useRef, ReactNode } from 'react';
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Transaction, FinanceData, User, BusinessSettings, Screen, FinancialGoal, GoalType, NavParams, Invoice, InvoiceStatus, TeamMember, UserRole, Language, Asset, InventoryItem } from '../types';
+import { Transaction, FinanceData, User, BusinessSettings, Screen, FinancialGoal, GoalType, NavParams, Invoice, InvoiceStatus, TeamMember, UserRole, Language, Asset, InventoryItem, Loan, LoanPayment } from '../types';
 import { computeFinance, computeOneThingInsight, computeRecurringDates, computeAssetCurrentValue } from '../utils/finance';
 import { generateId } from '../utils/uuid';
 import { auditEvents } from '../utils/auditLog';
@@ -11,6 +11,7 @@ import {
     saveGoals, loadGoals,
     saveInvoices, loadInvoices,
     saveAssets, loadAssets,
+    saveLoans, loadLoans,
     saveInventory, loadInventory,
     savePin, loadPin,
     saveProfile, loadProfile,
@@ -67,6 +68,12 @@ interface AppContextValue {
     updateAsset: (id: string, patch: Partial<Asset>) => void;
     deleteAsset: (id: string) => void;
     disposeAsset: (id: string, disposalDate: string, disposalValue: number) => void;
+
+    loans: Loan[];
+    addLoan: (l: Omit<Loan, 'id' | 'createdAt' | 'payments'>) => void;
+    updateLoan: (id: string, patch: Partial<Loan>) => void;
+    deleteLoan: (id: string) => void;
+    addLoanPayment: (loanId: string, payment: Omit<LoanPayment, 'id'>) => void;
 
     inventory: InventoryItem[];
     addInventoryItem: (item: Omit<InventoryItem, 'id' | 'createdAt' | 'updatedAt'>) => void;
@@ -193,6 +200,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const [goals, setGoals]                 = useState<FinancialGoal[]>([]);
     const [invoices, setInvoices]           = useState<Invoice[]>([]);
     const [assets, setAssets]               = useState<Asset[]>([]);
+    const [loans, setLoans]                 = useState<Loan[]>([]);
     const [inventory, setInventory]         = useState<InventoryItem[]>([]);
     const [teamMembers, setTeamMembers]     = useState<TeamMember[]>([]);
     const [language, setLang]              = useState<Language>('en');
@@ -214,12 +222,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         initRan.current = true;
         (async () => {
             try {
-                const [savedTx, savedSettings, savedGoals, savedInvoices, savedAssets, savedInventory, pin, profile, lang] = await Promise.all([
+                const [savedTx, savedSettings, savedGoals, savedInvoices, savedAssets, savedLoans, savedInventory, pin, profile, lang] = await Promise.all([
                     loadTransactions(),
                     loadSettings(),
                     loadGoals(),
                     loadInvoices(),
                     loadAssets(),
+                    loadLoans(),
                     loadInventory(),
                     loadPin(),
                     loadProfile(),
@@ -236,6 +245,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 if (savedGoals)    setGoals(savedGoals);
                 if (savedInvoices) setInvoices(savedInvoices);
                 if (savedAssets)   setAssets(savedAssets);
+                if (savedLoans)    setLoans(savedLoans);
                 if (savedInventory) setInventory(savedInventory);
                 if (pin && profile) {
                     setUser({ email: profile.email, businessName: profile.businessName, role: 'Administrator' });
@@ -256,6 +266,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     useEffect(() => { if (!isLoading) saveGoals(goals).catch(persistError('goals')); }, [goals, isLoading]);
     useEffect(() => { if (!isLoading) saveInvoices(invoices).catch(persistError('invoices')); }, [invoices, isLoading]);
     useEffect(() => { if (!isLoading) saveAssets(assets).catch(persistError('assets')); }, [assets, isLoading]);
+    useEffect(() => { if (!isLoading) saveLoans(loans).catch(persistError('loans')); }, [loans, isLoading]);
     useEffect(() => { if (!isLoading) saveInventory(inventory).catch(persistError('inventory')); }, [inventory, isLoading]);
 
     const registeredAssetsValue = useMemo(
@@ -329,14 +340,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setUserRole(role);
         setUser({ email, businessName: '', role: role === 'accountant' ? 'Accountant' : 'Staff' });
         // Load owner's data
-        const [savedTx, savedSettings, savedGoals, savedInvoices, savedAssets2] = await Promise.all([
-            loadTransactions(), loadSettings(), loadGoals(), loadInvoices(), loadAssets(),
+        const [savedTx, savedSettings, savedGoals, savedInvoices, savedAssets2, savedLoans2] = await Promise.all([
+            loadTransactions(), loadSettings(), loadGoals(), loadInvoices(), loadAssets(), loadLoans(),
         ]);
         if (savedTx) { const { updated, newEntries } = processDueRecurring(savedTx); setTransactions([...newEntries, ...updated]); }
         if (savedSettings) setSettings({ ...DEFAULT_SETTINGS, ...savedSettings });
         if (savedGoals)    setGoals(savedGoals);
         if (savedInvoices) setInvoices(savedInvoices);
         if (savedAssets2)  setAssets(savedAssets2);
+        if (savedLoans2)   setLoans(savedLoans2);
         setCurrentScreen('dashboard');
     };
 
@@ -516,6 +528,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setAssets(prev => prev.map(a => a.id === id ? { ...a, status: 'disposed' as const, disposalDate, disposalValue } : a));
     };
 
+    const addLoan = (l: Omit<Loan, 'id' | 'createdAt' | 'payments'>) => {
+        if (!canManage) { denyManage(); return; }
+        const item: Loan = { ...l, id: generateId(), payments: [], createdAt: new Date().toISOString() };
+        setLoans(prev => [item, ...prev]);
+    };
+
+    const updateLoan = (id: string, patch: Partial<Loan>) => {
+        if (!canManage) { denyManage(); return; }
+        setLoans(prev => prev.map(l => l.id === id ? { ...l, ...patch } : l));
+    };
+
+    const deleteLoan = (id: string) => {
+        if (!canManage) { denyManage(); return; }
+        setLoans(prev => prev.filter(l => l.id !== id));
+    };
+
+    const addLoanPayment = (loanId: string, payment: Omit<LoanPayment, 'id'>) => {
+        if (!canManage) { denyManage(); return; }
+        const newPayment: LoanPayment = { ...payment, id: generateId() };
+        setLoans(prev => prev.map(l => {
+            if (l.id !== loanId) return l;
+            const payments = [...l.payments, newPayment];
+            const totalPaid = payments.reduce((s, p) => s + p.amount, 0);
+            const status: Loan['status'] = totalPaid >= l.principal ? 'paid_off' : l.status;
+            return { ...l, payments, status };
+        }));
+    };
+
     const addInventoryItem = (item: Omit<InventoryItem, 'id' | 'createdAt' | 'updatedAt'>) => {
         const now = new Date().toISOString();
         const newItem: InventoryItem = { ...item, id: generateId(), createdAt: now, updatedAt: now };
@@ -618,6 +658,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         goals, addGoal, deleteGoal, updateGoalCurrentValue,
         invoices, addInvoice, updateInvoice, deleteInvoice, markInvoiceStatus,
         assets, addAsset, updateAsset, deleteAsset, disposeAsset,
+        loans, addLoan, updateLoan, deleteLoan, addLoanPayment,
         inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem,
         teamMembers, inviteMember, removeMember, refreshTeam,
         language, setLanguage,

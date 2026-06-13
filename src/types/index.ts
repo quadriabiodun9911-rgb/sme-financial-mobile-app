@@ -8,6 +8,7 @@ export type Screen =
     | 'goals'
     | 'invoices'
     | 'assets'
+    | 'loans'
     | 'inventory'
     | 'growth';
 
@@ -210,5 +211,27 @@ export interface Invoice {
     subtotal: number;
     taxTotal: number;
     total: number;
+    createdAt: string;
+}
+
+export type LoanStatus = 'active' | 'paid_off' | 'defaulted';
+
+export interface LoanPayment {
+    id: string;
+    date: string;
+    amount: number;
+    note?: string;
+}
+
+export interface Loan {
+    id: string;
+    lenderName: string;
+    purpose: string;
+    principal: number;
+    interestRate: number;   // annual % e.g. 15 for 15%
+    termMonths: number;
+    startDate: string;      // ISO date
+    status: LoanStatus;
+    payments: LoanPayment[];
     createdAt: string;
 }
