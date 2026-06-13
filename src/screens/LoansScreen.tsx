@@ -8,6 +8,7 @@ import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { Loan, LoanStatus } from '../types';
+import DateInput from '../components/DateInput';
 
 // ── Loan math helpers ────────────────────────────────────────────────────────
 
@@ -214,8 +215,7 @@ export default function LoansScreen() {
                                 placeholder="e.g. 12 for 1 year, 24 for 2 years" placeholderTextColor={Colors.muted} keyboardType="number-pad" />
 
                             <FieldLabel text="Start Date" />
-                            <TextInput style={s.input} value={startDate} onChangeText={setStart}
-                                placeholder="YYYY-MM-DD" placeholderTextColor={Colors.muted} />
+                            <DateInput value={startDate} onChange={setStart} />
 
                             {/* Live preview */}
                             {principal && rate && term && !isNaN(parseFloat(principal)) && !isNaN(parseFloat(rate)) && !isNaN(parseInt(term)) && (
@@ -252,8 +252,7 @@ export default function LoansScreen() {
                                 placeholder="0" placeholderTextColor={Colors.muted} keyboardType="decimal-pad" autoFocus />
 
                             <FieldLabel text="Payment Date" />
-                            <TextInput style={s.input} value={payDate} onChangeText={setPayDate}
-                                placeholder="YYYY-MM-DD" placeholderTextColor={Colors.muted} />
+                            <DateInput value={payDate} onChange={setPayDate} />
 
                             <FieldLabel text="Note (optional)" />
                             <TextInput style={s.input} value={payNote} onChangeText={setPayNote}

@@ -329,10 +329,10 @@ export function computeRecurringDates(
     return d.toISOString().split('T')[0];
 }
 
-export type ReportPeriod = 'month' | 'quarter' | 'year' | 'all';
+export type ReportPeriod = 'month' | 'quarter' | 'year' | 'all' | 'custom';
 
 export function filterByPeriod(transactions: Transaction[], period: ReportPeriod): Transaction[] {
-    if (period === 'all') return transactions;
+    if (period === 'all' || period === 'custom') return transactions;
     const now = new Date();
     const cutoff = new Date(now);
     if (period === 'month') cutoff.setMonth(now.getMonth() - 1);
@@ -340,6 +340,47 @@ export function filterByPeriod(transactions: Transaction[], period: ReportPeriod
     else cutoff.setFullYear(now.getFullYear() - 1);
     const cutoffStr = cutoff.toISOString().split('T')[0];
     return transactions.filter(t => t.date >= cutoffStr);
+}
+
+export interface DateRange {
+    from: string;  // YYYY-MM-DD
+    to: string;    // YYYY-MM-DD
+}
+
+export function filterByDateRange(transactions: Transaction[], range: DateRange): Transaction[] {
+    return transactions.filter(t => t.date >= range.from && t.date <= range.to);
+}
+
+export function getPreviousPeriodRange(period: ReportPeriod): { current: DateRange; previous: DateRange } {
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+
+    if (period === 'month') {
+        const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+        const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0];
+        const lastMonthEnd   = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0];
+        return {
+            current:  { from: thisMonthStart, to: today },
+            previous: { from: lastMonthStart, to: lastMonthEnd },
+        };
+    }
+    if (period === 'quarter') {
+        const thisQStart  = new Date(now.getFullYear(), now.getMonth() - 2, 1).toISOString().split('T')[0];
+        const prevQStart  = new Date(now.getFullYear(), now.getMonth() - 5, 1).toISOString().split('T')[0];
+        const prevQEnd    = new Date(now.getFullYear(), now.getMonth() - 3, 0).toISOString().split('T')[0];
+        return {
+            current:  { from: thisQStart, to: today },
+            previous: { from: prevQStart, to: prevQEnd },
+        };
+    }
+    // year
+    const thisYearStart = `${now.getFullYear()}-01-01`;
+    const lastYearStart = `${now.getFullYear() - 1}-01-01`;
+    const lastYearEnd   = `${now.getFullYear() - 1}-12-31`;
+    return {
+        current:  { from: thisYearStart, to: today },
+        previous: { from: lastYearStart, to: lastYearEnd },
+    };
 }
 
 export interface MonthlyPoint {

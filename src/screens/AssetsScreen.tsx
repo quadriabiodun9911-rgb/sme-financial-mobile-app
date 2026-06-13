@@ -10,6 +10,7 @@ import FooterNav from '../components/FooterNav';
 import { t } from '../utils/i18n';
 import { Asset, AssetCategory } from '../types';
 import { computeAssetCurrentValue, computeAssetAnnualDepreciation } from '../utils/finance';
+import DateInput from '../components/DateInput';
 
 const CATEGORIES: AssetCategory[] = ['equipment', 'vehicle', 'furniture', 'property', 'intangible', 'other'];
 
@@ -205,7 +206,7 @@ export default function AssetsScreen() {
                             <TextInput style={s.input} value={description} onChangeText={setDesc} placeholderTextColor={Colors.muted} placeholder="optional" />
 
                             <Label text={t(language, 'purchaseDate')} />
-                            <TextInput style={s.input} value={purchaseDate} onChangeText={setPDate} placeholderTextColor={Colors.muted} placeholder="2024-01-15" />
+                            <DateInput value={purchaseDate} onChange={setPDate} />
 
                             <Label text={`${t(language, 'purchaseCost')} (${currency})`} />
                             <TextInput style={s.input} value={purchaseCost} onChangeText={setPCost} placeholderTextColor={Colors.muted} keyboardType="decimal-pad" placeholder="0" />
@@ -237,7 +238,7 @@ export default function AssetsScreen() {
                             <Text style={s.modalTitle}>{t(language, 'disposeAsset')}</Text>
 
                             <Label text={t(language, 'disposalDate')} />
-                            <TextInput style={s.input} value={disposalDate} onChangeText={setDispDate} placeholderTextColor={Colors.muted} />
+                            <DateInput value={disposalDate} onChange={setDispDate} />
 
                             <Label text={`${t(language, 'disposalValue')} (${currency})`} />
                             <TextInput style={s.input} value={disposalValue} onChangeText={setDispVal} keyboardType="decimal-pad" placeholderTextColor={Colors.muted} />

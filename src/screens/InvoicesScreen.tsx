@@ -9,6 +9,7 @@ import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { Invoice, InvoiceLineItem, InvoiceStatus } from '../types';
 import { generateId } from '../utils/uuid';
+import DateInput from '../components/DateInput';
 
 const STATUS_COLOR: Record<InvoiceStatus, string> = {
     draft:   Colors.textMuted,
@@ -316,8 +317,8 @@ export default function InvoicesScreen() {
                             </Section>
 
                             <Section title="Invoice Details">
-                                <FLabel>Due Date * (YYYY-MM-DD)</FLabel>
-                                <FInput value={dueDate} onChangeText={setDueDate} placeholder={new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0]} />
+                                <FLabel>Due Date *</FLabel>
+                                <DateInput value={dueDate} onChange={setDueDate} />
                                 <FLabel>Notes</FLabel>
                                 <FInput value={notes} onChangeText={setNotes} placeholder="Payment terms, bank details…" multiline />
                             </Section>

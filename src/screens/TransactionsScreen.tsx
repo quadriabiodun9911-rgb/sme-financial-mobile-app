@@ -7,6 +7,7 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
+import DateInput from '../components/DateInput';
 import { Transaction, TransactionStatus, RecurringFrequency } from '../types';
 import { transactionsToCSV } from '../utils/finance';
 
@@ -104,6 +105,8 @@ export default function TransactionsScreen() {
     const [typeFilter, setTypeFilter] = useState<FilterType>('all');
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
     const [form, setForm]             = useState<FormState>({ ...EMPTY_FORM, taxRate: defaultTaxRate });
+    const [csvModalOpen, setCsvModalOpen] = useState(false);
+    const [csvText, setCsvText]           = useState('');
 
     // ── Filtering ────────────────────────────────────────────────────────────
     const filtered = useMemo(() => {
@@ -188,6 +191,36 @@ export default function TransactionsScreen() {
         } catch (_) {}
     };
 
+    const handleImportCSV = () => {
+        const rows = parseCSV(csvText);
+        if (rows.length === 0) {
+            Alert.alert('No valid rows', 'Could not parse any valid transactions from the CSV. Check the format and try again.');
+            return;
+        }
+        let imported = 0;
+        let skipped = 0;
+        const total = csvText.trim().split('\n').filter(l => l.trim()).length - 1;
+        for (const row of rows) {
+            try {
+                addTransaction({
+                    description: row.description,
+                    amount: row.amount,
+                    type: row.type,
+                    category: row.category,
+                    date: row.date,
+                    status: 'paid',
+                });
+                imported++;
+            } catch {
+                skipped++;
+            }
+        }
+        skipped += Math.max(0, total - rows.length);
+        setCsvModalOpen(false);
+        setCsvText('');
+        Alert.alert('Import Complete', `Imported ${imported} transaction${imported !== 1 ? 's' : ''}${skipped > 0 ? `, skipped ${skipped} row${skipped !== 1 ? 's' : ''}` : ''}.`);
+    };
+
     const statusColor = (s?: TransactionStatus) =>
         s === 'overdue' ? Colors.expense : s === 'pending' ? Colors.warning : Colors.income;
 
@@ -209,7 +242,10 @@ export default function TransactionsScreen() {
                     onChangeText={setSearch}
                 />
                 <TouchableOpacity style={styles.csvBtn} onPress={handleExportCSV}>
-                    <Text style={styles.csvBtnText}>CSV</Text>
+                    <Text style={styles.csvBtnText}>Export</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.importBtn} onPress={() => { setCsvText(''); setCsvModalOpen(true); }}>
+                    <Text style={styles.csvBtnText}>Import CSV</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.addBtn} onPress={openNew}>
                     <Text style={styles.addBtnText}>+ New</Text>
@@ -353,6 +389,62 @@ export default function TransactionsScreen() {
 
             <FooterNav />
 
+            {/* ── CSV Import Modal ─────────────────────────────────────── */}
+            <Modal
+                visible={csvModalOpen}
+                animationType="slide"
+                transparent
+                onRequestClose={() => setCsvModalOpen(false)}
+            >
+                <View style={styles.overlay}>
+                    <View style={styles.modalSheet}>
+                        <View style={styles.handle} />
+                        <Text style={styles.modalTitle}>Import Transactions from CSV</Text>
+                        <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                            <Text style={{ fontSize: 11, color: Colors.textMuted, marginBottom: 8, lineHeight: 16 }}>
+                                Paste CSV text below. Expected format:{'\n'}
+                                <Text style={{ color: Colors.textSecondary, fontFamily: 'monospace' }}>
+                                    date,description,type,amount,category{'\n'}
+                                    2024-01-15,Client Payment,income,5000,Sales{'\n'}
+                                    2024-01-16,Office Rent,expense,1200,Rent
+                                </Text>
+                            </Text>
+                            <TouchableOpacity
+                                style={{ marginBottom: 12 }}
+                                onPress={() => Alert.alert(
+                                    'CSV Template',
+                                    'date,description,type,amount,category\n2024-01-15,Client Payment,income,5000,Sales\n2024-01-16,Office Rent,expense,1200,Rent',
+                                )}
+                            >
+                                <Text style={{ fontSize: 12, color: Colors.primary, fontWeight: '600' }}>Download Template (view format)</Text>
+                            </TouchableOpacity>
+                            <TextInput
+                                style={[styles.input, { height: 200, textAlignVertical: 'top', fontFamily: 'monospace', fontSize: 12 }]}
+                                multiline
+                                value={csvText}
+                                onChangeText={setCsvText}
+                                placeholder="Paste your CSV here..."
+                                placeholderTextColor={Colors.muted}
+                            />
+                            <View style={styles.modalBtns}>
+                                <TouchableOpacity
+                                    style={[styles.modalBtn, styles.cancelBtn]}
+                                    onPress={() => setCsvModalOpen(false)}
+                                >
+                                    <Text style={styles.cancelBtnText}>Cancel</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.modalBtn, styles.saveBtn]}
+                                    onPress={handleImportCSV}
+                                >
+                                    <Text style={styles.saveBtnText}>Import</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </ScrollView>
+                    </View>
+                </View>
+            </Modal>
+
             {/* ── Add / Edit Modal ─────────────────────────────────────── */}
             <Modal
                 visible={modalOpen}
@@ -393,13 +485,10 @@ export default function TransactionsScreen() {
                                     />
                                 </Field>
 
-                                <Field label="Date (YYYY-MM-DD)">
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder={todayStr()}
-                                        placeholderTextColor={Colors.muted}
+                                <Field label="Date">
+                                    <DateInput
                                         value={form.date}
-                                        onChangeText={v => setForm(f => ({ ...f, date: v }))}
+                                        onChange={v => setForm(f => ({ ...f, date: v }))}
                                     />
                                 </Field>
 
@@ -427,13 +516,10 @@ export default function TransactionsScreen() {
                                 </Field>
 
                                 {form.status !== 'paid' && (
-                                    <Field label="Due Date (YYYY-MM-DD)">
-                                        <TextInput
-                                            style={styles.input}
-                                            placeholder="2026-07-01"
-                                            placeholderTextColor={Colors.muted}
+                                    <Field label="Due Date">
+                                        <DateInput
                                             value={form.dueDate}
-                                            onChangeText={v => setForm(f => ({ ...f, dueDate: v }))}
+                                            onChange={v => setForm(f => ({ ...f, dueDate: v }))}
                                         />
                                     </Field>
                                 )}
@@ -544,6 +630,27 @@ export default function TransactionsScreen() {
     );
 }
 
+// ─── CSV parsing ──────────────────────────────────────────────────────────────
+
+function parseCSV(text: string): Array<{date: string, description: string, type: 'income'|'expense', amount: number, category: string}> {
+    const lines = text.trim().split('\n').filter(l => l.trim());
+    if (lines.length < 2) return [];
+    // Skip header row
+    const rows = lines.slice(1);
+    const results = [];
+    for (const line of rows) {
+        const cols = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+        if (cols.length < 4) continue;
+        const [date, description, type, amountStr, category = 'General'] = cols;
+        if (!date.match(/^\d{4}-\d{2}-\d{2}$/)) continue;
+        if (type !== 'income' && type !== 'expense') continue;
+        const amount = parseFloat(amountStr);
+        if (isNaN(amount) || amount <= 0) continue;
+        results.push({ date, description, type: type as 'income'|'expense', amount, category });
+    }
+    return results;
+}
+
 // ─── Small helper components ───────────────────────────────────────────────────
 
 function TotalPill({ label, value, color, bold }: { label: string; value: string; color: string; bold?: boolean }) {
@@ -605,7 +712,8 @@ const styles = StyleSheet.create({
 
     topBar:  { flexDirection: 'row', padding: 10, gap: 8, backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border },
     search:  { flex: 1, backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, color: Colors.textPrimary, fontSize: 14 },
-    csvBtn:  { backgroundColor: Colors.muted, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, justifyContent: 'center' },
+    csvBtn:    { backgroundColor: Colors.muted, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, justifyContent: 'center' },
+    importBtn: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, justifyContent: 'center' },
     csvBtnText: { color: Colors.textPrimary, fontWeight: 'bold', fontSize: 12 },
     addBtn:  { backgroundColor: Colors.primary, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, justifyContent: 'center' },
     addBtnText: { color: Colors.textPrimary, fontWeight: 'bold', fontSize: 14 },
