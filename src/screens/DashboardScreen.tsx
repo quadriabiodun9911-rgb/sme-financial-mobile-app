@@ -12,7 +12,7 @@ import { t } from '../utils/i18n';
 import { validateAmount, validateDescription } from '../utils/validation';
 
 export default function DashboardScreen() {
-    const { finance, insight, settings, goals, transactions, invoices, navigate, setCurrentScreen, language, isLoading, addTransaction } = useApp();
+    const { finance, insight, settings, goals, transactions, invoices, assets, loans, navigate, setCurrentScreen, language, isLoading, addTransaction } = useApp();
 
     // Quick-add modal state
     const [fabOpen, setFabOpen]         = useState(false);
@@ -330,27 +330,40 @@ export default function DashboardScreen() {
                     <Text style={styles.quickArrow}>›</Text>
                 </TouchableOpacity>
 
-                {/* ── Assets & Loans quick cards ──────────────────────────── */}
-                <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
-                    <TouchableOpacity style={[styles.quickCard, { flex: 1, marginBottom: 0 }]} onPress={() => setCurrentScreen('assets')}>
+                {/* ── Assets & Loans — full cards when data exists, soft links when empty ── */}
+                {assets.length > 0 ? (
+                    <TouchableOpacity style={styles.quickCard} onPress={() => setCurrentScreen('assets')}>
                         <View style={styles.quickCardLeft}>
                             <Text style={styles.quickIcon}>🏗️</Text>
                             <View>
                                 <Text style={styles.quickLabel}>Assets</Text>
-                                <Text style={styles.quickSub}>Track & depreciate assets</Text>
+                                <Text style={styles.quickSub}>{assets.length} asset{assets.length !== 1 ? 's' : ''} · {currency}{assets.reduce((s, a) => s + (a.currentValue ?? a.purchaseCost), 0).toLocaleString()} total value</Text>
                             </View>
                         </View>
+                        <Text style={styles.quickArrow}>›</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.quickCard, { flex: 1, marginBottom: 0 }]} onPress={() => setCurrentScreen('loans')}>
+                ) : (
+                    <TouchableOpacity style={styles.discoverLink} onPress={() => setCurrentScreen('assets')}>
+                        <Text style={styles.discoverText}>🏗️  Got equipment or property? <Text style={styles.discoverCta}>Track assets →</Text></Text>
+                    </TouchableOpacity>
+                )}
+
+                {loans.length > 0 ? (
+                    <TouchableOpacity style={styles.quickCard} onPress={() => setCurrentScreen('loans')}>
                         <View style={styles.quickCardLeft}>
                             <Text style={styles.quickIcon}>🏦</Text>
                             <View>
                                 <Text style={styles.quickLabel}>Loans</Text>
-                                <Text style={styles.quickSub}>Track debt & repayments</Text>
+                                <Text style={styles.quickSub}>{loans.filter(l => l.status === 'active').length} active loan{loans.filter(l => l.status === 'active').length !== 1 ? 's' : ''}</Text>
                             </View>
                         </View>
+                        <Text style={styles.quickArrow}>›</Text>
                     </TouchableOpacity>
-                </View>
+                ) : (
+                    <TouchableOpacity style={styles.discoverLink} onPress={() => setCurrentScreen('loans')}>
+                        <Text style={styles.discoverText}>🏦  Have a business loan? <Text style={styles.discoverCta}>Register it →</Text></Text>
+                    </TouchableOpacity>
+                )}
 
                 {/* ── SWOT quick card ─────────────────────────────────────── */}
                 <TouchableOpacity
@@ -536,6 +549,14 @@ const styles = StyleSheet.create({
         borderColor: Colors.primary, borderRadius: 10, padding: 12, marginBottom: 10,
     },
     nudgeText: { color: Colors.primary, fontSize: 12, fontWeight: '600' },
+
+    discoverLink: {
+        paddingVertical: 10, paddingHorizontal: 14, marginBottom: 10,
+        borderRadius: 8, borderWidth: 1, borderColor: Colors.border,
+        borderStyle: 'dashed', backgroundColor: 'transparent',
+    },
+    discoverText: { fontSize: 12, color: Colors.textMuted },
+    discoverCta:  { color: Colors.primary, fontWeight: '600' },
 
     fab: {
         position: 'absolute', right: 20, bottom: 80,
