@@ -26,7 +26,7 @@ function categoryLabel(cat: AssetCategory, lang: Parameters<typeof t>[0]): strin
 type FilterTab = 'active' | 'disposed' | 'all';
 
 export default function AssetsScreen() {
-    const { assets, addAsset, updateAsset, deleteAsset, disposeAsset, settings, language, setCurrentScreen } = useApp();
+    const { assets, addAsset, updateAsset, deleteAsset, disposeAsset, settings, language, setCurrentScreen, navigate } = useApp();
     const { currency } = settings;
 
     const [filter, setFilter] = useState<FilterTab>('active');
@@ -126,6 +126,11 @@ export default function AssetsScreen() {
     return (
         <SafeAreaView style={s.safe}>
             <Header />
+            <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 }}>
+                <TouchableOpacity onPress={() => navigate('dashboard')}>
+                    <Text style={{ color: Colors.primary, fontSize: 14 }}>← Dashboard</Text>
+                </TouchableOpacity>
+            </View>
             <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
                     <Text style={[s.title, { flex: 1, marginBottom: 0 }]}>{t(language, 'assetRegister')}</Text>

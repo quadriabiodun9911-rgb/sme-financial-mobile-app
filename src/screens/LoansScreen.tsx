@@ -54,7 +54,7 @@ function isOverdue(loan: Loan): boolean {
 // ── Component ────────────────────────────────────────────────────────────────
 
 export default function LoansScreen() {
-    const { loans, addLoan, updateLoan, deleteLoan, addLoanPayment, settings } = useApp();
+    const { loans, addLoan, updateLoan, deleteLoan, addLoanPayment, settings, navigate } = useApp();
     const { currency } = settings;
 
     const [showForm, setShowForm]         = useState(false);
@@ -139,6 +139,11 @@ export default function LoansScreen() {
     return (
         <SafeAreaView style={s.safe}>
             <Header />
+            <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 }}>
+                <TouchableOpacity onPress={() => navigate('dashboard')}>
+                    <Text style={{ color: Colors.primary, fontSize: 14 }}>← Dashboard</Text>
+                </TouchableOpacity>
+            </View>
             <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
                 <Text style={s.title}>Loan Register</Text>
 

@@ -456,7 +456,7 @@ function DebtTab() {
 
 // ── Main CFO Screen ───────────────────────────────────────────────────────────
 export default function CFOScreen() {
-    const { navigate } = useApp();
+    const { navigate, transactions, setCurrentScreen } = useApp();
     const [activeTab, setActiveTab] = useState<Tab>('overview');
 
     const TABS: { key: Tab; label: string }[] = [
@@ -466,6 +466,8 @@ export default function CFOScreen() {
         { key: 'risk',     label: 'Risk'      },
         { key: 'debt',     label: 'Debt'      },
     ];
+
+    const hasEnoughData = transactions.length >= 3;
 
     return (
         <SafeAreaView style={s.safe}>
@@ -477,24 +479,45 @@ export default function CFOScreen() {
                 <Text style={s.screenTitle}>CFO Advisor</Text>
             </View>
 
-            {/* Tab bar */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabBar} contentContainerStyle={s.tabBarContent}>
-                {TABS.map(tab => (
-                    <TouchableOpacity
-                        key={tab.key}
-                        style={[s.tab, activeTab === tab.key && s.tabActive]}
-                        onPress={() => setActiveTab(tab.key)}
-                    >
-                        <Text style={[s.tabText, activeTab === tab.key && s.tabTextActive]}>{tab.label}</Text>
+            {/* Empty state — shown when not enough data */}
+            {!hasEnoughData && (
+                <View style={s.emptyState}>
+                    <Text style={s.emptyIcon}>🧠</Text>
+                    <Text style={s.emptyTitle}>Your CFO is ready when you are</Text>
+                    <Text style={s.emptyBody}>
+                        Add at least 3 transactions to unlock forecasting, risk scoring, financial ratios, and your personalised CFO insights.
+                    </Text>
+                    <Text style={s.emptyProgress}>{transactions.length}/3 transactions added</Text>
+                    <View style={s.emptyProgressBarBg}>
+                        <View style={[s.emptyProgressBarFill, { width: `${Math.min(100, (transactions.length / 3) * 100)}%` as any }]} />
+                    </View>
+                    <TouchableOpacity style={s.emptyBtn} onPress={() => setCurrentScreen('transactions')}>
+                        <Text style={s.emptyBtnText}>Add Transactions →</Text>
                     </TouchableOpacity>
-                ))}
-            </ScrollView>
+                </View>
+            )}
 
-            {activeTab === 'overview' && <OverviewTab />}
-            {activeTab === 'forecast' && <ForecastTab />}
-            {activeTab === 'ratios'   && <RatiosTab />}
-            {activeTab === 'risk'     && <RiskTab />}
-            {activeTab === 'debt'     && <DebtTab />}
+            {/* Tab bar — only when data exists */}
+            {hasEnoughData && (
+                <>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabBar} contentContainerStyle={s.tabBarContent}>
+                        {TABS.map(tab => (
+                            <TouchableOpacity
+                                key={tab.key}
+                                style={[s.tab, activeTab === tab.key && s.tabActive]}
+                                onPress={() => setActiveTab(tab.key)}
+                            >
+                                <Text style={[s.tabText, activeTab === tab.key && s.tabTextActive]}>{tab.label}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
+                    {activeTab === 'overview' && <OverviewTab />}
+                    {activeTab === 'forecast' && <ForecastTab />}
+                    {activeTab === 'ratios'   && <RatiosTab />}
+                    {activeTab === 'risk'     && <RiskTab />}
+                    {activeTab === 'debt'     && <DebtTab />}
+                </>
+            )}
 
             <FooterNav />
         </SafeAreaView>
@@ -509,6 +532,16 @@ const s = StyleSheet.create({
     headerRow:   { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, gap: 12 },
     backBtn:     { color: Colors.primary, fontSize: 14 },
     screenTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary },
+
+    emptyState:           { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
+    emptyIcon:            { fontSize: 56, marginBottom: 16 },
+    emptyTitle:           { fontSize: 20, fontWeight: 'bold', color: Colors.textPrimary, textAlign: 'center', marginBottom: 12 },
+    emptyBody:            { fontSize: 14, color: Colors.textMuted, textAlign: 'center', lineHeight: 22, marginBottom: 24 },
+    emptyProgress:        { fontSize: 13, color: Colors.textSecondary, marginBottom: 8 },
+    emptyProgressBarBg:   { width: '100%', height: 6, backgroundColor: Colors.border, borderRadius: 3, marginBottom: 24 },
+    emptyProgressBarFill: { height: 6, backgroundColor: Colors.primary, borderRadius: 3 },
+    emptyBtn:             { backgroundColor: Colors.primary, paddingVertical: 13, paddingHorizontal: 32, borderRadius: 10 },
+    emptyBtnText:         { color: '#fff', fontWeight: 'bold', fontSize: 15 },
 
     tabBar:        { maxHeight: 44, backgroundColor: Colors.surface },
     tabBarContent: { paddingHorizontal: 12, gap: 4, alignItems: 'center' },
