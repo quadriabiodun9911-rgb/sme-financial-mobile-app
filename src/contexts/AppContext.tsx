@@ -329,7 +329,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const denyManage = () => Alert.alert(t(language, 'permissionDenied'), t(language, 'accountantPermission'));
 
     const setupAccount = async (email: string, businessName: string, pin: string, loadDemo: boolean) => {
-        // Check Supabase for duplicate email before creating local account
+        // Supabase auth is best-effort — never block registration if it fails
         try {
             const { error: signUpError } = await supabase.auth.signUp({ email, password: pin });
             if (signUpError) {
@@ -340,24 +340,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
                     msg.includes('user already exists') ||
                     msg.includes('email address is already')
                 ) {
-                    // Block registration — email is taken
                     throw new Error('User already registered');
                 }
-                // Other Supabase errors (network, etc.) — allow local-only registration
+                // Any other Supabase error — continue with local-only registration
             } else {
                 await supabase.auth.signInWithPassword({ email, password: pin }).catch(() => {});
             }
         } catch (e: any) {
             const msg: string = e?.message ?? '';
-            if (
-                msg.includes('already registered') ||
-                msg.includes('already been registered') ||
-                msg.includes('user already exists') ||
-                msg.includes('email address is already')
-            ) {
-                throw e; // Re-throw so LoginScreen shows the duplicate email alert
+            if (msg.includes('already registered')) {
+                throw e; // Show duplicate email alert in LoginScreen
             }
-            // Network error or Supabase down — continue with local storage
+            // Network error, Supabase down, or any other error — continue with local storage
         }
 
         await clearWorkspaceOwner();
