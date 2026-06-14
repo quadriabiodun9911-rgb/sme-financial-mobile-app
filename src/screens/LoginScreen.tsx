@@ -141,7 +141,7 @@ export default function LoginScreen() {
         // If local fails, try Supabase to give specific error
         try {
             const { error } = await import('../utils/supabase').then(m =>
-                m.supabase.auth.signInWithPassword({ email: emailLoginEmail.trim(), password: emailLoginPin })
+                m.supabase.auth.signInWithPassword({ email: emailLoginEmail.trim(), password: emailLoginPin + '_Q360' })
             );
             if (error) {
                 if (error.message.toLowerCase().includes('invalid login') || error.message.toLowerCase().includes('invalid credentials')) {
@@ -220,7 +220,7 @@ export default function LoginScreen() {
                 setResetSubmitting(false);
                 return;
             }
-            const { error: updateError } = await supabase.auth.updateUser({ password: resetNewPin });
+            const { error: updateError } = await supabase.auth.updateUser({ password: resetNewPin + '_Q360' });
             if (updateError) {
                 Alert.alert('Error', 'Could not update PIN: ' + updateError.message);
                 setResetSubmitting(false);

@@ -108,8 +108,8 @@ interface AppContextValue {
 
 const AppContext = createContext<AppContextValue | null>(null);
 
-const LOCKOUT_KEY  = '@quad360/lockoutUntil';
-const ATTEMPTS_KEY = '@quad360/loginAttempts';
+const LOCKOUT_KEY  = 'quad360_lockoutUntil';
+const ATTEMPTS_KEY = 'quad360_loginAttempts';
 
 const DEFAULT_SETTINGS: BusinessSettings = {
     businessType: 'both',
@@ -331,7 +331,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const setupAccount = async (email: string, businessName: string, pin: string, loadDemo: boolean) => {
         // Supabase auth is best-effort — never block registration if it fails
         try {
-            const { error: signUpError } = await supabase.auth.signUp({ email, password: pin });
+            const { error: signUpError } = await supabase.auth.signUp({ email, password: pin + '_Q360' });
             if (signUpError) {
                 const msg = signUpError.message.toLowerCase();
                 if (
@@ -344,7 +344,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 }
                 // Any other Supabase error — continue with local-only registration
             } else {
-                await supabase.auth.signInWithPassword({ email, password: pin }).catch(() => {});
+                await supabase.auth.signInWithPassword({ email, password: pin + '_Q360' }).catch(() => {});
             }
         } catch (e: any) {
             const msg: string = e?.message ?? '';
@@ -367,11 +367,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     // Team member join — creates Supabase account then links to owner workspace
     const joinTeam = async (email: string, pin: string, inviteCode: string) => {
-        const { data, error } = await supabase.auth.signUp({ email, password: pin });
+        const { data, error } = await supabase.auth.signUp({ email, password: pin + '_Q360' });
         if (error && error.message !== 'User already registered') throw new Error(error.message);
         let userId = data?.user?.id;
         if (error?.message === 'User already registered') {
-            const { data: sd, error: se } = await supabase.auth.signInWithPassword({ email, password: pin });
+            const { data: sd, error: se } = await supabase.auth.signInWithPassword({ email, password: pin + '_Q360' });
             if (se || !sd.user) throw new Error('Sign-in failed. Check your email and PIN.');
             userId = sd.user.id;
         }
@@ -439,7 +439,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         loadProfile().then(profile => {
             if (profile) {
-                supabase.auth.signInWithPassword({ email: profile.email, password: pin }).catch(() => {});
+                supabase.auth.signInWithPassword({ email: profile.email, password: pin + '_Q360' }).catch(() => {});
             }
         });
         setCurrentScreen('dashboard');
@@ -455,7 +455,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (currentPin !== storedPin) return false;
         setStoredPin(newPin);
         savePin(newPin).catch(() => {});
-        supabase.auth.updateUser({ password: newPin }).catch(() => {});
+        supabase.auth.updateUser({ password: newPin + '_Q360' }).catch(() => {});
         return true;
     };
 
