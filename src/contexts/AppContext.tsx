@@ -108,6 +108,9 @@ interface AppContextValue {
 
 const AppContext = createContext<AppContextValue | null>(null);
 
+const LOCKOUT_KEY  = '@quad360/lockoutUntil';
+const ATTEMPTS_KEY = '@quad360/loginAttempts';
+
 const DEFAULT_SETTINGS: BusinessSettings = {
     businessType: 'both',
     currency: '$',
@@ -216,9 +219,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const [loginAttempts, setLoginAttempts]       = useState(0);
     const [isLockedOut, setIsLockedOut]           = useState(false);
     const [lockoutUntil, setLockoutUntil]         = useState<number | null>(null);
-
-    const LOCKOUT_KEY   = '@quad360/lockoutUntil';
-    const ATTEMPTS_KEY  = '@quad360/loginAttempts';
     const initRan                           = useRef(false);
 
     useEffect(() => {
