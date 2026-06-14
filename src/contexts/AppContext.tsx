@@ -329,13 +329,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const denyManage = () => Alert.alert(t(language, 'permissionDenied'), t(language, 'accountantPermission'));
 
     const setupAccount = async (email: string, businessName: string, pin: string, loadDemo: boolean) => {
-        // Supabase auth is best-effort — never block registration if it fails
+        // Check Supabase for duplicate email before creating local account
         try {
             const { error: signUpError } = await supabase.auth.signUp({ email, password: pin });
-            if (!signUpError || signUpError.message === 'User already registered') {
+            if (signUpError) {
+                const msg = signUpError.message.toLowerCase();
+                if (
+                    msg.includes('already registered') ||
+                    msg.includes('already been registered') ||
+                    msg.includes('user already exists') ||
+                    msg.includes('email address is already')
+                ) {
+                    // Block registration — email is taken
+                    throw new Error('User already registered');
+                }
+                // Other Supabase errors (network, etc.) — allow local-only registration
+            } else {
                 await supabase.auth.signInWithPassword({ email, password: pin }).catch(() => {});
             }
-        } catch {
+        } catch (e: any) {
+            const msg: string = e?.message ?? '';
+            if (
+                msg.includes('already registered') ||
+                msg.includes('already been registered') ||
+                msg.includes('user already exists') ||
+                msg.includes('email address is already')
+            ) {
+                throw e; // Re-throw so LoginScreen shows the duplicate email alert
+            }
             // Network error or Supabase down — continue with local storage
         }
 
