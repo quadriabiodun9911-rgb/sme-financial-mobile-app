@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
-    TouchableOpacity, StyleSheet, Alert, ActivityIndicator,
+    TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Image,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -361,7 +361,7 @@ export default function LoginScreen() {
             <SafeAreaView style={styles.safe}>
                 <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
                     <View style={styles.card}>
-                        <Text style={styles.title}>{t(setupLang, 'appName')}</Text>
+                        <Image source={require('../../assets/icon.png')} style={styles.logo} />
                         <Text style={styles.subtitle}>{t(setupLang, 'setupSubtitle')}</Text>
 
                         {/* Language picker — shown first so the rest renders in chosen language */}
@@ -436,7 +436,7 @@ export default function LoginScreen() {
         <SafeAreaView style={styles.safe}>
             <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
                 <View style={styles.card}>
-                    <Text style={styles.title}>{t(language, 'appName')}</Text>
+                    <Image source={require('../../assets/icon.png')} style={styles.logo} />
                     <Text style={styles.subtitle}>{t(language, 'loginSubtitle')}</Text>
 
                     {isLockedOut && timeRemaining !== null && timeRemaining > 0 && (
@@ -542,6 +542,7 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.surface, borderRadius: 16, padding: 24,
         shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 10, elevation: 5,
     },
+    logo:     { width: 80, height: 80, alignSelf: 'center', borderRadius: 18, marginBottom: 8 },
     title:    { fontSize: 26, fontWeight: 'bold', color: Colors.textPrimary, textAlign: 'center' },
     subtitle: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', marginBottom: 20, marginTop: 4 },
 
