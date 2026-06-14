@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useMemo, useEffect, useRef, ReactNode } from 'react';
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Transaction, FinanceData, User, BusinessSettings, Screen, FinancialGoal, GoalType, NavParams, Invoice, InvoiceStatus, TeamMember, UserRole, Language, Asset, InventoryItem, Loan, LoanPayment } from '../types';
+import { Transaction, FinanceData, User, BusinessSettings, Screen, FinancialGoal, GoalType, NavParams, Invoice, InvoiceStatus, TeamMember, UserRole, Language, Asset, InventoryItem, Loan, LoanPayment, Budget } from '../types';
 import { computeFinance, computeOneThingInsight, computeRecurringDates, computeAssetCurrentValue, computeAssetAnnualDepreciation } from '../utils/finance';
 import { generateId } from '../utils/uuid';
 import { auditEvents } from '../utils/auditLog';
@@ -13,6 +13,7 @@ import {
     saveAssets, loadAssets,
     saveLoans, loadLoans,
     saveInventory, loadInventory,
+    saveBudgets, loadBudgets,
     savePin, loadPin,
     saveProfile, loadProfile,
     saveLanguage, loadLanguage,
@@ -79,6 +80,11 @@ interface AppContextValue {
     addInventoryItem: (item: Omit<InventoryItem, 'id' | 'createdAt' | 'updatedAt'>) => void;
     updateInventoryItem: (id: string, patch: Partial<InventoryItem>) => void;
     deleteInventoryItem: (id: string) => void;
+
+    budgets: Budget[];
+    addBudget: (b: Omit<Budget, 'id'>) => void;
+    updateBudget: (id: string, patch: Partial<Budget>) => void;
+    deleteBudget: (id: string) => void;
 
     // Team
     teamMembers: TeamMember[];
@@ -202,6 +208,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const [assets, setAssets]               = useState<Asset[]>([]);
     const [loans, setLoans]                 = useState<Loan[]>([]);
     const [inventory, setInventory]         = useState<InventoryItem[]>([]);
+    const [budgets, setBudgets]             = useState<Budget[]>([]);
     const [teamMembers, setTeamMembers]     = useState<TeamMember[]>([]);
     const [language, setLang]              = useState<Language>('en');
     const [isLoading, setIsLoading]         = useState(true);
@@ -222,7 +229,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         initRan.current = true;
         (async () => {
             try {
-                const [savedTx, savedSettings, savedGoals, savedInvoices, savedAssets, savedLoans, savedInventory, pin, profile, lang] = await Promise.all([
+                const [savedTx, savedSettings, savedGoals, savedInvoices, savedAssets, savedLoans, savedInventory, savedBudgets, pin, profile, lang] = await Promise.all([
                     loadTransactions(),
                     loadSettings(),
                     loadGoals(),
@@ -230,6 +237,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                     loadAssets(),
                     loadLoans(),
                     loadInventory(),
+                    loadBudgets(),
                     loadPin(),
                     loadProfile(),
                     loadLanguage(),
@@ -247,6 +255,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 if (savedAssets)   setAssets(savedAssets);
                 if (savedLoans)    setLoans(savedLoans);
                 if (savedInventory) setInventory(savedInventory);
+                if (savedBudgets)  setBudgets(savedBudgets);
                 if (pin && profile) {
                     setUser({ email: profile.email, businessName: profile.businessName, role: 'Administrator' });
                 }
@@ -268,6 +277,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     useEffect(() => { if (!isLoading) saveAssets(assets).catch(persistError('assets')); }, [assets, isLoading]);
     useEffect(() => { if (!isLoading) saveLoans(loans).catch(persistError('loans')); }, [loans, isLoading]);
     useEffect(() => { if (!isLoading) saveInventory(inventory).catch(persistError('inventory')); }, [inventory, isLoading]);
+    useEffect(() => { if (!isLoading) saveBudgets(budgets).catch(persistError('budgets')); }, [budgets, isLoading]);
 
     const activeAssets = useMemo(() => assets.filter(a => a.status === 'active'), [assets]);
     const registeredAssetsValue = useMemo(
@@ -571,6 +581,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setInventory(prev => prev.filter(i => i.id !== id));
     };
 
+    const addBudget = (b: Omit<Budget, 'id'>) => {
+        const item: Budget = { ...b, id: generateId() };
+        setBudgets(prev => [item, ...prev]);
+    };
+
+    const updateBudget = (id: string, patch: Partial<Budget>) => {
+        setBudgets(prev => prev.map(b => b.id === id ? { ...b, ...patch } : b));
+    };
+
+    const deleteBudget = (id: string) => {
+        setBudgets(prev => prev.filter(b => b.id !== id));
+    };
+
     const inviteMember = async (email: string, role: 'accountant' | 'staff'): Promise<string> => {
         const code = await inviteTeamMember(email, role);
         await refreshTeam();
@@ -661,6 +684,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         assets, addAsset, updateAsset, deleteAsset, disposeAsset,
         loans, addLoan, updateLoan, deleteLoan, addLoanPayment,
         inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem,
+        budgets, addBudget, updateBudget, deleteBudget,
         teamMembers, inviteMember, removeMember, refreshTeam,
         language, setLanguage,
         finance, insight, isLoading,

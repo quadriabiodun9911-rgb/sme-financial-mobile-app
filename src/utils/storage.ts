@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Transaction, BusinessSettings, FinancialGoal, Invoice, TeamMember, Language, Asset, InventoryItem, Loan } from '../types';
+import { Transaction, BusinessSettings, FinancialGoal, Invoice, TeamMember, Language, Asset, InventoryItem, Loan, Budget } from '../types';
 import { supabase } from './supabase';
 import { savePinSecurely, loadPinSecurely, clearPinSecurely, clearAllSecureData } from './secureStorage';
 
@@ -293,6 +293,16 @@ export async function saveLoans(loans: Loan[]): Promise<void> {
 export async function loadLoans(): Promise<Loan[] | null> {
     const raw = await AsyncStorage.getItem(KEYS.loans);
     return raw ? (JSON.parse(raw) as Loan[]) : null;
+}
+
+// ─── Budgets ──────────────────────────────────────────────────────────────────
+export async function saveBudgets(budgets: Budget[]): Promise<void> {
+    await AsyncStorage.setItem('@quad360/budgets', JSON.stringify(budgets));
+}
+
+export async function loadBudgets(): Promise<Budget[] | null> {
+    const raw = await AsyncStorage.getItem('@quad360/budgets');
+    return raw ? (JSON.parse(raw) as Budget[]) : null;
 }
 
 // ─── Team Members ─────────────────────────────────────────────────────────────

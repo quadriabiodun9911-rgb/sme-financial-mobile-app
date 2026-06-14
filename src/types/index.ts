@@ -10,7 +10,16 @@ export type Screen =
     | 'assets'
     | 'loans'
     | 'inventory'
-    | 'growth';
+    | 'growth'
+    | 'cfo'
+    | 'budget';
+
+export interface Budget {
+    id: string;
+    category: string;
+    monthlyAmount: number;
+    period: string; // YYYY-MM
+}
 
 export type ReportTab =
     | 'balancesheet'

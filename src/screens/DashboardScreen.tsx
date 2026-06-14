@@ -380,6 +380,30 @@ export default function DashboardScreen() {
                     <Text style={styles.quickArrow}>›</Text>
                 </TouchableOpacity>
 
+                {/* ── CFO Advisor quick card ───────────────────────────────── */}
+                <TouchableOpacity style={styles.quickCard} onPress={() => setCurrentScreen('cfo')}>
+                    <View style={styles.quickCardLeft}>
+                        <Text style={styles.quickIcon}>🧠</Text>
+                        <View>
+                            <Text style={styles.quickLabel}>CFO Advisor</Text>
+                            <Text style={styles.quickSub}>Risk score, forecasts, debt optimiser & ratios</Text>
+                        </View>
+                    </View>
+                    <Text style={styles.quickArrow}>›</Text>
+                </TouchableOpacity>
+
+                {/* ── Budget quick card ────────────────────────────────────── */}
+                <TouchableOpacity style={styles.quickCard} onPress={() => setCurrentScreen('budget')}>
+                    <View style={styles.quickCardLeft}>
+                        <Text style={styles.quickIcon}>📋</Text>
+                        <View>
+                            <Text style={styles.quickLabel}>Budget</Text>
+                            <Text style={styles.quickSub}>Set monthly targets & track budget vs actual</Text>
+                        </View>
+                    </View>
+                    <Text style={styles.quickArrow}>›</Text>
+                </TouchableOpacity>
+
                 <TouchableOpacity style={styles.btn} onPress={() => setCurrentScreen('reports')}>
                     <Text style={styles.btnText}>{t(language, 'viewDetailedReports')}</Text>
                 </TouchableOpacity>

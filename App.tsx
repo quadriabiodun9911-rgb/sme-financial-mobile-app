@@ -14,6 +14,8 @@ import AssetsScreen from './src/screens/AssetsScreen';
 import LoansScreen from './src/screens/LoansScreen';
 import InventoryScreen from './src/screens/InventoryScreen';
 import GrowthIntelligenceScreen from './src/screens/GrowthIntelligenceScreen';
+import CFOScreen from './src/screens/CFOScreen';
+import BudgetScreen from './src/screens/BudgetScreen';
 
 function Navigator() {
     const { currentScreen, isLoading } = useApp();
@@ -40,6 +42,8 @@ function Navigator() {
             {currentScreen === 'loans'        && <LoansScreen />}
             {currentScreen === 'inventory'    && <InventoryScreen />}
             {currentScreen === 'growth'       && <GrowthIntelligenceScreen />}
+            {currentScreen === 'cfo'          && <CFOScreen />}
+            {currentScreen === 'budget'       && <BudgetScreen />}
         </View>
     );
 }
