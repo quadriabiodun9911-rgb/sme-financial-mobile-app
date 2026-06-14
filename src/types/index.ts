@@ -12,7 +12,8 @@ export type Screen =
     | 'inventory'
     | 'growth'
     | 'cfo'
-    | 'budget';
+    | 'budget'
+    | 'analysis';
 
 export interface Budget {
     id: string;

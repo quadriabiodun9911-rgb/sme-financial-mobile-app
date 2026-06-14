@@ -16,6 +16,7 @@ import InventoryScreen from './src/screens/InventoryScreen';
 import GrowthIntelligenceScreen from './src/screens/GrowthIntelligenceScreen';
 import CFOScreen from './src/screens/CFOScreen';
 import BudgetScreen from './src/screens/BudgetScreen';
+import AnalysisScreen from './src/screens/AnalysisScreen';
 
 function Navigator() {
     const { currentScreen, isLoading } = useApp();
@@ -44,6 +45,7 @@ function Navigator() {
             {currentScreen === 'growth'       && <GrowthIntelligenceScreen />}
             {currentScreen === 'cfo'          && <CFOScreen />}
             {currentScreen === 'budget'       && <BudgetScreen />}
+            {currentScreen === 'analysis'     && <AnalysisScreen />}
         </View>
     );
 }

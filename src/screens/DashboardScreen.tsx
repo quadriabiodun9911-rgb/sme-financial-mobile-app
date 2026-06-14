@@ -249,12 +249,24 @@ export default function DashboardScreen() {
                     <Text style={styles.quickArrow}>›</Text>
                 </TouchableOpacity>
 
-                {/* ── CARD 6: CFO Advisor ──────────────────────────────────── */}
-                <TouchableOpacity style={[styles.quickCard, { borderColor: Colors.primary, backgroundColor: 'rgba(0,102,204,0.08)' }]} onPress={() => setCurrentScreen('cfo')}>
+                {/* ── CARD 6: Analysis & Decisions ─────────────────────────── */}
+                <TouchableOpacity style={[styles.quickCard, { borderColor: Colors.primary, backgroundColor: 'rgba(0,102,204,0.08)' }]} onPress={() => setCurrentScreen('analysis')}>
+                    <View style={styles.quickCardLeft}>
+                        <Text style={styles.quickIcon}>🔍</Text>
+                        <View>
+                            <Text style={[styles.quickLabel, { color: Colors.primary }]}>Analysis & Decisions</Text>
+                            <Text style={styles.quickSub}>Why did profit change? · What if I hire / take a loan?</Text>
+                        </View>
+                    </View>
+                    <Text style={styles.quickArrow}>›</Text>
+                </TouchableOpacity>
+
+                {/* ── CARD 7: CFO Advisor ──────────────────────────────────── */}
+                <TouchableOpacity style={[styles.quickCard, { borderColor: Colors.border }]} onPress={() => setCurrentScreen('cfo')}>
                     <View style={styles.quickCardLeft}>
                         <Text style={styles.quickIcon}>🧠</Text>
                         <View>
-                            <Text style={[styles.quickLabel, { color: Colors.primary }]}>CFO Advisor</Text>
+                            <Text style={styles.quickLabel}>CFO Advisor</Text>
                             <Text style={styles.quickSub}>Forecasts · Risk score · Ratios · Debt optimiser</Text>
                         </View>
                     </View>
