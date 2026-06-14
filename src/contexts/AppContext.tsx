@@ -212,10 +212,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const [teamMembers, setTeamMembers]     = useState<TeamMember[]>([]);
     const [language, setLang]              = useState<Language>('en');
     const [isLoading, setIsLoading]         = useState(true);
-    // Security: Rate limiting for login attempts
+    // Security: Rate limiting for login attempts (persisted so restart doesn't reset)
     const [loginAttempts, setLoginAttempts]       = useState(0);
     const [isLockedOut, setIsLockedOut]           = useState(false);
     const [lockoutUntil, setLockoutUntil]         = useState<number | null>(null);
+
+    const LOCKOUT_KEY   = '@quad360/lockoutUntil';
+    const ATTEMPTS_KEY  = '@quad360/loginAttempts';
     const initRan                           = useRef(false);
 
     useEffect(() => {
@@ -259,6 +262,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 if (pin && profile) {
                     setUser({ email: profile.email, businessName: profile.businessName, role: 'Administrator' });
                 }
+                // Restore lockout state across restarts
+                const [savedLockout, savedAttempts] = await Promise.all([
+                    AsyncStorage.getItem(LOCKOUT_KEY),
+                    AsyncStorage.getItem(ATTEMPTS_KEY),
+                ]);
+                if (savedLockout) {
+                    const until = parseInt(savedLockout, 10);
+                    if (Date.now() < until) {
+                        setIsLockedOut(true);
+                        setLockoutUntil(until);
+                    } else {
+                        await AsyncStorage.multiRemove([LOCKOUT_KEY, ATTEMPTS_KEY]);
+                    }
+                }
+                if (savedAttempts) setLoginAttempts(parseInt(savedAttempts, 10));
             } finally {
                 setIsLoading(false);
             }
@@ -382,12 +400,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
             // Log failed login attempt
             auditEvents.loginFailed('Invalid PIN');
+            AsyncStorage.setItem(ATTEMPTS_KEY, String(newAttempts)).catch(() => {});
 
             // Lockout after 5 failed attempts for 15 minutes
             if (newAttempts >= 5) {
                 const lockoutTime = Date.now() + (15 * 60 * 1000);
                 setIsLockedOut(true);
                 setLockoutUntil(lockoutTime);
+                AsyncStorage.setItem(LOCKOUT_KEY, String(lockoutTime)).catch(() => {});
                 auditEvents.accountLocked();
             }
             return false;
@@ -397,6 +417,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setLoginAttempts(0);
         setIsLockedOut(false);
         setLockoutUntil(null);
+        AsyncStorage.multiRemove([LOCKOUT_KEY, ATTEMPTS_KEY]).catch(() => {});
 
         // Log successful login
         auditEvents.login();
@@ -641,6 +662,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 '@quad360/goals',
                 '@quad360/invoices',
                 '@quad360/assets',
+                LOCKOUT_KEY,
+                ATTEMPTS_KEY,
             ]).catch(() => {});
 
             // Sign out from Supabase
