@@ -2,7 +2,7 @@
   "buildCommand": "bash build.sh",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/app/(.*)", "destination": "/app/$1" },
-    { "source": "/app", "destination": "/app/index.html" }
+    { "source": "/app", "destination": "/app/index.html" },
+    { "source": "/app/(.*)", "destination": "/app/index.html" }
   ]
 }
