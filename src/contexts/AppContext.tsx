@@ -25,6 +25,7 @@ import {
 import { refreshGoal, goalDefaults } from '../utils/goals';
 import { supabase } from '../utils/supabase';
 import { t } from '../utils/i18n';
+import { DEMO_BUSINESSES } from '../utils/demoData';
 
 interface AppContextValue {
     currentScreen: Screen;
@@ -91,6 +92,11 @@ interface AppContextValue {
     inviteMember: (email: string, role: 'accountant' | 'staff') => Promise<string>;
     removeMember: (id: string) => Promise<void>;
     refreshTeam: () => Promise<void>;
+
+    // Demo mode
+    isDemoMode: boolean;
+    enterDemo: (businessId: string) => void;
+    exitDemo: () => void;
 
     // Language
     language: Language;
@@ -215,6 +221,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const [teamMembers, setTeamMembers]     = useState<TeamMember[]>([]);
     const [language, setLang]              = useState<Language>('en');
     const [isLoading, setIsLoading]         = useState(true);
+    const [isDemoMode, setIsDemoMode]       = useState(false);
     // Security: Rate limiting for login attempts (persisted so restart doesn't reset)
     const [loginAttempts, setLoginAttempts]       = useState(0);
     const [isLockedOut, setIsLockedOut]           = useState(false);
@@ -319,6 +326,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const setLanguage = (lang: Language) => {
         setLang(lang);
         saveLanguage(lang).catch(() => {});
+    };
+
+    const enterDemo = (businessId: string) => {
+        const biz = DEMO_BUSINESSES.find(b => b.id === businessId);
+        if (!biz) return;
+        setIsDemoMode(true);
+        setTransactions(biz.transactions);
+        setAssets(biz.assets);
+        setLoans(biz.loans);
+        setInventory(biz.inventory);
+        setInvoices(biz.invoices);
+        setSettings(prev => ({ ...prev, currency: biz.currency }));
+        setUser({ email: 'demo@quad360.app', businessName: biz.businessName, role: 'Administrator' });
+        setCurrentScreen('dashboard');
+    };
+
+    const exitDemo = () => {
+        setIsDemoMode(false);
+        setTransactions([]);
+        setAssets([]);
+        setLoans([]);
+        setInventory([]);
+        setInvoices([]);
+        setGoals([]);
+        setUser(null);
+        setSettings(DEFAULT_SETTINGS);
+        setCurrentScreen('login');
     };
 
     // Role permission helpers
@@ -724,6 +758,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem,
         budgets, addBudget, updateBudget, deleteBudget,
         teamMembers, inviteMember, removeMember, refreshTeam,
+        isDemoMode, enterDemo, exitDemo,
         language, setLanguage,
         finance, insight, isLoading,
         exportData, importData, clearData, resetApp,

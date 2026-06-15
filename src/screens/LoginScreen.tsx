@@ -6,6 +6,7 @@ import {
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { t, LANGUAGES, Language } from '../utils/i18n';
+import { DEMO_BUSINESSES } from '../utils/demoData';
 
 const CURRENCIES = [
     { label: 'USD ($)',   value: '$'   },
@@ -16,11 +17,11 @@ const CURRENCIES = [
     { label: 'CAD (CA$)', value: 'CA$' },
 ];
 
-type Mode = 'owner-setup' | 'owner-login' | 'join-team' | 'reset-pin';
+type Mode = 'owner-setup' | 'owner-login' | 'join-team' | 'reset-pin' | 'demo-pick';
 type LoginMethod = 'pin' | 'email';
 
 export default function LoginScreen() {
-    const { isFirstLaunch, setupAccount, login, joinTeam, language, setLanguage, updateSettings, resetApp, isLockedOut, lockoutUntil } = useApp();
+    const { isFirstLaunch, setupAccount, login, joinTeam, enterDemo, language, setLanguage, updateSettings, resetApp, isLockedOut, lockoutUntil } = useApp();
     const [mode, setMode] = useState<Mode>(isFirstLaunch ? 'owner-setup' : 'owner-login');
     const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
     const [loginMethod, setLoginMethod] = useState<LoginMethod>('pin');
@@ -235,6 +236,36 @@ export default function LoginScreen() {
         setResetSubmitting(false);
     };
 
+    // ── Demo picker ───────────────────────────────────────────────────────────
+    if (mode === 'demo-pick') {
+        return (
+            <SafeAreaView style={styles.safe}>
+                <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+                    <View style={styles.card}>
+                        <Image source={require('../../assets/icon.png')} style={styles.logo} />
+                        <Text style={styles.title}>Try the Demo</Text>
+                        <Text style={styles.subtitle}>Pick a business type to explore the app with realistic sample data. Nothing will be saved.</Text>
+
+                        {DEMO_BUSINESSES.map(biz => (
+                            <TouchableOpacity key={biz.id} style={styles.bizCard} onPress={() => enterDemo(biz.id)}>
+                                <Text style={styles.bizEmoji}>{biz.emoji}</Text>
+                                <View style={styles.bizInfo}>
+                                    <Text style={styles.bizName}>{biz.name}</Text>
+                                    <Text style={styles.bizDesc}>{biz.description}</Text>
+                                </View>
+                                <Text style={styles.bizArrow}>→</Text>
+                            </TouchableOpacity>
+                        ))}
+
+                        <TouchableOpacity style={styles.switchBtn} onPress={() => setMode(isFirstLaunch ? 'owner-setup' : 'owner-login')}>
+                            <Text style={styles.switchText}>← Back</Text>
+                        </TouchableOpacity>
+                    </View>
+                </ScrollView>
+            </SafeAreaView>
+        );
+    }
+
     // ── Reset PIN ─────────────────────────────────────────────────────────────
     if (mode === 'reset-pin') {
         return (
@@ -425,6 +456,9 @@ export default function LoginScreen() {
                         <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('owner-login')}>
                             <Text style={styles.switchText}>Already have an account? Sign In →</Text>
                         </TouchableOpacity>
+                        <TouchableOpacity style={styles.demoBtn} onPress={() => setMode('demo-pick')}>
+                            <Text style={styles.demoBtnText}>👀 Try Demo (No sign-up needed)</Text>
+                        </TouchableOpacity>
                     </View>
                 </ScrollView>
             </SafeAreaView>
@@ -519,6 +553,9 @@ export default function LoginScreen() {
                         setMode('reset-pin');
                     }}>
                         <Text style={styles.resetText}>Forgot PIN?</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.demoBtn} onPress={() => setMode('demo-pick')}>
+                        <Text style={styles.demoBtnText}>👀 Try Demo (No sign-up needed)</Text>
                     </TouchableOpacity>
                 </View>
             </ScrollView>
@@ -627,4 +664,21 @@ const styles = StyleSheet.create({
     loginTabTextActive: {
         color: Colors.primary,
     },
+
+    demoBtn: {
+        marginTop: 12, paddingVertical: 12, borderRadius: 8, alignItems: 'center',
+        borderWidth: 1, borderColor: Colors.primary, backgroundColor: 'transparent',
+    },
+    demoBtnText: { color: Colors.primary, fontWeight: '600', fontSize: 13 },
+
+    bizCard: {
+        flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.bg,
+        borderRadius: 12, padding: 14, marginBottom: 10,
+        borderWidth: 1, borderColor: Colors.border,
+    },
+    bizEmoji: { fontSize: 28, marginRight: 12 },
+    bizInfo:  { flex: 1 },
+    bizName:  { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },
+    bizDesc:  { fontSize: 12, color: Colors.textMuted },
+    bizArrow: { fontSize: 18, color: Colors.primary, marginLeft: 8 },
 });

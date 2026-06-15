@@ -15,7 +15,7 @@ const INCOME_CATEGORIES = ['Sales', 'Service', 'Consulting', 'Rental', 'Interest
 const EXPENSE_CATEGORIES = ['Rent', 'Salaries', 'Utilities', 'Marketing', 'Supplies', 'Transport', 'Meals', 'Software', 'Tax', 'Other'];
 
 export default function DashboardScreen() {
-    const { finance, insight, settings, goals, transactions, invoices, assets, loans, navigate, setCurrentScreen, language, isLoading, addTransaction } = useApp();
+    const { finance, insight, settings, goals, transactions, invoices, assets, loans, navigate, setCurrentScreen, language, isLoading, addTransaction, isDemoMode, exitDemo } = useApp();
 
     const [fabOpen, setFabOpen]           = useState(false);
     const [qaType, setQaType]             = useState<'income' | 'expense'>('income');
@@ -97,6 +97,16 @@ export default function DashboardScreen() {
             <ScrollView style={styles.scroll} contentContainerStyle={styles.pad}>
 
                 <Text style={styles.title}>{t(language, 'dashboard')}</Text>
+
+                {/* ── Demo banner ──────────────────────────────────────────── */}
+                {isDemoMode && (
+                    <View style={styles.demoBanner}>
+                        <Text style={styles.demoBannerText}>👀 Demo Mode — data is not saved</Text>
+                        <TouchableOpacity onPress={() => setCurrentScreen('login')} style={styles.demoBannerBtn}>
+                            <Text style={styles.demoBannerBtnText}>Create Account →</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
 
                 {/* ── Onboarding ───────────────────────────────────────────── */}
                 {showOnboarding && (
@@ -477,6 +487,14 @@ const styles = StyleSheet.create({
     title:  { fontSize: 22, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 14 },
     row:    { flexDirection: 'row', gap: 12, marginBottom: 12 },
     flex:   { flex: 1 },
+
+    demoBanner: {
+        backgroundColor: '#854d0e', borderRadius: 10, padding: 12, marginBottom: 14,
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    },
+    demoBannerText:    { color: '#fef3c7', fontWeight: '600', fontSize: 13, flex: 1 },
+    demoBannerBtn:     { backgroundColor: '#fef3c7', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 5, marginLeft: 8 },
+    demoBannerBtnText: { color: '#854d0e', fontWeight: '700', fontSize: 12 },
 
     onboardCard:     { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: Colors.primary },
     onboardTitle:    { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },
