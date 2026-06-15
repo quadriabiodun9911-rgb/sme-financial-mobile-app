@@ -15,6 +15,7 @@ const CURRENCIES = [
     { label: 'NGN (₦)',   value: '₦'   },
     { label: 'CNY (¥)',   value: '¥'   },
     { label: 'CAD (CA$)', value: 'CA$' },
+    { label: 'ZAR (R)',   value: 'R'   },
 ];
 
 type Mode = 'owner-setup' | 'owner-login' | 'join-team' | 'reset-pin' | 'demo-pick';
@@ -248,10 +249,11 @@ export default function LoginScreen() {
 
                         {DEMO_BUSINESSES.map(biz => (
                             <TouchableOpacity key={biz.id} style={styles.bizCard} onPress={() => enterDemo(biz.id)}>
-                                <Text style={styles.bizEmoji}>{biz.emoji}</Text>
+                                <Text style={styles.bizEmoji}>{biz.flag}</Text>
                                 <View style={styles.bizInfo}>
-                                    <Text style={styles.bizName}>{biz.name}</Text>
-                                    <Text style={styles.bizDesc}>{biz.description}</Text>
+                                    <Text style={styles.bizCountry}>{biz.country}</Text>
+                                    <Text style={styles.bizName}>{biz.businessName}</Text>
+                                    <Text style={styles.bizDesc}>{biz.description} · {biz.currency}</Text>
                                 </View>
                                 <Text style={styles.bizArrow}>→</Text>
                             </TouchableOpacity>
@@ -676,9 +678,10 @@ const styles = StyleSheet.create({
         borderRadius: 12, padding: 14, marginBottom: 10,
         borderWidth: 1, borderColor: Colors.border,
     },
-    bizEmoji: { fontSize: 28, marginRight: 12 },
-    bizInfo:  { flex: 1 },
-    bizName:  { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },
-    bizDesc:  { fontSize: 12, color: Colors.textMuted },
+    bizEmoji:   { fontSize: 28, marginRight: 12 },
+    bizInfo:    { flex: 1 },
+    bizCountry: { fontSize: 11, fontWeight: '700', color: Colors.primary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
+    bizName:    { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },
+    bizDesc:    { fontSize: 11, color: Colors.textMuted },
     bizArrow: { fontSize: 18, color: Colors.primary, marginLeft: 8 },
 });
