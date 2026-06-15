@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { AppProvider, useApp } from './src/contexts/AppContext';
+import { trackScreenViewed } from './src/utils/analytics';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import LoginScreen from './src/screens/LoginScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
@@ -20,6 +21,12 @@ import AnalysisScreen from './src/screens/AnalysisScreen';
 
 function Navigator() {
     const { currentScreen, isLoading } = useApp();
+
+    useEffect(() => {
+        if (!isLoading && currentScreen !== 'login') {
+            trackScreenViewed(currentScreen);
+        }
+    }, [currentScreen, isLoading]);
 
     if (isLoading) {
         return (

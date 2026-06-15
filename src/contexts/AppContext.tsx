@@ -26,6 +26,13 @@ import { refreshGoal, goalDefaults } from '../utils/goals';
 import { supabase } from '../utils/supabase';
 import { t } from '../utils/i18n';
 import { DEMO_BUSINESSES } from '../utils/demoData';
+import {
+    trackAppOpened, trackDemoStarted, trackDemoConvertTapped,
+    trackUserRegistered, trackUserLoggedIn, trackUserLoggedOut,
+    trackTransactionAdded, trackInvoiceCreated, trackAssetAdded,
+    trackLoanAdded, trackInventoryItemAdded, trackGoalCreated,
+    trackDataExported, identifyUser, resetIdentity,
+} from '../utils/analytics';
 
 interface AppContextValue {
     currentScreen: Screen;
@@ -231,6 +238,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         // Keep Supabase free-tier project alive on every app launch
         void supabase.from('profiles').select('id').limit(1);
+        trackAppOpened();
     }, []);
 
     useEffect(() => {
@@ -331,6 +339,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const enterDemo = (businessId: string) => {
         const biz = DEMO_BUSINESSES.find(b => b.id === businessId);
         if (!biz) return;
+        trackDemoStarted(biz.id, biz.businessName, biz.country);
         setIsDemoMode(true);
         setTransactions(biz.transactions);
         setAssets(biz.assets);
@@ -395,6 +404,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setHasProfile(true);
         setUserRole('owner');
         if (loadDemo) setTransactions(DEMO_TRANSACTIONS);
+        identifyUser(email, { businessName });
+        trackUserRegistered(settings.currency);
         setUser({ email, businessName, role: 'Administrator' });
         setCurrentScreen('dashboard');
     };
@@ -470,9 +481,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         // Log successful login
         auditEvents.login();
+        trackUserLoggedIn('pin');
 
         loadProfile().then(profile => {
             if (profile) {
+                identifyUser(profile.email);
                 supabase.auth.signInWithPassword({ email: profile.email, password: pin + '_Q360' }).catch(() => {});
             }
         });
@@ -482,6 +495,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const logout = () => {
         supabase.auth.signOut().catch(() => {});
+        trackUserLoggedOut();
+        resetIdentity();
         setCurrentScreen('login');
     };
 
@@ -508,6 +523,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             nextRecurringDate: tx.isRecurring && tx.recurringFrequency
                 ? computeRecurringDates(date, tx.recurringFrequency) : undefined,
         };
+        trackTransactionAdded(tx.type, tx.amount, settings.currency);
         setTransactions(prev => [item, ...prev]);
     };
 
@@ -538,6 +554,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             deadline: now, createdAt: now, status: 'on_track', progress: 0, unit: '$',
             ...defaults, ...overrides,
         };
+        trackGoalCreated(type);
         setGoals(prev => [refreshGoal(goal, finance, transactions), ...prev]);
     };
 
@@ -558,6 +575,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (!canManage) { denyManage(); return; }
         const now = new Date().toISOString().split('T')[0];
         const item: Invoice = { ...inv, id: generateId(), createdAt: now };
+        trackInvoiceCreated(inv.total, settings.currency);
         setInvoices(prev => [item, ...prev]);
         addTransaction({
             description: `Invoice ${inv.invoiceNumber} – ${inv.clientName}`,
@@ -591,6 +609,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const addAsset = (a: Omit<Asset, 'id' | 'createdAt'>) => {
         if (!canManage) { denyManage(); return; }
         const item: Asset = { ...a, id: generateId(), createdAt: new Date().toISOString() };
+        trackAssetAdded(a.category, a.purchaseCost, settings.currency);
         setAssets(prev => [item, ...prev]);
     };
 
@@ -612,6 +631,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const addLoan = (l: Omit<Loan, 'id' | 'createdAt' | 'payments'>) => {
         if (!canManage) { denyManage(); return; }
         const item: Loan = { ...l, id: generateId(), payments: [], createdAt: new Date().toISOString() };
+        trackLoanAdded(l.principal, settings.currency);
         setLoans(prev => [item, ...prev]);
     };
 
@@ -640,6 +660,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const addInventoryItem = (item: Omit<InventoryItem, 'id' | 'createdAt' | 'updatedAt'>) => {
         const now = new Date().toISOString();
         const newItem: InventoryItem = { ...item, id: generateId(), createdAt: now, updatedAt: now };
+        trackInventoryItemAdded();
         setInventory(prev => [newItem, ...prev]);
     };
 
@@ -680,7 +701,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setTeamMembers(members);
     };
 
-    const exportData = () => exportAllData(transactions, settings, goals);
+    const exportData = () => { trackDataExported(); return exportAllData(transactions, settings, goals); };
 
     const importData = async (json: string) => {
         const backup: AppBackup = await importAllData(json);

@@ -7,6 +7,7 @@ import {
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
+import { trackDemoConvertTapped, trackScreenViewed } from '../utils/analytics';
 import FooterNav from '../components/FooterNav';
 import { t } from '../utils/i18n';
 import { validateAmount, validateDescription } from '../utils/validation';
@@ -102,7 +103,7 @@ export default function DashboardScreen() {
                 {isDemoMode && (
                     <View style={styles.demoBanner}>
                         <Text style={styles.demoBannerText}>👀 Demo Mode — data is not saved</Text>
-                        <TouchableOpacity onPress={() => setCurrentScreen('login')} style={styles.demoBannerBtn}>
+                        <TouchableOpacity onPress={() => { trackDemoConvertTapped(); setCurrentScreen('login'); }} style={styles.demoBannerBtn}>
                             <Text style={styles.demoBannerBtnText}>Create Account →</Text>
                         </TouchableOpacity>
                     </View>

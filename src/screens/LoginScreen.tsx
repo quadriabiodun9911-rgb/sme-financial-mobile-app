@@ -7,6 +7,7 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { t, LANGUAGES, Language } from '../utils/i18n';
 import { DEMO_BUSINESSES } from '../utils/demoData';
+import { trackUserLoggedIn, identifyUser } from '../utils/analytics';
 
 const CURRENCIES = [
     { label: 'USD ($)',   value: '$'   },
@@ -139,7 +140,7 @@ export default function LoginScreen() {
 
         // First try local PIN match
         const ok = login(emailLoginPin);
-        if (ok) return;
+        if (ok) { identifyUser(emailLoginEmail.trim()); trackUserLoggedIn('email'); return; }
 
         // If local fails, try Supabase to give specific error
         try {
