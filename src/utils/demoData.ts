@@ -184,7 +184,53 @@ export const DEMO_BUSINESSES: DemoBusiness[] = [
         ],
     },
 
-    // ─── 5. CHINA ─────────────────────────────────────────────────────────────
+    // ─── 5. EUROPE ────────────────────────────────────────────────────────────
+    {
+        id: 'europe',
+        flag: '🇩🇪',
+        country: 'Germany · Europe',
+        emoji: '⚽',
+        name: 'Sports Academy & Shop',
+        description: 'Football training academy & sports equipment retail, Berlin',
+        currency: '€',
+        businessName: 'Berlin ProSport Academy',
+        transactions: [
+            { id: 'eu1',  date: d(1),  description: 'Monthly training fees — 24 junior members',  type: 'income',  category: 'Training Fees',    amount: 4800,  status: 'paid', isRecurring: true, recurringFrequency: 'monthly' },
+            { id: 'eu2',  date: d(2),  description: 'Sales — football boots & kits',              type: 'income',  category: 'Equipment Sales',  amount: 2350,  status: 'paid' },
+            { id: 'eu3',  date: d(3),  description: 'Pitch & facility rent — monthly',            type: 'expense', category: 'Rent',             amount: 2200,  status: 'paid', isRecurring: true, recurringFrequency: 'monthly' },
+            { id: 'eu4',  date: d(4),  description: 'Private coaching sessions x8',               type: 'income',  category: 'Training Fees',    amount: 1600,  status: 'paid' },
+            { id: 'eu5',  date: d(5),  description: 'Sales — gym equipment (weights, bands)',      type: 'income',  category: 'Equipment Sales',  amount: 3100,  status: 'paid' },
+            { id: 'eu6',  date: d(7),  description: 'Coaches salaries x3',                       type: 'expense', category: 'Salaries',         amount: 7500,  status: 'paid' },
+            { id: 'eu7',  date: d(8),  description: 'Weekend football tournament — entry fees',   type: 'income',  category: 'Events',           amount: 1800,  status: 'paid' },
+            { id: 'eu8',  date: d(10), description: 'Stock — Adidas & Nike kit restock',          type: 'expense', category: 'Stock/Inventory',  amount: 5800,  status: 'paid' },
+            { id: 'eu9',  date: d(12), description: 'Corporate wellness contract — TechFirm GmbH',type: 'income',  category: 'Training Fees',    amount: 3500,  status: 'pending', dueDate: d(-3) },
+            { id: 'eu10', date: d(14), description: 'Sales — sports nutrition & supplements',     type: 'income',  category: 'Equipment Sales',  amount: 980,   status: 'paid' },
+            { id: 'eu11', date: d(15), description: 'Utilities — electricity & water',            type: 'expense', category: 'Utilities',        amount: 480,   status: 'paid' },
+            { id: 'eu12', date: d(18), description: 'Online coaching subscriptions — 12 clients', type: 'income',  category: 'Training Fees',    amount: 1440,  status: 'paid' },
+            { id: 'eu13', date: d(20), description: 'Marketing — Instagram & Facebook ads',       type: 'expense', category: 'Marketing',        amount: 350,   status: 'paid' },
+            { id: 'eu14', date: d(22), description: 'Sales — goalkeeper gloves & accessories',    type: 'income',  category: 'Equipment Sales',  amount: 640,   status: 'paid' },
+            { id: 'eu15', date: d(25), description: 'Equipment maintenance & pitch repairs',      type: 'expense', category: 'Maintenance',      amount: 620,   status: 'paid' },
+        ],
+        assets: [
+            { id: 'eua1', name: 'Football training equipment set', purchaseCost: 8500, purchaseDate: d(400), category: 'Equipment', depreciationYears: 5, status: 'active', createdAt: d(400) },
+            { id: 'eua2', name: 'Gym machines & weights', purchaseCost: 22000, purchaseDate: d(300), category: 'Equipment', depreciationYears: 8, status: 'active', createdAt: d(300) },
+            { id: 'eua3', name: 'Shop fit-out & display racks', purchaseCost: 6500, purchaseDate: d(500), category: 'Furniture', depreciationYears: 7, status: 'active', createdAt: d(500) },
+        ],
+        loans: [
+            { id: 'eul1', lenderName: 'Sparkasse Berlin Business Loan', principal: 50000, interestRate: 5.5, termMonths: 36, startDate: d(240), purpose: 'Gym expansion & equipment', status: 'active', payments: [{ id: 'p1', date: d(210), amount: 1600, note: 'Month 1' }, { id: 'p2', date: d(180), amount: 1600, note: 'Month 2' }, { id: 'p3', date: d(150), amount: 1600, note: 'Month 3' }, { id: 'p4', date: d(120), amount: 1600, note: 'Month 4' }], createdAt: d(240) },
+        ],
+        inventory: [
+            { id: 'eui1', name: 'Football boots (pairs)', sku: 'FBT-001', quantity: 28, unit: 'pairs', costPrice: 65, sellingPrice: 110, category: 'Footwear', lowStockThreshold: 10, createdAt: d(30), updatedAt: d(2) },
+            { id: 'eui2', name: 'Training jerseys & shorts sets', sku: 'KIT-001', quantity: 40, unit: 'sets', costPrice: 38, sellingPrice: 65, category: 'Clothing', lowStockThreshold: 15, createdAt: d(30), updatedAt: d(5) },
+            { id: 'eui3', name: 'Footballs (match grade)', sku: 'BLL-001', quantity: 15, unit: 'units', costPrice: 42, sellingPrice: 75, category: 'Equipment', lowStockThreshold: 8, createdAt: d(30), updatedAt: d(7) },
+            { id: 'eui4', name: 'Resistance bands & cones set', sku: 'TRN-001', quantity: 22, unit: 'sets', costPrice: 18, sellingPrice: 32, category: 'Equipment', lowStockThreshold: 10, createdAt: d(30), updatedAt: d(10) },
+        ],
+        invoices: [
+            { id: 'euiv1', invoiceNumber: 'INV-EU-021', clientName: 'TechFirm GmbH', clientEmail: 'hr@techfirm.de', items: [{ description: 'Corporate wellness programme — 10 sessions', quantity: 10, unitPrice: 350, total: 3500 }], subtotal: 3500, tax: 0, total: 3500, status: 'sent', issueDate: d(12), dueDate: d(-3), createdAt: d(12) },
+        ],
+    },
+
+    // ─── 7. CHINA ─────────────────────────────────────────────────────────────
     {
         id: 'china',
         flag: '🇨🇳',
