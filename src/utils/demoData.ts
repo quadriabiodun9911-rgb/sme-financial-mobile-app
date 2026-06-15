@@ -230,7 +230,50 @@ export const DEMO_BUSINESSES: DemoBusiness[] = [
         ],
     },
 
-    // ─── 7. CHINA ─────────────────────────────────────────────────────────────
+    // ─── 7. REAL ESTATE — UAE ─────────────────────────────────────────────────
+    {
+        id: 'real-estate',
+        flag: '🇦🇪',
+        country: 'UAE · Dubai',
+        emoji: '🏢',
+        name: 'Real Estate Agency',
+        description: 'Property sales, rentals & management, Dubai',
+        currency: 'AED',
+        businessName: 'Al Noor Properties LLC',
+        transactions: [
+            { id: 're1',  date: d(2),  description: 'Commission — villa sale (Palm Jumeirah)',     type: 'income',  category: 'Sales Commission',  amount: 85000,  status: 'paid' },
+            { id: 're2',  date: d(4),  description: 'Rental management fees — 8 units (March)',   type: 'income',  category: 'Management Fees',   amount: 12400,  status: 'paid', isRecurring: true, recurringFrequency: 'monthly' },
+            { id: 're3',  date: d(5),  description: 'Office rent — Business Bay',                 type: 'expense', category: 'Rent',              amount: 18000,  status: 'paid', isRecurring: true, recurringFrequency: 'monthly' },
+            { id: 're4',  date: d(6),  description: 'Commission — apartment sale (Downtown)',      type: 'income',  category: 'Sales Commission',  amount: 42000,  status: 'paid' },
+            { id: 're5',  date: d(7),  description: 'Agent salaries x4',                         type: 'expense', category: 'Salaries',          amount: 32000,  status: 'paid' },
+            { id: 're6',  date: d(8),  description: 'Property listing — Bayut & Property Finder', type: 'expense', category: 'Marketing',         amount: 5500,   status: 'paid' },
+            { id: 're7',  date: d(10), description: 'Commission — penthouse rental contract',     type: 'income',  category: 'Rental Commission', amount: 28500,  status: 'paid' },
+            { id: 're8',  date: d(12), description: 'Commission — villa sale (JBR)',              type: 'income',  category: 'Sales Commission',  amount: 110000, status: 'pending', dueDate: d(-5) },
+            { id: 're9',  date: d(14), description: 'Vehicle lease — 2 SUVs for agents',         type: 'expense', category: 'Transport',         amount: 8800,   status: 'paid', isRecurring: true, recurringFrequency: 'monthly' },
+            { id: 're10', date: d(15), description: 'Rental management fees — April',            type: 'income',  category: 'Management Fees',   amount: 12400,  status: 'paid' },
+            { id: 're11', date: d(18), description: 'Commission — commercial office lease',       type: 'income',  category: 'Rental Commission', amount: 19800,  status: 'paid' },
+            { id: 're12', date: d(20), description: 'Google Ads & social media marketing',        type: 'expense', category: 'Marketing',         amount: 3200,   status: 'paid' },
+            { id: 're13', date: d(22), description: 'Commission — studio apartment sale',         type: 'income',  category: 'Sales Commission',  amount: 18500,  status: 'paid' },
+            { id: 're14', date: d(24), description: 'RERA licence renewal & legal fees',          type: 'expense', category: 'Professional Fees', amount: 9500,   status: 'paid' },
+            { id: 're15', date: d(26), description: 'Property photography & virtual tours',       type: 'expense', category: 'Marketing',         amount: 2800,   status: 'paid' },
+        ],
+        assets: [
+            { id: 'rea1', name: 'BMW X5 — agent vehicle', purchaseCost: 280000, purchaseDate: d(400), category: 'Vehicle', depreciationYears: 5, status: 'active', createdAt: d(400) },
+            { id: 'rea2', name: 'Office furniture & fit-out', purchaseCost: 85000, purchaseDate: d(600), category: 'Furniture', depreciationYears: 7, status: 'active', createdAt: d(600) },
+            { id: 'rea3', name: 'CRM software licence (annual)', purchaseCost: 18000, purchaseDate: d(90), category: 'Equipment', depreciationYears: 1, status: 'active', createdAt: d(90) },
+        ],
+        loans: [],
+        inventory: [
+            { id: 'rei1', name: 'Active listings — villas', sku: 'LST-VIL', quantity: 6, unit: 'properties', costPrice: 0, sellingPrice: 0, category: 'Listings', lowStockThreshold: 3, createdAt: d(30), updatedAt: d(2) },
+            { id: 'rei2', name: 'Active listings — apartments', sku: 'LST-APT', quantity: 18, unit: 'properties', costPrice: 0, sellingPrice: 0, category: 'Listings', lowStockThreshold: 8, createdAt: d(30), updatedAt: d(2) },
+            { id: 'rei3', name: 'Rental managed units', sku: 'MGT-001', quantity: 8, unit: 'units', costPrice: 0, sellingPrice: 0, category: 'Managed Properties', lowStockThreshold: 5, createdAt: d(30), updatedAt: d(4) },
+        ],
+        invoices: [
+            { id: 'reiv1', invoiceNumber: 'INV-AE-041', clientName: 'Mr James Carter', clientEmail: 'j.carter@outlook.com', items: [{ description: 'Sales commission — JBR villa (2%)', quantity: 1, unitPrice: 110000, total: 110000 }], subtotal: 110000, tax: 0, total: 110000, status: 'sent', issueDate: d(12), dueDate: d(-5), createdAt: d(12) },
+        ],
+    },
+
+    // ─── 9. CHINA ─────────────────────────────────────────────────────────────
     {
         id: 'china',
         flag: '🇨🇳',

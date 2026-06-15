@@ -16,6 +16,7 @@ const CURRENCIES = [
     { label: 'CNY (¥)',   value: '¥'   },
     { label: 'CAD (CA$)', value: 'CA$' },
     { label: 'ZAR (R)',   value: 'R'   },
+    { label: 'AED',       value: 'AED' },
 ];
 
 type Mode = 'owner-setup' | 'owner-login' | 'join-team' | 'reset-pin' | 'demo-pick';
