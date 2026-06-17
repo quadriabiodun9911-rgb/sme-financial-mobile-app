@@ -89,8 +89,8 @@ export default function SettingsScreen() {
     };
 
     const handleChangePin = () => {
-        if (!/^\d{4}$/.test(newPin)) {
-            Alert.alert('Invalid PIN', 'New PIN must be exactly 4 digits.');
+        if (!/^\d{6}$/.test(newPin)) {
+            Alert.alert('Invalid PIN', 'New PIN must be exactly 6 digits.');
             return;
         }
         if (newPin !== confirmPin) {
@@ -281,17 +281,17 @@ export default function SettingsScreen() {
                         <FieldLabel>Current PIN</FieldLabel>
                         <TextInput style={styles.input} value={currentPin}
                             onChangeText={setCurrentPin}
-                            secureTextEntry keyboardType="number-pad" maxLength={4}
+                            secureTextEntry keyboardType="number-pad" maxLength={6}
                             placeholder="••••" placeholderTextColor={Colors.muted} />
                         <FieldLabel>New PIN</FieldLabel>
                         <TextInput style={styles.input} value={newPin}
                             onChangeText={setNewPin}
-                            secureTextEntry keyboardType="number-pad" maxLength={4}
+                            secureTextEntry keyboardType="number-pad" maxLength={6}
                             placeholder="••••" placeholderTextColor={Colors.muted} />
                         <FieldLabel>Confirm New PIN</FieldLabel>
                         <TextInput style={styles.input} value={confirmPin}
                             onChangeText={setConfirmPin}
-                            secureTextEntry keyboardType="number-pad" maxLength={4}
+                            secureTextEntry keyboardType="number-pad" maxLength={6}
                             placeholder="••••" placeholderTextColor={Colors.muted} />
                         <TouchableOpacity style={[styles.saveBtn, { marginTop: 12, marginBottom: 0 }]} onPress={handleChangePin}>
                             <Text style={styles.saveBtnText}>Update PIN</Text>
