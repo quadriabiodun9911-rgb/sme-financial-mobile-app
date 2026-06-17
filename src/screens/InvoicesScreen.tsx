@@ -98,7 +98,8 @@ function buildInvoiceHtml(inv: Invoice, businessName: string, currency: string):
 
 ${inv.notes ? `<div class="notes" style="clear:both;margin-top:60px"><b>Notes:</b><br/>${inv.notes}</div>` : ''}
 <div style="clear:both;margin-top:80px;padding-top:20px;border-top:1px solid #e2e8f0;text-align:center;color:#94a3b8;font-size:11px;">
-  Created with <strong style="color:#2563eb">Quad360</strong> — Free financial management for small businesses &nbsp;·&nbsp; <span style="color:#2563eb">quad360.app</span>
+  <strong style="color:#2563eb;font-size:13px">Powered by Quad360</strong><br/>
+  Free financial management for small businesses &nbsp;·&nbsp; <span style="color:#2563eb">quad360.vercel.app</span>
 </div>
 </body>
 </html>`;

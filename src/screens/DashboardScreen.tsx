@@ -193,6 +193,11 @@ export default function DashboardScreen() {
                             Includes {currency}{Math.round(finance.annualDepreciation).toLocaleString()} depreciation · Cash: {currency}{finance.profit.toLocaleString()}
                         </Text>
                     )}
+                    {finance.profit > 0 && hasTransaction && (
+                        <TouchableOpacity style={styles.shareWinBtn} onPress={() => setShowShareCard(true)}>
+                            <Text style={styles.shareWinText}>📤 Share your win</Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
 
                 {/* ── CARD 2: Quick actions row ────────────────────────────── */}
@@ -529,6 +534,8 @@ const styles = StyleSheet.create({
     heroMetricVal:     { fontSize: 13, fontWeight: '700' },
     heroMetricDivider: { width: 1, backgroundColor: Colors.border },
     deprNote:          { fontSize: 10, color: Colors.textMuted, textAlign: 'center', marginTop: 8, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 8 },
+    shareWinBtn:       { marginTop: 10, paddingVertical: 8, borderRadius: 8, backgroundColor: 'rgba(16,185,129,0.12)', alignItems: 'center', borderWidth: 1, borderColor: Colors.income },
+    shareWinText:      { fontSize: 12, color: Colors.income, fontWeight: '700' },
 
     quickActionsRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
     quickAction:     { flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: Colors.border },

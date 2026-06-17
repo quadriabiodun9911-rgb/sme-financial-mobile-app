@@ -414,6 +414,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (savedBudgets2)   setBudgets(savedBudgets2);
 
         setCurrentScreen('dashboard');
+        // Re-schedule reminders on sign-in so they stay active
+        requestNotificationPermission().then(granted => {
+            if (granted) { scheduleDailyReminder(); scheduleWeeklySummaryReminder(); }
+        });
     };
 
     // Team member join — creates Supabase account then links to owner workspace
