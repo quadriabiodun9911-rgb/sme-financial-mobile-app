@@ -118,6 +118,7 @@ export default function InvoicesScreen() {
     const [clientEmail, setClientEmail]     = useState('');
     const [clientAddress, setClientAddress] = useState('');
     const [dueDate, setDueDate]             = useState('');
+    const [issueDate, setIssueDate]         = useState('');
     const [notes, setNotes]                 = useState('');
     const [lineItems, setLineItems]         = useState<InvoiceLineItem[]>([{ ...EMPTY_LINE }]);
 
@@ -134,7 +135,7 @@ export default function InvoicesScreen() {
 
     const resetForm = () => {
         setClientName(''); setClientEmail(''); setClientAddress('');
-        setDueDate(''); setNotes('');
+        setDueDate(''); setIssueDate(''); setNotes('');
         setLineItems([{ ...EMPTY_LINE }]);
         setEditId(null);
     };
@@ -146,6 +147,7 @@ export default function InvoicesScreen() {
         setClientEmail(inv.clientEmail);
         setClientAddress(inv.clientAddress);
         setDueDate(inv.dueDate);
+        setIssueDate(inv.issueDate);
         setNotes(inv.notes);
         setLineItems(inv.lineItems);
         setEditId(inv.id);
@@ -174,7 +176,7 @@ export default function InvoicesScreen() {
             clientName: clientName.trim(),
             clientEmail: clientEmail.trim(),
             clientAddress: clientAddress.trim(),
-            issueDate: today,
+            issueDate: issueDate || today,
             dueDate,
             lineItems,
             notes,

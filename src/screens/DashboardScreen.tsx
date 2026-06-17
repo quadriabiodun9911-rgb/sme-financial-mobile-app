@@ -107,7 +107,7 @@ export default function DashboardScreen() {
                 {isDemoMode && (
                     <View style={styles.demoBanner}>
                         <Text style={styles.demoBannerText}>👀 Demo Mode — data is not saved</Text>
-                        <TouchableOpacity onPress={() => { trackDemoConvertTapped(); setCurrentScreen('login'); }} style={styles.demoBannerBtn}>
+                        <TouchableOpacity onPress={() => { trackDemoConvertTapped(); exitDemo(); }} style={styles.demoBannerBtn}>
                             <Text style={styles.demoBannerBtnText}>Create Account →</Text>
                         </TouchableOpacity>
                     </View>
