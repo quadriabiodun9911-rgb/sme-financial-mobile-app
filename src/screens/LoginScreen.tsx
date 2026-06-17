@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
-    TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Image,
+    TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Image, Modal,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -90,6 +90,8 @@ export default function LoginScreen() {
         const interval = setInterval(updateTimer, 1000);
         return () => clearInterval(interval);
     }, [isLockedOut, lockoutUntil]);
+
+    const [currencyModalOpen, setCurrencyModalOpen] = useState(false);
 
     // Owner setup
     const [email, setEmail]         = useState('');
@@ -500,22 +502,15 @@ export default function LoginScreen() {
                                 secureTextEntry keyboardType="number-pad" maxLength={6} />
                         </Field>
 
-                        {/* Currency picker */}
-                        <Text style={styles.sectionLabel}>{t(setupLang, 'preferredCurrency')}</Text>
-                        <Text style={{ color: Colors.muted, fontSize: 12, marginBottom: 8 }}>
-                            Auto-detected from your region — tap to change
-                        </Text>
-                        <View style={styles.currencyGrid}>
-                            {CURRENCIES.map(c => (
-                                <TouchableOpacity key={c.value}
-                                    style={[styles.currencyBtn, currency === c.value && styles.currencyBtnActive]}
-                                    onPress={() => setCurrency(c.value)}>
-                                    <Text style={[styles.currencyBtnText, currency === c.value && styles.currencyBtnTextActive]}>
-                                        {c.label}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
+                        {/* Currency picker — compact single row */}
+                        <Field label={t(setupLang, 'preferredCurrency')}>
+                            <TouchableOpacity style={styles.currencyRow} onPress={() => setCurrencyModalOpen(true)}>
+                                <Text style={styles.currencySelected}>
+                                    {CURRENCIES.find(c => c.value === currency)?.label ?? currency}
+                                </Text>
+                                <Text style={styles.currencyChevron}>▾</Text>
+                            </TouchableOpacity>
+                        </Field>
 
                         <TouchableOpacity style={[styles.btn, submitting && styles.btnDisabled]} onPress={handleSetup} disabled={submitting}>
                             {submitting
@@ -535,6 +530,26 @@ export default function LoginScreen() {
                         </TouchableOpacity>
                     </View>
                 </ScrollView>
+
+                {/* Currency picker modal */}
+                <Modal visible={currencyModalOpen} transparent animationType="slide" onRequestClose={() => setCurrencyModalOpen(false)}>
+                    <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setCurrencyModalOpen(false)}>
+                        <View style={styles.currencyModal}>
+                            <Text style={styles.currencyModalTitle}>Select Currency</Text>
+                            <ScrollView>
+                                {CURRENCIES.map(c => (
+                                    <TouchableOpacity key={c.value} style={[styles.currencyOption, currency === c.value && styles.currencyOptionActive]}
+                                        onPress={() => { setCurrency(c.value); setCurrencyModalOpen(false); }}>
+                                        <Text style={[styles.currencyOptionText, currency === c.value && { color: Colors.primary, fontWeight: '700' }]}>
+                                            {c.label}
+                                        </Text>
+                                        {currency === c.value && <Text style={{ color: Colors.primary }}>✓</Text>}
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
+                        </View>
+                    </TouchableOpacity>
+                </Modal>
             </SafeAreaView>
         );
     }
@@ -674,14 +689,25 @@ const styles = StyleSheet.create({
     chipText:     { fontSize: 12, color: Colors.textMuted },
     chipTextActive: { color: Colors.primary, fontWeight: '600' },
 
-    currencyGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
-    currencyBtn: {
-        width: '30%', paddingVertical: 10, paddingHorizontal: 6, borderWidth: 1,
-        borderColor: Colors.border, borderRadius: 10, backgroundColor: Colors.bg, alignItems: 'center',
+    currencyRow: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+        borderWidth: 1, borderColor: Colors.border, borderRadius: 10,
+        backgroundColor: Colors.bg, paddingHorizontal: 14, paddingVertical: 13,
     },
-    currencyBtnActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + '22' },
-    currencyBtnText: { fontSize: 11, color: Colors.textMuted, textAlign: 'center' },
-    currencyBtnTextActive: { color: Colors.primary, fontWeight: '700' },
+    currencySelected: { fontSize: 14, color: Colors.textPrimary, fontWeight: '600' },
+    currencyChevron:  { fontSize: 16, color: Colors.muted },
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+    currencyModal: {
+        backgroundColor: Colors.surface, borderTopLeftRadius: 18, borderTopRightRadius: 18,
+        paddingTop: 16, paddingHorizontal: 16, maxHeight: '60%',
+    },
+    currencyModalTitle: { fontSize: 16, fontWeight: '700', color: Colors.textPrimary, marginBottom: 12, textAlign: 'center' },
+    currencyOption: {
+        flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+        paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: Colors.border,
+    },
+    currencyOptionActive: { backgroundColor: Colors.primary + '11', marginHorizontal: -16, paddingHorizontal: 16 },
+    currencyOptionText: { fontSize: 14, color: Colors.textPrimary },
 
     demoRow: { flexDirection: 'row', gap: 10, marginBottom: 20 },
     demoOpt: {
