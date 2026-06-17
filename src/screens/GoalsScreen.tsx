@@ -7,6 +7,7 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
+import DateInput from '../components/DateInput';
 import { GoalType, FinancialGoal } from '../types';
 import { generateStrategy } from '../utils/goals';
 
@@ -197,8 +198,8 @@ export default function GoalsScreen() {
                             <FieldLabel>Target Value ({selectedType === 'margin_improvement' ? '%' : currency})</FieldLabel>
                             <TextInput style={styles.input} value={form.targetValue} onChangeText={v => setForm(f => ({ ...f, targetValue: v }))} keyboardType="numeric" placeholder="e.g. 200000" placeholderTextColor={Colors.muted} />
 
-                            <FieldLabel>Deadline (YYYY-MM-DD)</FieldLabel>
-                            <TextInput style={styles.input} value={form.deadline} onChangeText={v => setForm(f => ({ ...f, deadline: v }))} placeholder="e.g. 2026-12-31" placeholderTextColor={Colors.muted} />
+                            <FieldLabel>Deadline</FieldLabel>
+                            <DateInput value={form.deadline} onChange={v => setForm(f => ({ ...f, deadline: v }))} />
 
                             <View style={styles.modalBtns}>
                                 <TouchableOpacity style={[styles.modalBtn, { backgroundColor: Colors.muted }]} onPress={() => setAddModalOpen(false)}>

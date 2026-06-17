@@ -1,5 +1,4 @@
 [build]
-  command = "rm -rf node_modules/.cache && npx expo export --platform web"
   publish = "dist"
 
 [[redirects]]

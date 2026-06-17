@@ -1,8 +1,9 @@
 {
-  "buildCommand": "npx expo export --platform web",
+  "buildCommand": "bash build.sh",
   "outputDirectory": "dist",
-  "framework": null,
   "rewrites": [
+    { "source": "/landing", "destination": "/landing.html" },
+    { "source": "/privacy", "destination": "/privacy.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

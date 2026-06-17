@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useMemo, useEffect, useRef, ReactNode } from 'react';
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Transaction, FinanceData, User, BusinessSettings, Screen, FinancialGoal, GoalType, NavParams, Invoice, InvoiceStatus, TeamMember, UserRole, Language, Asset, InventoryItem } from '../types';
-import { computeFinance, computeOneThingInsight, computeRecurringDates, computeAssetCurrentValue } from '../utils/finance';
+import { Transaction, FinanceData, User, BusinessSettings, Screen, FinancialGoal, GoalType, NavParams, Invoice, InvoiceStatus, TeamMember, UserRole, Language, Asset, InventoryItem, Loan, LoanPayment, Budget } from '../types';
+import { computeFinance, computeOneThingInsight, computeRecurringDates, computeAssetCurrentValue, computeAssetAnnualDepreciation } from '../utils/finance';
 import { generateId } from '../utils/uuid';
 import { auditEvents } from '../utils/auditLog';
 import {
@@ -11,7 +11,9 @@ import {
     saveGoals, loadGoals,
     saveInvoices, loadInvoices,
     saveAssets, loadAssets,
+    saveLoans, loadLoans,
     saveInventory, loadInventory,
+    saveBudgets, loadBudgets,
     savePin, loadPin,
     saveProfile, loadProfile,
     saveLanguage, loadLanguage,
@@ -23,7 +25,14 @@ import {
 import { refreshGoal, goalDefaults } from '../utils/goals';
 import { supabase } from '../utils/supabase';
 import { t } from '../utils/i18n';
-import { requestNotificationPermission, scheduleDailyReminder, scheduleWeeklySummaryReminder, sendWelcomeNotification, scheduleOverdueInvoiceReminder } from '../utils/notifications';
+import { DEMO_BUSINESSES } from '../utils/demoData';
+import {
+    trackAppOpened, trackDemoStarted, trackDemoConvertTapped,
+    trackUserRegistered, trackUserLoggedIn, trackUserLoggedOut,
+    trackTransactionAdded, trackInvoiceCreated, trackAssetAdded,
+    trackLoanAdded, trackInventoryItemAdded, trackGoalCreated,
+    trackDataExported, identifyUser, resetIdentity,
+} from '../utils/analytics';
 
 interface AppContextValue {
     currentScreen: Screen;
@@ -73,16 +82,32 @@ interface AppContextValue {
     deleteAsset: (id: string) => void;
     disposeAsset: (id: string, disposalDate: string, disposalValue: number) => void;
 
+    loans: Loan[];
+    addLoan: (l: Omit<Loan, 'id' | 'createdAt' | 'payments'>) => void;
+    updateLoan: (id: string, patch: Partial<Loan>) => void;
+    deleteLoan: (id: string) => void;
+    addLoanPayment: (loanId: string, payment: Omit<LoanPayment, 'id'>) => void;
+
     inventory: InventoryItem[];
     addInventoryItem: (item: Omit<InventoryItem, 'id' | 'createdAt' | 'updatedAt'>) => void;
     updateInventoryItem: (id: string, patch: Partial<InventoryItem>) => void;
     deleteInventoryItem: (id: string) => void;
+
+    budgets: Budget[];
+    addBudget: (b: Omit<Budget, 'id'>) => void;
+    updateBudget: (id: string, patch: Partial<Budget>) => void;
+    deleteBudget: (id: string) => void;
 
     // Team
     teamMembers: TeamMember[];
     inviteMember: (email: string, role: 'accountant' | 'staff') => Promise<string>;
     removeMember: (id: string) => Promise<void>;
     refreshTeam: () => Promise<void>;
+
+    // Demo mode
+    isDemoMode: boolean;
+    enterDemo: (businessId: string) => void;
+    exitDemo: () => void;
 
     // Language
     language: Language;
@@ -99,6 +124,9 @@ interface AppContextValue {
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
+
+const LOCKOUT_KEY  = 'quad360_lockoutUntil';
+const ATTEMPTS_KEY = 'quad360_loginAttempts';
 
 const DEFAULT_SETTINGS: BusinessSettings = {
     businessType: 'both',
@@ -281,11 +309,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const [goals, setGoals]                 = useState<FinancialGoal[]>([]);
     const [invoices, setInvoices]           = useState<Invoice[]>([]);
     const [assets, setAssets]               = useState<Asset[]>([]);
+    const [loans, setLoans]                 = useState<Loan[]>([]);
     const [inventory, setInventory]         = useState<InventoryItem[]>([]);
+    const [budgets, setBudgets]             = useState<Budget[]>([]);
     const [teamMembers, setTeamMembers]     = useState<TeamMember[]>([]);
     const [language, setLang]              = useState<Language>('en');
     const [isLoading, setIsLoading]         = useState(true);
-    // Security: Rate limiting for login attempts
+    const [isDemoMode, setIsDemoMode]       = useState(false);
+    // Security: Rate limiting for login attempts (persisted so restart doesn't reset)
     const [loginAttempts, setLoginAttempts]       = useState(0);
     const [isLockedOut, setIsLockedOut]           = useState(false);
     const [lockoutUntil, setLockoutUntil]         = useState<number | null>(null);
@@ -294,6 +325,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         // Keep Supabase free-tier project alive on every app launch
         void supabase.from('profiles').select('id').limit(1);
+        trackAppOpened();
     }, []);
 
     useEffect(() => {
@@ -302,13 +334,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         initRan.current = true;
         (async () => {
             try {
-                const [savedTx, savedSettings, savedGoals, savedInvoices, savedAssets, savedInventory, pin, profile, lang] = await Promise.all([
+                const [savedTx, savedSettings, savedGoals, savedInvoices, savedAssets, savedLoans, savedInventory, savedBudgets, pin, profile, lang] = await Promise.all([
                     loadTransactions(),
                     loadSettings(),
                     loadGoals(),
                     loadInvoices(),
                     loadAssets(),
+                    loadLoans(),
                     loadInventory(),
+                    loadBudgets(),
                     loadPin(),
                     loadProfile(),
                     loadLanguage(),
@@ -324,10 +358,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 if (savedGoals)    setGoals(savedGoals);
                 if (savedInvoices) setInvoices(savedInvoices);
                 if (savedAssets)   setAssets(savedAssets);
+                if (savedLoans)    setLoans(savedLoans);
                 if (savedInventory) setInventory(savedInventory);
+                if (savedBudgets)  setBudgets(savedBudgets);
                 if (pin && profile) {
                     setUser({ email: profile.email, businessName: profile.businessName, role: 'Administrator' });
                 }
+                // Restore lockout state across restarts
+                const [savedLockout, savedAttempts] = await Promise.all([
+                    AsyncStorage.getItem(LOCKOUT_KEY),
+                    AsyncStorage.getItem(ATTEMPTS_KEY),
+                ]);
+                if (savedLockout) {
+                    const until = parseInt(savedLockout, 10);
+                    if (Date.now() < until) {
+                        setIsLockedOut(true);
+                        setLockoutUntil(until);
+                    } else {
+                        await AsyncStorage.multiRemove([LOCKOUT_KEY, ATTEMPTS_KEY]);
+                    }
+                }
+                if (savedAttempts) setLoginAttempts(parseInt(savedAttempts, 10));
             } finally {
                 setIsLoading(false);
             }
@@ -335,22 +386,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }, []);
 
     const persistError = (label: string) => (err: unknown) => {
-        console.error(`[FinanceBook] Failed to persist ${label}:`, err);
+        console.error(`[Quad360] Failed to persist ${label}:`, err);
         Alert.alert('Save Warning', `Could not save ${label}. Your changes may be lost if the app closes. Check your network connection.`);
     };
 
-    useEffect(() => { if (!isLoading && !isDemoMode) saveTransactions(transactions).catch(persistError('transactions')); }, [transactions, isLoading, isDemoMode]);
-    useEffect(() => { if (!isLoading && !isDemoMode) saveSettings(settings).catch(persistError('settings')); }, [settings, isLoading, isDemoMode]);
-    useEffect(() => { if (!isLoading && !isDemoMode) saveGoals(goals).catch(persistError('goals')); }, [goals, isLoading, isDemoMode]);
-    useEffect(() => { if (!isLoading && !isDemoMode) saveInvoices(invoices).catch(persistError('invoices')); }, [invoices, isLoading, isDemoMode]);
-    useEffect(() => { if (!isLoading && !isDemoMode) saveAssets(assets).catch(persistError('assets')); }, [assets, isLoading, isDemoMode]);
-    useEffect(() => { if (!isLoading && !isDemoMode) saveInventory(inventory).catch(persistError('inventory')); }, [inventory, isLoading, isDemoMode]);
+    useEffect(() => { if (!isLoading) saveTransactions(transactions).catch(persistError('transactions')); }, [transactions, isLoading]);
+    useEffect(() => { if (!isLoading) saveSettings(settings).catch(persistError('settings')); }, [settings, isLoading]);
+    useEffect(() => { if (!isLoading) saveGoals(goals).catch(persistError('goals')); }, [goals, isLoading]);
+    useEffect(() => { if (!isLoading) saveInvoices(invoices).catch(persistError('invoices')); }, [invoices, isLoading]);
+    useEffect(() => { if (!isLoading) saveAssets(assets).catch(persistError('assets')); }, [assets, isLoading]);
+    useEffect(() => { if (!isLoading) saveLoans(loans).catch(persistError('loans')); }, [loans, isLoading]);
+    useEffect(() => { if (!isLoading) saveInventory(inventory).catch(persistError('inventory')); }, [inventory, isLoading]);
+    useEffect(() => { if (!isLoading) saveBudgets(budgets).catch(persistError('budgets')); }, [budgets, isLoading]);
 
+    const activeAssets = useMemo(() => assets.filter(a => a.status === 'active'), [assets]);
     const registeredAssetsValue = useMemo(
-        () => assets.filter(a => a.status === 'active').reduce((sum, a) => sum + computeAssetCurrentValue(a), 0),
-        [assets],
+        () => activeAssets.reduce((sum, a) => sum + computeAssetCurrentValue(a), 0),
+        [activeAssets],
     );
-    const finance = useMemo(() => computeFinance(transactions, settings, registeredAssetsValue), [transactions, settings, registeredAssetsValue]);
+    const finance = useMemo(() => computeFinance(transactions, settings, registeredAssetsValue, activeAssets), [transactions, settings, registeredAssetsValue, activeAssets]);
     const insight = useMemo(() => computeOneThingInsight(finance, settings), [finance, settings]);
 
     useEffect(() => {
@@ -367,6 +421,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const setLanguage = (lang: Language) => {
         setLang(lang);
         saveLanguage(lang).catch(() => {});
+    };
+
+    const enterDemo = (businessId: string) => {
+        const biz = DEMO_BUSINESSES.find(b => b.id === businessId);
+        if (!biz) return;
+        trackDemoStarted(biz.id, biz.businessName, biz.country);
+        setIsDemoMode(true);
+        setTransactions(biz.transactions);
+        setAssets(biz.assets);
+        setLoans(biz.loans);
+        setInventory(biz.inventory);
+        setInvoices(biz.invoices);
+        setSettings(prev => ({ ...prev, currency: biz.currency }));
+        setUser({ email: 'demo@quad360.app', businessName: biz.businessName, role: 'Administrator' });
+        setCurrentScreen('dashboard');
+    };
+
+    const exitDemo = () => {
+        setIsDemoMode(false);
+        setTransactions([]);
+        setAssets([]);
+        setLoans([]);
+        setInventory([]);
+        setInvoices([]);
+        setGoals([]);
+        setUser(null);
+        setSettings(DEFAULT_SETTINGS);
+        setCurrentScreen('login');
     };
 
     // Role permission helpers
@@ -406,12 +488,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const setupAccount = async (email: string, businessName: string, pin: string, loadDemo: boolean) => {
         // Supabase auth is best-effort — never block registration if it fails
         try {
-            const { error: signUpError } = await supabase.auth.signUp({ email, password: pin });
-            if (!signUpError || signUpError.message === 'User already registered') {
-                await supabase.auth.signInWithPassword({ email, password: pin }).catch(() => {});
+            const { error: signUpError } = await supabase.auth.signUp({ email, password: pin + '_Q360' });
+            if (signUpError) {
+                const msg = signUpError.message.toLowerCase();
+                if (
+                    msg.includes('already registered') ||
+                    msg.includes('already been registered') ||
+                    msg.includes('user already exists') ||
+                    msg.includes('email address is already')
+                ) {
+                    throw new Error('User already registered');
+                }
+                // Any other Supabase error — continue with local-only registration
+            } else {
+                await supabase.auth.signInWithPassword({ email, password: pin + '_Q360' }).catch(() => {});
             }
-        } catch {
-            // Network error or Supabase down — continue with local storage
+        } catch (e: any) {
+            const msg: string = e?.message ?? '';
+            if (msg.includes('already registered')) {
+                throw e; // Show duplicate email alert in LoginScreen
+            }
+            // Network error, Supabase down, or any other error — continue with local storage
         }
 
         await clearWorkspaceOwner();
@@ -420,7 +517,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setStoredPin(pin);
         setHasProfile(true);
         setUserRole('owner');
-        if (loadDemo) setTransactions(DEMO_BUSINESSES[0].transactions);
+        if (loadDemo) setTransactions(DEMO_TRANSACTIONS);
+        identifyUser(email, { businessName });
+        trackUserRegistered(settings.currency);
         setUser({ email, businessName, role: 'Administrator' });
         setCurrentScreen('dashboard');
         // Set up notifications after account creation
@@ -473,11 +572,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     // Team member join — creates Supabase account then links to owner workspace
     const joinTeam = async (email: string, pin: string, inviteCode: string) => {
-        const { data, error } = await supabase.auth.signUp({ email, password: pin });
+        const { data, error } = await supabase.auth.signUp({ email, password: pin + '_Q360' });
         if (error && error.message !== 'User already registered') throw new Error(error.message);
         let userId = data?.user?.id;
         if (error?.message === 'User already registered') {
-            const { data: sd, error: se } = await supabase.auth.signInWithPassword({ email, password: pin });
+            const { data: sd, error: se } = await supabase.auth.signInWithPassword({ email, password: pin + '_Q360' });
             if (se || !sd.user) throw new Error('Sign-in failed. Check your email and PIN.');
             userId = sd.user.id;
         }
@@ -490,14 +589,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setUserRole(role);
         setUser({ email, businessName: '', role: role === 'accountant' ? 'Accountant' : 'Staff' });
         // Load owner's data
-        const [savedTx, savedSettings, savedGoals, savedInvoices, savedAssets2] = await Promise.all([
-            loadTransactions(), loadSettings(), loadGoals(), loadInvoices(), loadAssets(),
+        const [savedTx, savedSettings, savedGoals, savedInvoices, savedAssets2, savedLoans2] = await Promise.all([
+            loadTransactions(), loadSettings(), loadGoals(), loadInvoices(), loadAssets(), loadLoans(),
         ]);
         if (savedTx) { const { updated, newEntries } = processDueRecurring(savedTx); setTransactions([...newEntries, ...updated]); }
         if (savedSettings) setSettings({ ...DEFAULT_SETTINGS, ...savedSettings });
         if (savedGoals)    setGoals(savedGoals);
         if (savedInvoices) setInvoices(savedInvoices);
         if (savedAssets2)  setAssets(savedAssets2);
+        if (savedLoans2)   setLoans(savedLoans2);
         setCurrentScreen('dashboard');
     };
 
@@ -520,12 +620,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
             // Log failed login attempt
             auditEvents.loginFailed('Invalid PIN');
+            AsyncStorage.setItem(ATTEMPTS_KEY, String(newAttempts)).catch(() => {});
 
             // Lockout after 5 failed attempts for 15 minutes
             if (newAttempts >= 5) {
                 const lockoutTime = Date.now() + (15 * 60 * 1000);
                 setIsLockedOut(true);
                 setLockoutUntil(lockoutTime);
+                AsyncStorage.setItem(LOCKOUT_KEY, String(lockoutTime)).catch(() => {});
                 auditEvents.accountLocked();
             }
             return false;
@@ -535,13 +637,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setLoginAttempts(0);
         setIsLockedOut(false);
         setLockoutUntil(null);
+        AsyncStorage.multiRemove([LOCKOUT_KEY, ATTEMPTS_KEY]).catch(() => {});
 
         // Log successful login
         auditEvents.login();
+        trackUserLoggedIn('pin');
 
         loadProfile().then(profile => {
             if (profile) {
-                supabase.auth.signInWithPassword({ email: profile.email, password: pin }).catch(() => {});
+                identifyUser(profile.email);
+                supabase.auth.signInWithPassword({ email: profile.email, password: pin + '_Q360' }).catch(() => {});
             }
         });
         setCurrentScreen('dashboard');
@@ -550,6 +655,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const logout = () => {
         supabase.auth.signOut().catch(() => {});
+        trackUserLoggedOut();
+        resetIdentity();
         setCurrentScreen('login');
     };
 
@@ -557,7 +664,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (currentPin !== storedPin) return false;
         setStoredPin(newPin);
         savePin(newPin).catch(() => {});
-        supabase.auth.updateUser({ password: newPin }).catch(() => {});
+        supabase.auth.updateUser({ password: newPin + '_Q360' }).catch(() => {});
         return true;
     };
 
@@ -576,6 +683,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             nextRecurringDate: tx.isRecurring && tx.recurringFrequency
                 ? computeRecurringDates(date, tx.recurringFrequency) : undefined,
         };
+        trackTransactionAdded(tx.type, tx.amount, settings.currency);
         setTransactions(prev => [item, ...prev]);
     };
 
@@ -606,6 +714,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             deadline: now, createdAt: now, status: 'on_track', progress: 0, unit: '$',
             ...defaults, ...overrides,
         };
+        trackGoalCreated(type);
         setGoals(prev => [refreshGoal(goal, finance, transactions), ...prev]);
     };
 
@@ -626,6 +735,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (!canManage) { denyManage(); return; }
         const now = new Date().toISOString().split('T')[0];
         const item: Invoice = { ...inv, id: generateId(), createdAt: now };
+        trackInvoiceCreated(inv.total, settings.currency);
         setInvoices(prev => [item, ...prev]);
         addTransaction({
             description: `Invoice ${inv.invoiceNumber} – ${inv.clientName}`,
@@ -663,6 +773,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const addAsset = (a: Omit<Asset, 'id' | 'createdAt'>) => {
         if (!canManage) { denyManage(); return; }
         const item: Asset = { ...a, id: generateId(), createdAt: new Date().toISOString() };
+        trackAssetAdded(a.category, a.purchaseCost, settings.currency);
         setAssets(prev => [item, ...prev]);
     };
 
@@ -681,9 +792,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setAssets(prev => prev.map(a => a.id === id ? { ...a, status: 'disposed' as const, disposalDate, disposalValue } : a));
     };
 
+    const addLoan = (l: Omit<Loan, 'id' | 'createdAt' | 'payments'>) => {
+        if (!canManage) { denyManage(); return; }
+        const item: Loan = { ...l, id: generateId(), payments: [], createdAt: new Date().toISOString() };
+        trackLoanAdded(l.principal, settings.currency);
+        setLoans(prev => [item, ...prev]);
+    };
+
+    const updateLoan = (id: string, patch: Partial<Loan>) => {
+        if (!canManage) { denyManage(); return; }
+        setLoans(prev => prev.map(l => l.id === id ? { ...l, ...patch } : l));
+    };
+
+    const deleteLoan = (id: string) => {
+        if (!canManage) { denyManage(); return; }
+        setLoans(prev => prev.filter(l => l.id !== id));
+    };
+
+    const addLoanPayment = (loanId: string, payment: Omit<LoanPayment, 'id'>) => {
+        if (!canManage) { denyManage(); return; }
+        const newPayment: LoanPayment = { ...payment, id: generateId() };
+        setLoans(prev => prev.map(l => {
+            if (l.id !== loanId) return l;
+            const payments = [...l.payments, newPayment];
+            const totalPaid = payments.reduce((s, p) => s + p.amount, 0);
+            const status: Loan['status'] = totalPaid >= l.principal ? 'paid_off' : l.status;
+            return { ...l, payments, status };
+        }));
+    };
+
     const addInventoryItem = (item: Omit<InventoryItem, 'id' | 'createdAt' | 'updatedAt'>) => {
         const now = new Date().toISOString();
         const newItem: InventoryItem = { ...item, id: generateId(), createdAt: now, updatedAt: now };
+        trackInventoryItemAdded();
         setInventory(prev => [newItem, ...prev]);
     };
 
@@ -693,6 +834,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const deleteInventoryItem = (id: string) => {
         setInventory(prev => prev.filter(i => i.id !== id));
+    };
+
+    const addBudget = (b: Omit<Budget, 'id'>) => {
+        const item: Budget = { ...b, id: generateId() };
+        setBudgets(prev => [item, ...prev]);
+    };
+
+    const updateBudget = (id: string, patch: Partial<Budget>) => {
+        setBudgets(prev => prev.map(b => b.id === id ? { ...b, ...patch } : b));
+    };
+
+    const deleteBudget = (id: string) => {
+        setBudgets(prev => prev.filter(b => b.id !== id));
     };
 
     const inviteMember = async (email: string, role: 'accountant' | 'staff'): Promise<string> => {
@@ -711,7 +865,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setTeamMembers(members);
     };
 
-    const exportData = () => exportAllData(transactions, settings, goals);
+    const exportData = () => { trackDataExported(); return exportAllData(transactions, settings, goals); };
 
     const importData = async (json: string) => {
         const backup: AppBackup = await importAllData(json);
@@ -732,16 +886,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
             // Clear all auth and app storage
             await AsyncStorage.multiRemove([
-                '@financebook/pin',
-                '@financebook/profile',
-                '@financebook/language',
-                '@financebook/workspaceOwner',
-                '@financebook/encryption-key',
-                '@financebook/inventory',
-                '@financebook/transactions',
-                '@financebook/goals',
-                '@financebook/invoices',
-                '@financebook/assets',
+                '@quad360/pin',
+                '@quad360/profile',
+                '@quad360/language',
+                '@quad360/workspaceOwner',
+                '@quad360/encryption-key',
+                '@quad360/inventory',
+                '@quad360/transactions',
+                '@quad360/goals',
+                '@quad360/invoices',
+                '@quad360/assets',
+                LOCKOUT_KEY,
+                ATTEMPTS_KEY,
             ]).catch(() => {});
 
             // Sign out from Supabase
@@ -784,8 +940,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         goals, addGoal, deleteGoal, updateGoalCurrentValue,
         invoices, addInvoice, updateInvoice, deleteInvoice, markInvoiceStatus,
         assets, addAsset, updateAsset, deleteAsset, disposeAsset,
+        loans, addLoan, updateLoan, deleteLoan, addLoanPayment,
         inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem,
+        budgets, addBudget, updateBudget, deleteBudget,
         teamMembers, inviteMember, removeMember, refreshTeam,
+        isDemoMode, enterDemo, exitDemo,
         language, setLanguage,
         finance, insight, isLoading,
         exportData, importData, clearData, resetApp,

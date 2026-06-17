@@ -111,7 +111,7 @@ export default function SettingsScreen() {
     const handleExport = async () => {
         try {
             const json = await exportData();
-            await Share.share({ message: json, title: 'FinanceBook Backup' });
+            await Share.share({ message: json, title: 'Quad360 Backup' });
         } catch {
             Alert.alert('Export failed', 'Could not export data. Please try again.');
         }
@@ -365,7 +365,7 @@ export default function SettingsScreen() {
                                     They enter this code on the "Join a Team" screen in the app along with their email and a new PIN.
                                 </Text>
                                 <TouchableOpacity style={styles.saveBtn} onPress={async () => {
-                                    await Share.share({ message: `Your FinanceBook invite code: ${pendingCode}` });
+                                    await Share.share({ message: `Your Quad360 invite code: ${pendingCode}` });
                                 }}>
                                     <Text style={styles.saveBtnText}>Share Code</Text>
                                 </TouchableOpacity>
@@ -408,7 +408,7 @@ export default function SettingsScreen() {
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalCard}>
                         <Text style={styles.modalTitle}>Import Backup</Text>
-                        <Text style={styles.hint}>Paste your FinanceBook JSON backup below.</Text>
+                        <Text style={styles.hint}>Paste your Quad360 JSON backup below.</Text>
                         <TextInput
                             style={[styles.input, styles.importArea]}
                             value={importJson}

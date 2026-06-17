@@ -8,8 +8,19 @@ export type Screen =
     | 'goals'
     | 'invoices'
     | 'assets'
+    | 'loans'
     | 'inventory'
-    | 'growth';
+    | 'growth'
+    | 'cfo'
+    | 'budget'
+    | 'analysis';
+
+export interface Budget {
+    id: string;
+    category: string;
+    monthlyAmount: number;
+    period: string; // YYYY-MM
+}
 
 export type ReportTab =
     | 'balancesheet'
@@ -110,6 +121,8 @@ export interface FinanceData {
     totalTaxCollected: number;
     totalTaxPaid: number;
     netTaxPosition: number;
+    annualDepreciation: number;   // total depreciation charge for the year
+    depreciationAdjustedProfit: number; // profit after depreciation
 }
 
 export interface User {
@@ -210,5 +223,27 @@ export interface Invoice {
     subtotal: number;
     taxTotal: number;
     total: number;
+    createdAt: string;
+}
+
+export type LoanStatus = 'active' | 'paid_off' | 'defaulted';
+
+export interface LoanPayment {
+    id: string;
+    date: string;
+    amount: number;
+    note?: string;
+}
+
+export interface Loan {
+    id: string;
+    lenderName: string;
+    purpose: string;
+    principal: number;
+    interestRate: number;   // annual % e.g. 15 for 15%
+    termMonths: number;
+    startDate: string;      // ISO date
+    status: LoanStatus;
+    payments: LoanPayment[];
     createdAt: string;
 }

@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
-    TouchableOpacity, StyleSheet, Alert, ActivityIndicator,
+    TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Image,
 } from 'react-native';
 import { useApp, DEMO_BUSINESSES } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { t, LANGUAGES, Language } from '../utils/i18n';
+import { DEMO_BUSINESSES } from '../utils/demoData';
+import { trackUserLoggedIn, identifyUser } from '../utils/analytics';
 
 const CURRENCIES = [
     { label: 'USD ($)',   value: '$'   },
@@ -14,13 +16,15 @@ const CURRENCIES = [
     { label: 'NGN (₦)',   value: '₦'   },
     { label: 'CNY (¥)',   value: '¥'   },
     { label: 'CAD (CA$)', value: 'CA$' },
+    { label: 'ZAR (R)',   value: 'R'   },
+    { label: 'AED',       value: 'AED' },
 ];
 
-type Mode = 'owner-setup' | 'owner-login' | 'join-team' | 'demo-pick' | 'recover';
+type Mode = 'owner-setup' | 'owner-login' | 'join-team' | 'reset-pin' | 'demo-pick';
 type LoginMethod = 'pin' | 'email';
 
 export default function LoginScreen() {
-    const { isFirstLaunch, setupAccount, recoverAccount, login, joinTeam, enterDemo, language, setLanguage, updateSettings, resetApp, isLockedOut, lockoutUntil } = useApp();
+    const { isFirstLaunch, setupAccount, login, joinTeam, enterDemo, language, setLanguage, updateSettings, resetApp, isLockedOut, lockoutUntil } = useApp();
     const [mode, setMode] = useState<Mode>(isFirstLaunch ? 'owner-setup' : 'owner-login');
     const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
     const [loginMethod, setLoginMethod] = useState<LoginMethod>('pin');
@@ -70,16 +74,19 @@ export default function LoginScreen() {
     const [inviteCode, setInviteCode]   = useState('');
     const [joiningTeam, setJoiningTeam] = useState(false);
 
-    // Account recovery
-    const [recoverEmail, setRecoverEmail] = useState('');
-    const [recoverPin, setRecoverPin]     = useState('');
-    const [recovering, setRecovering]     = useState(false);
+    // Reset PIN
+    const [resetEmail, setResetEmail]         = useState('');
+    const [resetNewPin, setResetNewPin]       = useState('');
+    const [resetConfirmPin, setResetConfirmPin] = useState('');
+    const [resetOtp, setResetOtp]             = useState('');
+    const [resetStep, setResetStep]           = useState<'request' | 'verify'>('request');
+    const [resetSubmitting, setResetSubmitting] = useState(false);
 
     const handleSetup = async () => {
         if (!email.trim() || !business.trim()) {
             Alert.alert(t(setupLang, 'missingFields'), t(setupLang, 'email') + ' & ' + t(setupLang, 'businessName')); return;
         }
-        if (!/^\d{4}$/.test(pin)) { Alert.alert(t(setupLang, 'error'), t(setupLang, 'invalidPin')); return; }
+        if (!/^\d{6}$/.test(pin)) { Alert.alert(t(setupLang, 'error'), t(setupLang, 'invalidPin')); return; }
         if (pin !== confirmPin)   { Alert.alert(t(setupLang, 'error'), t(setupLang, 'pinMismatch')); return; }
         setSubmitting(true);
         try {
@@ -87,7 +94,19 @@ export default function LoginScreen() {
             await setupAccount(email.trim(), business.trim(), pin, false);
             updateSettings({ currency });
         } catch (e: any) {
-            Alert.alert(t(setupLang, 'error'), e?.message ?? 'Could not create account. Please try again.');
+            const msg: string = e?.message ?? '';
+            if (msg.toLowerCase().includes('already registered') || msg.toLowerCase().includes('already been registered') || msg.toLowerCase().includes('user already exists') || msg.toLowerCase().includes('email address is already')) {
+                Alert.alert(
+                    'Email Already Registered',
+                    'An account with this email already exists. Please sign in instead, or use a different email address.',
+                    [
+                        { text: 'Sign In', onPress: () => { setMode('owner-login'); setLoginMethod('email'); setEmailLoginEmail(email.trim()); } },
+                        { text: 'Use Different Email', style: 'cancel' },
+                    ]
+                );
+            } else {
+                Alert.alert(t(setupLang, 'error'), msg || 'Could not create account. Please try again.');
+            }
             setSubmitting(false);
         }
     };
@@ -100,7 +119,7 @@ export default function LoginScreen() {
             );
             return;
         }
-        if (!returnPin) { Alert.alert(t(language, 'error'), 'Please enter your 4-digit PIN.'); return; }
+        if (!returnPin) { Alert.alert(t(language, 'error'), 'Please enter your 6-digit PIN.'); return; }
         const ok = login(returnPin);
         if (!ok) {
             Alert.alert(t(language, 'error'), 'Incorrect PIN. Please try again.');
@@ -108,7 +127,7 @@ export default function LoginScreen() {
         }
     };
 
-    const handleEmailLogin = () => {
+    const handleEmailLogin = async () => {
         if (isLockedOut && timeRemaining !== null && timeRemaining > 0) {
             Alert.alert(
                 'Account Locked',
@@ -116,18 +135,40 @@ export default function LoginScreen() {
             );
             return;
         }
-        if (!emailLoginEmail.trim()) { Alert.alert(t(language, 'error'), 'Please enter your email.'); return; }
-        if (!emailLoginPin) { Alert.alert(t(language, 'error'), 'Please enter your 4-digit PIN.'); return; }
+        if (!emailLoginEmail.trim()) { Alert.alert(t(language, 'error'), 'Please enter your email address.'); return; }
+        if (!emailLoginPin) { Alert.alert(t(language, 'error'), 'Please enter your 6-digit PIN.'); return; }
+
+        // First try local PIN match
         const ok = login(emailLoginPin);
-        if (!ok) {
+        if (ok) { identifyUser(emailLoginEmail.trim()); trackUserLoggedIn('email'); return; }
+
+        // If local fails, try Supabase to give specific error
+        try {
+            const { error } = await import('../utils/supabase').then(m =>
+                m.supabase.auth.signInWithPassword({ email: emailLoginEmail.trim(), password: emailLoginPin + '_Q360' })
+            );
+            if (error) {
+                if (error.message.toLowerCase().includes('invalid login') || error.message.toLowerCase().includes('invalid credentials')) {
+                    Alert.alert('Incorrect Details', 'The email or PIN you entered does not match any account. Please check and try again.');
+                } else if (error.message.toLowerCase().includes('email not confirmed')) {
+                    Alert.alert('Email Not Verified', 'Please check your inbox and confirm your email before logging in.');
+                } else if (error.message.toLowerCase().includes('too many requests')) {
+                    Alert.alert('Too Many Attempts', 'Too many login attempts. Please wait a few minutes and try again.');
+                } else {
+                    Alert.alert(t(language, 'error'), 'Incorrect email or PIN. Please try again.');
+                }
+            } else {
+                Alert.alert(t(language, 'error'), 'Incorrect PIN. Please try again.');
+            }
+        } catch {
             Alert.alert(t(language, 'error'), 'Incorrect email or PIN. Please try again.');
-            setEmailLoginPin('');
         }
+        setEmailLoginPin('');
     };
 
     const handleJoinTeam = async () => {
         if (!joinEmail.trim()) { Alert.alert(t(language, 'required'), t(language, 'email')); return; }
-        if (!/^\d{4}$/.test(joinPin)) { Alert.alert(t(language, 'error'), t(language, 'invalidPin')); return; }
+        if (!/^\d{6}$/.test(joinPin)) { Alert.alert(t(language, 'error'), t(language, 'invalidPin')); return; }
         if (joinPin !== joinConfirm)  { Alert.alert(t(language, 'error'), t(language, 'pinMismatch')); return; }
         if (!inviteCode.trim())       { Alert.alert(t(language, 'required'), t(language, 'inviteCode')); return; }
         setJoiningTeam(true);
@@ -139,48 +180,89 @@ export default function LoginScreen() {
         }
     };
 
-    const handleRecover = async () => {
-        if (!recoverEmail.trim()) { Alert.alert('Required', 'Please enter your email address.'); return; }
-        if (!/^\d{4}$/.test(recoverPin)) { Alert.alert('Invalid PIN', 'Your PIN must be 4 digits.'); return; }
-        setRecovering(true);
+    const handleResetRequest = async () => {
+        if (!resetEmail.trim()) { Alert.alert('Error', 'Please enter your email address.'); return; }
+        if (!/^\d{6}$/.test(resetNewPin)) { Alert.alert('Error', 'New PIN must be exactly 6 digits.'); return; }
+        if (resetNewPin !== resetConfirmPin) { Alert.alert('Error', 'PINs do not match.'); return; }
+        setResetSubmitting(true);
         try {
-            await recoverAccount(recoverEmail.trim(), recoverPin);
+            const { supabase } = await import('../utils/supabase');
+            const redirectTo = typeof window !== 'undefined'
+                ? `${window.location.origin}/?reset=1`
+                : undefined;
+            const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), { redirectTo });
+            if (error) {
+                const msg = error.message.toLowerCase();
+                if (msg.includes('user not found') || msg.includes('not found')) {
+                    Alert.alert('No Account Found', 'No account exists with that email address. Please check and try again.');
+                } else {
+                    Alert.alert('Error', error.message);
+                }
+            } else {
+                setResetStep('verify');
+            }
         } catch (e: any) {
-            Alert.alert('Sign In Failed', e?.message ?? 'Could not sign in. Check your email and PIN.');
-            setRecovering(false);
+            Alert.alert('Error', e?.message ?? 'Failed to send reset email.');
         }
+        setResetSubmitting(false);
     };
 
-    // ── Account Recovery ──────────────────────────────────────────────────────
-    if (mode === 'recover') {
+    const handleResetVerify = async () => {
+        if (!/^\d{6}$/.test(resetOtp.trim())) { Alert.alert('Error', 'Please enter the 6-digit code from the email link.'); return; }
+        setResetSubmitting(true);
+        try {
+            const { supabase } = await import('../utils/supabase');
+            // On web the reset link sets a session automatically via the URL hash;
+            // verify the OTP token directly for environments that support it
+            const { error: verifyError } = await supabase.auth.verifyOtp({
+                email: resetEmail.trim(),
+                token: resetOtp.trim(),
+                type: 'recovery',
+            });
+            if (verifyError) {
+                Alert.alert('Invalid Code', 'The code is incorrect or has expired. Please request a new reset email.');
+                setResetSubmitting(false);
+                return;
+            }
+            const { error: updateError } = await supabase.auth.updateUser({ password: resetNewPin + '_Q360' });
+            if (updateError) {
+                Alert.alert('Error', 'Could not update PIN: ' + updateError.message);
+                setResetSubmitting(false);
+                return;
+            }
+            Alert.alert('PIN Reset Successful', 'Your PIN has been updated. Please log in with your new PIN.', [
+                { text: 'OK', onPress: () => { setMode('owner-login'); setLoginMethod('email'); setEmailLoginEmail(resetEmail.trim()); setResetStep('request'); setResetOtp(''); setResetNewPin(''); setResetConfirmPin(''); } }
+            ]);
+        } catch (e: any) {
+            Alert.alert('Error', e?.message ?? 'Verification failed.');
+        }
+        setResetSubmitting(false);
+    };
+
+    // ── Demo picker ───────────────────────────────────────────────────────────
+    if (mode === 'demo-pick') {
         return (
             <SafeAreaView style={styles.safe}>
                 <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
                     <View style={styles.card}>
-                        <Text style={styles.title}>Welcome Back</Text>
-                        <Text style={styles.subtitle}>Sign in with your email and PIN to restore all your business data</Text>
+                        <Image source={require('../../assets/icon.png')} style={styles.logo} />
+                        <Text style={styles.title}>Try the Demo</Text>
+                        <Text style={styles.subtitle}>Pick a business type to explore the app with realistic sample data. Nothing will be saved.</Text>
 
-                        <Field label="Email Address">
-                            <TextInput style={styles.input} value={recoverEmail} onChangeText={setRecoverEmail}
-                                placeholder="admin@yourbusiness.com" placeholderTextColor={Colors.muted}
-                                autoCapitalize="none" keyboardType="email-address" autoFocus />
-                        </Field>
-                        <Field label="Your 4-Digit PIN">
-                            <TextInput style={styles.input} value={recoverPin} onChangeText={setRecoverPin}
-                                placeholder="••••" placeholderTextColor={Colors.muted}
-                                secureTextEntry keyboardType="number-pad" maxLength={4}
-                                onSubmitEditing={handleRecover} />
-                        </Field>
+                        {DEMO_BUSINESSES.map(biz => (
+                            <TouchableOpacity key={biz.id} style={styles.bizCard} onPress={() => enterDemo(biz.id)}>
+                                <Text style={styles.bizEmoji}>{biz.flag}</Text>
+                                <View style={styles.bizInfo}>
+                                    <Text style={styles.bizCountry}>{biz.country}</Text>
+                                    <Text style={styles.bizName}>{biz.businessName}</Text>
+                                    <Text style={styles.bizDesc}>{biz.description} · {biz.currency}</Text>
+                                </View>
+                                <Text style={styles.bizArrow}>→</Text>
+                            </TouchableOpacity>
+                        ))}
 
-                        <TouchableOpacity style={[styles.btn, recovering && styles.btnDisabled]} onPress={handleRecover} disabled={recovering}>
-                            {recovering
-                                ? <ActivityIndicator color="#fff" />
-                                : <Text style={styles.btnText}>Restore My Account →</Text>
-                            }
-                        </TouchableOpacity>
-
-                        <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('owner-setup')}>
-                            <Text style={styles.switchText}>← Back to Create Account</Text>
+                        <TouchableOpacity style={styles.switchBtn} onPress={() => setMode(isFirstLaunch ? 'owner-setup' : 'owner-login')}>
+                            <Text style={styles.switchText}>← Back</Text>
                         </TouchableOpacity>
                     </View>
                 </ScrollView>
@@ -188,36 +270,73 @@ export default function LoginScreen() {
         );
     }
 
-    // ── Demo Pick ─────────────────────────────────────────────────────────────
-    if (mode === 'demo-pick') {
+    // ── Reset PIN ─────────────────────────────────────────────────────────────
+    if (mode === 'reset-pin') {
         return (
             <SafeAreaView style={styles.safe}>
                 <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
                     <View style={styles.card}>
-                        <Text style={styles.title}>Try a Demo</Text>
-                        <Text style={styles.subtitle}>Pick a business and explore Quad360 with real data — no sign-up needed</Text>
+                        <Text style={styles.title}>Reset PIN</Text>
+                        <Text style={styles.subtitle}>
+                            {resetStep === 'request'
+                                ? 'Enter your email and new PIN. We\'ll send a reset link to your inbox.'
+                                : `Check your inbox at ${resetEmail} — open the link, then enter the 6-digit code from the email here.`}
+                        </Text>
 
-                        {DEMO_BUSINESSES.map(biz => (
-                            <TouchableOpacity key={biz.id} style={styles.demoOpt} onPress={() => enterDemo(biz.id)}>
-                                <Text style={styles.demoOptEmoji}>{biz.flag}</Text>
-                                <View style={{ flex: 1 }}>
-                                    <Text style={styles.demoOptText}>{biz.businessName}</Text>
-                                    <Text style={styles.demoOptSub}>{biz.description} · {biz.currency}</Text>
+                        {resetStep === 'request' ? (
+                            <>
+                                <Field label="Email Address">
+                                    <TextInput style={styles.input} value={resetEmail} onChangeText={setResetEmail}
+                                        placeholder="your@email.com" placeholderTextColor={Colors.muted}
+                                        autoCapitalize="none" keyboardType="email-address" />
+                                </Field>
+                                <Field label="New PIN (6 digits)">
+                                    <TextInput style={styles.input} value={resetNewPin} onChangeText={setResetNewPin}
+                                        placeholder="••••••" placeholderTextColor={Colors.muted}
+                                        secureTextEntry keyboardType="number-pad" maxLength={6} />
+                                </Field>
+                                <Field label="Confirm New PIN">
+                                    <TextInput style={styles.input} value={resetConfirmPin} onChangeText={setResetConfirmPin}
+                                        placeholder="••••••" placeholderTextColor={Colors.muted}
+                                        secureTextEntry keyboardType="number-pad" maxLength={6} />
+                                </Field>
+                                <TouchableOpacity style={[styles.btn, resetSubmitting && styles.btnDisabled]}
+                                    onPress={handleResetRequest} disabled={resetSubmitting}>
+                                    {resetSubmitting
+                                        ? <ActivityIndicator color="#fff" />
+                                        : <Text style={styles.btnText}>Send Reset Email</Text>}
+                                </TouchableOpacity>
+                            </>
+                        ) : (
+                            <>
+                                <View style={styles.infoBox}>
+                                    <Text style={styles.infoText}>
+                                        📧 A reset email has been sent to{'\n'}<Text style={{ fontWeight: 'bold' }}>{resetEmail}</Text>{'\n\n'}
+                                        Open the email → click the link → come back here and enter the 6-digit code shown in the email.{'\n\n'}
+                                        ⚠️ Check your spam/junk folder if you don't see it.
+                                    </Text>
                                 </View>
-                                <Text style={{ color: Colors.textMuted, fontSize: 16 }}>→</Text>
-                            </TouchableOpacity>
-                        ))}
+                                <Field label="6-Digit Code from Email">
+                                    <TextInput style={[styles.input, styles.codeInput]}
+                                        value={resetOtp} onChangeText={setResetOtp}
+                                        placeholder="000000" placeholderTextColor={Colors.muted}
+                                        keyboardType="number-pad" maxLength={6} />
+                                </Field>
+                                <TouchableOpacity style={[styles.btn, resetSubmitting && styles.btnDisabled]}
+                                    onPress={handleResetVerify} disabled={resetSubmitting}>
+                                    {resetSubmitting
+                                        ? <ActivityIndicator color="#fff" />
+                                        : <Text style={styles.btnText}>Verify & Set New PIN</Text>}
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.switchBtn} onPress={() => setResetStep('request')}>
+                                    <Text style={styles.switchText}>← Resend or change email</Text>
+                                </TouchableOpacity>
+                            </>
+                        )}
 
-                        <View style={styles.demoFooter}>
-                            <Text style={styles.demoFooterText}>✨ Demo data — nothing is saved to your account</Text>
-                            <Text style={styles.demoFooterSub}>Ready to use your own business data?</Text>
-                            <TouchableOpacity style={styles.demoSignupBtn} onPress={() => setMode('owner-setup')}>
-                                <Text style={styles.demoSignupBtnText}>Create Free Account →</Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        <TouchableOpacity style={styles.switchBtn} onPress={() => setMode(isFirstLaunch ? 'owner-setup' : 'owner-login')}>
-                            <Text style={styles.switchText}>← Back</Text>
+                        <TouchableOpacity style={styles.switchBtn}
+                            onPress={() => { setMode('owner-login'); setResetStep('request'); }}>
+                            <Text style={styles.switchText}>← Back to Login</Text>
                         </TouchableOpacity>
                     </View>
                 </ScrollView>
@@ -241,13 +360,13 @@ export default function LoginScreen() {
                         </Field>
                         <Field label={t(language, 'newPin')}>
                             <TextInput style={styles.input} value={joinPin} onChangeText={setJoinPin}
-                                placeholder="••••" placeholderTextColor={Colors.muted}
-                                secureTextEntry keyboardType="number-pad" maxLength={4} />
+                                placeholder="••••••" placeholderTextColor={Colors.muted}
+                                secureTextEntry keyboardType="number-pad" maxLength={6} />
                         </Field>
                         <Field label={t(language, 'confirmPin')}>
                             <TextInput style={styles.input} value={joinConfirm} onChangeText={setJoinConfirm}
-                                placeholder="••••" placeholderTextColor={Colors.muted}
-                                secureTextEntry keyboardType="number-pad" maxLength={4} />
+                                placeholder="••••••" placeholderTextColor={Colors.muted}
+                                secureTextEntry keyboardType="number-pad" maxLength={6} />
                         </Field>
                         <Field label={t(language, 'inviteCode')}>
                             <TextInput style={[styles.input, styles.codeInput]}
@@ -277,7 +396,7 @@ export default function LoginScreen() {
             <SafeAreaView style={styles.safe}>
                 <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
                     <View style={styles.card}>
-                        <Text style={styles.title}>{t(setupLang, 'appName')}</Text>
+                        <Image source={require('../../assets/icon.png')} style={styles.logo} />
                         <Text style={styles.subtitle}>{t(setupLang, 'setupSubtitle')}</Text>
 
                         {/* Language picker — shown first so the rest renders in chosen language */}
@@ -305,13 +424,13 @@ export default function LoginScreen() {
                         </Field>
                         <Field label={t(setupLang, 'createPin')}>
                             <TextInput style={styles.input} value={pin} onChangeText={setPin}
-                                placeholder="••••" placeholderTextColor={Colors.muted}
-                                secureTextEntry keyboardType="number-pad" maxLength={4} />
+                                placeholder="••••••" placeholderTextColor={Colors.muted}
+                                secureTextEntry keyboardType="number-pad" maxLength={6} />
                         </Field>
                         <Field label={t(setupLang, 'confirmPin')}>
                             <TextInput style={styles.input} value={confirmPin} onChangeText={setConfirm}
-                                placeholder="••••" placeholderTextColor={Colors.muted}
-                                secureTextEntry keyboardType="number-pad" maxLength={4} />
+                                placeholder="••••••" placeholderTextColor={Colors.muted}
+                                secureTextEntry keyboardType="number-pad" maxLength={6} />
                         </Field>
 
                         {/* Currency picker */}
@@ -334,14 +453,15 @@ export default function LoginScreen() {
                                 : <Text style={styles.btnText}>{t(setupLang, 'createAccount')}</Text>
                             }
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('recover')}>
-                            <Text style={styles.switchText}>Already have an account? Sign in</Text>
-                        </TouchableOpacity>
+                        <Text style={styles.trustNote}>🔒 Your data is encrypted and stored securely. We never share your information.</Text>
                         <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('join-team')}>
                             <Text style={styles.switchText}>{t(setupLang, 'joiningTeam')}</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.demoEntryBtn} onPress={() => setMode('demo-pick')}>
-                            <Text style={styles.demoEntryBtnText}>👀 Try Demo First</Text>
+                        <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('owner-login')}>
+                            <Text style={styles.switchText}>Already have an account? Sign In →</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.demoBtn} onPress={() => setMode('demo-pick')}>
+                            <Text style={styles.demoBtnText}>👀 Try Demo (No sign-up needed)</Text>
                         </TouchableOpacity>
                     </View>
                 </ScrollView>
@@ -354,7 +474,7 @@ export default function LoginScreen() {
         <SafeAreaView style={styles.safe}>
             <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
                 <View style={styles.card}>
-                    <Text style={styles.title}>{t(language, 'appName')}</Text>
+                    <Image source={require('../../assets/icon.png')} style={styles.logo} />
                     <Text style={styles.subtitle}>{t(language, 'loginSubtitle')}</Text>
 
                     {isLockedOut && timeRemaining !== null && timeRemaining > 0 && (
@@ -386,8 +506,8 @@ export default function LoginScreen() {
                         <>
                             <View style={styles.pinContainer}>
                                 <TextInput style={styles.pinInput}
-                                    placeholder="••••" placeholderTextColor={Colors.muted}
-                                    secureTextEntry keyboardType="number-pad" maxLength={4}
+                                    placeholder="••••••" placeholderTextColor={Colors.muted}
+                                    secureTextEntry keyboardType="number-pad" maxLength={6}
                                     value={returnPin} onChangeText={setReturnPin}
                                     onSubmitEditing={handleLogin} autoFocus />
                             </View>
@@ -410,11 +530,11 @@ export default function LoginScreen() {
                             </Field>
                             <Field label="PIN">
                                 <TextInput style={styles.input}
-                                    placeholder="••••"
+                                    placeholder="••••••"
                                     placeholderTextColor={Colors.muted}
                                     secureTextEntry
                                     keyboardType="number-pad"
-                                    maxLength={4}
+                                    maxLength={6}
                                     value={emailLoginPin}
                                     onChangeText={setEmailLoginPin}
                                     onSubmitEditing={handleEmailLogin}
@@ -426,20 +546,20 @@ export default function LoginScreen() {
                         </>
                     )}
 
+                    <TouchableOpacity style={styles.switchBtn} onPress={() => { setEmail(''); setBusiness(''); setPin(''); setConfirm(''); setMode('owner-setup'); }}>
+                        <Text style={styles.switchText}>Don't have an account? Sign Up →</Text>
+                    </TouchableOpacity>
                     <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('join-team')}>
                         <Text style={styles.switchText}>{t(language, 'joiningTeam')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.resetBtn} onPress={() => {
-                        Alert.alert(
-                            'Start Fresh?',
-                            'This will erase all local data and let you register a new account. Cloud data is not deleted.',
-                            [
-                                { text: 'Cancel', style: 'cancel' },
-                                { text: 'Start Fresh', style: 'destructive', onPress: () => resetApp() },
-                            ]
-                        );
+                        setResetEmail(''); setResetNewPin(''); setResetConfirmPin(''); setResetOtp(''); setResetStep('request');
+                        setMode('reset-pin');
                     }}>
-                        <Text style={styles.resetText}>Forgot PIN / Start Fresh</Text>
+                        <Text style={styles.resetText}>Forgot PIN?</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.demoBtn} onPress={() => setMode('demo-pick')}>
+                        <Text style={styles.demoBtnText}>👀 Try Demo (No sign-up needed)</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.demoEntryBtn} onPress={() => setMode('demo-pick')}>
                         <Text style={styles.demoEntryBtnText}>👀 Try Demo First</Text>
@@ -466,6 +586,7 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.surface, borderRadius: 16, padding: 24,
         shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 10, elevation: 5,
     },
+    logo:     { width: 80, height: 80, alignSelf: 'center', borderRadius: 18, marginBottom: 8 },
     title:    { fontSize: 26, fontWeight: 'bold', color: Colors.textPrimary, textAlign: 'center' },
     subtitle: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', marginBottom: 20, marginTop: 4 },
 
@@ -517,6 +638,13 @@ const styles = StyleSheet.create({
     switchText: { color: Colors.primary, fontSize: 13 },
     resetBtn:   { paddingVertical: 10, alignItems: 'center' },
     resetText:  { color: '#ef4444', fontSize: 12 },
+    trustNote:  { fontSize: 11, color: Colors.textMuted, textAlign: 'center', marginTop: 10, lineHeight: 16 },
+
+    infoBox: {
+        backgroundColor: 'rgba(0,102,204,0.12)', borderWidth: 1, borderColor: Colors.primary,
+        borderRadius: 10, padding: 14, marginBottom: 16,
+    },
+    infoText: { color: Colors.textSecondary, fontSize: 13, lineHeight: 20, textAlign: 'center' },
 
     lockoutBanner: {
         backgroundColor: 'rgba(239,68,68,0.15)', borderWidth: 1, borderColor: '#ef4444',
@@ -549,7 +677,22 @@ const styles = StyleSheet.create({
     loginTabTextActive: {
         color: Colors.primary,
     },
-    demoEntryBtn: { paddingVertical: 10, alignItems: 'center', marginTop: 4 },
-    demoEntryBtnText: { color: Colors.textMuted, fontSize: 13 },
-    demoOptEmoji: { fontSize: 22, marginRight: 10 },
+
+    demoBtn: {
+        marginTop: 12, paddingVertical: 12, borderRadius: 8, alignItems: 'center',
+        borderWidth: 1, borderColor: Colors.primary, backgroundColor: 'transparent',
+    },
+    demoBtnText: { color: Colors.primary, fontWeight: '600', fontSize: 13 },
+
+    bizCard: {
+        flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.bg,
+        borderRadius: 12, padding: 14, marginBottom: 10,
+        borderWidth: 1, borderColor: Colors.border,
+    },
+    bizEmoji:   { fontSize: 28, marginRight: 12 },
+    bizInfo:    { flex: 1 },
+    bizCountry: { fontSize: 11, fontWeight: '700', color: Colors.primary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
+    bizName:    { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },
+    bizDesc:    { fontSize: 11, color: Colors.textMuted },
+    bizArrow: { fontSize: 18, color: Colors.primary, marginLeft: 8 },
 });

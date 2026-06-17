@@ -22,7 +22,9 @@ import GrowthMetrics from '../components/GrowthMetrics';
 import PricingOptimizer from '../components/PricingOptimizer';
 import CashFlowStatement from '../components/CashFlowStatement';
 import AccrualCashFlow from '../components/AccrualCashFlow';
-import { filterByPeriod, computeFinance, computeMonthlyTrend, computeEnhancedPnL, computeWorkingCapitalMetrics, classifyBusinessSize, sizeLabel, transactionsToCSV, ReportPeriod, MonthlyPoint } from '../utils/finance';
+import { filterByPeriod, filterByDateRange, getPreviousPeriodRange, computeFinance, computeMonthlyTrend, computeEnhancedPnL, computeWorkingCapitalMetrics, classifyBusinessSize, sizeLabel, transactionsToCSV, ReportPeriod, MonthlyPoint, DateRange } from '../utils/finance';
+import { FinanceData } from '../types';
+import DateInput from '../components/DateInput';
 import { InventoryItem } from '../types';
 
 // ─── Section groups ────────────────────────────────────────────────────────────
@@ -80,20 +82,24 @@ const PERIODS: { key: ReportPeriod; label: string }[] = [
     { key: 'quarter', label: '3 Months' },
     { key: 'year',    label: 'This Year' },
     { key: 'all',     label: 'All Time' },
+    { key: 'custom',  label: 'Custom' },
 ];
 
 export default function ReportsScreen() {
     const { finance: allFinance, settings, updateSettings, transactions, assets, navParams, inventory, invoices } = useApp();
     const { currency, minReserve, targetMargin } = settings;
 
-    const [section, setSection]     = useState<SectionKey>('statements');
-    const [activeTab, setActiveTab] = useState<SubTab>('balancesheet');
-    const [period, setPeriod]       = useState<ReportPeriod>('all');
+    const [section, setSection]       = useState<SectionKey>('statements');
+    const [activeTab, setActiveTab]   = useState<SubTab>('balancesheet');
+    const [period, setPeriod]         = useState<ReportPeriod>('all');
+    const [showComparison, setShowComparison] = useState(false);
+    const today = new Date().toISOString().split('T')[0];
+    const [customRange, setCustomRange] = useState<DateRange>({ from: today, to: today });
 
-    const filteredTx = useMemo(
-        () => filterByPeriod(transactions, period),
-        [transactions, period]
-    );
+    const filteredTx = useMemo(() => {
+        if (period === 'custom') return filterByDateRange(transactions, customRange);
+        return filterByPeriod(transactions, period);
+    }, [transactions, period, customRange]);
     const finance = useMemo(
         () => computeFinance(filteredTx, settings),
         [filteredTx, settings]
@@ -102,6 +108,13 @@ export default function ReportsScreen() {
     const enhPnL     = useMemo(() => computeEnhancedPnL(filteredTx, assets), [filteredTx, assets]);
     const wcMetrics  = useMemo(() => computeWorkingCapitalMetrics(filteredTx), [filteredTx]);
     const bizSize    = classifyBusinessSize(enhPnL.revenue);
+
+    const prevFinance = useMemo(() => {
+        if (period === 'all' || period === 'custom') return null;
+        const { previous } = getPreviousPeriodRange(period);
+        const prevTx = filterByDateRange(transactions, previous);
+        return computeFinance(prevTx, settings);
+    }, [period, transactions, settings]);
 
     // Deep-link from navParams (e.g. from Dashboard or Insights)
     useEffect(() => {
@@ -170,19 +183,46 @@ export default function ReportsScreen() {
 
             {/* ── Period filter ─────────────────────────────────────── */}
             {periodActive && (
-                <View style={styles.periodRow}>
-                    {PERIODS.map(p => (
-                        <TouchableOpacity
-                            key={p.key}
-                            style={[styles.periodBtn, period === p.key && styles.periodBtnActive]}
-                            onPress={() => setPeriod(p.key)}
-                        >
-                            <Text style={[styles.periodText, period === p.key && styles.periodTextActive]}>
-                                {p.label}
-                            </Text>
-                        </TouchableOpacity>
-                    ))}
-                </View>
+                <>
+                    <View style={styles.periodRow}>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                            {PERIODS.map(p => (
+                                <TouchableOpacity
+                                    key={p.key}
+                                    style={[styles.periodBtn, period === p.key && styles.periodBtnActive]}
+                                    onPress={() => { setPeriod(p.key); setShowComparison(false); }}
+                                >
+                                    <Text style={[styles.periodText, period === p.key && styles.periodTextActive]}>
+                                        {p.label}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                        {period !== 'all' && period !== 'custom' && (
+                            <TouchableOpacity
+                                style={[styles.periodBtn, showComparison && styles.periodBtnActive, { marginLeft: 6 }]}
+                                onPress={() => setShowComparison(v => !v)}
+                            >
+                                <Text style={[styles.periodText, showComparison && styles.periodTextActive]}>Compare</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                    {period === 'custom' && (
+                        <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: Colors.bg, borderBottomWidth: 1, borderBottomColor: Colors.border }}>
+                            <View style={{ flex: 1 }}>
+                                <Text style={{ fontSize: 10, color: Colors.textMuted, marginBottom: 4 }}>From</Text>
+                                <DateInput value={customRange.from} onChange={v => setCustomRange(r => ({ ...r, from: v }))} />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={{ fontSize: 10, color: Colors.textMuted, marginBottom: 4 }}>To</Text>
+                                <DateInput value={customRange.to} onChange={v => setCustomRange(r => ({ ...r, to: v }))} />
+                            </View>
+                        </View>
+                    )}
+                    {showComparison && prevFinance && period !== 'all' && period !== 'custom' && (
+                        <ComparisonBanner current={finance} previous={prevFinance} currency={currency} />
+                    )}
+                </>
             )}
 
             <ScrollView style={styles.scroll}>
@@ -651,9 +691,39 @@ const bsStyles = StyleSheet.create({
 function PeriodLabel({ period }: { period: ReportPeriod }) {
     const labels: Record<ReportPeriod, string> = {
         month: 'Last 30 days', quarter: 'Last 3 months',
-        year: 'Last 12 months', all: 'All time',
+        year: 'Last 12 months', all: 'All time', custom: 'Custom range',
     };
     return <Text style={styles.periodLabel}>{labels[period]}</Text>;
+}
+
+function ComparisonBanner({ current, previous, currency }: { current: FinanceData; previous: FinanceData; currency: string }) {
+    const incomeChg  = previous.income  > 0 ? ((current.income  - previous.income)  / previous.income)  * 100 : null;
+    const expenseChg = previous.expense > 0 ? ((current.expense - previous.expense) / previous.expense) * 100 : null;
+    const profitChg  = previous.profit  !== 0 ? ((current.profit - previous.profit) / Math.abs(previous.profit)) * 100 : null;
+
+    return (
+        <View style={{ flexDirection: 'row', backgroundColor: Colors.surface, padding: 10, gap: 4, borderBottomWidth: 1, borderBottomColor: Colors.border }}>
+            <CompItem label="Income" curr={current.income} prev={previous.income} chg={incomeChg} currency={currency} positiveIsGood />
+            <CompItem label="Expenses" curr={current.expense} prev={previous.expense} chg={expenseChg} currency={currency} positiveIsGood={false} />
+            <CompItem label="Profit" curr={current.profit} prev={previous.profit} chg={profitChg} currency={currency} positiveIsGood />
+        </View>
+    );
+}
+
+function CompItem({ label, curr, prev, chg, currency, positiveIsGood }: {
+    label: string; curr: number; prev: number; chg: number | null; currency: string; positiveIsGood: boolean;
+}) {
+    const color = chg === null ? Colors.textMuted : (positiveIsGood ? chg >= 0 : chg <= 0) ? Colors.income : Colors.expense;
+    return (
+        <View style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={{ fontSize: 9, color: Colors.textMuted, marginBottom: 2 }}>{label}</Text>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: Colors.textPrimary }}>{currency}{Math.abs(curr).toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+            <Text style={{ fontSize: 10, color: Colors.textMuted }}>prev: {currency}{Math.abs(prev).toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+            {chg !== null && (
+                <Text style={{ fontSize: 10, fontWeight: '700', color }}>{chg >= 0 ? '▲' : '▼'}{Math.abs(chg).toFixed(1)}%</Text>
+            )}
+        </View>
+    );
 }
 
 function StatRow({ label, value, color, bold, indent }: { label: string; value: string; color: string; bold?: boolean; indent?: boolean }) {

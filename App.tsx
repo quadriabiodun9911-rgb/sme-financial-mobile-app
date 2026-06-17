@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { AppProvider, useApp } from './src/contexts/AppContext';
+import { trackScreenViewed } from './src/utils/analytics';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import LoginScreen from './src/screens/LoginScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
@@ -11,11 +12,21 @@ import SettingsScreen from './src/screens/SettingsScreen';
 import GoalsScreen from './src/screens/GoalsScreen';
 import InvoicesScreen from './src/screens/InvoicesScreen';
 import AssetsScreen from './src/screens/AssetsScreen';
+import LoansScreen from './src/screens/LoansScreen';
 import InventoryScreen from './src/screens/InventoryScreen';
 import GrowthIntelligenceScreen from './src/screens/GrowthIntelligenceScreen';
+import CFOScreen from './src/screens/CFOScreen';
+import BudgetScreen from './src/screens/BudgetScreen';
+import AnalysisScreen from './src/screens/AnalysisScreen';
 
 function Navigator() {
     const { currentScreen, isLoading } = useApp();
+
+    useEffect(() => {
+        if (!isLoading && currentScreen !== 'login') {
+            trackScreenViewed(currentScreen);
+        }
+    }, [currentScreen, isLoading]);
 
     if (isLoading) {
         return (
@@ -36,8 +47,12 @@ function Navigator() {
             {currentScreen === 'goals'        && <GoalsScreen />}
             {currentScreen === 'invoices'     && <InvoicesScreen />}
             {currentScreen === 'assets'       && <AssetsScreen />}
+            {currentScreen === 'loans'        && <LoansScreen />}
             {currentScreen === 'inventory'    && <InventoryScreen />}
             {currentScreen === 'growth'       && <GrowthIntelligenceScreen />}
+            {currentScreen === 'cfo'          && <CFOScreen />}
+            {currentScreen === 'budget'       && <BudgetScreen />}
+            {currentScreen === 'analysis'     && <AnalysisScreen />}
         </View>
     );
 }

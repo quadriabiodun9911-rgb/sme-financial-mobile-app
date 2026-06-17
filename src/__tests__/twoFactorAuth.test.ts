@@ -38,7 +38,7 @@ describe('Two-Factor Authentication', () => {
             const secret = generateTOTPSecret('user@example.com');
 
             expect(secret.qrCodeUrl).toContain('otpauth://totp/');
-            expect(secret.qrCodeUrl).toContain('FinanceBook');
+            expect(secret.qrCodeUrl).toContain('Quad360');
         });
 
         test('should format TOTP secret for display', () => {

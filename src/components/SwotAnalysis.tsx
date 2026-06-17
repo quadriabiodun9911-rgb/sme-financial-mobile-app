@@ -111,7 +111,7 @@ export default function SwotAnalysis() {
                 <GuideRow icon="💪→🔴" text="Use strengths to defend against threats (ST strategy)" />
                 <GuideRow icon="⚠️→🔴" text="Minimise weaknesses to avoid threats (WT strategy)" />
                 <Text style={styles.guideDisclaimer}>
-                    This analysis is generated from transaction data recorded in FinanceBook. Results are only as accurate as the data entered.
+                    This analysis is generated from transaction data recorded in Quad360. Results are only as accurate as the data entered.
                 </Text>
             </View>
         </View>

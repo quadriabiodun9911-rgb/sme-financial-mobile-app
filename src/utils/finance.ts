@@ -1,4 +1,4 @@
-import { Transaction, FinanceData, BusinessSettings, AgingBucket, Asset } from '../types';
+import { Transaction, FinanceData, BusinessSettings, AgingBucket, Asset, Invoice, Loan, FinancialGoal, Budget } from '../types';
 
 // ─── Business size classification ─────────────────────────────────────────────
 export type BusinessSize = 'micro' | 'small' | 'medium' | 'large';
@@ -186,6 +186,7 @@ export function computeFinance(
     transactions: Transaction[],
     settings: Pick<BusinessSettings, 'openingAssets' | 'openingLiabilities' | 'openingLoans' | 'openingOtherAssets'>,
     registeredAssetsValue = 0,
+    activeAssets: Asset[] = [],
 ): FinanceData {
     const income = transactions
         .filter(t => t.type === 'income')
@@ -195,9 +196,24 @@ export function computeFinance(
         .filter(t => t.type === 'expense')
         .reduce((sum, t) => sum + t.amount, 0);
 
+    // Annual depreciation prorated to the period covered by transactions
+    const annualDepreciation = activeAssets.reduce((s, a) => s + computeAssetAnnualDepreciation(a), 0);
+
+    // Prorate depreciation: if transactions span less than a year, charge proportionally
+    const dates = transactions.map(t => t.date).sort();
+    let depreciationCharge = annualDepreciation;
+    if (dates.length >= 2) {
+        const spanDays = (new Date(dates[dates.length - 1]).getTime() - new Date(dates[0]).getTime()) / 86400000;
+        const spanYears = Math.min(1, spanDays / 365);
+        depreciationCharge = annualDepreciation * spanYears;
+    } else if (dates.length === 0) {
+        depreciationCharge = 0;
+    }
+
     const profit = income - expense;
-    const margin = income > 0 ? (profit / income) * 100 : 0;
-    const cashBalance = profit;
+    const depreciationAdjustedProfit = profit - depreciationCharge;
+    const margin = income > 0 ? (depreciationAdjustedProfit / income) * 100 : 0;
+    const cashBalance = profit; // cash is not reduced by non-cash depreciation
 
     const openingAssets = parseFloat(settings.openingAssets) || 0;
     const openingLiabilities = parseFloat(settings.openingLiabilities) || 0;
@@ -230,6 +246,8 @@ export function computeFinance(
         totalTaxCollected,
         totalTaxPaid,
         netTaxPosition,
+        annualDepreciation,
+        depreciationAdjustedProfit,
     };
 }
 
@@ -329,10 +347,10 @@ export function computeRecurringDates(
     return d.toISOString().split('T')[0];
 }
 
-export type ReportPeriod = 'month' | 'quarter' | 'year' | 'all';
+export type ReportPeriod = 'month' | 'quarter' | 'year' | 'all' | 'custom';
 
 export function filterByPeriod(transactions: Transaction[], period: ReportPeriod): Transaction[] {
-    if (period === 'all') return transactions;
+    if (period === 'all' || period === 'custom') return transactions;
     const now = new Date();
     const cutoff = new Date(now);
     if (period === 'month') cutoff.setMonth(now.getMonth() - 1);
@@ -340,6 +358,47 @@ export function filterByPeriod(transactions: Transaction[], period: ReportPeriod
     else cutoff.setFullYear(now.getFullYear() - 1);
     const cutoffStr = cutoff.toISOString().split('T')[0];
     return transactions.filter(t => t.date >= cutoffStr);
+}
+
+export interface DateRange {
+    from: string;  // YYYY-MM-DD
+    to: string;    // YYYY-MM-DD
+}
+
+export function filterByDateRange(transactions: Transaction[], range: DateRange): Transaction[] {
+    return transactions.filter(t => t.date >= range.from && t.date <= range.to);
+}
+
+export function getPreviousPeriodRange(period: ReportPeriod): { current: DateRange; previous: DateRange } {
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+
+    if (period === 'month') {
+        const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+        const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0];
+        const lastMonthEnd   = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0];
+        return {
+            current:  { from: thisMonthStart, to: today },
+            previous: { from: lastMonthStart, to: lastMonthEnd },
+        };
+    }
+    if (period === 'quarter') {
+        const thisQStart  = new Date(now.getFullYear(), now.getMonth() - 2, 1).toISOString().split('T')[0];
+        const prevQStart  = new Date(now.getFullYear(), now.getMonth() - 5, 1).toISOString().split('T')[0];
+        const prevQEnd    = new Date(now.getFullYear(), now.getMonth() - 3, 0).toISOString().split('T')[0];
+        return {
+            current:  { from: thisQStart, to: today },
+            previous: { from: prevQStart, to: prevQEnd },
+        };
+    }
+    // year
+    const thisYearStart = `${now.getFullYear()}-01-01`;
+    const lastYearStart = `${now.getFullYear() - 1}-01-01`;
+    const lastYearEnd   = `${now.getFullYear() - 1}-12-31`;
+    return {
+        current:  { from: thisYearStart, to: today },
+        previous: { from: lastYearStart, to: lastYearEnd },
+    };
 }
 
 export interface MonthlyPoint {
@@ -402,4 +461,578 @@ export function transactionsToCSV(transactions: Transaction[]): string {
     ].join(','));
 
     return [headers.join(','), ...rows].join('\n');
+}
+
+// ─── CFO-Grade Finance Utilities ─────────────────────────────────────────────
+
+// 1. Year-over-year trend (last 24 months)
+export interface YoYTrendPoint {
+    year: number;
+    month: string;
+    income: number;
+    expense: number;
+    profit: number;
+}
+
+export function computeYearOverYearTrend(transactions: Transaction[]): YoYTrendPoint[] {
+    const now = new Date();
+    const points: YoYTrendPoint[] = [];
+    for (let i = 23; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const yr = d.getFullYear();
+        const mo = d.getMonth();
+        const prefix = `${yr}-${String(mo + 1).padStart(2, '0')}`;
+        const monthTx = transactions.filter(t => t.date.startsWith(prefix));
+        const income = monthTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+        const expense = monthTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+        points.push({
+            year: yr,
+            month: d.toLocaleString('default', { month: 'short' }),
+            income,
+            expense,
+            profit: income - expense,
+        });
+    }
+    return points;
+}
+
+// 2. Revenue forecast
+export interface ForecastPoint {
+    month: string;
+    projected: number;
+    bestCase: number;
+    worstCase: number;
+}
+
+export function computeRevenueForecast(transactions: Transaction[], months: 3 | 6 | 12): ForecastPoint[] {
+    const now = new Date();
+    // Get last 6 months of income data
+    const last6: number[] = [];
+    for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const prefix = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '00')}`;
+        const income = transactions.filter(t => t.type === 'income' && t.date.startsWith(prefix)).reduce((s, t) => s + t.amount, 0);
+        last6.push(income);
+    }
+    const avgIncome = last6.reduce((s, v) => s + v, 0) / 6;
+    // Calculate average monthly growth rate
+    let growthSum = 0;
+    let growthCount = 0;
+    for (let i = 1; i < last6.length; i++) {
+        if (last6[i - 1] > 0) {
+            growthSum += (last6[i] - last6[i - 1]) / last6[i - 1];
+            growthCount++;
+        }
+    }
+    const avgGrowthRate = growthCount > 0 ? growthSum / growthCount : 0;
+
+    const result: ForecastPoint[] = [];
+    let base = avgIncome;
+    for (let i = 1; i <= months; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+        base = base * (1 + avgGrowthRate);
+        result.push({
+            month: `${d.toLocaleString('default', { month: 'short' })} ${d.getFullYear()}`,
+            projected: Math.max(0, base),
+            bestCase: Math.max(0, base * 1.2),
+            worstCase: Math.max(0, base * 0.8),
+        });
+    }
+    return result;
+}
+
+// 3. Break-even calculator
+export interface BreakEvenResult {
+    breakEvenUnits: number;
+    breakEvenRevenue: number;
+    marginOfSafety: number;
+}
+
+export function computeBreakEven(
+    fixedCosts: number,
+    variableCostRate: number,
+    revenuePerUnit: number,
+): BreakEvenResult {
+    const contributionMarginPerUnit = revenuePerUnit - variableCostRate;
+    if (contributionMarginPerUnit <= 0) {
+        return { breakEvenUnits: Infinity, breakEvenRevenue: Infinity, marginOfSafety: 0 };
+    }
+    const breakEvenUnits = fixedCosts / contributionMarginPerUnit;
+    const breakEvenRevenue = breakEvenUnits * revenuePerUnit;
+    const marginOfSafety = revenuePerUnit > 0 ? ((revenuePerUnit - breakEvenRevenue / Math.max(1, breakEvenUnits)) / revenuePerUnit) * 100 : 0;
+    return { breakEvenUnits, breakEvenRevenue, marginOfSafety };
+}
+
+// 4. DSCR
+export interface DSCRResult {
+    dscr: number;
+    netOperatingIncome: number;
+    totalDebtService: number;
+    status: 'healthy' | 'warning' | 'danger';
+}
+
+function loanMonthlyPayment(principal: number, annualRate: number, termMonths: number): number {
+    if (annualRate === 0) return principal / termMonths;
+    const r = annualRate / 100 / 12;
+    return principal * (r * Math.pow(1 + r, termMonths)) / (Math.pow(1 + r, termMonths) - 1);
+}
+
+export function computeDSCR(transactions: Transaction[], loans: Loan[]): DSCRResult {
+    const income = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+    const expense = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+    const netOperatingIncome = income - expense;
+    const activeLoans = loans.filter(l => l.status === 'active');
+    const monthlyDebtService = activeLoans.reduce((s, l) => s + loanMonthlyPayment(l.principal, l.interestRate, l.termMonths), 0);
+    const totalDebtService = monthlyDebtService * 12;
+    const dscr = totalDebtService > 0 ? netOperatingIncome / totalDebtService : 999;
+    const status: DSCRResult['status'] = dscr >= 1.25 ? 'healthy' : dscr >= 1.0 ? 'warning' : 'danger';
+    return { dscr, netOperatingIncome, totalDebtService, status };
+}
+
+// 5. Financial ratios
+export interface FinancialRatios {
+    currentRatio: number;
+    debtToEquity: number;
+    returnOnAssets: number;
+    burnRate: number;
+    profitMargin: number;
+    revenueGrowth: number;
+}
+
+export function computeFinancialRatios(finance: FinanceData, loans: Loan[]): FinancialRatios {
+    const totalDebt = loans.filter(l => l.status === 'active').reduce((s, l) => s + l.principal - l.payments.reduce((ps, p) => ps + p.amount, 0), 0);
+    const currentRatio = finance.liabilities > 0 ? finance.assets / finance.liabilities : finance.assets > 0 ? 999 : 0;
+    const debtToEquity = finance.equity > 0 ? totalDebt / finance.equity : totalDebt > 0 ? 999 : 0;
+    const returnOnAssets = finance.assets > 0 ? (finance.profit / finance.assets) * 100 : 0;
+    const burnRate = finance.expense > 0 ? finance.expense / 12 : 0;
+    const profitMargin = finance.income > 0 ? (finance.profit / finance.income) * 100 : 0;
+    const revenueGrowth = 0; // requires historical data — placeholder
+    return { currentRatio, debtToEquity, returnOnAssets, burnRate, profitMargin, revenueGrowth };
+}
+
+// 6. Customer concentration risk
+export interface CustomerConcentration {
+    customer: string;
+    amount: number;
+    percentage: number;
+    risk: 'low' | 'medium' | 'high';
+}
+
+export function computeCustomerConcentration(transactions: Transaction[]): CustomerConcentration[] {
+    const map = new Map<string, number>();
+    let total = 0;
+    for (const t of transactions) {
+        if (t.type !== 'income') continue;
+        const key = t.vendorCustomer?.trim() || 'Unknown';
+        map.set(key, (map.get(key) ?? 0) + t.amount);
+        total += t.amount;
+    }
+    return Array.from(map.entries())
+        .sort((a, b) => b[1] - a[1])
+        .map(([customer, amount]) => {
+            const percentage = total > 0 ? (amount / total) * 100 : 0;
+            const risk: CustomerConcentration['risk'] = percentage >= 40 ? 'high' : percentage >= 20 ? 'medium' : 'low';
+            return { customer, amount, percentage, risk };
+        });
+}
+
+// 7. Seasonal risk detection
+export interface SeasonalRisk {
+    month: string;
+    avgRevenue: number;
+    riskLevel: 'low' | 'medium' | 'high';
+    warning: string;
+}
+
+export function computeSeasonalRisk(transactions: Transaction[]): SeasonalRisk[] {
+    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const monthTotals = new Array(12).fill(0);
+    const monthCounts = new Array(12).fill(0);
+    for (const t of transactions) {
+        if (t.type !== 'income') continue;
+        const mo = new Date(t.date).getMonth();
+        monthTotals[mo] += t.amount;
+        monthCounts[mo]++;
+    }
+    const avgRevenues = monthTotals.map((total, i) => monthCounts[i] > 0 ? total / monthCounts[i] : 0);
+    const overallAvg = avgRevenues.reduce((s, v) => s + v, 0) / 12;
+    return MONTHS.map((month, i) => {
+        const avgRevenue = avgRevenues[i];
+        const ratio = overallAvg > 0 ? avgRevenue / overallAvg : 1;
+        const riskLevel: SeasonalRisk['riskLevel'] = ratio < 0.6 ? 'high' : ratio < 0.85 ? 'medium' : 'low';
+        const warning =
+            riskLevel === 'high' ? `${month} is historically a low-revenue month (${Math.round(ratio * 100)}% of average). Prepare cash reserves.` :
+            riskLevel === 'medium' ? `${month} revenue tends to be below average (${Math.round(ratio * 100)}%). Monitor closely.` :
+            `${month} revenue is at or above average.`;
+        return { month, avgRevenue, riskLevel, warning };
+    });
+}
+
+// 8. Automated risk score
+export interface RiskFactor {
+    name: string;
+    score: number;
+    weight: number;
+    status: 'good' | 'warning' | 'danger';
+}
+export interface RiskScore {
+    score: number;
+    grade: 'A' | 'B' | 'C' | 'D' | 'F';
+    factors: RiskFactor[];
+}
+
+export function computeRiskScore(finance: FinanceData, loans: Loan[], transactions: Transaction[]): RiskScore {
+    const factors: RiskFactor[] = [];
+
+    // Profit margin (weight 25)
+    const margin = finance.income > 0 ? (finance.profit / finance.income) * 100 : 0;
+    factors.push({
+        name: 'Profit Margin',
+        score: margin >= 20 ? 100 : margin >= 10 ? 70 : margin >= 0 ? 40 : 0,
+        weight: 25,
+        status: margin >= 20 ? 'good' : margin >= 0 ? 'warning' : 'danger',
+    });
+
+    // Cash runway (weight 20)
+    const monthlyBurn = finance.expense / 12;
+    const runwayMonths = monthlyBurn > 0 ? finance.cashBalance / monthlyBurn : 12;
+    factors.push({
+        name: 'Cash Runway',
+        score: runwayMonths >= 6 ? 100 : runwayMonths >= 3 ? 70 : runwayMonths >= 1 ? 40 : 10,
+        weight: 20,
+        status: runwayMonths >= 6 ? 'good' : runwayMonths >= 3 ? 'warning' : 'danger',
+    });
+
+    // DSCR (weight 20)
+    const dscr = computeDSCR(transactions, loans);
+    factors.push({
+        name: 'Debt Coverage',
+        score: dscr.dscr >= 1.25 ? 100 : dscr.dscr >= 1.0 ? 60 : 20,
+        weight: 20,
+        status: dscr.status === 'healthy' ? 'good' : dscr.status,
+    });
+
+    // Customer concentration (weight 15)
+    const conc = computeCustomerConcentration(transactions);
+    const topPct = conc.length > 0 ? conc[0].percentage : 0;
+    factors.push({
+        name: 'Customer Concentration',
+        score: topPct <= 20 ? 100 : topPct <= 40 ? 60 : 20,
+        weight: 15,
+        status: topPct <= 20 ? 'good' : topPct <= 40 ? 'warning' : 'danger',
+    });
+
+    // Revenue trend (weight 20)
+    const trend = computeMonthlyTrend(transactions, 3);
+    const hasGrowth = trend.length >= 2 && trend[trend.length - 1].income >= trend[0].income;
+    factors.push({
+        name: 'Revenue Trend',
+        score: hasGrowth ? 90 : 40,
+        weight: 20,
+        status: hasGrowth ? 'good' : 'warning',
+    });
+
+    const score = Math.round(factors.reduce((s, f) => s + (f.score * f.weight) / 100, 0));
+    const grade: RiskScore['grade'] = score >= 85 ? 'A' : score >= 70 ? 'B' : score >= 55 ? 'C' : score >= 40 ? 'D' : 'F';
+    return { score, grade, factors };
+}
+
+// 9. Cash flow forecast (90 days, week by week)
+export interface CashFlowForecastWeek {
+    week: string;
+    projectedInflow: number;
+    projectedOutflow: number;
+    netCash: number;
+    cumulativeCash: number;
+    alert: boolean;
+}
+
+export function computeCashFlowForecast(transactions: Transaction[], loans: Loan[], invoices: Invoice[]): CashFlowForecastWeek[] {
+    const today = new Date();
+    const result: CashFlowForecastWeek[] = [];
+
+    // Monthly recurring expenses average
+    const last90 = new Date(today); last90.setDate(today.getDate() - 90);
+    const last90Str = last90.toISOString().split('T')[0];
+    const recurringExpenses = transactions.filter(t => t.type === 'expense' && t.isRecurring && t.date >= last90Str);
+    const weeklyExpenseBase = recurringExpenses.reduce((s, t) => s + t.amount, 0) / 13; // 13 weeks in 90 days
+
+    // Monthly loan payments
+    const monthlyLoanCost = loans.filter(l => l.status === 'active').reduce((s, l) => s + loanMonthlyPayment(l.principal, l.interestRate, l.termMonths), 0);
+    const weeklyLoanCost = monthlyLoanCost / 4.33;
+
+    // Map invoice due dates to weeks
+    const invoiceMap = new Map<string, number>();
+    for (const inv of invoices) {
+        if (inv.status === 'paid') continue;
+        const due = new Date(inv.dueDate);
+        if (due < today) continue;
+        const diffDays = Math.floor((due.getTime() - today.getTime()) / 86400000);
+        const weekKey = `W${Math.floor(diffDays / 7) + 1}`;
+        invoiceMap.set(weekKey, (invoiceMap.get(weekKey) ?? 0) + inv.total);
+    }
+
+    let cumulative = 0;
+    for (let w = 0; w < 13; w++) {
+        const weekStart = new Date(today); weekStart.setDate(today.getDate() + w * 7);
+        const weekEnd   = new Date(today); weekEnd.setDate(today.getDate() + (w + 1) * 7 - 1);
+        const weekKey = `W${w + 1}`;
+        const inflow  = invoiceMap.get(weekKey) ?? 0;
+        const outflow = weeklyExpenseBase + weeklyLoanCost;
+        const net = inflow - outflow;
+        cumulative += net;
+        result.push({
+            week: `${weekStart.toLocaleDateString('default', { month: 'short', day: 'numeric' })}`,
+            projectedInflow: Math.round(inflow),
+            projectedOutflow: Math.round(outflow),
+            netCash: Math.round(net),
+            cumulativeCash: Math.round(cumulative),
+            alert: cumulative < 0,
+        });
+    }
+    return result;
+}
+
+// 10. Payment timing optimiser
+export interface PaymentAction {
+    action: 'collect' | 'pay';
+    description: string;
+    amount: number;
+    dueDate: string;
+    urgency: 'urgent' | 'soon' | 'flexible';
+    impact: string;
+}
+
+export function computePaymentOptimiser(transactions: Transaction[], invoices: Invoice[], cashBalance: number): PaymentAction[] {
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    const actions: PaymentAction[] = [];
+
+    // Overdue / pending receivables
+    const pendingAR = transactions.filter(t => t.type === 'income' && (t.status === 'pending' || t.status === 'overdue') && t.dueDate);
+    for (const t of pendingAR) {
+        const due = new Date(t.dueDate!);
+        const daysUntilDue = Math.floor((due.getTime() - today.getTime()) / 86400000);
+        const urgency: PaymentAction['urgency'] = daysUntilDue < 0 ? 'urgent' : daysUntilDue <= 7 ? 'soon' : 'flexible';
+        actions.push({
+            action: 'collect',
+            description: t.description,
+            amount: t.amount,
+            dueDate: t.dueDate!,
+            urgency,
+            impact: daysUntilDue < 0 ? `Overdue by ${Math.abs(daysUntilDue)} days — chase immediately` : `Collecting adds ${t.amount.toLocaleString()} to cash`,
+        });
+    }
+
+    // Pending payables
+    const pendingAP = transactions.filter(t => t.type === 'expense' && (t.status === 'pending') && t.dueDate);
+    for (const t of pendingAP) {
+        const due = new Date(t.dueDate!);
+        const daysUntilDue = Math.floor((due.getTime() - today.getTime()) / 86400000);
+        const urgency: PaymentAction['urgency'] = daysUntilDue < 0 ? 'urgent' : daysUntilDue <= 7 ? 'soon' : 'flexible';
+        actions.push({
+            action: 'pay',
+            description: t.description,
+            amount: t.amount,
+            dueDate: t.dueDate!,
+            urgency,
+            impact: urgency === 'flexible' ? `Delay payment to preserve ${cashBalance.toLocaleString()} cash balance` : `Pay to avoid late fees`,
+        });
+    }
+
+    // Sort: urgent first, then collect before pay
+    return actions.sort((a, b) => {
+        const urgencyOrder = { urgent: 0, soon: 1, flexible: 2 };
+        if (urgencyOrder[a.urgency] !== urgencyOrder[b.urgency]) return urgencyOrder[a.urgency] - urgencyOrder[b.urgency];
+        if (a.action !== b.action) return a.action === 'collect' ? -1 : 1;
+        return 0;
+    });
+}
+
+// 11. Debt repayment optimiser
+export interface DebtOptimizerResult {
+    avalanche: { order: string[]; totalInterestSaved: number; monthsToPayoff: number };
+    snowball: { order: string[]; totalInterestSaved: number; monthsToPayoff: number };
+    recommendation: string;
+}
+
+export function computeDebtOptimiser(loans: Loan[]): DebtOptimizerResult {
+    const activeLoans = loans.filter(l => l.status === 'active');
+    if (activeLoans.length === 0) {
+        return {
+            avalanche: { order: [], totalInterestSaved: 0, monthsToPayoff: 0 },
+            snowball: { order: [], totalInterestSaved: 0, monthsToPayoff: 0 },
+            recommendation: 'No active loans to optimize.',
+        };
+    }
+
+    const getBalance = (l: Loan) => Math.max(0, l.principal - l.payments.reduce((s, p) => s + p.amount, 0));
+    const getTotalInterest = (l: Loan) => {
+        const bal = getBalance(l);
+        const mp = loanMonthlyPayment(bal, l.interestRate, l.termMonths);
+        return Math.max(0, mp * l.termMonths - bal);
+    };
+
+    // Avalanche: highest interest rate first
+    const avalancheOrder = [...activeLoans].sort((a, b) => b.interestRate - a.interestRate);
+    const avalancheInterest = avalancheOrder.reduce((s, l) => s + getTotalInterest(l), 0);
+    const avalancheMonths = Math.max(...avalancheOrder.map(l => l.termMonths));
+
+    // Snowball: smallest balance first
+    const snowballOrder = [...activeLoans].sort((a, b) => getBalance(a) - getBalance(b));
+    const snowballInterest = snowballOrder.reduce((s, l) => s + getTotalInterest(l), 0);
+    const snowballMonths = Math.max(...snowballOrder.map(l => l.termMonths));
+
+    const interestDiff = snowballInterest - avalancheInterest;
+    const recommendation = interestDiff > 0
+        ? `Avalanche method saves ${interestDiff.toFixed(0)} in interest. Focus on ${avalancheOrder[0]?.lenderName} first (${avalancheOrder[0]?.interestRate}% rate).`
+        : `Both methods yield similar results. Snowball may boost motivation by clearing ${snowballOrder[0]?.lenderName} first.`;
+
+    return {
+        avalanche: { order: avalancheOrder.map(l => l.lenderName), totalInterestSaved: Math.round(interestDiff), monthsToPayoff: avalancheMonths },
+        snowball: { order: snowballOrder.map(l => l.lenderName), totalInterestSaved: 0, monthsToPayoff: snowballMonths },
+        recommendation,
+    };
+}
+
+// 12. Weekly CFO summary
+export interface WeeklyCFOSummary {
+    thisWeekIncome: number;
+    lastWeekIncome: number;
+    thisWeekExpense: number;
+    lastWeekExpense: number;
+    weeklyChange: number;
+    topRisks: string[];
+    topActions: string[];
+    cashRunwayDays: number;
+}
+
+export function computeWeeklyCFOSummary(
+    transactions: Transaction[],
+    goals: FinancialGoal[],
+    loans: Loan[],
+    finance: FinanceData,
+): WeeklyCFOSummary {
+    const today = new Date();
+    const weekStart = new Date(today); weekStart.setDate(today.getDate() - today.getDay());
+    const lastWeekStart = new Date(weekStart); lastWeekStart.setDate(weekStart.getDate() - 7);
+    const lastWeekEnd = new Date(weekStart); lastWeekEnd.setDate(weekStart.getDate() - 1);
+
+    const weekStartStr = weekStart.toISOString().split('T')[0];
+    const lastWeekStartStr = lastWeekStart.toISOString().split('T')[0];
+    const lastWeekEndStr = lastWeekEnd.toISOString().split('T')[0];
+    const todayStr = today.toISOString().split('T')[0];
+
+    const thisWeekTx = transactions.filter(t => t.date >= weekStartStr && t.date <= todayStr);
+    const lastWeekTx = transactions.filter(t => t.date >= lastWeekStartStr && t.date <= lastWeekEndStr);
+
+    const thisWeekIncome  = thisWeekTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+    const lastWeekIncome  = lastWeekTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+    const thisWeekExpense = thisWeekTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+    const lastWeekExpense = lastWeekTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+    const weeklyChange = lastWeekIncome > 0 ? ((thisWeekIncome - lastWeekIncome) / lastWeekIncome) * 100 : 0;
+
+    const dailyBurn = finance.expense > 0 ? finance.expense / 365 : 1;
+    const cashRunwayDays = Math.round(finance.cashBalance / dailyBurn);
+
+    const topRisks: string[] = [];
+    if (finance.profit < 0) topRisks.push('Business is running at a loss');
+    if (cashRunwayDays < 30) topRisks.push(`Only ${cashRunwayDays} days of cash runway remaining`);
+    const overdueCount = transactions.filter(t => t.status === 'overdue').length;
+    if (overdueCount > 0) topRisks.push(`${overdueCount} overdue transactions need attention`);
+    const dscr = computeDSCR(transactions, loans);
+    if (dscr.status === 'danger') topRisks.push('Debt service coverage ratio is critical');
+
+    const topActions: string[] = [];
+    if (weeklyChange < -10) topActions.push('Revenue dropped >10% vs last week — review sales pipeline');
+    if (thisWeekExpense > thisWeekIncome) topActions.push('Expenses exceeding income this week — review discretionary costs');
+    if (topRisks.length === 0) topActions.push('Business is healthy — focus on growth initiatives');
+
+    return { thisWeekIncome, lastWeekIncome, thisWeekExpense, lastWeekExpense, weeklyChange, topRisks: topRisks.slice(0, 3), topActions: topActions.slice(0, 3), cashRunwayDays };
+}
+
+// 13. Budget vs actual
+export interface BudgetVsActual {
+    category: string;
+    budgeted: number;
+    actual: number;
+    variance: number;
+    variancePct: number;
+    status: 'under' | 'over' | 'on_track';
+}
+
+export function computeBudgetVsActual(transactions: Transaction[], budgets: Budget[], month: string): BudgetVsActual[] {
+    const monthTx = transactions.filter(t => t.date.startsWith(month) && t.type === 'expense');
+    return budgets.map(b => {
+        const actual = monthTx.filter(t => t.category.toLowerCase() === b.category.toLowerCase()).reduce((s, t) => s + t.amount, 0);
+        const variance = b.monthlyAmount - actual;
+        const variancePct = b.monthlyAmount > 0 ? (variance / b.monthlyAmount) * 100 : 0;
+        const status: BudgetVsActual['status'] = Math.abs(variancePct) <= 5 ? 'on_track' : variance < 0 ? 'over' : 'under';
+        return { category: b.category, budgeted: b.monthlyAmount, actual, variance, variancePct, status };
+    });
+}
+
+// Balance Sheet CSV export
+export function generateBalanceSheetCSV(finance: FinanceData, assets: Asset[], loans: Loan[], transactions: Transaction[]): string {
+    const rows: string[] = [];
+    rows.push('BALANCE SHEET');
+    rows.push(`Generated,${new Date().toLocaleDateString()}`);
+    rows.push('');
+    rows.push('ASSETS');
+    rows.push('Item,Amount');
+    rows.push(`Cash & Bank Balance,${finance.cashBalance.toFixed(2)}`);
+    for (const a of assets.filter(a => a.status === 'active')) {
+        const val = Math.max(a.residualValue, a.purchaseCost);
+        rows.push(`${a.name} (${a.category}),${val.toFixed(2)}`);
+    }
+    rows.push(`Total Assets,${finance.assets.toFixed(2)}`);
+    rows.push('');
+    rows.push('LIABILITIES');
+    rows.push('Item,Amount');
+    const activeLoans = loans.filter(l => l.status === 'active');
+    for (const l of activeLoans) {
+        const balance = Math.max(0, l.principal - l.payments.reduce((s, p) => s + p.amount, 0));
+        rows.push(`Loan - ${l.lenderName},${balance.toFixed(2)}`);
+    }
+    rows.push(`Total Liabilities,${finance.liabilities.toFixed(2)}`);
+    rows.push('');
+    rows.push('EQUITY');
+    rows.push(`Retained Earnings / Equity,${finance.equity.toFixed(2)}`);
+    return rows.join('\n');
+}
+
+// Full accountant report CSV
+export function generateAccountantReportCSV(finance: FinanceData, transactions: Transaction[], assets: Asset[], loans: Loan[]): string {
+    const sections: string[] = [];
+
+    // P&L
+    sections.push('=== PROFIT & LOSS STATEMENT ===');
+    sections.push('Item,Amount');
+    sections.push(`Total Revenue,${finance.income.toFixed(2)}`);
+    sections.push(`Total Expenses,${finance.expense.toFixed(2)}`);
+    sections.push(`Net Profit,${finance.profit.toFixed(2)}`);
+    sections.push(`Profit Margin,${finance.margin.toFixed(2)}%`);
+    sections.push('');
+
+    // Balance Sheet
+    sections.push(generateBalanceSheetCSV(finance, assets, loans, transactions));
+    sections.push('');
+
+    // Cash Flow Summary
+    sections.push('=== CASH FLOW SUMMARY ===');
+    const collected = transactions.filter(t => t.type === 'income' && t.status === 'paid').reduce((s, t) => s + t.amount, 0);
+    const paid = transactions.filter(t => t.type === 'expense' && t.status === 'paid').reduce((s, t) => s + t.amount, 0);
+    sections.push(`Cash Collected,${collected.toFixed(2)}`);
+    sections.push(`Cash Paid Out,${paid.toFixed(2)}`);
+    sections.push(`Net Cash Flow,${(collected - paid).toFixed(2)}`);
+    sections.push('');
+
+    // Transaction list
+    sections.push('=== TRANSACTION LIST ===');
+    sections.push('Date,Description,Type,Category,Amount,Status');
+    for (const t of transactions) {
+        sections.push(`${t.date},"${t.description}",${t.type},${t.category},${t.amount.toFixed(2)},${t.status ?? 'paid'}`);
+    }
+
+    return sections.join('\n');
 }

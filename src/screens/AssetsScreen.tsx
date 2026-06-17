@@ -10,6 +10,7 @@ import FooterNav from '../components/FooterNav';
 import { t } from '../utils/i18n';
 import { Asset, AssetCategory } from '../types';
 import { computeAssetCurrentValue, computeAssetAnnualDepreciation } from '../utils/finance';
+import DateInput from '../components/DateInput';
 
 const CATEGORIES: AssetCategory[] = ['equipment', 'vehicle', 'furniture', 'property', 'intangible', 'other'];
 
@@ -25,7 +26,7 @@ function categoryLabel(cat: AssetCategory, lang: Parameters<typeof t>[0]): strin
 type FilterTab = 'active' | 'disposed' | 'all';
 
 export default function AssetsScreen() {
-    const { assets, addAsset, updateAsset, deleteAsset, disposeAsset, settings, language } = useApp();
+    const { assets, addAsset, updateAsset, deleteAsset, disposeAsset, settings, language, setCurrentScreen, navigate } = useApp();
     const { currency } = settings;
 
     const [filter, setFilter] = useState<FilterTab>('active');
@@ -125,8 +126,20 @@ export default function AssetsScreen() {
     return (
         <SafeAreaView style={s.safe}>
             <Header />
+            <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 }}>
+                <TouchableOpacity onPress={() => navigate('dashboard')}>
+                    <Text style={{ color: Colors.primary, fontSize: 14 }}>← Dashboard</Text>
+                </TouchableOpacity>
+            </View>
             <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
-                <Text style={s.title}>{t(language, 'assetRegister')}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
+                    <Text style={[s.title, { flex: 1, marginBottom: 0 }]}>{t(language, 'assetRegister')}</Text>
+                    <TouchableOpacity
+                        style={{ backgroundColor: Colors.surface, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7, borderWidth: 1, borderColor: Colors.border }}
+                        onPress={() => setCurrentScreen('loans')}>
+                        <Text style={{ fontSize: 12, color: Colors.primary, fontWeight: '600' }}>🏦 Loan Register →</Text>
+                    </TouchableOpacity>
+                </View>
 
                 {/* Summary */}
                 <View style={s.summaryCard}>
@@ -134,6 +147,15 @@ export default function AssetsScreen() {
                     <Text style={s.summaryValue}>{currency}{totalActiveValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
                     <Text style={s.summaryMeta}>{assets.filter(a => a.status === 'active').length} active · {assets.filter(a => a.status === 'disposed').length} disposed</Text>
                 </View>
+
+                {/* Replacement alerts */}
+                {assets.filter(a => a.status === 'active' && computeAssetCurrentValue(a) <= a.purchaseCost * 0.2 && a.purchaseCost > 0).map(a => (
+                    <View key={a.id} style={s.replaceAlert}>
+                        <Text style={s.replaceAlertText}>
+                            🔔 <Text style={{ fontWeight: '700' }}>{a.name}</Text> is nearly fully depreciated ({Math.round((computeAssetCurrentValue(a) / a.purchaseCost) * 100)}% remaining value) — plan for replacement.
+                        </Text>
+                    </View>
+                ))}
 
                 {/* Filter tabs */}
                 <View style={s.tabRow}>
@@ -189,7 +211,7 @@ export default function AssetsScreen() {
                             <TextInput style={s.input} value={description} onChangeText={setDesc} placeholderTextColor={Colors.muted} placeholder="optional" />
 
                             <Label text={t(language, 'purchaseDate')} />
-                            <TextInput style={s.input} value={purchaseDate} onChangeText={setPDate} placeholderTextColor={Colors.muted} placeholder="2024-01-15" />
+                            <DateInput value={purchaseDate} onChange={setPDate} />
 
                             <Label text={`${t(language, 'purchaseCost')} (${currency})`} />
                             <TextInput style={s.input} value={purchaseCost} onChangeText={setPCost} placeholderTextColor={Colors.muted} keyboardType="decimal-pad" placeholder="0" />
@@ -221,7 +243,7 @@ export default function AssetsScreen() {
                             <Text style={s.modalTitle}>{t(language, 'disposeAsset')}</Text>
 
                             <Label text={t(language, 'disposalDate')} />
-                            <TextInput style={s.input} value={disposalDate} onChangeText={setDispDate} placeholderTextColor={Colors.muted} />
+                            <DateInput value={disposalDate} onChange={setDispDate} />
 
                             <Label text={`${t(language, 'disposalValue')} (${currency})`} />
                             <TextInput style={s.input} value={disposalValue} onChangeText={setDispVal} keyboardType="decimal-pad" placeholderTextColor={Colors.muted} />
@@ -248,10 +270,12 @@ function AssetCard({ asset, currency, language, onEdit, onDispose, onDelete }: {
     asset: Asset; currency: string; language: Parameters<typeof t>[0];
     onEdit: () => void; onDispose: () => void; onDelete: () => void;
 }) {
-    const currentVal = computeAssetCurrentValue(asset);
-    const annualDep  = computeAssetAnnualDepreciation(asset);
+    const currentVal  = computeAssetCurrentValue(asset);
+    const annualDep   = computeAssetAnnualDepreciation(asset);
     const accumulated = asset.purchaseCost - currentVal;
-    const disposed = asset.status === 'disposed';
+    const disposed    = asset.status === 'disposed';
+    const valueRetained = asset.purchaseCost > 0 ? (currentVal / asset.purchaseCost) * 100 : 0;
+    const healthColor = valueRetained > 60 ? Colors.income : valueRetained > 25 ? Colors.warning : Colors.expense;
 
     return (
         <View style={[s.card, disposed && s.cardDisposed]}>
@@ -270,9 +294,15 @@ function AssetCard({ asset, currency, language, onEdit, onDispose, onDelete }: {
             </View>
 
             {!disposed && (
-                <Text style={s.depLine}>
-                    {t(language, 'annualDepreciation')}: {currency}{annualDep.toLocaleString(undefined, { maximumFractionDigits: 0 })}/yr · {asset.usefulLifeYears}yr life
-                </Text>
+                <>
+                    {/* Value health bar */}
+                    <View style={s.healthBarBg}>
+                        <View style={[s.healthBarFill, { width: `${Math.max(2, valueRetained)}%` as any, backgroundColor: healthColor }]} />
+                    </View>
+                    <Text style={[s.healthLabel, { color: healthColor }]}>
+                        {valueRetained.toFixed(0)}% value retained · {t(language, 'annualDepreciation')}: {currency}{annualDep.toLocaleString(undefined, { maximumFractionDigits: 0 })}/yr
+                    </Text>
+                </>
             )}
 
             {disposed && asset.disposalValue !== undefined && (
@@ -357,6 +387,11 @@ const s = StyleSheet.create({
 
     depLine:  { fontSize: 11, color: Colors.textSecondary, marginBottom: 2 },
     dateLine: { fontSize: 11, color: Colors.textMuted, marginBottom: 8 },
+    healthBarBg:   { height: 5, backgroundColor: Colors.border, borderRadius: 3, marginBottom: 3 },
+    healthBarFill: { height: 5, borderRadius: 3 },
+    healthLabel:   { fontSize: 10, fontWeight: '600', marginBottom: 4 },
+    replaceAlert:  { backgroundColor: 'rgba(245,158,11,0.12)', borderWidth: 1, borderColor: Colors.warning, borderRadius: 10, padding: 12, marginBottom: 10 },
+    replaceAlertText: { fontSize: 12, color: Colors.warning, lineHeight: 18 },
 
     actionRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
     actionBtn: { flex: 1, paddingVertical: 6, borderRadius: 6, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
