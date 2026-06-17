@@ -559,10 +559,7 @@ export default function LoginScreen() {
                         <Text style={styles.resetText}>Forgot PIN?</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.demoBtn} onPress={() => setMode('demo-pick')}>
-                        <Text style={styles.demoBtnText}>👀 Try Demo (No sign-up needed)</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.demoEntryBtn} onPress={() => setMode('demo-pick')}>
-                        <Text style={styles.demoEntryBtnText}>👀 Try Demo First</Text>
+                        <Text style={styles.demoBtnText}>👀 Try Demo First (No sign-up needed)</Text>
                     </TouchableOpacity>
                 </View>
             </ScrollView>

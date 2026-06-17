@@ -23,6 +23,7 @@ import {
     AppBackup,
 } from '../utils/storage';
 import { refreshGoal, goalDefaults } from '../utils/goals';
+import { requestNotificationPermission, sendWelcomeNotification, scheduleDailyReminder, scheduleWeeklySummaryReminder, scheduleOverdueInvoiceReminder } from '../utils/notifications';
 import { supabase } from '../utils/supabase';
 import { t } from '../utils/i18n';
 import { DEMO_BUSINESSES } from '../utils/demoData';
@@ -65,6 +66,7 @@ interface AppContextValue {
     goals: FinancialGoal[];
     addGoal: (type: GoalType, overrides: Partial<FinancialGoal>) => void;
     deleteGoal: (id: string) => void;
+    updateGoal: (id: string, changes: Partial<Pick<FinancialGoal, 'title' | 'description' | 'targetValue' | 'deadline' | 'priority'>>) => void;
     updateGoalCurrentValue: (id: string, value: number) => void;
 
     invoices: Invoice[];
@@ -564,6 +566,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setGoals(prev => prev.filter(g => g.id !== id));
     };
 
+    const updateGoal = (id: string, changes: Partial<Pick<FinancialGoal, 'title' | 'description' | 'targetValue' | 'deadline' | 'priority'>>) => {
+        setGoals(prev => prev.map(g => {
+            if (g.id !== id) return g;
+            const updated = { ...g, ...changes };
+            return refreshGoal(updated, finance, transactions);
+        }));
+    };
+
     const updateGoalCurrentValue = (id: string, value: number) => {
         setGoals(prev => prev.map(g => {
             if (g.id !== id) return g;
@@ -798,7 +808,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         isLockedOut, lockoutUntil,
         settings, updateSettings,
         transactions, addTransaction, deleteTransaction, updateTransaction,
-        goals, addGoal, deleteGoal, updateGoalCurrentValue,
+        goals, addGoal, deleteGoal, updateGoal, updateGoalCurrentValue,
         invoices, addInvoice, updateInvoice, deleteInvoice, markInvoiceStatus,
         assets, addAsset, updateAsset, deleteAsset, disposeAsset,
         loans, addLoan, updateLoan, deleteLoan, addLoanPayment,

@@ -536,16 +536,12 @@ export async function deleteAccountData(): Promise<void> {
     await clearAllData();
     const ownerId = await getWorkspaceOwnerId();
     if (ownerId) {
-        const results = await Promise.allSettled([
-            supabase.from('transactions').delete().eq('user_id', ownerId),
-            supabase.from('goals').delete().eq('user_id', ownerId),
-            supabase.from('settings').delete().eq('user_id', ownerId),
-            supabase.from('invoices').delete().eq('user_id', ownerId),
-            supabase.from('assets').delete().eq('user_id', ownerId),
-            supabase.from('audit_logs').delete().eq('user_id', ownerId),
-        ]);
+        const tables = ['transactions','goals','settings','invoices','assets','inventory','audit_logs'];
+        const results = await Promise.allSettled(
+            tables.map(t => supabase.from(t).delete().eq('user_id', ownerId))
+        );
         results.forEach((r, i) => {
-            if (r.status === 'rejected') logSyncError(['transactions','goals','settings','invoices','assets','audit_logs'][i], 'delete', r.reason);
+            if (r.status === 'rejected') logSyncError(tables[i], 'delete', r.reason);
         });
         await supabase.auth.signOut();
     }

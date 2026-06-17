@@ -37,14 +37,15 @@ const STATUS_LABELS: Record<FinancialGoal['status'], string> = {
 const PRIORITY_COLORS = { high: Colors.expense, medium: Colors.warning, low: Colors.textMuted };
 
 export default function GoalsScreen() {
-    const { goals, addGoal, deleteGoal, finance, transactions, settings, navParams } = useApp();
+    const { goals, addGoal, deleteGoal, updateGoal, finance, transactions, settings, navParams } = useApp();
     const { currency } = settings;
 
     const [addModalOpen, setAddModalOpen] = useState(false);
+    const [editGoal, setEditGoal]         = useState<FinancialGoal | null>(null);
     const [strategyGoalId, setStrategyGoalId] = useState<string | null>(null);
     const [selectedType, setSelectedType] = useState<GoalType | null>(null);
 
-    // Form state for new goal
+    // Form state for new/edit goal
     const [form, setForm] = useState({
         title: '',
         description: '',
@@ -102,6 +103,21 @@ export default function GoalsScreen() {
         ]);
     };
 
+    const openEditModal = (goal: FinancialGoal) => {
+        setEditGoal(goal);
+        setForm({ title: goal.title, description: goal.description, targetValue: String(goal.targetValue), deadline: goal.deadline });
+    };
+
+    const handleEditSave = () => {
+        if (!editGoal) return;
+        if (!form.title.trim()) { Alert.alert('Missing field', 'Please enter a goal title.'); return; }
+        if (!form.deadline.match(/^\d{4}-\d{2}-\d{2}$/)) { Alert.alert('Invalid date', 'Enter deadline as YYYY-MM-DD.'); return; }
+        const tv = parseFloat(form.targetValue);
+        if (isNaN(tv)) { Alert.alert('Invalid value', 'Enter a numeric target value.'); return; }
+        updateGoal(editGoal.id, { title: form.title.trim(), description: form.description.trim(), targetValue: tv, deadline: form.deadline });
+        setEditGoal(null);
+    };
+
     const daysRemaining = (deadline: string) => {
         const d = Math.ceil((new Date(deadline).getTime() - Date.now()) / 86400000);
         if (d < 0) return 'Overdue';
@@ -138,6 +154,7 @@ export default function GoalsScreen() {
                                     currency={currency}
                                     daysRemaining={daysRemaining(goal.deadline)}
                                     onStrategy={() => setStrategyGoalId(goal.id)}
+                                    onEdit={() => openEditModal(goal)}
                                     onDelete={() => handleDelete(goal.id, goal.title)}
                                 />
                             ))}
@@ -214,6 +231,38 @@ export default function GoalsScreen() {
                 </View>
             </Modal>
 
+            {/* Edit Goal Modal */}
+            <Modal visible={!!editGoal} animationType="slide" transparent onRequestClose={() => setEditGoal(null)}>
+                <View style={styles.overlay}>
+                    <ScrollView keyboardShouldPersistTaps="handled">
+                        <View style={styles.modal}>
+                            <Text style={styles.modalTitle}>Edit Goal</Text>
+
+                            <FieldLabel>Goal Title</FieldLabel>
+                            <TextInput style={styles.input} value={form.title} onChangeText={v => setForm(f => ({ ...f, title: v }))} placeholder="Goal title" placeholderTextColor={Colors.muted} />
+
+                            <FieldLabel>Description (optional)</FieldLabel>
+                            <TextInput style={[styles.input, { height: 70 }]} value={form.description} onChangeText={v => setForm(f => ({ ...f, description: v }))} multiline placeholderTextColor={Colors.muted} />
+
+                            <FieldLabel>Target Value</FieldLabel>
+                            <TextInput style={styles.input} value={form.targetValue} onChangeText={v => setForm(f => ({ ...f, targetValue: v }))} keyboardType="numeric" placeholderTextColor={Colors.muted} />
+
+                            <FieldLabel>Deadline</FieldLabel>
+                            <DateInput value={form.deadline} onChange={v => setForm(f => ({ ...f, deadline: v }))} />
+
+                            <View style={styles.modalBtns}>
+                                <TouchableOpacity style={[styles.modalBtn, { backgroundColor: Colors.muted }]} onPress={() => setEditGoal(null)}>
+                                    <Text style={styles.modalBtnText}>Cancel</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={[styles.modalBtn, { backgroundColor: Colors.primary }]} onPress={handleEditSave}>
+                                    <Text style={styles.modalBtnText}>Save Changes</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </ScrollView>
+                </View>
+            </Modal>
+
             {/* Strategy Modal */}
             <Modal visible={!!strategyGoalId} animationType="slide" transparent onRequestClose={() => setStrategyGoalId(null)}>
                 <View style={styles.overlay}>
@@ -261,11 +310,12 @@ export default function GoalsScreen() {
     );
 }
 
-function GoalCard({ goal, currency, daysRemaining, onStrategy, onDelete }: {
+function GoalCard({ goal, currency, daysRemaining, onStrategy, onEdit, onDelete }: {
     goal: FinancialGoal;
     currency: string;
     daysRemaining: string;
     onStrategy: () => void;
+    onEdit: () => void;
     onDelete: () => void;
 }) {
     const statusColor = STATUS_COLORS[goal.status];
@@ -330,7 +380,10 @@ function GoalCard({ goal, currency, daysRemaining, onStrategy, onDelete }: {
                 <TouchableOpacity style={cardStyles.strategyBtn} onPress={onStrategy}>
                     <Text style={cardStyles.strategyBtnText}>View Strategy →</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={onDelete}>
+                <TouchableOpacity onPress={onEdit} style={{ marginLeft: 12 }}>
+                    <Text style={[cardStyles.deleteText, { color: Colors.primary }]}>Edit</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={onDelete} style={{ marginLeft: 12 }}>
                     <Text style={cardStyles.deleteText}>Delete</Text>
                 </TouchableOpacity>
             </View>
