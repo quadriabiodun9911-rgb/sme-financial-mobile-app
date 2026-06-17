@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text,
     TouchableOpacity, StyleSheet, ActivityIndicator,
@@ -477,6 +477,8 @@ export default function DashboardScreen() {
                     </TouchableOpacity>
                 </KeyboardAvoidingView>
             </Modal>
+            <OnboardingWizard visible={showOnboardingWizard} onDone={() => setShowOnboardingWizard(false)} />
+            <ProfitShareCard visible={showShareCard} onClose={() => setShowShareCard(false)} />
         </SafeAreaView>
     );
 }

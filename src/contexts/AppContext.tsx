@@ -45,6 +45,7 @@ interface AppContextValue {
     userRole: UserRole;
     isFirstLaunch: boolean;
     setupAccount: (email: string, businessName: string, pin: string, loadDemo: boolean) => Promise<void>;
+    recoverAccount: (email: string, pin: string) => Promise<void>;
     login: (pin: string) => boolean;
     joinTeam: (email: string, pin: string, inviteCode: string) => Promise<void>;
     logout: () => void;
@@ -136,54 +137,6 @@ const DEFAULT_SETTINGS: BusinessSettings = {
     defaultTaxRate: '0',
 };
 
-const DEMO_TRANSACTIONS: Transaction[] = [
-    {
-        id: 'demo-1',
-        date: new Date().toISOString().split('T')[0],
-        description: 'Enterprise Software SLA License',
-        type: 'income',
-        category: 'Software sales',
-        amount: 85000,
-        taxRate: 10,
-        taxAmount: 8500,
-        transactionCategory: 'sale',
-        vendorCustomer: 'TechCorp Inc.',
-        reference: 'INV-001',
-        status: 'paid',
-    },
-    {
-        id: 'demo-2',
-        date: new Date().toISOString().split('T')[0],
-        description: 'Office Rent – June',
-        type: 'expense',
-        category: 'Office & Admin',
-        amount: 3200,
-        status: 'paid',
-    },
-    {
-        id: 'demo-3',
-        date: new Date().toISOString().split('T')[0],
-        description: 'Consulting Retainer',
-        type: 'income',
-        category: 'Consulting',
-        amount: 12000,
-        status: 'pending',
-        dueDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
-        vendorCustomer: 'BuildCo Ltd.',
-        reference: 'INV-002',
-    },
-    {
-        id: 'demo-4',
-        date: new Date().toISOString().split('T')[0],
-        description: 'Cloud Infrastructure',
-        type: 'expense',
-        category: 'Equipment',
-        amount: 1800,
-        status: 'paid',
-        isRecurring: true,
-        recurringFrequency: 'monthly',
-    },
-];
 
 function processDueRecurring(transactions: Transaction[]): { updated: Transaction[]; newEntries: Transaction[] } {
     const today = new Date().toISOString().split('T')[0];
@@ -217,6 +170,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const [userRole, setUserRole]           = useState<UserRole>('owner');
     const [storedPin, setStoredPin]         = useState<string | null>(null);
     const [hasProfile, setHasProfile]       = useState(false);
+    const [isDemoMode, setIsDemoMode]       = useState(false);
     const [settings, setSettings]           = useState<BusinessSettings>(DEFAULT_SETTINGS);
     const [transactions, setTransactions]   = useState<Transaction[]>([]);
     const [goals, setGoals]                 = useState<FinancialGoal[]>([]);
@@ -228,7 +182,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const [teamMembers, setTeamMembers]     = useState<TeamMember[]>([]);
     const [language, setLang]              = useState<Language>('en');
     const [isLoading, setIsLoading]         = useState(true);
-    const [isDemoMode, setIsDemoMode]       = useState(false);
     // Security: Rate limiting for login attempts (persisted so restart doesn't reset)
     const [loginAttempts, setLoginAttempts]       = useState(0);
     const [isLockedOut, setIsLockedOut]           = useState(false);
@@ -353,6 +306,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const exitDemo = () => {
         setIsDemoMode(false);
+        setHasProfile(storedPin !== null);
         setTransactions([]);
         setAssets([]);
         setLoans([]);
@@ -403,10 +357,56 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setStoredPin(pin);
         setHasProfile(true);
         setUserRole('owner');
-        if (loadDemo) setTransactions(DEMO_TRANSACTIONS);
+
         identifyUser(email, { businessName });
         trackUserRegistered(settings.currency);
         setUser({ email, businessName, role: 'Administrator' });
+        setCurrentScreen('dashboard');
+        // Set up notifications after account creation
+        requestNotificationPermission().then(granted => {
+            if (granted) {
+                sendWelcomeNotification(businessName);
+                scheduleDailyReminder();
+                scheduleWeeklySummaryReminder();
+            }
+        }).catch(() => {});
+    };
+
+    // Recover existing account on a new device — authenticates with Supabase and pulls all data
+    const recoverAccount = async (email: string, pin: string) => {
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password: pin });
+        if (error || !data.user) throw new Error('Incorrect email or PIN. Please try again.');
+
+        // Pull profile from Supabase
+        const { data: profileRow } = await supabase
+            .from('profiles')
+            .select('business_name, email')
+            .eq('id', data.user.id)
+            .single();
+        if (!profileRow) throw new Error('Account found but no business profile exists. Please set up your account.');
+
+        const profile = { email: profileRow.email ?? email, businessName: profileRow.business_name ?? '' };
+
+        // Save auth locally so future logins work with PIN only
+        await clearWorkspaceOwner();
+        await savePin(pin);
+        await saveProfile(profile);
+        setStoredPin(pin);
+        setHasProfile(true);
+        setUserRole('owner');
+        setUser({ email: profile.email, businessName: profile.businessName, role: 'Administrator' });
+
+        // Load all their cloud data
+        const [savedTx, savedSettings, savedGoals, savedInvoices, savedAssets2, savedInventory2] = await Promise.all([
+            loadTransactions(), loadSettings(), loadGoals(), loadInvoices(), loadAssets(), loadInventory(),
+        ]);
+        if (savedTx) { const { updated, newEntries } = processDueRecurring(savedTx); setTransactions([...newEntries, ...updated]); }
+        if (savedSettings)   setSettings({ ...DEFAULT_SETTINGS, ...savedSettings });
+        if (savedGoals)      setGoals(savedGoals);
+        if (savedInvoices)   setInvoices(savedInvoices);
+        if (savedAssets2)    setAssets(savedAssets2);
+        if (savedInventory2) setInventory(savedInventory2);
+
         setCurrentScreen('dashboard');
     };
 
@@ -583,6 +583,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
             status: 'pending', dueDate: inv.dueDate,
             vendorCustomer: inv.clientName, reference: inv.invoiceNumber,
         });
+        // Schedule overdue alert if invoice has a due date
+        if (inv.dueDate) {
+            scheduleOverdueInvoiceReminder(inv.invoiceNumber, inv.clientName).catch(() => {});
+        }
     };
 
     const updateInvoice = (id: string, patch: Partial<Invoice>) => {
@@ -768,7 +772,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         navParams, navigate,
         user, userRole,
         isFirstLaunch: !hasProfile && !isLoading,
-        setupAccount, login, joinTeam, logout, changePin,
+        isDemoMode, enterDemo, exitDemo,
+        setupAccount, recoverAccount, login, joinTeam, logout, changePin,
         isLockedOut, lockoutUntil,
         settings, updateSettings,
         transactions, addTransaction, deleteTransaction, updateTransaction,
@@ -779,7 +784,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem,
         budgets, addBudget, updateBudget, deleteBudget,
         teamMembers, inviteMember, removeMember, refreshTeam,
-        isDemoMode, enterDemo, exitDemo,
         language, setLanguage,
         finance, insight, isLoading,
         exportData, importData, clearData, resetApp,

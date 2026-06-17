@@ -561,6 +561,9 @@ export default function LoginScreen() {
                     <TouchableOpacity style={styles.demoBtn} onPress={() => setMode('demo-pick')}>
                         <Text style={styles.demoBtnText}>👀 Try Demo (No sign-up needed)</Text>
                     </TouchableOpacity>
+                    <TouchableOpacity style={styles.demoEntryBtn} onPress={() => setMode('demo-pick')}>
+                        <Text style={styles.demoEntryBtnText}>👀 Try Demo First</Text>
+                    </TouchableOpacity>
                 </View>
             </ScrollView>
         </SafeAreaView>
@@ -606,13 +609,19 @@ const styles = StyleSheet.create({
 
     demoRow: { flexDirection: 'row', gap: 10, marginBottom: 20 },
     demoOpt: {
-        flex: 1, borderWidth: 1, borderColor: Colors.border,
-        borderRadius: 10, padding: 12, alignItems: 'center', backgroundColor: Colors.bg,
+        flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: Colors.border,
+        borderRadius: 10, padding: 12, marginBottom: 10, backgroundColor: Colors.bg,
     },
     demoOptActive:     { borderColor: Colors.primary, backgroundColor: Colors.primary + '22' },
     demoOptText:       { fontSize: 13, fontWeight: '600', color: Colors.textSecondary, marginBottom: 4 },
     demoOptTextActive: { color: Colors.primary },
     demoOptSub:        { fontSize: 10, color: Colors.textMuted, textAlign: 'center', lineHeight: 14 },
+
+    demoFooter: { marginTop: 24, marginBottom: 32, alignItems: 'center', padding: 20, backgroundColor: '#1e3a5f', borderRadius: 16, borderWidth: 1, borderColor: '#3b82f6' },
+    demoFooterText: { color: '#93c5fd', fontSize: 13, marginBottom: 4 },
+    demoFooterSub: { color: Colors.textPrimary, fontSize: 15, fontWeight: '600', marginBottom: 12 },
+    demoSignupBtn: { backgroundColor: Colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 },
+    demoSignupBtnText: { color: Colors.textPrimary, fontWeight: 'bold', fontSize: 14 },
 
     pinContainer: { alignItems: 'center', marginVertical: 24 },
     pinInput: {
