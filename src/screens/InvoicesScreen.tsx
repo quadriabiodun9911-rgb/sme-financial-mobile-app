@@ -21,7 +21,7 @@ const STATUS_COLOR: Record<InvoiceStatus, string> = {
 const EMPTY_LINE: InvoiceLineItem = { description: '', quantity: 1, unitPrice: 0, taxRate: 0 };
 
 function buildInvoiceHtml(inv: Invoice, businessName: string, currency: string): string {
-    const lineRows = inv.lineItems.map(li => {
+    const lineRows = (inv.lineItems ?? []).map(li => {
         const lineTotal = li.quantity * li.unitPrice;
         const lineTax   = lineTotal * (li.taxRate / 100);
         return `
@@ -93,7 +93,7 @@ function buildInvoiceHtml(inv: Invoice, businessName: string, currency: string):
 <table class="totals">
   <tr><td>Subtotal</td><td style="text-align:right">${currency}${inv.subtotal.toFixed(2)}</td></tr>
   <tr><td>Tax</td><td style="text-align:right">${currency}${inv.taxTotal.toFixed(2)}</td></tr>
-  <tr class="grand"><td><b>Total Due</b></td><td style="text-align:right"><b>${currency}${inv.total.toFixed(2)}</b></td></tr>
+  <tr class="grand"><td><b>Total Due</b></td><td style="text-align:right"><b>${currency}${(inv.total ?? 0).toFixed(2)}</b></td></tr>
 </table>
 
 ${inv.notes ? `<div class="notes" style="clear:both;margin-top:60px"><b>Notes:</b><br/>${inv.notes}</div>` : ''}
@@ -149,7 +149,7 @@ export default function InvoicesScreen() {
         setDueDate(inv.dueDate);
         setIssueDate(inv.issueDate);
         setNotes(inv.notes);
-        setLineItems(inv.lineItems);
+        setLineItems(inv.lineItems?.length ? inv.lineItems : [{ ...EMPTY_LINE }]);
         setEditId(inv.id);
         setShowForm(true);
     };
@@ -198,7 +198,7 @@ export default function InvoicesScreen() {
         try {
             // Share as HTML text — on device, user can open in browser and print/save as PDF
             await Share.share({
-                message: `Invoice ${inv.invoiceNumber} for ${inv.clientName}\nTotal: ${currency}${inv.total.toFixed(2)}\nDue: ${inv.dueDate}`,
+                message: `Invoice ${inv.invoiceNumber} for ${inv.clientName}\nTotal: ${currency}${(inv.total ?? 0).toFixed(2)}\nDue: ${inv.dueDate}`,
                 title: `Invoice ${inv.invoiceNumber}`,
             });
         } catch {
@@ -409,7 +409,7 @@ export default function InvoicesScreen() {
                                 </Section>
 
                                 <Section title="Line Items">
-                                    {viewInv.lineItems.map((li, i) => (
+                                    {(viewInv.lineItems ?? []).map((li, i) => (
                                         <View key={i} style={styles.viewLine}>
                                             <Text style={styles.viewLineDesc}>{li.description}</Text>
                                             <Text style={styles.viewLineSub}>
