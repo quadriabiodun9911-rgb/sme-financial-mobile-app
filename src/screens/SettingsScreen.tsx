@@ -28,7 +28,7 @@ const BUSINESS_TYPES: { label: string; value: BusinessSettings['businessType'] }
 export default function SettingsScreen() {
     const {
         settings, updateSettings, setCurrentScreen,
-        changePin, exportData, importData, clearData, logout,
+        changePin, exportData, importData, clearData, deleteAccount, logout,
         userRole, teamMembers, inviteMember, removeMember, refreshTeam,
         language, setLanguage,
     } = useApp();
@@ -152,16 +152,40 @@ export default function SettingsScreen() {
 
     const handleClearData = () => {
         Alert.alert(
-            'Clear All Data',
-            'This will permanently delete all transactions, goals, and settings. This cannot be undone.',
+            'Sign Out & Clear Local Cache',
+            'This signs you out and clears the local app cache. Your data stays safely in the cloud — sign back in any time to restore everything.',
             [
                 { text: 'Cancel', style: 'cancel' },
                 {
-                    text: 'Delete Everything',
+                    text: 'Sign Out',
                     style: 'destructive',
                     onPress: async () => {
                         await clearData();
                         logout();
+                    },
+                },
+            ],
+        );
+    };
+
+    const handleDeleteAccount = () => {
+        Alert.alert(
+            'Delete Account',
+            'This permanently deletes ALL your data — transactions, invoices, goals, and settings — from the cloud. This cannot be undone.',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete My Account',
+                    style: 'destructive',
+                    onPress: () => {
+                        Alert.alert(
+                            'Are you absolutely sure?',
+                            'Your business data will be gone forever. Type DELETE to confirm.',
+                            [
+                                { text: 'Cancel', style: 'cancel' },
+                                { text: 'Yes, Delete Everything', style: 'destructive', onPress: () => deleteAccount() },
+                            ],
+                        );
                     },
                 },
             ],
@@ -288,12 +312,22 @@ export default function SettingsScreen() {
                     </Section>
 
                     {/* Danger Zone */}
-                    <Section title="Danger Zone">
+                    <Section title="Sign Out">
                         <Text style={styles.hint}>
-                            Permanently deletes all transactions, goals, and settings. You will be returned to setup.
+                            Signs you out and clears the local cache. Your data is safely stored in the cloud and will be restored when you sign back in.
                         </Text>
                         <TouchableOpacity style={styles.dangerBtn} onPress={handleClearData}>
-                            <Text style={styles.dangerBtnText}>Clear All Data</Text>
+                            <Text style={styles.dangerBtnText}>Sign Out & Clear Cache</Text>
+                        </TouchableOpacity>
+                    </Section>
+
+                    {/* Delete Account */}
+                    <Section title="Delete Account">
+                        <Text style={styles.hint}>
+                            Permanently removes all your business data from the cloud. This cannot be undone.
+                        </Text>
+                        <TouchableOpacity style={[styles.dangerBtn, { borderColor: '#7f1d1d', backgroundColor: 'rgba(127,29,29,0.12)' }]} onPress={handleDeleteAccount}>
+                            <Text style={[styles.dangerBtnText, { color: '#ef4444' }]}>Delete Account</Text>
                         </TouchableOpacity>
                     </Section>
 
