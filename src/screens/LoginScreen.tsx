@@ -10,15 +10,36 @@ import { DEMO_BUSINESSES } from '../utils/demoData';
 import { trackUserLoggedIn, identifyUser } from '../utils/analytics';
 
 const CURRENCIES = [
-    { label: 'USD ($)',   value: '$'   },
-    { label: 'EUR (€)',   value: '€'   },
+    { label: 'USD ($)',    value: '$'   },
     { label: 'GBP (£)',   value: '£'   },
+    { label: 'EUR (€)',   value: '€'   },
     { label: 'NGN (₦)',   value: '₦'   },
-    { label: 'CNY (¥)',   value: '¥'   },
-    { label: 'CAD (CA$)', value: 'CA$' },
     { label: 'ZAR (R)',   value: 'R'   },
-    { label: 'AED',       value: 'AED' },
+    { label: 'KES (KSh)', value: 'KSh' },
+    { label: 'GHS (₵)',   value: '₵'   },
+    { label: 'EGP (E£)',  value: 'E£'  },
+    { label: 'AED (د.إ)', value: 'AED' },
+    { label: 'INR (₹)',   value: '₹'   },
+    { label: 'CNY (¥)',   value: '¥'   },
+    { label: 'CAD (C$)',  value: 'C$'  },
+    { label: 'AUD (A$)',  value: 'A$'  },
 ];
+
+function detectLocaleCurrency(): string {
+    try {
+        if (typeof Intl !== 'undefined') {
+            const locale = Intl.DateTimeFormat().resolvedOptions().locale ?? '';
+            const region = locale.split('-')[1]?.toUpperCase();
+            const map: Record<string, string> = {
+                ZA: 'R', NG: '₦', KE: 'KSh', GH: '₵', EG: 'E£',
+                GB: '£', DE: '€', FR: '€', AE: 'AED', IN: '₹',
+                CN: '¥', CA: 'C$', AU: 'A$',
+            };
+            if (region && map[region]) return map[region];
+        }
+    } catch {}
+    return '$';
+}
 
 type Mode = 'owner-setup' | 'owner-login' | 'join-team' | 'reset-pin' | 'demo-pick';
 type LoginMethod = 'pin' | 'email';
@@ -75,7 +96,7 @@ export default function LoginScreen() {
     const [business, setBusiness]   = useState('');
     const [pin, setPin]             = useState('');
     const [confirmPin, setConfirm]  = useState('');
-    const [currency, setCurrency]   = useState('$');
+    const [currency, setCurrency]   = useState(detectLocaleCurrency);
     const [setupLang, setSetupLang] = useState<Language>(language);
     const [submitting, setSubmitting] = useState(false);
 
@@ -481,12 +502,15 @@ export default function LoginScreen() {
 
                         {/* Currency picker */}
                         <Text style={styles.sectionLabel}>{t(setupLang, 'preferredCurrency')}</Text>
-                        <View style={styles.chipRow}>
+                        <Text style={{ color: Colors.muted, fontSize: 12, marginBottom: 8 }}>
+                            Auto-detected from your region — tap to change
+                        </Text>
+                        <View style={styles.currencyGrid}>
                             {CURRENCIES.map(c => (
                                 <TouchableOpacity key={c.value}
-                                    style={[styles.chip, currency === c.value && styles.chipActive]}
+                                    style={[styles.currencyBtn, currency === c.value && styles.currencyBtnActive]}
                                     onPress={() => setCurrency(c.value)}>
-                                    <Text style={[styles.chipText, currency === c.value && styles.chipTextActive]}>
+                                    <Text style={[styles.currencyBtnText, currency === c.value && styles.currencyBtnTextActive]}>
                                         {c.label}
                                     </Text>
                                 </TouchableOpacity>
@@ -649,6 +673,15 @@ const styles = StyleSheet.create({
     chipActive:   { borderColor: Colors.primary, backgroundColor: Colors.primary + '22' },
     chipText:     { fontSize: 12, color: Colors.textMuted },
     chipTextActive: { color: Colors.primary, fontWeight: '600' },
+
+    currencyGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
+    currencyBtn: {
+        width: '30%', paddingVertical: 10, paddingHorizontal: 6, borderWidth: 1,
+        borderColor: Colors.border, borderRadius: 10, backgroundColor: Colors.bg, alignItems: 'center',
+    },
+    currencyBtnActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + '22' },
+    currencyBtnText: { fontSize: 11, color: Colors.textMuted, textAlign: 'center' },
+    currencyBtnTextActive: { color: Colors.primary, fontWeight: '700' },
 
     demoRow: { flexDirection: 'row', gap: 10, marginBottom: 20 },
     demoOpt: {
