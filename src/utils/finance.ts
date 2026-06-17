@@ -167,19 +167,25 @@ export function computeProperCashFlow(transactions: Transaction[], assets: Asset
 }
 
 export function computeAssetCurrentValue(asset: Asset): number {
-    if (asset.status === 'disposed') return asset.disposalValue ?? 0;
+    if (asset.status === 'disposed') return Number(asset.disposalValue) || 0;
+    const cost = Number(asset.purchaseCost) || 0;
+    const residual = Number(asset.residualValue) || 0;
+    const life = Number(asset.usefulLifeYears) || 0;
     const purchaseDate = new Date(asset.purchaseDate);
     const today = new Date();
     const yearsElapsed = Math.max(0, (today.getTime() - purchaseDate.getTime()) / (365.25 * 24 * 3600 * 1000));
-    const depreciable = asset.purchaseCost - asset.residualValue;
-    const annualDep = asset.usefulLifeYears > 0 ? depreciable / asset.usefulLifeYears : 0;
+    const depreciable = cost - residual;
+    const annualDep = life > 0 ? depreciable / life : 0;
     const accumulated = Math.min(depreciable, annualDep * yearsElapsed);
-    return Math.max(asset.residualValue, asset.purchaseCost - accumulated);
+    return Math.max(residual, cost - accumulated);
 }
 
 export function computeAssetAnnualDepreciation(asset: Asset): number {
-    if (asset.usefulLifeYears <= 0) return 0;
-    return (asset.purchaseCost - asset.residualValue) / asset.usefulLifeYears;
+    const cost = Number(asset.purchaseCost) || 0;
+    const residual = Number(asset.residualValue) || 0;
+    const life = Number(asset.usefulLifeYears) || 0;
+    if (life <= 0) return 0;
+    return (cost - residual) / life;
 }
 
 export function computeFinance(
@@ -197,7 +203,7 @@ export function computeFinance(
         .reduce((sum, t) => sum + t.amount, 0);
 
     // Annual depreciation prorated to the period covered by transactions
-    const annualDepreciation = activeAssets.reduce((s, a) => s + computeAssetAnnualDepreciation(a), 0);
+    const annualDepreciation = activeAssets.reduce((s, a) => s + (computeAssetAnnualDepreciation(a) || 0), 0);
 
     // Prorate depreciation: if transactions span less than a year, charge proportionally
     const dates = transactions.map(t => t.date).sort();
