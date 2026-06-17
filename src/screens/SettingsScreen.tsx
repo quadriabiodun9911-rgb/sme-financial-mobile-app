@@ -51,6 +51,12 @@ export default function SettingsScreen() {
     const [importModal, setImportModal] = useState(false);
     const [importJson, setImportJson]   = useState('');
 
+    // Type-to-confirm modals
+    const [resetModal, setResetModal]       = useState(false);
+    const [resetConfirmText, setResetConfirmText] = useState('');
+    const [deleteModal, setDeleteModal]     = useState(false);
+    const [deleteConfirmText, setDeleteConfirmText] = useState('');
+
     // Team invite modal
     const [inviteModal, setInviteModal]   = useState(false);
     const [inviteEmail, setInviteEmail]   = useState('');
@@ -161,25 +167,8 @@ export default function SettingsScreen() {
     };
 
     const handleResetBusinessData = () => {
-        Alert.alert(
-            'Reset Business Data',
-            'This permanently deletes all transactions, invoices, goals, assets, loans, and inventory from the cloud. Your account and settings are kept. This cannot be undone.',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Reset My Data',
-                    style: 'destructive',
-                    onPress: () => Alert.alert(
-                        'Are you sure?',
-                        'All your business records will be permanently deleted.',
-                        [
-                            { text: 'Cancel', style: 'cancel' },
-                            { text: 'Yes, Delete Records', style: 'destructive', onPress: () => resetBusinessData() },
-                        ],
-                    ),
-                },
-            ],
-        );
+        setResetConfirmText('');
+        setResetModal(true);
     };
 
     const handleClearData = () => {
@@ -201,27 +190,8 @@ export default function SettingsScreen() {
     };
 
     const handleDeleteAccount = () => {
-        Alert.alert(
-            'Delete Account',
-            'This permanently deletes ALL your data — transactions, invoices, goals, and settings — from the cloud. This cannot be undone.',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Delete My Account',
-                    style: 'destructive',
-                    onPress: () => {
-                        Alert.alert(
-                            'Are you absolutely sure?',
-                            'Your business data will be gone forever. Type DELETE to confirm.',
-                            [
-                                { text: 'Cancel', style: 'cancel' },
-                                { text: 'Yes, Delete Everything', style: 'destructive', onPress: () => deleteAccount() },
-                            ],
-                        );
-                    },
-                },
-            ],
-        );
+        setDeleteConfirmText('');
+        setDeleteModal(true);
     };
 
     return (
@@ -533,6 +503,74 @@ export default function SettingsScreen() {
                             </TouchableOpacity>
                             <TouchableOpacity style={[styles.saveBtn, { flex: 1, marginBottom: 0 }]} onPress={handleImport}>
                                 <Text style={styles.saveBtnText}>Import</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Reset Business Data Modal */}
+            <Modal visible={resetModal} animationType="slide" transparent onRequestClose={() => setResetModal(false)}>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalCard}>
+                        <Text style={styles.modalTitle}>Reset Business Data</Text>
+                        <Text style={[styles.hint, { marginBottom: 12 }]}>
+                            This permanently deletes all transactions, invoices, goals, assets, loans, and inventory.
+                            Your account and settings are kept. This cannot be undone.
+                        </Text>
+                        <Text style={styles.label}>Type RESET to confirm</Text>
+                        <TextInput
+                            style={[styles.input, { marginBottom: 16, letterSpacing: 2, fontWeight: '700' }]}
+                            value={resetConfirmText}
+                            onChangeText={v => setResetConfirmText(v.toUpperCase())}
+                            placeholder="RESET"
+                            placeholderTextColor={Colors.muted}
+                            autoCapitalize="characters"
+                        />
+                        <View style={styles.modalBtns}>
+                            <TouchableOpacity style={styles.cancelBtn} onPress={() => setResetModal(false)}>
+                                <Text style={styles.cancelBtnText}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.saveBtn, { flex: 1, marginBottom: 0, backgroundColor: resetConfirmText === 'RESET' ? Colors.expense : Colors.muted }]}
+                                disabled={resetConfirmText !== 'RESET'}
+                                onPress={() => { setResetModal(false); resetBusinessData(); }}
+                            >
+                                <Text style={styles.saveBtnText}>Delete All Records</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Delete Account Modal */}
+            <Modal visible={deleteModal} animationType="slide" transparent onRequestClose={() => setDeleteModal(false)}>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalCard}>
+                        <Text style={styles.modalTitle}>Delete Account</Text>
+                        <Text style={[styles.hint, { marginBottom: 12 }]}>
+                            This permanently removes your account and ALL business data from the cloud.
+                            This cannot be undone. You will need to create a new account to use Quad360 again.
+                        </Text>
+                        <Text style={styles.label}>Type DELETE to confirm</Text>
+                        <TextInput
+                            style={[styles.input, { marginBottom: 16, letterSpacing: 2, fontWeight: '700' }]}
+                            value={deleteConfirmText}
+                            onChangeText={v => setDeleteConfirmText(v.toUpperCase())}
+                            placeholder="DELETE"
+                            placeholderTextColor={Colors.muted}
+                            autoCapitalize="characters"
+                        />
+                        <View style={styles.modalBtns}>
+                            <TouchableOpacity style={styles.cancelBtn} onPress={() => setDeleteModal(false)}>
+                                <Text style={styles.cancelBtnText}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.saveBtn, { flex: 1, marginBottom: 0, backgroundColor: deleteConfirmText === 'DELETE' ? '#7f1d1d' : Colors.muted }]}
+                                disabled={deleteConfirmText !== 'DELETE'}
+                                onPress={() => { setDeleteModal(false); deleteAccount(); }}
+                            >
+                                <Text style={styles.saveBtnText}>Delete My Account</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
