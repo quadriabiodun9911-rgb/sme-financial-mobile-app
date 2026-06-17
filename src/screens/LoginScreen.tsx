@@ -482,6 +482,19 @@ export default function LoginScreen() {
                         <Image source={require('../../assets/icon.png')} style={styles.logo} />
                         <Text style={styles.subtitle}>{t(setupLang, 'setupSubtitle')}</Text>
 
+                        {/* Social proof strip */}
+                        <View style={styles.socialProofSetup}>
+                            <View style={styles.socialProofPill}>
+                                <Text style={styles.socialProofPillText}>Free forever · No credit card</Text>
+                            </View>
+                            <View style={styles.socialProofPill}>
+                                <Text style={styles.socialProofPillText}>Trusted by SMEs in 10+ countries</Text>
+                            </View>
+                            <View style={styles.socialProofPill}>
+                                <Text style={styles.socialProofPillText}>Your data stays private</Text>
+                            </View>
+                        </View>
+
                         {/* Language picker — shown first so the rest renders in chosen language */}
                         <Text style={styles.sectionLabel}>{t(setupLang, 'preferredLanguage')}</Text>
                         <View style={styles.chipRow}>
@@ -575,6 +588,18 @@ export default function LoginScreen() {
                 <View style={styles.card}>
                     <Image source={require('../../assets/icon.png')} style={styles.logo} />
                     <Text style={styles.subtitle}>{t(language, 'loginSubtitle')}</Text>
+
+                    {/* Social proof strip */}
+                    <View style={styles.socialProof}>
+                        <View style={styles.socialProofAvatars}>
+                            {['🇳🇬','🇿🇦','🇰🇪','🇬🇭','🇬🇧'].map((flag, i) => (
+                                <View key={i} style={[styles.avatar, { marginLeft: i === 0 ? 0 : -8 }]}>
+                                    <Text style={styles.avatarFlag}>{flag}</Text>
+                                </View>
+                            ))}
+                        </View>
+                        <Text style={styles.socialProofText}>Trusted by SMEs across Africa & beyond</Text>
+                    </View>
 
                     {isLockedOut && timeRemaining !== null && timeRemaining > 0 && (
                         <View style={styles.lockoutBanner}>
@@ -810,6 +835,28 @@ const styles = StyleSheet.create({
         borderWidth: 1, borderColor: Colors.primary, backgroundColor: 'transparent',
     },
     demoBtnText: { color: Colors.primary, fontWeight: '600', fontSize: 13 },
+
+    socialProof: {
+        flexDirection: 'row', alignItems: 'center', gap: 10,
+        backgroundColor: Colors.bg, borderRadius: 10, padding: 10,
+        marginBottom: 16, borderWidth: 1, borderColor: Colors.border,
+    },
+    socialProofAvatars: { flexDirection: 'row' },
+    avatar: {
+        width: 28, height: 28, borderRadius: 14,
+        backgroundColor: Colors.surface, borderWidth: 1.5,
+        borderColor: Colors.bg, alignItems: 'center', justifyContent: 'center',
+    },
+    avatarFlag:      { fontSize: 14 },
+    socialProofText: { flex: 1, fontSize: 11, color: Colors.textMuted, fontWeight: '500' },
+
+    socialProofSetup: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 16 },
+    socialProofPill:  {
+        backgroundColor: Colors.bg, borderRadius: 20,
+        paddingHorizontal: 10, paddingVertical: 5,
+        borderWidth: 1, borderColor: Colors.border,
+    },
+    socialProofPillText: { fontSize: 11, color: Colors.textMuted, fontWeight: '500' },
 
     bizCard: {
         flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.bg,
