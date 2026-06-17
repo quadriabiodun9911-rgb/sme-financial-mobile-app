@@ -23,6 +23,7 @@ import {
 import { refreshGoal, goalDefaults } from '../utils/goals';
 import { supabase } from '../utils/supabase';
 import { t } from '../utils/i18n';
+import { requestNotificationPermission, scheduleDailyReminder, scheduleWeeklySummaryReminder, sendWelcomeNotification } from '../utils/notifications';
 
 interface AppContextValue {
     currentScreen: Screen;
@@ -308,6 +309,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (loadDemo) setTransactions(DEMO_TRANSACTIONS);
         setUser({ email, businessName, role: 'Administrator' });
         setCurrentScreen('dashboard');
+        // Set up notifications after account creation
+        requestNotificationPermission().then(granted => {
+            if (granted) {
+                sendWelcomeNotification(businessName);
+                scheduleDailyReminder();
+                scheduleWeeklySummaryReminder();
+            }
+        }).catch(() => {});
     };
 
     // Team member join — creates Supabase account then links to owner workspace

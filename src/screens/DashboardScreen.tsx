@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text,
     TouchableOpacity, StyleSheet, ActivityIndicator,
@@ -7,12 +7,27 @@ import {
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
+import OnboardingWizard from '../components/OnboardingWizard';
+import ProfitShareCard from '../components/ProfitShareCard';
 import FooterNav from '../components/FooterNav';
 import { t } from '../utils/i18n';
 import { validateAmount, validateDescription } from '../utils/validation';
 
 export default function DashboardScreen() {
     const { finance, insight, settings, goals, transactions, invoices, navigate, setCurrentScreen, language, isLoading, addTransaction } = useApp();
+
+    const isDemoMode = transactions.some(tx => tx.id?.startsWith('demo-'));
+    const hasTransaction = transactions.length > 0;
+
+    const [showOnboardingWizard, setShowOnboardingWizard] = useState(false);
+    const [showShareCard, setShowShareCard] = useState(false);
+
+    useEffect(() => {
+        if (!isLoading && !isDemoMode && !hasTransaction) {
+            const timer = setTimeout(() => setShowOnboardingWizard(true), 800);
+            return () => clearTimeout(timer);
+        }
+    }, [isLoading, isDemoMode, hasTransaction]);
 
     // Quick-add modal state
     const [fabOpen, setFabOpen]         = useState(false);
@@ -129,6 +144,9 @@ export default function DashboardScreen() {
                             </Text>
                         </View>
                     </View>
+                    <TouchableOpacity style={styles.shareCardBtn} onPress={() => setShowShareCard(true)}>
+                        <Text style={styles.shareCardBtnText}>📤 Share Monthly Summary</Text>
+                    </TouchableOpacity>
                 </View>
 
                 {/* ── Spending alert ───────────────────────────────────────── */}
@@ -359,6 +377,8 @@ export default function DashboardScreen() {
                     </TouchableOpacity>
                 </KeyboardAvoidingView>
             </Modal>
+            <OnboardingWizard visible={showOnboardingWizard} onDone={() => setShowOnboardingWizard(false)} />
+            <ProfitShareCard visible={showShareCard} onClose={() => setShowShareCard(false)} />
         </SafeAreaView>
     );
 }
@@ -488,4 +508,6 @@ const styles = StyleSheet.create({
     },
     modalSubmit:     { paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginTop: 4 },
     modalSubmitText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
+    shareCardBtn: { marginTop: 12, borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
+    shareCardBtnText: { color: Colors.textMuted, fontSize: 12 },
 });
