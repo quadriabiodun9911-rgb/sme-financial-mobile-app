@@ -37,7 +37,12 @@
       ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "output": "static",
+      "name": "Quad360",
+      "shortName": "Quad360",
+      "description": "Free financial management for small businesses"
     },
     "plugins": [
       "expo-secure-store",
