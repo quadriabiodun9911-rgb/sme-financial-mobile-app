@@ -11,12 +11,19 @@ import { BusinessSettings } from '../types';
 import { t, LANGUAGES } from '../utils/i18n';
 
 const CURRENCIES = [
-    { label: 'USD ($)',   value: '$'   },
-    { label: 'EUR (€)',   value: '€'   },
+    { label: 'USD ($)',    value: '$'   },
     { label: 'GBP (£)',   value: '£'   },
+    { label: 'EUR (€)',   value: '€'   },
     { label: 'NGN (₦)',   value: '₦'   },
+    { label: 'ZAR (R)',   value: 'R'   },
+    { label: 'KES (KSh)', value: 'KSh' },
+    { label: 'GHS (₵)',   value: '₵'   },
+    { label: 'EGP (E£)',  value: 'E£'  },
+    { label: 'AED (د.إ)', value: 'AED' },
+    { label: 'INR (₹)',   value: '₹'   },
     { label: 'CNY (¥)',   value: '¥'   },
-    { label: 'CAD (CA$)', value: 'CA$' },
+    { label: 'CAD (C$)',  value: 'C$'  },
+    { label: 'AUD (A$)',  value: 'A$'  },
 ];
 
 const BUSINESS_TYPES: { label: string; value: BusinessSettings['businessType'] }[] = [
@@ -28,7 +35,7 @@ const BUSINESS_TYPES: { label: string; value: BusinessSettings['businessType'] }
 export default function SettingsScreen() {
     const {
         settings, updateSettings, setCurrentScreen,
-        changePin, exportData, importData, clearData, deleteAccount, logout,
+        changePin, exportData, importData, clearData, resetBusinessData, deleteAccount, logout,
         userRole, teamMembers, inviteMember, removeMember, refreshTeam,
         language, setLanguage,
     } = useApp();
@@ -151,6 +158,28 @@ export default function SettingsScreen() {
             { text: 'Cancel', style: 'cancel' },
             { text: 'Remove', style: 'destructive', onPress: () => removeMember(id) },
         ]);
+    };
+
+    const handleResetBusinessData = () => {
+        Alert.alert(
+            'Reset Business Data',
+            'This permanently deletes all transactions, invoices, goals, assets, loans, and inventory from the cloud. Your account and settings are kept. This cannot be undone.',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Reset My Data',
+                    style: 'destructive',
+                    onPress: () => Alert.alert(
+                        'Are you sure?',
+                        'All your business records will be permanently deleted.',
+                        [
+                            { text: 'Cancel', style: 'cancel' },
+                            { text: 'Yes, Delete Records', style: 'destructive', onPress: () => resetBusinessData() },
+                        ],
+                    ),
+                },
+            ],
+        );
     };
 
     const handleClearData = () => {
@@ -324,7 +353,17 @@ export default function SettingsScreen() {
                         </TouchableOpacity>
                     </Section>
 
-                    {/* Danger Zone */}
+                    {/* Reset Business Data */}
+                    <Section title="Reset Business Data">
+                        <Text style={styles.hint}>
+                            Permanently deletes all transactions, invoices, goals, assets, loans, and inventory. Your account and settings are kept — use this to start fresh without creating a new account.
+                        </Text>
+                        <TouchableOpacity style={styles.dangerBtn} onPress={handleResetBusinessData}>
+                            <Text style={styles.dangerBtnText}>Reset Business Data</Text>
+                        </TouchableOpacity>
+                    </Section>
+
+                    {/* Sign Out */}
                     <Section title="Sign Out">
                         <Text style={styles.hint}>
                             Signs you out and clears the local cache. Your data is safely stored in the cloud and will be restored when you sign back in.

@@ -119,6 +119,7 @@ interface AppContextValue {
     exportData: () => Promise<string>;
     importData: (json: string) => Promise<void>;
     clearData: () => Promise<void>;
+    resetBusinessData: () => Promise<void>;
     deleteAccount: () => Promise<void>;
     resetApp: () => Promise<void>;
 }
@@ -753,6 +754,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setTransactions([]); setGoals([]); setSettings(DEFAULT_SETTINGS); setInvoices([]); setAssets([]);
     };
 
+    // Wipes all business data from Supabase but keeps the auth account and profile intact.
+    // Use when a user wants to start fresh without losing their login credentials.
+    const resetBusinessData = async () => {
+        try {
+            const ownerId = user?.email ? (await supabase.auth.getUser()).data.user?.id : null;
+            if (ownerId) {
+                const tables = ['transactions','goals','invoices','assets','inventory','loans','budgets','audit_logs'];
+                await Promise.allSettled(tables.map(t => supabase.from(t).delete().eq('user_id', ownerId)));
+            }
+            await AsyncStorage.multiRemove([
+                '@quad360/transactions', '@quad360/goals', '@quad360/invoices',
+                '@quad360/assets', '@quad360/inventory', '@quad360/loans', '@quad360/budgets',
+            ]).catch(() => {});
+            setTransactions([]); setGoals([]); setInvoices([]); setAssets([]); setInventory([]); setLoans([]); setBudgets([]);
+        } catch (e) { console.error('Error resetting business data:', e); }
+    };
+
     const deleteAccount = async () => {
         try {
             await deleteAccountData().catch(() => {});
@@ -840,7 +858,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         teamMembers, inviteMember, removeMember, refreshTeam,
         language, setLanguage,
         finance, insight, isLoading,
-        exportData, importData, clearData, deleteAccount, resetApp,
+        exportData, importData, clearData, resetBusinessData, deleteAccount, resetApp,
     };
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
