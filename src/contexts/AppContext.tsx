@@ -36,6 +36,7 @@ interface AppContextValue {
     userRole: UserRole;
     isFirstLaunch: boolean;
     setupAccount: (email: string, businessName: string, pin: string, loadDemo: boolean) => Promise<void>;
+    recoverAccount: (email: string, pin: string) => Promise<void>;
     login: (pin: string) => boolean;
     joinTeam: (email: string, pin: string, inviteCode: string) => Promise<void>;
     logout: () => void;
@@ -317,6 +318,44 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 scheduleWeeklySummaryReminder();
             }
         }).catch(() => {});
+    };
+
+    // Recover existing account on a new device — authenticates with Supabase and pulls all data
+    const recoverAccount = async (email: string, pin: string) => {
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password: pin });
+        if (error || !data.user) throw new Error('Incorrect email or PIN. Please try again.');
+
+        // Pull profile from Supabase
+        const { data: profileRow } = await supabase
+            .from('profiles')
+            .select('business_name, email')
+            .eq('id', data.user.id)
+            .single();
+        if (!profileRow) throw new Error('Account found but no business profile exists. Please set up your account.');
+
+        const profile = { email: profileRow.email ?? email, businessName: profileRow.business_name ?? '' };
+
+        // Save auth locally so future logins work with PIN only
+        await clearWorkspaceOwner();
+        await savePin(pin);
+        await saveProfile(profile);
+        setStoredPin(pin);
+        setHasProfile(true);
+        setUserRole('owner');
+        setUser({ email: profile.email, businessName: profile.businessName, role: 'Administrator' });
+
+        // Load all their cloud data
+        const [savedTx, savedSettings, savedGoals, savedInvoices, savedAssets2, savedInventory2] = await Promise.all([
+            loadTransactions(), loadSettings(), loadGoals(), loadInvoices(), loadAssets(), loadInventory(),
+        ]);
+        if (savedTx) { const { updated, newEntries } = processDueRecurring(savedTx); setTransactions([...newEntries, ...updated]); }
+        if (savedSettings)   setSettings({ ...DEFAULT_SETTINGS, ...savedSettings });
+        if (savedGoals)      setGoals(savedGoals);
+        if (savedInvoices)   setInvoices(savedInvoices);
+        if (savedAssets2)    setAssets(savedAssets2);
+        if (savedInventory2) setInventory(savedInventory2);
+
+        setCurrentScreen('dashboard');
     };
 
     // Team member join — creates Supabase account then links to owner workspace
@@ -620,7 +659,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         navParams, navigate,
         user, userRole,
         isFirstLaunch: !hasProfile && !isLoading,
-        setupAccount, login, joinTeam, logout, changePin,
+        setupAccount, recoverAccount, login, joinTeam, logout, changePin,
         isLockedOut, lockoutUntil,
         settings, updateSettings,
         transactions, addTransaction, deleteTransaction, updateTransaction,

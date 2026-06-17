@@ -16,11 +16,11 @@ const CURRENCIES = [
     { label: 'CAD (CA$)', value: 'CA$' },
 ];
 
-type Mode = 'owner-setup' | 'owner-login' | 'join-team' | 'demo-pick';
+type Mode = 'owner-setup' | 'owner-login' | 'join-team' | 'demo-pick' | 'recover';
 type LoginMethod = 'pin' | 'email';
 
 export default function LoginScreen() {
-    const { isFirstLaunch, setupAccount, login, joinTeam, language, setLanguage, updateSettings, resetApp, isLockedOut, lockoutUntil } = useApp();
+    const { isFirstLaunch, setupAccount, recoverAccount, login, joinTeam, language, setLanguage, updateSettings, resetApp, isLockedOut, lockoutUntil } = useApp();
     const [mode, setMode] = useState<Mode>(isFirstLaunch ? 'owner-setup' : 'owner-login');
     const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
     const [loginMethod, setLoginMethod] = useState<LoginMethod>('pin');
@@ -69,6 +69,11 @@ export default function LoginScreen() {
     const [joinConfirm, setJoinConfirm] = useState('');
     const [inviteCode, setInviteCode]   = useState('');
     const [joiningTeam, setJoiningTeam] = useState(false);
+
+    // Account recovery
+    const [recoverEmail, setRecoverEmail] = useState('');
+    const [recoverPin, setRecoverPin]     = useState('');
+    const [recovering, setRecovering]     = useState(false);
 
     const handleSetup = async () => {
         if (!email.trim() || !business.trim()) {
@@ -133,6 +138,55 @@ export default function LoginScreen() {
             setJoiningTeam(false);
         }
     };
+
+    const handleRecover = async () => {
+        if (!recoverEmail.trim()) { Alert.alert('Required', 'Please enter your email address.'); return; }
+        if (!/^\d{4}$/.test(recoverPin)) { Alert.alert('Invalid PIN', 'Your PIN must be 4 digits.'); return; }
+        setRecovering(true);
+        try {
+            await recoverAccount(recoverEmail.trim(), recoverPin);
+        } catch (e: any) {
+            Alert.alert('Sign In Failed', e?.message ?? 'Could not sign in. Check your email and PIN.');
+            setRecovering(false);
+        }
+    };
+
+    // ── Account Recovery ──────────────────────────────────────────────────────
+    if (mode === 'recover') {
+        return (
+            <SafeAreaView style={styles.safe}>
+                <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+                    <View style={styles.card}>
+                        <Text style={styles.title}>Welcome Back</Text>
+                        <Text style={styles.subtitle}>Sign in with your email and PIN to restore all your business data</Text>
+
+                        <Field label="Email Address">
+                            <TextInput style={styles.input} value={recoverEmail} onChangeText={setRecoverEmail}
+                                placeholder="admin@yourbusiness.com" placeholderTextColor={Colors.muted}
+                                autoCapitalize="none" keyboardType="email-address" autoFocus />
+                        </Field>
+                        <Field label="Your 4-Digit PIN">
+                            <TextInput style={styles.input} value={recoverPin} onChangeText={setRecoverPin}
+                                placeholder="••••" placeholderTextColor={Colors.muted}
+                                secureTextEntry keyboardType="number-pad" maxLength={4}
+                                onSubmitEditing={handleRecover} />
+                        </Field>
+
+                        <TouchableOpacity style={[styles.btn, recovering && styles.btnDisabled]} onPress={handleRecover} disabled={recovering}>
+                            {recovering
+                                ? <ActivityIndicator color="#fff" />
+                                : <Text style={styles.btnText}>Restore My Account →</Text>
+                            }
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('owner-setup')}>
+                            <Text style={styles.switchText}>← Back to Create Account</Text>
+                        </TouchableOpacity>
+                    </View>
+                </ScrollView>
+            </SafeAreaView>
+        );
+    }
 
     // ── Demo Pick ─────────────────────────────────────────────────────────────
     if (mode === 'demo-pick') {
@@ -279,6 +333,9 @@ export default function LoginScreen() {
                                 ? <ActivityIndicator color="#fff" />
                                 : <Text style={styles.btnText}>{t(setupLang, 'createAccount')}</Text>
                             }
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('recover')}>
+                            <Text style={styles.switchText}>Already have an account? Sign in</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('join-team')}>
                             <Text style={styles.switchText}>{t(setupLang, 'joiningTeam')}</Text>
