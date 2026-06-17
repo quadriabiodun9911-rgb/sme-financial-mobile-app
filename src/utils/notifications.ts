@@ -1,5 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -8,6 +9,11 @@ Notifications.setNotificationHandler({
         shouldSetBadge: false,
     }),
 });
+
+const KEYS = {
+    dailyId:  '@quad360/notif_daily_id',
+    weeklyId: '@quad360/notif_weekly_id',
+};
 
 export async function requestNotificationPermission(): Promise<boolean> {
     try {
@@ -23,14 +29,18 @@ export async function requestNotificationPermission(): Promise<boolean> {
 
 export async function scheduleDailyReminder(): Promise<void> {
     try {
-        await Notifications.cancelAllScheduledNotificationsAsync();
-        await Notifications.scheduleNotificationAsync({
+        // Cancel only the previous daily notification, not all notifications
+        const prevId = await AsyncStorage.getItem(KEYS.dailyId);
+        if (prevId) await Notifications.cancelScheduledNotificationAsync(prevId).catch(() => {});
+
+        const id = await Notifications.scheduleNotificationAsync({
             content: {
                 title: 'Quad360 Daily Check-in 💰',
                 body: "Don't forget to record today's transactions. Stay on top of your finances!",
             },
             trigger: { hour: 20, minute: 0, repeats: true } as any,
         });
+        await AsyncStorage.setItem(KEYS.dailyId, id);
     } catch {
         // Fail silently — notifications not available
     }
@@ -38,13 +48,18 @@ export async function scheduleDailyReminder(): Promise<void> {
 
 export async function scheduleWeeklySummaryReminder(): Promise<void> {
     try {
-        await Notifications.scheduleNotificationAsync({
+        // Cancel only the previous weekly notification
+        const prevId = await AsyncStorage.getItem(KEYS.weeklyId);
+        if (prevId) await Notifications.cancelScheduledNotificationAsync(prevId).catch(() => {});
+
+        const id = await Notifications.scheduleNotificationAsync({
             content: {
                 title: 'Your Weekly Business Summary 📊',
                 body: 'See how your business performed this week. Tap to view your report.',
             },
             trigger: { weekday: 1, hour: 9, minute: 0, repeats: true } as any,
         });
+        await AsyncStorage.setItem(KEYS.weeklyId, id);
     } catch {
         // Fail silently
     }
