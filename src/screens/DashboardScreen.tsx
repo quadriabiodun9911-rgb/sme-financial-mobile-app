@@ -14,9 +14,7 @@ import { t } from '../utils/i18n';
 import { validateAmount, validateDescription } from '../utils/validation';
 
 export default function DashboardScreen() {
-    const { finance, insight, settings, goals, transactions, invoices, navigate, setCurrentScreen, language, isLoading, addTransaction } = useApp();
-
-    const isDemoMode = transactions.some(tx => tx.id?.startsWith('demo-'));
+    const { finance, insight, settings, goals, transactions, invoices, navigate, setCurrentScreen, language, isLoading, addTransaction, isDemoMode } = useApp();
     const hasTransaction = transactions.length > 0;
 
     const [showOnboardingWizard, setShowOnboardingWizard] = useState(false);

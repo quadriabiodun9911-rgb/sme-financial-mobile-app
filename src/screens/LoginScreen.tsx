@@ -136,27 +136,26 @@ export default function LoginScreen() {
 
     // ── Demo Pick ─────────────────────────────────────────────────────────────
     if (mode === 'demo-pick') {
-        const demoBusinesses = [
-            { name: 'Retail Store', emoji: '🛍️', desc: 'Product sales & inventory' },
-            { name: 'Consulting Firm', emoji: '💼', desc: 'Service invoicing & projects' },
-            { name: 'Food & Beverage', emoji: '🍽️', desc: 'Daily sales & food costs' },
-        ];
         return (
             <SafeAreaView style={styles.safe}>
                 <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
                     <View style={styles.card}>
                         <Text style={styles.title}>Try a Demo</Text>
-                        <Text style={styles.subtitle}>Explore Quad360 with sample business data — no sign-up needed</Text>
+                        <Text style={styles.subtitle}>Pick a business and explore Quad360 with real data — no sign-up needed</Text>
 
-                        {demoBusinesses.map(biz => (
-                            <TouchableOpacity key={biz.name} style={styles.demoOpt} onPress={() => setMode('owner-setup')}>
-                                <Text style={styles.demoOptText}>{biz.emoji} {biz.name}</Text>
-                                <Text style={styles.demoOptSub}>{biz.desc}</Text>
+                        {DEMO_BUSINESSES.map(biz => (
+                            <TouchableOpacity key={biz.id} style={styles.demoOpt} onPress={() => enterDemo(biz.id)}>
+                                <Text style={styles.demoOptEmoji}>{biz.flag}</Text>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.demoOptText}>{biz.businessName}</Text>
+                                    <Text style={styles.demoOptSub}>{biz.description} · {biz.currency}</Text>
+                                </View>
+                                <Text style={{ color: Colors.textMuted, fontSize: 16 }}>→</Text>
                             </TouchableOpacity>
                         ))}
 
                         <View style={styles.demoFooter}>
-                            <Text style={styles.demoFooterText}>✨ Exploring demo data — nothing is saved</Text>
+                            <Text style={styles.demoFooterText}>✨ Demo data — nothing is saved to your account</Text>
                             <Text style={styles.demoFooterSub}>Ready to use your own business data?</Text>
                             <TouchableOpacity style={styles.demoSignupBtn} onPress={() => setMode('owner-setup')}>
                                 <Text style={styles.demoSignupBtnText}>Create Free Account →</Text>
@@ -164,7 +163,7 @@ export default function LoginScreen() {
                         </View>
 
                         <TouchableOpacity style={styles.switchBtn} onPress={() => setMode(isFirstLaunch ? 'owner-setup' : 'owner-login')}>
-                            <Text style={styles.switchText}>Back</Text>
+                            <Text style={styles.switchText}>← Back</Text>
                         </TouchableOpacity>
                     </View>
                 </ScrollView>
@@ -284,6 +283,9 @@ export default function LoginScreen() {
                         <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('join-team')}>
                             <Text style={styles.switchText}>{t(setupLang, 'joiningTeam')}</Text>
                         </TouchableOpacity>
+                        <TouchableOpacity style={styles.demoEntryBtn} onPress={() => setMode('demo-pick')}>
+                            <Text style={styles.demoEntryBtnText}>👀 Try Demo First</Text>
+                        </TouchableOpacity>
                     </View>
                 </ScrollView>
             </SafeAreaView>
@@ -382,6 +384,9 @@ export default function LoginScreen() {
                     }}>
                         <Text style={styles.resetText}>Forgot PIN / Start Fresh</Text>
                     </TouchableOpacity>
+                    <TouchableOpacity style={styles.demoEntryBtn} onPress={() => setMode('demo-pick')}>
+                        <Text style={styles.demoEntryBtnText}>👀 Try Demo First</Text>
+                    </TouchableOpacity>
                 </View>
             </ScrollView>
         </SafeAreaView>
@@ -426,8 +431,8 @@ const styles = StyleSheet.create({
 
     demoRow: { flexDirection: 'row', gap: 10, marginBottom: 20 },
     demoOpt: {
-        flex: 1, borderWidth: 1, borderColor: Colors.border,
-        borderRadius: 10, padding: 12, alignItems: 'center', backgroundColor: Colors.bg,
+        flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: Colors.border,
+        borderRadius: 10, padding: 12, marginBottom: 10, backgroundColor: Colors.bg,
     },
     demoOptActive:     { borderColor: Colors.primary, backgroundColor: Colors.primary + '22' },
     demoOptText:       { fontSize: 13, fontWeight: '600', color: Colors.textSecondary, marginBottom: 4 },
@@ -487,4 +492,7 @@ const styles = StyleSheet.create({
     loginTabTextActive: {
         color: Colors.primary,
     },
+    demoEntryBtn: { paddingVertical: 10, alignItems: 'center', marginTop: 4 },
+    demoEntryBtnText: { color: Colors.textMuted, fontSize: 13 },
+    demoOptEmoji: { fontSize: 22, marginRight: 10 },
 });
