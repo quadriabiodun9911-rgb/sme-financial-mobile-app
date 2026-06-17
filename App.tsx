@@ -18,6 +18,7 @@ import GrowthIntelligenceScreen from './src/screens/GrowthIntelligenceScreen';
 import CFOScreen from './src/screens/CFOScreen';
 import BudgetScreen from './src/screens/BudgetScreen';
 import AnalysisScreen from './src/screens/AnalysisScreen';
+import TwoFactorSetupScreen from './src/screens/TwoFactorSetupScreen';
 
 function Navigator() {
     const { currentScreen, isLoading } = useApp();
@@ -53,6 +54,7 @@ function Navigator() {
             {currentScreen === 'cfo'          && <CFOScreen />}
             {currentScreen === 'budget'       && <BudgetScreen />}
             {currentScreen === 'analysis'     && <AnalysisScreen />}
+            {currentScreen === '2fa'          && <TwoFactorSetupScreen />}
         </View>
     );
 }

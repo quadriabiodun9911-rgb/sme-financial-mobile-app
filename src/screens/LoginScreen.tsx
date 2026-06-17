@@ -33,6 +33,23 @@ export default function LoginScreen() {
         setMode(isFirstLaunch ? 'owner-setup' : 'owner-login');
     }, [isFirstLaunch]);
 
+    // On web: detect Supabase recovery callback (access_token in URL hash) and auto-update PIN
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const hash = window.location.hash;
+        const params = new URLSearchParams(hash.replace('#', '?'));
+        const type = params.get('type');
+        const accessToken = params.get('access_token');
+        if (type === 'recovery' && accessToken) {
+            // Pending PIN is stored in resetNewPin state but we need it from URL or storage
+            // Prompt user to enter their chosen new PIN to complete reset
+            setMode('reset-pin');
+            setResetStep('complete-web');
+            // Clear hash so back navigation doesn't retrigger
+            window.history.replaceState(null, '', window.location.pathname);
+        }
+    }, []);
+
     // Update lockout timer
     useEffect(() => {
         if (!isLockedOut || !lockoutUntil) {
@@ -79,7 +96,7 @@ export default function LoginScreen() {
     const [resetNewPin, setResetNewPin]       = useState('');
     const [resetConfirmPin, setResetConfirmPin] = useState('');
     const [resetOtp, setResetOtp]             = useState('');
-    const [resetStep, setResetStep]           = useState<'request' | 'verify'>('request');
+    const [resetStep, setResetStep]           = useState<'request' | 'verify' | 'complete-web'>('request');
     const [resetSubmitting, setResetSubmitting] = useState(false);
 
     const handleSetup = async () => {
@@ -207,6 +224,24 @@ export default function LoginScreen() {
         setResetSubmitting(false);
     };
 
+    // Called after user clicks email link on web — Supabase auto-sets session from URL hash
+    const handleWebResetComplete = async () => {
+        if (!/^\d{6}$/.test(resetNewPin)) { Alert.alert('Error', 'New PIN must be exactly 6 digits.'); return; }
+        if (resetNewPin !== resetConfirmPin) { Alert.alert('Error', 'PINs do not match.'); return; }
+        setResetSubmitting(true);
+        try {
+            const { supabase } = await import('../utils/supabase');
+            const { error } = await supabase.auth.updateUser({ password: resetNewPin + '_Q360' });
+            if (error) { Alert.alert('Error', error.message); setResetSubmitting(false); return; }
+            Alert.alert('PIN Reset Successful', 'Your PIN has been updated. Please log in.', [
+                { text: 'OK', onPress: () => { setMode('owner-login'); setLoginMethod('pin'); setResetStep('request'); setResetNewPin(''); setResetConfirmPin(''); } }
+            ]);
+        } catch (e: any) {
+            Alert.alert('Error', e?.message ?? 'Reset failed.');
+        }
+        setResetSubmitting(false);
+    };
+
     const handleResetVerify = async () => {
         if (!/^\d{6}$/.test(resetOtp.trim())) { Alert.alert('Error', 'Please enter the 6-digit code from the email link.'); return; }
         setResetSubmitting(true);
@@ -280,7 +315,9 @@ export default function LoginScreen() {
                         <Text style={styles.subtitle}>
                             {resetStep === 'request'
                                 ? 'Enter your email and new PIN. We\'ll send a reset link to your inbox.'
-                                : `Check your inbox at ${resetEmail} — open the link, then enter the 6-digit code from the email here.`}
+                                : resetStep === 'complete-web'
+                                ? 'Email verified! Set your new PIN below.'
+                                : `Check your inbox at ${resetEmail} — click the link in the email to reset your PIN.`}
                         </Text>
 
                         {resetStep === 'request' ? (
@@ -311,25 +348,34 @@ export default function LoginScreen() {
                             <>
                                 <View style={styles.infoBox}>
                                     <Text style={styles.infoText}>
-                                        📧 A reset email has been sent to{'\n'}<Text style={{ fontWeight: 'bold' }}>{resetEmail}</Text>{'\n\n'}
-                                        Open the email → click the link → come back here and enter the 6-digit code shown in the email.{'\n\n'}
-                                        ⚠️ Check your spam/junk folder if you don't see it.
+                                        📧 A reset link has been sent to{'\n'}<Text style={{ fontWeight: 'bold' }}>{resetEmail}</Text>{'\n\n'}
+                                        Open the email and click <Text style={{ fontWeight: 'bold' }}>"Reset Password"</Text> — the link will open this app and your PIN will be updated automatically.{'\n\n'}
+                                        ⚠️ The link expires in 1 hour. Check your spam folder if you don't see it.
                                     </Text>
                                 </View>
-                                <Field label="6-Digit Code from Email">
-                                    <TextInput style={[styles.input, styles.codeInput]}
-                                        value={resetOtp} onChangeText={setResetOtp}
-                                        placeholder="000000" placeholderTextColor={Colors.muted}
-                                        keyboardType="number-pad" maxLength={6} />
+                                <TouchableOpacity style={styles.switchBtn} onPress={() => { setResetStep('request'); setResetOtp(''); }}>
+                                    <Text style={styles.switchText}>← Didn't receive it? Try again</Text>
+                                </TouchableOpacity>
+                            </>
+                        )}
+
+                        {resetStep === 'complete-web' && (
+                            <>
+                                <Field label="New PIN (6 digits)">
+                                    <TextInput style={styles.input} value={resetNewPin} onChangeText={setResetNewPin}
+                                        placeholder="••••••" placeholderTextColor={Colors.muted}
+                                        secureTextEntry keyboardType="number-pad" maxLength={6} />
+                                </Field>
+                                <Field label="Confirm New PIN">
+                                    <TextInput style={styles.input} value={resetConfirmPin} onChangeText={setResetConfirmPin}
+                                        placeholder="••••••" placeholderTextColor={Colors.muted}
+                                        secureTextEntry keyboardType="number-pad" maxLength={6} />
                                 </Field>
                                 <TouchableOpacity style={[styles.btn, resetSubmitting && styles.btnDisabled]}
-                                    onPress={handleResetVerify} disabled={resetSubmitting}>
+                                    onPress={handleWebResetComplete} disabled={resetSubmitting}>
                                     {resetSubmitting
                                         ? <ActivityIndicator color="#fff" />
-                                        : <Text style={styles.btnText}>Verify & Set New PIN</Text>}
-                                </TouchableOpacity>
-                                <TouchableOpacity style={styles.switchBtn} onPress={() => setResetStep('request')}>
-                                    <Text style={styles.switchText}>← Resend or change email</Text>
+                                        : <Text style={styles.btnText}>Set New PIN</Text>}
                                 </TouchableOpacity>
                             </>
                         )}

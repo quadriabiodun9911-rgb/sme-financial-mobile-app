@@ -13,7 +13,8 @@ export type Screen =
     | 'growth'
     | 'cfo'
     | 'budget'
-    | 'analysis';
+    | 'analysis'
+    | '2fa';
 
 export interface Budget {
     id: string;
