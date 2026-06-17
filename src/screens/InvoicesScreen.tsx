@@ -128,8 +128,9 @@ export default function InvoicesScreen() {
     }, [invoices, filter]);
 
     const totals = useMemo(() => {
-        const subtotal = lineItems.reduce((s, li) => s + li.quantity * li.unitPrice, 0);
-        const taxTotal = lineItems.reduce((s, li) => s + li.quantity * li.unitPrice * (li.taxRate / 100), 0);
+        const items = lineItems ?? [];
+        const subtotal = items.reduce((s, li) => s + li.quantity * li.unitPrice, 0);
+        const taxTotal = items.reduce((s, li) => s + li.quantity * li.unitPrice * (li.taxRate / 100), 0);
         return { subtotal, taxTotal, total: subtotal + taxTotal };
     }, [lineItems]);
 
