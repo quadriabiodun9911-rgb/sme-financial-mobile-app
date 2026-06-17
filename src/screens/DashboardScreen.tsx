@@ -14,7 +14,7 @@ import { t } from '../utils/i18n';
 import { validateAmount, validateDescription } from '../utils/validation';
 
 export default function DashboardScreen() {
-    const { finance, insight, settings, goals, transactions, invoices, navigate, setCurrentScreen, language, isLoading, addTransaction, isDemoMode } = useApp();
+    const { finance, insight, settings, goals, transactions, invoices, navigate, setCurrentScreen, language, isLoading, addTransaction, isDemoMode, exitDemo } = useApp();
     const hasTransaction = transactions.length > 0;
 
     const [showOnboardingWizard, setShowOnboardingWizard] = useState(false);
@@ -109,6 +109,16 @@ export default function DashboardScreen() {
             <ScrollView style={styles.scroll} contentContainerStyle={styles.pad}>
 
                 <Text style={styles.title}>{t(language, 'dashboard')}</Text>
+
+                {/* ── Demo Banner ─────────────────────────────────────────── */}
+                {isDemoMode && (
+                    <View style={styles.demoBanner}>
+                        <Text style={styles.demoBannerText}>👀 Demo Mode — your data is not saved</Text>
+                        <TouchableOpacity style={styles.demoBannerBtn} onPress={exitDemo}>
+                            <Text style={styles.demoBannerBtnText}>Create Free Account →</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
 
                 {/* ── Profitability Hero Card ──────────────────────────────── */}
                 <View style={[styles.heroCard, { borderColor: finance.profit >= 0 ? Colors.income : Colors.expense }]}>
@@ -397,6 +407,11 @@ const styles = StyleSheet.create({
     title: { fontSize: 22, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 14 },
     row:   { flexDirection: 'row', gap: 12, marginBottom: 12 },
     flex:  { flex: 1 },
+
+    demoBanner: { backgroundColor: '#1e3a5f', borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#3b82f6', alignItems: 'center', gap: 8 },
+    demoBannerText: { color: '#93c5fd', fontSize: 13, fontWeight: '600' },
+    demoBannerBtn: { backgroundColor: Colors.primary, paddingHorizontal: 20, paddingVertical: 8, borderRadius: 8 },
+    demoBannerBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
 
     heroCard: {
         backgroundColor: Colors.surface, borderRadius: 14, padding: 18,

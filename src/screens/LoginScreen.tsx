@@ -3,7 +3,7 @@ import {
     SafeAreaView, ScrollView, View, Text, TextInput,
     TouchableOpacity, StyleSheet, Alert, ActivityIndicator,
 } from 'react-native';
-import { useApp } from '../contexts/AppContext';
+import { useApp, DEMO_BUSINESSES } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { t, LANGUAGES, Language } from '../utils/i18n';
 
@@ -20,7 +20,7 @@ type Mode = 'owner-setup' | 'owner-login' | 'join-team' | 'demo-pick' | 'recover
 type LoginMethod = 'pin' | 'email';
 
 export default function LoginScreen() {
-    const { isFirstLaunch, setupAccount, recoverAccount, login, joinTeam, language, setLanguage, updateSettings, resetApp, isLockedOut, lockoutUntil } = useApp();
+    const { isFirstLaunch, setupAccount, recoverAccount, login, joinTeam, enterDemo, language, setLanguage, updateSettings, resetApp, isLockedOut, lockoutUntil } = useApp();
     const [mode, setMode] = useState<Mode>(isFirstLaunch ? 'owner-setup' : 'owner-login');
     const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
     const [loginMethod, setLoginMethod] = useState<LoginMethod>('pin');
