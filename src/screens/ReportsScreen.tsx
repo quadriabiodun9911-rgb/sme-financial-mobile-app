@@ -89,6 +89,7 @@ export default function ReportsScreen() {
     const { finance: allFinance, settings, updateSettings, transactions, assets, navParams, inventory, invoices } = useApp();
     const { currency, minReserve, targetMargin } = settings;
 
+    const [simpleView, setSimpleView]  = useState(true);
     const [section, setSection]       = useState<SectionKey>('statements');
     const [activeTab, setActiveTab]   = useState<SubTab>('balancesheet');
     const [period, setPeriod]         = useState<ReportPeriod>('all');
@@ -132,6 +133,20 @@ export default function ReportsScreen() {
 
     const periodActive = PERIOD_AWARE.includes(activeTab);
 
+    const SIMPLE_SECTIONS: SectionKey[] = ['statements', 'operations'];
+    const visibleSections = simpleView
+        ? SECTIONS.filter(s => SIMPLE_SECTIONS.includes(s.key))
+        : SECTIONS;
+
+    // If simpleView is toggled on and current section is hidden, reset to first simple section
+    useEffect(() => {
+        if (simpleView && !SIMPLE_SECTIONS.includes(section)) {
+            setSection('statements');
+            setActiveTab(SECTION_TABS['statements'][0].key);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [simpleView]);
+
     const handleSectionChange = (s: SectionKey) => {
         setSection(s);
         setActiveTab(SECTION_TABS[s][0].key);
@@ -146,9 +161,26 @@ export default function ReportsScreen() {
         <SafeAreaView style={styles.safe}>
             <Header />
 
+            {/* ── Simple / Full toggle ──────────────────────────────── */}
+            <View style={styles.viewToggleRow}>
+                <TouchableOpacity
+                    style={[styles.viewToggleBtn, simpleView && styles.viewToggleBtnActive]}
+                    onPress={() => setSimpleView(true)}>
+                    <Text style={[styles.viewToggleText, simpleView && styles.viewToggleTextActive]}>Simple</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={[styles.viewToggleBtn, !simpleView && styles.viewToggleBtnActive]}
+                    onPress={() => setSimpleView(false)}>
+                    <Text style={[styles.viewToggleText, !simpleView && styles.viewToggleTextActive]}>Full Reports</Text>
+                </TouchableOpacity>
+            </View>
+            {simpleView && (
+                <Text style={styles.viewToggleHint}>Full Reports unlocks Planning, Growth &amp; Health Analysis</Text>
+            )}
+
             {/* ── Section picker ────────────────────────────────────── */}
             <View style={styles.sectionRow}>
-                {SECTIONS.map(s => (
+                {visibleSections.map(s => (
                     <TouchableOpacity
                         key={s.key}
                         style={[styles.sectionBtn, section === s.key && styles.sectionBtnActive]}
@@ -447,11 +479,11 @@ function InventoryReportTab({ inventory, finance, transactions, currency }: {
 
             {/* COGS Analysis */}
             <View style={styles.card}>
-                <Text style={styles.cardTitle}>COGS Analysis</Text>
-                <StatRow label="Total Stock Cost Value"    value={`${currency}${totalStockCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}   color={Colors.expense} />
-                <StatRow label="Potential Revenue"         value={`${currency}${potentialRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}  color={Colors.income} />
-                <StatRow label="Potential Gross Profit"    value={`${currency}${potentialProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}   color={potentialProfit >= 0 ? Colors.income : Colors.expense} bold />
-                <StatRow label="Gross Margin %"            value={`${grossMargin.toFixed(1)}%`}                                                              color={Colors.textMuted} />
+                <Text style={styles.cardTitle}>Stock Profit Analysis</Text>
+                <StatRow label="What Your Stock Cost You"      value={`${currency}${totalStockCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}   color={Colors.expense} />
+                <StatRow label="What You Could Sell It For"    value={`${currency}${potentialRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}  color={Colors.income} />
+                <StatRow label="Potential Profit If All Sold"  value={`${currency}${potentialProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}   color={potentialProfit >= 0 ? Colors.income : Colors.expense} bold />
+                <StatRow label="Profit Margin %"               value={`${grossMargin.toFixed(1)}%`}                                                              color={Colors.textMuted} />
                 <Text style={styles.note}>Add stock expenses as transactions to include in P&L</Text>
             </View>
 
@@ -509,12 +541,12 @@ function InventoryReportTab({ inventory, finance, transactions, currency }: {
 
             {/* Inventory-to-Revenue Ratio */}
             <View style={styles.card}>
-                <Text style={styles.cardTitle}>Inventory-to-Revenue Ratio</Text>
+                <Text style={styles.cardTitle}>Stock vs Revenue</Text>
                 <StatRow label="Stock Value"    value={`${currency}${totalStockCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}  color={Colors.asset} />
                 <StatRow label="Total Revenue"  value={`${currency}${totalRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}    color={Colors.income} />
                 <StatRow label="Ratio"          value={`${stockToRevRatio.toFixed(1)}%`}                                                        color={ratioColor} bold />
                 <Text style={styles.note}>
-                    For every $1 of revenue you have ${(totalRevenue > 0 ? totalStockCost / totalRevenue : 0).toFixed(2)} of stock tied up
+                    {`For every ${currency}1 of revenue you have ${currency}${(totalRevenue > 0 ? totalStockCost / totalRevenue : 0).toFixed(2)} of stock tied up`}
                 </Text>
             </View>
 
@@ -828,6 +860,13 @@ const styles = StyleSheet.create({
     sizeBadge:     { fontSize: 11, color: Colors.primary, fontWeight: '600', backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.primary, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
     exportBtn:     { paddingHorizontal: 10, paddingVertical: 4, backgroundColor: Colors.primary, borderRadius: 8 },
     exportText:    { fontSize: 11, color: Colors.textPrimary, fontWeight: '600' },
+
+    viewToggleRow:        { flexDirection: 'row', backgroundColor: Colors.surface, padding: 8, gap: 6, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    viewToggleBtn:        { flex: 1, paddingVertical: 7, borderRadius: 8, alignItems: 'center', backgroundColor: Colors.bg },
+    viewToggleBtnActive:  { backgroundColor: Colors.primary },
+    viewToggleText:       { fontSize: 13, fontWeight: '600', color: Colors.textMuted },
+    viewToggleTextActive: { color: Colors.textPrimary },
+    viewToggleHint:       { fontSize: 11, color: Colors.textMuted, textAlign: 'center', paddingHorizontal: 12, paddingBottom: 6, backgroundColor: Colors.surface },
 });
 
 const rowStyles = StyleSheet.create({
