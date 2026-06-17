@@ -390,7 +390,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const exitDemo = () => {
         setIsDemoMode(false);
-        setHasProfile(false);
+        // Restore hasProfile to reflect whether a real account exists on this device.
+        // storedPin being set means a real user registered here — keep them on login screen.
+        setHasProfile(storedPin !== null);
         setUser(null);
         setTransactions([]);
         setGoals([]);
@@ -418,7 +420,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setStoredPin(pin);
         setHasProfile(true);
         setUserRole('owner');
-        if (loadDemo) setTransactions(DEMO_TRANSACTIONS);
+        if (loadDemo) setTransactions(DEMO_BUSINESSES[0].transactions);
         setUser({ email, businessName, role: 'Administrator' });
         setCurrentScreen('dashboard');
         // Set up notifications after account creation
