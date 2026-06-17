@@ -288,9 +288,35 @@ export async function loadAssets(): Promise<Asset[] | null> {
 // ─── Loans ────────────────────────────────────────────────────────────────────
 export async function saveLoans(loans: Loan[]): Promise<void> {
     await AsyncStorage.setItem(KEYS.loans, JSON.stringify(loans));
+    const ownerId = await getWorkspaceOwnerId();
+    if (!ownerId) return;
+    try {
+        if (loans.length > 0) {
+            const rows = loans.map(l => ({ id: l.id, user_id: ownerId, data: l, updated_at: new Date().toISOString() }));
+            const { error } = await supabase.from('loans').upsert(rows, { onConflict: 'id' });
+            if (error) logSyncError('loans', 'upsert', error);
+        }
+        const { data: remote } = await supabase.from('loans').select('id').eq('user_id', ownerId);
+        if (remote) {
+            const localIds = new Set(loans.map(l => l.id));
+            const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
+            if (toDelete.length > 0) await supabase.from('loans').delete().in('id', toDelete);
+        }
+    } catch (e) { logSyncError('loans', 'sync', e); }
 }
 
 export async function loadLoans(): Promise<Loan[] | null> {
+    const ownerId = await getWorkspaceOwnerId();
+    if (ownerId) {
+        try {
+            const { data, error } = await supabase.from('loans').select('data').eq('user_id', ownerId);
+            if (!error && data && data.length > 0) {
+                const loans = data.map(r => r.data as Loan);
+                await AsyncStorage.setItem(KEYS.loans, JSON.stringify(loans));
+                return loans;
+            }
+        } catch (e) { logSyncError('loans', 'load', e); }
+    }
     const raw = await AsyncStorage.getItem(KEYS.loans);
     return raw ? (JSON.parse(raw) as Loan[]) : null;
 }
@@ -298,9 +324,35 @@ export async function loadLoans(): Promise<Loan[] | null> {
 // ─── Budgets ──────────────────────────────────────────────────────────────────
 export async function saveBudgets(budgets: Budget[]): Promise<void> {
     await AsyncStorage.setItem('@quad360/budgets', JSON.stringify(budgets));
+    const ownerId = await getWorkspaceOwnerId();
+    if (!ownerId) return;
+    try {
+        if (budgets.length > 0) {
+            const rows = budgets.map(b => ({ id: b.id, user_id: ownerId, data: b, updated_at: new Date().toISOString() }));
+            const { error } = await supabase.from('budgets').upsert(rows, { onConflict: 'id' });
+            if (error) logSyncError('budgets', 'upsert', error);
+        }
+        const { data: remote } = await supabase.from('budgets').select('id').eq('user_id', ownerId);
+        if (remote) {
+            const localIds = new Set(budgets.map(b => b.id));
+            const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
+            if (toDelete.length > 0) await supabase.from('budgets').delete().in('id', toDelete);
+        }
+    } catch (e) { logSyncError('budgets', 'sync', e); }
 }
 
 export async function loadBudgets(): Promise<Budget[] | null> {
+    const ownerId = await getWorkspaceOwnerId();
+    if (ownerId) {
+        try {
+            const { data, error } = await supabase.from('budgets').select('data').eq('user_id', ownerId);
+            if (!error && data && data.length > 0) {
+                const budgets = data.map(r => r.data as Budget);
+                await AsyncStorage.setItem('@quad360/budgets', JSON.stringify(budgets));
+                return budgets;
+            }
+        } catch (e) { logSyncError('budgets', 'load', e); }
+    }
     const raw = await AsyncStorage.getItem('@quad360/budgets');
     return raw ? (JSON.parse(raw) as Budget[]) : null;
 }
@@ -536,7 +588,7 @@ export async function deleteAccountData(): Promise<void> {
     await clearAllData();
     const ownerId = await getWorkspaceOwnerId();
     if (ownerId) {
-        const tables = ['transactions','goals','settings','invoices','assets','inventory','audit_logs'];
+        const tables = ['transactions','goals','settings','invoices','assets','inventory','loans','budgets','audit_logs'];
         const results = await Promise.allSettled(
             tables.map(t => supabase.from(t).delete().eq('user_id', ownerId))
         );

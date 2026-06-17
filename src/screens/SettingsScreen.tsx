@@ -88,7 +88,7 @@ export default function SettingsScreen() {
         doSave();
     };
 
-    const handleChangePin = () => {
+    const handleChangePin = async () => {
         if (!/^\d{6}$/.test(newPin)) {
             Alert.alert('Invalid PIN', 'New PIN must be exactly 6 digits.');
             return;
@@ -97,14 +97,17 @@ export default function SettingsScreen() {
             Alert.alert('PIN mismatch', 'New PINs do not match.');
             return;
         }
-        const ok = changePin(currentPin, newPin);
-        if (!ok) {
-            Alert.alert('Incorrect PIN', 'Current PIN is incorrect.');
+        const result = await changePin(currentPin, newPin);
+        if (!result.ok) {
+            if (result.lockedUntil) {
+                const mins = Math.ceil((result.lockedUntil - Date.now()) / 60000);
+                Alert.alert('Too Many Attempts', `PIN change locked for ${mins} minute${mins !== 1 ? 's' : ''}. Use "Forgot PIN?" if needed.`);
+            } else {
+                Alert.alert('Incorrect PIN', 'Current PIN is incorrect.');
+            }
             return;
         }
-        setCurrentPin('');
-        setNewPin('');
-        setConfirmPin('');
+        setCurrentPin(''); setNewPin(''); setConfirmPin('');
         Alert.alert('Success', 'PIN changed successfully.');
     };
 
@@ -295,6 +298,16 @@ export default function SettingsScreen() {
                             placeholder="••••" placeholderTextColor={Colors.muted} />
                         <TouchableOpacity style={[styles.saveBtn, { marginTop: 12, marginBottom: 0 }]} onPress={handleChangePin}>
                             <Text style={styles.saveBtnText}>Update PIN</Text>
+                        </TouchableOpacity>
+                    </Section>
+
+                    {/* Security */}
+                    <Section title="Security">
+                        <Text style={styles.hint}>
+                            Add an extra layer of protection with two-factor authentication using an authenticator app.
+                        </Text>
+                        <TouchableOpacity style={styles.dataBtn} onPress={() => setCurrentScreen('2fa' as any)}>
+                            <Text style={styles.dataBtnText}>🔐 Two-Factor Authentication</Text>
                         </TouchableOpacity>
                     </Section>
 

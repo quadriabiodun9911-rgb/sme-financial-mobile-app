@@ -50,7 +50,7 @@ interface AppContextValue {
     login: (pin: string) => boolean;
     joinTeam: (email: string, pin: string, inviteCode: string) => Promise<void>;
     logout: () => void;
-    changePin: (currentPin: string, newPin: string) => boolean;
+    changePin: (currentPin: string, newPin: string) => Promise<{ ok: boolean; lockedUntil?: number }>;
     // Security: Lockout info
     isLockedOut: boolean;
     lockoutUntil: number | null;
@@ -400,8 +400,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setUser({ email: profile.email, businessName: profile.businessName, role: 'Administrator' });
 
         // Load all their cloud data
-        const [savedTx, savedSettings, savedGoals, savedInvoices, savedAssets2, savedInventory2] = await Promise.all([
-            loadTransactions(), loadSettings(), loadGoals(), loadInvoices(), loadAssets(), loadInventory(),
+        const [savedTx, savedSettings, savedGoals, savedInvoices, savedAssets2, savedInventory2, savedLoans2, savedBudgets2] = await Promise.all([
+            loadTransactions(), loadSettings(), loadGoals(), loadInvoices(), loadAssets(), loadInventory(), loadLoans(), loadBudgets(),
         ]);
         if (savedTx) { const { updated, newEntries } = processDueRecurring(savedTx); setTransactions([...newEntries, ...updated]); }
         if (savedSettings)   setSettings({ ...DEFAULT_SETTINGS, ...savedSettings });
@@ -409,6 +409,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (savedInvoices)   setInvoices(savedInvoices);
         if (savedAssets2)    setAssets(savedAssets2);
         if (savedInventory2) setInventory(savedInventory2);
+        if (savedLoans2)     setLoans(savedLoans2);
+        if (savedBudgets2)   setBudgets(savedBudgets2);
 
         setCurrentScreen('dashboard');
     };
@@ -503,12 +505,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setCurrentScreen('login');
     };
 
-    const changePin = (currentPin: string, newPin: string): boolean => {
-        if (currentPin !== storedPin) return false;
+    const CHANGE_PIN_KEY = 'quad360_changePinAttempts';
+    const CHANGE_PIN_LOCKOUT_KEY = 'quad360_changePinLockout';
+    const changePin = async (currentPin: string, newPin: string): Promise<{ ok: boolean; lockedUntil?: number }> => {
+        // Rate limit: 5 wrong attempts → 15 minute lockout
+        const lockoutRaw = await AsyncStorage.getItem(CHANGE_PIN_LOCKOUT_KEY).catch(() => null);
+        if (lockoutRaw) {
+            const until = parseInt(lockoutRaw, 10);
+            if (Date.now() < until) return { ok: false, lockedUntil: until };
+            await AsyncStorage.multiRemove([CHANGE_PIN_LOCKOUT_KEY, CHANGE_PIN_KEY]).catch(() => {});
+        }
+        if (currentPin !== storedPin) {
+            const attemptsRaw = await AsyncStorage.getItem(CHANGE_PIN_KEY).catch(() => null);
+            const attempts = (parseInt(attemptsRaw ?? '0', 10) || 0) + 1;
+            if (attempts >= 5) {
+                const until = Date.now() + 15 * 60 * 1000;
+                await AsyncStorage.setItem(CHANGE_PIN_LOCKOUT_KEY, String(until)).catch(() => {});
+                await AsyncStorage.removeItem(CHANGE_PIN_KEY).catch(() => {});
+                return { ok: false, lockedUntil: until };
+            }
+            await AsyncStorage.setItem(CHANGE_PIN_KEY, String(attempts)).catch(() => {});
+            return { ok: false };
+        }
+        await AsyncStorage.multiRemove([CHANGE_PIN_KEY, CHANGE_PIN_LOCKOUT_KEY]).catch(() => {});
         setStoredPin(newPin);
         savePin(newPin).catch(() => {});
         supabase.auth.updateUser({ password: newPin + '_Q360' }).catch(() => {});
-        return true;
+        return { ok: true };
     };
 
     const updateSettings = (patch: Partial<BusinessSettings>) => {
