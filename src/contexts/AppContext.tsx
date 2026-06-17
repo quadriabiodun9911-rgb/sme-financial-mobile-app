@@ -17,7 +17,7 @@ import {
     savePin, loadPin,
     saveProfile, loadProfile,
     saveLanguage, loadLanguage,
-    exportAllData, importAllData, clearAllData,
+    exportAllData, importAllData, clearAllData, deleteAccountData,
     loadTeamMembers, inviteTeamMember, removeTeamMember, joinTeamWithCode,
     setWorkspaceOwner, clearWorkspaceOwner,
     AppBackup,
@@ -117,6 +117,7 @@ interface AppContextValue {
     exportData: () => Promise<string>;
     importData: (json: string) => Promise<void>;
     clearData: () => Promise<void>;
+    deleteAccount: () => Promise<void>;
     resetApp: () => Promise<void>;
 }
 
@@ -719,9 +720,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setTransactions([]); setGoals([]); setSettings(DEFAULT_SETTINGS); setInvoices([]); setAssets([]);
     };
 
+    const deleteAccount = async () => {
+        try {
+            await deleteAccountData().catch(() => {});
+            await AsyncStorage.multiRemove([
+                '@quad360/pin', '@quad360/profile', '@quad360/language',
+                '@quad360/workspaceOwner', '@quad360/encryption-key',
+                '@quad360/inventory', '@quad360/transactions',
+                '@quad360/goals', '@quad360/invoices', '@quad360/assets',
+                LOCKOUT_KEY, ATTEMPTS_KEY,
+            ]).catch(() => {});
+            setStoredPin(null); setHasProfile(false); setUser(null);
+            setUserRole('owner'); setTransactions([]); setGoals([]);
+            setSettings(DEFAULT_SETTINGS); setInvoices([]); setAssets([]);
+            setInventory([]); setCurrentScreen('login');
+            if (typeof window !== 'undefined') setTimeout(() => window.location.reload(), 500);
+        } catch (error) {
+            console.error('Error deleting account:', error);
+        }
+    };
+
     const resetApp = async () => {
         try {
-            // Clear all data storage
+            // Clear local storage only — Supabase data preserved
             await clearAllData().catch(() => {});
 
             // Clear all auth and app storage
@@ -786,7 +807,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         teamMembers, inviteMember, removeMember, refreshTeam,
         language, setLanguage,
         finance, insight, isLoading,
-        exportData, importData, clearData, resetApp,
+        exportData, importData, clearData, deleteAccount, resetApp,
     };
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

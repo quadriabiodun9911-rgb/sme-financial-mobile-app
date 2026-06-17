@@ -521,9 +521,15 @@ export async function importAllData(json: string): Promise<AppBackup> {
     return parsed;
 }
 
+// Clears local storage only — Supabase data is preserved so user can sign back in and recover.
 export async function clearAllData(): Promise<void> {
     await AsyncStorage.multiRemove([KEYS.transactions, KEYS.settings, KEYS.goals, KEYS.invoices, KEYS.assets, KEYS.pin, KEYS.profile]);
     await clearAllSecureData();
+}
+
+// Permanently deletes all Supabase data for the owner. Use only for explicit "Delete Account" action.
+export async function deleteAccountData(): Promise<void> {
+    await clearAllData();
     const ownerId = await getWorkspaceOwnerId();
     if (ownerId) {
         const results = await Promise.allSettled([
@@ -535,7 +541,8 @@ export async function clearAllData(): Promise<void> {
             supabase.from('audit_logs').delete().eq('user_id', ownerId),
         ]);
         results.forEach((r, i) => {
-            if (r.status === 'rejected') logSyncError(['transactions','goals','settings','invoices','assets','audit_logs'][i], 'clear', r.reason);
+            if (r.status === 'rejected') logSyncError(['transactions','goals','settings','invoices','assets','audit_logs'][i], 'delete', r.reason);
         });
+        await supabase.auth.signOut();
     }
 }
