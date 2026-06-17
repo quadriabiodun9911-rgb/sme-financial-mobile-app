@@ -13,6 +13,7 @@ import { t } from '../utils/i18n';
 import { validateAmount, validateDescription } from '../utils/validation';
 import OnboardingWizard from '../components/OnboardingWizard';
 import ProfitShareCard from '../components/ProfitShareCard';
+import RetentionNudges from '../components/RetentionNudges';
 
 const INCOME_CATEGORIES = ['Sales', 'Service', 'Consulting', 'Rental', 'Interest', 'Other Income'];
 const EXPENSE_CATEGORIES = ['Rent', 'Salaries', 'Utilities', 'Marketing', 'Supplies', 'Transport', 'Meals', 'Software', 'Tax', 'Other'];
@@ -137,6 +138,16 @@ export default function DashboardScreen() {
                             </View>
                         </TouchableOpacity>
                     </View>
+                )}
+
+                {/* ── Retention nudges ─────────────────────────────────────── */}
+                {!isDemoMode && (
+                    <RetentionNudges
+                        transactions={transactions}
+                        currency={currency}
+                        profit={finance.profit}
+                        onAddTransaction={() => openFab()}
+                    />
                 )}
 
                 {/* ── Alert banners (always visible) ───────────────────────── */}
@@ -293,12 +304,6 @@ export default function DashboardScreen() {
                     <Text style={styles.quickArrow}>›</Text>
                 </TouchableOpacity>
 
-                {/* ── Daily nudge ──────────────────────────────────────────── */}
-                {!loggedToday && hasTransaction && (
-                    <TouchableOpacity style={styles.nudgeBanner} onPress={() => openFab()}>
-                        <Text style={styles.nudgeText}>📝 Nothing logged today — tap to add a transaction</Text>
-                    </TouchableOpacity>
-                )}
 
                 {/* ── See more toggle ──────────────────────────────────────── */}
                 <TouchableOpacity style={styles.seeMoreBtn} onPress={() => setShowMore(v => !v)}>
