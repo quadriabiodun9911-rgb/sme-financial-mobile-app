@@ -523,7 +523,11 @@ export async function importAllData(json: string): Promise<AppBackup> {
 
 // Clears local storage only — Supabase data is preserved so user can sign back in and recover.
 export async function clearAllData(): Promise<void> {
-    await AsyncStorage.multiRemove([KEYS.transactions, KEYS.settings, KEYS.goals, KEYS.invoices, KEYS.assets, KEYS.pin, KEYS.profile]);
+    await AsyncStorage.multiRemove([
+        KEYS.transactions, KEYS.settings, KEYS.goals, KEYS.invoices,
+        KEYS.assets, KEYS.loans, KEYS.pin, KEYS.profile, KEYS.language,
+        KEYS.workspaceOwner, '@quad360/inventory', '@quad360/budgets',
+    ]);
     await clearAllSecureData();
 }
 

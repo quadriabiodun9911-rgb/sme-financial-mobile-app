@@ -11,6 +11,8 @@ import { trackDemoConvertTapped, trackScreenViewed } from '../utils/analytics';
 import FooterNav from '../components/FooterNav';
 import { t } from '../utils/i18n';
 import { validateAmount, validateDescription } from '../utils/validation';
+import OnboardingWizard from '../components/OnboardingWizard';
+import ProfitShareCard from '../components/ProfitShareCard';
 
 const INCOME_CATEGORIES = ['Sales', 'Service', 'Consulting', 'Rental', 'Interest', 'Other Income'];
 const EXPENSE_CATEGORIES = ['Rent', 'Salaries', 'Utilities', 'Marketing', 'Supplies', 'Transport', 'Meals', 'Software', 'Tax', 'Other'];
@@ -24,7 +26,9 @@ export default function DashboardScreen() {
     const [qaDesc, setQaDesc]             = useState('');
     const [qaCategory, setQaCategory]     = useState('');
     const [qaSubmitting, setQaSubmitting] = useState(false);
-    const [showMore, setShowMore]         = useState(false);
+    const [showMore, setShowMore]               = useState(false);
+    const [showOnboardingWizard, setShowOnboardingWizard] = useState(false);
+    const [showShareCard, setShowShareCard]     = useState(false);
 
     const categories = qaType === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
 

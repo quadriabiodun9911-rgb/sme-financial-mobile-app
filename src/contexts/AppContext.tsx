@@ -375,7 +375,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     // Recover existing account on a new device — authenticates with Supabase and pulls all data
     const recoverAccount = async (email: string, pin: string) => {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password: pin });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password: pin + '_Q360' });
         if (error || !data.user) throw new Error('Incorrect email or PIN. Please try again.');
 
         // Pull profile from Supabase
