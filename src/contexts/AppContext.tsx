@@ -44,9 +44,6 @@ interface AppContextValue {
     user: User | null;
     userRole: UserRole;
     isFirstLaunch: boolean;
-    isDemoMode: boolean;
-    enterDemo: (businessId: string) => void;
-    exitDemo: () => void;
     setupAccount: (email: string, businessName: string, pin: string, loadDemo: boolean) => Promise<void>;
     recoverAccount: (email: string, pin: string) => Promise<void>;
     login: (pin: string) => boolean;
@@ -140,136 +137,6 @@ const DEFAULT_SETTINGS: BusinessSettings = {
     defaultTaxRate: '0',
 };
 
-export interface DemoBusiness {
-    id: string;
-    flag: string;
-    businessName: string;
-    description: string;
-    currency: string;
-    transactions: Transaction[];
-}
-
-export const DEMO_BUSINESSES: DemoBusiness[] = [
-    {
-        id: 'demo-ng', flag: '🇳🇬', businessName: 'Lagos Import & Export Co.', currency: '₦',
-        description: 'Import/export trading',
-        transactions: [
-            { id: 'ng-1', date: new Date().toISOString().split('T')[0], description: 'Shipment from China – Electronics', type: 'income', category: 'Sales', amount: 1850000, status: 'paid', vendorCustomer: 'TechZone Ltd' },
-            { id: 'ng-2', date: new Date().toISOString().split('T')[0], description: 'Customs & Clearing Fees', type: 'expense', category: 'Logistics', amount: 320000, status: 'paid' },
-            { id: 'ng-3', date: new Date().toISOString().split('T')[0], description: 'Warehouse Rent – Apapa', type: 'expense', category: 'Office & Admin', amount: 180000, status: 'paid', isRecurring: true, recurringFrequency: 'monthly' },
-            { id: 'ng-4', date: new Date().toISOString().split('T')[0], description: 'Bulk Fabric Order – Aba Buyers', type: 'income', category: 'Sales', amount: 960000, status: 'pending', dueDate: new Date(Date.now() + 5 * 86400000).toISOString().split('T')[0] },
-        ],
-    },
-    {
-        id: 'demo-uk', flag: '🇬🇧', businessName: 'Bright & Co Consulting', currency: '£',
-        description: 'Business consulting',
-        transactions: [
-            { id: 'uk-1', date: new Date().toISOString().split('T')[0], description: 'Strategy Retainer – NovaTech', type: 'income', category: 'Consulting', amount: 8500, status: 'paid', vendorCustomer: 'NovaTech PLC' },
-            { id: 'uk-2', date: new Date().toISOString().split('T')[0], description: 'Office Space – WeWork', type: 'expense', category: 'Office & Admin', amount: 1200, status: 'paid', isRecurring: true, recurringFrequency: 'monthly' },
-            { id: 'uk-3', date: new Date().toISOString().split('T')[0], description: 'Digital Transformation Project', type: 'income', category: 'Consulting', amount: 22000, status: 'paid', vendorCustomer: 'RetailGroup UK' },
-            { id: 'uk-4', date: new Date().toISOString().split('T')[0], description: 'Staff Contractor Fees', type: 'expense', category: 'Salaries', amount: 4800, status: 'paid' },
-        ],
-    },
-    {
-        id: 'demo-za', flag: '🇿🇦', businessName: 'Cape Town Brew Co.', currency: 'R',
-        description: 'Craft brewery & distribution',
-        transactions: [
-            { id: 'za-1', date: new Date().toISOString().split('T')[0], description: 'Craft Beer – Wholesale Order', type: 'income', category: 'Sales', amount: 78000, status: 'paid', vendorCustomer: 'Checkers SA' },
-            { id: 'za-2', date: new Date().toISOString().split('T')[0], description: 'Hops & Malt Supplies', type: 'expense', category: 'Raw Materials', amount: 18500, status: 'paid' },
-            { id: 'za-3', date: new Date().toISOString().split('T')[0], description: 'Tap Room Weekend Sales', type: 'income', category: 'Sales', amount: 34000, status: 'paid' },
-            { id: 'za-4', date: new Date().toISOString().split('T')[0], description: 'Equipment Maintenance', type: 'expense', category: 'Equipment', amount: 9200, status: 'paid' },
-        ],
-    },
-    {
-        id: 'demo-us', flag: '🇺🇸', businessName: 'Hudson Valley Creative Studio', currency: '$',
-        description: 'Creative agency',
-        transactions: [
-            { id: 'us-1', date: new Date().toISOString().split('T')[0], description: 'Brand Identity Package – StartupX', type: 'income', category: 'Design', amount: 14500, status: 'paid', vendorCustomer: 'StartupX Inc.' },
-            { id: 'us-2', date: new Date().toISOString().split('T')[0], description: 'Adobe CC & Figma Subscriptions', type: 'expense', category: 'Software', amount: 320, status: 'paid', isRecurring: true, recurringFrequency: 'monthly' },
-            { id: 'us-3', date: new Date().toISOString().split('T')[0], description: 'Social Media Campaign – Q2', type: 'income', category: 'Marketing', amount: 8200, status: 'pending', dueDate: new Date(Date.now() + 10 * 86400000).toISOString().split('T')[0] },
-            { id: 'us-4', date: new Date().toISOString().split('T')[0], description: 'Freelancer Payments', type: 'expense', category: 'Salaries', amount: 5600, status: 'paid' },
-        ],
-    },
-    {
-        id: 'demo-de', flag: '🇩🇪', businessName: 'Berlin Parts GmbH', currency: '€',
-        description: 'Auto parts wholesale',
-        transactions: [
-            { id: 'de-1', date: new Date().toISOString().split('T')[0], description: 'Engine Parts Export – Poland', type: 'income', category: 'Sales', amount: 42000, status: 'paid', vendorCustomer: 'WarszawAuto Sp.' },
-            { id: 'de-2', date: new Date().toISOString().split('T')[0], description: 'Factory Electricity Bill', type: 'expense', category: 'Utilities', amount: 3800, status: 'paid', isRecurring: true, recurringFrequency: 'monthly' },
-            { id: 'de-3', date: new Date().toISOString().split('T')[0], description: 'Brake Systems – Fleet Order', type: 'income', category: 'Sales', amount: 29500, status: 'paid' },
-            { id: 'de-4', date: new Date().toISOString().split('T')[0], description: 'Raw Steel Procurement', type: 'expense', category: 'Raw Materials', amount: 14700, status: 'paid' },
-        ],
-    },
-    {
-        id: 'demo-ae', flag: '🇦🇪', businessName: 'Dubai Luxe Real Estate LLC', currency: 'AED',
-        description: 'Property brokerage',
-        transactions: [
-            { id: 'ae-1', date: new Date().toISOString().split('T')[0], description: 'Commission – Marina Apartment Sale', type: 'income', category: 'Commission', amount: 185000, status: 'paid', vendorCustomer: 'Al-Faris Family' },
-            { id: 'ae-2', date: new Date().toISOString().split('T')[0], description: 'Office Lease – JLT Tower', type: 'expense', category: 'Office & Admin', amount: 42000, status: 'paid' },
-            { id: 'ae-3', date: new Date().toISOString().split('T')[0], description: 'Commission – Business Bay Villa', type: 'income', category: 'Commission', amount: 310000, status: 'pending', dueDate: new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0] },
-            { id: 'ae-4', date: new Date().toISOString().split('T')[0], description: 'Marketing & Listings', type: 'expense', category: 'Marketing', amount: 28000, status: 'paid' },
-        ],
-    },
-    {
-        id: 'demo-cn', flag: '🇨🇳', businessName: 'Shenzhen Goods Supplier', currency: '¥',
-        description: 'Electronics manufacturing',
-        transactions: [
-            { id: 'cn-1', date: new Date().toISOString().split('T')[0], description: 'Smartwatch Export – Africa Batch', type: 'income', category: 'Sales', amount: 680000, status: 'paid', vendorCustomer: 'QuadTrade NG' },
-            { id: 'cn-2', date: new Date().toISOString().split('T')[0], description: 'Component Procurement – PCBs', type: 'expense', category: 'Raw Materials', amount: 220000, status: 'paid' },
-            { id: 'cn-3', date: new Date().toISOString().split('T')[0], description: 'Phone Cases Bulk – Europe Order', type: 'income', category: 'Sales', amount: 415000, status: 'paid', vendorCustomer: 'EuroMobile GmbH' },
-            { id: 'cn-4', date: new Date().toISOString().split('T')[0], description: 'Factory Staff – Monthly Payroll', type: 'expense', category: 'Salaries', amount: 180000, status: 'paid', isRecurring: true, recurringFrequency: 'monthly' },
-        ],
-    },
-];
-
-const DEMO_TRANSACTIONS: Transaction[] = [
-    {
-        id: 'demo-1',
-        date: new Date().toISOString().split('T')[0],
-        description: 'Enterprise Software SLA License',
-        type: 'income',
-        category: 'Software sales',
-        amount: 85000,
-        taxRate: 10,
-        taxAmount: 8500,
-        transactionCategory: 'sale',
-        vendorCustomer: 'TechCorp Inc.',
-        reference: 'INV-001',
-        status: 'paid',
-    },
-    {
-        id: 'demo-2',
-        date: new Date().toISOString().split('T')[0],
-        description: 'Office Rent – June',
-        type: 'expense',
-        category: 'Office & Admin',
-        amount: 3200,
-        status: 'paid',
-    },
-    {
-        id: 'demo-3',
-        date: new Date().toISOString().split('T')[0],
-        description: 'Consulting Retainer',
-        type: 'income',
-        category: 'Consulting',
-        amount: 12000,
-        status: 'pending',
-        dueDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
-        vendorCustomer: 'BuildCo Ltd.',
-        reference: 'INV-002',
-    },
-    {
-        id: 'demo-4',
-        date: new Date().toISOString().split('T')[0],
-        description: 'Cloud Infrastructure',
-        type: 'expense',
-        category: 'Equipment',
-        amount: 1800,
-        status: 'paid',
-        isRecurring: true,
-        recurringFrequency: 'monthly',
-    },
-];
 
 function processDueRecurring(transactions: Transaction[]): { updated: Transaction[]; newEntries: Transaction[] } {
     const today = new Date().toISOString().split('T')[0];
@@ -315,7 +182,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const [teamMembers, setTeamMembers]     = useState<TeamMember[]>([]);
     const [language, setLang]              = useState<Language>('en');
     const [isLoading, setIsLoading]         = useState(true);
-    const [isDemoMode, setIsDemoMode]       = useState(false);
     // Security: Rate limiting for login attempts (persisted so restart doesn't reset)
     const [loginAttempts, setLoginAttempts]       = useState(0);
     const [isLockedOut, setIsLockedOut]           = useState(false);
@@ -440,6 +306,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const exitDemo = () => {
         setIsDemoMode(false);
+        setHasProfile(storedPin !== null);
         setTransactions([]);
         setAssets([]);
         setLoans([]);
@@ -457,33 +324,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const denyWrite  = () => Alert.alert(t(language, 'permissionDenied'), t(language, 'staffPermission'));
     const denyManage = () => Alert.alert(t(language, 'permissionDenied'), t(language, 'accountantPermission'));
-
-    const enterDemo = (businessId: string) => {
-        const biz = DEMO_BUSINESSES.find(b => b.id === businessId);
-        if (!biz) return;
-        setIsDemoMode(true);
-        setHasProfile(true);
-        setUser({ email: 'demo@quad360.app', businessName: biz.businessName, role: 'Demo' });
-        setUserRole('owner');
-        setSettings({ ...DEFAULT_SETTINGS, currency: biz.currency });
-        setTransactions(biz.transactions);
-        setCurrentScreen('dashboard');
-    };
-
-    const exitDemo = () => {
-        setIsDemoMode(false);
-        // Restore hasProfile to reflect whether a real account exists on this device.
-        // storedPin being set means a real user registered here — keep them on login screen.
-        setHasProfile(storedPin !== null);
-        setUser(null);
-        setTransactions([]);
-        setGoals([]);
-        setInvoices([]);
-        setAssets([]);
-        setInventory([]);
-        setSettings(DEFAULT_SETTINGS);
-        setCurrentScreen('login');
-    };
 
     const setupAccount = async (email: string, businessName: string, pin: string, loadDemo: boolean) => {
         // Supabase auth is best-effort — never block registration if it fails
@@ -517,7 +357,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setStoredPin(pin);
         setHasProfile(true);
         setUserRole('owner');
-        if (loadDemo) setTransactions(DEMO_TRANSACTIONS);
+
         identifyUser(email, { businessName });
         trackUserRegistered(settings.currency);
         setUser({ email, businessName, role: 'Administrator' });
@@ -944,7 +784,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem,
         budgets, addBudget, updateBudget, deleteBudget,
         teamMembers, inviteMember, removeMember, refreshTeam,
-        isDemoMode, enterDemo, exitDemo,
         language, setLanguage,
         finance, insight, isLoading,
         exportData, importData, clearData, resetApp,

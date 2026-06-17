@@ -3,7 +3,7 @@ import {
     SafeAreaView, ScrollView, View, Text, TextInput,
     TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Image,
 } from 'react-native';
-import { useApp, DEMO_BUSINESSES } from '../contexts/AppContext';
+import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { t, LANGUAGES, Language } from '../utils/i18n';
 import { DEMO_BUSINESSES } from '../utils/demoData';
