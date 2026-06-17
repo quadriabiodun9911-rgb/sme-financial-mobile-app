@@ -16,7 +16,7 @@ const CURRENCIES = [
     { label: 'CAD (CA$)', value: 'CA$' },
 ];
 
-type Mode = 'owner-setup' | 'owner-login' | 'join-team';
+type Mode = 'owner-setup' | 'owner-login' | 'join-team' | 'demo-pick';
 type LoginMethod = 'pin' | 'email';
 
 export default function LoginScreen() {
@@ -133,6 +133,44 @@ export default function LoginScreen() {
             setJoiningTeam(false);
         }
     };
+
+    // ── Demo Pick ─────────────────────────────────────────────────────────────
+    if (mode === 'demo-pick') {
+        const demoBusinesses = [
+            { name: 'Retail Store', emoji: '🛍️', desc: 'Product sales & inventory' },
+            { name: 'Consulting Firm', emoji: '💼', desc: 'Service invoicing & projects' },
+            { name: 'Food & Beverage', emoji: '🍽️', desc: 'Daily sales & food costs' },
+        ];
+        return (
+            <SafeAreaView style={styles.safe}>
+                <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+                    <View style={styles.card}>
+                        <Text style={styles.title}>Try a Demo</Text>
+                        <Text style={styles.subtitle}>Explore Quad360 with sample business data — no sign-up needed</Text>
+
+                        {demoBusinesses.map(biz => (
+                            <TouchableOpacity key={biz.name} style={styles.demoOpt} onPress={() => setMode('owner-setup')}>
+                                <Text style={styles.demoOptText}>{biz.emoji} {biz.name}</Text>
+                                <Text style={styles.demoOptSub}>{biz.desc}</Text>
+                            </TouchableOpacity>
+                        ))}
+
+                        <View style={styles.demoFooter}>
+                            <Text style={styles.demoFooterText}>✨ Exploring demo data — nothing is saved</Text>
+                            <Text style={styles.demoFooterSub}>Ready to use your own business data?</Text>
+                            <TouchableOpacity style={styles.demoSignupBtn} onPress={() => setMode('owner-setup')}>
+                                <Text style={styles.demoSignupBtnText}>Create Free Account →</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <TouchableOpacity style={styles.switchBtn} onPress={() => setMode(isFirstLaunch ? 'owner-setup' : 'owner-login')}>
+                            <Text style={styles.switchText}>Back</Text>
+                        </TouchableOpacity>
+                    </View>
+                </ScrollView>
+            </SafeAreaView>
+        );
+    }
 
     // ── Join Team ─────────────────────────────────────────────────────────────
     if (mode === 'join-team') {
@@ -395,6 +433,12 @@ const styles = StyleSheet.create({
     demoOptText:       { fontSize: 13, fontWeight: '600', color: Colors.textSecondary, marginBottom: 4 },
     demoOptTextActive: { color: Colors.primary },
     demoOptSub:        { fontSize: 10, color: Colors.textMuted, textAlign: 'center', lineHeight: 14 },
+
+    demoFooter: { marginTop: 24, marginBottom: 32, alignItems: 'center', padding: 20, backgroundColor: '#1e3a5f', borderRadius: 16, borderWidth: 1, borderColor: '#3b82f6' },
+    demoFooterText: { color: '#93c5fd', fontSize: 13, marginBottom: 4 },
+    demoFooterSub: { color: Colors.textPrimary, fontSize: 15, fontWeight: '600', marginBottom: 12 },
+    demoSignupBtn: { backgroundColor: Colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 },
+    demoSignupBtnText: { color: Colors.textPrimary, fontWeight: 'bold', fontSize: 14 },
 
     pinContainer: { alignItems: 'center', marginVertical: 24 },
     pinInput: {
