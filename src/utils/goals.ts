@@ -296,14 +296,16 @@ export function goalDefaults(
                 targetValue: Math.round(finance.income * 1.2),
                 baselineValue: finance.income,
                 unit: currency,
+                percentTarget: 20,
             };
         case 'margin_improvement':
             return {
-                title: `Improve Profit Margin to ${(finance.margin + 10).toFixed(0)}%`,
-                description: 'Increase net profit margin through revenue growth and cost discipline.',
+                title: 'Improve Profit Margin by 10 pts',
+                description: 'Raise profit margin by 10 percentage points through revenue growth and cost discipline.',
                 targetValue: parseFloat((finance.margin + 10).toFixed(1)),
                 baselineValue: parseFloat(finance.margin.toFixed(1)),
                 unit: '%',
+                percentTarget: 10,
             };
         case 'cost_reduction':
             return {
@@ -312,6 +314,7 @@ export function goalDefaults(
                 targetValue: Math.round(finance.expense * 0.85),
                 baselineValue: finance.expense,
                 unit: currency,
+                percentTarget: 15,
             };
         case 'cash_reserve':
             return {

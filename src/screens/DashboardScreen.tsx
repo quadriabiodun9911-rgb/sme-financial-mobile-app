@@ -20,6 +20,7 @@ import GlobalSearch from '../components/GlobalSearch';
 import DailyTargetCard from '../components/DailyTargetCard';
 import MonthlyReview from '../components/MonthlyReview';
 import CashPocketsModal from '../components/CashPocketsModal';
+import DailyReportModal from '../components/DailyReportModal';
 
 const INCOME_CATEGORIES = ['Sales', 'Service', 'Consulting', 'Rental', 'Interest', 'Other Income'];
 const EXPENSE_CATEGORIES = ['Rent', 'Salaries', 'Utilities', 'Marketing', 'Supplies', 'Transport', 'Meals', 'Software', 'Tax', 'Other'];
@@ -43,6 +44,7 @@ export default function DashboardScreen() {
     const [showSearch, setShowSearch]           = useState(false);
     const [showMonthlyReview, setShowMonthlyReview] = useState(false);
     const [showCashPockets, setShowCashPockets] = useState(false);
+    const [showDailyReport, setShowDailyReport] = useState(false);
     const [toast, setToast]                     = useState<string | null>(null);
 
     useEffect(() => {
@@ -671,6 +673,15 @@ export default function DashboardScreen() {
                     </>
                 )}
 
+                <TouchableOpacity style={styles.reviewBtn} onPress={() => setShowDailyReport(true)}>
+                    <Text style={styles.reviewBtnIcon}>📊</Text>
+                    <View>
+                        <Text style={styles.reviewBtnText}>Today's Report</Text>
+                        <Text style={styles.reviewBtnSub}>End-of-day summary · Tomorrow's action plan</Text>
+                    </View>
+                    <Text style={styles.quickArrow}>›</Text>
+                </TouchableOpacity>
+
                 <TouchableOpacity style={styles.reviewBtn} onPress={() => setShowMonthlyReview(true)}>
                     <Text style={styles.reviewBtnIcon}>📋</Text>
                     <View>
@@ -764,6 +775,15 @@ export default function DashboardScreen() {
                     </TouchableOpacity>
                 </KeyboardAvoidingView>
             </Modal>
+            <DailyReportModal
+                visible={showDailyReport}
+                onClose={() => setShowDailyReport(false)}
+                transactions={transactions}
+                goals={goals}
+                finance={finance}
+                settings={settings}
+                currency={currency}
+            />
             <GlobalSearch visible={showSearch} onClose={() => setShowSearch(false)} />
             <OnboardingWizard visible={showOnboardingWizard} onDone={() => setShowOnboardingWizard(false)} />
             <ProfitShareCard visible={showShareCard} onClose={() => setShowShareCard(false)} />
