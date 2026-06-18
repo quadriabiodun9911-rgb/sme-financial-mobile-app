@@ -133,7 +133,7 @@ const DEFAULT_SETTINGS: BusinessSettings = {
     businessType: 'both',
     currency: '$',
     minReserve: '5000',
-    targetMargin: '65',
+    targetMargin: '0',
     openingAssets: '0',
     openingLiabilities: '0',
     openingLoans: '0',

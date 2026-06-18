@@ -16,6 +16,8 @@ import OnboardingWizard from '../components/OnboardingWizard';
 import ProfitShareCard from '../components/ProfitShareCard';
 import RetentionNudges from '../components/RetentionNudges';
 import FirstRunWizard from '../components/FirstRunWizard';
+import GlobalSearch from '../components/GlobalSearch';
+import MonthlyReview from '../components/MonthlyReview';
 
 const INCOME_CATEGORIES = ['Sales', 'Service', 'Consulting', 'Rental', 'Interest', 'Other Income'];
 const EXPENSE_CATEGORIES = ['Rent', 'Salaries', 'Utilities', 'Marketing', 'Supplies', 'Transport', 'Meals', 'Software', 'Tax', 'Other'];
@@ -35,6 +37,9 @@ export default function DashboardScreen() {
     const [showOnboardingWizard, setShowOnboardingWizard] = useState(false);
     const [showShareCard, setShowShareCard]     = useState(false);
     const [showFirstRun, setShowFirstRun]       = useState(false);
+    const [showSearch, setShowSearch]           = useState(false);
+    const [showMonthlyReview, setShowMonthlyReview] = useState(false);
+    const [toast, setToast]                     = useState<string | null>(null);
 
     useEffect(() => {
         AsyncStorage.getItem('@quad360/onboarding_dismissed').then(v => {
@@ -59,6 +64,11 @@ export default function DashboardScreen() {
         setFabOpen(true);
     };
 
+    const showToast = (msg: string) => {
+        setToast(msg);
+        setTimeout(() => setToast(null), 3000);
+    };
+
     const submitQuickAdd = () => {
         const amt = parseFloat(qaAmount);
         const amountError = validateAmount(amt);
@@ -76,6 +86,8 @@ export default function DashboardScreen() {
                 status: 'paid',
             });
             setQaAmount(''); setQaDesc(''); setQaCategory(''); setFabOpen(false);
+            const newProfit = finance.profit + (qaType === 'income' ? amt : -amt);
+            showToast(`Saved! This month's profit: ${settings.currency}${newProfit.toLocaleString()}`);
         } finally {
             setQaSubmitting(false);
         }
@@ -120,11 +132,28 @@ export default function DashboardScreen() {
     const runwayDays = finance.expense > 0 ? Math.floor(finance.cashBalance / (finance.expense / 30)) : null;
     const runwayColor = runwayDays === null ? Colors.income : runwayDays < 30 ? Colors.expense : runwayDays < 60 ? Colors.warning : Colors.income;
 
+    // Last month date range
+    const now = new Date();
+    const thisMonthStr = now.toISOString().slice(0, 7); // YYYY-MM
+    const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonthStr = lastMonthDate.toISOString().slice(0, 7);
+    const lastMonthIncome  = transactions.filter(t => t.type === 'income'  && t.date.startsWith(lastMonthStr)).reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    const lastMonthExpense = transactions.filter(t => t.type === 'expense' && t.date.startsWith(lastMonthStr)).reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    const lastMonthProfit  = lastMonthIncome - lastMonthExpense;
+    const thisMonthIncome  = transactions.filter(t => t.type === 'income'  && t.date.startsWith(thisMonthStr)).reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    const thisMonthExpense = transactions.filter(t => t.type === 'expense' && t.date.startsWith(thisMonthStr)).reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    const thisMonthProfit  = thisMonthIncome - thisMonthExpense;
+    const profitDelta = lastMonthProfit !== 0 ? ((thisMonthProfit - lastMonthProfit) / Math.abs(lastMonthProfit)) * 100 : null;
+
     return (
         <SafeAreaView style={styles.safe}>
             <Header />
             <ScrollView style={styles.scroll} contentContainerStyle={styles.pad}>
 
+                <TouchableOpacity style={styles.searchTrigger} onPress={() => setShowSearch(true)}>
+                    <Text style={styles.searchTriggerIcon}>🔍</Text>
+                    <Text style={styles.searchTriggerText}>Search transactions, invoices, assets...</Text>
+                </TouchableOpacity>
                 <Text style={styles.title}>{t(language, 'dashboard')}</Text>
 
                 {/* ── Demo banner ──────────────────────────────────────────── */}
@@ -206,21 +235,30 @@ export default function DashboardScreen() {
                         {finance.profit >= 0 ? '+' : ''}{currency}{finance.profit.toLocaleString()}
                     </Text>
                     <View style={styles.heroSubRow}>
-                        <Text style={[styles.heroMargin, { color: finance.margin >= parseFloat(targetMargin) ? Colors.income : Colors.expense }]}>
-                            {finance.margin.toFixed(1)}% margin
+                        <Text style={[styles.heroMargin, { color: finance.profit >= 0 ? Colors.income : Colors.expense }]}>
+                            {finance.profit >= 0
+                                ? `${finance.margin.toFixed(0)}% of your income is profit`
+                                : 'You are spending more than you earn'}
                         </Text>
-                        <Text style={styles.heroTarget}>target {targetMargin}%</Text>
                     </View>
+                    {lastMonthProfit !== 0 && profitDelta !== null && (
+                        <View style={styles.deltaRow}>
+                            <Text style={[styles.deltaBadge, { backgroundColor: profitDelta >= 0 ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', color: profitDelta >= 0 ? Colors.income : Colors.expense }]}>
+                                {profitDelta >= 0 ? '▲' : '▼'} {Math.abs(profitDelta).toFixed(0)}% vs last month
+                            </Text>
+                            <Text style={styles.deltaHint}>{profitDelta >= 0 ? 'Growing ✓' : 'Down from last month'}</Text>
+                        </View>
+                    )}
                     <View style={styles.heroMetricsRow}>
-                        <View style={styles.heroMetric}>
+                        <TouchableOpacity style={styles.heroMetric} onPress={() => setCurrentScreen('transactions')}>
                             <Text style={styles.heroMetricLabel}>Income</Text>
                             <Text style={[styles.heroMetricVal, { color: Colors.income }]}>{currency}{finance.income.toLocaleString()}</Text>
-                        </View>
+                        </TouchableOpacity>
                         <View style={styles.heroMetricDivider} />
-                        <View style={styles.heroMetric}>
+                        <TouchableOpacity style={styles.heroMetric} onPress={() => setCurrentScreen('transactions')}>
                             <Text style={styles.heroMetricLabel}>Expenses</Text>
                             <Text style={[styles.heroMetricVal, { color: Colors.expense }]}>{currency}{finance.expense.toLocaleString()}</Text>
-                        </View>
+                        </TouchableOpacity>
                         <View style={styles.heroMetricDivider} />
                         <View style={styles.heroMetric}>
                             <Text style={styles.heroMetricLabel}>Cash Profit</Text>
@@ -344,6 +382,9 @@ export default function DashboardScreen() {
                         <Text style={styles.goDeeperToggle}>{showGoDeeper ? '▲' : '▼ Go Deeper'}</Text>
                     </TouchableOpacity>
                     <Text style={styles.insightAction}>{insight.action}</Text>
+                    {transactions.length === 0 && (
+                        <Text style={styles.insightStale}>Add transactions to unlock personalised insights</Text>
+                    )}
                     {showGoDeeper && (
                         <View style={styles.goDeeperOptions}>
                             <TouchableOpacity style={styles.goDeeperOption} onPress={() => setCurrentScreen('insights')}>
@@ -378,7 +419,9 @@ export default function DashboardScreen() {
                 <View style={styles.row}>
                     <View style={[styles.card, styles.flex]}>
                         <Text style={styles.cardLabel}>Money in Your Account</Text>
-                        <Text style={[styles.bigNum, { color: Colors.income }]}>{currency}{finance.cashBalance.toLocaleString()}</Text>
+                        <TouchableOpacity onPress={() => setCurrentScreen('transactions')}>
+                            <Text style={[styles.bigNum, { color: Colors.income }]}>{currency}{finance.cashBalance.toLocaleString()}</Text>
+                        </TouchableOpacity>
                         <View style={[styles.reserveBadge, { backgroundColor: finance.cashBalance >= parseFloat(minReserve) ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)' }]}>
                             <Text style={{ fontSize: 10, fontWeight: '700', color: finance.cashBalance >= parseFloat(minReserve) ? Colors.income : Colors.expense }}>
                                 {finance.cashBalance >= parseFloat(minReserve) ? 'Reserve OK ✓' : 'Below Reserve ✗'}
@@ -387,9 +430,11 @@ export default function DashboardScreen() {
                     </View>
                     <View style={[styles.card, styles.flex]}>
                         <Text style={styles.cardLabel}>How Long Your Money Lasts</Text>
-                        <Text style={[styles.bigNum, { color: runwayColor }]}>
-                            {runwayDays === null ? '∞' : `${runwayDays} days`}
-                        </Text>
+                        <TouchableOpacity onPress={() => setCurrentScreen('reports')}>
+                            <Text style={[styles.bigNum, { color: runwayColor }]}>
+                                {runwayDays === null ? '∞' : `${runwayDays} days`}
+                            </Text>
+                        </TouchableOpacity>
                         <Text style={[styles.hint, { color: runwayColor }]}>
                             {runwayDays === null ? 'No bills recorded yet' : runwayDays < 30 ? 'Urgent — money running low!' : runwayDays < 60 ? 'Getting tight — watch spending' : 'You\'re in a good position'}
                         </Text>
@@ -531,6 +576,15 @@ export default function DashboardScreen() {
                     </>
                 )}
 
+                <TouchableOpacity style={styles.reviewBtn} onPress={() => setShowMonthlyReview(true)}>
+                    <Text style={styles.reviewBtnIcon}>📋</Text>
+                    <View>
+                        <Text style={styles.reviewBtnText}>Monthly Review</Text>
+                        <Text style={styles.reviewBtnSub}>Did I make money? · Where did it go? · Who owes me?</Text>
+                    </View>
+                    <Text style={styles.quickArrow}>›</Text>
+                </TouchableOpacity>
+
                 <TouchableOpacity style={styles.btn} onPress={() => setCurrentScreen('reports')}>
                     <Text style={styles.btnText}>{t(language, 'viewDetailedReports')}</Text>
                 </TouchableOpacity>
@@ -599,6 +653,7 @@ export default function DashboardScreen() {
                     </TouchableOpacity>
                 </KeyboardAvoidingView>
             </Modal>
+            <GlobalSearch visible={showSearch} onClose={() => setShowSearch(false)} />
             <OnboardingWizard visible={showOnboardingWizard} onDone={() => setShowOnboardingWizard(false)} />
             <ProfitShareCard visible={showShareCard} onClose={() => setShowShareCard(false)} />
             <FirstRunWizard
@@ -609,6 +664,12 @@ export default function DashboardScreen() {
                     dismissOnboarding();
                 }}
             />
+            <MonthlyReview visible={showMonthlyReview} onClose={() => setShowMonthlyReview(false)} />
+            {toast !== null && (
+                <View style={styles.toast} pointerEvents="none">
+                    <Text style={styles.toastText}>✅ {toast}</Text>
+                </View>
+            )}
         </SafeAreaView>
     );
 }
@@ -727,8 +788,26 @@ const styles = StyleSheet.create({
     seeMoreBtn:  { alignItems: 'center', paddingVertical: 12, marginBottom: 8 },
     seeMoreText: { color: Colors.primary, fontSize: 13, fontWeight: '600' },
 
+    reviewBtn:     { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, marginBottom: 10, flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: Colors.primary, gap: 12 },
+    reviewBtnIcon: { fontSize: 22 },
+    reviewBtnText: { fontSize: 14, fontWeight: '700', color: Colors.primary },
+    reviewBtnSub:  { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
+
     btn:     { backgroundColor: Colors.primary, paddingVertical: 13, borderRadius: 10, alignItems: 'center', marginTop: 4 },
     btnText: { color: Colors.textPrimary, fontWeight: 'bold', fontSize: 14 },
+
+    toast:     { position: 'absolute', bottom: 100, left: 20, right: 20, backgroundColor: '#1a1a2e', borderRadius: 10, paddingHorizontal: 16, paddingVertical: 12, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 10 },
+    toastText: { color: '#fff', fontSize: 13, fontWeight: '600', textAlign: 'center' },
+
+    searchTrigger:     { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 14, gap: 8 },
+    searchTriggerIcon: { fontSize: 14, color: Colors.textMuted },
+    searchTriggerText: { fontSize: 13, color: Colors.textMuted, flex: 1 },
+
+    deltaRow:   { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+    deltaBadge: { fontSize: 11, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+    deltaHint:  { fontSize: 11, color: Colors.textMuted },
+
+    insightStale: { fontSize: 11, color: Colors.textMuted, fontStyle: 'italic', marginTop: 4 },
 
     fab:     { position: 'absolute', right: 20, bottom: 80, width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.income, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 8 },
     fabText: { fontSize: 30, color: Colors.textPrimary, lineHeight: 34 },

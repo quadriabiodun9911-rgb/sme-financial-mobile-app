@@ -13,6 +13,9 @@ export default function Header() {
                 <Text style={styles.subtitle}>{user?.businessName || 'Business Suite'}</Text>
             </TouchableOpacity>
             <View style={styles.right}>
+                <TouchableOpacity style={styles.settingsBtn} onPress={() => setCurrentScreen('search' as any)}>
+                    <Text style={styles.settingsIcon}>🔍</Text>
+                </TouchableOpacity>
                 <TouchableOpacity style={styles.settingsBtn} onPress={() => setCurrentScreen('settings')}>
                     <Text style={styles.settingsIcon}>⚙</Text>
                 </TouchableOpacity>
