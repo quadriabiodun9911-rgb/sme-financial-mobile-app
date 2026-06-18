@@ -585,25 +585,10 @@ export default function DashboardScreen() {
                     </TouchableOpacity>
                 )}
 
-                {/* ── CARD 5: Goals ────────────────────────────────────────── */}
-                <TouchableOpacity style={styles.quickCard} onPress={() => setCurrentScreen('goals')}>
-                    <View style={styles.quickCardLeft}>
-                        <Text style={styles.quickIcon}>🎯</Text>
-                        <View>
-                            <Text style={styles.quickLabel}>{t(language, 'financialGoals')}</Text>
-                            {goals.length === 0
-                                ? <Text style={styles.quickSub}>No goals yet — tap to set one</Text>
-                                : <Text style={styles.quickSub}>{activeGoals.length} active · {achievedGoals.length} achieved{offTrack.length > 0 ? ` · ${offTrack.length} need attention` : ''}</Text>
-                            }
-                        </View>
-                    </View>
-                    <Text style={styles.quickArrow}>›</Text>
-                </TouchableOpacity>
-
                 {/* ── See more toggle ──────────────────────────────────────── */}
                 <TouchableOpacity style={styles.seeMoreBtn} onPress={() => setShowMore(v => !v)}>
                     <Text style={styles.seeMoreText}>
-                        {showMore ? '▲ Show less' : `▼ See more: ${assets.length > 0 ? `🏗️ ${assets.length} asset${assets.length !== 1 ? 's' : ''} · ` : ''}${loans.filter(l => l.status === 'active').length > 0 ? `🏦 ${loans.filter(l => l.status === 'active').length} loan${loans.filter(l => l.status === 'active').length !== 1 ? 's' : ''} · ` : ''}tax & equity`}
+                        {showMore ? '▲ Show less' : '▼ Tax, assets & equity'}
                     </Text>
                 </TouchableOpacity>
 
@@ -646,65 +631,6 @@ export default function DashboardScreen() {
                             <Text style={styles.hint}>{t(language, 'assetsMinusLiabilities')}</Text>
                         </View>
 
-                        {/* Budget */}
-                        <TouchableOpacity style={styles.quickCard} onPress={() => setCurrentScreen('budget')}>
-                            <View style={styles.quickCardLeft}>
-                                <Text style={styles.quickIcon}>📋</Text>
-                                <View>
-                                    <Text style={styles.quickLabel}>Budget vs Actual</Text>
-                                    <Text style={styles.quickSub}>Set a monthly spending limit and see if you're going over</Text>
-                                </View>
-                            </View>
-                            <Text style={styles.quickArrow}>›</Text>
-                        </TouchableOpacity>
-
-                        {/* Assets */}
-                        {assets.length > 0 ? (
-                            <TouchableOpacity style={styles.quickCard} onPress={() => setCurrentScreen('assets')}>
-                                <View style={styles.quickCardLeft}>
-                                    <Text style={styles.quickIcon}>🏗️</Text>
-                                    <View>
-                                        <Text style={styles.quickLabel}>Assets</Text>
-                                        <Text style={styles.quickSub}>{assets.length} asset{assets.length !== 1 ? 's' : ''} · {currency}{assets.reduce((s, a) => s + (a.currentValue ?? a.purchaseCost), 0).toLocaleString()} total value</Text>
-                                    </View>
-                                </View>
-                                <Text style={styles.quickArrow}>›</Text>
-                            </TouchableOpacity>
-                        ) : (
-                            <TouchableOpacity style={styles.discoverLink} onPress={() => setCurrentScreen('assets')}>
-                                <Text style={styles.discoverText}>🏗️  Got equipment or property? <Text style={styles.discoverCta}>Track assets →</Text></Text>
-                            </TouchableOpacity>
-                        )}
-
-                        {/* Loans */}
-                        {loans.length > 0 ? (
-                            <TouchableOpacity style={styles.quickCard} onPress={() => setCurrentScreen('loans')}>
-                                <View style={styles.quickCardLeft}>
-                                    <Text style={styles.quickIcon}>🏦</Text>
-                                    <View>
-                                        <Text style={styles.quickLabel}>Loans</Text>
-                                        <Text style={styles.quickSub}>{loans.filter(l => l.status === 'active').length} active loan{loans.filter(l => l.status === 'active').length !== 1 ? 's' : ''}</Text>
-                                    </View>
-                                </View>
-                                <Text style={styles.quickArrow}>›</Text>
-                            </TouchableOpacity>
-                        ) : (
-                            <TouchableOpacity style={styles.discoverLink} onPress={() => setCurrentScreen('loans')}>
-                                <Text style={styles.discoverText}>🏦  Have a business loan? <Text style={styles.discoverCta}>Register it →</Text></Text>
-                            </TouchableOpacity>
-                        )}
-
-                        {/* SWOT */}
-                        <TouchableOpacity style={styles.quickCard} onPress={() => navigate('reports', { reportSection: 'analysis', reportTab: 'swot' })}>
-                            <View style={styles.quickCardLeft}>
-                                <Text style={styles.quickIcon}>📊</Text>
-                                <View>
-                                    <Text style={styles.quickLabel}>{t(language, 'swotAnalysis')}</Text>
-                                    <Text style={styles.quickSub}>{t(language, 'swotSub')}</Text>
-                                </View>
-                            </View>
-                            <Text style={styles.quickArrow}>›</Text>
-                        </TouchableOpacity>
                     </>
                 )}
 
