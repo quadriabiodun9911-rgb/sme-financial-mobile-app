@@ -88,6 +88,12 @@ export default function SettingsScreen() {
         }
         // Warn if currency changed
         if (form.currency !== settings.currency) {
+            if (typeof window !== 'undefined') {
+                // On web, Alert.alert multi-button doesn't work — use window.confirm
+                const ok = window.confirm(t(language, 'currencyChangeWarning'));
+                if (ok) doSave();
+                return;
+            }
             Alert.alert(
                 t(language, 'currencyChangeTitle'),
                 t(language, 'currencyChangeWarning'),
