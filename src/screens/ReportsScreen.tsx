@@ -13,6 +13,7 @@ import SwotAnalysis from '../components/SwotAnalysis';
 import FinancialHealthAssessment from '../../financial-planning/FinancialHealthAssessment';
 import BudgetForecast from '../components/BudgetForecast';
 import CashManagement from '../components/CashManagement';
+import DebtAnalysis from '../components/DebtAnalysis';
 import EnhancedDebtManagement from '../components/EnhancedDebtManagement';
 import AssetProductivityAnalysis from '../components/AssetProductivityAnalysis';
 import CustomerProfitability from '../components/CustomerProfitability';
@@ -47,9 +48,9 @@ type SubTab =
 const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
     statements: [
         { key: 'balancesheet', label: 'What I Own & Owe' },
-        { key: 'pnl',          label: 'Income vs Expenses' },
+        { key: 'pnl',          label: 'Profit & Loss' },
         { key: 'inventory',    label: 'Stock' },
-        { key: 'accrual',      label: 'Unpaid Invoices' },
+        { key: 'accrual',      label: 'Cash Flow' },
     ],
     operations: [
         { key: 'aging', label: 'Who Owes Me' },
@@ -70,7 +71,7 @@ const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
     ],
     analysis: [
         { key: 'health', label: 'Business Score' },
-        { key: 'swot',   label: 'Strengths & Risks' },
+        { key: 'swot',   label: 'SWOT' },
     ],
 };
 
@@ -88,6 +89,7 @@ export default function ReportsScreen() {
     const { finance: allFinance, settings, updateSettings, transactions, assets, navParams, inventory, invoices } = useApp();
     const { currency, minReserve, targetMargin } = settings;
 
+    const [showLanding, setShowLanding] = useState(true);
     const [simpleView, setSimpleView]  = useState(true);
     const [section, setSection]       = useState<SectionKey>('statements');
     const [activeTab, setActiveTab]   = useState<SubTab>('balancesheet');
@@ -126,6 +128,7 @@ export default function ReportsScreen() {
             } else {
                 setActiveTab(SECTION_TABS[s][0].key);
             }
+            setShowLanding(false);
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -159,6 +162,58 @@ export default function ReportsScreen() {
     return (
         <SafeAreaView style={styles.safe}>
             <Header />
+
+            {/* ── Landing page ─────────────────────────────────────── */}
+            {showLanding ? (
+                <ScrollView style={styles.landingScroll} contentContainerStyle={styles.landingPad}>
+                    <Text style={styles.landingTitle}>Reports</Text>
+                    <Text style={styles.landingSub}>Tap any report to open it</Text>
+
+                    {[
+                        { icon: '📊', label: 'Profit & Loss', sub: 'Did I make money? Revenue vs costs breakdown', section: 'statements' as SectionKey, tab: 'pnl' as SubTab },
+                        { icon: '💰', label: 'Who Owes Me', sub: 'Unpaid invoices and overdue payments', section: 'operations' as SectionKey, tab: 'aging' as SubTab },
+                        { icon: '💧', label: 'Cash Flow', sub: 'Money coming in and going out over time', section: 'planning' as SectionKey, tab: 'cashflow' as SubTab },
+                        { icon: '🏥', label: 'Business Health Check', sub: 'Strengths, weaknesses, risks and opportunities', section: 'analysis' as SectionKey, tab: 'swot' as SubTab },
+                        { icon: '📈', label: 'Growth Trends', sub: 'Revenue and profit trend over the past months', section: 'growth' as SectionKey, tab: 'growth' as SubTab },
+                        { icon: '🧾', label: 'Tax Summary', sub: 'Tax collected, paid and your net tax position', section: 'operations' as SectionKey, tab: 'tax' as SubTab },
+                    ].map(item => (
+                        <TouchableOpacity
+                            key={item.tab}
+                            style={styles.landingCard}
+                            onPress={() => {
+                                setSection(item.section);
+                                setActiveTab(item.tab);
+                                setSimpleView(['statements','operations'].includes(item.section));
+                                setShowLanding(false);
+                            }}
+                        >
+                            <Text style={styles.landingCardIcon}>{item.icon}</Text>
+                            <View style={styles.landingCardText}>
+                                <Text style={styles.landingCardLabel}>{item.label}</Text>
+                                <Text style={styles.landingCardSub}>{item.sub}</Text>
+                            </View>
+                            <Text style={styles.landingCardArrow}>›</Text>
+                        </TouchableOpacity>
+                    ))}
+
+                    {/* CSV Export */}
+                    <View style={styles.exportSection}>
+                        <Text style={styles.exportTitle}>Export Data</Text>
+                        <TouchableOpacity style={styles.exportCsvBtn} onPress={exportPnL}>
+                            <Text style={styles.exportBtnIcon}>📥</Text>
+                            <View>
+                                <Text style={styles.exportBtnLabel}>Export to CSV</Text>
+                                <Text style={styles.exportBtnSub}>Share with your accountant or open in Excel</Text>
+                            </View>
+                        </TouchableOpacity>
+                    </View>
+                </ScrollView>
+            ) : (
+            <>
+            {/* ── Back to landing ───────────────────────────────────── */}
+            <TouchableOpacity style={styles.backToLanding} onPress={() => setShowLanding(true)}>
+                <Text style={styles.backToLandingText}>← All Reports</Text>
+            </TouchableOpacity>
 
             {/* ── Simple / Full toggle ──────────────────────────────── */}
             <View style={styles.viewToggleRow}>
@@ -278,29 +333,24 @@ export default function ReportsScreen() {
                             <PeriodLabel period={period} />
                             <View style={styles.card}>
                                 <View style={styles.cardHeaderRow}>
-                                    <Text style={styles.cardTitle}>Income vs Expenses</Text>
-                                    <TouchableOpacity style={styles.exportBtn} onPress={exportPnL}>
+                                    <Text style={styles.cardTitle}>Profit & Loss</Text>
+                                    <TouchableOpacity style={styles.exportCsvBtn} onPress={exportPnL}>
                                         <Text style={styles.exportText}>Export CSV</Text>
                                     </TouchableOpacity>
                                 </View>
-                                {enhPnL.revenue === 0 && (
-                                    <Text style={{ color: Colors.textMuted, fontSize: 13, textAlign: 'center', paddingVertical: 12 }}>
-                                        No transactions recorded yet. Add income and expenses to see your report.
-                                    </Text>
-                                )}
-                                <StatRow label="Total Money Received"                 value={`${currency}${enhPnL.revenue.toLocaleString()}`}                                           color={Colors.income} />
-                                <StatRow label="  Cost of Stock Sold"                 value={`-${currency}${enhPnL.cogs.toLocaleString()}`}                                          color={Colors.expense} indent />
-                                <StatRow label="Profit on Sales"                      value={`${currency}${enhPnL.grossProfit.toLocaleString()}`}                                  color={enhPnL.grossProfit >= 0 ? Colors.income : Colors.expense} bold />
-                                <StatRow label="  Profit Margin on Sales %"           value={`${(isNaN(enhPnL.grossMargin) ? 0 : enhPnL.grossMargin).toFixed(1)}%`}               color={Colors.textMuted} indent />
+                                <StatRow label="Total Revenue (Money In)"             value={`${currency}${enhPnL.revenue.toLocaleString()}`}                                           color={Colors.income} />
+                                <StatRow label="  Cost of Goods Sold"                 value={`-${currency}${enhPnL.cogs.toLocaleString()}`}                                          color={Colors.expense} indent />
+                                <StatRow label="Gross Profit"                         value={`${currency}${enhPnL.grossProfit.toLocaleString()}`}                                  color={enhPnL.grossProfit >= 0 ? Colors.income : Colors.expense} bold />
+                                <StatRow label="  Gross Margin %"                     value={`${(isNaN(enhPnL.grossMargin) ? 0 : enhPnL.grossMargin).toFixed(1)}%`}               color={Colors.textMuted} indent />
                                 <StatRow label="  Running Costs (rent, salaries, admin)" value={`-${currency}${enhPnL.sgaExpenses.toLocaleString()}`}                              color={Colors.expense} indent />
-                                <StatRow label="Profit After Running Costs"           value={`${enhPnL.ebit >= 0 ? '+' : ''}${currency}${enhPnL.ebit.toLocaleString()}`}           color={enhPnL.ebit >= 0 ? Colors.income : Colors.expense} bold />
-                                <StatRow label="  Profit % After Running Costs"       value={`${(isNaN(enhPnL.ebitMargin) ? 0 : enhPnL.ebitMargin).toFixed(1)}%`}                 color={Colors.textMuted} indent />
-                                <StatRow label="  Equipment Value Loss (accounting)"  value={`+${currency}${enhPnL.depreciation.toLocaleString()}`}                               color={Colors.textMuted} indent />
-                                <StatRow label="Cash Profit (before equipment loss)"  value={`${enhPnL.ebitda >= 0 ? '+' : ''}${currency}${enhPnL.ebitda.toLocaleString()}`}      color={enhPnL.ebitda >= 0 ? Colors.income : Colors.expense} bold />
+                                <StatRow label="Operating Profit"                     value={`${enhPnL.ebit >= 0 ? '+' : ''}${currency}${enhPnL.ebit.toLocaleString()}`}           color={enhPnL.ebit >= 0 ? Colors.income : Colors.expense} bold />
+                                <StatRow label="  Operating Margin %"                 value={`${(isNaN(enhPnL.ebitMargin) ? 0 : enhPnL.ebitMargin).toFixed(1)}%`}                 color={Colors.textMuted} indent />
+                                <StatRow label="  Equipment Depreciation (non-cash)"  value={`+${currency}${enhPnL.depreciation.toLocaleString()}`}                               color={Colors.textMuted} indent />
+                                <StatRow label="Cash Profit"                          value={`${enhPnL.ebitda >= 0 ? '+' : ''}${currency}${enhPnL.ebitda.toLocaleString()}`}      color={enhPnL.ebitda >= 0 ? Colors.income : Colors.expense} bold />
                                 <StatRow label="Net Profit (Bottom Line)"             value={`${enhPnL.netProfit >= 0 ? '+' : ''}${currency}${enhPnL.netProfit.toLocaleString()}`} color={enhPnL.netProfit >= 0 ? Colors.income : Colors.expense} bold />
                                 <StatRow label="Net Profit %"                         value={`${(isNaN(enhPnL.netMargin) ? 0 : enhPnL.netMargin).toFixed(1)}%`}                   color={enhPnL.netMargin >= parseFloat(targetMargin) ? Colors.income : Colors.expense} />
                                 <StatRow label="Your Profit Target"                   value={`${targetMargin}%`}                                                                    color={Colors.textMuted} />
-                                <StatRow label="Tax Collected from Customers"         value={`${currency}${finance.totalTaxCollected.toLocaleString()}`}                           color={Colors.warning} />
+                                <StatRow label="Tax Charged to Customers"             value={`${currency}${finance.totalTaxCollected.toLocaleString()}`}                           color={Colors.warning} />
                                 <StatRow label="Tax You Have Paid"                    value={`${currency}${finance.totalTaxPaid.toLocaleString()}`}                                color={Colors.warning} />
                             </View>
 
@@ -309,9 +359,9 @@ export default function ReportsScreen() {
                                 <StatRow label="Customers Who Owe You"               value={`${currency}${wcMetrics.accountsReceivable.toLocaleString()}`}  color={Colors.income} />
                                 <StatRow label="Suppliers You Still Owe"             value={`${currency}${wcMetrics.accountsPayable.toLocaleString()}`}     color={Colors.liability} />
                                 <StatRow label="Net Position (customers owe − you owe)" value={`${currency}${wcMetrics.netWorkingCapital.toLocaleString()}`} color={wcMetrics.netWorkingCapital >= 0 ? Colors.income : Colors.expense} bold />
-                                <StatRow label="Avg. days customers take to pay you"  value={`${wcMetrics.dso.toFixed(0)} days`}                            color={Colors.textSecondary} />
-                                <StatRow label="Avg. days before you pay suppliers"   value={`${wcMetrics.dpo.toFixed(0)} days`}                            color={Colors.textSecondary} />
-                                <StatRow label="Days your cash is tied up (lower = better)" value={`${wcMetrics.ccc.toFixed(0)} days`}                     color={wcMetrics.ccc <= 30 ? Colors.income : wcMetrics.ccc <= 60 ? Colors.warning : Colors.expense} />
+                                <StatRow label="Avg. Days to Get Paid"               value={`${wcMetrics.dso.toFixed(0)} days`}                            color={Colors.textSecondary} />
+                                <StatRow label="Avg. Days Before You Pay Suppliers"  value={`${wcMetrics.dpo.toFixed(0)} days`}                            color={Colors.textSecondary} />
+                                <StatRow label="Days Cash Is Tied Up in the Cycle"   value={`${wcMetrics.ccc.toFixed(0)} days`}                            color={wcMetrics.ccc <= 30 ? Colors.income : wcMetrics.ccc <= 60 ? Colors.warning : Colors.expense} />
                             </View>
 
                             <MonthlyChart trend={trend} currency={currency} />
@@ -440,6 +490,8 @@ export default function ReportsScreen() {
             </ScrollView>
 
             <FooterNav />
+            </>
+            )}
         </SafeAreaView>
     );
 }
@@ -594,20 +646,16 @@ function BalanceSheetTab({ finance, wcMetrics, assets, settings, updateSettings,
     const registeredAssetValue = assets
         .filter(a => a.status === 'active')
         .reduce((sum, a) => {
-            const lifeYears = a.usefulLifeYears > 0 ? a.usefulLifeYears : 1;
-            const cost = isNaN(a.purchaseCost) ? 0 : a.purchaseCost;
-            const residual = isNaN(a.residualValue) ? 0 : a.residualValue;
             const yr  = (Date.now() - new Date(a.purchaseDate).getTime()) / (1000 * 60 * 60 * 24 * 365);
-            const dep = Math.min(yr * (cost - residual) / lifeYears, cost - residual);
-            const val = Math.max(residual, cost - dep);
-            return sum + (isNaN(val) ? 0 : val);
+            const dep = Math.min(yr * (a.purchaseCost - a.residualValue) / a.usefulLifeYears, a.purchaseCost - a.residualValue);
+            return sum + Math.max(a.residualValue, a.purchaseCost - dep);
         }, 0);
 
     const manualAssets    = parseFloat(openingAssets) || 0;
     const otherAssets     = parseFloat(openingOtherAssets) || 0;
     const manualLiab      = parseFloat(openingLiabilities) || 0;
     const loans           = parseFloat(openingLoans) || 0;
-    const currentAssets   = (isNaN(finance.cashBalance) ? 0 : finance.cashBalance) + (isNaN(wcMetrics.accountsReceivable) ? 0 : wcMetrics.accountsReceivable);
+    const currentAssets   = finance.cashBalance + wcMetrics.accountsReceivable;
     const totalAssets     = currentAssets + registeredAssetValue + manualAssets + otherAssets;
     const totalLiab       = wcMetrics.accountsPayable + manualLiab + loans;
     const equity          = totalAssets - totalLiab;
@@ -636,14 +684,14 @@ function BalanceSheetTab({ finance, wcMetrics, assets, settings, updateSettings,
         <View>
             <View style={styles.card}>
                 <View style={styles.cardHeaderRow}>
-                    <Text style={styles.cardTitle}>What You Own & Owe</Text>
+                    <Text style={styles.cardTitle}>Balance Sheet</Text>
                     <Text style={styles.sizeBadge}>{sizeLabel(bizSize)}</Text>
                 </View>
 
                 <SectionHeader label="WHAT YOU OWN (ASSETS)" />
                 <StatRow label="Cash on Hand"                       value={`${currency}${finance.cashBalance.toLocaleString()}`}              color={Colors.income} />
                 <StatRow label="  Money Owed to You by Customers"   value={`${currency}${wcMetrics.accountsReceivable.toLocaleString()}`}     color={Colors.income} indent />
-                <StatRow label="Cash + Money Owed to You (Total)"    value={`${currency}${currentAssets.toLocaleString()}`}                   color={Colors.asset} bold />
+                <StatRow label="Short-Term Assets Total"            value={`${currency}${currentAssets.toLocaleString()}`}                   color={Colors.asset} bold />
                 <StatRow label="  Equipment & Property (Asset Register)" value={`${currency}${registeredAssetValue.toLocaleString()}`}       color={Colors.asset} indent />
                 <StatRow label="  Equipment & Property (Manual Entry)"   value={`${currency}${manualAssets.toLocaleString()}`}               color={Colors.asset} indent />
                 <StatRow label="  Other Assets You Own"             value={`${currency}${otherAssets.toLocaleString()}`}                     color={Colors.asset} indent />
@@ -838,6 +886,26 @@ const styles = StyleSheet.create({
     scroll: { flex: 1 },
     pad:    { padding: 16 },
 
+    landingScroll: { flex: 1 },
+    landingPad:    { padding: 16, paddingBottom: 40 },
+    landingTitle:  { fontSize: 22, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 4 },
+    landingSub:    { fontSize: 13, color: Colors.textMuted, marginBottom: 18 },
+    landingCard:   { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 14, borderWidth: 1, borderColor: Colors.border },
+    landingCardIcon:  { fontSize: 28 },
+    landingCardText:  { flex: 1 },
+    landingCardLabel: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },
+    landingCardSub:   { fontSize: 12, color: Colors.textMuted },
+    landingCardArrow: { fontSize: 22, color: Colors.textMuted },
+    exportSection: { marginTop: 10, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 16 },
+    exportTitle:   { fontSize: 13, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
+    exportBtn:     { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 14, borderWidth: 1, borderColor: Colors.border },
+    exportBtnIcon: { fontSize: 24 },
+    exportBtnLabel:{ fontSize: 14, fontWeight: '700', color: Colors.primary },
+    exportBtnSub:  { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
+
+    backToLanding:     { paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border, backgroundColor: Colors.surface },
+    backToLandingText: { fontSize: 13, color: Colors.primary, fontWeight: '600' },
+
     sectionRow: {
         flexDirection: 'row', backgroundColor: Colors.surface,
         borderBottomWidth: 1, borderBottomColor: Colors.border,
@@ -866,7 +934,7 @@ const styles = StyleSheet.create({
     cardHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
     note:          { fontSize: 11, color: Colors.textMuted, fontStyle: 'italic', marginTop: 10, lineHeight: 16 },
     sizeBadge:     { fontSize: 11, color: Colors.primary, fontWeight: '600', backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.primary, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
-    exportBtn:     { paddingHorizontal: 10, paddingVertical: 4, backgroundColor: Colors.primary, borderRadius: 8 },
+    exportCsvBtn:  { paddingHorizontal: 10, paddingVertical: 4, backgroundColor: Colors.primary, borderRadius: 8 },
     exportText:    { fontSize: 11, color: Colors.textPrimary, fontWeight: '600' },
 
     viewToggleRow:        { flexDirection: 'row', backgroundColor: Colors.surface, padding: 8, gap: 6, borderBottomWidth: 1, borderBottomColor: Colors.border },
