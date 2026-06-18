@@ -198,7 +198,11 @@ export default function LoginScreen() {
                     Alert.alert(t(language, 'error'), 'Incorrect email or PIN. Please try again.');
                 }
             } else {
-                Alert.alert(t(language, 'error'), 'Incorrect PIN. Please try again.');
+                // Supabase auth succeeded — recover account data and log in
+                await recoverAccount(emailLoginEmail.trim(), emailLoginPin);
+                identifyUser(emailLoginEmail.trim());
+                trackUserLoggedIn('email');
+                return;
             }
         } catch {
             Alert.alert(t(language, 'error'), 'Incorrect email or PIN. Please try again.');
