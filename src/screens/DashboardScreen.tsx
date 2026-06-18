@@ -278,15 +278,15 @@ export default function DashboardScreen() {
                                 <Text style={styles.goDeeperOptionIcon}>🔍</Text>
                                 <View style={{ flex: 1 }}>
                                     <Text style={styles.goDeeperOptionLabel}>Analysis & Decisions</Text>
-                                    <Text style={styles.goDeeperOptionSub}>Why did profit change? · What if scenarios</Text>
+                                    <Text style={styles.goDeeperOptionSub}>Why did my profit change? · What if I hire or borrow?</Text>
                                 </View>
                                 <Text style={styles.quickArrow}>›</Text>
                             </TouchableOpacity>
                             <TouchableOpacity style={[styles.goDeeperOption, { borderBottomWidth: 0 }]} onPress={() => setCurrentScreen('cfo')}>
                                 <Text style={styles.goDeeperOptionIcon}>🧠</Text>
                                 <View style={{ flex: 1 }}>
-                                    <Text style={styles.goDeeperOptionLabel}>CFO Advisor</Text>
-                                    <Text style={styles.goDeeperOptionSub}>Forecasts · Risk score · Debt optimiser</Text>
+                                    <Text style={styles.goDeeperOptionLabel}>Business Advisor</Text>
+                                    <Text style={styles.goDeeperOptionSub}>Cash flow forecast · Risk check · Loan calculator</Text>
                                 </View>
                                 <Text style={styles.quickArrow}>›</Text>
                             </TouchableOpacity>
@@ -297,7 +297,7 @@ export default function DashboardScreen() {
                 {/* ── CARD 4: Cash position ────────────────────────────────── */}
                 <View style={styles.row}>
                     <View style={[styles.card, styles.flex]}>
-                        <Text style={styles.cardLabel}>Cash Balance</Text>
+                        <Text style={styles.cardLabel}>Money in Your Account</Text>
                         <Text style={[styles.bigNum, { color: Colors.income }]}>{currency}{finance.cashBalance.toLocaleString()}</Text>
                         <View style={[styles.reserveBadge, { backgroundColor: finance.cashBalance >= parseFloat(minReserve) ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)' }]}>
                             <Text style={{ fontSize: 10, fontWeight: '700', color: finance.cashBalance >= parseFloat(minReserve) ? Colors.income : Colors.expense }}>
@@ -306,12 +306,12 @@ export default function DashboardScreen() {
                         </View>
                     </View>
                     <View style={[styles.card, styles.flex]}>
-                        <Text style={styles.cardLabel}>Cash Runway</Text>
+                        <Text style={styles.cardLabel}>How Long Your Money Lasts</Text>
                         <Text style={[styles.bigNum, { color: runwayColor }]}>
-                            {runwayDays === null ? '∞' : `${runwayDays}d`}
+                            {runwayDays === null ? '∞' : `${runwayDays} days`}
                         </Text>
                         <Text style={[styles.hint, { color: runwayColor }]}>
-                            {runwayDays === null ? 'No expenses yet' : runwayDays < 30 ? 'Critical — act now!' : runwayDays < 60 ? 'Keep watch' : 'Looking good'}
+                            {runwayDays === null ? 'No bills recorded yet' : runwayDays < 30 ? 'Urgent — money running low!' : runwayDays < 60 ? 'Getting tight — watch spending' : 'You\'re in a good position'}
                         </Text>
                     </View>
                 </View>
@@ -334,7 +334,7 @@ export default function DashboardScreen() {
                 {/* ── See more toggle ──────────────────────────────────────── */}
                 <TouchableOpacity style={styles.seeMoreBtn} onPress={() => setShowMore(v => !v)}>
                     <Text style={styles.seeMoreText}>
-                        {showMore ? '▲ Show less' : `▼ More${assets.length > 0 ? ` · 🏗️ ${assets.length} asset${assets.length !== 1 ? 's' : ''}` : ''}${loans.filter(l => l.status === 'active').length > 0 ? ` · 🏦 ${loans.filter(l => l.status === 'active').length} loan${loans.filter(l => l.status === 'active').length !== 1 ? 's' : ''}` : ''} · tax, equity & inventory`}
+                        {showMore ? '▲ Show less' : `▼ See more: ${assets.length > 0 ? `🏗️ ${assets.length} asset${assets.length !== 1 ? 's' : ''} · ` : ''}${loans.filter(l => l.status === 'active').length > 0 ? `🏦 ${loans.filter(l => l.status === 'active').length} loan${loans.filter(l => l.status === 'active').length !== 1 ? 's' : ''} · ` : ''}tax, equity & inventory`}
                     </Text>
                 </TouchableOpacity>
 
@@ -383,7 +383,7 @@ export default function DashboardScreen() {
                                 <Text style={styles.quickIcon}>📦</Text>
                                 <View>
                                     <Text style={styles.quickLabel}>Inventory & Stock</Text>
-                                    <Text style={styles.quickSub}>Track stock levels, costs & margins</Text>
+                                    <Text style={styles.quickSub}>Track what you have in stock and how much you make on each item</Text>
                                 </View>
                             </View>
                             <Text style={styles.quickArrow}>›</Text>
@@ -395,7 +395,7 @@ export default function DashboardScreen() {
                                 <Text style={styles.quickIcon}>📋</Text>
                                 <View>
                                     <Text style={styles.quickLabel}>Budget vs Actual</Text>
-                                    <Text style={styles.quickSub}>Set monthly budgets, track overspend</Text>
+                                    <Text style={styles.quickSub}>Set a monthly spending limit and see if you're going over</Text>
                                 </View>
                             </View>
                             <Text style={styles.quickArrow}>›</Text>

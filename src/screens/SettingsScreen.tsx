@@ -242,15 +242,17 @@ export default function SettingsScreen() {
                     </CollapsibleSection>
 
                     {/* 2. Targets & Tax — default closed */}
-                    <CollapsibleSection title="Targets & Tax" defaultOpen={false}>
+                    <CollapsibleSection title="Profit Goals & Tax" defaultOpen={false}>
                         {/* Financial thresholds */}
-                        <Section title="Financial Thresholds">
-                            <FieldLabel>Minimum Cash Reserve ({form.currency})</FieldLabel>
+                        <Section title="Your Targets">
+                            <FieldLabel>Minimum savings to keep at all times ({form.currency})</FieldLabel>
+                            <Text style={styles.hint}>The app will warn you if your account drops below this amount.</Text>
                             <TextInput style={styles.input} value={form.minReserve}
                                 onChangeText={v => setForm(f => ({ ...f, minReserve: v }))}
                                 keyboardType="numeric" placeholder="5000" placeholderTextColor={Colors.muted} />
 
-                            <FieldLabel>Target Profit Margin (%)</FieldLabel>
+                            <FieldLabel>How much of each sale should be profit? (%)</FieldLabel>
+                            <Text style={styles.hint}>Example: if you charge ₦1,000 and your costs are ₦400, your profit is 60%.</Text>
                             <TextInput style={styles.input} value={form.targetMargin}
                                 onChangeText={v => setForm(f => ({ ...f, targetMargin: v }))}
                                 keyboardType="numeric" placeholder="65" placeholderTextColor={Colors.muted} />
@@ -268,16 +270,16 @@ export default function SettingsScreen() {
                         </Section>
 
                         {/* Opening Balances */}
-                        <Section title="Opening Balance Sheet">
+                        <Section title="Money & Things You Had Before Using This App">
                             <Text style={styles.hint}>
-                                Enter pre-existing asset and liability balances. Added to cash position for correct balance sheet totals.
+                                If you already had money, equipment, or loans before you started using Quad360, enter them here so your numbers are accurate from day one.
                             </Text>
-                            <FieldLabel>Opening Assets ({form.currency})</FieldLabel>
+                            <FieldLabel>Value of things you already owned ({form.currency})</FieldLabel>
                             <TextInput style={styles.input} value={form.openingAssets}
                                 onChangeText={v => setForm(f => ({ ...f, openingAssets: v }))}
                                 keyboardType="numeric" placeholder="0" placeholderTextColor={Colors.muted} />
 
-                            <FieldLabel>Opening Liabilities ({form.currency})</FieldLabel>
+                            <FieldLabel>Money you already owed to others ({form.currency})</FieldLabel>
                             <TextInput style={styles.input} value={form.openingLiabilities}
                                 onChangeText={v => setForm(f => ({ ...f, openingLiabilities: v }))}
                                 keyboardType="numeric" placeholder="0" placeholderTextColor={Colors.muted} />
@@ -316,12 +318,12 @@ export default function SettingsScreen() {
                         </Section>
 
                         {/* Two-Factor Authentication */}
-                        <Section title="Two-Factor Authentication">
+                        <Section title="Extra Security Lock">
                             <Text style={styles.hint}>
-                                Add an extra layer of protection with two-factor authentication using an authenticator app.
+                                Turn this on to require a second code when you log in. Makes your account much harder to break into.
                             </Text>
                             <TouchableOpacity style={styles.dataBtn} onPress={() => setCurrentScreen('2fa' as any)}>
-                                <Text style={styles.dataBtnText}>Two-Factor Authentication</Text>
+                                <Text style={styles.dataBtnText}>Set Up Extra Security Lock</Text>
                             </TouchableOpacity>
                         </Section>
                     </CollapsibleSection>
