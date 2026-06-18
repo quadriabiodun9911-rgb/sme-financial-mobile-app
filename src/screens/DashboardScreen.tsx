@@ -23,7 +23,7 @@ const INCOME_CATEGORIES = ['Sales', 'Service', 'Consulting', 'Rental', 'Interest
 const EXPENSE_CATEGORIES = ['Rent', 'Salaries', 'Utilities', 'Marketing', 'Supplies', 'Transport', 'Meals', 'Software', 'Tax', 'Other'];
 
 export default function DashboardScreen() {
-    const { finance, insight, settings, goals, transactions, invoices, assets, loans, navigate, setCurrentScreen, language, isLoading, addTransaction, isDemoMode, exitDemo } = useApp();
+    const { finance, insight, settings, goals, transactions, invoices, assets, loans, inventory, navigate, setCurrentScreen, language, isLoading, addTransaction, isDemoMode, exitDemo } = useApp();
 
     const [fabOpen, setFabOpen]           = useState(false);
     const [qaType, setQaType]             = useState<'income' | 'expense'>('income');
@@ -33,6 +33,7 @@ export default function DashboardScreen() {
     const [qaSubmitting, setQaSubmitting] = useState(false);
     const [showMore, setShowMore]               = useState(false);
     const [showGoDeeper, setShowGoDeeper]       = useState(false);
+    const [showFullDashboard, setShowFullDashboard] = useState(false);
     const [onboardingDismissed, setOnboardingDismissed] = useState(false);
     const [showOnboardingWizard, setShowOnboardingWizard] = useState(false);
     const [showShareCard, setShowShareCard]     = useState(false);
@@ -278,6 +279,40 @@ export default function DashboardScreen() {
                         </TouchableOpacity>
                     )}
                 </View>
+
+                {/* ── 3 Quick Stats row ────────────────────────────────────── */}
+                {(() => {
+                    const owedToYou =
+                        transactions.filter(t => t.status === 'overdue' || t.status === 'pending').reduce((s, t) => s + (Number(t.amount) || 0), 0) +
+                        invoices.filter(inv => inv.status === 'overdue').reduce((s, inv) => s + (inv.total ?? 0), 0);
+                    return (
+                        <View style={styles.quickStatsRow}>
+                            <View style={styles.quickStatCard}>
+                                <Text style={styles.quickStatIcon}>💵</Text>
+                                <Text style={styles.quickStatLabel}>Cash</Text>
+                                <Text style={styles.quickStatValue}>{currency}{finance.cashBalance.toLocaleString()}</Text>
+                            </View>
+                            <View style={styles.quickStatCard}>
+                                <Text style={styles.quickStatIcon}>👥</Text>
+                                <Text style={styles.quickStatLabel}>Owed to You</Text>
+                                <Text style={styles.quickStatValue}>{currency}{owedToYou.toLocaleString()}</Text>
+                            </View>
+                            <View style={styles.quickStatCard}>
+                                <Text style={styles.quickStatIcon}>📦</Text>
+                                <Text style={styles.quickStatLabel}>Stock Items</Text>
+                                <Text style={styles.quickStatValue}>{inventory.length}</Text>
+                            </View>
+                        </View>
+                    );
+                })()}
+
+                {/* ── Full Dashboard toggle ─────────────────────────────────── */}
+                <TouchableOpacity style={styles.fullDashToggle} onPress={() => setShowFullDashboard(v => !v)}>
+                    <Text style={styles.fullDashToggleText}>{showFullDashboard ? '▲ Hide' : '📊 See Full Dashboard ▼'}</Text>
+                </TouchableOpacity>
+
+                {showFullDashboard && (
+                <>
 
                 {/* ── Loss guidance ────────────────────────────────────────── */}
                 {finance.profit < 0 && hasTransaction && (
@@ -585,6 +620,9 @@ export default function DashboardScreen() {
                     <Text style={styles.quickArrow}>›</Text>
                 </TouchableOpacity>
 
+                </>
+                )}
+
                 <TouchableOpacity style={styles.btn} onPress={() => setCurrentScreen('reports')}>
                     <Text style={styles.btnText}>{t(language, 'viewDetailedReports')}</Text>
                 </TouchableOpacity>
@@ -721,6 +759,15 @@ const styles = StyleSheet.create({
     deprNote:          { fontSize: 10, color: Colors.textMuted, textAlign: 'center', marginTop: 8, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 8 },
     shareWinBtn:       { marginTop: 10, paddingVertical: 8, borderRadius: 8, backgroundColor: 'rgba(16,185,129,0.12)', alignItems: 'center', borderWidth: 1, borderColor: Colors.income },
     shareWinText:      { fontSize: 12, color: Colors.income, fontWeight: '700' },
+
+    quickStatsRow:   { flexDirection: 'row', gap: 8, marginBottom: 12 },
+    quickStatCard:   { flex: 1, backgroundColor: Colors.surface, borderRadius: 10, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
+    quickStatIcon:   { fontSize: 22, marginBottom: 4 },
+    quickStatLabel:  { fontSize: 10, color: Colors.textMuted, marginBottom: 4, textAlign: 'center' },
+    quickStatValue:  { fontSize: 14, fontWeight: 'bold', color: Colors.textPrimary, textAlign: 'center' },
+
+    fullDashToggle:     { alignItems: 'center', paddingVertical: 12, marginBottom: 8, backgroundColor: Colors.surface, borderRadius: 10, borderWidth: 1, borderColor: Colors.border },
+    fullDashToggleText: { color: Colors.primary, fontSize: 14, fontWeight: '700' },
 
     quickActionsRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
     quickAction:     { flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: Colors.border },

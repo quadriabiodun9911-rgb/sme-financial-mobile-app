@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
-    TouchableOpacity, StyleSheet, Alert, Modal, Share,
+    TouchableOpacity, StyleSheet, Alert, Modal, Share, Linking,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -208,6 +208,17 @@ export default function InvoicesScreen() {
         }
     };
 
+    const handleWhatsApp = (inv: Invoice) => {
+        const businessName = user?.businessName ?? 'My Business';
+        const lineItemsText = (inv.lineItems ?? []).map(li => {
+            const lineTotal = (li.quantity * li.unitPrice * (1 + li.taxRate / 100)).toFixed(2);
+            return `- ${li.description} x${li.quantity} = ${currency}${lineTotal}`;
+        }).join('\n');
+        const message = `Hi ${inv.clientName},\n\nYour invoice ${inv.invoiceNumber} is ready.\n\nAmount due: ${currency}${(inv.total ?? 0).toFixed(2)}\nDue date: ${inv.dueDate}\n\nItems:\n${lineItemsText}\n\nThank you for your business!\n${businessName}`;
+        const url = `https://wa.me/?text=${encodeURIComponent(message)}`;
+        Linking.openURL(url).catch(() => Alert.alert('Error', 'Could not open WhatsApp.'));
+    };
+
     const handleDelete = (inv: Invoice) => {
         Alert.alert('Delete Invoice', `Delete ${inv.invoiceNumber}? This cannot be undone.`, [
             { text: 'Cancel', style: 'cancel' },
@@ -295,6 +306,9 @@ export default function InvoicesScreen() {
                                 <View style={styles.actions}>
                                     <ActionBtn label="Edit"   onPress={() => openEdit(inv)} color={Colors.primary} />
                                     <ActionBtn label="Share"  onPress={() => handleShare(inv)} color={Colors.income} />
+                                    <TouchableOpacity style={styles.whatsappBtn} onPress={() => handleWhatsApp(inv)}>
+                                        <Text style={styles.whatsappBtnText}>WhatsApp</Text>
+                                    </TouchableOpacity>
                                     {inv.status !== 'paid' && (
                                         <ActionBtn label="Mark Paid" onPress={() => markInvoiceStatus(inv.id, 'paid')} color={Colors.income} />
                                     )}
@@ -554,6 +568,8 @@ const styles = StyleSheet.create({
     actions:    { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
     actionBtn:      { paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderRadius: 6 },
     actionBtnText:  { fontSize: 11, fontWeight: '600' },
+    whatsappBtn:    { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, backgroundColor: '#25D366' },
+    whatsappBtnText:{ fontSize: 11, fontWeight: '600', color: '#fff' },
 
     legendRow:  { flexDirection: 'row', gap: 12, marginBottom: 10, flexWrap: 'wrap' },
     legendItem: { fontSize: 11, fontWeight: '600' },
