@@ -263,6 +263,14 @@ export default function InvoicesScreen() {
                         ))}
                     </View>
 
+                    {/* Status color legend */}
+                    <View style={styles.legendRow}>
+                        <Text style={[styles.legendItem, { color: Colors.textMuted }]}>● Draft</Text>
+                        <Text style={[styles.legendItem, { color: Colors.primary }]}>● Sent</Text>
+                        <Text style={[styles.legendItem, { color: Colors.income }]}>● Paid</Text>
+                        <Text style={[styles.legendItem, { color: Colors.expense }]}>● Overdue</Text>
+                    </View>
+
                     {/* Invoice list */}
                     {filtered.length === 0 ? (
                         <View style={styles.empty}>
@@ -546,6 +554,9 @@ const styles = StyleSheet.create({
     actions:    { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
     actionBtn:      { paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderRadius: 6 },
     actionBtnText:  { fontSize: 11, fontWeight: '600' },
+
+    legendRow:  { flexDirection: 'row', gap: 12, marginBottom: 10, flexWrap: 'wrap' },
+    legendItem: { fontSize: 11, fontWeight: '600' },
 
     empty:     { alignItems: 'center', paddingVertical: 60 },
     emptyText: { color: Colors.textMuted, fontSize: 14, textAlign: 'center' },

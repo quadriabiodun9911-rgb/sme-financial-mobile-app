@@ -166,8 +166,13 @@ export default function LoansScreen() {
                 {loans.length === 0 ? (
                     <View style={s.emptyState}>
                         <Text style={s.emptyIcon}>🏦</Text>
-                        <Text style={s.emptyTitle}>No loans recorded</Text>
-                        <Text style={s.emptySub}>Add a loan to track repayments, interest costs, and your debt health score.</Text>
+                        <Text style={s.emptyTitle}>No loans recorded yet.</Text>
+                        <Text style={s.emptySub}>
+                            Add bank loans, family loans, or any money your business owes. Tracking loans helps you see total repayment obligations and interest costs.
+                        </Text>
+                        <TouchableOpacity style={s.emptyAddBtn} onPress={openAdd}>
+                            <Text style={s.emptyAddBtnText}>+ Add Loan</Text>
+                        </TouchableOpacity>
                     </View>
                 ) : (
                     loans.map(loan => (
@@ -409,10 +414,12 @@ const s = StyleSheet.create({
     alertBanner: { backgroundColor: 'rgba(239,68,68,0.12)', borderWidth: 1, borderColor: Colors.expense, borderRadius: 10, padding: 12, marginBottom: 12 },
     alertText:   { color: Colors.expense, fontWeight: '600', fontSize: 13, textAlign: 'center' },
 
-    emptyState: { alignItems: 'center', paddingTop: 60 },
-    emptyIcon:  { fontSize: 48, marginBottom: 12 },
-    emptyTitle: { fontSize: 16, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 },
-    emptySub:   { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 18, paddingHorizontal: 20 },
+    emptyState:    { alignItems: 'center', paddingTop: 60 },
+    emptyIcon:     { fontSize: 48, marginBottom: 12 },
+    emptyTitle:    { fontSize: 16, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 },
+    emptySub:      { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 20, paddingHorizontal: 20, marginBottom: 20 },
+    emptyAddBtn:   { backgroundColor: Colors.primary, borderRadius: 10, paddingHorizontal: 28, paddingVertical: 12 },
+    emptyAddBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 
     card: { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: Colors.border },
     cardHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 },

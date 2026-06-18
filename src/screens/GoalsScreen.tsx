@@ -338,12 +338,20 @@ function GoalCard({ goal, currency, daysRemaining, onStrategy, onEdit, onDelete 
             {goal.description ? <Text style={cardStyles.desc}>{goal.description}</Text> : null}
 
             {/* Progress bar + key numbers */}
-            <View style={cardStyles.progressSection}>
-                <View style={cardStyles.progressTrack}>
-                    <View style={[cardStyles.progressFill, { width: `${Math.min(isNaN(goal.progress) ? 0 : goal.progress, 100)}%` as any, backgroundColor: statusColor }]} />
+            {(isNaN(goal.progress) || goal.progress <= 0) ? (
+                <Text style={[cardStyles.progressPct, { color: Colors.textMuted, width: 'auto', marginBottom: 12, fontSize: 12 }]}>Not started yet</Text>
+            ) : goal.progress > 100 ? (
+                <Text style={[cardStyles.progressPct, { color: Colors.income, width: 'auto', marginBottom: 12, fontSize: 13, fontWeight: 'bold' }]}>
+                    🎉 Goal achieved! {goal.progress.toFixed(0)}%
+                </Text>
+            ) : (
+                <View style={cardStyles.progressSection}>
+                    <View style={cardStyles.progressTrack}>
+                        <View style={[cardStyles.progressFill, { width: `${Math.min(goal.progress, 100)}%` as any, backgroundColor: statusColor }]} />
+                    </View>
+                    <Text style={[cardStyles.progressPct, { color: statusColor }]}>{goal.progress.toFixed(0)}%</Text>
                 </View>
-                <Text style={[cardStyles.progressPct, { color: statusColor }]}>{(isNaN(goal.progress) ? 0 : goal.progress).toFixed(0)}%</Text>
-            </View>
+            )}
             <View style={cardStyles.bigNumbers}>
                 <View style={cardStyles.bigNum}>
                     <Text style={cardStyles.bigNumVal}>{unit}{goal.currentValue.toLocaleString()}</Text>

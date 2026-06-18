@@ -168,8 +168,8 @@ export default function BudgetScreen() {
                                     <View style={[s.statusDot, { backgroundColor: Colors.textMuted }]} />
                                     <Text style={[s.td, { flex: 2, color: Colors.textPrimary, fontWeight: '600' }]} numberOfLines={1}>{b.category}</Text>
                                     <Text style={[s.td, { color: Colors.textSecondary }]}>{currency}{b.monthlyAmount.toLocaleString()}</Text>
-                                    <Text style={[s.td, { color: Colors.income }]}>{currency}0</Text>
-                                    <Text style={[s.td, { color: Colors.income, fontWeight: '700' }]}>+100%</Text>
+                                    <Text style={[s.td, { color: Colors.textMuted, fontSize: 10 }]}>No spending yet</Text>
+                                    <Text style={[s.td, { color: Colors.textMuted, fontWeight: '700' }]}>-</Text>
                                 </TouchableOpacity>
                             ))
                         }

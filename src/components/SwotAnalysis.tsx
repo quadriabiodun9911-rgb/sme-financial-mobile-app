@@ -13,7 +13,7 @@ const QUADRANTS = [
         color: Colors.income,
         bg: 'rgba(16,185,129,0.08)',
         border: 'rgba(16,185,129,0.3)',
-        subtitle: 'Internal advantages',
+        subtitle: 'What your business does well',
     },
     {
         key: 'weaknesses' as const,
@@ -22,7 +22,7 @@ const QUADRANTS = [
         color: Colors.expense,
         bg: 'rgba(239,68,68,0.08)',
         border: 'rgba(239,68,68,0.3)',
-        subtitle: 'Internal disadvantages',
+        subtitle: 'What your business struggles with',
     },
     {
         key: 'opportunities' as const,
@@ -31,7 +31,7 @@ const QUADRANTS = [
         color: Colors.asset,
         bg: 'rgba(59,130,246,0.08)',
         border: 'rgba(59,130,246,0.3)',
-        subtitle: 'External growth levers',
+        subtitle: 'Chances to grow',
     },
     {
         key: 'threats' as const,
@@ -40,7 +40,7 @@ const QUADRANTS = [
         color: Colors.warning,
         bg: 'rgba(245,158,11,0.08)',
         border: 'rgba(245,158,11,0.3)',
-        subtitle: 'External risk factors',
+        subtitle: 'Risks to watch out for',
     },
 ];
 
