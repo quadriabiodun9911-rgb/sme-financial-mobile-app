@@ -12,3 +12,4 @@ build/
 .env.local
 node_modules/
 *.zip
+.claude/worktrees/
