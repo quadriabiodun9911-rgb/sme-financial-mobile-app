@@ -26,7 +26,7 @@ const INCOME_CATEGORIES = ['Sales', 'Service', 'Consulting', 'Rental', 'Interest
 const EXPENSE_CATEGORIES = ['Rent', 'Salaries', 'Utilities', 'Marketing', 'Supplies', 'Transport', 'Meals', 'Software', 'Tax', 'Other'];
 
 export default function DashboardScreen() {
-    const { finance, insight, settings, goals, transactions, invoices, assets, loans, navigate, setCurrentScreen, language, isLoading, addTransaction, isDemoMode, exitDemo, cashPockets, deleteGoal, updateGoal } = useApp();
+    const { finance, settings, goals, transactions, invoices, assets, loans, navigate, setCurrentScreen, language, isLoading, addTransaction, isDemoMode, exitDemo, cashPockets, deleteGoal, updateGoal } = useApp();
 
     const [fabOpen, setFabOpen]           = useState(false);
     const [qaType, setQaType]             = useState<'income' | 'expense'>('income');
@@ -35,7 +35,7 @@ export default function DashboardScreen() {
     const [qaCategory, setQaCategory]     = useState('');
     const [qaSubmitting, setQaSubmitting] = useState(false);
     const [showMore, setShowMore]               = useState(false);
-    const [showGoDeeper, setShowGoDeeper]       = useState(false);
+
     const [showFullDashboard, setShowFullDashboard] = useState(false);
     const [onboardingDismissed, setOnboardingDismissed] = useState(false);
     const [showOnboardingWizard, setShowOnboardingWizard] = useState(false);
@@ -142,10 +142,7 @@ export default function DashboardScreen() {
 
     const { currency, targetMargin, minReserve } = settings;
 
-    const insightBorder =
-        insight.severity === 'critical' ? Colors.criticalBorder
-        : insight.severity === 'warning' ? Colors.warningBorder
-        : Colors.healthyBorder;
+
 
     const activeGoals   = goals.filter(g => g.status !== 'achieved');
     const achievedGoals = goals.filter(g => g.status === 'achieved');
@@ -497,54 +494,6 @@ export default function DashboardScreen() {
                         <Text style={styles.quickActionIcon}>📊</Text>
                         <Text style={[styles.quickActionText, { color: Colors.warning }]}>Reports</Text>
                     </TouchableOpacity>
-                </View>
-
-                {/* ── CARD 3: Go Deeper (AI Insight + Analysis + CFO) ─────── */}
-                <View style={[styles.goDeeperCard, { borderLeftColor: insightBorder }]}>
-                    <TouchableOpacity style={styles.goDeeperHeader} onPress={() => setShowGoDeeper(v => !v)}>
-                        <View style={styles.goDeeperLeft}>
-                            <View style={[styles.tag, { backgroundColor: insightBorder }]}>
-                                <Text style={styles.tagText}>{insight.tag}</Text>
-                            </View>
-                            <Text style={styles.goDeeperTitle}>{insight.title}</Text>
-                        </View>
-                        <Text style={styles.goDeeperToggle}>{showGoDeeper ? '▲' : '▼ Go Deeper'}</Text>
-                    </TouchableOpacity>
-                    <Text style={styles.insightAction}>{insight.action}</Text>
-                    <Text style={styles.insightTimestamp}>
-                        Based on {transactions.length} transaction{transactions.length !== 1 ? 's' : ''} · Updated {new Date().toLocaleDateString('default', { month: 'short', day: 'numeric' })}
-                    </Text>
-                    {transactions.length === 0 && (
-                        <Text style={styles.insightStale}>Add transactions to unlock personalised insights</Text>
-                    )}
-                    {showGoDeeper && (
-                        <View style={styles.goDeeperOptions}>
-                            <TouchableOpacity style={styles.goDeeperOption} onPress={() => setCurrentScreen('insights')}>
-                                <Text style={styles.goDeeperOptionIcon}>💡</Text>
-                                <View style={{ flex: 1 }}>
-                                    <Text style={styles.goDeeperOptionLabel}>AI Insights</Text>
-                                    <Text style={styles.goDeeperOptionSub}>Full breakdown & recommendations</Text>
-                                </View>
-                                <Text style={styles.quickArrow}>›</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.goDeeperOption} onPress={() => setCurrentScreen('analysis')}>
-                                <Text style={styles.goDeeperOptionIcon}>🔍</Text>
-                                <View style={{ flex: 1 }}>
-                                    <Text style={styles.goDeeperOptionLabel}>Analysis & Decisions</Text>
-                                    <Text style={styles.goDeeperOptionSub}>Why did my profit change? · What if I hire or borrow?</Text>
-                                </View>
-                                <Text style={styles.quickArrow}>›</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={[styles.goDeeperOption, { borderBottomWidth: 0 }]} onPress={() => setCurrentScreen('cfo')}>
-                                <Text style={styles.goDeeperOptionIcon}>🧠</Text>
-                                <View style={{ flex: 1 }}>
-                                    <Text style={styles.goDeeperOptionLabel}>Business Advisor</Text>
-                                    <Text style={styles.goDeeperOptionSub}>Cash flow forecast · Risk check · Loan calculator</Text>
-                                </View>
-                                <Text style={styles.quickArrow}>›</Text>
-                            </TouchableOpacity>
-                        </View>
-                    )}
                 </View>
 
                 {/* ── CARD 4: Cash position ────────────────────────────────── */}
