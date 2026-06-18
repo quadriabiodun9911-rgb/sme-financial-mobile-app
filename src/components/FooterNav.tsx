@@ -13,7 +13,7 @@ const MORE_ITEMS: { label: string; icon: string; screen: Screen }[] = [
     { label: 'Loans',         icon: '🏦', screen: 'loans'     },
     { label: 'Assets',        icon: '🏢', screen: 'assets'    },
     { label: 'Analysis',      icon: '📊', screen: 'analysis'  },
-    { label: 'CFO Assistant', icon: '🤖', screen: 'cfo'       },
+    { label: 'Biz Advisor',   icon: '🧠', screen: 'cfo'       },
     { label: 'Settings',      icon: '⚙️', screen: 'settings'  },
 ];
 
