@@ -14,12 +14,26 @@ import {
     modelNewLoan,
     modelPriceIncrease,
     modelCostCut,
+    modelNewProduct,
     ScenarioResult,
 } from '../utils/analysis';
 import { ReportPeriod } from '../utils/finance';
 
 type Tab = 'diagnosis' | 'scenarios';
-type ScenarioType = 'hire' | 'revenue' | 'loan' | 'price' | 'cost';
+type ScenarioType = 'hire' | 'revenue' | 'loan' | 'price' | 'cost' | 'product';
+
+function fmtRunway(days: number): string {
+    if (days >= 999) return 'Very healthy';
+    if (days <= 0) return 'Cash at risk';
+    if (days < 30) return `${days} days`;
+    if (days < 60) return '1 month';
+    const months = Math.round(days / 30);
+    if (months < 12) return `${months} months`;
+    const years = Math.floor(months / 12);
+    const rem = months % 12;
+    if (rem === 0) return `${years} year${years > 1 ? 's' : ''}`;
+    return `${years}y ${rem}m`;
+}
 
 // ─── Scenario input forms ──────────────────────────────────────────────────────
 function HireForm({ onRun, currency }: { onRun: (r: ScenarioResult) => void; currency: string }) {
@@ -132,17 +146,52 @@ function CostForm({ onRun, currency }: { onRun: (r: ScenarioResult) => void; cur
     );
 }
 
+function ProductForm({ onRun, currency }: { onRun: (r: ScenarioResult) => void; currency: string }) {
+    const { finance } = useApp();
+    const [name, setName]       = useState('');
+    const [price, setPrice]     = useState('');
+    const [unitCost, setUnitCost] = useState('');
+    const [unitsSold, setUnitsSold] = useState('');
+    const ready = name && price && unitsSold;
+    return (
+        <View>
+            <Text style={s.formLabel}>Product / service name</Text>
+            <TextInput style={s.input} placeholder="e.g. Premium Plan" placeholderTextColor={Colors.textMuted} value={name} onChangeText={setName} />
+            <Text style={s.formLabel}>Selling price per unit ({currency})</Text>
+            <TextInput style={s.input} placeholder="e.g. 150" placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={price} onChangeText={setPrice} />
+            <Text style={s.formLabel}>Cost per unit ({currency}) — optional</Text>
+            <TextInput style={s.input} placeholder="e.g. 60" placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={unitCost} onChangeText={setUnitCost} />
+            <Text style={s.formLabel}>Units sold per month</Text>
+            <TextInput style={s.input} placeholder="e.g. 20" placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={unitsSold} onChangeText={setUnitsSold} />
+            <TouchableOpacity style={[s.runBtn, !ready && s.runBtnDisabled]} disabled={!ready} onPress={() => onRun(modelNewProduct(finance, name, parseFloat(price) || 0, parseFloat(unitCost) || 0, parseInt(unitsSold) || 0, currency))}>
+                <Text style={s.runBtnText}>Run Scenario →</Text>
+            </TouchableOpacity>
+        </View>
+    );
+}
+
 // ─── Scenario result card ──────────────────────────────────────────────────────
 function ScenarioResultCard({ result, currency }: { result: ScenarioResult; currency: string }) {
     const good = result.profitImpact >= 0;
+    const recommend = result.newProfit >= 0 && result.profitImpact >= 0;
     return (
         <View style={s.resultCard}>
+            {/* YES / NO banner */}
+            <View style={[s.yesNoBanner, { backgroundColor: recommend ? Colors.income + '22' : Colors.expense + '22', borderColor: recommend ? Colors.income : Colors.expense }]}>
+                <Text style={[s.yesNoText, { color: recommend ? Colors.income : Colors.expense }]}>
+                    {recommend ? '✅ GO FOR IT' : '⚠️ THINK TWICE'}
+                </Text>
+                <Text style={[s.yesNoSub, { color: recommend ? Colors.income : Colors.expense }]}>
+                    {recommend ? 'This looks like a good move for your business.' : 'This could hurt your profitability — review the risks.'}
+                </Text>
+            </View>
+
             <Text style={s.resultLabel}>{result.label}</Text>
 
             {/* Impact summary */}
             <View style={s.impactRow}>
                 <View style={s.impactBox}>
-                    <Text style={s.impactLbl}>Profit Impact</Text>
+                    <Text style={s.impactLbl}>Profit Change</Text>
                     <Text style={[s.impactVal, { color: good ? Colors.income : Colors.expense }]}>
                         {good ? '+' : ''}{currency}{result.profitImpact.toLocaleString()}
                     </Text>
@@ -154,9 +203,9 @@ function ScenarioResultCard({ result, currency }: { result: ScenarioResult; curr
                     </Text>
                 </View>
                 <View style={s.impactBox}>
-                    <Text style={s.impactLbl}>Cash Runway</Text>
+                    <Text style={s.impactLbl}>Money Lasts</Text>
                     <Text style={[s.impactVal, { color: result.newCashRunway < 30 ? Colors.expense : Colors.income }]}>
-                        {result.newCashRunway > 999 ? '∞' : result.newCashRunway + 'd'}
+                        {fmtRunway(result.newCashRunway)}
                     </Text>
                 </View>
             </View>
@@ -214,7 +263,7 @@ export default function AnalysisScreen() {
     const [tab, setTab]             = useState<Tab>('diagnosis');
     const [period, setPeriod]       = useState<ReportPeriod>('month');
     const [scenarioType, setScenarioType] = useState<ScenarioType>('hire');
-    const [scenarioResult, setScenarioResult] = useState<ScenarioResult | null>(null);
+    const [scenarioResults, setScenarioResults] = useState<Partial<Record<ScenarioType, ScenarioResult>>>({});
 
     const analysis = useMemo(() => analyseRootCause(transactions, period, settings), [transactions, period, settings]);
 
@@ -237,6 +286,7 @@ export default function AnalysisScreen() {
         { key: 'loan',    label: 'Take a Loan',      icon: '🏦' },
         { key: 'price',   label: 'Raise Prices',     icon: '💰' },
         { key: 'cost',    label: 'Cut Costs',        icon: '✂️' },
+        { key: 'product', label: 'New Product',      icon: '🆕' },
     ];
 
     return (
@@ -283,14 +333,14 @@ export default function AnalysisScreen() {
                                 {/* Primary cause banner */}
                                 <View style={[s.causeBanner, { borderColor: severityColor }]}>
                                     <Text style={[s.causeLabel, { color: severityColor }]}>
-                                        {analysis.severity === 'positive' ? '✅' : analysis.severity === 'warning' ? '⚠️' : analysis.severity === 'critical' ? '🔴' : 'ℹ️'} Root Cause
+                                        {analysis.severity === 'positive' ? '✅' : analysis.severity === 'warning' ? '⚠️' : analysis.severity === 'critical' ? '🔴' : 'ℹ️'} Why is your profit changing?
                                     </Text>
                                     <Text style={[s.causeText, { color: severityColor }]}>{analysis.primaryCause}</Text>
                                 </View>
 
                                 {/* Numbers: current vs previous */}
                                 <View style={s.compareCard}>
-                                    <Text style={s.cardTitle}>Performance Comparison</Text>
+                                    <Text style={s.cardTitle}>This period vs last period</Text>
                                     <View style={s.metricsGrid}>
                                         {[
                                             { label: 'Revenue', cur: analysis.currentIncome, prv: analysis.previousIncome, good: true },
@@ -317,7 +367,7 @@ export default function AnalysisScreen() {
 
                                 {/* Diagnosis */}
                                 <View style={s.diagCard}>
-                                    <Text style={s.cardTitle}>📋 What the data says</Text>
+                                    <Text style={s.cardTitle}>📋 What's happening in your business</Text>
                                     {analysis.diagnosis.map((d, i) => (
                                         <Text key={i} style={s.diagLine}>{d}</Text>
                                     ))}
@@ -326,7 +376,7 @@ export default function AnalysisScreen() {
                                 {/* Income drivers */}
                                 {analysis.incomeDrivers.length > 0 && (
                                     <View style={s.driverCard}>
-                                        <Text style={s.cardTitle}>Revenue drivers</Text>
+                                        <Text style={s.cardTitle}>What's bringing money in</Text>
                                         {analysis.incomeDrivers.slice(0, 5).map((d, i) => (
                                             <View key={i} style={s.driverRow}>
                                                 <View style={{ flex: 1 }}>
@@ -344,7 +394,7 @@ export default function AnalysisScreen() {
                                 {/* Expense drivers */}
                                 {analysis.expenseDrivers.length > 0 && (
                                     <View style={s.driverCard}>
-                                        <Text style={s.cardTitle}>Cost drivers</Text>
+                                        <Text style={s.cardTitle}>What's costing you most</Text>
                                         {analysis.expenseDrivers.slice(0, 5).map((d, i) => (
                                             <View key={i} style={s.driverRow}>
                                                 <View style={{ flex: 1 }}>
@@ -361,7 +411,7 @@ export default function AnalysisScreen() {
 
                                 {/* Recommendations */}
                                 <View style={s.recsCard}>
-                                    <Text style={s.cardTitle}>✅ Recommended actions</Text>
+                                    <Text style={s.cardTitle}>✅ What you should do</Text>
                                     {analysis.recommendations.map((r, i) => (
                                         <View key={i} style={s.recRow}>
                                             <Text style={s.recNum}>{i + 1}</Text>
@@ -386,7 +436,7 @@ export default function AnalysisScreen() {
                                 <TouchableOpacity
                                     key={sc.key}
                                     style={[s.scTab, scenarioType === sc.key && s.scTabActive]}
-                                    onPress={() => { setScenarioType(sc.key); setScenarioResult(null); }}
+                                    onPress={() => setScenarioType(sc.key)}
                                 >
                                     <Text style={s.scTabIcon}>{sc.icon}</Text>
                                     <Text style={[s.scTabText, scenarioType === sc.key && s.scTabTextActive]}>{sc.label}</Text>
@@ -396,15 +446,16 @@ export default function AnalysisScreen() {
 
                         {/* Form */}
                         <View style={s.formCard}>
-                            {scenarioType === 'hire'    && <HireForm    currency={currency} onRun={r => setScenarioResult(r)} />}
-                            {scenarioType === 'revenue' && <RevenueForm currency={currency} onRun={r => setScenarioResult(r)} />}
-                            {scenarioType === 'loan'    && <LoanForm    currency={currency} onRun={r => setScenarioResult(r)} />}
-                            {scenarioType === 'price'   && <PriceForm   currency={currency} onRun={r => setScenarioResult(r)} />}
-                            {scenarioType === 'cost'    && <CostForm    currency={currency} onRun={r => setScenarioResult(r)} />}
+                            {scenarioType === 'hire'    && <HireForm    currency={currency} onRun={r => setScenarioResults(p => ({ ...p, hire: r }))} />}
+                            {scenarioType === 'revenue' && <RevenueForm currency={currency} onRun={r => setScenarioResults(p => ({ ...p, revenue: r }))} />}
+                            {scenarioType === 'loan'    && <LoanForm    currency={currency} onRun={r => setScenarioResults(p => ({ ...p, loan: r }))} />}
+                            {scenarioType === 'price'   && <PriceForm   currency={currency} onRun={r => setScenarioResults(p => ({ ...p, price: r }))} />}
+                            {scenarioType === 'cost'    && <CostForm    currency={currency} onRun={r => setScenarioResults(p => ({ ...p, cost: r }))} />}
+                            {scenarioType === 'product' && <ProductForm currency={currency} onRun={r => setScenarioResults(p => ({ ...p, product: r }))} />}
                         </View>
 
-                        {/* Result */}
-                        {scenarioResult && <ScenarioResultCard result={scenarioResult} currency={currency} />}
+                        {/* Result — persists per scenario type */}
+                        {scenarioResults[scenarioType] && <ScenarioResultCard result={scenarioResults[scenarioType]!} currency={currency} />}
                     </>
                 )}
 
@@ -489,6 +540,9 @@ const s = StyleSheet.create({
     runBtnText:    { color: '#fff', fontWeight: 'bold', fontSize: 15 },
 
     resultCard:    { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 16 },
+    yesNoBanner:   { borderWidth: 2, borderRadius: 10, padding: 12, marginBottom: 14, alignItems: 'center' },
+    yesNoText:     { fontSize: 16, fontWeight: '800', letterSpacing: 1 },
+    yesNoSub:      { fontSize: 12, marginTop: 4, textAlign: 'center' },
     resultLabel:   { fontSize: 16, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 14 },
     impactRow:     { flexDirection: 'row', marginBottom: 14, borderBottomWidth: 1, borderBottomColor: Colors.border, paddingBottom: 14 },
     impactBox:     { flex: 1, alignItems: 'center' },

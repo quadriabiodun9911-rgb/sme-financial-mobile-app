@@ -381,6 +381,52 @@ export function modelPriceIncrease(
     };
 }
 
+export function modelNewProduct(
+    finance: FinanceData,
+    productName: string,
+    pricePerUnit: number,
+    costPerUnit: number,
+    unitsSoldPerMonth: number,
+    currency: string,
+): ScenarioResult {
+    const monthlyRevenue = pricePerUnit * unitsSoldPerMonth;
+    const monthlyCost    = costPerUnit * unitsSoldPerMonth;
+    const annualRevenue  = monthlyRevenue * 12;
+    const annualCost     = monthlyCost * 12;
+    const newIncome      = finance.income + annualRevenue;
+    const newExpense     = finance.expense + annualCost;
+    const newProfit      = newIncome - newExpense;
+    const newMargin      = newIncome > 0 ? (newProfit / newIncome) * 100 : 0;
+    const baseCash       = finance.expense > 0 ? Math.floor(finance.cashBalance / (finance.expense / 30)) : 999;
+    const newMonthlyExp  = newExpense / 12;
+    const newCashRunway  = newMonthlyExp > 0 ? Math.floor(finance.cashBalance / (newMonthlyExp / 30)) : 999;
+    const grossMarginPct = pricePerUnit > 0 ? ((pricePerUnit - costPerUnit) / pricePerUnit) * 100 : 0;
+    const good           = newProfit > finance.profit;
+
+    return {
+        label: `New product: ${productName}`,
+        baseProfit: finance.profit,
+        newProfit,
+        profitImpact: newProfit - finance.profit,
+        baseMargin: finance.margin,
+        newMargin,
+        baseCashRunway: baseCash,
+        newCashRunway,
+        breakEvenRevenue: newExpense,
+        verdict: good
+            ? `Selling ${unitsSoldPerMonth} units/month of ${productName} adds ${currency}${Math.round(annualRevenue - annualCost).toLocaleString()} annual profit (${grossMarginPct.toFixed(0)}% gross margin).`
+            : `The cost of producing ${productName} outweighs the revenue — review your pricing or unit cost.`,
+        risks: [
+            `Assumes ${unitsSoldPerMonth} units sold every month — actual demand may vary.`,
+            costPerUnit > 0 && pricePerUnit < costPerUnit * 1.2 ? `Gross margin of ${grossMarginPct.toFixed(0)}% is thin — small cost rises could wipe profit.` : `Track actual unit cost as volume grows.`,
+        ].filter(Boolean) as string[],
+        opportunities: [
+            `At ${unitsSoldPerMonth} units/month, you hit break-even at ${Math.ceil(newExpense / (pricePerUnit * 12))} units/month.`,
+            `Each extra unit sold adds ${currency}${(pricePerUnit - costPerUnit).toLocaleString()} directly to profit.`,
+        ],
+    };
+}
+
 export function modelCostCut(
     finance: FinanceData,
     categoryName: string,
