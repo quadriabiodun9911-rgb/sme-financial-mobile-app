@@ -294,9 +294,9 @@ export default function InsightsScreen() {
                     {/* ── Balance Sheet ─────────────────────────────────────── */}
                     <View style={styles.card}>
                         <Text style={styles.cardTitle}>What You Own & Owe</Text>
-                        <Row label="Things You Own (Assets)" value={`${currency}${finance.assets.toLocaleString()}`} valueStyle={styles.blue} />
-                        <Row label="Money You Owe (Liabilities)" value={`${currency}${finance.liabilities.toLocaleString()}`} valueStyle={styles.orange} />
-                        <Row label="Your Business Worth" value={`${currency}${finance.equity.toLocaleString()}`} valueStyle={styles.purple} />
+                        <Row label="Things You Own (Assets)" value={`${currency}${(isNaN(finance.assets) ? 0 : finance.assets).toLocaleString()}`} valueStyle={styles.blue} />
+                        <Row label="Money You Owe (Liabilities)" value={`${currency}${(isNaN(finance.liabilities) ? 0 : finance.liabilities).toLocaleString()}`} valueStyle={styles.orange} />
+                        <Row label="Your Business Worth" value={`${currency}${(isNaN(finance.equity) ? 0 : finance.equity).toLocaleString()}`} valueStyle={styles.purple} />
                         <Text style={styles.note}>Update opening balances in Settings for a complete balance sheet.</Text>
                     </View>
 

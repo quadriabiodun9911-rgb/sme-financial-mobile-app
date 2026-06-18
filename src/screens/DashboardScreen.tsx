@@ -584,16 +584,16 @@ export default function DashboardScreen() {
                         <View style={styles.row}>
                             <View style={[styles.card, styles.flex]}>
                                 <Text style={styles.cardLabel}>{t(language, 'totalAssets')}</Text>
-                                <Text style={[styles.bigNum, { color: Colors.asset, fontSize: 18 }]}>{currency}{finance.assets.toLocaleString()}</Text>
+                                <Text style={[styles.bigNum, { color: Colors.asset, fontSize: 18 }]}>{currency}{(isNaN(finance.assets) ? 0 : finance.assets).toLocaleString()}</Text>
                             </View>
                             <View style={[styles.card, styles.flex]}>
                                 <Text style={styles.cardLabel}>{t(language, 'totalLiabilities')}</Text>
-                                <Text style={[styles.bigNum, { color: Colors.liability, fontSize: 18 }]}>{currency}{finance.liabilities.toLocaleString()}</Text>
+                                <Text style={[styles.bigNum, { color: Colors.liability, fontSize: 18 }]}>{currency}{(isNaN(finance.liabilities) ? 0 : finance.liabilities).toLocaleString()}</Text>
                             </View>
                         </View>
                         <View style={styles.card}>
                             <Text style={styles.cardLabel}>{t(language, 'ownersEquity')}</Text>
-                            <Text style={[styles.bigNum, { color: Colors.equity }]}>{currency}{finance.equity.toLocaleString()}</Text>
+                            <Text style={[styles.bigNum, { color: Colors.equity }]}>{currency}{(isNaN(finance.equity) ? 0 : finance.equity).toLocaleString()}</Text>
                             <Text style={styles.hint}>{t(language, 'assetsMinusLiabilities')}</Text>
                         </View>
 

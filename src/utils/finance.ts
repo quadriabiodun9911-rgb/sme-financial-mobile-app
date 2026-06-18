@@ -225,8 +225,8 @@ export function computeFinance(
     const openingAssets = parseFloat(settings.openingAssets) || 0;
     const openingLiabilities = parseFloat(settings.openingLiabilities) || 0;
 
-    const assets = openingAssets + cashBalance + registeredAssetsValue;
-    const liabilities = openingLiabilities;
+    const assets = (isNaN(openingAssets) ? 0 : openingAssets) + (isNaN(cashBalance) ? 0 : cashBalance) + (isNaN(registeredAssetsValue) ? 0 : registeredAssetsValue);
+    const liabilities = isNaN(openingLiabilities) ? 0 : openingLiabilities;
     const equity = assets - liabilities;
 
     const totalTaxCollected = transactions
