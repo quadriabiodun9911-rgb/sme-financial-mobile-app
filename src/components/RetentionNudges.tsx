@@ -198,14 +198,16 @@ export default function RetentionNudges({ transactions, currency, profit, onAddT
     return (
         <>
             {/* ── Streak badge ─────────────────────────────────────────── */}
-            {streak >= 2 && (
+            {streak >= 1 && (
                 <View style={styles.streakBanner}>
                     <Text style={styles.streakFire}>🔥</Text>
                     <View style={{ flex: 1 }}>
-                        <Text style={styles.streakText}>{streak}-day logging streak!</Text>
+                        <Text style={styles.streakText}>
+                            {streak === 1 ? 'Day 1 — streak started!' : `${streak}-day logging streak!`}
+                        </Text>
                         <Text style={styles.streakSub}>
                             {loggedToday
-                                ? 'Logged today — keep it going tomorrow'
+                                ? streak === 1 ? 'Great start — come back tomorrow to keep it going' : 'Logged today — keep it going tomorrow'
                                 : 'Log a transaction today to keep your streak alive'}
                         </Text>
                     </View>

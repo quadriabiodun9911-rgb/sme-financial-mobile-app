@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text,
     TouchableOpacity, StyleSheet, ActivityIndicator,
-    Modal, TextInput, KeyboardAvoidingView, Platform, Alert,
+    Modal, TextInput, KeyboardAvoidingView, Platform, Alert, Animated,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
@@ -28,8 +29,16 @@ export default function DashboardScreen() {
     const [qaCategory, setQaCategory]     = useState('');
     const [qaSubmitting, setQaSubmitting] = useState(false);
     const [showMore, setShowMore]               = useState(false);
+    const [showGoDeeper, setShowGoDeeper]       = useState(false);
+    const [onboardingDismissed, setOnboardingDismissed] = useState(false);
     const [showOnboardingWizard, setShowOnboardingWizard] = useState(false);
     const [showShareCard, setShowShareCard]     = useState(false);
+
+    useEffect(() => {
+        AsyncStorage.getItem('@quad360/onboarding_dismissed').then(v => {
+            if (v === '1') setOnboardingDismissed(true);
+        });
+    }, []);
 
     const categories = qaType === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
 
@@ -92,7 +101,12 @@ export default function DashboardScreen() {
     const loggedToday = transactions.some(tx => tx.date === today);
     const hasTransaction = transactions.length > 0;
     const hasGoal        = goals.length > 0;
-    const showOnboarding = !hasTransaction || !hasGoal;
+    const showOnboarding = (!hasTransaction || !hasGoal) && !onboardingDismissed;
+
+    const dismissOnboarding = () => {
+        AsyncStorage.setItem('@quad360/onboarding_dismissed', '1');
+        setOnboardingDismissed(true);
+    };
 
     const runwayDays = finance.expense > 0 ? Math.floor(finance.cashBalance / (finance.expense / 30)) : null;
     const runwayColor = runwayDays === null ? Colors.income : runwayDays < 30 ? Colors.expense : runwayDays < 60 ? Colors.warning : Colors.income;
@@ -117,8 +131,15 @@ export default function DashboardScreen() {
                 {/* ── Onboarding ───────────────────────────────────────────── */}
                 {showOnboarding && (
                     <View style={styles.onboardCard}>
-                        <Text style={styles.onboardTitle}>🚀 Get started — 3 quick steps</Text>
-                        <Text style={styles.onboardSub}>Complete these to unlock your full financial picture</Text>
+                        <View style={styles.onboardHeader}>
+                            <View>
+                                <Text style={styles.onboardTitle}>🚀 Get started — 3 quick steps</Text>
+                                <Text style={styles.onboardSub}>Complete these to unlock your full financial picture</Text>
+                            </View>
+                            <TouchableOpacity onPress={dismissOnboarding} style={styles.onboardDismissBtn}>
+                                <Text style={styles.onboardDismissText}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
                         <View style={styles.onboardStep}>
                             <Text style={styles.onboardCheck}>✅</Text>
                             <Text style={[styles.onboardStepText, styles.onboardDone]}>Create your account</Text>
@@ -173,7 +194,7 @@ export default function DashboardScreen() {
                         {finance.profit >= 0 ? 'PROFITABLE ✓' : 'LOSING MONEY ✗'}
                     </Text>
                     <Text style={[styles.heroProfit, { color: finance.profit >= 0 ? Colors.income : Colors.expense }]}>
-                        {finance.profit >= 0 ? '+' : ''}{currency}{finance.depreciationAdjustedProfit.toLocaleString()}
+                        {finance.profit >= 0 ? '+' : ''}{currency}{finance.profit.toLocaleString()}
                     </Text>
                     <View style={styles.heroSubRow}>
                         <Text style={[styles.heroMargin, { color: finance.margin >= parseFloat(targetMargin) ? Colors.income : Colors.expense }]}>
@@ -193,15 +214,15 @@ export default function DashboardScreen() {
                         </View>
                         <View style={styles.heroMetricDivider} />
                         <View style={styles.heroMetric}>
-                            <Text style={styles.heroMetricLabel}>Net Profit</Text>
-                            <Text style={[styles.heroMetricVal, { color: finance.depreciationAdjustedProfit >= 0 ? Colors.income : Colors.expense }]}>
-                                {finance.depreciationAdjustedProfit >= 0 ? '+' : ''}{currency}{finance.depreciationAdjustedProfit.toLocaleString()}
+                            <Text style={styles.heroMetricLabel}>Cash Profit</Text>
+                            <Text style={[styles.heroMetricVal, { color: finance.profit >= 0 ? Colors.income : Colors.expense }]}>
+                                {finance.profit >= 0 ? '+' : ''}{currency}{finance.profit.toLocaleString()}
                             </Text>
                         </View>
                     </View>
                     {finance.annualDepreciation > 0 && (
                         <Text style={styles.deprNote}>
-                            Includes {currency}{Math.round(finance.annualDepreciation).toLocaleString()} depreciation · Cash: {currency}{finance.profit.toLocaleString()}
+                            After {currency}{Math.round(finance.annualDepreciation).toLocaleString()} depreciation: {currency}{finance.depreciationAdjustedProfit.toLocaleString()} · Cash profit shown above
                         </Text>
                     )}
                     {finance.profit > 0 && hasTransaction && (
@@ -231,17 +252,47 @@ export default function DashboardScreen() {
                     </TouchableOpacity>
                 </View>
 
-                {/* ── CARD 3: AI Insight ───────────────────────────────────── */}
-                <TouchableOpacity style={[styles.insightCard, { borderLeftColor: insightBorder }]} onPress={() => setCurrentScreen('insights')}>
-                    <View style={styles.insightHeader}>
-                        <View style={[styles.tag, { backgroundColor: insightBorder }]}>
-                            <Text style={styles.tagText}>{insight.tag}</Text>
+                {/* ── CARD 3: Go Deeper (AI Insight + Analysis + CFO) ─────── */}
+                <View style={[styles.goDeeperCard, { borderLeftColor: insightBorder }]}>
+                    <TouchableOpacity style={styles.goDeeperHeader} onPress={() => setShowGoDeeper(v => !v)}>
+                        <View style={styles.goDeeperLeft}>
+                            <View style={[styles.tag, { backgroundColor: insightBorder }]}>
+                                <Text style={styles.tagText}>{insight.tag}</Text>
+                            </View>
+                            <Text style={styles.goDeeperTitle}>{insight.title}</Text>
                         </View>
-                        <Text style={styles.insightLink}>Full insights →</Text>
-                    </View>
-                    <Text style={styles.insightTitle}>{insight.title}</Text>
+                        <Text style={styles.goDeeperToggle}>{showGoDeeper ? '▲' : '▼ Go Deeper'}</Text>
+                    </TouchableOpacity>
                     <Text style={styles.insightAction}>{insight.action}</Text>
-                </TouchableOpacity>
+                    {showGoDeeper && (
+                        <View style={styles.goDeeperOptions}>
+                            <TouchableOpacity style={styles.goDeeperOption} onPress={() => setCurrentScreen('insights')}>
+                                <Text style={styles.goDeeperOptionIcon}>💡</Text>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.goDeeperOptionLabel}>AI Insights</Text>
+                                    <Text style={styles.goDeeperOptionSub}>Full breakdown & recommendations</Text>
+                                </View>
+                                <Text style={styles.quickArrow}>›</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.goDeeperOption} onPress={() => setCurrentScreen('analysis')}>
+                                <Text style={styles.goDeeperOptionIcon}>🔍</Text>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.goDeeperOptionLabel}>Analysis & Decisions</Text>
+                                    <Text style={styles.goDeeperOptionSub}>Why did profit change? · What if scenarios</Text>
+                                </View>
+                                <Text style={styles.quickArrow}>›</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.goDeeperOption, { borderBottomWidth: 0 }]} onPress={() => setCurrentScreen('cfo')}>
+                                <Text style={styles.goDeeperOptionIcon}>🧠</Text>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.goDeeperOptionLabel}>CFO Advisor</Text>
+                                    <Text style={styles.goDeeperOptionSub}>Forecasts · Risk score · Debt optimiser</Text>
+                                </View>
+                                <Text style={styles.quickArrow}>›</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+                </View>
 
                 {/* ── CARD 4: Cash position ────────────────────────────────── */}
                 <View style={styles.row}>
@@ -280,34 +331,11 @@ export default function DashboardScreen() {
                     <Text style={styles.quickArrow}>›</Text>
                 </TouchableOpacity>
 
-                {/* ── CARD 6: Analysis & Decisions ─────────────────────────── */}
-                <TouchableOpacity style={[styles.quickCard, { borderColor: Colors.primary, backgroundColor: 'rgba(0,102,204,0.08)' }]} onPress={() => setCurrentScreen('analysis')}>
-                    <View style={styles.quickCardLeft}>
-                        <Text style={styles.quickIcon}>🔍</Text>
-                        <View>
-                            <Text style={[styles.quickLabel, { color: Colors.primary }]}>Analysis & Decisions</Text>
-                            <Text style={styles.quickSub}>Why did profit change? · What if I hire / take a loan?</Text>
-                        </View>
-                    </View>
-                    <Text style={styles.quickArrow}>›</Text>
-                </TouchableOpacity>
-
-                {/* ── CARD 7: CFO Advisor ──────────────────────────────────── */}
-                <TouchableOpacity style={[styles.quickCard, { borderColor: Colors.border }]} onPress={() => setCurrentScreen('cfo')}>
-                    <View style={styles.quickCardLeft}>
-                        <Text style={styles.quickIcon}>🧠</Text>
-                        <View>
-                            <Text style={styles.quickLabel}>CFO Advisor</Text>
-                            <Text style={styles.quickSub}>Forecasts · Risk score · Ratios · Debt optimiser</Text>
-                        </View>
-                    </View>
-                    <Text style={styles.quickArrow}>›</Text>
-                </TouchableOpacity>
-
-
                 {/* ── See more toggle ──────────────────────────────────────── */}
                 <TouchableOpacity style={styles.seeMoreBtn} onPress={() => setShowMore(v => !v)}>
-                    <Text style={styles.seeMoreText}>{showMore ? '▲ Show less' : '▼ More — tax, equity, inventory, assets & loans'}</Text>
+                    <Text style={styles.seeMoreText}>
+                        {showMore ? '▲ Show less' : `▼ More${assets.length > 0 ? ` · 🏗️ ${assets.length} asset${assets.length !== 1 ? 's' : ''}` : ''}${loans.filter(l => l.status === 'active').length > 0 ? ` · 🏦 ${loans.filter(l => l.status === 'active').length} loan${loans.filter(l => l.status === 'active').length !== 1 ? 's' : ''}` : ''} · tax, equity & inventory`}
+                    </Text>
                 </TouchableOpacity>
 
                 {showMore && (
@@ -513,14 +541,17 @@ const styles = StyleSheet.create({
     demoBannerBtn:     { backgroundColor: '#fef3c7', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 5, marginLeft: 8 },
     demoBannerBtnText: { color: '#854d0e', fontWeight: '700', fontSize: 12 },
 
-    onboardCard:     { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: Colors.primary },
-    onboardTitle:    { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },
-    onboardSub:      { fontSize: 12, color: Colors.textMuted, marginBottom: 12 },
-    onboardStep:     { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10, gap: 10 },
-    onboardCheck:    { fontSize: 16, width: 22 },
-    onboardStepText: { fontSize: 14, color: Colors.textPrimary, fontWeight: '600' },
-    onboardDone:     { color: Colors.textMuted, textDecorationLine: 'line-through' },
-    onboardStepHint: { fontSize: 11, color: Colors.primary, marginTop: 1 },
+    onboardCard:        { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: Colors.primary },
+    onboardHeader:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
+    onboardTitle:       { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },
+    onboardSub:         { fontSize: 12, color: Colors.textMuted },
+    onboardDismissBtn:  { padding: 4 },
+    onboardDismissText: { fontSize: 16, color: Colors.textMuted },
+    onboardStep:        { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10, gap: 10 },
+    onboardCheck:       { fontSize: 16, width: 22 },
+    onboardStepText:    { fontSize: 14, color: Colors.textPrimary, fontWeight: '600' },
+    onboardDone:        { color: Colors.textMuted, textDecorationLine: 'line-through' },
+    onboardStepHint:    { fontSize: 11, color: Colors.primary, marginTop: 1 },
 
     alertBanner:  { backgroundColor: 'rgba(245,158,11,0.12)', borderWidth: 1, borderColor: Colors.warning, borderRadius: 8, padding: 10, marginBottom: 8 },
     alertText:    { color: Colors.warning, fontSize: 12, fontWeight: '600' },
@@ -554,6 +585,17 @@ const styles = StyleSheet.create({
     insightLink:   { color: Colors.primary, fontSize: 12 },
     insightTitle:  { fontSize: 14, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 4 },
     insightAction: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
+
+    goDeeperCard:       { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 12, borderLeftWidth: 4 },
+    goDeeperHeader:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 },
+    goDeeperLeft:       { flex: 1, gap: 6 },
+    goDeeperTitle:      { fontSize: 14, fontWeight: 'bold', color: Colors.textPrimary },
+    goDeeperToggle:     { fontSize: 12, color: Colors.primary, fontWeight: '600', marginLeft: 8, marginTop: 2 },
+    goDeeperOptions:    { marginTop: 12, borderTopWidth: 1, borderTopColor: Colors.border },
+    goDeeperOption:     { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border, gap: 10 },
+    goDeeperOptionIcon: { fontSize: 20 },
+    goDeeperOptionLabel:{ fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: 1 },
+    goDeeperOptionSub:  { fontSize: 11, color: Colors.textMuted },
 
     card:         { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, marginBottom: 12 },
     cardLabel:    { fontSize: 12, color: Colors.textMuted, marginBottom: 6 },
