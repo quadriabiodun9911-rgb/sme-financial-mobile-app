@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
     View, Text, TouchableOpacity, StyleSheet, Share, Alert,
 } from 'react-native';
@@ -13,6 +13,7 @@ interface Props {
 export default function ProfitShareCard({ visible, onClose }: Props) {
     const { finance, settings, user } = useApp();
     const currency = settings.currency;
+    const [shared, setShared] = useState(false);
 
     if (!visible) return null;
 
@@ -42,10 +43,10 @@ Try it free: quad360.vercel.app`;
 
         try {
             await Share.share({ message, title: `${monthName} Business Summary` });
+            setShared(true);
         } catch {
             Alert.alert('Error', 'Could not share.');
         }
-        onClose();
     };
 
     return (
@@ -76,9 +77,15 @@ Try it free: quad360.vercel.app`;
                     <Text style={styles.brandText}> · quad360.vercel.app</Text>
                 </View>
 
-                <TouchableOpacity style={styles.shareBtn} onPress={handleShare}>
-                    <Text style={styles.shareBtnText}>📤 Share This Summary</Text>
-                </TouchableOpacity>
+                {shared ? (
+                    <View style={styles.successBanner}>
+                        <Text style={styles.successBannerText}>🎉 Thanks for sharing! You're helping other business owners discover Quad360.</Text>
+                    </View>
+                ) : (
+                    <TouchableOpacity style={styles.shareBtn} onPress={handleShare}>
+                        <Text style={styles.shareBtnText}>📤 Share This Summary</Text>
+                    </TouchableOpacity>
+                )}
                 <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
                     <Text style={styles.closeBtnText}>Close</Text>
                 </TouchableOpacity>
@@ -118,4 +125,6 @@ const styles = StyleSheet.create({
     shareBtnText:      { color: Colors.textPrimary, fontWeight: 'bold', fontSize: 15 },
     closeBtn:          { marginHorizontal: 16, marginBottom: 16, paddingVertical: 10, alignItems: 'center' },
     closeBtnText:      { color: Colors.textMuted, fontSize: 14 },
+    successBanner:     { marginHorizontal: 16, marginBottom: 8, backgroundColor: 'rgba(16,185,129,0.15)', borderWidth: 1, borderColor: '#10b981', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 16, alignItems: 'center' },
+    successBannerText: { color: '#10b981', fontWeight: '600', fontSize: 14, textAlign: 'center', lineHeight: 20 },
 });

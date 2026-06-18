@@ -55,6 +55,18 @@ export default function DashboardScreen() {
         });
     }, [isDemoMode]);
 
+    useEffect(() => {
+        if (isDemoMode) return;
+        if (finance.profit <= 0) return;
+        const monthKey = `@quad360/share_prompted_${new Date().toISOString().slice(0, 7)}`;
+        AsyncStorage.getItem(monthKey).then(v => {
+            if (!v) {
+                setShowShareCard(true);
+                AsyncStorage.setItem(monthKey, '1');
+            }
+        });
+    }, [isDemoMode, finance.profit]);
+
     const categories = qaType === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
 
     const openFab = (type: 'income' | 'expense' = 'income') => {
@@ -634,6 +646,19 @@ export default function DashboardScreen() {
                 <Text style={styles.fabText}>+</Text>
             </TouchableOpacity>
 
+            {/* ── Daily log-today banner ───────────────────────────────────── */}
+            {!loggedToday && (
+                <View style={styles.logTodayBanner}>
+                    <View style={styles.logTodayLeft}>
+                        <Text style={styles.logTodayTitle}>🌙 Log today's sales before you sleep</Text>
+                        <Text style={styles.logTodaySub}>Takes 30 seconds</Text>
+                    </View>
+                    <TouchableOpacity style={styles.logTodayBtn} onPress={() => openFab()}>
+                        <Text style={styles.logTodayBtnText}>Log →</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
+
             <FooterNav />
 
             {/* ── Quick-add modal ──────────────────────────────────────────── */}
@@ -858,6 +883,13 @@ const styles = StyleSheet.create({
 
     fab:     { position: 'absolute', right: 20, bottom: 80, width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.income, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 8 },
     fabText: { fontSize: 30, color: Colors.textPrimary, lineHeight: 34 },
+
+    logTodayBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'rgba(245,158,11,0.15)', borderTopWidth: 1, borderBottomWidth: 1, borderColor: Colors.warning, paddingHorizontal: 16, paddingVertical: 10 },
+    logTodayLeft:   { flex: 1 },
+    logTodayTitle:  { fontSize: 13, fontWeight: '700', color: Colors.warning, marginBottom: 2 },
+    logTodaySub:    { fontSize: 11, color: Colors.textMuted },
+    logTodayBtn:    { backgroundColor: Colors.warning, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8, marginLeft: 12 },
+    logTodayBtnText:{ color: '#fff', fontWeight: '700', fontSize: 13 },
 
     modalOverlay:     { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
     modalSheet:       { backgroundColor: Colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 40 },

@@ -74,19 +74,26 @@ export default function FirstRunWizard({ visible, onDone }: Props) {
             >
                 <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
 
-                    {/* ── Done / celebration screen ─────────────────────────── */}
+                    {/* ── Done / profit reveal screen ───────────────────────── */}
                     {done ? (
                         <View style={styles.celebrationBox}>
-                            <Text style={styles.celebEmoji}>{isProfit ? '🎉' : '📋'}</Text>
+                            <Text style={styles.celebEmoji}>
+                                {profit > 0 ? '🎉' : profit === 0 ? '⚖️' : '💪'}
+                            </Text>
                             <Text style={styles.celebTitle}>
-                                {isProfit
-                                    ? `You made ${currency}${profit.toLocaleString()} profit!`
-                                    : `You spent ${currency}${Math.abs(profit).toLocaleString()} more than you earned`}
+                                {profit > 0
+                                    ? 'You made profit this week!'
+                                    : profit === 0
+                                    ? 'You broke even this week'
+                                    : "Let's turn this around!"}
+                            </Text>
+                            <Text style={[styles.celebBigProfit, { color: profit >= 0 ? Colors.income : Colors.expense }]}>
+                                {currency}{Math.abs(profit).toLocaleString()}
                             </Text>
                             <Text style={styles.celebSub}>
-                                {isProfit
-                                    ? "That's your starting point. Every day you log, this picture gets clearer."
-                                    : "That's okay — now you know. Use the app every day to spot where to cut costs."}
+                                {profit > 0
+                                    ? `That's ${currency}${profit.toLocaleString()} profit. Quad360 will track this every day.`
+                                    : 'No profit yet — but now you can see exactly where money is going.'}
                             </Text>
                             <View style={styles.celebStats}>
                                 <View style={styles.celebStat}>
@@ -100,14 +107,14 @@ export default function FirstRunWizard({ visible, onDone }: Props) {
                                 </View>
                                 <View style={styles.celebStatDiv} />
                                 <View style={styles.celebStat}>
-                                    <Text style={styles.celebStatLabel}>{isProfit ? 'Profit' : 'Loss'}</Text>
-                                    <Text style={[styles.celebStatVal, { color: isProfit ? Colors.income : Colors.expense }]}>
-                                        {isProfit ? '+' : '-'}{currency}{Math.abs(profit).toLocaleString()}
+                                    <Text style={styles.celebStatLabel}>{profit >= 0 ? 'Profit' : 'Loss'}</Text>
+                                    <Text style={[styles.celebStatVal, { color: profit >= 0 ? Colors.income : Colors.expense }]}>
+                                        {profit >= 0 ? '+' : '-'}{currency}{Math.abs(profit).toLocaleString()}
                                     </Text>
                                 </View>
                             </View>
                             <TouchableOpacity style={styles.primaryBtn} onPress={handleClose}>
-                                <Text style={styles.primaryBtnText}>Go to my dashboard →</Text>
+                                <Text style={styles.primaryBtnText}>Let's Go →</Text>
                             </TouchableOpacity>
                         </View>
                     ) : (
@@ -249,6 +256,7 @@ const styles = StyleSheet.create({
     celebrationBox: { alignItems: 'center', paddingTop: 20 },
     celebEmoji:     { fontSize: 72, marginBottom: 20 },
     celebTitle:     { fontSize: 26, fontWeight: 'bold', color: Colors.textPrimary, textAlign: 'center', marginBottom: 10, lineHeight: 34 },
+    celebBigProfit: { fontSize: 48, fontWeight: 'bold', marginBottom: 10 },
     celebSub:       { fontSize: 14, color: Colors.textMuted, textAlign: 'center', lineHeight: 21, marginBottom: 30 },
     celebStats:     { flexDirection: 'row', backgroundColor: Colors.surface, borderRadius: 14, padding: 18, width: '100%', marginBottom: 30 },
     celebStat:      { flex: 1, alignItems: 'center' },
