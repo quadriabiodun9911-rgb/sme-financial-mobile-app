@@ -15,6 +15,7 @@ import { validateAmount, validateDescription } from '../utils/validation';
 import OnboardingWizard from '../components/OnboardingWizard';
 import ProfitShareCard from '../components/ProfitShareCard';
 import RetentionNudges from '../components/RetentionNudges';
+import FirstRunWizard from '../components/FirstRunWizard';
 
 const INCOME_CATEGORIES = ['Sales', 'Service', 'Consulting', 'Rental', 'Interest', 'Other Income'];
 const EXPENSE_CATEGORIES = ['Rent', 'Salaries', 'Utilities', 'Marketing', 'Supplies', 'Transport', 'Meals', 'Software', 'Tax', 'Other'];
@@ -33,12 +34,20 @@ export default function DashboardScreen() {
     const [onboardingDismissed, setOnboardingDismissed] = useState(false);
     const [showOnboardingWizard, setShowOnboardingWizard] = useState(false);
     const [showShareCard, setShowShareCard]     = useState(false);
+    const [showFirstRun, setShowFirstRun]       = useState(false);
 
     useEffect(() => {
         AsyncStorage.getItem('@quad360/onboarding_dismissed').then(v => {
             if (v === '1') setOnboardingDismissed(true);
         });
     }, []);
+
+    useEffect(() => {
+        if (isDemoMode) return;
+        AsyncStorage.getItem('@quad360/first_run_done').then(v => {
+            if (!v) setShowFirstRun(true);
+        });
+    }, [isDemoMode]);
 
     const categories = qaType === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
 
@@ -231,6 +240,77 @@ export default function DashboardScreen() {
                         </TouchableOpacity>
                     )}
                 </View>
+
+                {/* ── Loss guidance ────────────────────────────────────────── */}
+                {finance.profit < 0 && hasTransaction && (
+                    <View style={styles.lossGuide}>
+                        <Text style={styles.lossGuideTitle}>💡 Here's what you can do</Text>
+                        {(() => {
+                            const cats: Record<string, number> = {};
+                            transactions.filter(t => t.type === 'expense').forEach(t => {
+                                const c = t.category || 'Other';
+                                cats[c] = (cats[c] || 0) + (Number(t.amount) || 0);
+                            });
+                            const top = Object.entries(cats).sort((a, b) => b[1] - a[1])[0];
+                            return top ? (
+                                <Text style={styles.lossGuideText}>
+                                    Your biggest cost is <Text style={styles.lossGuideHighlight}>{top[0]} ({currency}{top[1].toLocaleString()})</Text>.{'\n'}
+                                    Can you charge customers a little more, or spend less on {top[0].toLowerCase()}?
+                                </Text>
+                            ) : (
+                                <Text style={styles.lossGuideText}>Try logging all your expenses — knowing where money goes is the first step to fixing it.</Text>
+                            );
+                        })()}
+                        <TouchableOpacity onPress={() => setCurrentScreen('transactions')} style={styles.lossGuideBtn}>
+                            <Text style={styles.lossGuideBtnText}>See all my expenses →</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
+
+                {/* ── Quick Answers ─────────────────────────────────────────── */}
+                {hasTransaction && (
+                    <View style={styles.qaRow}>
+                        {(() => {
+                            const now = new Date();
+                            const weekStart = new Date(now);
+                            weekStart.setDate(now.getDate() - now.getDay());
+                            const weekStr = weekStart.toISOString().split('T')[0];
+                            const weekIncome  = transactions.filter(t => t.type === 'income'  && t.date >= weekStr).reduce((s, t) => s + (Number(t.amount) || 0), 0);
+                            const weekExpense = transactions.filter(t => t.type === 'expense' && t.date >= weekStr).reduce((s, t) => s + (Number(t.amount) || 0), 0);
+                            const weekProfit  = weekIncome - weekExpense;
+                            const cats: Record<string, number> = {};
+                            transactions.filter(t => t.type === 'expense').forEach(t => {
+                                const c = t.category || 'Other';
+                                cats[c] = (cats[c] || 0) + (Number(t.amount) || 0);
+                            });
+                            const topCat = Object.entries(cats).sort((a, b) => b[1] - a[1])[0];
+                            const owedCount = overdueInvoices.length + transactions.filter(t => t.status === 'overdue').length;
+                            return (
+                                <>
+                                    <TouchableOpacity style={[styles.qaCard, { borderColor: weekProfit >= 0 ? Colors.income : Colors.expense }]} onPress={() => setCurrentScreen('reports')}>
+                                        <Text style={styles.qaQuestion}>Did I make money this week?</Text>
+                                        <Text style={[styles.qaAnswer, { color: weekProfit >= 0 ? Colors.income : Colors.expense }]}>
+                                            {weekProfit >= 0 ? '✅ Yes' : '❌ No'}
+                                        </Text>
+                                        <Text style={[styles.qaValue, { color: weekProfit >= 0 ? Colors.income : Colors.expense }]}>
+                                            {weekProfit >= 0 ? '+' : ''}{currency}{weekProfit.toLocaleString()}
+                                        </Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity style={styles.qaCard} onPress={() => setCurrentScreen('transactions')}>
+                                        <Text style={styles.qaQuestion}>Where did most money go?</Text>
+                                        <Text style={styles.qaAnswer}>{topCat ? topCat[0] : '—'}</Text>
+                                        <Text style={styles.qaValue}>{topCat ? `${currency}${topCat[1].toLocaleString()}` : 'No expenses yet'}</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity style={[styles.qaCard, { borderColor: owedCount > 0 ? Colors.warning : Colors.border }]} onPress={() => setCurrentScreen('invoices')}>
+                                        <Text style={styles.qaQuestion}>Who owes me money?</Text>
+                                        <Text style={[styles.qaAnswer, { color: owedCount > 0 ? Colors.warning : Colors.income }]}>{owedCount > 0 ? `${owedCount} unpaid` : '✅ All clear'}</Text>
+                                        <Text style={styles.qaValue}>{owedCount > 0 ? 'Tap to chase →' : 'No unpaid invoices'}</Text>
+                                    </TouchableOpacity>
+                                </>
+                            );
+                        })()}
+                    </View>
+                )}
 
                 {/* ── CARD 2: Quick actions row ────────────────────────────── */}
                 <View style={styles.quickActionsRow}>
@@ -521,6 +601,14 @@ export default function DashboardScreen() {
             </Modal>
             <OnboardingWizard visible={showOnboardingWizard} onDone={() => setShowOnboardingWizard(false)} />
             <ProfitShareCard visible={showShareCard} onClose={() => setShowShareCard(false)} />
+            <FirstRunWizard
+                visible={showFirstRun}
+                onDone={() => {
+                    AsyncStorage.setItem('@quad360/first_run_done', '1');
+                    setShowFirstRun(false);
+                    dismissOnboarding();
+                }}
+            />
         </SafeAreaView>
     );
 }
@@ -622,6 +710,19 @@ const styles = StyleSheet.create({
 
     nudgeBanner: { backgroundColor: 'rgba(59,130,246,0.1)', borderWidth: 1, borderColor: Colors.primary, borderRadius: 10, padding: 12, marginBottom: 10 },
     nudgeText:   { color: Colors.primary, fontSize: 12, fontWeight: '600' },
+
+    lossGuide:          { backgroundColor: 'rgba(239,68,68,0.07)', borderWidth: 1, borderColor: Colors.expense, borderRadius: 12, padding: 14, marginBottom: 12 },
+    lossGuideTitle:     { fontSize: 13, fontWeight: '700', color: Colors.expense, marginBottom: 6 },
+    lossGuideText:      { fontSize: 13, color: Colors.textSecondary, lineHeight: 20, marginBottom: 10 },
+    lossGuideHighlight: { fontWeight: '700', color: Colors.expense },
+    lossGuideBtn:       { alignSelf: 'flex-start' },
+    lossGuideBtnText:   { fontSize: 12, color: Colors.expense, fontWeight: '600', textDecorationLine: 'underline' },
+
+    qaRow:      { flexDirection: 'row', gap: 8, marginBottom: 12 },
+    qaCard:     { flex: 1, backgroundColor: Colors.surface, borderRadius: 10, padding: 10, borderWidth: 1, borderColor: Colors.border },
+    qaQuestion: { fontSize: 10, color: Colors.textMuted, marginBottom: 4, lineHeight: 13 },
+    qaAnswer:   { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },
+    qaValue:    { fontSize: 10, color: Colors.textMuted },
 
     seeMoreBtn:  { alignItems: 'center', paddingVertical: 12, marginBottom: 8 },
     seeMoreText: { color: Colors.primary, fontSize: 13, fontWeight: '600' },
