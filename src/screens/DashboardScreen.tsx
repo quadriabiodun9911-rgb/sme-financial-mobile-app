@@ -18,12 +18,13 @@ import RetentionNudges from '../components/RetentionNudges';
 import FirstRunWizard from '../components/FirstRunWizard';
 import GlobalSearch from '../components/GlobalSearch';
 import MonthlyReview from '../components/MonthlyReview';
+import CashPocketsModal from '../components/CashPocketsModal';
 
 const INCOME_CATEGORIES = ['Sales', 'Service', 'Consulting', 'Rental', 'Interest', 'Other Income'];
 const EXPENSE_CATEGORIES = ['Rent', 'Salaries', 'Utilities', 'Marketing', 'Supplies', 'Transport', 'Meals', 'Software', 'Tax', 'Other'];
 
 export default function DashboardScreen() {
-    const { finance, insight, settings, goals, transactions, invoices, assets, loans, inventory, navigate, setCurrentScreen, language, isLoading, addTransaction, isDemoMode, exitDemo } = useApp();
+    const { finance, insight, settings, goals, transactions, invoices, assets, loans, inventory, navigate, setCurrentScreen, language, isLoading, addTransaction, isDemoMode, exitDemo, cashPockets } = useApp();
 
     const [fabOpen, setFabOpen]           = useState(false);
     const [qaType, setQaType]             = useState<'income' | 'expense'>('income');
@@ -40,6 +41,7 @@ export default function DashboardScreen() {
     const [showFirstRun, setShowFirstRun]       = useState(false);
     const [showSearch, setShowSearch]           = useState(false);
     const [showMonthlyReview, setShowMonthlyReview] = useState(false);
+    const [showCashPockets, setShowCashPockets] = useState(false);
     const [toast, setToast]                     = useState<string | null>(null);
 
     useEffect(() => {
@@ -157,6 +159,21 @@ export default function DashboardScreen() {
     const thisMonthExpense = transactions.filter(t => t.type === 'expense' && t.date.startsWith(thisMonthStr)).reduce((s, t) => s + (Number(t.amount) || 0), 0);
     const thisMonthProfit  = thisMonthIncome - thisMonthExpense;
     const profitDelta = lastMonthProfit !== 0 ? ((thisMonthProfit - lastMonthProfit) / Math.abs(lastMonthProfit)) * 100 : null;
+
+    // Cash pockets
+    const totalCash = cashPockets.reduce((s, p) => s + p.amount, 0);
+
+    // Survival numbers
+    const todayIncome  = transactions.filter(tx => tx.type === 'income'  && tx.date === today).reduce((s, tx) => s + (Number(tx.amount) || 0), 0);
+    const todayExpense = transactions.filter(tx => tx.type === 'expense' && tx.date === today).reduce((s, tx) => s + (Number(tx.amount) || 0), 0);
+    const todayProfit  = todayIncome - todayExpense;
+    const runwayColor2 = runwayDays === null ? Colors.income : runwayDays < 30 ? Colors.expense : runwayDays < 60 ? Colors.warning : Colors.income;
+    const collectionsTotal =
+        transactions.filter(t => t.status === 'overdue' || (t.status === 'pending' && t.dueDate && t.dueDate < today)).reduce((s, t) => s + (Number(t.amount) || 0), 0) +
+        invoices.filter(inv => inv.status === 'overdue').reduce((s, inv) => s + (inv.total ?? 0), 0);
+    const collectionsCount =
+        transactions.filter(t => t.status === 'overdue' || (t.status === 'pending' && t.dueDate && t.dueDate < today)).length +
+        invoices.filter(inv => inv.status === 'overdue').length;
 
     return (
         <SafeAreaView style={styles.safe}>
@@ -292,6 +309,28 @@ export default function DashboardScreen() {
                     )}
                 </View>
 
+                {/* ── 3 Survival Numbers strip ─────────────────────────────── */}
+                <View style={styles.survivalRow}>
+                    <View style={styles.survivalCard}>
+                        <Text style={styles.survivalLabel}>💰 Profit TODAY</Text>
+                        <Text style={[styles.survivalValue, { color: todayProfit >= 0 ? Colors.income : Colors.expense }]}>
+                            {todayProfit >= 0 ? '+' : ''}{currency}{todayProfit.toLocaleString()}
+                        </Text>
+                    </View>
+                    <View style={styles.survivalCard}>
+                        <Text style={styles.survivalLabel}>⏳ Cash Left</Text>
+                        <Text style={[styles.survivalValue, { color: runwayColor2 }]}>
+                            {runwayDays === null ? '∞' : `${runwayDays} days`}
+                        </Text>
+                    </View>
+                    <TouchableOpacity style={styles.survivalCard} onPress={() => setCurrentScreen('transactions')}>
+                        <Text style={styles.survivalLabel}>📥 Collect</Text>
+                        <Text style={[styles.survivalValue, { color: collectionsCount > 0 ? Colors.warning : Colors.income }]}>
+                            {collectionsCount > 0 ? `${currency}${collectionsTotal.toLocaleString()}` : '✓ Clear'}
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+
                 {/* ── 3 Quick Stats row ────────────────────────────────────── */}
                 {(() => {
                     const owedToYou =
@@ -299,11 +338,11 @@ export default function DashboardScreen() {
                         invoices.filter(inv => inv.status === 'overdue').reduce((s, inv) => s + (inv.total ?? 0), 0);
                     return (
                         <View style={styles.quickStatsRow}>
-                            <View style={styles.quickStatCard}>
+                            <TouchableOpacity style={styles.quickStatCard} onPress={() => setShowCashPockets(true)}>
                                 <Text style={styles.quickStatIcon}>💵</Text>
-                                <Text style={styles.quickStatLabel}>Cash</Text>
-                                <Text style={styles.quickStatValue}>{currency}{finance.cashBalance.toLocaleString()}</Text>
-                            </View>
+                                <Text style={styles.quickStatLabel}>{cashPockets.length > 0 ? 'My Cash (all pockets)' : 'Cash · Tap to add pockets'}</Text>
+                                <Text style={styles.quickStatValue}>{currency}{cashPockets.length > 0 ? totalCash.toLocaleString() : finance.cashBalance.toLocaleString()}</Text>
+                            </TouchableOpacity>
                             <View style={styles.quickStatCard}>
                                 <Text style={styles.quickStatIcon}>👥</Text>
                                 <Text style={styles.quickStatLabel}>Owed to You</Text>
@@ -728,6 +767,7 @@ export default function DashboardScreen() {
                 }}
             />
             <MonthlyReview visible={showMonthlyReview} onClose={() => setShowMonthlyReview(false)} />
+            <CashPocketsModal visible={showCashPockets} onClose={() => setShowCashPockets(false)} />
             {toast !== null && (
                 <View style={styles.toast} pointerEvents="none">
                     <Text style={styles.toastText}>✅ {toast}</Text>
@@ -784,6 +824,11 @@ const styles = StyleSheet.create({
     deprNote:          { fontSize: 10, color: Colors.textMuted, textAlign: 'center', marginTop: 8, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 8 },
     shareWinBtn:       { marginTop: 10, paddingVertical: 8, borderRadius: 8, backgroundColor: 'rgba(16,185,129,0.12)', alignItems: 'center', borderWidth: 1, borderColor: Colors.income },
     shareWinText:      { fontSize: 12, color: Colors.income, fontWeight: '700' },
+
+    survivalRow:   { flexDirection: 'row', gap: 8, marginBottom: 12 },
+    survivalCard:  { flex: 1, backgroundColor: Colors.bg, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, padding: 12, alignItems: 'center' },
+    survivalLabel: { fontSize: 10, color: Colors.textMuted, marginBottom: 4, textAlign: 'center' },
+    survivalValue: { fontSize: 14, fontWeight: 'bold', textAlign: 'center' },
 
     quickStatsRow:   { flexDirection: 'row', gap: 8, marginBottom: 12 },
     quickStatCard:   { flex: 1, backgroundColor: Colors.surface, borderRadius: 10, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useMemo, useEffect, useRef, ReactNode } from 'react';
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Transaction, FinanceData, User, BusinessSettings, Screen, FinancialGoal, GoalType, NavParams, Invoice, InvoiceStatus, TeamMember, UserRole, Language, Asset, InventoryItem, Loan, LoanPayment, Budget } from '../types';
+import { Transaction, FinanceData, User, BusinessSettings, Screen, FinancialGoal, GoalType, NavParams, Invoice, InvoiceStatus, TeamMember, UserRole, Language, Asset, InventoryItem, Loan, LoanPayment, Budget, CashPocket } from '../types';
 import { computeFinance, computeOneThingInsight, computeRecurringDates, computeAssetCurrentValue, computeAssetAnnualDepreciation } from '../utils/finance';
 import { generateId } from '../utils/uuid';
 import { auditEvents } from '../utils/auditLog';
@@ -97,6 +97,11 @@ interface AppContextValue {
     updateBudget: (id: string, patch: Partial<Budget>) => void;
     deleteBudget: (id: string) => void;
 
+    cashPockets: CashPocket[];
+    addCashPocket: (name: string, amount: number) => void;
+    updateCashPocket: (id: string, amount: number) => void;
+    deleteCashPocket: (id: string) => void;
+
     // Team
     teamMembers: TeamMember[];
     inviteMember: (email: string, role: 'accountant' | 'staff') => Promise<string>;
@@ -183,6 +188,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const [loans, setLoans]                 = useState<Loan[]>([]);
     const [inventory, setInventory]         = useState<InventoryItem[]>([]);
     const [budgets, setBudgets]             = useState<Budget[]>([]);
+    const [cashPockets, setCashPockets]     = useState<CashPocket[]>([]);
     const [teamMembers, setTeamMembers]     = useState<TeamMember[]>([]);
     const [language, setLang]              = useState<Language>('en');
     const [isLoading, setIsLoading]         = useState(true);
@@ -231,6 +237,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 if (savedLoans)    setLoans(savedLoans);
                 if (savedInventory) setInventory(savedInventory);
                 if (savedBudgets)  setBudgets(savedBudgets);
+                const savedPockets = await AsyncStorage.getItem('@quad360/cash_pockets');
+                if (savedPockets) setCashPockets(JSON.parse(savedPockets));
                 if (pin && profile) {
                     setUser({ email: profile.email, businessName: profile.businessName, role: 'Administrator' });
                 }
@@ -268,6 +276,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     useEffect(() => { if (!isLoading) saveLoans(loans).catch(persistError('loans')); }, [loans, isLoading]);
     useEffect(() => { if (!isLoading) saveInventory(inventory).catch(persistError('inventory')); }, [inventory, isLoading]);
     useEffect(() => { if (!isLoading) saveBudgets(budgets).catch(persistError('budgets')); }, [budgets, isLoading]);
+    useEffect(() => { if (!isLoading) AsyncStorage.setItem('@quad360/cash_pockets', JSON.stringify(cashPockets)).catch(() => {}); }, [cashPockets, isLoading]);
 
     const activeAssets = useMemo(() => assets.filter(a => a.status === 'active'), [assets]);
     const registeredAssetsValue = useMemo(
@@ -728,6 +737,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setBudgets(prev => prev.filter(b => b.id !== id));
     };
 
+    const addCashPocket = (name: string, amount: number) => {
+        const pocket: CashPocket = { id: Date.now().toString(), name, amount, updatedAt: new Date().toISOString() };
+        setCashPockets(prev => [...prev, pocket]);
+    };
+    const updateCashPocket = (id: string, amount: number) => {
+        setCashPockets(prev => prev.map(p => p.id === id ? { ...p, amount, updatedAt: new Date().toISOString() } : p));
+    };
+    const deleteCashPocket = (id: string) => {
+        setCashPockets(prev => prev.filter(p => p.id !== id));
+    };
+
     const inviteMember = async (email: string, role: 'accountant' | 'staff'): Promise<string> => {
         const code = await inviteTeamMember(email, role);
         await refreshTeam();
@@ -870,6 +890,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         loans, addLoan, updateLoan, deleteLoan, addLoanPayment,
         inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem,
         budgets, addBudget, updateBudget, deleteBudget,
+        cashPockets, addCashPocket, updateCashPocket, deleteCashPocket,
         teamMembers, inviteMember, removeMember, refreshTeam,
         language, setLanguage,
         finance, insight, isLoading,

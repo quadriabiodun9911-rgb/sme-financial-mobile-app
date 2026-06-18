@@ -248,3 +248,10 @@ export interface Loan {
     payments: LoanPayment[];
     createdAt: string;
 }
+
+export interface CashPocket {
+    id: string;
+    name: string;
+    amount: number;
+    updatedAt: string; // ISO date
+}
