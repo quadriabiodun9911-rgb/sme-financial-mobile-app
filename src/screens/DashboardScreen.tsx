@@ -177,6 +177,9 @@ export default function DashboardScreen() {
     // Last month date range
     const now = new Date();
     const thisMonthStr = now.toISOString().slice(0, 7); // YYYY-MM
+    const recurringDueCount = transactions.filter(t =>
+        t.isRecurring && t.nextRecurringDate && t.nextRecurringDate.startsWith(thisMonthStr)
+    ).length;
     const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const lastMonthStr = lastMonthDate.toISOString().slice(0, 7);
     const lastMonthIncome  = transactions.filter(t => t.type === 'income'  && t.date.startsWith(lastMonthStr)).reduce((s, t) => s + (Number(t.amount) || 0), 0);
@@ -575,14 +578,6 @@ export default function DashboardScreen() {
                     </View>
                 </View>
 
-                {/* ── CARD 4b: 6-month trend chart ─────────────────────────── */}
-                {hasTransaction && (
-                    <ProfitTrendChart
-                        data={trendData}
-                        currency={currency}
-                        onPress={() => setCurrentScreen('reports')}
-                    />
-                )}
 
                 {/* ── Recurring due this month ──────────────────────────────── */}
                 {recurringDueCount > 0 && (
