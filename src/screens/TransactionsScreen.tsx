@@ -172,7 +172,16 @@ export default function TransactionsScreen() {
         return { income, expense, net: income - expense };
     }, [filtered]);
 
-    // ── Modal helpers ────────────────────────────────────────────────────────
+    // ── Category breakdown for chart ─────────────────────────────────────────
+    const categoryBreakdown = useMemo(() => {
+        const incomeMap = new Map<string, number>();
+        const expenseMap = new Map<string, number>();
+        filtered.filter(t => t.type === 'income').forEach(t => incomeMap.set(t.category, (incomeMap.get(t.category) ?? 0) + t.amount));
+        filtered.filter(t => t.type === 'expense').forEach(t => expenseMap.set(t.category, (expenseMap.get(t.category) ?? 0) + t.amount));
+        const totalIncome  = [...incomeMap.values()].reduce((s, v) => s + v, 0);
+        const totalExpense = [...expenseMap.values()].reduce((s, v) => s + v, 0);
+        return { incomeMap, expenseMap, totalIncome, totalExpense };
+    }, [filtered]);
     const openNew = () => {
         setEditingId(null);
         setForm({ ...EMPTY_FORM, taxRate: defaultTaxRate, date: todayStr() });
@@ -334,6 +343,18 @@ export default function TransactionsScreen() {
                     bold
                 />
             </View>
+
+            {/* ── Category breakdown chart ─────────────────────────────── */}
+            {filtered.length > 0 && (
+                <CategoryChart
+                    incomeMap={categoryBreakdown.incomeMap}
+                    expenseMap={categoryBreakdown.expenseMap}
+                    totalIncome={categoryBreakdown.totalIncome}
+                    totalExpense={categoryBreakdown.totalExpense}
+                    currency={currency}
+                    typeFilter={typeFilter}
+                />
+            )}
 
             {/* ── Transaction list ─────────────────────────────────────── */}
             <ScrollView style={styles.scroll}>
@@ -715,6 +736,128 @@ function parseCSV(text: string): Array<{date: string, description: string, type:
     }
     return results;
 }
+
+// ─── Category breakdown chart ─────────────────────────────────────────────────
+
+const CHART_COLORS = [
+    '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
+    '#06B6D4', '#F97316', '#84CC16', '#EC4899', '#6366F1',
+];
+
+function CategoryChart({
+    incomeMap, expenseMap, totalIncome, totalExpense, currency, typeFilter,
+}: {
+    incomeMap: Map<string, number>;
+    expenseMap: Map<string, number>;
+    totalIncome: number;
+    totalExpense: number;
+    currency: string;
+    typeFilter: FilterType;
+}) {
+    const [activeTab, setActiveTab] = useState<'income' | 'expense'>(
+        typeFilter === 'expense' ? 'expense' : 'income'
+    );
+    const [expanded, setExpanded] = useState(false);
+
+    const showIncome  = typeFilter === 'all' || typeFilter === 'income' || typeFilter === 'collect';
+    const showExpense = typeFilter === 'all' || typeFilter === 'expense';
+
+    const tab = (!showIncome && showExpense) ? 'expense' : (!showExpense && showIncome) ? 'income' : activeTab;
+
+    const map   = tab === 'income' ? incomeMap : expenseMap;
+    const total = tab === 'income' ? totalIncome : totalExpense;
+    const color = tab === 'income' ? Colors.income : Colors.expense;
+
+    const entries = [...map.entries()]
+        .sort((a, b) => b[1] - a[1]);
+    const shown = expanded ? entries : entries.slice(0, 5);
+
+    if (entries.length === 0) return null;
+
+    return (
+        <View style={chartStyles.container}>
+            {/* Tab toggle — only show if both types are present */}
+            {showIncome && showExpense && (
+                <View style={chartStyles.tabRow}>
+                    {(['income', 'expense'] as const).map(t => (
+                        <TouchableOpacity
+                            key={t}
+                            style={[chartStyles.tabBtn, activeTab === t && { backgroundColor: t === 'income' ? Colors.income : Colors.expense }]}
+                            onPress={() => setActiveTab(t)}
+                        >
+                            <Text style={[chartStyles.tabBtnText, activeTab === t && { color: '#fff' }]}>
+                                {t === 'income' ? 'Income' : 'Expenses'}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+            )}
+
+            <Text style={chartStyles.title}>
+                {tab === 'income' ? 'Where money comes from' : 'Where money is going'}
+            </Text>
+            <Text style={chartStyles.totalLabel}>
+                Total: {currency}{total.toLocaleString()}
+            </Text>
+
+            {/* Stacked percentage bar */}
+            <View style={chartStyles.stackBar}>
+                {entries.map(([cat, amt], i) => {
+                    const pct = total > 0 ? (amt / total) * 100 : 0;
+                    return (
+                        <View
+                            key={cat}
+                            style={{ width: `${pct}%` as any, height: 12, backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }}
+                        />
+                    );
+                })}
+            </View>
+
+            {/* Rows */}
+            {shown.map(([cat, amt], i) => {
+                const pct = total > 0 ? (amt / total) * 100 : 0;
+                return (
+                    <View key={cat} style={chartStyles.row}>
+                        <View style={[chartStyles.dot, { backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }]} />
+                        <Text style={chartStyles.catName} numberOfLines={1}>{cat}</Text>
+                        <View style={chartStyles.barTrack}>
+                            <View style={[chartStyles.barFill, { width: `${pct}%` as any, backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }]} />
+                        </View>
+                        <Text style={chartStyles.pctLabel}>{Math.round(pct)}%</Text>
+                        <Text style={chartStyles.amtLabel}>{currency}{amt.toLocaleString()}</Text>
+                    </View>
+                );
+            })}
+
+            {entries.length > 5 && (
+                <TouchableOpacity onPress={() => setExpanded(v => !v)} style={chartStyles.showMore}>
+                    <Text style={chartStyles.showMoreText}>
+                        {expanded ? '▲ Show less' : `▼ Show ${entries.length - 5} more categories`}
+                    </Text>
+                </TouchableOpacity>
+            )}
+        </View>
+    );
+}
+
+const chartStyles = StyleSheet.create({
+    container:   { backgroundColor: Colors.surface, marginHorizontal: 0, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    tabRow:      { flexDirection: 'row', gap: 8, marginBottom: 10 },
+    tabBtn:      { flex: 1, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', backgroundColor: Colors.bg },
+    tabBtnText:  { fontSize: 12, fontWeight: '700', color: Colors.textMuted },
+    title:       { fontSize: 12, fontWeight: '700', color: Colors.textSecondary, marginBottom: 2 },
+    totalLabel:  { fontSize: 10, color: Colors.textMuted, marginBottom: 10 },
+    stackBar:    { flexDirection: 'row', height: 12, borderRadius: 6, overflow: 'hidden', marginBottom: 12, backgroundColor: Colors.bg },
+    row:         { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 },
+    dot:         { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
+    catName:     { fontSize: 11, color: Colors.textSecondary, width: 90, flexShrink: 0 },
+    barTrack:    { flex: 1, height: 8, backgroundColor: Colors.bg, borderRadius: 4, overflow: 'hidden' },
+    barFill:     { height: 8, borderRadius: 4 },
+    pctLabel:    { fontSize: 10, color: Colors.textMuted, width: 30, textAlign: 'right', flexShrink: 0 },
+    amtLabel:    { fontSize: 11, color: Colors.textPrimary, fontWeight: '600', width: 70, textAlign: 'right', flexShrink: 0 },
+    showMore:    { alignItems: 'center', paddingTop: 6 },
+    showMoreText:{ fontSize: 11, color: Colors.primary, fontWeight: '600' },
+});
 
 // ─── Small helper components ───────────────────────────────────────────────────
 
