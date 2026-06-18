@@ -166,6 +166,14 @@ export default function DashboardScreen() {
     const runwayDays = finance.expense > 0 ? Math.floor(finance.cashBalance / (finance.expense / 30)) : null;
     const runwayColor = runwayDays === null ? Colors.income : runwayDays < 30 ? Colors.expense : runwayDays < 60 ? Colors.warning : Colors.income;
 
+    // Sync label (how recently data was saved)
+    const syncLabel = (() => {
+        const diffMin = Math.floor((Date.now() - lastSynced.getTime()) / 60000);
+        if (diffMin < 2)  return '● Saved just now';
+        if (diffMin < 60) return `● Saved ${diffMin} min ago`;
+        return '● Saved today';
+    })();
+
     // Last month date range
     const now = new Date();
     const thisMonthStr = now.toISOString().slice(0, 7); // YYYY-MM
@@ -224,9 +232,9 @@ export default function DashboardScreen() {
                         </Text>
                     </View>
                     <View style={styles.survivalCard}>
-                        <Text style={styles.survivalLabel}>⏳ Cash Left</Text>
+                        <Text style={styles.survivalLabel}>⏳ Money Lasts</Text>
                         <Text style={[styles.survivalValue, { color: runwayColor2 }]}>
-                            {runwayDays === null ? '∞' : `${runwayDays} days`}
+                            {runwayDays === null ? 'Add costs' : runwayDays > 365 ? '1 year+' : runwayDays > 90 ? `${Math.floor(runwayDays/30)} months` : `${runwayDays} days`}
                         </Text>
                     </View>
                     <TouchableOpacity style={styles.survivalCard} onPress={() => setCurrentScreen('transactions')}>
@@ -558,11 +566,11 @@ export default function DashboardScreen() {
                         <Text style={styles.cardLabel}>How Long Your Money Lasts</Text>
                         <TouchableOpacity onPress={() => setCurrentScreen('reports')}>
                             <Text style={[styles.bigNum, { color: runwayColor }]}>
-                                {runwayDays === null ? '∞' : `${runwayDays} days`}
+                                {runwayDays === null ? 'Unknown' : runwayDays > 365 ? '1 year+' : runwayDays > 90 ? `${Math.floor(runwayDays/30)} months` : `${runwayDays} days`}
                             </Text>
                         </TouchableOpacity>
                         <Text style={[styles.hint, { color: runwayColor }]}>
-                            {runwayDays === null ? 'Add expenses to see how long your cash will last' : runwayDays < 30 ? 'Urgent — money running low!' : runwayDays < 60 ? 'Getting tight — watch spending' : 'You\'re in a good position'}
+                            {runwayDays === null ? 'Log your expenses so we can tell you how long your cash will last' : runwayDays < 30 ? '⚠️ Less than a month left — cut spending now' : runwayDays < 60 ? 'Getting tight — keep an eye on costs' : '✅ You have enough cash to keep going'}
                         </Text>
                     </View>
                 </View>
