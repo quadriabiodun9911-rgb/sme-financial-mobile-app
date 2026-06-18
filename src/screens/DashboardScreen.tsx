@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text,
     TouchableOpacity, StyleSheet, ActivityIndicator,
@@ -18,6 +18,7 @@ import RetentionNudges from '../components/RetentionNudges';
 import FirstRunWizard from '../components/FirstRunWizard';
 import GlobalSearch from '../components/GlobalSearch';
 import MonthlyReview from '../components/MonthlyReview';
+import ProfitTrendChart from '../components/ProfitTrendChart';
 
 const INCOME_CATEGORIES = ['Sales', 'Service', 'Consulting', 'Rental', 'Interest', 'Other Income'];
 const EXPENSE_CATEGORIES = ['Rent', 'Salaries', 'Utilities', 'Marketing', 'Supplies', 'Transport', 'Meals', 'Software', 'Tax', 'Other'];
@@ -40,6 +41,10 @@ export default function DashboardScreen() {
     const [showSearch, setShowSearch]           = useState(false);
     const [showMonthlyReview, setShowMonthlyReview] = useState(false);
     const [toast, setToast]                     = useState<string | null>(null);
+    const [eodOpen, setEodOpen]                 = useState(false);
+    const [eodIncome, setEodIncome]             = useState('');
+    const [eodExpense, setEodExpense]           = useState('');
+    const [lastSynced, setLastSynced]           = useState<Date>(new Date());
 
     useEffect(() => {
         AsyncStorage.getItem('@quad360/onboarding_dismissed').then(v => {
@@ -67,6 +72,18 @@ export default function DashboardScreen() {
     const showToast = (msg: string) => {
         setToast(msg);
         setTimeout(() => setToast(null), 3000);
+    };
+
+    const submitEod = () => {
+        const inc = parseFloat(eodIncome) || 0;
+        const exp = parseFloat(eodExpense) || 0;
+        if (inc <= 0 && exp <= 0) { Alert.alert('Nothing to save', 'Enter at least one amount.'); return; }
+        if (inc > 0) addTransaction({ type: 'income',  amount: inc, description: 'End of day income',   category: 'Sales',  status: 'paid' });
+        if (exp > 0) addTransaction({ type: 'expense', amount: exp, description: 'End of day expenses', category: 'Other',  status: 'paid' });
+        setEodIncome(''); setEodExpense(''); setEodOpen(false);
+        setLastSynced(new Date());
+        const newProfit = finance.profit + inc - exp;
+        showToast(`Saved! Today's profit: ${settings.currency}${newProfit.toLocaleString()}`);
     };
 
     const submitQuickAdd = () => {
@@ -144,6 +161,34 @@ export default function DashboardScreen() {
     const thisMonthExpense = transactions.filter(t => t.type === 'expense' && t.date.startsWith(thisMonthStr)).reduce((s, t) => s + (Number(t.amount) || 0), 0);
     const thisMonthProfit  = thisMonthIncome - thisMonthExpense;
     const profitDelta = lastMonthProfit !== 0 ? ((thisMonthProfit - lastMonthProfit) / Math.abs(lastMonthProfit)) * 100 : null;
+
+    // 6-month trend for chart
+    const trendData = useMemo(() => {
+        return Array.from({ length: 6 }, (_, i) => {
+            const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+            const mStr = d.toISOString().slice(0, 7);
+            const label = d.toLocaleString('default', { month: 'short' });
+            const inc = transactions.filter(t => t.type === 'income'  && t.date.startsWith(mStr)).reduce((s, t) => s + (Number(t.amount) || 0), 0);
+            const exp = transactions.filter(t => t.type === 'expense' && t.date.startsWith(mStr)).reduce((s, t) => s + (Number(t.amount) || 0), 0);
+            return { month: label, profit: inc - exp };
+        });
+    }, [transactions.length]);
+
+    // Recurring transactions due this month
+    const recurringDueCount = transactions.filter(t =>
+        t.isRecurring && t.nextRecurringDate && t.nextRecurringDate.startsWith(thisMonthStr)
+    ).length;
+
+    // Sync label
+    const syncLabel = (() => {
+        const diffMs = new Date().getTime() - lastSynced.getTime();
+        const diffMin = Math.floor(diffMs / 60000);
+        if (diffMin < 2)  return '● Synced just now';
+        if (diffMin < 60) return `● Synced ${diffMin}m ago`;
+        const diffH = Math.floor(diffMin / 60);
+        if (diffH < 24)   return `● Synced ${diffH}h ago`;
+        return '● Synced today';
+    })();
 
     return (
         <SafeAreaView style={styles.safe}>
@@ -277,6 +322,7 @@ export default function DashboardScreen() {
                             <Text style={styles.shareWinText}>📤 Share your win</Text>
                         </TouchableOpacity>
                     )}
+                    <Text style={styles.syncLabel}>{syncLabel}</Text>
                 </View>
 
                 {/* ── Loss guidance ────────────────────────────────────────── */}
@@ -382,6 +428,9 @@ export default function DashboardScreen() {
                         <Text style={styles.goDeeperToggle}>{showGoDeeper ? '▲' : '▼ Go Deeper'}</Text>
                     </TouchableOpacity>
                     <Text style={styles.insightAction}>{insight.action}</Text>
+                    <Text style={styles.insightTimestamp}>
+                        Based on {transactions.length} transaction{transactions.length !== 1 ? 's' : ''} · Updated {new Date().toLocaleDateString('default', { month: 'short', day: 'numeric' })}
+                    </Text>
                     {transactions.length === 0 && (
                         <Text style={styles.insightStale}>Add transactions to unlock personalised insights</Text>
                     )}
@@ -440,6 +489,26 @@ export default function DashboardScreen() {
                         </Text>
                     </View>
                 </View>
+
+                {/* ── CARD 4b: 6-month trend chart ─────────────────────────── */}
+                {hasTransaction && (
+                    <ProfitTrendChart
+                        data={trendData}
+                        currency={currency}
+                        onPress={() => setCurrentScreen('reports')}
+                    />
+                )}
+
+                {/* ── Recurring due this month ──────────────────────────────── */}
+                {recurringDueCount > 0 && (
+                    <TouchableOpacity style={styles.recurringBanner} onPress={() => setCurrentScreen('transactions')}>
+                        <Text style={styles.recurringIcon}>🔁</Text>
+                        <Text style={styles.recurringText}>
+                            {recurringDueCount} recurring transaction{recurringDueCount > 1 ? 's' : ''} due this month — tap to review
+                        </Text>
+                        <Text style={styles.recurringArrow}>›</Text>
+                    </TouchableOpacity>
+                )}
 
                 {/* ── CARD 5: Goals ────────────────────────────────────────── */}
                 <TouchableOpacity style={styles.quickCard} onPress={() => setCurrentScreen('goals')}>
@@ -595,6 +664,9 @@ export default function DashboardScreen() {
             <TouchableOpacity style={styles.fab} onPress={() => openFab()}>
                 <Text style={styles.fabText}>+</Text>
             </TouchableOpacity>
+            <TouchableOpacity style={styles.eodFab} onPress={() => setEodOpen(true)}>
+                <Text style={styles.eodFabText}>🌙 End of Day</Text>
+            </TouchableOpacity>
 
             <FooterNav />
 
@@ -665,6 +737,37 @@ export default function DashboardScreen() {
                 }}
             />
             <MonthlyReview visible={showMonthlyReview} onClose={() => setShowMonthlyReview(false)} />
+
+            {/* ── End of Day modal ─────────────────────────────────────────── */}
+            <Modal visible={eodOpen} transparent animationType="slide" onRequestClose={() => setEodOpen(false)}>
+                <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setEodOpen(false)} />
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalSheet}>
+                    <View style={styles.modalHandle} />
+                    <Text style={styles.modalTitle}>🌙 End of Day Summary</Text>
+                    <Text style={[styles.insightAction, { marginBottom: 16 }]}>Just two numbers — quick and done</Text>
+                    <Text style={styles.catLabel}>Total money you received today ({currency})</Text>
+                    <TextInput
+                        style={styles.modalInput}
+                        placeholder="0"
+                        placeholderTextColor={Colors.textMuted}
+                        keyboardType="decimal-pad"
+                        value={eodIncome}
+                        onChangeText={setEodIncome}
+                    />
+                    <Text style={styles.catLabel}>Total money you spent today ({currency})</Text>
+                    <TextInput
+                        style={styles.modalInput}
+                        placeholder="0"
+                        placeholderTextColor={Colors.textMuted}
+                        keyboardType="decimal-pad"
+                        value={eodExpense}
+                        onChangeText={setEodExpense}
+                    />
+                    <TouchableOpacity style={[styles.modalSubmit, { backgroundColor: Colors.primary }]} onPress={submitEod}>
+                        <Text style={styles.modalSubmitText}>Save Today's Numbers</Text>
+                    </TouchableOpacity>
+                </KeyboardAvoidingView>
+            </Modal>
             {toast !== null && (
                 <View style={styles.toast} pointerEvents="none">
                     <Text style={styles.toastText}>✅ {toast}</Text>
@@ -796,8 +899,19 @@ const styles = StyleSheet.create({
     btn:     { backgroundColor: Colors.primary, paddingVertical: 13, borderRadius: 10, alignItems: 'center', marginTop: 4 },
     btnText: { color: Colors.textPrimary, fontWeight: 'bold', fontSize: 14 },
 
-    toast:     { position: 'absolute', bottom: 100, left: 20, right: 20, backgroundColor: '#1a1a2e', borderRadius: 10, paddingHorizontal: 16, paddingVertical: 12, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 10 },
+    toast:     { position: 'absolute', bottom: 140, left: 20, right: 20, backgroundColor: '#1a1a2e', borderRadius: 10, paddingHorizontal: 16, paddingVertical: 12, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 10 },
     toastText: { color: '#fff', fontSize: 13, fontWeight: '600', textAlign: 'center' },
+
+    syncLabel:  { fontSize: 10, color: Colors.income, marginTop: 8, textAlign: 'center' },
+    insightTimestamp: { fontSize: 10, color: Colors.textMuted, marginTop: 6, fontStyle: 'italic' },
+
+    recurringBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(59,130,246,0.1)', borderWidth: 1, borderColor: Colors.primary, borderRadius: 10, padding: 12, marginBottom: 10, gap: 8 },
+    recurringIcon:   { fontSize: 16 },
+    recurringText:   { flex: 1, fontSize: 12, color: Colors.primary, fontWeight: '600' },
+    recurringArrow:  { fontSize: 18, color: Colors.primary },
+
+    eodFab:     { position: 'absolute', right: 20, bottom: 140, backgroundColor: Colors.surface, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: Colors.border, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 5 },
+    eodFabText: { fontSize: 12, fontWeight: '700', color: Colors.textPrimary },
 
     searchTrigger:     { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 14, gap: 8 },
     searchTriggerIcon: { fontSize: 14, color: Colors.textMuted },

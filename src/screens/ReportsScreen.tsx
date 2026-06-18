@@ -89,6 +89,7 @@ export default function ReportsScreen() {
     const { finance: allFinance, settings, updateSettings, transactions, assets, navParams, inventory, invoices } = useApp();
     const { currency, minReserve, targetMargin } = settings;
 
+    const [showLanding, setShowLanding] = useState(true);
     const [simpleView, setSimpleView]  = useState(true);
     const [section, setSection]       = useState<SectionKey>('statements');
     const [activeTab, setActiveTab]   = useState<SubTab>('balancesheet');
@@ -127,6 +128,7 @@ export default function ReportsScreen() {
             } else {
                 setActiveTab(SECTION_TABS[s][0].key);
             }
+            setShowLanding(false);
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -160,6 +162,58 @@ export default function ReportsScreen() {
     return (
         <SafeAreaView style={styles.safe}>
             <Header />
+
+            {/* ── Landing page ─────────────────────────────────────── */}
+            {showLanding ? (
+                <ScrollView style={styles.landingScroll} contentContainerStyle={styles.landingPad}>
+                    <Text style={styles.landingTitle}>Reports</Text>
+                    <Text style={styles.landingSub}>Tap any report to open it</Text>
+
+                    {[
+                        { icon: '📊', label: 'Profit & Loss', sub: 'Did I make money? Revenue vs costs breakdown', section: 'statements' as SectionKey, tab: 'pnl' as SubTab },
+                        { icon: '💰', label: 'Who Owes Me', sub: 'Unpaid invoices and overdue payments', section: 'operations' as SectionKey, tab: 'aging' as SubTab },
+                        { icon: '💧', label: 'Cash Flow', sub: 'Money coming in and going out over time', section: 'planning' as SectionKey, tab: 'cashflow' as SubTab },
+                        { icon: '🏥', label: 'Business Health Check', sub: 'Strengths, weaknesses, risks and opportunities', section: 'analysis' as SectionKey, tab: 'swot' as SubTab },
+                        { icon: '📈', label: 'Growth Trends', sub: 'Revenue and profit trend over the past months', section: 'growth' as SectionKey, tab: 'growth' as SubTab },
+                        { icon: '🧾', label: 'Tax Summary', sub: 'Tax collected, paid and your net tax position', section: 'operations' as SectionKey, tab: 'tax' as SubTab },
+                    ].map(item => (
+                        <TouchableOpacity
+                            key={item.tab}
+                            style={styles.landingCard}
+                            onPress={() => {
+                                setSection(item.section);
+                                setActiveTab(item.tab);
+                                setSimpleView(['statements','operations'].includes(item.section));
+                                setShowLanding(false);
+                            }}
+                        >
+                            <Text style={styles.landingCardIcon}>{item.icon}</Text>
+                            <View style={styles.landingCardText}>
+                                <Text style={styles.landingCardLabel}>{item.label}</Text>
+                                <Text style={styles.landingCardSub}>{item.sub}</Text>
+                            </View>
+                            <Text style={styles.landingCardArrow}>›</Text>
+                        </TouchableOpacity>
+                    ))}
+
+                    {/* CSV Export */}
+                    <View style={styles.exportSection}>
+                        <Text style={styles.exportTitle}>Export Data</Text>
+                        <TouchableOpacity style={styles.exportCsvBtn} onPress={exportPnL}>
+                            <Text style={styles.exportBtnIcon}>📥</Text>
+                            <View>
+                                <Text style={styles.exportBtnLabel}>Export to CSV</Text>
+                                <Text style={styles.exportBtnSub}>Share with your accountant or open in Excel</Text>
+                            </View>
+                        </TouchableOpacity>
+                    </View>
+                </ScrollView>
+            ) : (
+            <>
+            {/* ── Back to landing ───────────────────────────────────── */}
+            <TouchableOpacity style={styles.backToLanding} onPress={() => setShowLanding(true)}>
+                <Text style={styles.backToLandingText}>← All Reports</Text>
+            </TouchableOpacity>
 
             {/* ── Simple / Full toggle ──────────────────────────────── */}
             <View style={styles.viewToggleRow}>
@@ -280,7 +334,7 @@ export default function ReportsScreen() {
                             <View style={styles.card}>
                                 <View style={styles.cardHeaderRow}>
                                     <Text style={styles.cardTitle}>Profit & Loss</Text>
-                                    <TouchableOpacity style={styles.exportBtn} onPress={exportPnL}>
+                                    <TouchableOpacity style={styles.exportCsvBtn} onPress={exportPnL}>
                                         <Text style={styles.exportText}>Export CSV</Text>
                                     </TouchableOpacity>
                                 </View>
@@ -436,6 +490,8 @@ export default function ReportsScreen() {
             </ScrollView>
 
             <FooterNav />
+            </>
+            )}
         </SafeAreaView>
     );
 }
@@ -830,6 +886,26 @@ const styles = StyleSheet.create({
     scroll: { flex: 1 },
     pad:    { padding: 16 },
 
+    landingScroll: { flex: 1 },
+    landingPad:    { padding: 16, paddingBottom: 40 },
+    landingTitle:  { fontSize: 22, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 4 },
+    landingSub:    { fontSize: 13, color: Colors.textMuted, marginBottom: 18 },
+    landingCard:   { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 14, borderWidth: 1, borderColor: Colors.border },
+    landingCardIcon:  { fontSize: 28 },
+    landingCardText:  { flex: 1 },
+    landingCardLabel: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },
+    landingCardSub:   { fontSize: 12, color: Colors.textMuted },
+    landingCardArrow: { fontSize: 22, color: Colors.textMuted },
+    exportSection: { marginTop: 10, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 16 },
+    exportTitle:   { fontSize: 13, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
+    exportBtn:     { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 14, borderWidth: 1, borderColor: Colors.border },
+    exportBtnIcon: { fontSize: 24 },
+    exportBtnLabel:{ fontSize: 14, fontWeight: '700', color: Colors.primary },
+    exportBtnSub:  { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
+
+    backToLanding:     { paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border, backgroundColor: Colors.surface },
+    backToLandingText: { fontSize: 13, color: Colors.primary, fontWeight: '600' },
+
     sectionRow: {
         flexDirection: 'row', backgroundColor: Colors.surface,
         borderBottomWidth: 1, borderBottomColor: Colors.border,
@@ -858,7 +934,7 @@ const styles = StyleSheet.create({
     cardHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
     note:          { fontSize: 11, color: Colors.textMuted, fontStyle: 'italic', marginTop: 10, lineHeight: 16 },
     sizeBadge:     { fontSize: 11, color: Colors.primary, fontWeight: '600', backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.primary, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
-    exportBtn:     { paddingHorizontal: 10, paddingVertical: 4, backgroundColor: Colors.primary, borderRadius: 8 },
+    exportCsvBtn:  { paddingHorizontal: 10, paddingVertical: 4, backgroundColor: Colors.primary, borderRadius: 8 },
     exportText:    { fontSize: 11, color: Colors.textPrimary, fontWeight: '600' },
 
     viewToggleRow:        { flexDirection: 'row', backgroundColor: Colors.surface, padding: 8, gap: 6, borderBottomWidth: 1, borderBottomColor: Colors.border },
