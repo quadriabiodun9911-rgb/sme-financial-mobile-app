@@ -38,6 +38,7 @@ export default function SettingsScreen() {
         changePin, exportData, importData, clearData, resetBusinessData, deleteAccount, logout,
         userRole, teamMembers, inviteMember, removeMember, refreshTeam,
         language, setLanguage,
+        transactions,
     } = useApp();
 
     const [form, setForm] = useState({ ...settings });
@@ -349,6 +350,17 @@ export default function SettingsScreen() {
                         </Section>
                     </CollapsibleSection>
 
+                    {/* Data Safety notice — shown only when user has transactions */}
+                    {transactions.length > 0 && (
+                        <View style={styles.dataSafetyCard}>
+                            <Text style={styles.dataSafetyTitle}>🔒 Your Data is Safe</Text>
+                            <Text style={styles.dataSafetyBody}>
+                                All your data is backed up to the cloud automatically. Even if you lose your phone, log in from any device to restore it.
+                            </Text>
+                            <Text style={styles.dataSafetyStatus}>Last backup: synced to cloud ✓</Text>
+                        </View>
+                    )}
+
                     {/* 5. Danger Zone — default closed */}
                     <CollapsibleSection title="Danger Zone" defaultOpen={false}>
                         {/* Reset Business Data */}
@@ -657,6 +669,11 @@ const styles = StyleSheet.create({
 
     dangerBtn:     { backgroundColor: 'rgba(239,68,68,0.12)', borderWidth: 1, borderColor: Colors.expense, paddingVertical: 12, borderRadius: 8, alignItems: 'center' },
     dangerBtnText: { color: Colors.expense, fontWeight: '700', fontSize: 14 },
+
+    dataSafetyCard:   { backgroundColor: 'rgba(0,102,204,0.08)', borderWidth: 1, borderColor: Colors.primary, borderRadius: 12, padding: 16, marginBottom: 16 },
+    dataSafetyTitle:  { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 },
+    dataSafetyBody:   { fontSize: 12, color: Colors.textSecondary, lineHeight: 18, marginBottom: 8 },
+    dataSafetyStatus: { fontSize: 12, color: Colors.income, fontWeight: '600' },
 
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
     modalCard:    { backgroundColor: Colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 36 },

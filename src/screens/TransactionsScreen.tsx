@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
-    TouchableOpacity, Modal, StyleSheet, Alert, Share,
+    TouchableOpacity, Modal, StyleSheet, Alert, Share, Linking,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -11,7 +11,7 @@ import DateInput from '../components/DateInput';
 import { Transaction, TransactionStatus, RecurringFrequency } from '../types';
 import { transactionsToCSV } from '../utils/finance';
 
-type FilterType   = 'all' | 'income' | 'expense';
+type FilterType   = 'all' | 'income' | 'expense' | 'collect';
 type StatusFilter = 'all' | 'paid' | 'pending' | 'overdue';
 
 const CATEGORIES: string[] = [
@@ -29,6 +29,7 @@ type FormState = {
     category: string;
     reference: string;
     vendorCustomer: string;
+    phone: string;
     taxRate: string;
     status: TransactionStatus;
     dueDate: string;
@@ -36,6 +37,22 @@ type FormState = {
     isRecurring: boolean;
     recurringFrequency: RecurringFrequency;
 };
+
+// Parse vendorCustomer "Name | phone" → { name, phone }
+function parseVendorCustomer(raw: string | undefined): { name: string; phone: string } {
+    if (!raw) return { name: '', phone: '' };
+    const idx = raw.indexOf(' | ');
+    if (idx === -1) return { name: raw, phone: '' };
+    return { name: raw.slice(0, idx), phone: raw.slice(idx + 3) };
+}
+
+function joinVendorCustomer(name: string, phone: string): string {
+    const n = name.trim();
+    const p = phone.trim();
+    if (!n && !p) return '';
+    if (!p) return n;
+    return `${n} | ${p}`;
+}
 
 function todayStr() {
     return new Date().toISOString().split('T')[0];
@@ -48,6 +65,7 @@ const EMPTY_FORM: FormState = {
     category: 'Other',
     reference: '',
     vendorCustomer: '',
+    phone: '',
     taxRate: '',
     status: 'paid',
     dueDate: '',
@@ -57,13 +75,15 @@ const EMPTY_FORM: FormState = {
 };
 
 function formFromTx(tx: Transaction): FormState {
+    const { name, phone } = parseVendorCustomer(tx.vendorCustomer);
     return {
         description:        tx.description,
         amount:             String(tx.amount),
         type:               tx.type,
         category:           tx.category,
         reference:          tx.reference ?? '',
-        vendorCustomer:     tx.vendorCustomer ?? '',
+        vendorCustomer:     name,
+        phone:              phone,
         taxRate:            tx.taxRate != null ? String(tx.taxRate) : '',
         status:             tx.status ?? 'paid',
         dueDate:            tx.dueDate ?? '',
@@ -111,8 +131,16 @@ export default function TransactionsScreen() {
     // ── Filtering ────────────────────────────────────────────────────────────
     const filtered = useMemo(() => {
         return transactions.filter(tx => {
-            if (typeFilter !== 'all' && tx.type !== typeFilter) return false;
-            if (statusFilter !== 'all' && (tx.status ?? 'paid') !== statusFilter) return false;
+            if (typeFilter === 'collect') {
+                // Collections: income that is overdue or pending with past due date
+                if (tx.type !== 'income') return false;
+                const isOverdue = tx.status === 'overdue';
+                const isPendingPastDue = tx.status === 'pending' && tx.dueDate && new Date(tx.dueDate + 'T00:00:00') < new Date();
+                if (!isOverdue && !isPendingPastDue) return false;
+            } else {
+                if (typeFilter !== 'all' && tx.type !== typeFilter) return false;
+                if (statusFilter !== 'all' && (tx.status ?? 'paid') !== statusFilter) return false;
+            }
             const q = search.toLowerCase();
             if (q && !(
                 tx.description.toLowerCase().includes(q) ||
@@ -125,7 +153,18 @@ export default function TransactionsScreen() {
         });
     }, [transactions, typeFilter, statusFilter, search]);
 
-    const grouped = useMemo(() => groupByDate(filtered), [filtered]);
+    // Collections sorted by days overdue DESC, then amount DESC
+    const collectionsFiltered = useMemo(() => {
+        if (typeFilter !== 'collect') return filtered;
+        return [...filtered].sort((a, b) => {
+            const daysA = Math.floor((Date.now() - new Date((a.dueDate || a.date) + 'T00:00:00').getTime()) / 86400000);
+            const daysB = Math.floor((Date.now() - new Date((b.dueDate || b.date) + 'T00:00:00').getTime()) / 86400000);
+            if (daysB !== daysA) return daysB - daysA;
+            return b.amount - a.amount;
+        });
+    }, [filtered, typeFilter]);
+
+    const grouped = useMemo(() => groupByDate(typeFilter === 'collect' ? collectionsFiltered : filtered), [filtered, collectionsFiltered, typeFilter]);
 
     const totals = useMemo(() => {
         const income  = filtered.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
@@ -159,7 +198,7 @@ export default function TransactionsScreen() {
             type:               form.type,
             category:           form.category,
             reference:          form.reference || undefined,
-            vendorCustomer:     form.vendorCustomer || undefined,
+            vendorCustomer:     joinVendorCustomer(form.vendorCustomer, form.phone) || undefined,
             taxRate:            form.taxRate ? parseFloat(form.taxRate) : undefined,
             status:             form.status,
             dueDate:            form.dueDate || undefined,
@@ -256,14 +295,14 @@ export default function TransactionsScreen() {
             <View style={styles.filterBar}>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
                     <Text style={styles.filterLabel}>Type:</Text>
-                    {(['all', 'income', 'expense'] as FilterType[]).map(f => (
+                    {(['all', 'income', 'expense', 'collect'] as FilterType[]).map(f => (
                         <TouchableOpacity
                             key={f}
-                            style={[styles.chip, typeFilter === f && styles.chipActive]}
+                            style={[styles.chip, typeFilter === f && (f === 'collect' ? styles.chipCollect : styles.chipActive)]}
                             onPress={() => setTypeFilter(f)}
                         >
                             <Text style={[styles.chipText, typeFilter === f && styles.chipTextActive]}>
-                                {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
+                                {f === 'all' ? 'All' : f === 'collect' ? '📞 Collect' : f.charAt(0).toUpperCase() + f.slice(1)}
                             </Text>
                         </TouchableOpacity>
                     ))}
@@ -337,7 +376,7 @@ export default function TransactionsScreen() {
                                     <View style={styles.txRow2}>
                                         <Text style={styles.catChip}>{tx.category}</Text>
                                         {tx.vendorCustomer ? (
-                                            <Text style={styles.metaText} numberOfLines={1}>{tx.vendorCustomer}</Text>
+                                            <Text style={styles.metaText} numberOfLines={1}>{parseVendorCustomer(tx.vendorCustomer).name || tx.vendorCustomer}</Text>
                                         ) : null}
                                         {tx.reference ? (
                                             <Text style={styles.metaText}>#{tx.reference}</Text>
@@ -379,6 +418,20 @@ export default function TransactionsScreen() {
                                                     <Text style={styles.paidBtnText}>Mark Paid</Text>
                                                 </TouchableOpacity>
                                             )}
+                                            {(() => {
+                                                const { phone } = parseVendorCustomer(tx.vendorCustomer);
+                                                if (phone && (tx.status === 'overdue' || tx.status === 'pending')) {
+                                                    return (
+                                                        <TouchableOpacity
+                                                            style={styles.callBtn}
+                                                            onPress={() => Linking.openURL('tel:' + phone)}
+                                                        >
+                                                            <Text style={styles.callBtnText}>📞 Call</Text>
+                                                        </TouchableOpacity>
+                                                    );
+                                                }
+                                                return null;
+                                            })()}
                                             <TouchableOpacity onPress={() => handleDelete(tx.id, tx.description)}>
                                                 <Text style={styles.deleteText}>Delete</Text>
                                             </TouchableOpacity>
@@ -574,13 +627,23 @@ export default function TransactionsScreen() {
                                         onChangeText={v => setForm(f => ({ ...f, reference: v }))}
                                     />
                                 </Field>
-                                <Field label="Vendor / Customer">
+                                <Field label="Vendor / Customer name">
                                     <TextInput
                                         style={styles.input}
                                         placeholder="Name"
                                         placeholderTextColor={Colors.muted}
                                         value={form.vendorCustomer}
                                         onChangeText={v => setForm(f => ({ ...f, vendorCustomer: v }))}
+                                    />
+                                </Field>
+                                <Field label="Phone number (optional — for calling customer)">
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="e.g. 08012345678"
+                                        placeholderTextColor={Colors.muted}
+                                        keyboardType="phone-pad"
+                                        value={form.phone}
+                                        onChangeText={v => setForm(f => ({ ...f, phone: v }))}
                                     />
                                 </Field>
                             </Section>
@@ -725,6 +788,7 @@ const styles = StyleSheet.create({
     filterLabel:  { fontSize: 11, color: Colors.textMuted, marginRight: 2 },
     chip:         { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 14, backgroundColor: Colors.bg },
     chipActive:   { backgroundColor: Colors.primary },
+    chipCollect:  { backgroundColor: '#25D366' },
     chipText:     { color: Colors.textMuted, fontSize: 11 },
     chipTextActive:{ color: Colors.textPrimary, fontWeight: 'bold' },
     sep:          { width: 1, height: 18, backgroundColor: Colors.border, marginHorizontal: 4 },
@@ -761,6 +825,8 @@ const styles = StyleSheet.create({
     actionBtns:{ flexDirection: 'row', gap: 14, alignItems: 'center' },
     paidBtn:   { paddingHorizontal: 8, paddingVertical: 3, backgroundColor: 'rgba(16,185,129,0.15)', borderRadius: 6 },
     paidBtnText: { fontSize: 11, color: Colors.income, fontWeight: '600' },
+    callBtn:   { paddingHorizontal: 8, paddingVertical: 3, backgroundColor: '#25D366', borderRadius: 6 },
+    callBtnText: { fontSize: 11, color: '#fff', fontWeight: '600' },
     deleteText:  { fontSize: 11, color: Colors.expense },
 
     emptyBox:   { alignItems: 'center', marginTop: 60 },
