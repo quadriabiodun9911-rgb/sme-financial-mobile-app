@@ -273,7 +273,7 @@ export default function InsightsScreen() {
                         <Text style={styles.cardTitle}>Cash Position</Text>
                         <Row label="Total Income" value={`${currency}${finance.income.toLocaleString()}`} valueStyle={styles.green} />
                         <Row label="Total Expenses" value={`${currency}${finance.expense.toLocaleString()}`} valueStyle={styles.red} />
-                        <Row label="Cash Balance" value={`${currency}${finance.cashBalance.toLocaleString()}`} valueStyle={finance.cashBalance >= 0 ? styles.green : styles.red} />
+                        <Row label="Money in Your Account" value={`${currency}${finance.cashBalance.toLocaleString()}`} valueStyle={finance.cashBalance >= 0 ? styles.green : styles.red} />
                         <Row label="Min. Reserve" value={`${currency}${minReserve}`} valueStyle={styles.normal} />
                         <View style={[styles.badge, reserveOk ? styles.badgeGreen : styles.badgeRed]}>
                             <Text style={styles.badgeText}>{reserveOk ? 'Reserve threshold met' : 'Below minimum reserve'}</Text>
@@ -293,10 +293,10 @@ export default function InsightsScreen() {
 
                     {/* ── Balance Sheet ─────────────────────────────────────── */}
                     <View style={styles.card}>
-                        <Text style={styles.cardTitle}>Balance Sheet Summary</Text>
-                        <Row label="Total Assets" value={`${currency}${finance.assets.toLocaleString()}`} valueStyle={styles.blue} />
-                        <Row label="Total Liabilities" value={`${currency}${finance.liabilities.toLocaleString()}`} valueStyle={styles.orange} />
-                        <Row label="Owner's Equity" value={`${currency}${finance.equity.toLocaleString()}`} valueStyle={styles.purple} />
+                        <Text style={styles.cardTitle}>What You Own & Owe</Text>
+                        <Row label="Things You Own (Assets)" value={`${currency}${finance.assets.toLocaleString()}`} valueStyle={styles.blue} />
+                        <Row label="Money You Owe (Liabilities)" value={`${currency}${finance.liabilities.toLocaleString()}`} valueStyle={styles.orange} />
+                        <Row label="Your Business Worth" value={`${currency}${finance.equity.toLocaleString()}`} valueStyle={styles.purple} />
                         <Text style={styles.note}>Update opening balances in Settings for a complete balance sheet.</Text>
                     </View>
 

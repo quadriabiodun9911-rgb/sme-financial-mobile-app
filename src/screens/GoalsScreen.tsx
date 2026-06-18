@@ -130,7 +130,7 @@ export default function GoalsScreen() {
             <Header />
             <ScrollView style={styles.scroll}>
                 <View style={styles.pad}>
-                    <Text style={styles.title}>Financial Goals</Text>
+                    <Text style={styles.title}>Your Goals</Text>
                     <Text style={styles.subtitle}>
                         Set measurable business targets. The app tracks your progress daily and builds a personalised strategy to help you reach each goal.
                     </Text>

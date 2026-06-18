@@ -48,7 +48,7 @@ type SubTab =
 const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
     statements: [
         { key: 'balancesheet', label: 'What I Own & Owe' },
-        { key: 'pnl',          label: 'Profit & Loss' },
+        { key: 'pnl',          label: 'Income vs Expenses' },
         { key: 'inventory',    label: 'Stock' },
         { key: 'accrual',      label: 'Cash Flow' },
     ],
@@ -71,7 +71,7 @@ const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
     ],
     analysis: [
         { key: 'health', label: 'Business Score' },
-        { key: 'swot',   label: 'SWOT' },
+        { key: 'swot',   label: 'Strengths & Risks' },
     ],
 };
 
@@ -279,7 +279,7 @@ export default function ReportsScreen() {
                             <PeriodLabel period={period} />
                             <View style={styles.card}>
                                 <View style={styles.cardHeaderRow}>
-                                    <Text style={styles.cardTitle}>Profit & Loss</Text>
+                                    <Text style={styles.cardTitle}>Income vs Expenses</Text>
                                     <TouchableOpacity style={styles.exportBtn} onPress={exportPnL}>
                                         <Text style={styles.exportText}>Export CSV</Text>
                                     </TouchableOpacity>
@@ -628,7 +628,7 @@ function BalanceSheetTab({ finance, wcMetrics, assets, settings, updateSettings,
         <View>
             <View style={styles.card}>
                 <View style={styles.cardHeaderRow}>
-                    <Text style={styles.cardTitle}>Balance Sheet</Text>
+                    <Text style={styles.cardTitle}>What You Own & Owe</Text>
                     <Text style={styles.sizeBadge}>{sizeLabel(bizSize)}</Text>
                 </View>
 
