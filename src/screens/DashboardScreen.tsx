@@ -849,6 +849,46 @@ export default function DashboardScreen() {
             />
             <MonthlyReview visible={showMonthlyReview} onClose={() => setShowMonthlyReview(false)} />
             <CashPocketsModal visible={showCashPockets} onClose={() => setShowCashPockets(false)} />
+            <DailyReportModal
+                visible={showDailyReport}
+                onClose={() => setShowDailyReport(false)}
+                transactions={transactions}
+                goals={goals}
+                finance={finance}
+                settings={settings}
+                currency={currency}
+            />
+
+            {/* ── End of Day quick-log modal ───────────────────────────────── */}
+            <Modal visible={eodOpen} transparent animationType="slide" onRequestClose={() => setEodOpen(false)}>
+                <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setEodOpen(false)} />
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalSheet}>
+                    <View style={styles.modalHandle} />
+                    <Text style={styles.modalTitle}>🌙 End of Day Quick Log</Text>
+                    <Text style={[styles.insightAction, { marginBottom: 16 }]}>Just two numbers — quick and done</Text>
+                    <Text style={styles.catLabel}>Total money received today ({currency})</Text>
+                    <TextInput
+                        style={styles.modalInput}
+                        placeholder="0"
+                        placeholderTextColor={Colors.textMuted}
+                        keyboardType="decimal-pad"
+                        value={eodIncome}
+                        onChangeText={setEodIncome}
+                    />
+                    <Text style={styles.catLabel}>Total money spent today ({currency})</Text>
+                    <TextInput
+                        style={styles.modalInput}
+                        placeholder="0"
+                        placeholderTextColor={Colors.textMuted}
+                        keyboardType="decimal-pad"
+                        value={eodExpense}
+                        onChangeText={setEodExpense}
+                    />
+                    <TouchableOpacity style={[styles.modalSubmit, { backgroundColor: Colors.primary }]} onPress={submitEod}>
+                        <Text style={styles.modalSubmitText}>Save Today's Numbers</Text>
+                    </TouchableOpacity>
+                </KeyboardAvoidingView>
+            </Modal>
             {toast !== null && (
                 <View style={styles.toast} pointerEvents="none">
                     <Text style={styles.toastText}>✅ {toast}</Text>
