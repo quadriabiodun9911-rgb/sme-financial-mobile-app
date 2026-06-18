@@ -1,12 +1,6 @@
 import { Transaction, BusinessSettings } from '../types';
 
-// ─── Profit Waterfall ─────────────────────────────────────────────────────────
-
-export interface WaterfallItem {
-    label: string;
-    value: number;   // positive = good, negative = bad
-    type: 'base' | 'positive' | 'negative' | 'total';
-}
+// ─── Shared helpers ───────────────────────────────────────────────────────────
 
 function getPeriodBounds(): { currentStart: Date; currentEnd: Date; prevStart: Date; prevEnd: Date } {
     const now = new Date();
@@ -316,4 +310,216 @@ export function identifyProfitDrivers(transactions: Transaction[]): ProfitDriver
     // Sort by absolute impact, take top 6
     drivers.sort((a, b) => Math.abs(b.impact) - Math.abs(a.impact));
     return drivers.slice(0, 6);
+}
+
+// ─── Monthly Momentum (last 6 months) ────────────────────────────────────────
+
+export interface MonthlySnapshot {
+    label: string;       // e.g. "Jan"
+    month: string;       // YYYY-MM
+    revenue: number;
+    expenses: number;
+    profit: number;
+    txCount: number;
+}
+
+export interface MomentumResult {
+    months: MonthlySnapshot[];
+    avgRevenue: number;
+    avgProfit: number;
+    avgTxValue: number;
+    revenueGrowthPct: number;   // last month vs previous month
+    profitGrowthPct: number;
+    bestMonth: MonthlySnapshot | null;
+    worstMonth: MonthlySnapshot | null;
+    growthScore: number;        // 0–100
+    growthVerdict: string;
+    growthTrend: 'up' | 'flat' | 'down';
+}
+
+export function computeMomentum(transactions: Transaction[]): MomentumResult {
+    const now = new Date();
+    const months: MonthlySnapshot[] = [];
+
+    for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const label = d.toLocaleDateString('default', { month: 'short' });
+        const txs = transactions.filter(t => t.date.startsWith(monthStr));
+        const revenue  = sumByType(txs, 'income');
+        const expenses = sumByType(txs, 'expense');
+        months.push({ label, month: monthStr, revenue, expenses, profit: revenue - expenses, txCount: txs.length });
+    }
+
+    const activeMonths = months.filter(m => m.revenue > 0 || m.expenses > 0);
+    const avgRevenue = activeMonths.length > 0 ? activeMonths.reduce((s, m) => s + m.revenue, 0) / activeMonths.length : 0;
+    const avgProfit  = activeMonths.length > 0 ? activeMonths.reduce((s, m) => s + m.profit, 0) / activeMonths.length : 0;
+    const totalTxs   = transactions.length;
+    const totalRev   = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+    const avgTxValue = totalTxs > 0 ? totalRev / totalTxs : 0;
+
+    const lastMonth = months[5];
+    const prevMonth = months[4];
+    const revenueGrowthPct = prevMonth.revenue > 0 ? ((lastMonth.revenue - prevMonth.revenue) / prevMonth.revenue) * 100 : 0;
+    const profitGrowthPct  = prevMonth.profit  !== 0 ? ((lastMonth.profit  - prevMonth.profit)  / Math.abs(prevMonth.profit)) * 100 : 0;
+
+    const profitableMonths = months.filter(m => m.profit > 0).length;
+    const growingMonths    = months.slice(1).filter((m, i) => m.revenue > months[i].revenue).length;
+    const hasData          = activeMonths.length >= 2;
+
+    let growthScore = 0;
+    if (hasData) {
+        growthScore += Math.min(30, profitableMonths * 5);
+        growthScore += Math.min(30, growingMonths * 6);
+        if (revenueGrowthPct > 10) growthScore += 20;
+        else if (revenueGrowthPct > 0) growthScore += 10;
+        if (avgProfit > 0) growthScore += 20;
+    }
+    growthScore = Math.min(100, Math.max(0, growthScore));
+
+    const growthTrend: 'up' | 'flat' | 'down' =
+        revenueGrowthPct > 5 ? 'up' : revenueGrowthPct < -5 ? 'down' : 'flat';
+
+    let growthVerdict = '';
+    if (!hasData) growthVerdict = 'Add more transactions to unlock momentum analysis.';
+    else if (growthScore >= 70) growthVerdict = 'Strong growth trajectory. Revenue and profit are trending in the right direction.';
+    else if (growthScore >= 40) growthVerdict = 'Steady progress. Revenue is moving but there\'s room to improve consistency.';
+    else growthVerdict = 'Growth needs attention. Focus on consistent revenue and reducing loss months.';
+
+    const profitMonths = months.filter(m => m.txCount > 0);
+    const bestMonth  = profitMonths.length > 0 ? profitMonths.reduce((a, b) => b.profit > a.profit ? b : a) : null;
+    const worstMonth = profitMonths.length > 0 ? profitMonths.reduce((a, b) => b.profit < a.profit ? b : a) : null;
+
+    return { months, avgRevenue, avgProfit, avgTxValue, revenueGrowthPct, profitGrowthPct, bestMonth, worstMonth, growthScore, growthVerdict, growthTrend };
+}
+
+// ─── Top Performers ───────────────────────────────────────────────────────────
+
+export interface TopCustomer {
+    name: string;
+    revenue: number;
+    txCount: number;
+    sharePct: number;
+    isConcentrationRisk: boolean;   // > 40% of total revenue
+}
+
+export interface TopCategory {
+    name: string;
+    revenue: number;
+    cost: number;
+    profit: number;
+    margin: number;
+    type: 'income' | 'expense' | 'mixed';
+}
+
+export interface TopPerformersResult {
+    topCustomers: TopCustomer[];
+    topCategories: TopCategory[];
+    concentrationRisk: boolean;
+    concentrationWarning: string;
+    worstCategories: TopCategory[];    // highest cost, no revenue
+    focusRecommendation: string;
+}
+
+export function computeTopPerformers(transactions: Transaction[]): TopPerformersResult {
+    // Customers
+    const custMap = new Map<string, { revenue: number; txCount: number }>();
+    const totalRevenue = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+
+    transactions.filter(t => t.type === 'income' && t.vendorCustomer).forEach(t => {
+        const name = t.vendorCustomer!.split(' | ')[0].trim() || t.vendorCustomer!;
+        const e = custMap.get(name) ?? { revenue: 0, txCount: 0 };
+        e.revenue += t.amount;
+        e.txCount++;
+        custMap.set(name, e);
+    });
+
+    const topCustomers: TopCustomer[] = [...custMap.entries()]
+        .sort((a, b) => b[1].revenue - a[1].revenue)
+        .slice(0, 5)
+        .map(([name, { revenue, txCount }]) => {
+            const sharePct = totalRevenue > 0 ? (revenue / totalRevenue) * 100 : 0;
+            return { name, revenue, txCount, sharePct, isConcentrationRisk: sharePct > 40 };
+        });
+
+    // Categories
+    const catMap = new Map<string, { revenue: number; cost: number }>();
+    transactions.forEach(t => {
+        const e = catMap.get(t.category) ?? { revenue: 0, cost: 0 };
+        if (t.type === 'income')  e.revenue += t.amount;
+        else                      e.cost    += t.amount;
+        catMap.set(t.category, e);
+    });
+
+    const allCategories: TopCategory[] = [...catMap.entries()].map(([name, { revenue, cost }]) => {
+        const profit = revenue - cost;
+        const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
+        const type = revenue > 0 && cost > 0 ? 'mixed' : revenue > 0 ? 'income' : 'expense';
+        return { name, revenue, cost, profit, margin, type };
+    });
+
+    const topCategories = [...allCategories].sort((a, b) => b.revenue - a.revenue).slice(0, 5);
+    const worstCategories = [...allCategories]
+        .filter(c => c.cost > 0 && c.revenue === 0)
+        .sort((a, b) => b.cost - a.cost)
+        .slice(0, 3);
+
+    const concentrationRisk = topCustomers.some(c => c.isConcentrationRisk);
+    const topCust = topCustomers[0];
+    const concentrationWarning = concentrationRisk && topCust
+        ? `${topCust.name} accounts for ${Math.round(topCust.sharePct)}% of your revenue — high dependency risk.`
+        : '';
+
+    let focusRecommendation = '';
+    if (topCustomers.length === 0) {
+        focusRecommendation = 'Start adding vendor/customer names to transactions to unlock customer analysis.';
+    } else if (concentrationRisk) {
+        focusRecommendation = `Reduce dependency on ${topCust?.name} by acquiring 2–3 new clients of similar size.`;
+    } else if (topCustomers.length >= 2) {
+        focusRecommendation = `${topCustomers[0].name} is your top customer. Deepen that relationship — upsell or increase frequency.`;
+    }
+
+    return { topCustomers, topCategories, concentrationRisk, concentrationWarning, worstCategories, focusRecommendation };
+}
+
+// ─── Growth Score headline ────────────────────────────────────────────────────
+
+export interface GrowthScoreResult {
+    score: number;
+    label: string;
+    color: string;
+    pillars: { name: string; score: number; max: number; note: string }[];
+}
+
+export function computeGrowthScore(transactions: Transaction[], settings: BusinessSettings): GrowthScoreResult {
+    const momentum  = computeMomentum(transactions);
+    const breakeven = computeBreakeven(transactions, settings);
+    const performers = computeTopPerformers(transactions);
+
+    const revenueConsistency = momentum.months.filter(m => m.revenue > 0).length;  // 0–6
+    const profitability      = momentum.months.filter(m => m.profit > 0).length;   // 0–6
+    const growthTrend        = momentum.revenueGrowthPct > 10 ? 25 : momentum.revenueGrowthPct > 0 ? 15 : 0;
+    const aboveBreakeven     = breakeven.surplusOrGap >= 0 ? 20 : 0;
+    const diversification    = performers.concentrationRisk ? 0 : 10;
+
+    const score = Math.min(100, Math.round(
+        (revenueConsistency / 6) * 25 +
+        (profitability / 6) * 20 +
+        growthTrend +
+        aboveBreakeven +
+        diversification,
+    ));
+
+    const label = score >= 75 ? 'Thriving' : score >= 50 ? 'Growing' : score >= 25 ? 'Building' : 'Early Stage';
+    const color = score >= 75 ? '#10B981' : score >= 50 ? '#3B82F6' : score >= 25 ? '#F59E0B' : '#EF4444';
+
+    const pillars = [
+        { name: 'Revenue consistency', score: Math.round((revenueConsistency / 6) * 25), max: 25, note: `${revenueConsistency}/6 months with revenue` },
+        { name: 'Profitability',        score: Math.round((profitability / 6) * 20),      max: 20, note: `${profitability}/6 months profitable` },
+        { name: 'Revenue growth',       score: growthTrend,  max: 25, note: momentum.revenueGrowthPct > 0 ? `+${momentum.revenueGrowthPct.toFixed(0)}% last month` : 'Revenue declined last month' },
+        { name: 'Above breakeven',      score: aboveBreakeven, max: 20, note: breakeven.surplusOrGap >= 0 ? 'You\'re above breakeven' : 'Below breakeven' },
+        { name: 'Customer diversity',   score: diversification, max: 10, note: performers.concentrationRisk ? 'High customer concentration' : 'Good customer spread' },
+    ];
+
+    return { score, label, color, pillars };
 }
