@@ -106,7 +106,7 @@ function OverviewTab() {
                     <View style={s.metricBox}>
                         <Text style={s.metricLabel}>Cash Runway</Text>
                         <Text style={[s.metricVal, { color: summary.cashRunwayDays < 30 ? Colors.expense : Colors.income }]}>
-                            {summary.cashRunwayDays > 999 ? '∞' : summary.cashRunwayDays + 'd'}
+                            {summary.cashRunwayDays > 365 ? 'Very healthy' : summary.cashRunwayDays > 90 ? Math.round(summary.cashRunwayDays / 30) + ' months' : summary.cashRunwayDays > 0 ? summary.cashRunwayDays + ' days' : '∞'}
                         </Text>
                         <Text style={s.metricSub}>days</Text>
                     </View>
