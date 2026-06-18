@@ -17,6 +17,7 @@ import ProfitShareCard from '../components/ProfitShareCard';
 import RetentionNudges from '../components/RetentionNudges';
 import FirstRunWizard from '../components/FirstRunWizard';
 import GlobalSearch from '../components/GlobalSearch';
+import DailyTargetCard from '../components/DailyTargetCard';
 import MonthlyReview from '../components/MonthlyReview';
 import CashPocketsModal from '../components/CashPocketsModal';
 
@@ -228,6 +229,14 @@ export default function DashboardScreen() {
                         </TouchableOpacity>
                     </View>
                 )}
+
+                {/* ── Daily Revenue Target ─────────────────────────────────── */}
+                <DailyTargetCard
+                    goals={goals}
+                    transactions={transactions}
+                    currency={currency}
+                    onSetGoal={() => setCurrentScreen('goals')}
+                />
 
                 {/* ── Retention nudges ─────────────────────────────────────── */}
                 {!isDemoMode && (
