@@ -594,16 +594,20 @@ function BalanceSheetTab({ finance, wcMetrics, assets, settings, updateSettings,
     const registeredAssetValue = assets
         .filter(a => a.status === 'active')
         .reduce((sum, a) => {
+            const lifeYears = a.usefulLifeYears > 0 ? a.usefulLifeYears : 1;
+            const cost = isNaN(a.purchaseCost) ? 0 : a.purchaseCost;
+            const residual = isNaN(a.residualValue) ? 0 : a.residualValue;
             const yr  = (Date.now() - new Date(a.purchaseDate).getTime()) / (1000 * 60 * 60 * 24 * 365);
-            const dep = Math.min(yr * (a.purchaseCost - a.residualValue) / a.usefulLifeYears, a.purchaseCost - a.residualValue);
-            return sum + Math.max(a.residualValue, a.purchaseCost - dep);
+            const dep = Math.min(yr * (cost - residual) / lifeYears, cost - residual);
+            const val = Math.max(residual, cost - dep);
+            return sum + (isNaN(val) ? 0 : val);
         }, 0);
 
     const manualAssets    = parseFloat(openingAssets) || 0;
     const otherAssets     = parseFloat(openingOtherAssets) || 0;
     const manualLiab      = parseFloat(openingLiabilities) || 0;
     const loans           = parseFloat(openingLoans) || 0;
-    const currentAssets   = finance.cashBalance + wcMetrics.accountsReceivable;
+    const currentAssets   = (isNaN(finance.cashBalance) ? 0 : finance.cashBalance) + (isNaN(wcMetrics.accountsReceivable) ? 0 : wcMetrics.accountsReceivable);
     const totalAssets     = currentAssets + registeredAssetValue + manualAssets + otherAssets;
     const totalLiab       = wcMetrics.accountsPayable + manualLiab + loans;
     const equity          = totalAssets - totalLiab;
