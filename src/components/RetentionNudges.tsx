@@ -246,7 +246,7 @@ export default function RetentionNudges({ transactions, currency, profit, onAddT
                         <Text style={styles.weekLabel}>vs week before</Text>
                         <View style={[styles.weekBadge, { backgroundColor: weekChange >= 0 ? Colors.income + '22' : Colors.expense + '22' }]}>
                             <Text style={[styles.weekBadgeText, { color: weekChange >= 0 ? Colors.income : Colors.expense }]}>
-                                {weekChange >= 0 ? '▲' : '▼'} {Math.abs(weekChange).toFixed(0)}%
+                                {weekChange >= 0 ? '▲' : '▼'} {Math.abs(isNaN(weekChange) ? 0 : weekChange).toFixed(0)}%
                             </Text>
                         </View>
                     </View>

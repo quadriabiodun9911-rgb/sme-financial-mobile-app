@@ -118,7 +118,7 @@ export default function InsightsScreen() {
     const topExpenses = getTopCategories(transactions, 'expense', 5);
     const topIncome = getTopCategories(transactions, 'income', 5);
 
-    const marginDiff = finance.margin - parseFloat(targetMargin);
+    const marginDiff = (isNaN(finance.margin) ? 0 : finance.margin) - (parseFloat(targetMargin) || 0);
     const reserveOk = finance.cashBalance >= parseFloat(minReserve);
 
     const pendingAR = transactions.filter(t => t.type === 'income' && (t.status === 'pending' || t.status === 'overdue'));
@@ -263,7 +263,7 @@ export default function InsightsScreen() {
                     {/* ── Performance ─────────────────────────────────────── */}
                     <View style={styles.card}>
                         <Text style={styles.cardTitle}>Performance Overview</Text>
-                        <Row label="Current Margin" value={`${finance.margin.toFixed(2)}%`} valueStyle={finance.margin >= parseFloat(targetMargin) ? styles.green : styles.red} />
+                        <Row label="Current Margin" value={`${(isNaN(finance.margin) ? 0 : finance.margin).toFixed(2)}%`} valueStyle={(isNaN(finance.margin) ? 0 : finance.margin) >= (parseFloat(targetMargin) || 0) ? styles.green : styles.red} />
                         <Row label="Target Margin" value={`${targetMargin}%`} valueStyle={styles.normal} />
                         <Row label="Difference" value={`${marginDiff >= 0 ? '+' : ''}${marginDiff.toFixed(2)}%`} valueStyle={marginDiff >= 0 ? styles.green : styles.red} />
                     </View>

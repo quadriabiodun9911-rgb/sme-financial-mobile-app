@@ -87,7 +87,7 @@ export default function DashboardScreen() {
             });
             setQaAmount(''); setQaDesc(''); setQaCategory(''); setFabOpen(false);
             const newProfit = finance.profit + (qaType === 'income' ? amt : -amt);
-            showToast(`Saved! This month's profit: ${settings.currency}${newProfit.toLocaleString()}`);
+            showToast(`Saved! This month's profit: ${settings.currency}${(isNaN(newProfit) ? 0 : newProfit).toLocaleString()}`);
         } finally {
             setQaSubmitting(false);
         }
@@ -237,7 +237,7 @@ export default function DashboardScreen() {
                     <View style={styles.heroSubRow}>
                         <Text style={[styles.heroMargin, { color: finance.profit >= 0 ? Colors.income : Colors.expense }]}>
                             {finance.profit >= 0
-                                ? `${finance.margin.toFixed(0)}% of your income is profit`
+                                ? `${(isNaN(finance.margin) ? 0 : finance.margin).toFixed(0)}% of your income is profit`
                                 : 'You are spending more than you earn'}
                         </Text>
                     </View>
@@ -269,7 +269,7 @@ export default function DashboardScreen() {
                     </View>
                     {finance.annualDepreciation > 0 && (
                         <Text style={styles.deprNote}>
-                            After {currency}{Math.round(finance.annualDepreciation).toLocaleString()} depreciation: {currency}{finance.depreciationAdjustedProfit.toLocaleString()} · Cash profit shown above
+                            After {currency}{Math.round(finance.annualDepreciation || 0).toLocaleString()} depreciation: {currency}{(finance.depreciationAdjustedProfit || 0).toLocaleString()} · Cash profit shown above
                         </Text>
                     )}
                     {finance.profit > 0 && hasTransaction && (
