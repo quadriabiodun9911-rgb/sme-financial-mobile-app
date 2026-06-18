@@ -4,14 +4,22 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 
 export default function Header() {
-    const { user, logout, setCurrentScreen } = useApp();
+    const { user, logout, setCurrentScreen, currentScreen } = useApp();
+    const showBack = currentScreen !== 'dashboard' && currentScreen !== 'login';
 
     return (
         <View style={styles.header}>
-            <TouchableOpacity onPress={() => setCurrentScreen('dashboard')}>
-                <Text style={styles.title}>Quad360</Text>
-                <Text style={styles.subtitle}>{user?.businessName || 'Business Suite'}</Text>
-            </TouchableOpacity>
+            <View style={styles.left}>
+                {showBack && (
+                    <TouchableOpacity style={styles.backBtn} onPress={() => setCurrentScreen('dashboard')}>
+                        <Text style={styles.backText}>← Back</Text>
+                    </TouchableOpacity>
+                )}
+                <TouchableOpacity onPress={() => setCurrentScreen('dashboard')}>
+                    <Text style={styles.title}>Quad360</Text>
+                    <Text style={styles.subtitle}>{user?.businessName || 'Business Suite'}</Text>
+                </TouchableOpacity>
+            </View>
             <View style={styles.right}>
                 <TouchableOpacity style={styles.settingsBtn} onPress={() => setCurrentScreen('search' as any)}>
                     <Text style={styles.settingsIcon}>🔍</Text>
@@ -42,6 +50,9 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: Colors.border,
     },
+    left:     { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    backBtn:  { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border },
+    backText: { fontSize: 12, color: Colors.primary, fontWeight: '600' },
     title:    { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary },
     subtitle: { fontSize: 11, color: Colors.textMuted },
     right:    { flexDirection: 'row', alignItems: 'center', gap: 10 },
