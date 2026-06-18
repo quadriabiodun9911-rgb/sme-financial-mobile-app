@@ -36,7 +36,7 @@ export type ReportTab =
     | 'swot';
 
 export type TransactionStatus = 'paid' | 'pending' | 'overdue';
-export type RecurringFrequency = 'weekly' | 'monthly' | 'quarterly';
+export type RecurringFrequency = 'weekly' | 'monthly' | 'quarterly' | 'yearly';
 
 export type GoalType =
     | 'revenue_growth'

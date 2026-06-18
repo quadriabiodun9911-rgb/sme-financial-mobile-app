@@ -436,7 +436,7 @@ export default function DashboardScreen() {
                             </Text>
                         </TouchableOpacity>
                         <Text style={[styles.hint, { color: runwayColor }]}>
-                            {runwayDays === null ? 'No bills recorded yet' : runwayDays < 30 ? 'Urgent — money running low!' : runwayDays < 60 ? 'Getting tight — watch spending' : 'You\'re in a good position'}
+                            {runwayDays === null ? 'Add expenses to see how long your cash will last' : runwayDays < 30 ? 'Urgent — money running low!' : runwayDays < 60 ? 'Getting tight — watch spending' : 'You\'re in a good position'}
                         </Text>
                     </View>
                 </View>

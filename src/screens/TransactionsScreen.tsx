@@ -20,7 +20,7 @@ const CATEGORIES: string[] = [
 ];
 
 const STATUSES: TransactionStatus[]   = ['paid', 'pending', 'overdue'];
-const FREQUENCIES: RecurringFrequency[] = ['weekly', 'monthly', 'quarterly'];
+const FREQUENCIES: RecurringFrequency[] = ['weekly', 'monthly', 'quarterly', 'yearly'];
 
 type FormState = {
     description: string;
@@ -352,7 +352,11 @@ export default function TransactionsScreen() {
                                                 {tx.status ?? 'paid'}
                                             </Text>
                                         </View>
-                                        {tx.dueDate ? (
+                                        {tx.status === 'pending' && tx.dueDate && new Date(tx.dueDate + 'T00:00:00') < new Date() ? (
+                                            <Text style={[styles.dueBadge, { color: Colors.expense, backgroundColor: 'rgba(239,68,68,0.12)' }]}>
+                                                {Math.ceil((Date.now() - new Date(tx.dueDate + 'T00:00:00').getTime()) / 86400000)} days overdue
+                                            </Text>
+                                        ) : tx.dueDate ? (
                                             <Text style={styles.dueBadge}>Due {tx.dueDate}</Text>
                                         ) : null}
                                         {tx.taxAmount ? (

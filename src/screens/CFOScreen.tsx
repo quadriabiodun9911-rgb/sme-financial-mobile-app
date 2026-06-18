@@ -268,6 +268,9 @@ function RatiosTab() {
                 <Text style={s.cardTitle}>Debt Service Coverage Ratio (DSCR)</Text>
                 <Text style={[s.bigNum, { color: statusColor(dscr.status) }]}>{dscr.dscr > 100 ? '∞' : dscr.dscr.toFixed(2)}x</Text>
                 <Text style={s.cardSub}>{dscr.status === 'healthy' ? '✓ Healthy — income covers debt well' : dscr.status === 'warning' ? '⚠ Borderline — watch debt closely' : '✗ Danger — income may not cover debt'}</Text>
+                <Text style={[s.cardSub, { fontSize: 12, color: Colors.textMuted, fontStyle: 'italic', marginBottom: 6 }]}>
+                    Above 1.0 means your income covers loan payments. Above 2.0 is excellent.
+                </Text>
                 <View style={s.dscrRow}>
                     <Text style={s.dscrLabel}>Net Operating Income</Text>
                     <Text style={[s.dscrVal, { color: Colors.income }]}>{currency}{Math.round(dscr.netOperatingIncome).toLocaleString()}</Text>
@@ -282,7 +285,7 @@ function RatiosTab() {
             <View style={s.card}>
                 <Text style={s.cardTitle}>Break-Even Calculator</Text>
                 <TextInput style={s.input} placeholder={`Fixed Costs (${currency})`} placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={fixedCosts} onChangeText={setFixedCosts} />
-                <TextInput style={s.input} placeholder="Variable Cost per Unit ($)" placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={varRate} onChangeText={setVarRate} />
+                <TextInput style={s.input} placeholder={`Variable Cost per Unit (${currency})`} placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={varRate} onChangeText={setVarRate} />
                 <TextInput style={s.input} placeholder={`Revenue per Unit (${currency})`} placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={pricePerUnit} onChangeText={setPricePerUnit} />
                 {breakEven && (
                     <View style={s.breakEvenResult}>
@@ -298,6 +301,9 @@ function RatiosTab() {
                             <Text style={s.dscrLabel}>Margin of Safety</Text>
                             <Text style={[s.dscrVal, { color: breakEven.marginOfSafety > 20 ? Colors.income : Colors.warning }]}>{breakEven.marginOfSafety.toFixed(1)}%</Text>
                         </View>
+                        <Text style={[s.cardSub, { fontSize: 11, color: Colors.textMuted, fontStyle: 'italic', marginTop: 4 }]}>
+                            How much your sales can fall before you start losing money. Higher is safer.
+                        </Text>
                     </View>
                 )}
             </View>
@@ -404,7 +410,7 @@ function DebtTab() {
                         <View style={s.debtMethodRow}>
                             <View style={[s.debtMethod, { borderColor: Colors.primary }]}>
                                 <Text style={[s.debtMethodLabel, { color: Colors.primary }]}>AVALANCHE</Text>
-                                <Text style={s.debtMethodSub}>Highest rate first</Text>
+                                <Text style={s.debtMethodSub}>Pay highest interest first — saves most money</Text>
                                 {debtOpt.avalanche.order.map((name, i) => (
                                     <Text key={i} style={s.debtLoan}>{i + 1}. {name}</Text>
                                 ))}
@@ -413,7 +419,7 @@ function DebtTab() {
                             </View>
                             <View style={[s.debtMethod, { borderColor: Colors.muted }]}>
                                 <Text style={[s.debtMethodLabel, { color: Colors.textMuted }]}>SNOWBALL</Text>
-                                <Text style={s.debtMethodSub}>Smallest balance first</Text>
+                                <Text style={s.debtMethodSub}>Pay smallest balance first — easier to stay motivated</Text>
                                 {debtOpt.snowball.order.map((name, i) => (
                                     <Text key={i} style={s.debtLoan}>{i + 1}. {name}</Text>
                                 ))}
