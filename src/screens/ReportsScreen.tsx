@@ -646,18 +646,37 @@ function BalanceSheetTab({ finance, wcMetrics, assets, settings, updateSettings,
     const registeredAssetValue = assets
         .filter(a => a.status === 'active')
         .reduce((sum, a) => {
-            const yr  = (Date.now() - new Date(a.purchaseDate).getTime()) / (1000 * 60 * 60 * 24 * 365);
-            const dep = Math.min(yr * (a.purchaseCost - a.residualValue) / a.usefulLifeYears, a.purchaseCost - a.residualValue);
-            return sum + Math.max(a.residualValue, a.purchaseCost - dep);
+            const cost      = isNaN(a.purchaseCost)    ? 0 : (a.purchaseCost    || 0);
+            const residual  = isNaN(a.residualValue)   ? 0 : (a.residualValue   || 0);
+            const lifeYears = (!a.usefulLifeYears || a.usefulLifeYears <= 0) ? 1 : a.usefulLifeYears;
+            const purchaseMs = new Date(a.purchaseDate).getTime();
+            const yr = isNaN(purchaseMs) ? 0 : (Date.now() - purchaseMs) / (1000 * 60 * 60 * 24 * 365);
+            const dep = Math.min(yr * (cost - residual) / lifeYears, cost - residual);
+            const val = Math.max(residual, cost - dep);
+            return sum + (isNaN(val) ? 0 : val);
+        }, 0);
+
+    // Pull live outstanding loan balances from the Loan Register
+    const { loans: loanRegister } = useApp();
+    const liveLoansBalance = loanRegister
+        .filter(l => l.status === 'active')
+        .reduce((sum, l) => {
+            const paid = l.payments.reduce((s: number, p: any) => s + (p.amount || 0), 0);
+            return sum + Math.max(0, (l.principal || 0) - paid);
         }, 0);
 
     const manualAssets    = parseFloat(openingAssets) || 0;
     const otherAssets     = parseFloat(openingOtherAssets) || 0;
     const manualLiab      = parseFloat(openingLiabilities) || 0;
-    const loans           = parseFloat(openingLoans) || 0;
-    const currentAssets   = finance.cashBalance + wcMetrics.accountsReceivable;
+    const manualLoans     = parseFloat(openingLoans) || 0;
+    // Live loans from Loan Register take priority; fall back to manual entry if no loans registered
+    const loansBalance    = loanRegister.length > 0 ? liveLoansBalance : manualLoans;
+    const cashBal         = isNaN(finance.cashBalance) ? 0 : finance.cashBalance;
+    const arBal           = isNaN(wcMetrics.accountsReceivable) ? 0 : wcMetrics.accountsReceivable;
+    const apBal           = isNaN(wcMetrics.accountsPayable) ? 0 : wcMetrics.accountsPayable;
+    const currentAssets   = cashBal + arBal;
     const totalAssets     = currentAssets + registeredAssetValue + manualAssets + otherAssets;
-    const totalLiab       = wcMetrics.accountsPayable + manualLiab + loans;
+    const totalLiab       = apBal + manualLiab + loansBalance;
     const equity          = totalAssets - totalLiab;
 
     const InputRow = ({ label, hint, value, onChange }: { label: string; hint: string; value: string; onChange: (v: string) => void }) => (
@@ -695,16 +714,16 @@ function BalanceSheetTab({ finance, wcMetrics, assets, settings, updateSettings,
                 <StatRow label="  Equipment & Property (Asset Register)" value={`${currency}${registeredAssetValue.toLocaleString()}`}       color={Colors.asset} indent />
                 <StatRow label="  Equipment & Property (Manual Entry)"   value={`${currency}${manualAssets.toLocaleString()}`}               color={Colors.asset} indent />
                 <StatRow label="  Other Assets You Own"             value={`${currency}${otherAssets.toLocaleString()}`}                     color={Colors.asset} indent />
-                <StatRow label="Everything You Own"                 value={`${currency}${totalAssets.toLocaleString()}`}                     color={Colors.asset} bold />
+                <StatRow label="Everything You Own"                 value={`${currency}${(isNaN(totalAssets) ? 0 : totalAssets).toLocaleString()}`}   color={Colors.asset} bold />
 
                 <SectionHeader label="WHAT YOU OWE (DEBTS)" />
-                <StatRow label="  Bills Owed to Suppliers"          value={`${currency}${wcMetrics.accountsPayable.toLocaleString()}`}       color={Colors.liability} indent />
-                <StatRow label="  Bank Loans & Other Debt"          value={`${currency}${loans.toLocaleString()}`}                          color={Colors.liability} indent />
+                <StatRow label="  Bills Owed to Suppliers"          value={`${currency}${apBal.toLocaleString()}`}                          color={Colors.liability} indent />
+                <StatRow label={`  Bank Loans & Other Debt${loanRegister.length > 0 ? ' (from Loan Register)' : ''}`} value={`${currency}${loansBalance.toLocaleString()}`} color={Colors.liability} indent />
                 <StatRow label="  Other Amounts Owed"               value={`${currency}${manualLiab.toLocaleString()}`}                     color={Colors.liability} indent />
                 <StatRow label="Everything You Owe"                 value={`${currency}${totalLiab.toLocaleString()}`}                      color={Colors.liability} bold />
 
                 <SectionHeader label="YOUR BUSINESS VALUE" />
-                <StatRow label="Net Worth (Assets − Debts)"         value={`${currency}${equity.toLocaleString()}`}                         color={equity >= 0 ? Colors.equity : Colors.expense} bold />
+                <StatRow label="Net Worth (Assets − Debts)"         value={`${currency}${(isNaN(equity) ? 0 : equity).toLocaleString()}`}  color={(isNaN(equity) ? 0 : equity) >= 0 ? Colors.equity : Colors.expense} bold />
                 <StatRow label="Day-to-Day Cash Buffer"             value={`${currency}${wcMetrics.netWorkingCapital.toLocaleString()}`}     color={wcMetrics.netWorkingCapital >= 0 ? Colors.income : Colors.expense} />
 
                 <TouchableOpacity style={bsStyles.editBtn} onPress={() => setEditing(e => !e)}>
@@ -727,10 +746,10 @@ function BalanceSheetTab({ finance, wcMetrics, assets, settings, updateSettings,
                             onChange={setOpeningOtherAssets}
                         />
                         <InputRow
-                            label="Bank Loans & Debt"
-                            hint="Total outstanding loan balances, overdrafts, credit lines"
-                            value={openingLoans}
-                            onChange={setOpeningLoans}
+                            label="Bank Loans & Debt (manual fallback)"
+                            hint={loanRegister.length > 0 ? `Auto-filled from your ${loanRegister.filter(l=>l.status==='active').length} active loan(s) in the Loan Register` : 'Or add loans in the Loan Register (More → Loans) to auto-populate this'}
+                            value={loanRegister.length > 0 ? String(Math.round(liveLoansBalance)) : openingLoans}
+                            onChange={loanRegister.length > 0 ? () => {} : setOpeningLoans}
                         />
                         <InputRow
                             label="Other Amounts Owed"
