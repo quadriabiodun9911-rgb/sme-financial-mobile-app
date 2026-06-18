@@ -22,7 +22,7 @@ import GrowthMetrics from '../components/GrowthMetrics';
 import PricingOptimizer from '../components/PricingOptimizer';
 import CashFlowStatement from '../components/CashFlowStatement';
 import AccrualCashFlow from '../components/AccrualCashFlow';
-import { filterByPeriod, filterByDateRange, getPreviousPeriodRange, computeFinance, computeMonthlyTrend, computeEnhancedPnL, computeWorkingCapitalMetrics, classifyBusinessSize, sizeLabel, transactionsToCSV, ReportPeriod, MonthlyPoint, DateRange } from '../utils/finance';
+import { filterByPeriod, filterByDateRange, getPreviousPeriodRange, computeFinance, computeAssetCurrentValue, computeMonthlyTrend, computeEnhancedPnL, computeWorkingCapitalMetrics, classifyBusinessSize, sizeLabel, transactionsToCSV, ReportPeriod, MonthlyPoint, DateRange } from '../utils/finance';
 import { FinanceData } from '../types';
 import DateInput from '../components/DateInput';
 import { InventoryItem } from '../types';
@@ -86,7 +86,7 @@ const PERIODS: { key: ReportPeriod; label: string }[] = [
 ];
 
 export default function ReportsScreen() {
-    const { finance: allFinance, settings, updateSettings, transactions, assets, navParams, inventory, invoices } = useApp();
+    const { finance: allFinance, settings, updateSettings, transactions, assets, loans: loansList, navParams, inventory, invoices } = useApp();
     const { currency, minReserve, targetMargin } = settings;
 
     const [showLanding, setShowLanding] = useState(true);
@@ -102,9 +102,14 @@ export default function ReportsScreen() {
         if (period === 'custom') return filterByDateRange(transactions, customRange);
         return filterByPeriod(transactions, period);
     }, [transactions, period, customRange]);
+    const activeAssets = useMemo(() => assets.filter((a: any) => a.status === 'active'), [assets]);
+    const registeredAssetsValue = useMemo(
+        () => activeAssets.reduce((sum: number, a: any) => sum + computeAssetCurrentValue(a), 0),
+        [activeAssets],
+    );
     const finance = useMemo(
-        () => computeFinance(filteredTx, settings),
-        [filteredTx, settings]
+        () => computeFinance(filteredTx, settings, registeredAssetsValue, activeAssets),
+        [filteredTx, settings, registeredAssetsValue, activeAssets]
     );
     const trend      = useMemo(() => computeMonthlyTrend(transactions, 6), [transactions]);
     const enhPnL     = useMemo(() => computeEnhancedPnL(filteredTx, assets), [filteredTx, assets]);
@@ -656,8 +661,8 @@ function BalanceSheetTab({ finance, wcMetrics, assets, settings, updateSettings,
             return sum + (isNaN(val) ? 0 : val);
         }, 0);
 
-    // Pull live outstanding loan balances from the Loan Register
-    const { loans: loanRegister } = useApp();
+    // Pull live outstanding loan balances and inventory from context
+    const { loans: loanRegister, inventory: inventoryItems } = useApp();
     const liveLoansBalance = loanRegister
         .filter(l => l.status === 'active')
         .reduce((sum, l) => {
@@ -665,6 +670,7 @@ function BalanceSheetTab({ finance, wcMetrics, assets, settings, updateSettings,
             return sum + Math.max(0, (l.principal || 0) - paid);
         }, 0);
 
+    const inventoryValue  = inventoryItems.reduce((sum: number, item: any) => sum + ((item.quantity || 0) * (item.costPrice || 0)), 0);
     const manualAssets    = parseFloat(openingAssets) || 0;
     const otherAssets     = parseFloat(openingOtherAssets) || 0;
     const manualLiab      = parseFloat(openingLiabilities) || 0;
@@ -674,7 +680,7 @@ function BalanceSheetTab({ finance, wcMetrics, assets, settings, updateSettings,
     const cashBal         = isNaN(finance.cashBalance) ? 0 : finance.cashBalance;
     const arBal           = isNaN(wcMetrics.accountsReceivable) ? 0 : wcMetrics.accountsReceivable;
     const apBal           = isNaN(wcMetrics.accountsPayable) ? 0 : wcMetrics.accountsPayable;
-    const currentAssets   = cashBal + arBal;
+    const currentAssets   = cashBal + arBal + inventoryValue;
     const totalAssets     = currentAssets + registeredAssetValue + manualAssets + otherAssets;
     const totalLiab       = apBal + manualLiab + loansBalance;
     const equity          = totalAssets - totalLiab;
@@ -710,6 +716,7 @@ function BalanceSheetTab({ finance, wcMetrics, assets, settings, updateSettings,
                 <SectionHeader label="WHAT YOU OWN (ASSETS)" />
                 <StatRow label="Cash on Hand"                       value={`${currency}${finance.cashBalance.toLocaleString()}`}              color={Colors.income} />
                 <StatRow label="  Money Owed to You by Customers"   value={`${currency}${wcMetrics.accountsReceivable.toLocaleString()}`}     color={Colors.income} indent />
+                {inventoryValue > 0 && <StatRow label="  Stock / Inventory Value" value={`${currency}${Math.round(inventoryValue).toLocaleString()}`} color={Colors.asset} indent />}
                 <StatRow label="Short-Term Assets Total"            value={`${currency}${currentAssets.toLocaleString()}`}                   color={Colors.asset} bold />
                 <StatRow label="  Equipment & Property (Asset Register)" value={`${currency}${registeredAssetValue.toLocaleString()}`}       color={Colors.asset} indent />
                 <StatRow label="  Equipment & Property (Manual Entry)"   value={`${currency}${manualAssets.toLocaleString()}`}               color={Colors.asset} indent />

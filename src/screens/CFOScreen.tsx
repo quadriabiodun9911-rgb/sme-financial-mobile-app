@@ -225,10 +225,10 @@ function ForecastTab() {
 
 // ── Tab: Ratios ───────────────────────────────────────────────────────────────
 function RatiosTab() {
-    const { finance, loans, settings } = useApp();
+    const { finance, loans, transactions, settings } = useApp();
     const { currency } = settings;
     const ratios = useMemo(() => computeFinancialRatios(finance, loans), [finance, loans]);
-    const dscr   = useMemo(() => computeDSCR([], loans), [loans]);
+    const dscr   = useMemo(() => computeDSCR(transactions, loans), [transactions, loans]);
 
     const [fixedCosts, setFixedCosts]     = useState('');
     const [varRate, setVarRate]           = useState('');

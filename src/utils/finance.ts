@@ -227,6 +227,7 @@ export function computeFinance(
 
     const assets = (isNaN(openingAssets) ? 0 : openingAssets) + (isNaN(cashBalance) ? 0 : cashBalance) + (isNaN(registeredAssetsValue) ? 0 : registeredAssetsValue);
     const liabilities = isNaN(openingLiabilities) ? 0 : openingLiabilities;
+    // Note: live loan balances are added by callers (AppContext) to keep computeFinance pure
     const equity = assets - liabilities;
 
     const totalTaxCollected = transactions

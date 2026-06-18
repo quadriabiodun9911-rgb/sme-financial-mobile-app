@@ -283,7 +283,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
         () => activeAssets.reduce((sum, a) => sum + computeAssetCurrentValue(a), 0),
         [activeAssets],
     );
-    const finance = useMemo(() => computeFinance(transactions, settings, registeredAssetsValue, activeAssets), [transactions, settings, registeredAssetsValue, activeAssets]);
+    // Live loan balances from Loan Register
+    const liveLoansBalance = useMemo(
+        () => loans.filter(l => l.status === 'active').reduce((sum, l) => {
+            const paid = l.payments.reduce((s: number, p: any) => s + (p.amount || 0), 0);
+            return sum + Math.max(0, (l.principal || 0) - paid);
+        }, 0),
+        [loans],
+    );
+    // Inventory value: quantity × costPrice for all inventory items
+    const inventoryValue = useMemo(
+        () => inventory.reduce((sum, item) => sum + ((item.quantity || 0) * (item.costPrice || 0)), 0),
+        [inventory],
+    );
+    const baseFinance = useMemo(() => computeFinance(transactions, settings, registeredAssetsValue, activeAssets), [transactions, settings, registeredAssetsValue, activeAssets]);
+    // Patch liabilities with live loan balances and assets with inventory value
+    const finance = useMemo(() => {
+        const loansTotal = loans.length > 0 ? liveLoansBalance : (parseFloat(settings.openingLoans) || 0);
+        const newLiabilities = baseFinance.liabilities + loansTotal;
+        const newAssets = baseFinance.assets + inventoryValue;
+        return { ...baseFinance, liabilities: newLiabilities, assets: newAssets, equity: newAssets - newLiabilities };
+    }, [baseFinance, liveLoansBalance, inventoryValue, loans, settings.openingLoans]);
     const insight = useMemo(() => computeOneThingInsight(finance, settings), [finance, settings]);
 
     useEffect(() => {
@@ -644,7 +664,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const deleteInvoice = (id: string) => {
         if (!canManage) { denyManage(); return; }
-        setInvoices(prev => prev.filter(inv => inv.id !== id));
+        // Also remove the linked income transaction created when the invoice was added
+        setInvoices(prev => {
+            const inv = prev.find(i => i.id === id);
+            if (inv) {
+                setTransactions(txPrev => txPrev.filter(t => !(t.reference === inv.invoiceNumber && t.type === 'income' && t.status === 'pending')));
+            }
+            return prev.filter(i => i.id !== id);
+        });
     };
 
     const markInvoiceStatus = (id: string, status: InvoiceStatus) => {
