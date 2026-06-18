@@ -8,7 +8,7 @@ import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import DateInput from '../components/DateInput';
-import { GoalType, FinancialGoal } from '../types';
+import { GoalType, FinancialGoal, Transaction } from '../types';
 import { generateStrategy, goalDefaults } from '../utils/goals';
 
 const GOAL_TYPES: { type: GoalType; label: string; icon: string; description: string }[] = [
@@ -347,6 +347,9 @@ export default function GoalsScreen() {
                                         </View>
                                     ))}
 
+                                    {/* Daily action plan */}
+                                    <DailyActionsSection goal={strategyGoal} transactions={transactions} currency={currency} />
+
                                     <Text style={styles.strategyFooter}>
                                         Strategy refreshes automatically as your financial data changes.
                                     </Text>
@@ -360,6 +363,64 @@ export default function GoalsScreen() {
                 </View>
             </Modal>
         </SafeAreaView>
+    );
+}
+
+function DailyActionsSection({ goal, transactions, currency }: { goal: FinancialGoal; transactions: Transaction[]; currency: string }) {
+    const today = new Date().toISOString().split('T')[0];
+    const todayTx = transactions.filter(t => t.date === today);
+    const todayRevenue = todayTx.filter(t => t.type === 'income').reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    const todayExpenses = todayTx.filter(t => t.type === 'expense').reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    const todayProfit = todayRevenue - todayExpenses;
+
+    const daysLeft = Math.max(1, Math.ceil((new Date(goal.deadline).getTime() - Date.now()) / 86400000));
+    const remaining = Math.max(0, goal.targetValue - goal.currentValue);
+    const dailyTarget = ['revenue_growth', 'custom'].includes(goal.type) ? remaining / daysLeft : 0;
+    const dailyBudget = goal.type === 'cost_reduction' ? goal.targetValue / Math.max(1, daysLeft) : 0;
+
+    const overdueTotal = transactions.filter(t => t.type === 'income' && t.status === 'overdue').reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    const overdueCount = transactions.filter(t => t.type === 'income' && t.status === 'overdue').length;
+
+    const fmt = (n: number) => `${currency}${Math.round(isNaN(n) ? 0 : n).toLocaleString()}`;
+
+    const actions: { num: number; text: string }[] = [];
+
+    if (todayTx.length === 0) {
+        actions.push({ num: 1, text: 'Log today\'s sales and expenses — the app can only help if you record what happens each day' });
+    }
+    if (dailyTarget > 0) {
+        if (todayRevenue >= dailyTarget) {
+            actions.push({ num: actions.length + 1, text: `✅ Revenue target hit today (${fmt(todayRevenue)} of ${fmt(dailyTarget)}). Keep this pace — ${daysLeft} days left.` });
+        } else {
+            const gap = dailyTarget - todayRevenue;
+            const topCat = [...transactions.filter(t => t.type === 'income')]
+                .sort((a, b) => b.amount - a.amount)[0]?.category ?? 'your best product';
+            actions.push({ num: actions.length + 1, text: `Make ${fmt(gap)} more today to hit your daily target of ${fmt(dailyTarget)} — focus on ${topCat}` });
+        }
+    }
+    if (dailyBudget > 0 && todayExpenses > dailyBudget) {
+        actions.push({ num: actions.length + 1, text: `Spending is ${fmt(todayExpenses - dailyBudget)} over today's budget of ${fmt(dailyBudget)} — pause non-essential purchases` });
+    }
+    if (overdueTotal > 0) {
+        actions.push({ num: actions.length + 1, text: `Chase ${overdueCount} unpaid invoice${overdueCount > 1 ? 's' : ''} — you're owed ${fmt(overdueTotal)}. A quick call or message often gets results.` });
+    }
+    if (todayProfit > 0 && actions.length < 2) {
+        actions.push({ num: actions.length + 1, text: `You made ${fmt(todayProfit)} profit today. Well done! Consistency is how goals get achieved.` });
+    }
+    if (actions.length === 0) {
+        actions.push({ num: 1, text: `You need ${fmt(remaining)} more to hit this goal in ${daysLeft} days. Daily logging keeps you on track.` });
+    }
+
+    return (
+        <View style={styles.dailyActionsBox}>
+            <Text style={styles.dailyActionsTitle}>TODAY'S ACTION LIST</Text>
+            {actions.slice(0, 3).map((a) => (
+                <View key={a.num} style={styles.dailyActionRow}>
+                    <View style={styles.dailyActionNum}><Text style={styles.dailyActionNumText}>{a.num}</Text></View>
+                    <Text style={styles.dailyActionText}>{a.text}</Text>
+                </View>
+            ))}
+        </View>
     );
 }
 
@@ -531,4 +592,10 @@ const styles = StyleSheet.create({
     metricPill: { backgroundColor: Colors.surface, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, marginTop: 8, alignSelf: 'flex-start' },
     metricText: { fontSize: 11, color: Colors.primary, fontWeight: '600' },
     strategyFooter: { fontSize: 11, color: Colors.textMuted, textAlign: 'center', marginTop: 16, fontStyle: 'italic' },
+    dailyActionsBox: { backgroundColor: Colors.bg, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, padding: 12, marginTop: 16, marginBottom: 4 },
+    dailyActionsTitle: { fontSize: 9, fontWeight: '700', color: Colors.textMuted, letterSpacing: 1, marginBottom: 8 },
+    dailyActionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 8 },
+    dailyActionNum: { width: 20, height: 20, borderRadius: 10, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+    dailyActionNumText: { fontSize: 10, fontWeight: '700', color: '#fff' },
+    dailyActionText: { flex: 1, fontSize: 12, color: Colors.textPrimary, lineHeight: 17 },
 });

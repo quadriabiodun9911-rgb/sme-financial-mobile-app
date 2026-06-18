@@ -26,7 +26,7 @@ const INCOME_CATEGORIES = ['Sales', 'Service', 'Consulting', 'Rental', 'Interest
 const EXPENSE_CATEGORIES = ['Rent', 'Salaries', 'Utilities', 'Marketing', 'Supplies', 'Transport', 'Meals', 'Software', 'Tax', 'Other'];
 
 export default function DashboardScreen() {
-    const { finance, insight, settings, goals, transactions, invoices, assets, loans, inventory, navigate, setCurrentScreen, language, isLoading, addTransaction, isDemoMode, exitDemo, cashPockets } = useApp();
+    const { finance, insight, settings, goals, transactions, invoices, assets, loans, inventory, navigate, setCurrentScreen, language, isLoading, addTransaction, isDemoMode, exitDemo, cashPockets, deleteGoal, updateGoal } = useApp();
 
     const [fabOpen, setFabOpen]           = useState(false);
     const [qaType, setQaType]             = useState<'income' | 'expense'>('income');
@@ -238,6 +238,8 @@ export default function DashboardScreen() {
                     transactions={transactions}
                     currency={currency}
                     onSetGoal={() => setCurrentScreen('goals')}
+                    onEditGoal={(id, changes) => updateGoal(id, changes)}
+                    onDeleteGoal={(id) => deleteGoal(id)}
                 />
 
                 {/* ── Retention nudges ─────────────────────────────────────── */}
