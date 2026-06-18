@@ -188,7 +188,7 @@ export default function TransactionsScreen() {
     const handleSave = () => {
         const amt = parseFloat(form.amount);
         if (!form.description.trim() || isNaN(amt) || amt <= 0) {
-            Alert.alert('Invalid entry', 'Please enter a description and a valid amount.');
+            Alert.alert('Almost done', 'Add a description and a valid amount to save this transaction.');
             return;
         }
 

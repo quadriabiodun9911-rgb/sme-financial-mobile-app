@@ -116,10 +116,10 @@ export default function GoalsScreen() {
 
     const handleCreate = () => {
         if (!selectedType) return;
-        if (!form.title.trim()) { Alert.alert('Almost there', 'Give your goal a name first.'); return; }
-        if (!form.deadline.match(/^\d{4}-\d{2}-\d{2}$/)) { Alert.alert('Pick a deadline', 'Enter a date like 2025-12-31 so we can track your daily progress.'); return; }
+        if (!form.title.trim()) { Alert.alert('Almost there', 'Give your goal a name first'); return; }
+        if (!form.deadline.match(/^\d{4}-\d{2}-\d{2}$/)) { Alert.alert('Please pick a date', 'Tap the date field and choose your deadline'); return; }
         const tv = parseFloat(form.targetValue);
-        if (isNaN(tv)) { Alert.alert('Please enter an amount', 'Type the target amount, e.g. 50000 for fifty thousand.'); return; }
+        if (isNaN(tv)) { Alert.alert('Please enter an amount', 'Type in the target amount, e.g. 50000'); return; }
 
         const pct = parseFloat(form.percentTarget);
         addGoal(selectedType, {
@@ -148,10 +148,10 @@ export default function GoalsScreen() {
 
     const handleEditSave = () => {
         if (!editGoal) return;
-        if (!form.title.trim()) { Alert.alert('Almost there', 'Give your goal a name first.'); return; }
-        if (!form.deadline.match(/^\d{4}-\d{2}-\d{2}$/)) { Alert.alert('Pick a deadline', 'Enter a date like 2025-12-31 so we can track your daily progress.'); return; }
+        if (!form.title.trim()) { Alert.alert('Almost there', 'Give your goal a name first'); return; }
+        if (!form.deadline.match(/^\d{4}-\d{2}-\d{2}$/)) { Alert.alert('Please pick a date', 'Tap the date field and choose your deadline'); return; }
         const tv = parseFloat(form.targetValue);
-        if (isNaN(tv)) { Alert.alert('Please enter an amount', 'Type the target amount, e.g. 50000 for fifty thousand.'); return; }
+        if (isNaN(tv)) { Alert.alert('Please enter an amount', 'Type in the target amount, e.g. 50000'); return; }
         const pct = parseFloat(form.percentTarget);
         updateGoal(editGoal.id, { title: form.title.trim(), description: form.description.trim(), targetValue: tv, deadline: form.deadline, percentTarget: isNaN(pct) ? undefined : pct });
         setEditGoal(null);

@@ -298,6 +298,40 @@ export default function DashboardScreen() {
                     </View>
                 )}
 
+                {/* ── 3 Quick Stats row ────────────────────────────────────── */}
+                {(() => {
+                    const owedToYou =
+                        transactions.filter(t => t.status === 'overdue' || t.status === 'pending').reduce((s, t) => s + (Number(t.amount) || 0), 0) +
+                        invoices.filter(inv => inv.status === 'overdue').reduce((s, inv) => s + (inv.total ?? 0), 0);
+                    return (
+                        <View style={styles.quickStatsRow}>
+                            <TouchableOpacity style={styles.quickStatCard} onPress={() => setShowCashPockets(true)}>
+                                <Text style={styles.quickStatIcon}>💵</Text>
+                                <Text style={styles.quickStatLabel}>{cashPockets.length > 0 ? 'My Cash (all pockets)' : 'Cash · Tap to add pockets'}</Text>
+                                <Text style={styles.quickStatValue}>{currency}{cashPockets.length > 0 ? totalCash.toLocaleString() : finance.cashBalance.toLocaleString()}</Text>
+                            </TouchableOpacity>
+                            <View style={styles.quickStatCard}>
+                                <Text style={styles.quickStatIcon}>👥</Text>
+                                <Text style={styles.quickStatLabel}>Owed to You</Text>
+                                <Text style={styles.quickStatValue}>{currency}{owedToYou.toLocaleString()}</Text>
+                            </View>
+                            <View style={styles.quickStatCard}>
+                                <Text style={styles.quickStatIcon}>📦</Text>
+                                <Text style={styles.quickStatLabel}>Stock Items</Text>
+                                <Text style={styles.quickStatValue}>{inventory.length}</Text>
+                            </View>
+                        </View>
+                    );
+                })()}
+
+                {/* ── Full Dashboard toggle ─────────────────────────────────── */}
+                <TouchableOpacity style={styles.fullDashToggle} onPress={() => setShowFullDashboard(v => !v)}>
+                    <Text style={styles.fullDashToggleText}>{showFullDashboard ? '▲ Hide' : '📊 See Full Dashboard ▼'}</Text>
+                </TouchableOpacity>
+
+                {showFullDashboard && (
+                <>
+
                 {/* ── CARD 1: Profit hero ──────────────────────────────────── */}
                 <View style={[styles.heroCard, { borderColor: finance.profit >= 0 ? Colors.income : Colors.expense }]}>
                     <Text style={[styles.heroStatus, { color: finance.profit >= 0 ? Colors.income : Colors.expense }]}>
@@ -350,40 +384,6 @@ export default function DashboardScreen() {
                         </TouchableOpacity>
                     )}
                 </View>
-
-                {/* ── 3 Quick Stats row ────────────────────────────────────── */}
-                {(() => {
-                    const owedToYou =
-                        transactions.filter(t => t.status === 'overdue' || t.status === 'pending').reduce((s, t) => s + (Number(t.amount) || 0), 0) +
-                        invoices.filter(inv => inv.status === 'overdue').reduce((s, inv) => s + (inv.total ?? 0), 0);
-                    return (
-                        <View style={styles.quickStatsRow}>
-                            <TouchableOpacity style={styles.quickStatCard} onPress={() => setShowCashPockets(true)}>
-                                <Text style={styles.quickStatIcon}>💵</Text>
-                                <Text style={styles.quickStatLabel}>{cashPockets.length > 0 ? 'My Cash (all pockets)' : 'Cash · Tap to add pockets'}</Text>
-                                <Text style={styles.quickStatValue}>{currency}{cashPockets.length > 0 ? totalCash.toLocaleString() : finance.cashBalance.toLocaleString()}</Text>
-                            </TouchableOpacity>
-                            <View style={styles.quickStatCard}>
-                                <Text style={styles.quickStatIcon}>👥</Text>
-                                <Text style={styles.quickStatLabel}>Owed to You</Text>
-                                <Text style={styles.quickStatValue}>{currency}{owedToYou.toLocaleString()}</Text>
-                            </View>
-                            <View style={styles.quickStatCard}>
-                                <Text style={styles.quickStatIcon}>📦</Text>
-                                <Text style={styles.quickStatLabel}>Stock Items</Text>
-                                <Text style={styles.quickStatValue}>{inventory.length}</Text>
-                            </View>
-                        </View>
-                    );
-                })()}
-
-                {/* ── Full Dashboard toggle ─────────────────────────────────── */}
-                <TouchableOpacity style={styles.fullDashToggle} onPress={() => setShowFullDashboard(v => !v)}>
-                    <Text style={styles.fullDashToggleText}>{showFullDashboard ? '▲ Hide' : '📊 See Full Dashboard ▼'}</Text>
-                </TouchableOpacity>
-
-                {showFullDashboard && (
-                <>
 
                 {/* ── Loss guidance ────────────────────────────────────────── */}
                 {finance.profit < 0 && hasTransaction && (
