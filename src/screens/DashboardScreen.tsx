@@ -26,7 +26,7 @@ const INCOME_CATEGORIES = ['Sales', 'Service', 'Consulting', 'Rental', 'Interest
 const EXPENSE_CATEGORIES = ['Rent', 'Salaries', 'Utilities', 'Marketing', 'Supplies', 'Transport', 'Meals', 'Software', 'Tax', 'Other'];
 
 export default function DashboardScreen() {
-    const { finance, insight, settings, goals, transactions, invoices, assets, loans, inventory, navigate, setCurrentScreen, language, isLoading, addTransaction, isDemoMode, exitDemo, cashPockets, deleteGoal, updateGoal } = useApp();
+    const { finance, insight, settings, goals, transactions, invoices, assets, loans, navigate, setCurrentScreen, language, isLoading, addTransaction, isDemoMode, exitDemo, cashPockets, deleteGoal, updateGoal } = useApp();
 
     const [fabOpen, setFabOpen]           = useState(false);
     const [qaType, setQaType]             = useState<'income' | 'expense'>('income');
@@ -342,11 +342,6 @@ export default function DashboardScreen() {
                                 <Text style={styles.quickStatLabel}>Owed to You</Text>
                                 <Text style={styles.quickStatValue}>{currency}{owedToYou.toLocaleString()}</Text>
                             </View>
-                            <View style={styles.quickStatCard}>
-                                <Text style={styles.quickStatIcon}>📦</Text>
-                                <Text style={styles.quickStatLabel}>Stock Items</Text>
-                                <Text style={styles.quickStatValue}>{inventory.length}</Text>
-                            </View>
                         </View>
                     );
                 })()}
@@ -608,7 +603,7 @@ export default function DashboardScreen() {
                 {/* ── See more toggle ──────────────────────────────────────── */}
                 <TouchableOpacity style={styles.seeMoreBtn} onPress={() => setShowMore(v => !v)}>
                     <Text style={styles.seeMoreText}>
-                        {showMore ? '▲ Show less' : `▼ See more: ${assets.length > 0 ? `🏗️ ${assets.length} asset${assets.length !== 1 ? 's' : ''} · ` : ''}${loans.filter(l => l.status === 'active').length > 0 ? `🏦 ${loans.filter(l => l.status === 'active').length} loan${loans.filter(l => l.status === 'active').length !== 1 ? 's' : ''} · ` : ''}tax, equity & inventory`}
+                        {showMore ? '▲ Show less' : `▼ See more: ${assets.length > 0 ? `🏗️ ${assets.length} asset${assets.length !== 1 ? 's' : ''} · ` : ''}${loans.filter(l => l.status === 'active').length > 0 ? `🏦 ${loans.filter(l => l.status === 'active').length} loan${loans.filter(l => l.status === 'active').length !== 1 ? 's' : ''} · ` : ''}tax & equity`}
                     </Text>
                 </TouchableOpacity>
 
@@ -650,18 +645,6 @@ export default function DashboardScreen() {
                             <Text style={[styles.bigNum, { color: Colors.equity }]}>{currency}{(isNaN(finance.equity) ? 0 : finance.equity).toLocaleString()}</Text>
                             <Text style={styles.hint}>{t(language, 'assetsMinusLiabilities')}</Text>
                         </View>
-
-                        {/* Inventory */}
-                        <TouchableOpacity style={styles.quickCard} onPress={() => setCurrentScreen('inventory')}>
-                            <View style={styles.quickCardLeft}>
-                                <Text style={styles.quickIcon}>📦</Text>
-                                <View>
-                                    <Text style={styles.quickLabel}>Inventory & Stock</Text>
-                                    <Text style={styles.quickSub}>Track what you have in stock and how much you make on each item</Text>
-                                </View>
-                            </View>
-                            <Text style={styles.quickArrow}>›</Text>
-                        </TouchableOpacity>
 
                         {/* Budget */}
                         <TouchableOpacity style={styles.quickCard} onPress={() => setCurrentScreen('budget')}>
