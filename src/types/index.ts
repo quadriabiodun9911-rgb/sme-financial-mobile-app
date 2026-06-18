@@ -61,6 +61,7 @@ export interface FinancialGoal {
     createdAt: string;         // ISO date
     status: GoalStatus;
     progress: number;          // 0–100 %
+    percentTarget?: number;
 }
 
 export interface GoalStrategy {

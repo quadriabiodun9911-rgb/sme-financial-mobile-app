@@ -9,7 +9,7 @@ import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import DateInput from '../components/DateInput';
 import { GoalType, FinancialGoal } from '../types';
-import { generateStrategy } from '../utils/goals';
+import { generateStrategy, goalDefaults } from '../utils/goals';
 
 const GOAL_TYPES: { type: GoalType; label: string; icon: string; description: string }[] = [
     { type: 'revenue_growth', label: 'Increase Revenue', icon: '📈', description: 'Grow total income to a target amount' },
@@ -51,7 +51,10 @@ export default function GoalsScreen() {
         description: '',
         targetValue: '',
         deadline: '',
+        percentTarget: '',
     });
+
+    const PCT_TYPES: GoalType[] = ['revenue_growth', 'cost_reduction', 'margin_improvement'];
 
     const strategyGoal = useMemo(
         () => goals.find(g => g.id === strategyGoalId) ?? null,
@@ -74,9 +77,41 @@ export default function GoalsScreen() {
 
     const openAddModal = (type: GoalType) => {
         setSelectedType(type);
-        // Pre-fill title from type label
         const meta = GOAL_TYPES.find(g => g.type === type)!;
-        setForm({ title: meta.label, description: meta.description, targetValue: '', deadline: '' });
+        const defaults = goalDefaults(type, finance, settings);
+        setForm({
+            title: defaults.title ?? meta.label,
+            description: defaults.description ?? meta.description,
+            targetValue: defaults.targetValue ? String(defaults.targetValue) : '',
+            deadline: '',
+            percentTarget: defaults.percentTarget != null ? String(defaults.percentTarget) : '',
+        });
+    };
+
+    const handlePercentTargetChange = (pctStr: string) => {
+        setForm(f => {
+            const pct = parseFloat(pctStr);
+            let tv = f.targetValue;
+            if (!isNaN(pct) && selectedType) {
+                if (selectedType === 'revenue_growth') tv = String(Math.round(finance.income * (1 + pct / 100)));
+                else if (selectedType === 'cost_reduction') tv = String(Math.round(finance.expense * (1 - pct / 100)));
+                else if (selectedType === 'margin_improvement') tv = String(parseFloat((finance.margin + pct).toFixed(1)));
+            }
+            return { ...f, percentTarget: pctStr, targetValue: tv };
+        });
+    };
+
+    const handleTargetValueChange = (tvStr: string) => {
+        setForm(f => {
+            const tv = parseFloat(tvStr);
+            let pct = f.percentTarget;
+            if (!isNaN(tv) && selectedType) {
+                if (selectedType === 'revenue_growth') pct = ((tv - finance.income) / finance.income * 100).toFixed(1);
+                else if (selectedType === 'cost_reduction') pct = ((finance.expense - tv) / finance.expense * 100).toFixed(1);
+                else if (selectedType === 'margin_improvement') pct = (tv - finance.margin).toFixed(1);
+            }
+            return { ...f, targetValue: tvStr, percentTarget: pct };
+        });
     };
 
     const handleCreate = () => {
@@ -86,11 +121,13 @@ export default function GoalsScreen() {
         const tv = parseFloat(form.targetValue);
         if (isNaN(tv)) { Alert.alert('Invalid value', 'Enter a numeric target value.'); return; }
 
+        const pct = parseFloat(form.percentTarget);
         addGoal(selectedType, {
             title: form.title.trim(),
             description: form.description.trim(),
             targetValue: tv,
             deadline: form.deadline,
+            percentTarget: isNaN(pct) ? undefined : pct,
         });
         setAddModalOpen(false);
         setSelectedType(null);
@@ -105,7 +142,8 @@ export default function GoalsScreen() {
 
     const openEditModal = (goal: FinancialGoal) => {
         setEditGoal(goal);
-        setForm({ title: goal.title, description: goal.description, targetValue: String(goal.targetValue), deadline: goal.deadline });
+        setSelectedType(goal.type);
+        setForm({ title: goal.title, description: goal.description, targetValue: String(goal.targetValue), deadline: goal.deadline, percentTarget: String(goal.percentTarget ?? '') });
     };
 
     const handleEditSave = () => {
@@ -114,7 +152,8 @@ export default function GoalsScreen() {
         if (!form.deadline.match(/^\d{4}-\d{2}-\d{2}$/)) { Alert.alert('Invalid date', 'Enter deadline as YYYY-MM-DD.'); return; }
         const tv = parseFloat(form.targetValue);
         if (isNaN(tv)) { Alert.alert('Invalid value', 'Enter a numeric target value.'); return; }
-        updateGoal(editGoal.id, { title: form.title.trim(), description: form.description.trim(), targetValue: tv, deadline: form.deadline });
+        const pct = parseFloat(form.percentTarget);
+        updateGoal(editGoal.id, { title: form.title.trim(), description: form.description.trim(), targetValue: tv, deadline: form.deadline, percentTarget: isNaN(pct) ? undefined : pct });
         setEditGoal(null);
     };
 
@@ -212,8 +251,15 @@ export default function GoalsScreen() {
                             <FieldLabel>Description (optional)</FieldLabel>
                             <TextInput style={[styles.input, { height: 70 }]} value={form.description} onChangeText={v => setForm(f => ({ ...f, description: v }))} placeholder="Why this goal matters..." placeholderTextColor={Colors.muted} multiline />
 
+                            {selectedType && PCT_TYPES.includes(selectedType) && (
+                                <>
+                                    <FieldLabel>% Target (e.g. 20 for 20%)</FieldLabel>
+                                    <TextInput style={styles.input} value={form.percentTarget} onChangeText={handlePercentTargetChange} keyboardType="numeric" placeholder="e.g. 20" placeholderTextColor={Colors.muted} />
+                                </>
+                            )}
+
                             <FieldLabel>Target Value ({selectedType === 'margin_improvement' ? '%' : currency})</FieldLabel>
-                            <TextInput style={styles.input} value={form.targetValue} onChangeText={v => setForm(f => ({ ...f, targetValue: v }))} keyboardType="numeric" placeholder="e.g. 200000" placeholderTextColor={Colors.muted} />
+                            <TextInput style={styles.input} value={form.targetValue} onChangeText={handleTargetValueChange} keyboardType="numeric" placeholder="e.g. 200000" placeholderTextColor={Colors.muted} />
 
                             <FieldLabel>Deadline</FieldLabel>
                             <DateInput value={form.deadline} onChange={v => setForm(f => ({ ...f, deadline: v }))} />
@@ -244,8 +290,15 @@ export default function GoalsScreen() {
                             <FieldLabel>Description (optional)</FieldLabel>
                             <TextInput style={[styles.input, { height: 70 }]} value={form.description} onChangeText={v => setForm(f => ({ ...f, description: v }))} multiline placeholderTextColor={Colors.muted} />
 
+                            {selectedType && PCT_TYPES.includes(selectedType) && (
+                                <>
+                                    <FieldLabel>% Target (e.g. 20 for 20%)</FieldLabel>
+                                    <TextInput style={styles.input} value={form.percentTarget} onChangeText={handlePercentTargetChange} keyboardType="numeric" placeholder="e.g. 20" placeholderTextColor={Colors.muted} />
+                                </>
+                            )}
+
                             <FieldLabel>Target Value</FieldLabel>
-                            <TextInput style={styles.input} value={form.targetValue} onChangeText={v => setForm(f => ({ ...f, targetValue: v }))} keyboardType="numeric" placeholderTextColor={Colors.muted} />
+                            <TextInput style={styles.input} value={form.targetValue} onChangeText={handleTargetValueChange} keyboardType="numeric" placeholderTextColor={Colors.muted} />
 
                             <FieldLabel>Deadline</FieldLabel>
                             <DateInput value={form.deadline} onChange={v => setForm(f => ({ ...f, deadline: v }))} />
