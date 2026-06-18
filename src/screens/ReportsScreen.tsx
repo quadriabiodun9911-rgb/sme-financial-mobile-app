@@ -31,11 +31,11 @@ import { InventoryItem } from '../types';
 type SectionKey = 'statements' | 'operations' | 'planning' | 'analysis' | 'growth';
 
 const SECTIONS: { key: SectionKey; label: string }[] = [
-    { key: 'statements', label: 'Statements' },
-    { key: 'operations', label: 'Operations' },
+    { key: 'statements', label: 'Summary' },
+    { key: 'operations', label: 'Invoices' },
     { key: 'planning',   label: 'Planning' },
     { key: 'growth',     label: 'Growth' },
-    { key: 'analysis',   label: 'Analysis' },
+    { key: 'analysis',   label: 'Health' },
 ];
 
 type SubTab =
@@ -47,30 +47,30 @@ type SubTab =
 
 const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
     statements: [
-        { key: 'balancesheet', label: 'Balance Sheet' },
-        { key: 'pnl',          label: 'P & L' },
-        { key: 'inventory',    label: 'Inventory' },
-        { key: 'accrual',      label: 'Accrual' },
+        { key: 'balancesheet', label: 'What I Own & Owe' },
+        { key: 'pnl',          label: 'Profit & Loss' },
+        { key: 'inventory',    label: 'Stock' },
+        { key: 'accrual',      label: 'Cash Flow' },
     ],
     operations: [
-        { key: 'aging', label: 'AR / AP Aging' },
-        { key: 'tax',   label: 'Tax Summary' },
+        { key: 'aging', label: 'Who Owes Me' },
+        { key: 'tax',   label: 'Tax' },
     ],
     planning: [
-        { key: 'budget',   label: 'Budget Forecast' },
-        { key: 'cashflow', label: 'Cash Flow' },
-        { key: 'cashmgmt', label: 'Cash Mgmt' },
-        { key: 'debt',     label: 'Debt Management' },
-        { key: 'assets',   label: 'Asset Productivity' },
+        { key: 'budget',   label: 'Budget' },
+        { key: 'cashflow', label: 'Cash Timeline' },
+        { key: 'cashmgmt', label: 'Cash Safety' },
+        { key: 'debt',     label: 'Loans & Debt' },
+        { key: 'assets',   label: 'Assets' },
     ],
     growth: [
-        { key: 'growth',    label: 'Growth Metrics' },
-        { key: 'customers', label: 'Customer Profitability' },
-        { key: 'products',  label: 'Product Performance' },
-        { key: 'pricing',   label: 'Pricing Optimizer' },
+        { key: 'growth',    label: 'Growth' },
+        { key: 'customers', label: 'Best Customers' },
+        { key: 'products',  label: 'Best Products' },
+        { key: 'pricing',   label: 'Pricing' },
     ],
     analysis: [
-        { key: 'health', label: 'Health Score' },
+        { key: 'health', label: 'Business Score' },
         { key: 'swot',   label: 'SWOT' },
     ],
 };
@@ -89,6 +89,7 @@ export default function ReportsScreen() {
     const { finance: allFinance, settings, updateSettings, transactions, assets, navParams, inventory, invoices } = useApp();
     const { currency, minReserve, targetMargin } = settings;
 
+    const [simpleView, setSimpleView]  = useState(true);
     const [section, setSection]       = useState<SectionKey>('statements');
     const [activeTab, setActiveTab]   = useState<SubTab>('balancesheet');
     const [period, setPeriod]         = useState<ReportPeriod>('all');
@@ -132,6 +133,20 @@ export default function ReportsScreen() {
 
     const periodActive = PERIOD_AWARE.includes(activeTab);
 
+    const SIMPLE_SECTIONS: SectionKey[] = ['statements', 'operations'];
+    const visibleSections = simpleView
+        ? SECTIONS.filter(s => SIMPLE_SECTIONS.includes(s.key))
+        : SECTIONS;
+
+    // If simpleView is toggled on and current section is hidden, reset to first simple section
+    useEffect(() => {
+        if (simpleView && !SIMPLE_SECTIONS.includes(section)) {
+            setSection('statements');
+            setActiveTab(SECTION_TABS['statements'][0].key);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [simpleView]);
+
     const handleSectionChange = (s: SectionKey) => {
         setSection(s);
         setActiveTab(SECTION_TABS[s][0].key);
@@ -146,9 +161,26 @@ export default function ReportsScreen() {
         <SafeAreaView style={styles.safe}>
             <Header />
 
+            {/* ── Simple / Full toggle ──────────────────────────────── */}
+            <View style={styles.viewToggleRow}>
+                <TouchableOpacity
+                    style={[styles.viewToggleBtn, simpleView && styles.viewToggleBtnActive]}
+                    onPress={() => setSimpleView(true)}>
+                    <Text style={[styles.viewToggleText, simpleView && styles.viewToggleTextActive]}>Simple</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={[styles.viewToggleBtn, !simpleView && styles.viewToggleBtnActive]}
+                    onPress={() => setSimpleView(false)}>
+                    <Text style={[styles.viewToggleText, !simpleView && styles.viewToggleTextActive]}>Full Reports</Text>
+                </TouchableOpacity>
+            </View>
+            {simpleView && (
+                <Text style={styles.viewToggleHint}>Full Reports unlocks Planning, Growth &amp; Health Analysis</Text>
+            )}
+
             {/* ── Section picker ────────────────────────────────────── */}
             <View style={styles.sectionRow}>
-                {SECTIONS.map(s => (
+                {visibleSections.map(s => (
                     <TouchableOpacity
                         key={s.key}
                         style={[styles.sectionBtn, section === s.key && styles.sectionBtnActive]}
@@ -252,30 +284,30 @@ export default function ReportsScreen() {
                                         <Text style={styles.exportText}>Export CSV</Text>
                                     </TouchableOpacity>
                                 </View>
-                                <StatRow label="Total Sales"                          value={`${currency}${enhPnL.revenue.toLocaleString()}`}                                           color={Colors.income} />
-                                <StatRow label="  Direct Costs (materials, delivery, production)" value={`-${currency}${enhPnL.cogs.toLocaleString()}`}               color={Colors.expense} indent />
-                                <StatRow label="Sales Profit"                         value={`${currency}${enhPnL.grossProfit.toLocaleString()}`}                                  color={enhPnL.grossProfit >= 0 ? Colors.income : Colors.expense} bold />
-                                <StatRow label="  Sales Profit %"                     value={`${enhPnL.grossMargin.toFixed(1)}%`}                                                   color={Colors.textMuted} indent />
-                                <StatRow label="  Overheads (rent, salaries, admin)"  value={`-${currency}${enhPnL.sgaExpenses.toLocaleString()}`}                                  color={Colors.expense} indent />
+                                <StatRow label="Total Revenue (Money In)"             value={`${currency}${enhPnL.revenue.toLocaleString()}`}                                           color={Colors.income} />
+                                <StatRow label="  Cost of Goods Sold"                 value={`-${currency}${enhPnL.cogs.toLocaleString()}`}                                          color={Colors.expense} indent />
+                                <StatRow label="Gross Profit"                         value={`${currency}${enhPnL.grossProfit.toLocaleString()}`}                                  color={enhPnL.grossProfit >= 0 ? Colors.income : Colors.expense} bold />
+                                <StatRow label="  Gross Margin %"                     value={`${(isNaN(enhPnL.grossMargin) ? 0 : enhPnL.grossMargin).toFixed(1)}%`}               color={Colors.textMuted} indent />
+                                <StatRow label="  Running Costs (rent, salaries, admin)" value={`-${currency}${enhPnL.sgaExpenses.toLocaleString()}`}                              color={Colors.expense} indent />
                                 <StatRow label="Operating Profit"                     value={`${enhPnL.ebit >= 0 ? '+' : ''}${currency}${enhPnL.ebit.toLocaleString()}`}           color={enhPnL.ebit >= 0 ? Colors.income : Colors.expense} bold />
-                                <StatRow label="  Operating Profit %"                 value={`${enhPnL.ebitMargin.toFixed(1)}%`}                                                    color={Colors.textMuted} indent />
-                                <StatRow label="  Add Back: Asset Wear & Tear (non-cash)" value={`+${currency}${enhPnL.depreciation.toLocaleString()}`}                           color={Colors.textMuted} indent />
-                                <StatRow label="Cash Operating Profit"                value={`${enhPnL.ebitda >= 0 ? '+' : ''}${currency}${enhPnL.ebitda.toLocaleString()}`}      color={enhPnL.ebitda >= 0 ? Colors.income : Colors.expense} bold />
+                                <StatRow label="  Operating Margin %"                 value={`${(isNaN(enhPnL.ebitMargin) ? 0 : enhPnL.ebitMargin).toFixed(1)}%`}                 color={Colors.textMuted} indent />
+                                <StatRow label="  Equipment Depreciation (non-cash)"  value={`+${currency}${enhPnL.depreciation.toLocaleString()}`}                               color={Colors.textMuted} indent />
+                                <StatRow label="Cash Profit"                          value={`${enhPnL.ebitda >= 0 ? '+' : ''}${currency}${enhPnL.ebitda.toLocaleString()}`}      color={enhPnL.ebitda >= 0 ? Colors.income : Colors.expense} bold />
                                 <StatRow label="Net Profit (Bottom Line)"             value={`${enhPnL.netProfit >= 0 ? '+' : ''}${currency}${enhPnL.netProfit.toLocaleString()}`} color={enhPnL.netProfit >= 0 ? Colors.income : Colors.expense} bold />
-                                <StatRow label="Net Profit %"                         value={`${enhPnL.netMargin.toFixed(1)}%`}                                                    color={enhPnL.netMargin >= parseFloat(targetMargin) ? Colors.income : Colors.expense} />
+                                <StatRow label="Net Profit %"                         value={`${(isNaN(enhPnL.netMargin) ? 0 : enhPnL.netMargin).toFixed(1)}%`}                   color={enhPnL.netMargin >= parseFloat(targetMargin) ? Colors.income : Colors.expense} />
                                 <StatRow label="Your Profit Target"                   value={`${targetMargin}%`}                                                                    color={Colors.textMuted} />
-                                <StatRow label="Tax Added to Customer Bills"          value={`${currency}${finance.totalTaxCollected.toLocaleString()}`}                           color={Colors.warning} />
+                                <StatRow label="Tax Charged to Customers"             value={`${currency}${finance.totalTaxCollected.toLocaleString()}`}                           color={Colors.warning} />
                                 <StatRow label="Tax You Have Paid"                    value={`${currency}${finance.totalTaxPaid.toLocaleString()}`}                                color={Colors.warning} />
                             </View>
 
                             <View style={styles.card}>
-                                <Text style={styles.cardTitle}>Cash Flow Health</Text>
-                                <StatRow label="Customers Who Owe You"              value={`${currency}${wcMetrics.accountsReceivable.toLocaleString()}`}  color={Colors.income} />
-                                <StatRow label="Suppliers You Still Owe"            value={`${currency}${wcMetrics.accountsPayable.toLocaleString()}`}     color={Colors.liability} />
-                                <StatRow label="Cash Buffer (Owed to you − You owe)" value={`${currency}${wcMetrics.netWorkingCapital.toLocaleString()}`}  color={wcMetrics.netWorkingCapital >= 0 ? Colors.income : Colors.expense} bold />
-                                <StatRow label="Avg. Days to Get Paid"              value={`${wcMetrics.dso.toFixed(0)} days`}                            color={Colors.textSecondary} />
-                                <StatRow label="Avg. Days You Take to Pay Suppliers" value={`${wcMetrics.dpo.toFixed(0)} days`}                           color={Colors.textSecondary} />
-                                <StatRow label="Days Your Cash Is Tied Up"          value={`${wcMetrics.ccc.toFixed(0)} days`}                            color={wcMetrics.ccc <= 30 ? Colors.income : wcMetrics.ccc <= 60 ? Colors.warning : Colors.expense} />
+                                <Text style={styles.cardTitle}>Money Owed To / By You</Text>
+                                <StatRow label="Customers Who Owe You"               value={`${currency}${wcMetrics.accountsReceivable.toLocaleString()}`}  color={Colors.income} />
+                                <StatRow label="Suppliers You Still Owe"             value={`${currency}${wcMetrics.accountsPayable.toLocaleString()}`}     color={Colors.liability} />
+                                <StatRow label="Net Position (customers owe − you owe)" value={`${currency}${wcMetrics.netWorkingCapital.toLocaleString()}`} color={wcMetrics.netWorkingCapital >= 0 ? Colors.income : Colors.expense} bold />
+                                <StatRow label="Avg. Days to Get Paid"               value={`${wcMetrics.dso.toFixed(0)} days`}                            color={Colors.textSecondary} />
+                                <StatRow label="Avg. Days Before You Pay Suppliers"  value={`${wcMetrics.dpo.toFixed(0)} days`}                            color={Colors.textSecondary} />
+                                <StatRow label="Days Cash Is Tied Up in the Cycle"   value={`${wcMetrics.ccc.toFixed(0)} days`}                            color={wcMetrics.ccc <= 30 ? Colors.income : wcMetrics.ccc <= 60 ? Colors.warning : Colors.expense} />
                             </View>
 
                             <MonthlyChart trend={trend} currency={currency} />
@@ -447,11 +479,11 @@ function InventoryReportTab({ inventory, finance, transactions, currency }: {
 
             {/* COGS Analysis */}
             <View style={styles.card}>
-                <Text style={styles.cardTitle}>COGS Analysis</Text>
-                <StatRow label="Total Stock Cost Value"    value={`${currency}${totalStockCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}   color={Colors.expense} />
-                <StatRow label="Potential Revenue"         value={`${currency}${potentialRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}  color={Colors.income} />
-                <StatRow label="Potential Gross Profit"    value={`${currency}${potentialProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}   color={potentialProfit >= 0 ? Colors.income : Colors.expense} bold />
-                <StatRow label="Gross Margin %"            value={`${grossMargin.toFixed(1)}%`}                                                              color={Colors.textMuted} />
+                <Text style={styles.cardTitle}>Stock Profit Analysis</Text>
+                <StatRow label="What Your Stock Cost You"      value={`${currency}${totalStockCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}   color={Colors.expense} />
+                <StatRow label="What You Could Sell It For"    value={`${currency}${potentialRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}  color={Colors.income} />
+                <StatRow label="Potential Profit If All Sold"  value={`${currency}${potentialProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}   color={potentialProfit >= 0 ? Colors.income : Colors.expense} bold />
+                <StatRow label="Profit Margin %"               value={`${grossMargin.toFixed(1)}%`}                                                              color={Colors.textMuted} />
                 <Text style={styles.note}>Add stock expenses as transactions to include in P&L</Text>
             </View>
 
@@ -509,12 +541,12 @@ function InventoryReportTab({ inventory, finance, transactions, currency }: {
 
             {/* Inventory-to-Revenue Ratio */}
             <View style={styles.card}>
-                <Text style={styles.cardTitle}>Inventory-to-Revenue Ratio</Text>
+                <Text style={styles.cardTitle}>Stock vs Revenue</Text>
                 <StatRow label="Stock Value"    value={`${currency}${totalStockCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}  color={Colors.asset} />
                 <StatRow label="Total Revenue"  value={`${currency}${totalRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}    color={Colors.income} />
                 <StatRow label="Ratio"          value={`${stockToRevRatio.toFixed(1)}%`}                                                        color={ratioColor} bold />
                 <Text style={styles.note}>
-                    For every $1 of revenue you have ${(totalRevenue > 0 ? totalStockCost / totalRevenue : 0).toFixed(2)} of stock tied up
+                    {`For every ${currency}1 of revenue you have ${currency}${(totalRevenue > 0 ? totalStockCost / totalRevenue : 0).toFixed(2)} of stock tied up`}
                 </Text>
             </View>
 
@@ -828,6 +860,13 @@ const styles = StyleSheet.create({
     sizeBadge:     { fontSize: 11, color: Colors.primary, fontWeight: '600', backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.primary, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
     exportBtn:     { paddingHorizontal: 10, paddingVertical: 4, backgroundColor: Colors.primary, borderRadius: 8 },
     exportText:    { fontSize: 11, color: Colors.textPrimary, fontWeight: '600' },
+
+    viewToggleRow:        { flexDirection: 'row', backgroundColor: Colors.surface, padding: 8, gap: 6, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    viewToggleBtn:        { flex: 1, paddingVertical: 7, borderRadius: 8, alignItems: 'center', backgroundColor: Colors.bg },
+    viewToggleBtnActive:  { backgroundColor: Colors.primary },
+    viewToggleText:       { fontSize: 13, fontWeight: '600', color: Colors.textMuted },
+    viewToggleTextActive: { color: Colors.textPrimary },
+    viewToggleHint:       { fontSize: 11, color: Colors.textMuted, textAlign: 'center', paddingHorizontal: 12, paddingBottom: 6, backgroundColor: Colors.surface },
 });
 
 const rowStyles = StyleSheet.create({

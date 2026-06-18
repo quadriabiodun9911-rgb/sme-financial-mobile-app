@@ -133,7 +133,7 @@ const DEFAULT_SETTINGS: BusinessSettings = {
     businessType: 'both',
     currency: '$',
     minReserve: '5000',
-    targetMargin: '65',
+    targetMargin: '0',
     openingAssets: '0',
     openingLiabilities: '0',
     openingLoans: '0',
@@ -414,6 +414,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (savedBudgets2)   setBudgets(savedBudgets2);
 
         setCurrentScreen('dashboard');
+        // Re-schedule reminders on sign-in so they stay active
+        requestNotificationPermission().then(granted => {
+            if (granted) { scheduleDailyReminder(); scheduleWeeklySummaryReminder(); }
+        });
     };
 
     // Team member join — creates Supabase account then links to owner workspace
@@ -758,17 +762,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // Use when a user wants to start fresh without losing their login credentials.
     const resetBusinessData = async () => {
         try {
-            const ownerId = user?.email ? (await supabase.auth.getUser()).data.user?.id : null;
+            const { data: { user: authUser } } = await supabase.auth.getUser();
+            const ownerId = authUser?.id ?? null;
             if (ownerId) {
                 const tables = ['transactions','goals','invoices','assets','inventory','loans','budgets','audit_logs'];
-                await Promise.allSettled(tables.map(t => supabase.from(t).delete().eq('user_id', ownerId)));
+                const results = await Promise.allSettled(
+                    tables.map(t => supabase.from(t).delete().eq('user_id', ownerId))
+                );
+                results.forEach((r, i) => {
+                    if (r.status === 'rejected') console.error(`Reset failed for ${tables[i]}:`, r.reason);
+                    else if (r.value.error) console.error(`Reset error for ${tables[i]}:`, r.value.error.message);
+                });
             }
             await AsyncStorage.multiRemove([
                 '@quad360/transactions', '@quad360/goals', '@quad360/invoices',
                 '@quad360/assets', '@quad360/inventory', '@quad360/loans', '@quad360/budgets',
             ]).catch(() => {});
             setTransactions([]); setGoals([]); setInvoices([]); setAssets([]); setInventory([]); setLoans([]); setBudgets([]);
-        } catch (e) { console.error('Error resetting business data:', e); }
+            Alert.alert('Done', 'All business data has been reset.');
+        } catch (e) {
+            console.error('Error resetting business data:', e);
+            Alert.alert('Error', 'Something went wrong while resetting data. Please try again.');
+        }
     };
 
     const deleteAccount = async () => {

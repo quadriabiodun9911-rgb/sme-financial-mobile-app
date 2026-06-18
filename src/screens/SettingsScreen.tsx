@@ -51,6 +51,12 @@ export default function SettingsScreen() {
     const [importModal, setImportModal] = useState(false);
     const [importJson, setImportJson]   = useState('');
 
+    // Type-to-confirm modals
+    const [resetModal, setResetModal]       = useState(false);
+    const [resetConfirmText, setResetConfirmText] = useState('');
+    const [deleteModal, setDeleteModal]     = useState(false);
+    const [deleteConfirmText, setDeleteConfirmText] = useState('');
+
     // Team invite modal
     const [inviteModal, setInviteModal]   = useState(false);
     const [inviteEmail, setInviteEmail]   = useState('');
@@ -161,25 +167,8 @@ export default function SettingsScreen() {
     };
 
     const handleResetBusinessData = () => {
-        Alert.alert(
-            'Reset Business Data',
-            'This permanently deletes all transactions, invoices, goals, assets, loans, and inventory from the cloud. Your account and settings are kept. This cannot be undone.',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Reset My Data',
-                    style: 'destructive',
-                    onPress: () => Alert.alert(
-                        'Are you sure?',
-                        'All your business records will be permanently deleted.',
-                        [
-                            { text: 'Cancel', style: 'cancel' },
-                            { text: 'Yes, Delete Records', style: 'destructive', onPress: () => resetBusinessData() },
-                        ],
-                    ),
-                },
-            ],
-        );
+        setResetConfirmText('');
+        setResetModal(true);
     };
 
     const handleClearData = () => {
@@ -201,27 +190,8 @@ export default function SettingsScreen() {
     };
 
     const handleDeleteAccount = () => {
-        Alert.alert(
-            'Delete Account',
-            'This permanently deletes ALL your data — transactions, invoices, goals, and settings — from the cloud. This cannot be undone.',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Delete My Account',
-                    style: 'destructive',
-                    onPress: () => {
-                        Alert.alert(
-                            'Are you absolutely sure?',
-                            'Your business data will be gone forever. Type DELETE to confirm.',
-                            [
-                                { text: 'Cancel', style: 'cancel' },
-                                { text: 'Yes, Delete Everything', style: 'destructive', onPress: () => deleteAccount() },
-                            ],
-                        );
-                    },
-                },
-            ],
-        );
+        setDeleteConfirmText('');
+        setDeleteModal(true);
     };
 
     return (
@@ -231,195 +201,220 @@ export default function SettingsScreen() {
                 <View style={styles.pad}>
                     <Text style={styles.title}>Settings</Text>
 
-                    {/* Business Type */}
-                    <Section title="Business Type">
-                        <View style={styles.optRow}>
-                            {BUSINESS_TYPES.map(bt => (
-                                <Opt key={bt.value} label={bt.label} active={form.businessType === bt.value}
-                                    onPress={() => setForm(f => ({ ...f, businessType: bt.value }))} />
-                            ))}
-                        </View>
-                    </Section>
+                    {/* 1. My Business — default open */}
+                    <CollapsibleSection title="My Business" defaultOpen={true}>
+                        {/* Business Type */}
+                        <Section title="Business Type">
+                            <View style={styles.optRow}>
+                                {BUSINESS_TYPES.map(bt => (
+                                    <Opt key={bt.value} label={bt.label} active={form.businessType === bt.value}
+                                        onPress={() => setForm(f => ({ ...f, businessType: bt.value }))} />
+                                ))}
+                            </View>
+                        </Section>
 
-                    {/* Language */}
-                    <Section title={t(language, 'language')}>
-                        <View style={styles.optRow}>
-                            {LANGUAGES.map(l => (
-                                <Opt key={l.code} label={l.nativeLabel} active={language === l.code}
-                                    onPress={() => setLanguage(l.code)} />
-                            ))}
-                        </View>
-                    </Section>
+                        {/* Language */}
+                        <Section title={t(language, 'language')}>
+                            <View style={styles.optRow}>
+                                {LANGUAGES.map(l => (
+                                    <Opt key={l.code} label={l.nativeLabel} active={language === l.code}
+                                        onPress={() => setLanguage(l.code)} />
+                                ))}
+                            </View>
+                        </Section>
 
-                    {/* Currency */}
-                    <Section title={t(language, 'currency')}>
-                        <View style={styles.optRow}>
-                            {CURRENCIES.map(c => (
-                                <Opt key={c.value} label={c.label} active={form.currency === c.value}
-                                    onPress={() => setForm(f => ({ ...f, currency: c.value }))} />
-                            ))}
-                        </View>
-                    </Section>
+                        {/* Currency */}
+                        <Section title={t(language, 'currency')}>
+                            <View style={styles.optRow}>
+                                {CURRENCIES.map(c => (
+                                    <Opt key={c.value} label={c.label} active={form.currency === c.value}
+                                        onPress={() => setForm(f => ({ ...f, currency: c.value }))} />
+                                ))}
+                            </View>
+                        </Section>
 
-                    {/* Financial thresholds */}
-                    <Section title="Financial Thresholds">
-                        <FieldLabel>Minimum Cash Reserve ({form.currency})</FieldLabel>
-                        <TextInput style={styles.input} value={form.minReserve}
-                            onChangeText={v => setForm(f => ({ ...f, minReserve: v }))}
-                            keyboardType="numeric" placeholder="5000" placeholderTextColor={Colors.muted} />
-
-                        <FieldLabel>Target Profit Margin (%)</FieldLabel>
-                        <TextInput style={styles.input} value={form.targetMargin}
-                            onChangeText={v => setForm(f => ({ ...f, targetMargin: v }))}
-                            keyboardType="numeric" placeholder="65" placeholderTextColor={Colors.muted} />
-                    </Section>
-
-                    {/* Tax */}
-                    <Section title="Tax Settings">
-                        <FieldLabel>Default Tax Rate (%)</FieldLabel>
-                        <Text style={styles.hint}>
-                            Applied automatically to new transactions. Can be overridden per transaction.
-                        </Text>
-                        <TextInput style={styles.input} value={form.defaultTaxRate}
-                            onChangeText={v => setForm(f => ({ ...f, defaultTaxRate: v }))}
-                            keyboardType="numeric" placeholder="0" placeholderTextColor={Colors.muted} />
-                    </Section>
-
-                    {/* Opening Balances */}
-                    <Section title="Opening Balance Sheet">
-                        <Text style={styles.hint}>
-                            Enter pre-existing asset and liability balances. Added to cash position for correct balance sheet totals.
-                        </Text>
-                        <FieldLabel>Opening Assets ({form.currency})</FieldLabel>
-                        <TextInput style={styles.input} value={form.openingAssets}
-                            onChangeText={v => setForm(f => ({ ...f, openingAssets: v }))}
-                            keyboardType="numeric" placeholder="0" placeholderTextColor={Colors.muted} />
-
-                        <FieldLabel>Opening Liabilities ({form.currency})</FieldLabel>
-                        <TextInput style={styles.input} value={form.openingLiabilities}
-                            onChangeText={v => setForm(f => ({ ...f, openingLiabilities: v }))}
-                            keyboardType="numeric" placeholder="0" placeholderTextColor={Colors.muted} />
-                    </Section>
-
-                    <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-                        <Text style={styles.saveBtnText}>Save Settings</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.cancelBtn} onPress={() => setCurrentScreen('dashboard')}>
-                        <Text style={styles.cancelBtnText}>Cancel</Text>
-                    </TouchableOpacity>
-
-                    {/* Change PIN */}
-                    <Section title="Change PIN">
-                        <FieldLabel>Current PIN</FieldLabel>
-                        <TextInput style={styles.input} value={currentPin}
-                            onChangeText={setCurrentPin}
-                            secureTextEntry keyboardType="number-pad" maxLength={6}
-                            placeholder="••••" placeholderTextColor={Colors.muted} />
-                        <FieldLabel>New PIN</FieldLabel>
-                        <TextInput style={styles.input} value={newPin}
-                            onChangeText={setNewPin}
-                            secureTextEntry keyboardType="number-pad" maxLength={6}
-                            placeholder="••••" placeholderTextColor={Colors.muted} />
-                        <FieldLabel>Confirm New PIN</FieldLabel>
-                        <TextInput style={styles.input} value={confirmPin}
-                            onChangeText={setConfirmPin}
-                            secureTextEntry keyboardType="number-pad" maxLength={6}
-                            placeholder="••••" placeholderTextColor={Colors.muted} />
-                        <TouchableOpacity style={[styles.saveBtn, { marginTop: 12, marginBottom: 0 }]} onPress={handleChangePin}>
-                            <Text style={styles.saveBtnText}>Update PIN</Text>
+                        <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
+                            <Text style={styles.saveBtnText}>Save Settings</Text>
                         </TouchableOpacity>
-                    </Section>
-
-                    {/* Security */}
-                    <Section title="Security">
-                        <Text style={styles.hint}>
-                            Add an extra layer of protection with two-factor authentication using an authenticator app.
-                        </Text>
-                        <TouchableOpacity style={styles.dataBtn} onPress={() => setCurrentScreen('2fa' as any)}>
-                            <Text style={styles.dataBtnText}>🔐 Two-Factor Authentication</Text>
+                        <TouchableOpacity style={styles.cancelBtn} onPress={() => setCurrentScreen('dashboard')}>
+                            <Text style={styles.cancelBtnText}>Cancel</Text>
                         </TouchableOpacity>
-                    </Section>
+                    </CollapsibleSection>
 
-                    {/* Data Management */}
-                    <Section title="Data Management">
-                        <Text style={styles.hint}>
-                            Export a full JSON backup of all your transactions, goals, and settings. Import to restore on a new device.
-                        </Text>
-                        <TouchableOpacity style={styles.dataBtn} onPress={handleExport}>
-                            <Text style={styles.dataBtnText}>Export All Data</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={[styles.dataBtn, { marginTop: 8 }]} onPress={() => setImportModal(true)}>
-                            <Text style={styles.dataBtnText}>Import Data</Text>
-                        </TouchableOpacity>
-                    </Section>
+                    {/* 2. Targets & Tax — default closed */}
+                    <CollapsibleSection title="Profit Goals & Tax" defaultOpen={false}>
+                        {/* Financial thresholds */}
+                        <Section title="Your Targets">
+                            <FieldLabel>Minimum savings to keep at all times ({form.currency})</FieldLabel>
+                            <Text style={styles.hint}>The app will warn you if your account drops below this amount.</Text>
+                            <TextInput style={styles.input} value={form.minReserve}
+                                onChangeText={v => setForm(f => ({ ...f, minReserve: v }))}
+                                keyboardType="numeric" placeholder="5000" placeholderTextColor={Colors.muted} />
 
-                    {/* Reset Business Data */}
-                    <Section title="Reset Business Data">
-                        <Text style={styles.hint}>
-                            Permanently deletes all transactions, invoices, goals, assets, loans, and inventory. Your account and settings are kept — use this to start fresh without creating a new account.
-                        </Text>
-                        <TouchableOpacity style={styles.dangerBtn} onPress={handleResetBusinessData}>
-                            <Text style={styles.dangerBtnText}>Reset Business Data</Text>
-                        </TouchableOpacity>
-                    </Section>
+                            <FieldLabel>How much of each sale should be profit? (%)</FieldLabel>
+                            <Text style={styles.hint}>Example: if you charge ₦1,000 and your costs are ₦400, your profit is 60%.</Text>
+                            <TextInput style={styles.input} value={form.targetMargin}
+                                onChangeText={v => setForm(f => ({ ...f, targetMargin: v }))}
+                                keyboardType="numeric" placeholder="65" placeholderTextColor={Colors.muted} />
+                        </Section>
 
-                    {/* Sign Out */}
-                    <Section title="Sign Out">
-                        <Text style={styles.hint}>
-                            Signs you out and clears the local cache. Your data is safely stored in the cloud and will be restored when you sign back in.
-                        </Text>
-                        <TouchableOpacity style={styles.dangerBtn} onPress={handleClearData}>
-                            <Text style={styles.dangerBtnText}>Sign Out & Clear Cache</Text>
-                        </TouchableOpacity>
-                    </Section>
-
-                    {/* Delete Account */}
-                    <Section title="Delete Account">
-                        <Text style={styles.hint}>
-                            Permanently removes all your business data from the cloud. This cannot be undone.
-                        </Text>
-                        <TouchableOpacity style={[styles.dangerBtn, { borderColor: '#7f1d1d', backgroundColor: 'rgba(127,29,29,0.12)' }]} onPress={handleDeleteAccount}>
-                            <Text style={[styles.dangerBtnText, { color: '#ef4444' }]}>Delete Account</Text>
-                        </TouchableOpacity>
-                    </Section>
-
-                    {/* Team Management — owner only */}
-                    {userRole === 'owner' && (
-                        <Section title="Team Management">
+                        {/* Tax */}
+                        <Section title="Tax Settings">
+                            <FieldLabel>Default Tax Rate (%)</FieldLabel>
                             <Text style={styles.hint}>
-                                Invite team members to access your business data. Accountants can view and export. Staff can add transactions.
+                                Applied automatically to new transactions. Can be overridden per transaction.
                             </Text>
-                            <TouchableOpacity style={styles.dataBtn} onPress={() => { setPendingCode(null); setInviteModal(true); }}>
-                                <Text style={styles.dataBtnText}>+ Invite Team Member</Text>
-                            </TouchableOpacity>
+                            <TextInput style={styles.input} value={form.defaultTaxRate}
+                                onChangeText={v => setForm(f => ({ ...f, defaultTaxRate: v }))}
+                                keyboardType="numeric" placeholder="0" placeholderTextColor={Colors.muted} />
+                        </Section>
 
-                            {teamMembers.length > 0 && (
-                                <View style={{ marginTop: 14 }}>
-                                    {teamMembers.map(m => (
-                                        <View key={m.id} style={styles.memberRow}>
-                                            <View style={{ flex: 1 }}>
-                                                <Text style={styles.memberEmail}>{m.memberEmail}</Text>
-                                                <View style={styles.memberMeta}>
-                                                    <View style={[styles.roleBadge, { backgroundColor: m.role === 'accountant' ? Colors.primary + '22' : Colors.warning + '22' }]}>
-                                                        <Text style={[styles.roleText, { color: m.role === 'accountant' ? Colors.primary : Colors.warning }]}>
-                                                            {m.role.toUpperCase()}
-                                                        </Text>
-                                                    </View>
-                                                    <View style={[styles.roleBadge, { backgroundColor: m.status === 'active' ? Colors.income + '22' : Colors.textMuted + '22' }]}>
-                                                        <Text style={[styles.roleText, { color: m.status === 'active' ? Colors.income : Colors.textMuted }]}>
-                                                            {m.status.toUpperCase()}
-                                                        </Text>
+                        {/* Opening Balances */}
+                        <Section title="Money & Things You Had Before Using This App">
+                            <Text style={styles.hint}>
+                                If you already had money, equipment, or loans before you started using Quad360, enter them here so your numbers are accurate from day one.
+                            </Text>
+                            <FieldLabel>Value of things you already owned ({form.currency})</FieldLabel>
+                            <TextInput style={styles.input} value={form.openingAssets}
+                                onChangeText={v => setForm(f => ({ ...f, openingAssets: v }))}
+                                keyboardType="numeric" placeholder="0" placeholderTextColor={Colors.muted} />
+
+                            <FieldLabel>Money you already owed to others ({form.currency})</FieldLabel>
+                            <TextInput style={styles.input} value={form.openingLiabilities}
+                                onChangeText={v => setForm(f => ({ ...f, openingLiabilities: v }))}
+                                keyboardType="numeric" placeholder="0" placeholderTextColor={Colors.muted} />
+                        </Section>
+
+                        <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
+                            <Text style={styles.saveBtnText}>Save Settings</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.cancelBtn} onPress={() => setCurrentScreen('dashboard')}>
+                            <Text style={styles.cancelBtnText}>Cancel</Text>
+                        </TouchableOpacity>
+                    </CollapsibleSection>
+
+                    {/* 3. Security — default closed */}
+                    <CollapsibleSection title="Security" defaultOpen={false}>
+                        {/* Change PIN */}
+                        <Section title="Change PIN">
+                            <FieldLabel>Current PIN</FieldLabel>
+                            <TextInput style={styles.input} value={currentPin}
+                                onChangeText={setCurrentPin}
+                                secureTextEntry keyboardType="number-pad" maxLength={6}
+                                placeholder="••••" placeholderTextColor={Colors.muted} />
+                            <FieldLabel>New PIN</FieldLabel>
+                            <TextInput style={styles.input} value={newPin}
+                                onChangeText={setNewPin}
+                                secureTextEntry keyboardType="number-pad" maxLength={6}
+                                placeholder="••••" placeholderTextColor={Colors.muted} />
+                            <FieldLabel>Confirm New PIN</FieldLabel>
+                            <TextInput style={styles.input} value={confirmPin}
+                                onChangeText={setConfirmPin}
+                                secureTextEntry keyboardType="number-pad" maxLength={6}
+                                placeholder="••••" placeholderTextColor={Colors.muted} />
+                            <TouchableOpacity style={[styles.saveBtn, { marginTop: 12, marginBottom: 0 }]} onPress={handleChangePin}>
+                                <Text style={styles.saveBtnText}>Update PIN</Text>
+                            </TouchableOpacity>
+                        </Section>
+
+                        {/* Two-Factor Authentication */}
+                        <Section title="Extra Security Lock">
+                            <Text style={styles.hint}>
+                                Turn this on to require a second code when you log in. Makes your account much harder to break into.
+                            </Text>
+                            <TouchableOpacity style={styles.dataBtn} onPress={() => setCurrentScreen('2fa' as any)}>
+                                <Text style={styles.dataBtnText}>Set Up Extra Security Lock</Text>
+                            </TouchableOpacity>
+                        </Section>
+                    </CollapsibleSection>
+
+                    {/* 4. Data & Backup — default closed */}
+                    <CollapsibleSection title="Data & Backup" defaultOpen={false}>
+                        <Section title="Export & Import">
+                            <Text style={styles.hint}>
+                                Export a full JSON backup of all your transactions, goals, and settings. Import to restore on a new device.
+                            </Text>
+                            <TouchableOpacity style={styles.dataBtn} onPress={handleExport}>
+                                <Text style={styles.dataBtnText}>Export All Data</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.dataBtn, { marginTop: 8 }]} onPress={() => setImportModal(true)}>
+                                <Text style={styles.dataBtnText}>Import Data</Text>
+                            </TouchableOpacity>
+                        </Section>
+                    </CollapsibleSection>
+
+                    {/* 5. Danger Zone — default closed */}
+                    <CollapsibleSection title="Danger Zone" defaultOpen={false}>
+                        {/* Reset Business Data */}
+                        <Section title="Reset Business Data">
+                            <Text style={styles.hint}>
+                                Permanently deletes all transactions, invoices, goals, assets, loans, and inventory. Your account and settings are kept — use this to start fresh without creating a new account.
+                            </Text>
+                            <TouchableOpacity style={styles.dangerBtn} onPress={handleResetBusinessData}>
+                                <Text style={styles.dangerBtnText}>Reset Business Data</Text>
+                            </TouchableOpacity>
+                        </Section>
+
+                        {/* Sign Out */}
+                        <Section title="Sign Out">
+                            <Text style={styles.hint}>
+                                Signs you out and clears the local cache. Your data is safely stored in the cloud and will be restored when you sign back in.
+                            </Text>
+                            <TouchableOpacity style={styles.dangerBtn} onPress={handleClearData}>
+                                <Text style={styles.dangerBtnText}>Sign Out & Clear Cache</Text>
+                            </TouchableOpacity>
+                        </Section>
+
+                        {/* Delete Account */}
+                        <Section title="Delete Account">
+                            <Text style={styles.hint}>
+                                Permanently removes all your business data from the cloud. This cannot be undone.
+                            </Text>
+                            <TouchableOpacity style={[styles.dangerBtn, { borderColor: '#7f1d1d', backgroundColor: 'rgba(127,29,29,0.12)' }]} onPress={handleDeleteAccount}>
+                                <Text style={[styles.dangerBtnText, { color: '#ef4444' }]}>Delete Account</Text>
+                            </TouchableOpacity>
+                        </Section>
+                    </CollapsibleSection>
+
+                    {/* 6. Team — default open, owner only */}
+                    {userRole === 'owner' && (
+                        <CollapsibleSection title="Team" defaultOpen={true}>
+                            <Section title="Team Management">
+                                <Text style={styles.hint}>
+                                    Invite team members to access your business data. Accountants can view and export. Staff can add transactions.
+                                </Text>
+                                <TouchableOpacity style={styles.dataBtn} onPress={() => { setPendingCode(null); setInviteModal(true); }}>
+                                    <Text style={styles.dataBtnText}>+ Invite Team Member</Text>
+                                </TouchableOpacity>
+
+                                {teamMembers.length > 0 && (
+                                    <View style={{ marginTop: 14 }}>
+                                        {teamMembers.map(m => (
+                                            <View key={m.id} style={styles.memberRow}>
+                                                <View style={{ flex: 1 }}>
+                                                    <Text style={styles.memberEmail}>{m.memberEmail}</Text>
+                                                    <View style={styles.memberMeta}>
+                                                        <View style={[styles.roleBadge, { backgroundColor: m.role === 'accountant' ? Colors.primary + '22' : Colors.warning + '22' }]}>
+                                                            <Text style={[styles.roleText, { color: m.role === 'accountant' ? Colors.primary : Colors.warning }]}>
+                                                                {m.role.toUpperCase()}
+                                                            </Text>
+                                                        </View>
+                                                        <View style={[styles.roleBadge, { backgroundColor: m.status === 'active' ? Colors.income + '22' : Colors.textMuted + '22' }]}>
+                                                            <Text style={[styles.roleText, { color: m.status === 'active' ? Colors.income : Colors.textMuted }]}>
+                                                                {m.status.toUpperCase()}
+                                                            </Text>
+                                                        </View>
                                                     </View>
                                                 </View>
+                                                <TouchableOpacity onPress={() => handleRemoveMember(m.id, m.memberEmail)}>
+                                                    <Text style={{ color: Colors.expense, fontSize: 12, fontWeight: '600' }}>Remove</Text>
+                                                </TouchableOpacity>
                                             </View>
-                                            <TouchableOpacity onPress={() => handleRemoveMember(m.id, m.memberEmail)}>
-                                                <Text style={{ color: Colors.expense, fontSize: 12, fontWeight: '600' }}>Remove</Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                    ))}
-                                </View>
-                            )}
-                        </Section>
+                                        ))}
+                                    </View>
+                                )}
+                            </Section>
+                        </CollapsibleSection>
                     )}
 
                     {/* Role info for non-owners */}
@@ -515,14 +510,95 @@ export default function SettingsScreen() {
                     </View>
                 </View>
             </Modal>
+
+            {/* Reset Business Data Modal */}
+            <Modal visible={resetModal} animationType="slide" transparent onRequestClose={() => setResetModal(false)}>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalCard}>
+                        <Text style={styles.modalTitle}>Reset Business Data</Text>
+                        <Text style={[styles.hint, { marginBottom: 12 }]}>
+                            This permanently deletes all transactions, invoices, goals, assets, loans, and inventory.
+                            Your account and settings are kept. This cannot be undone.
+                        </Text>
+                        <Text style={styles.label}>Type RESET to confirm</Text>
+                        <TextInput
+                            style={[styles.input, { marginBottom: 16, letterSpacing: 2, fontWeight: '700' }]}
+                            value={resetConfirmText}
+                            onChangeText={v => setResetConfirmText(v.toUpperCase())}
+                            placeholder="RESET"
+                            placeholderTextColor={Colors.muted}
+                            autoCapitalize="characters"
+                        />
+                        <View style={styles.modalBtns}>
+                            <TouchableOpacity style={styles.cancelBtn} onPress={() => setResetModal(false)}>
+                                <Text style={styles.cancelBtnText}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.saveBtn, { flex: 1, marginBottom: 0, backgroundColor: resetConfirmText === 'RESET' ? Colors.expense : Colors.muted }]}
+                                disabled={resetConfirmText !== 'RESET'}
+                                onPress={() => { setResetModal(false); resetBusinessData(); }}
+                            >
+                                <Text style={styles.saveBtnText}>Delete All Records</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Delete Account Modal */}
+            <Modal visible={deleteModal} animationType="slide" transparent onRequestClose={() => setDeleteModal(false)}>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalCard}>
+                        <Text style={styles.modalTitle}>Delete Account</Text>
+                        <Text style={[styles.hint, { marginBottom: 12 }]}>
+                            This permanently removes your account and ALL business data from the cloud.
+                            This cannot be undone. You will need to create a new account to use Quad360 again.
+                        </Text>
+                        <Text style={styles.label}>Type DELETE to confirm</Text>
+                        <TextInput
+                            style={[styles.input, { marginBottom: 16, letterSpacing: 2, fontWeight: '700' }]}
+                            value={deleteConfirmText}
+                            onChangeText={v => setDeleteConfirmText(v.toUpperCase())}
+                            placeholder="DELETE"
+                            placeholderTextColor={Colors.muted}
+                            autoCapitalize="characters"
+                        />
+                        <View style={styles.modalBtns}>
+                            <TouchableOpacity style={styles.cancelBtn} onPress={() => setDeleteModal(false)}>
+                                <Text style={styles.cancelBtnText}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.saveBtn, { flex: 1, marginBottom: 0, backgroundColor: deleteConfirmText === 'DELETE' ? '#7f1d1d' : Colors.muted }]}
+                                disabled={deleteConfirmText !== 'DELETE'}
+                                onPress={() => { setDeleteModal(false); deleteAccount(); }}
+                            >
+                                <Text style={styles.saveBtnText}>Delete My Account</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
+    );
+}
+
+function CollapsibleSection({ title, children, defaultOpen = false }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
+    const [open, setOpen] = useState(defaultOpen);
+    return (
+        <View style={styles.section}>
+            <TouchableOpacity style={styles.sectionHeader} onPress={() => setOpen(v => !v)}>
+                <Text style={styles.sectionTitle}>{title}</Text>
+                <Text style={styles.sectionChevron}>{open ? '▾' : '▸'}</Text>
+            </TouchableOpacity>
+            {open && <View style={styles.sectionBody}>{children}</View>}
+        </View>
     );
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
     return (
-        <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{title}</Text>
+        <View style={styles.subsection}>
+            <Text style={styles.subsectionTitle}>{title}</Text>
             {children}
         </View>
     );
@@ -544,8 +620,15 @@ const styles = StyleSheet.create({
     pad:    { padding: 16 },
     title:  { fontSize: 20, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 20 },
 
-    section:      { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 16 },
-    sectionTitle: { fontSize: 15, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 12 },
+    section:        { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 16 },
+    sectionHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    sectionTitle:   { fontSize: 15, fontWeight: 'bold', color: Colors.textPrimary },
+    sectionChevron: { fontSize: 16, color: Colors.textMuted },
+    sectionBody:    { marginTop: 12 },
+
+    subsection:      { marginBottom: 16 },
+    subsectionTitle: { fontSize: 13, fontWeight: 'bold', color: Colors.textSecondary, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
+
     hint:  { fontSize: 12, color: Colors.textMuted, lineHeight: 18, marginBottom: 8 },
     label: { fontSize: 12, color: Colors.textSecondary, fontWeight: '600', marginBottom: 6, marginTop: 10 },
     input: {

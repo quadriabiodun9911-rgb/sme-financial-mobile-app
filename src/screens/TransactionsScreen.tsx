@@ -527,19 +527,17 @@ export default function TransactionsScreen() {
 
                             {/* ── Category ──────────────────────────────── */}
                             <Section label="Category">
-                                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                                    <View style={styles.optRow}>
-                                        {CATEGORIES.map(c => (
-                                            <TouchableOpacity
-                                                key={c}
-                                                style={[styles.opt, form.category === c && styles.optActive]}
-                                                onPress={() => setForm(f => ({ ...f, category: c }))}
-                                            >
-                                                <Text style={[styles.optText, form.category === c && styles.optTextActive]}>{c}</Text>
-                                            </TouchableOpacity>
-                                        ))}
-                                    </View>
-                                </ScrollView>
+                                <View style={styles.categoryGrid}>
+                                    {CATEGORIES.map(c => (
+                                        <TouchableOpacity
+                                            key={c}
+                                            style={[styles.opt, form.category === c && styles.optActive]}
+                                            onPress={() => setForm(f => ({ ...f, category: c }))}
+                                        >
+                                            <Text style={[styles.optText, form.category === c && styles.optTextActive]}>{c}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
                             </Section>
 
                             {/* ── Tax ───────────────────────────────────── */}
@@ -774,7 +772,8 @@ const styles = StyleSheet.create({
     input:      { backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, color: Colors.textPrimary, fontSize: 14 },
     taxPreview: { fontSize: 11, color: Colors.warning, marginTop: 4 },
 
-    optRow:    { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    optRow:        { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    categoryGrid:  { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     opt:       { paddingHorizontal: 12, paddingVertical: 7, backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: 6 },
     optActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
     optText:   { color: Colors.textMuted, fontSize: 12 },

@@ -334,23 +334,30 @@ export default function LoginScreen() {
             <SafeAreaView style={styles.safe}>
                 <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
                     <View style={styles.card}>
-                        <Text style={styles.title}>Reset PIN</Text>
+                        <Text style={styles.title}>Forgot Your PIN?</Text>
                         <Text style={styles.subtitle}>
                             {resetStep === 'request'
-                                ? 'Enter your email and new PIN. We\'ll send a reset link to your inbox.'
+                                ? 'No problem. Follow the steps below and you\'ll be back in 2 minutes.'
                                 : resetStep === 'complete-web'
-                                ? 'Email verified! Set your new PIN below.'
-                                : `Check your inbox at ${resetEmail} — click the link in the email to reset your PIN.`}
+                                ? 'Identity confirmed. Now set your new PIN.'
+                                : 'Almost done — just check your email.'}
                         </Text>
 
                         {resetStep === 'request' ? (
                             <>
-                                <Field label="Email Address">
+                                <View style={styles.stepsBox}>
+                                    <Text style={styles.stepsTitle}>How it works:</Text>
+                                    <Text style={styles.stepsItem}>1. Enter your email and choose a new PIN below</Text>
+                                    <Text style={styles.stepsItem}>2. We send a reset link to your email</Text>
+                                    <Text style={styles.stepsItem}>3. Open the email on this device and tap the link</Text>
+                                    <Text style={styles.stepsItem}>4. The link brings you back here and sets your new PIN</Text>
+                                </View>
+                                <Field label="Your Account Email">
                                     <TextInput style={styles.input} value={resetEmail} onChangeText={setResetEmail}
                                         placeholder="your@email.com" placeholderTextColor={Colors.muted}
                                         autoCapitalize="none" keyboardType="email-address" />
                                 </Field>
-                                <Field label="New PIN (6 digits)">
+                                <Field label="Choose a New PIN (6 digits)">
                                     <TextInput style={styles.input} value={resetNewPin} onChangeText={setResetNewPin}
                                         placeholder="••••••" placeholderTextColor={Colors.muted}
                                         secureTextEntry keyboardType="number-pad" maxLength={6} />
@@ -364,20 +371,27 @@ export default function LoginScreen() {
                                     onPress={handleResetRequest} disabled={resetSubmitting}>
                                     {resetSubmitting
                                         ? <ActivityIndicator color="#fff" />
-                                        : <Text style={styles.btnText}>Send Reset Email</Text>}
+                                        : <Text style={styles.btnText}>Send Reset Link to My Email</Text>}
                                 </TouchableOpacity>
                             </>
                         ) : (
                             <>
                                 <View style={styles.infoBox}>
+                                    <Text style={styles.infoBoxTitle}>Check your email</Text>
                                     <Text style={styles.infoText}>
-                                        📧 A reset link has been sent to{'\n'}<Text style={{ fontWeight: 'bold' }}>{resetEmail}</Text>{'\n\n'}
-                                        Open the email and click <Text style={{ fontWeight: 'bold' }}>"Reset Password"</Text> — the link will open this app and your PIN will be updated automatically.{'\n\n'}
-                                        ⚠️ The link expires in 1 hour. Check your spam folder if you don't see it.
+                                        We sent a reset link to:{'\n'}
+                                        <Text style={{ fontWeight: 'bold', color: Colors.textPrimary }}>{resetEmail}</Text>
                                     </Text>
+                                    <View style={styles.infoSteps}>
+                                        <Text style={styles.infoStep}>1. Open your email app now</Text>
+                                        <Text style={styles.infoStep}>2. Find the email from Quad360</Text>
+                                        <Text style={styles.infoStep}>3. Tap "Reset Password" in the email</Text>
+                                        <Text style={styles.infoStep}>4. It will bring you back here automatically</Text>
+                                    </View>
+                                    <Text style={styles.infoNote}>Link expires in 1 hour. Check your spam folder if you don't see it.</Text>
                                 </View>
                                 <TouchableOpacity style={styles.switchBtn} onPress={() => { setResetStep('request'); setResetOtp(''); }}>
-                                    <Text style={styles.switchText}>← Didn't receive it? Try again</Text>
+                                    <Text style={styles.switchText}>Didn't get the email? Try again →</Text>
                                 </TouchableOpacity>
                             </>
                         )}
@@ -467,6 +481,19 @@ export default function LoginScreen() {
                     <View style={styles.card}>
                         <Image source={require('../../assets/icon.png')} style={styles.logo} />
                         <Text style={styles.subtitle}>{t(setupLang, 'setupSubtitle')}</Text>
+
+                        {/* Social proof strip */}
+                        <View style={styles.socialProofSetup}>
+                            <View style={styles.socialProofPill}>
+                                <Text style={styles.socialProofPillText}>Free forever · No credit card</Text>
+                            </View>
+                            <View style={styles.socialProofPill}>
+                                <Text style={styles.socialProofPillText}>Trusted by SMEs in 10+ countries</Text>
+                            </View>
+                            <View style={styles.socialProofPill}>
+                                <Text style={styles.socialProofPillText}>Your data stays private</Text>
+                            </View>
+                        </View>
 
                         {/* Language picker — shown first so the rest renders in chosen language */}
                         <Text style={styles.sectionLabel}>{t(setupLang, 'preferredLanguage')}</Text>
@@ -562,6 +589,18 @@ export default function LoginScreen() {
                     <Image source={require('../../assets/icon.png')} style={styles.logo} />
                     <Text style={styles.subtitle}>{t(language, 'loginSubtitle')}</Text>
 
+                    {/* Social proof strip */}
+                    <View style={styles.socialProof}>
+                        <View style={styles.socialProofAvatars}>
+                            {['🇳🇬','🇿🇦','🇰🇪','🇬🇭','🇬🇧'].map((flag, i) => (
+                                <View key={i} style={[styles.avatar, { marginLeft: i === 0 ? 0 : -8 }]}>
+                                    <Text style={styles.avatarFlag}>{flag}</Text>
+                                </View>
+                            ))}
+                        </View>
+                        <Text style={styles.socialProofText}>Trusted by SMEs across Africa & beyond</Text>
+                    </View>
+
                     {isLockedOut && timeRemaining !== null && timeRemaining > 0 && (
                         <View style={styles.lockoutBanner}>
                             <Text style={styles.lockoutText}>
@@ -641,7 +680,7 @@ export default function LoginScreen() {
                         setResetEmail(''); setResetNewPin(''); setResetConfirmPin(''); setResetOtp(''); setResetStep('request');
                         setMode('reset-pin');
                     }}>
-                        <Text style={styles.resetText}>Forgot PIN?</Text>
+                        <Text style={styles.resetText}>Forgot your PIN? Reset it in 2 minutes →</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.demoBtn} onPress={() => setMode('demo-pick')}>
                         <Text style={styles.demoBtnText}>👀 Try Demo First (No sign-up needed)</Text>
@@ -742,11 +781,22 @@ const styles = StyleSheet.create({
     resetText:  { color: '#ef4444', fontSize: 12 },
     trustNote:  { fontSize: 11, color: Colors.textMuted, textAlign: 'center', marginTop: 10, lineHeight: 16 },
 
-    infoBox: {
-        backgroundColor: 'rgba(0,102,204,0.12)', borderWidth: 1, borderColor: Colors.primary,
-        borderRadius: 10, padding: 14, marginBottom: 16,
+    stepsBox: {
+        backgroundColor: Colors.bg, borderRadius: 10, padding: 14, marginBottom: 16,
+        borderWidth: 1, borderColor: Colors.border,
     },
-    infoText: { color: Colors.textSecondary, fontSize: 13, lineHeight: 20, textAlign: 'center' },
+    stepsTitle: { fontSize: 12, fontWeight: '700', color: Colors.textMuted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
+    stepsItem:  { fontSize: 13, color: Colors.textSecondary, lineHeight: 22 },
+
+    infoBox: {
+        backgroundColor: 'rgba(0,102,204,0.08)', borderWidth: 1, borderColor: Colors.primary,
+        borderRadius: 12, padding: 16, marginBottom: 16,
+    },
+    infoBoxTitle: { fontSize: 16, fontWeight: '700', color: Colors.textPrimary, marginBottom: 8, textAlign: 'center' },
+    infoText:     { fontSize: 13, color: Colors.textSecondary, lineHeight: 20, textAlign: 'center', marginBottom: 12 },
+    infoSteps:    { backgroundColor: Colors.surface, borderRadius: 8, padding: 12, marginBottom: 10 },
+    infoStep:     { fontSize: 13, color: Colors.textSecondary, lineHeight: 24 },
+    infoNote:     { fontSize: 11, color: Colors.textMuted, textAlign: 'center', fontStyle: 'italic' },
 
     lockoutBanner: {
         backgroundColor: 'rgba(239,68,68,0.15)', borderWidth: 1, borderColor: '#ef4444',
@@ -785,6 +835,28 @@ const styles = StyleSheet.create({
         borderWidth: 1, borderColor: Colors.primary, backgroundColor: 'transparent',
     },
     demoBtnText: { color: Colors.primary, fontWeight: '600', fontSize: 13 },
+
+    socialProof: {
+        flexDirection: 'row', alignItems: 'center', gap: 10,
+        backgroundColor: Colors.bg, borderRadius: 10, padding: 10,
+        marginBottom: 16, borderWidth: 1, borderColor: Colors.border,
+    },
+    socialProofAvatars: { flexDirection: 'row' },
+    avatar: {
+        width: 28, height: 28, borderRadius: 14,
+        backgroundColor: Colors.surface, borderWidth: 1.5,
+        borderColor: Colors.bg, alignItems: 'center', justifyContent: 'center',
+    },
+    avatarFlag:      { fontSize: 14 },
+    socialProofText: { flex: 1, fontSize: 11, color: Colors.textMuted, fontWeight: '500' },
+
+    socialProofSetup: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 16 },
+    socialProofPill:  {
+        backgroundColor: Colors.bg, borderRadius: 20,
+        paddingHorizontal: 10, paddingVertical: 5,
+        borderWidth: 1, borderColor: Colors.border,
+    },
+    socialProofPillText: { fontSize: 11, color: Colors.textMuted, fontWeight: '500' },
 
     bizCard: {
         flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.bg,

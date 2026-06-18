@@ -58,19 +58,20 @@ export interface EnhancedPnL {
 export function computeEnhancedPnL(transactions: Transaction[], assets: Asset[]): EnhancedPnL {
     const isCOGS = (cat: string) => COGS_KEYWORDS.some(k => cat.toLowerCase().includes(k));
 
-    const revenue = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+    const revenue = transactions.filter(t => t.type === 'income').reduce((s, t) => s + (Number(t.amount) || 0), 0);
     const expenses = transactions.filter(t => t.type === 'expense');
 
     const cogsMap = new Map<string, number>();
     const sgaMap  = new Map<string, number>();
     let cogs = 0, sga = 0;
     for (const t of expenses) {
+        const amt = Number(t.amount) || 0;
         if (isCOGS(t.category)) {
-            cogs += t.amount;
-            cogsMap.set(t.category, (cogsMap.get(t.category) ?? 0) + t.amount);
+            cogs += amt;
+            cogsMap.set(t.category, (cogsMap.get(t.category) ?? 0) + amt);
         } else {
-            sga += t.amount;
-            sgaMap.set(t.category, (sgaMap.get(t.category) ?? 0) + t.amount);
+            sga += amt;
+            sgaMap.set(t.category, (sgaMap.get(t.category) ?? 0) + amt);
         }
     }
 

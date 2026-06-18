@@ -98,7 +98,8 @@ function buildInvoiceHtml(inv: Invoice, businessName: string, currency: string):
 
 ${inv.notes ? `<div class="notes" style="clear:both;margin-top:60px"><b>Notes:</b><br/>${inv.notes}</div>` : ''}
 <div style="clear:both;margin-top:80px;padding-top:20px;border-top:1px solid #e2e8f0;text-align:center;color:#94a3b8;font-size:11px;">
-  Created with <strong style="color:#2563eb">Quad360</strong> — Free financial management for small businesses &nbsp;·&nbsp; <span style="color:#2563eb">quad360.app</span>
+  <strong style="color:#2563eb;font-size:13px">Powered by Quad360</strong><br/>
+  Free financial management for small businesses &nbsp;·&nbsp; <span style="color:#2563eb">quad360.vercel.app</span>
 </div>
 </body>
 </html>`;
@@ -128,8 +129,9 @@ export default function InvoicesScreen() {
     }, [invoices, filter]);
 
     const totals = useMemo(() => {
-        const subtotal = lineItems.reduce((s, li) => s + li.quantity * li.unitPrice, 0);
-        const taxTotal = lineItems.reduce((s, li) => s + li.quantity * li.unitPrice * (li.taxRate / 100), 0);
+        const items = lineItems ?? [];
+        const subtotal = items.reduce((s, li) => s + li.quantity * li.unitPrice, 0);
+        const taxTotal = items.reduce((s, li) => s + li.quantity * li.unitPrice * (li.taxRate / 100), 0);
         return { subtotal, taxTotal, total: subtotal + taxTotal };
     }, [lineItems]);
 

@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text,
     TouchableOpacity, StyleSheet, ActivityIndicator,
-    Modal, TextInput, KeyboardAvoidingView, Platform, Alert,
+    Modal, TextInput, KeyboardAvoidingView, Platform, Alert, Animated,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
@@ -13,6 +14,10 @@ import { t } from '../utils/i18n';
 import { validateAmount, validateDescription } from '../utils/validation';
 import OnboardingWizard from '../components/OnboardingWizard';
 import ProfitShareCard from '../components/ProfitShareCard';
+import RetentionNudges from '../components/RetentionNudges';
+import FirstRunWizard from '../components/FirstRunWizard';
+import GlobalSearch from '../components/GlobalSearch';
+import MonthlyReview from '../components/MonthlyReview';
 
 const INCOME_CATEGORIES = ['Sales', 'Service', 'Consulting', 'Rental', 'Interest', 'Other Income'];
 const EXPENSE_CATEGORIES = ['Rent', 'Salaries', 'Utilities', 'Marketing', 'Supplies', 'Transport', 'Meals', 'Software', 'Tax', 'Other'];
@@ -27,8 +32,27 @@ export default function DashboardScreen() {
     const [qaCategory, setQaCategory]     = useState('');
     const [qaSubmitting, setQaSubmitting] = useState(false);
     const [showMore, setShowMore]               = useState(false);
+    const [showGoDeeper, setShowGoDeeper]       = useState(false);
+    const [onboardingDismissed, setOnboardingDismissed] = useState(false);
     const [showOnboardingWizard, setShowOnboardingWizard] = useState(false);
     const [showShareCard, setShowShareCard]     = useState(false);
+    const [showFirstRun, setShowFirstRun]       = useState(false);
+    const [showSearch, setShowSearch]           = useState(false);
+    const [showMonthlyReview, setShowMonthlyReview] = useState(false);
+    const [toast, setToast]                     = useState<string | null>(null);
+
+    useEffect(() => {
+        AsyncStorage.getItem('@quad360/onboarding_dismissed').then(v => {
+            if (v === '1') setOnboardingDismissed(true);
+        });
+    }, []);
+
+    useEffect(() => {
+        if (isDemoMode) return;
+        AsyncStorage.getItem('@quad360/first_run_done').then(v => {
+            if (!v) setShowFirstRun(true);
+        });
+    }, [isDemoMode]);
 
     const categories = qaType === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
 
@@ -38,6 +62,11 @@ export default function DashboardScreen() {
         setQaAmount('');
         setQaDesc('');
         setFabOpen(true);
+    };
+
+    const showToast = (msg: string) => {
+        setToast(msg);
+        setTimeout(() => setToast(null), 3000);
     };
 
     const submitQuickAdd = () => {
@@ -57,6 +86,8 @@ export default function DashboardScreen() {
                 status: 'paid',
             });
             setQaAmount(''); setQaDesc(''); setQaCategory(''); setFabOpen(false);
+            const newProfit = finance.profit + (qaType === 'income' ? amt : -amt);
+            showToast(`Saved! This month's profit: ${settings.currency}${newProfit.toLocaleString()}`);
         } finally {
             setQaSubmitting(false);
         }
@@ -91,16 +122,38 @@ export default function DashboardScreen() {
     const loggedToday = transactions.some(tx => tx.date === today);
     const hasTransaction = transactions.length > 0;
     const hasGoal        = goals.length > 0;
-    const showOnboarding = !hasTransaction || !hasGoal;
+    const showOnboarding = (!hasTransaction || !hasGoal) && !onboardingDismissed;
+
+    const dismissOnboarding = () => {
+        AsyncStorage.setItem('@quad360/onboarding_dismissed', '1');
+        setOnboardingDismissed(true);
+    };
 
     const runwayDays = finance.expense > 0 ? Math.floor(finance.cashBalance / (finance.expense / 30)) : null;
     const runwayColor = runwayDays === null ? Colors.income : runwayDays < 30 ? Colors.expense : runwayDays < 60 ? Colors.warning : Colors.income;
+
+    // Last month date range
+    const now = new Date();
+    const thisMonthStr = now.toISOString().slice(0, 7); // YYYY-MM
+    const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonthStr = lastMonthDate.toISOString().slice(0, 7);
+    const lastMonthIncome  = transactions.filter(t => t.type === 'income'  && t.date.startsWith(lastMonthStr)).reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    const lastMonthExpense = transactions.filter(t => t.type === 'expense' && t.date.startsWith(lastMonthStr)).reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    const lastMonthProfit  = lastMonthIncome - lastMonthExpense;
+    const thisMonthIncome  = transactions.filter(t => t.type === 'income'  && t.date.startsWith(thisMonthStr)).reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    const thisMonthExpense = transactions.filter(t => t.type === 'expense' && t.date.startsWith(thisMonthStr)).reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    const thisMonthProfit  = thisMonthIncome - thisMonthExpense;
+    const profitDelta = lastMonthProfit !== 0 ? ((thisMonthProfit - lastMonthProfit) / Math.abs(lastMonthProfit)) * 100 : null;
 
     return (
         <SafeAreaView style={styles.safe}>
             <Header />
             <ScrollView style={styles.scroll} contentContainerStyle={styles.pad}>
 
+                <TouchableOpacity style={styles.searchTrigger} onPress={() => setShowSearch(true)}>
+                    <Text style={styles.searchTriggerIcon}>🔍</Text>
+                    <Text style={styles.searchTriggerText}>Search transactions, invoices, assets...</Text>
+                </TouchableOpacity>
                 <Text style={styles.title}>{t(language, 'dashboard')}</Text>
 
                 {/* ── Demo banner ──────────────────────────────────────────── */}
@@ -116,8 +169,15 @@ export default function DashboardScreen() {
                 {/* ── Onboarding ───────────────────────────────────────────── */}
                 {showOnboarding && (
                     <View style={styles.onboardCard}>
-                        <Text style={styles.onboardTitle}>🚀 Get started — 3 quick steps</Text>
-                        <Text style={styles.onboardSub}>Complete these to unlock your full financial picture</Text>
+                        <View style={styles.onboardHeader}>
+                            <View>
+                                <Text style={styles.onboardTitle}>🚀 Get started — 3 quick steps</Text>
+                                <Text style={styles.onboardSub}>Complete these to unlock your full financial picture</Text>
+                            </View>
+                            <TouchableOpacity onPress={dismissOnboarding} style={styles.onboardDismissBtn}>
+                                <Text style={styles.onboardDismissText}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
                         <View style={styles.onboardStep}>
                             <Text style={styles.onboardCheck}>✅</Text>
                             <Text style={[styles.onboardStepText, styles.onboardDone]}>Create your account</Text>
@@ -137,6 +197,16 @@ export default function DashboardScreen() {
                             </View>
                         </TouchableOpacity>
                     </View>
+                )}
+
+                {/* ── Retention nudges ─────────────────────────────────────── */}
+                {!isDemoMode && (
+                    <RetentionNudges
+                        transactions={transactions}
+                        currency={currency}
+                        profit={finance.profit}
+                        onAddTransaction={() => openFab()}
+                    />
                 )}
 
                 {/* ── Alert banners (always visible) ───────────────────────── */}
@@ -162,38 +232,123 @@ export default function DashboardScreen() {
                         {finance.profit >= 0 ? 'PROFITABLE ✓' : 'LOSING MONEY ✗'}
                     </Text>
                     <Text style={[styles.heroProfit, { color: finance.profit >= 0 ? Colors.income : Colors.expense }]}>
-                        {finance.profit >= 0 ? '+' : ''}{currency}{finance.depreciationAdjustedProfit.toLocaleString()}
+                        {finance.profit >= 0 ? '+' : ''}{currency}{finance.profit.toLocaleString()}
                     </Text>
                     <View style={styles.heroSubRow}>
-                        <Text style={[styles.heroMargin, { color: finance.margin >= parseFloat(targetMargin) ? Colors.income : Colors.expense }]}>
-                            {finance.margin.toFixed(1)}% margin
+                        <Text style={[styles.heroMargin, { color: finance.profit >= 0 ? Colors.income : Colors.expense }]}>
+                            {finance.profit >= 0
+                                ? `${finance.margin.toFixed(0)}% of your income is profit`
+                                : 'You are spending more than you earn'}
                         </Text>
-                        <Text style={styles.heroTarget}>target {targetMargin}%</Text>
                     </View>
+                    {lastMonthProfit !== 0 && profitDelta !== null && (
+                        <View style={styles.deltaRow}>
+                            <Text style={[styles.deltaBadge, { backgroundColor: profitDelta >= 0 ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', color: profitDelta >= 0 ? Colors.income : Colors.expense }]}>
+                                {profitDelta >= 0 ? '▲' : '▼'} {Math.abs(profitDelta).toFixed(0)}% vs last month
+                            </Text>
+                            <Text style={styles.deltaHint}>{profitDelta >= 0 ? 'Growing ✓' : 'Down from last month'}</Text>
+                        </View>
+                    )}
                     <View style={styles.heroMetricsRow}>
-                        <View style={styles.heroMetric}>
+                        <TouchableOpacity style={styles.heroMetric} onPress={() => setCurrentScreen('transactions')}>
                             <Text style={styles.heroMetricLabel}>Income</Text>
                             <Text style={[styles.heroMetricVal, { color: Colors.income }]}>{currency}{finance.income.toLocaleString()}</Text>
-                        </View>
+                        </TouchableOpacity>
                         <View style={styles.heroMetricDivider} />
-                        <View style={styles.heroMetric}>
+                        <TouchableOpacity style={styles.heroMetric} onPress={() => setCurrentScreen('transactions')}>
                             <Text style={styles.heroMetricLabel}>Expenses</Text>
                             <Text style={[styles.heroMetricVal, { color: Colors.expense }]}>{currency}{finance.expense.toLocaleString()}</Text>
-                        </View>
+                        </TouchableOpacity>
                         <View style={styles.heroMetricDivider} />
                         <View style={styles.heroMetric}>
-                            <Text style={styles.heroMetricLabel}>Net Profit</Text>
-                            <Text style={[styles.heroMetricVal, { color: finance.depreciationAdjustedProfit >= 0 ? Colors.income : Colors.expense }]}>
-                                {finance.depreciationAdjustedProfit >= 0 ? '+' : ''}{currency}{finance.depreciationAdjustedProfit.toLocaleString()}
+                            <Text style={styles.heroMetricLabel}>Cash Profit</Text>
+                            <Text style={[styles.heroMetricVal, { color: finance.profit >= 0 ? Colors.income : Colors.expense }]}>
+                                {finance.profit >= 0 ? '+' : ''}{currency}{finance.profit.toLocaleString()}
                             </Text>
                         </View>
                     </View>
                     {finance.annualDepreciation > 0 && (
                         <Text style={styles.deprNote}>
-                            Includes {currency}{Math.round(finance.annualDepreciation).toLocaleString()} depreciation · Cash: {currency}{finance.profit.toLocaleString()}
+                            After {currency}{Math.round(finance.annualDepreciation).toLocaleString()} depreciation: {currency}{finance.depreciationAdjustedProfit.toLocaleString()} · Cash profit shown above
                         </Text>
                     )}
+                    {finance.profit > 0 && hasTransaction && (
+                        <TouchableOpacity style={styles.shareWinBtn} onPress={() => setShowShareCard(true)}>
+                            <Text style={styles.shareWinText}>📤 Share your win</Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
+
+                {/* ── Loss guidance ────────────────────────────────────────── */}
+                {finance.profit < 0 && hasTransaction && (
+                    <View style={styles.lossGuide}>
+                        <Text style={styles.lossGuideTitle}>💡 Here's what you can do</Text>
+                        {(() => {
+                            const cats: Record<string, number> = {};
+                            transactions.filter(t => t.type === 'expense').forEach(t => {
+                                const c = t.category || 'Other';
+                                cats[c] = (cats[c] || 0) + (Number(t.amount) || 0);
+                            });
+                            const top = Object.entries(cats).sort((a, b) => b[1] - a[1])[0];
+                            return top ? (
+                                <Text style={styles.lossGuideText}>
+                                    Your biggest cost is <Text style={styles.lossGuideHighlight}>{top[0]} ({currency}{top[1].toLocaleString()})</Text>.{'\n'}
+                                    Can you charge customers a little more, or spend less on {top[0].toLowerCase()}?
+                                </Text>
+                            ) : (
+                                <Text style={styles.lossGuideText}>Try logging all your expenses — knowing where money goes is the first step to fixing it.</Text>
+                            );
+                        })()}
+                        <TouchableOpacity onPress={() => setCurrentScreen('transactions')} style={styles.lossGuideBtn}>
+                            <Text style={styles.lossGuideBtnText}>See all my expenses →</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
+
+                {/* ── Quick Answers ─────────────────────────────────────────── */}
+                {hasTransaction && (
+                    <View style={styles.qaRow}>
+                        {(() => {
+                            const now = new Date();
+                            const weekStart = new Date(now);
+                            weekStart.setDate(now.getDate() - now.getDay());
+                            const weekStr = weekStart.toISOString().split('T')[0];
+                            const weekIncome  = transactions.filter(t => t.type === 'income'  && t.date >= weekStr).reduce((s, t) => s + (Number(t.amount) || 0), 0);
+                            const weekExpense = transactions.filter(t => t.type === 'expense' && t.date >= weekStr).reduce((s, t) => s + (Number(t.amount) || 0), 0);
+                            const weekProfit  = weekIncome - weekExpense;
+                            const cats: Record<string, number> = {};
+                            transactions.filter(t => t.type === 'expense').forEach(t => {
+                                const c = t.category || 'Other';
+                                cats[c] = (cats[c] || 0) + (Number(t.amount) || 0);
+                            });
+                            const topCat = Object.entries(cats).sort((a, b) => b[1] - a[1])[0];
+                            const owedCount = overdueInvoices.length + transactions.filter(t => t.status === 'overdue').length;
+                            return (
+                                <>
+                                    <TouchableOpacity style={[styles.qaCard, { borderColor: weekProfit >= 0 ? Colors.income : Colors.expense }]} onPress={() => setCurrentScreen('reports')}>
+                                        <Text style={styles.qaQuestion}>Did I make money this week?</Text>
+                                        <Text style={[styles.qaAnswer, { color: weekProfit >= 0 ? Colors.income : Colors.expense }]}>
+                                            {weekProfit >= 0 ? '✅ Yes' : '❌ No'}
+                                        </Text>
+                                        <Text style={[styles.qaValue, { color: weekProfit >= 0 ? Colors.income : Colors.expense }]}>
+                                            {weekProfit >= 0 ? '+' : ''}{currency}{weekProfit.toLocaleString()}
+                                        </Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity style={styles.qaCard} onPress={() => setCurrentScreen('transactions')}>
+                                        <Text style={styles.qaQuestion}>Where did most money go?</Text>
+                                        <Text style={styles.qaAnswer}>{topCat ? topCat[0] : '—'}</Text>
+                                        <Text style={styles.qaValue}>{topCat ? `${currency}${topCat[1].toLocaleString()}` : 'No expenses yet'}</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity style={[styles.qaCard, { borderColor: owedCount > 0 ? Colors.warning : Colors.border }]} onPress={() => setCurrentScreen('invoices')}>
+                                        <Text style={styles.qaQuestion}>Who owes me money?</Text>
+                                        <Text style={[styles.qaAnswer, { color: owedCount > 0 ? Colors.warning : Colors.income }]}>{owedCount > 0 ? `${owedCount} unpaid` : '✅ All clear'}</Text>
+                                        <Text style={styles.qaValue}>{owedCount > 0 ? 'Tap to chase →' : 'No unpaid invoices'}</Text>
+                                    </TouchableOpacity>
+                                </>
+                            );
+                        })()}
+                    </View>
+                )}
 
                 {/* ── CARD 2: Quick actions row ────────────────────────────── */}
                 <View style={styles.quickActionsRow}>
@@ -215,23 +370,58 @@ export default function DashboardScreen() {
                     </TouchableOpacity>
                 </View>
 
-                {/* ── CARD 3: AI Insight ───────────────────────────────────── */}
-                <TouchableOpacity style={[styles.insightCard, { borderLeftColor: insightBorder }]} onPress={() => setCurrentScreen('insights')}>
-                    <View style={styles.insightHeader}>
-                        <View style={[styles.tag, { backgroundColor: insightBorder }]}>
-                            <Text style={styles.tagText}>{insight.tag}</Text>
+                {/* ── CARD 3: Go Deeper (AI Insight + Analysis + CFO) ─────── */}
+                <View style={[styles.goDeeperCard, { borderLeftColor: insightBorder }]}>
+                    <TouchableOpacity style={styles.goDeeperHeader} onPress={() => setShowGoDeeper(v => !v)}>
+                        <View style={styles.goDeeperLeft}>
+                            <View style={[styles.tag, { backgroundColor: insightBorder }]}>
+                                <Text style={styles.tagText}>{insight.tag}</Text>
+                            </View>
+                            <Text style={styles.goDeeperTitle}>{insight.title}</Text>
                         </View>
-                        <Text style={styles.insightLink}>Full insights →</Text>
-                    </View>
-                    <Text style={styles.insightTitle}>{insight.title}</Text>
+                        <Text style={styles.goDeeperToggle}>{showGoDeeper ? '▲' : '▼ Go Deeper'}</Text>
+                    </TouchableOpacity>
                     <Text style={styles.insightAction}>{insight.action}</Text>
-                </TouchableOpacity>
+                    {transactions.length === 0 && (
+                        <Text style={styles.insightStale}>Add transactions to unlock personalised insights</Text>
+                    )}
+                    {showGoDeeper && (
+                        <View style={styles.goDeeperOptions}>
+                            <TouchableOpacity style={styles.goDeeperOption} onPress={() => setCurrentScreen('insights')}>
+                                <Text style={styles.goDeeperOptionIcon}>💡</Text>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.goDeeperOptionLabel}>AI Insights</Text>
+                                    <Text style={styles.goDeeperOptionSub}>Full breakdown & recommendations</Text>
+                                </View>
+                                <Text style={styles.quickArrow}>›</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.goDeeperOption} onPress={() => setCurrentScreen('analysis')}>
+                                <Text style={styles.goDeeperOptionIcon}>🔍</Text>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.goDeeperOptionLabel}>Analysis & Decisions</Text>
+                                    <Text style={styles.goDeeperOptionSub}>Why did my profit change? · What if I hire or borrow?</Text>
+                                </View>
+                                <Text style={styles.quickArrow}>›</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.goDeeperOption, { borderBottomWidth: 0 }]} onPress={() => setCurrentScreen('cfo')}>
+                                <Text style={styles.goDeeperOptionIcon}>🧠</Text>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.goDeeperOptionLabel}>Business Advisor</Text>
+                                    <Text style={styles.goDeeperOptionSub}>Cash flow forecast · Risk check · Loan calculator</Text>
+                                </View>
+                                <Text style={styles.quickArrow}>›</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+                </View>
 
                 {/* ── CARD 4: Cash position ────────────────────────────────── */}
                 <View style={styles.row}>
                     <View style={[styles.card, styles.flex]}>
-                        <Text style={styles.cardLabel}>Cash Balance</Text>
-                        <Text style={[styles.bigNum, { color: Colors.income }]}>{currency}{finance.cashBalance.toLocaleString()}</Text>
+                        <Text style={styles.cardLabel}>Money in Your Account</Text>
+                        <TouchableOpacity onPress={() => setCurrentScreen('transactions')}>
+                            <Text style={[styles.bigNum, { color: Colors.income }]}>{currency}{finance.cashBalance.toLocaleString()}</Text>
+                        </TouchableOpacity>
                         <View style={[styles.reserveBadge, { backgroundColor: finance.cashBalance >= parseFloat(minReserve) ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)' }]}>
                             <Text style={{ fontSize: 10, fontWeight: '700', color: finance.cashBalance >= parseFloat(minReserve) ? Colors.income : Colors.expense }}>
                                 {finance.cashBalance >= parseFloat(minReserve) ? 'Reserve OK ✓' : 'Below Reserve ✗'}
@@ -239,12 +429,14 @@ export default function DashboardScreen() {
                         </View>
                     </View>
                     <View style={[styles.card, styles.flex]}>
-                        <Text style={styles.cardLabel}>Cash Runway</Text>
-                        <Text style={[styles.bigNum, { color: runwayColor }]}>
-                            {runwayDays === null ? '∞' : `${runwayDays}d`}
-                        </Text>
+                        <Text style={styles.cardLabel}>How Long Your Money Lasts</Text>
+                        <TouchableOpacity onPress={() => setCurrentScreen('reports')}>
+                            <Text style={[styles.bigNum, { color: runwayColor }]}>
+                                {runwayDays === null ? '∞' : `${runwayDays} days`}
+                            </Text>
+                        </TouchableOpacity>
                         <Text style={[styles.hint, { color: runwayColor }]}>
-                            {runwayDays === null ? 'No expenses yet' : runwayDays < 30 ? 'Critical — act now!' : runwayDays < 60 ? 'Keep watch' : 'Looking good'}
+                            {runwayDays === null ? 'No bills recorded yet' : runwayDays < 30 ? 'Urgent — money running low!' : runwayDays < 60 ? 'Getting tight — watch spending' : 'You\'re in a good position'}
                         </Text>
                     </View>
                 </View>
@@ -264,40 +456,11 @@ export default function DashboardScreen() {
                     <Text style={styles.quickArrow}>›</Text>
                 </TouchableOpacity>
 
-                {/* ── CARD 6: Analysis & Decisions ─────────────────────────── */}
-                <TouchableOpacity style={[styles.quickCard, { borderColor: Colors.primary, backgroundColor: 'rgba(0,102,204,0.08)' }]} onPress={() => setCurrentScreen('analysis')}>
-                    <View style={styles.quickCardLeft}>
-                        <Text style={styles.quickIcon}>🔍</Text>
-                        <View>
-                            <Text style={[styles.quickLabel, { color: Colors.primary }]}>Analysis & Decisions</Text>
-                            <Text style={styles.quickSub}>Why did profit change? · What if I hire / take a loan?</Text>
-                        </View>
-                    </View>
-                    <Text style={styles.quickArrow}>›</Text>
-                </TouchableOpacity>
-
-                {/* ── CARD 7: CFO Advisor ──────────────────────────────────── */}
-                <TouchableOpacity style={[styles.quickCard, { borderColor: Colors.border }]} onPress={() => setCurrentScreen('cfo')}>
-                    <View style={styles.quickCardLeft}>
-                        <Text style={styles.quickIcon}>🧠</Text>
-                        <View>
-                            <Text style={styles.quickLabel}>CFO Advisor</Text>
-                            <Text style={styles.quickSub}>Forecasts · Risk score · Ratios · Debt optimiser</Text>
-                        </View>
-                    </View>
-                    <Text style={styles.quickArrow}>›</Text>
-                </TouchableOpacity>
-
-                {/* ── Daily nudge ──────────────────────────────────────────── */}
-                {!loggedToday && hasTransaction && (
-                    <TouchableOpacity style={styles.nudgeBanner} onPress={() => openFab()}>
-                        <Text style={styles.nudgeText}>📝 Nothing logged today — tap to add a transaction</Text>
-                    </TouchableOpacity>
-                )}
-
                 {/* ── See more toggle ──────────────────────────────────────── */}
                 <TouchableOpacity style={styles.seeMoreBtn} onPress={() => setShowMore(v => !v)}>
-                    <Text style={styles.seeMoreText}>{showMore ? '▲ Show less' : '▼ More — tax, equity, inventory, assets & loans'}</Text>
+                    <Text style={styles.seeMoreText}>
+                        {showMore ? '▲ Show less' : `▼ See more: ${assets.length > 0 ? `🏗️ ${assets.length} asset${assets.length !== 1 ? 's' : ''} · ` : ''}${loans.filter(l => l.status === 'active').length > 0 ? `🏦 ${loans.filter(l => l.status === 'active').length} loan${loans.filter(l => l.status === 'active').length !== 1 ? 's' : ''} · ` : ''}tax, equity & inventory`}
+                    </Text>
                 </TouchableOpacity>
 
                 {showMore && (
@@ -345,7 +508,7 @@ export default function DashboardScreen() {
                                 <Text style={styles.quickIcon}>📦</Text>
                                 <View>
                                     <Text style={styles.quickLabel}>Inventory & Stock</Text>
-                                    <Text style={styles.quickSub}>Track stock levels, costs & margins</Text>
+                                    <Text style={styles.quickSub}>Track what you have in stock and how much you make on each item</Text>
                                 </View>
                             </View>
                             <Text style={styles.quickArrow}>›</Text>
@@ -357,7 +520,7 @@ export default function DashboardScreen() {
                                 <Text style={styles.quickIcon}>📋</Text>
                                 <View>
                                     <Text style={styles.quickLabel}>Budget vs Actual</Text>
-                                    <Text style={styles.quickSub}>Set monthly budgets, track overspend</Text>
+                                    <Text style={styles.quickSub}>Set a monthly spending limit and see if you're going over</Text>
                                 </View>
                             </View>
                             <Text style={styles.quickArrow}>›</Text>
@@ -412,6 +575,15 @@ export default function DashboardScreen() {
                         </TouchableOpacity>
                     </>
                 )}
+
+                <TouchableOpacity style={styles.reviewBtn} onPress={() => setShowMonthlyReview(true)}>
+                    <Text style={styles.reviewBtnIcon}>📋</Text>
+                    <View>
+                        <Text style={styles.reviewBtnText}>Monthly Review</Text>
+                        <Text style={styles.reviewBtnSub}>Did I make money? · Where did it go? · Who owes me?</Text>
+                    </View>
+                    <Text style={styles.quickArrow}>›</Text>
+                </TouchableOpacity>
 
                 <TouchableOpacity style={styles.btn} onPress={() => setCurrentScreen('reports')}>
                     <Text style={styles.btnText}>{t(language, 'viewDetailedReports')}</Text>
@@ -481,8 +653,23 @@ export default function DashboardScreen() {
                     </TouchableOpacity>
                 </KeyboardAvoidingView>
             </Modal>
+            <GlobalSearch visible={showSearch} onClose={() => setShowSearch(false)} />
             <OnboardingWizard visible={showOnboardingWizard} onDone={() => setShowOnboardingWizard(false)} />
             <ProfitShareCard visible={showShareCard} onClose={() => setShowShareCard(false)} />
+            <FirstRunWizard
+                visible={showFirstRun}
+                onDone={() => {
+                    AsyncStorage.setItem('@quad360/first_run_done', '1');
+                    setShowFirstRun(false);
+                    dismissOnboarding();
+                }}
+            />
+            <MonthlyReview visible={showMonthlyReview} onClose={() => setShowMonthlyReview(false)} />
+            {toast !== null && (
+                <View style={styles.toast} pointerEvents="none">
+                    <Text style={styles.toastText}>✅ {toast}</Text>
+                </View>
+            )}
         </SafeAreaView>
     );
 }
@@ -503,14 +690,17 @@ const styles = StyleSheet.create({
     demoBannerBtn:     { backgroundColor: '#fef3c7', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 5, marginLeft: 8 },
     demoBannerBtnText: { color: '#854d0e', fontWeight: '700', fontSize: 12 },
 
-    onboardCard:     { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: Colors.primary },
-    onboardTitle:    { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },
-    onboardSub:      { fontSize: 12, color: Colors.textMuted, marginBottom: 12 },
-    onboardStep:     { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10, gap: 10 },
-    onboardCheck:    { fontSize: 16, width: 22 },
-    onboardStepText: { fontSize: 14, color: Colors.textPrimary, fontWeight: '600' },
-    onboardDone:     { color: Colors.textMuted, textDecorationLine: 'line-through' },
-    onboardStepHint: { fontSize: 11, color: Colors.primary, marginTop: 1 },
+    onboardCard:        { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: Colors.primary },
+    onboardHeader:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
+    onboardTitle:       { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },
+    onboardSub:         { fontSize: 12, color: Colors.textMuted },
+    onboardDismissBtn:  { padding: 4 },
+    onboardDismissText: { fontSize: 16, color: Colors.textMuted },
+    onboardStep:        { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10, gap: 10 },
+    onboardCheck:       { fontSize: 16, width: 22 },
+    onboardStepText:    { fontSize: 14, color: Colors.textPrimary, fontWeight: '600' },
+    onboardDone:        { color: Colors.textMuted, textDecorationLine: 'line-through' },
+    onboardStepHint:    { fontSize: 11, color: Colors.primary, marginTop: 1 },
 
     alertBanner:  { backgroundColor: 'rgba(245,158,11,0.12)', borderWidth: 1, borderColor: Colors.warning, borderRadius: 8, padding: 10, marginBottom: 8 },
     alertText:    { color: Colors.warning, fontSize: 12, fontWeight: '600' },
@@ -529,6 +719,8 @@ const styles = StyleSheet.create({
     heroMetricVal:     { fontSize: 13, fontWeight: '700' },
     heroMetricDivider: { width: 1, backgroundColor: Colors.border },
     deprNote:          { fontSize: 10, color: Colors.textMuted, textAlign: 'center', marginTop: 8, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 8 },
+    shareWinBtn:       { marginTop: 10, paddingVertical: 8, borderRadius: 8, backgroundColor: 'rgba(16,185,129,0.12)', alignItems: 'center', borderWidth: 1, borderColor: Colors.income },
+    shareWinText:      { fontSize: 12, color: Colors.income, fontWeight: '700' },
 
     quickActionsRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
     quickAction:     { flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: Colors.border },
@@ -542,6 +734,17 @@ const styles = StyleSheet.create({
     insightLink:   { color: Colors.primary, fontSize: 12 },
     insightTitle:  { fontSize: 14, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 4 },
     insightAction: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
+
+    goDeeperCard:       { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 12, borderLeftWidth: 4 },
+    goDeeperHeader:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 },
+    goDeeperLeft:       { flex: 1, gap: 6 },
+    goDeeperTitle:      { fontSize: 14, fontWeight: 'bold', color: Colors.textPrimary },
+    goDeeperToggle:     { fontSize: 12, color: Colors.primary, fontWeight: '600', marginLeft: 8, marginTop: 2 },
+    goDeeperOptions:    { marginTop: 12, borderTopWidth: 1, borderTopColor: Colors.border },
+    goDeeperOption:     { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border, gap: 10 },
+    goDeeperOptionIcon: { fontSize: 20 },
+    goDeeperOptionLabel:{ fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: 1 },
+    goDeeperOptionSub:  { fontSize: 11, color: Colors.textMuted },
 
     card:         { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, marginBottom: 12 },
     cardLabel:    { fontSize: 12, color: Colors.textMuted, marginBottom: 6 },
@@ -569,11 +772,42 @@ const styles = StyleSheet.create({
     nudgeBanner: { backgroundColor: 'rgba(59,130,246,0.1)', borderWidth: 1, borderColor: Colors.primary, borderRadius: 10, padding: 12, marginBottom: 10 },
     nudgeText:   { color: Colors.primary, fontSize: 12, fontWeight: '600' },
 
+    lossGuide:          { backgroundColor: 'rgba(239,68,68,0.07)', borderWidth: 1, borderColor: Colors.expense, borderRadius: 12, padding: 14, marginBottom: 12 },
+    lossGuideTitle:     { fontSize: 13, fontWeight: '700', color: Colors.expense, marginBottom: 6 },
+    lossGuideText:      { fontSize: 13, color: Colors.textSecondary, lineHeight: 20, marginBottom: 10 },
+    lossGuideHighlight: { fontWeight: '700', color: Colors.expense },
+    lossGuideBtn:       { alignSelf: 'flex-start' },
+    lossGuideBtnText:   { fontSize: 12, color: Colors.expense, fontWeight: '600', textDecorationLine: 'underline' },
+
+    qaRow:      { flexDirection: 'row', gap: 8, marginBottom: 12 },
+    qaCard:     { flex: 1, backgroundColor: Colors.surface, borderRadius: 10, padding: 10, borderWidth: 1, borderColor: Colors.border },
+    qaQuestion: { fontSize: 10, color: Colors.textMuted, marginBottom: 4, lineHeight: 13 },
+    qaAnswer:   { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },
+    qaValue:    { fontSize: 10, color: Colors.textMuted },
+
     seeMoreBtn:  { alignItems: 'center', paddingVertical: 12, marginBottom: 8 },
     seeMoreText: { color: Colors.primary, fontSize: 13, fontWeight: '600' },
 
+    reviewBtn:     { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, marginBottom: 10, flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: Colors.primary, gap: 12 },
+    reviewBtnIcon: { fontSize: 22 },
+    reviewBtnText: { fontSize: 14, fontWeight: '700', color: Colors.primary },
+    reviewBtnSub:  { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
+
     btn:     { backgroundColor: Colors.primary, paddingVertical: 13, borderRadius: 10, alignItems: 'center', marginTop: 4 },
     btnText: { color: Colors.textPrimary, fontWeight: 'bold', fontSize: 14 },
+
+    toast:     { position: 'absolute', bottom: 100, left: 20, right: 20, backgroundColor: '#1a1a2e', borderRadius: 10, paddingHorizontal: 16, paddingVertical: 12, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 10 },
+    toastText: { color: '#fff', fontSize: 13, fontWeight: '600', textAlign: 'center' },
+
+    searchTrigger:     { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 14, gap: 8 },
+    searchTriggerIcon: { fontSize: 14, color: Colors.textMuted },
+    searchTriggerText: { fontSize: 13, color: Colors.textMuted, flex: 1 },
+
+    deltaRow:   { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+    deltaBadge: { fontSize: 11, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+    deltaHint:  { fontSize: 11, color: Colors.textMuted },
+
+    insightStale: { fontSize: 11, color: Colors.textMuted, fontStyle: 'italic', marginTop: 4 },
 
     fab:     { position: 'absolute', right: 20, bottom: 80, width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.income, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 8 },
     fabText: { fontSize: 30, color: Colors.textPrimary, lineHeight: 34 },
