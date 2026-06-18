@@ -199,13 +199,35 @@ export default function DashboardScreen() {
                     </View>
                 )}
 
+                {/* ── 3 Survival Numbers strip — always first ───────────────── */}
+                <View style={styles.survivalRow}>
+                    <View style={styles.survivalCard}>
+                        <Text style={styles.survivalLabel}>💰 Profit TODAY</Text>
+                        <Text style={[styles.survivalValue, { color: todayProfit >= 0 ? Colors.income : Colors.expense }]}>
+                            {todayProfit >= 0 ? '+' : ''}{currency}{todayProfit.toLocaleString()}
+                        </Text>
+                    </View>
+                    <View style={styles.survivalCard}>
+                        <Text style={styles.survivalLabel}>⏳ Cash Left</Text>
+                        <Text style={[styles.survivalValue, { color: runwayColor2 }]}>
+                            {runwayDays === null ? '∞' : `${runwayDays} days`}
+                        </Text>
+                    </View>
+                    <TouchableOpacity style={styles.survivalCard} onPress={() => setCurrentScreen('transactions')}>
+                        <Text style={styles.survivalLabel}>📥 Collect</Text>
+                        <Text style={[styles.survivalValue, { color: collectionsCount > 0 ? Colors.warning : Colors.income }]}>
+                            {collectionsCount > 0 ? `${currency}${collectionsTotal.toLocaleString()}` : '✓ Clear'}
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+
                 {/* ── Onboarding ───────────────────────────────────────────── */}
                 {showOnboarding && (
                     <View style={styles.onboardCard}>
                         <View style={styles.onboardHeader}>
                             <View>
-                                <Text style={styles.onboardTitle}>🚀 Get started — 3 quick steps</Text>
-                                <Text style={styles.onboardSub}>Complete these to unlock your full financial picture</Text>
+                                <Text style={styles.onboardTitle}>👋 Welcome to Quad360</Text>
+                                <Text style={styles.onboardSub}>Your business finance tracker — let's get you set up in 2 minutes</Text>
                             </View>
                             <TouchableOpacity onPress={dismissOnboarding} style={styles.onboardDismissBtn}>
                                 <Text style={styles.onboardDismissText}>✕</Text>
@@ -226,7 +248,14 @@ export default function DashboardScreen() {
                             <Text style={styles.onboardCheck}>{hasGoal ? '✅' : '⬜'}</Text>
                             <View style={{ flex: 1 }}>
                                 <Text style={[styles.onboardStepText, hasGoal && styles.onboardDone]}>Set a financial goal</Text>
-                                {!hasGoal && <Text style={styles.onboardStepHint}>Tap to set a savings or revenue goal →</Text>}
+                                {!hasGoal && <Text style={styles.onboardStepHint}>Tap to set a revenue or profit goal →</Text>}
+                            </View>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.onboardStep} onPress={() => setCurrentScreen('invoices')}>
+                            <Text style={styles.onboardCheck}>{invoices.length > 0 ? '✅' : '⬜'}</Text>
+                            <View style={{ flex: 1 }}>
+                                <Text style={[styles.onboardStepText, invoices.length > 0 && styles.onboardDone]}>Create your first invoice</Text>
+                                {invoices.length === 0 && <Text style={styles.onboardStepHint}>Send professional invoices via WhatsApp →</Text>}
                             </View>
                         </TouchableOpacity>
                     </View>
@@ -320,28 +349,6 @@ export default function DashboardScreen() {
                             <Text style={styles.shareWinText}>📤 Share your win</Text>
                         </TouchableOpacity>
                     )}
-                </View>
-
-                {/* ── 3 Survival Numbers strip ─────────────────────────────── */}
-                <View style={styles.survivalRow}>
-                    <View style={styles.survivalCard}>
-                        <Text style={styles.survivalLabel}>💰 Profit TODAY</Text>
-                        <Text style={[styles.survivalValue, { color: todayProfit >= 0 ? Colors.income : Colors.expense }]}>
-                            {todayProfit >= 0 ? '+' : ''}{currency}{todayProfit.toLocaleString()}
-                        </Text>
-                    </View>
-                    <View style={styles.survivalCard}>
-                        <Text style={styles.survivalLabel}>⏳ Cash Left</Text>
-                        <Text style={[styles.survivalValue, { color: runwayColor2 }]}>
-                            {runwayDays === null ? '∞' : `${runwayDays} days`}
-                        </Text>
-                    </View>
-                    <TouchableOpacity style={styles.survivalCard} onPress={() => setCurrentScreen('transactions')}>
-                        <Text style={styles.survivalLabel}>📥 Collect</Text>
-                        <Text style={[styles.survivalValue, { color: collectionsCount > 0 ? Colors.warning : Colors.income }]}>
-                            {collectionsCount > 0 ? `${currency}${collectionsTotal.toLocaleString()}` : '✓ Clear'}
-                        </Text>
-                    </TouchableOpacity>
                 </View>
 
                 {/* ── 3 Quick Stats row ────────────────────────────────────── */}

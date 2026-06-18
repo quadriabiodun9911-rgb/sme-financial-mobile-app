@@ -9,7 +9,7 @@ const T = {
     en: {
         // Navigation
         dashboard: 'Dashboard', reports: 'Reports', invoices: 'Invoices',
-        ledger: 'Ledger', goals: 'Goals', insights: 'Insights', settings: 'Settings',
+        ledger: 'Sales Log', transactions: 'Sales Log', goals: 'Goals', insights: 'Insights', settings: 'Settings',
         assets: 'Assets', growth: 'Growth',
 
         // Auth / Setup
@@ -116,7 +116,7 @@ const T = {
 
     zh: {
         dashboard: '仪表板', reports: '报告', invoices: '发票',
-        ledger: '账本', goals: '目标', insights: '洞察', settings: '设置',
+        ledger: '销售记录', transactions: '销售记录', goals: '目标', insights: '洞察', settings: '设置',
         assets: '资产', growth: '增长',
 
         appName: 'Quad360',
