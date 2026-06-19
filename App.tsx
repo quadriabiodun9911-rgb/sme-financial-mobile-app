@@ -23,6 +23,7 @@ import PaymentLinkScreen from './src/screens/PaymentLinkScreen';
 import ConnectBankScreen from './src/screens/ConnectBankScreen';
 import FinancialHealthScreen from './src/screens/FinancialHealthScreen';
 import BankAggregatorScreen from './src/screens/BankAggregatorScreen';
+import ImportTransactionsScreen from './src/screens/ImportTransactionsScreen';
 
 function Navigator() {
     const { currentScreen, isLoading } = useApp();
@@ -62,7 +63,8 @@ function Navigator() {
             {currentScreen === 'payment-link' && <PaymentLinkScreen />}
             {currentScreen === 'connect-bank'     && <ConnectBankScreen />}
             {currentScreen === 'financial-health' && <FinancialHealthScreen />}
-            {currentScreen === 'bank-aggregator'  && <BankAggregatorScreen />}
+            {currentScreen === 'bank-aggregator'       && <BankAggregatorScreen />}
+            {currentScreen === 'import-transactions'  && <ImportTransactionsScreen />}
         </View>
     );
 }

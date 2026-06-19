@@ -18,7 +18,8 @@ export type Screen =
     | 'payment-link'
     | 'connect-bank'
     | 'financial-health'
-    | 'bank-aggregator';
+    | 'bank-aggregator'
+    | 'import-transactions';
 
 export interface Budget {
     id: string;

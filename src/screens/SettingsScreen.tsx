@@ -362,6 +362,9 @@ export default function SettingsScreen() {
                         <TouchableOpacity style={[styles.dataBtn, { marginTop: 8 }]} onPress={() => setCurrentScreen('connect-bank' as any)}>
                             <Text style={styles.dataBtnText}>📱  Mobile Money / SMS (Android)</Text>
                         </TouchableOpacity>
+                        <TouchableOpacity style={[styles.dataBtn, { marginTop: 8 }]} onPress={() => setCurrentScreen('import-transactions' as any)}>
+                            <Text style={styles.dataBtnText}>📂  Import Bank Statement (CSV / Excel)</Text>
+                        </TouchableOpacity>
                     </CollapsibleSection>
 
                     <CollapsibleSection title="Data & Backup" defaultOpen={false}>
