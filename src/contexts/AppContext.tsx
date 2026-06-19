@@ -934,7 +934,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
     };
 
-    const value: AppContextValue = {
+    const contextValue = useMemo<AppContextValue>(() => ({
         currentScreen, setCurrentScreen,
         navParams, navigate,
         user, userRole,
@@ -955,9 +955,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         language, setLanguage,
         finance, insight, isLoading, pendingSyncCount,
         exportData, importData, clearData, resetBusinessData, deleteAccount, resetApp,
-    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }), [
+        currentScreen, navParams, user, userRole, hasProfile, isLoading,
+        isDemoMode, isLockedOut, lockoutUntil,
+        settings, transactions, goals, invoices, assets, loans, inventory,
+        budgets, cashPockets, teamMembers, language,
+        finance, insight, pendingSyncCount,
+    ]);
 
-    return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+    return <AppContext.Provider value={contextValue}>{children}</AppContext.Provider>;
 }
 
 export function useApp(): AppContextValue {

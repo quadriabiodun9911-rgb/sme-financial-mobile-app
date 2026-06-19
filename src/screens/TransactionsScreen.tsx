@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
-    TouchableOpacity, Modal, StyleSheet, Alert, Share, Linking,
+    TouchableOpacity, Modal, StyleSheet, Alert, Share, Linking, FlatList,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -124,6 +124,8 @@ export default function TransactionsScreen() {
     const [search, setSearch]         = useState('');
     const [typeFilter, setTypeFilter] = useState<FilterType>('all');
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+    const [page, setPage]             = useState(1);
+    const PAGE_SIZE = 50;
     const [form, setForm]             = useState<FormState>({ ...EMPTY_FORM, taxRate: defaultTaxRate });
     const [csvModalOpen, setCsvModalOpen] = useState(false);
     const [csvText, setCsvText]           = useState('');
@@ -164,7 +166,9 @@ export default function TransactionsScreen() {
         });
     }, [filtered, typeFilter]);
 
-    const grouped = useMemo(() => groupByDate(typeFilter === 'collect' ? collectionsFiltered : filtered), [filtered, collectionsFiltered, typeFilter]);
+    const baseTxs = typeFilter === 'collect' ? collectionsFiltered : filtered;
+    const visibleTxs = useMemo(() => baseTxs.slice(0, page * PAGE_SIZE), [baseTxs, page, PAGE_SIZE]);
+    const grouped = useMemo(() => groupByDate(visibleTxs), [visibleTxs]);
 
     const totals = useMemo(() => {
         const income  = filtered.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
@@ -287,7 +291,7 @@ export default function TransactionsScreen() {
                     placeholder="Search..."
                     placeholderTextColor={Colors.muted}
                     value={search}
-                    onChangeText={setSearch}
+                    onChangeText={v => { setSearch(v); setPage(1); }}
                 />
                 <TouchableOpacity style={styles.csvBtn} onPress={handleExportCSV}>
                     <Text style={styles.csvBtnText}>Export</Text>
@@ -308,7 +312,7 @@ export default function TransactionsScreen() {
                         <TouchableOpacity
                             key={f}
                             style={[styles.chip, typeFilter === f && (f === 'collect' ? styles.chipCollect : styles.chipActive)]}
-                            onPress={() => setTypeFilter(f)}
+                            onPress={() => { setTypeFilter(f); setPage(1); }}
                         >
                             <Text style={[styles.chipText, typeFilter === f && styles.chipTextActive]}>
                                 {f === 'all' ? 'All' : f === 'collect' ? '📞 Collect' : f.charAt(0).toUpperCase() + f.slice(1)}
@@ -321,7 +325,7 @@ export default function TransactionsScreen() {
                         <TouchableOpacity
                             key={f}
                             style={[styles.chip, statusFilter === f && styles.chipActive]}
-                            onPress={() => setStatusFilter(f)}
+                            onPress={() => { setStatusFilter(f); setPage(1); }}
                         >
                             <Text style={[styles.chipText, statusFilter === f && styles.chipTextActive]}>
                                 {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
