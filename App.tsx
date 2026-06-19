@@ -19,6 +19,7 @@ import CFOScreen from './src/screens/CFOScreen';
 import BudgetScreen from './src/screens/BudgetScreen';
 import AnalysisScreen from './src/screens/AnalysisScreen';
 import TwoFactorSetupScreen from './src/screens/TwoFactorSetupScreen';
+import PaymentLinkScreen from './src/screens/PaymentLinkScreen';
 
 function Navigator() {
     const { currentScreen, isLoading } = useApp();
@@ -55,6 +56,7 @@ function Navigator() {
             {currentScreen === 'budget'       && <BudgetScreen />}
             {currentScreen === 'analysis'     && <AnalysisScreen />}
             {currentScreen === '2fa'          && <TwoFactorSetupScreen />}
+            {currentScreen === 'payment-link' && <PaymentLinkScreen />}
         </View>
     );
 }
