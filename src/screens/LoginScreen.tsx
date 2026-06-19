@@ -95,6 +95,7 @@ export default function LoginScreen() {
 
     // Owner setup
     const [email, setEmail]         = useState('');
+    const [phone, setPhone]         = useState('');
     const [business, setBusiness]   = useState('');
     const [pin, setPin]             = useState('');
     const [confirmPin, setConfirm]  = useState('');
@@ -131,7 +132,7 @@ export default function LoginScreen() {
         setSubmitting(true);
         try {
             setLanguage(setupLang);
-            await setupAccount(email.trim(), business.trim(), pin, false);
+            await setupAccount(email.trim(), business.trim(), pin, false, phone.trim());
             updateSettings({ currency });
         } catch (e: any) {
             const msg: string = e?.message ?? '';
@@ -517,6 +518,11 @@ export default function LoginScreen() {
                             <TextInput style={styles.input} value={email} onChangeText={setEmail}
                                 placeholder="admin@yourbusiness.com" placeholderTextColor={Colors.muted}
                                 autoCapitalize="none" keyboardType="email-address" />
+                        </Field>
+                        <Field label="Phone Number (for financial health score)">
+                            <TextInput style={styles.input} value={phone} onChangeText={setPhone}
+                                placeholder="+2348012345678" placeholderTextColor={Colors.muted}
+                                keyboardType="phone-pad" />
                         </Field>
                         <Field label={t(setupLang, 'businessName')}>
                             <TextInput style={styles.input} value={business} onChangeText={setBusiness}

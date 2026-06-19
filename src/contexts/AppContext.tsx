@@ -45,7 +45,7 @@ interface AppContextValue {
     user: User | null;
     userRole: UserRole;
     isFirstLaunch: boolean;
-    setupAccount: (email: string, businessName: string, pin: string, loadDemo: boolean) => Promise<void>;
+    setupAccount: (email: string, businessName: string, pin: string, loadDemo: boolean, phone?: string) => Promise<void>;
     recoverAccount: (email: string, pin: string) => Promise<void>;
     login: (pin: string) => boolean;
     joinTeam: (email: string, pin: string, inviteCode: string) => Promise<void>;
@@ -240,7 +240,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 const savedPockets = await AsyncStorage.getItem('@quad360/cash_pockets');
                 if (savedPockets) setCashPockets(JSON.parse(savedPockets));
                 if (pin && profile) {
-                    setUser({ email: profile.email, businessName: profile.businessName, role: 'Administrator' });
+                    setUser({ email: profile.email, businessName: profile.businessName, role: 'Administrator', phone: profile.phone });
                 }
                 // Restore lockout state across restarts
                 const [savedLockout, savedAttempts] = await Promise.all([
@@ -358,7 +358,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const denyWrite  = () => Alert.alert(t(language, 'permissionDenied'), t(language, 'staffPermission'));
     const denyManage = () => Alert.alert(t(language, 'permissionDenied'), t(language, 'accountantPermission'));
 
-    const setupAccount = async (email: string, businessName: string, pin: string, loadDemo: boolean) => {
+    const setupAccount = async (email: string, businessName: string, pin: string, loadDemo: boolean, phone?: string) => {
         // Supabase auth is best-effort — never block registration if it fails
         try {
             const { error: signUpError } = await supabase.auth.signUp({ email, password: pin + '_Q360' });
@@ -386,14 +386,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         await clearWorkspaceOwner();
         await savePin(pin);
-        await saveProfile({ email, businessName });
+        await saveProfile({ email, businessName, phone });
         setStoredPin(pin);
         setHasProfile(true);
         setUserRole('owner');
 
         identifyUser(email, { businessName });
         trackUserRegistered(settings.currency);
-        setUser({ email, businessName, role: 'Administrator' });
+        setUser({ email, businessName, role: 'Administrator', phone });
         setCurrentScreen('dashboard');
         // Set up notifications after account creation
         requestNotificationPermission().then(granted => {
@@ -427,7 +427,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setStoredPin(pin);
         setHasProfile(true);
         setUserRole('owner');
-        setUser({ email: profile.email, businessName: profile.businessName, role: 'Administrator' });
+        setUser({ email: profile.email, businessName: profile.businessName, role: 'Administrator', phone: profile.phone });
 
         // Load all their cloud data
         const [savedTx, savedSettings, savedGoals, savedInvoices, savedAssets2, savedInventory2, savedLoans2, savedBudgets2] = await Promise.all([

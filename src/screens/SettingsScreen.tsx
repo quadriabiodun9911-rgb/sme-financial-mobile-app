@@ -38,10 +38,11 @@ export default function SettingsScreen() {
         changePin, exportData, importData, clearData, resetBusinessData, deleteAccount, logout,
         userRole, teamMembers, inviteMember, removeMember, refreshTeam,
         language, setLanguage,
-        transactions,
-    } = useApp();
+        transactions, user, updateProfile,
+    } = useApp() as any;
 
-    const [form, setForm] = useState({ ...settings });
+    const [form, setForm]       = useState({ ...settings });
+    const [phone, setPhone]     = useState(user?.phone || '');
 
     // Change PIN
     const [currentPin, setCurrentPin] = useState('');
@@ -71,6 +72,7 @@ export default function SettingsScreen() {
 
     const doSave = () => {
         updateSettings(form);
+        if (updateProfile && phone !== (user?.phone || '')) updateProfile({ phone: phone.trim() });
         Alert.alert(t(language, 'success'), 'Settings updated successfully.', [
             { text: t(language, 'done'), onPress: () => setCurrentScreen('dashboard') },
         ]);
@@ -238,6 +240,19 @@ export default function SettingsScreen() {
                                         onPress={() => setForm(f => ({ ...f, currency: c.value }))} />
                                 ))}
                             </View>
+                        </Section>
+
+                        {/* Phone for Pngme */}
+                        <Section title="Phone Number">
+                            <Text style={styles.hint}>Used for Pngme Financial Health scoring. Include country code e.g. +2348012345678</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={phone}
+                                onChangeText={setPhone}
+                                placeholder="+2348012345678"
+                                placeholderTextColor="#888"
+                                keyboardType="phone-pad"
+                            />
                         </Section>
 
                         <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>

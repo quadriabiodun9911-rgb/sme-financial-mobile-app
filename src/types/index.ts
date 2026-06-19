@@ -16,7 +16,8 @@ export type Screen =
     | 'analysis'
     | '2fa'
     | 'payment-link'
-    | 'connect-bank';
+    | 'connect-bank'
+    | 'financial-health';
 
 export interface Budget {
     id: string;
@@ -133,6 +134,7 @@ export interface User {
     email: string;
     businessName: string;
     role: string;
+    phone?: string;
 }
 
 export interface BusinessSettings {

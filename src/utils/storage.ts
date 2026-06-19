@@ -519,7 +519,7 @@ export async function loadPin(): Promise<string | null> {
 }
 
 // ─── Profile ──────────────────────────────────────────────────────────────────
-export interface StoredProfile { email: string; businessName: string }
+export interface StoredProfile { email: string; businessName: string; phone?: string }
 
 export async function saveProfile(p: StoredProfile): Promise<void> {
     await AsyncStorage.setItem(KEYS.profile, JSON.stringify(p));
