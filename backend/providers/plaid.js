@@ -26,7 +26,7 @@ class PlaidProvider extends BankProvider {
             user:          { client_user_id: userId },
             client_name:   businessName,
             products:      ['transactions'],
-            country_codes: ['US', 'GB', 'CA', 'FR', 'DE', 'ES', 'NL'],
+            country_codes: ['US', 'GB', 'CA', 'FR', 'DE', 'ES', 'NL', 'NG'],
             language:      'en',
         });
         return { provider: 'plaid', linkToken: res.data.link_token };

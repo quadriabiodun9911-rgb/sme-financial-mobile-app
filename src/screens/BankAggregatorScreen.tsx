@@ -10,7 +10,7 @@ import { Config } from '../config';
 
 // Mirror of backend/providers/index.js — currency → provider
 const CURRENCY_PROVIDER_MAP: Record<string, string> = {
-    NGN: 'mono', GHS: 'mono',
+    NGN: 'plaid', GHS: 'plaid',
     KES: 'pngme', UGX: 'pngme', TZS: 'pngme', RWF: 'pngme', ZMW: 'pngme', ETB: 'pngme', MWK: 'pngme',
     EGP: 'lean',  SAR: 'lean',  AED: 'lean',  BHD: 'lean',  KWD: 'lean',  JOD: 'lean',  QAR: 'lean',
     USD: 'plaid', GBP: 'plaid', EUR: 'plaid', CAD: 'plaid', AUD: 'plaid', CHF: 'plaid',
@@ -21,7 +21,7 @@ const PROVIDER_INFO: Record<string, { name: string; logo: string; description: s
     mono:  { name: 'Mono',  logo: '🇳🇬', description: 'Direct bank API — GTBank, Access, Zenith, UBA + more', countries: 'Nigeria · Ghana · Kenya' },
     pngme: { name: 'Pngme', logo: '📱', description: 'SMS-based mobile money & bank alerts (Android only)',   countries: 'Kenya · Uganda · Tanzania · Rwanda · Zambia · Ethiopia' },
     lean:  { name: 'Lean',  logo: '🌍', description: 'Open banking for MENA region',                          countries: 'Egypt · Saudi Arabia · UAE · Bahrain · Kuwait' },
-    plaid: { name: 'Plaid', logo: '🌐', description: 'Open banking for Western markets',                      countries: 'USA · UK · Canada · EU' },
+    plaid: { name: 'Plaid', logo: '🌐', description: 'Open banking for Western markets',                      countries: 'USA · UK · Canada · EU · Nigeria (sandbox)' },
 };
 
 const STORAGE_KEY = 'bank_connection_v2';

@@ -5,8 +5,8 @@ const plaid = require('./plaid');
 
 // Currency code → provider name
 const CURRENCY_PROVIDER_MAP = {
-    // Mono — direct bank API, Nigeria/Ghana/Kenya
-    NGN: 'mono', GHS: 'mono',
+    // Plaid sandbox (fallback while Mono business account is being set up)
+    NGN: 'plaid', GHS: 'plaid',
     // Pngme — SMS-based, East/Central Africa
     KES: 'pngme', UGX: 'pngme', TZS: 'pngme', RWF: 'pngme', ZMW: 'pngme', ETB: 'pngme', MWK: 'pngme',
     // Lean — open banking MENA
