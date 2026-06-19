@@ -2,12 +2,11 @@ const pngme = require('./pngme');
 const mono  = require('./mono');
 const lean  = require('./lean');
 const plaid = require('./plaid');
-const okra  = require('./okra');
 
 // Currency code → provider name
 const CURRENCY_PROVIDER_MAP = {
-    // Okra — open banking, Nigerian banks (GTBank, Access, Zenith, UBA + more)
-    NGN: 'okra', GHS: 'okra',
+    // Plaid sandbox (fallback while Mono business account is being set up)
+    NGN: 'plaid', GHS: 'plaid',
     // Pngme — SMS-based, East/Central Africa
     KES: 'pngme', UGX: 'pngme', TZS: 'pngme', RWF: 'pngme', ZMW: 'pngme', ETB: 'pngme', MWK: 'pngme',
     // Lean — open banking MENA
@@ -16,7 +15,7 @@ const CURRENCY_PROVIDER_MAP = {
     USD: 'plaid', GBP: 'plaid', EUR: 'plaid', CAD: 'plaid', AUD: 'plaid', CHF: 'plaid',
 };
 
-const PROVIDERS = { pngme, mono, lean, plaid, okra };
+const PROVIDERS = { pngme, mono, lean, plaid };
 
 function getProviderName(currencyCode) {
     return CURRENCY_PROVIDER_MAP[(currencyCode || '').toUpperCase()] || 'pngme';
