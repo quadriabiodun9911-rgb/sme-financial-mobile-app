@@ -5,8 +5,7 @@ import {
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
-
-const BACKEND_URL = 'https://quad360-backend.onrender.com';
+import { Config } from '../config';
 
 interface HealthData {
     income:   any | null;
@@ -68,7 +67,7 @@ export default function FinancialHealthScreen() {
         setLoading(true);
         try {
             const res = await fetch(
-                `${BACKEND_URL}/api/financial-health/${encodeURIComponent(phone)}?currencyCode=${currencyCode}`
+                `${Config.BACKEND_URL}/api/financial-health/${encodeURIComponent(phone)}?currencyCode=${currencyCode}`
             );
 
             if (!res.ok) throw new Error(`Server error ${res.status}. Is the backend deployed?`);

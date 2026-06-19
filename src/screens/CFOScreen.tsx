@@ -62,7 +62,7 @@ function PulseTab() {
     const ratios  = useMemo(() => computeFinancialRatios(finance, loans), [finance, loans]);
 
     const health  = healthLabel(risk.score);
-    const profit  = finance.netProfit;
+    const profit  = finance.profit;
     const margin  = finance.income > 0 ? (profit / finance.income) * 100 : 0;
 
     // Plain-English daily briefing

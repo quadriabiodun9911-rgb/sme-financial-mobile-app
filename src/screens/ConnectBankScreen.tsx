@@ -7,12 +7,7 @@ import { go, PNGME_RESPONSES } from '@pngme/react-native-sms-pngme-android';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
-
-// Pngme SDK token — use Test token during development, swap for Production before launch
-const PNGME_CLIENT_KEY = '4bf2b058f457a9d0bd42ac116989432fa8bfe32e99f98dab16b133d788a46ca92610d26a42a99045c8794c59801a48f9';
-
-// Your deployed Render/Railway backend URL (update after deploying)
-const BACKEND_URL = 'https://quad360-backend.onrender.com';
+import { Config } from '../config';
 
 const STORAGE_KEY_STATUS   = 'pngme_connected';
 const STORAGE_KEY_SYNCED   = 'pngme_synced_count';
@@ -61,7 +56,7 @@ export default function ConnectBankScreen() {
 
         try {
             const response = await go({
-                clientKey:   PNGME_CLIENT_KEY,
+                clientKey:   Config.PNGME_SDK_TOKEN,
                 companyName: businessName,
                 externalId:  userEmail,
                 email:       userEmail,
@@ -94,7 +89,7 @@ export default function ConnectBankScreen() {
         try {
             const since = lastSynced ?? new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
             const res = await fetch(
-                `${BACKEND_URL}/api/transactions/${encodeURIComponent(userEmail)}?since=${encodeURIComponent(since)}`
+                `${Config.BACKEND_URL}/api/transactions/${encodeURIComponent(userEmail)}?since=${encodeURIComponent(since)}`
             );
 
             if (!res.ok) throw new Error(`Server error ${res.status} — is the backend deployed?`);
