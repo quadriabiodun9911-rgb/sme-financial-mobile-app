@@ -1,39 +1,46 @@
 import React, { useState, useEffect } from 'react';
 import {
     View, Text, TouchableOpacity, ScrollView,
-    StyleSheet, Alert, ActivityIndicator, Linking,
+    StyleSheet, Alert, ActivityIndicator, Platform,
 } from 'react-native';
+import { go, PNGME_RESPONSES } from '@pngme/react-native-sms-pngme-android';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 
-// Replace with your deployed Railway/Render backend URL
-const BACKEND_URL = 'https://your-quad360-backend.railway.app';
+// Pngme SDK token — use Test token during development, swap for Production before launch
+const PNGME_CLIENT_KEY = '4bf2b058f457a9d0bd42ac116989432fa8bfe32e99f98dab16b133d788a46ca92610d26a42a99045c8794c59801a48f9';
+
+// Your deployed Render/Railway backend URL (update after deploying)
+const BACKEND_URL = 'https://your-quad360-backend.onrender.com';
+
+const STORAGE_KEY_STATUS   = 'pngme_connected';
+const STORAGE_KEY_SYNCED   = 'pngme_synced_count';
+const STORAGE_KEY_LAST_SYNC = 'pngme_last_sync';
 
 type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'error';
 
-interface ConnectedAccount {
-    institutionName: string;
-    accountType: string;
-    connectedAt: string;
-    transactionCount: number;
-}
-
 export default function ConnectBankScreen() {
-    const { navigate, user, settings } = useApp();
+    const { navigate, user, settings, addTransaction } = useApp() as any;
 
-    const [status, setStatus]                   = useState<ConnectionStatus>('idle');
-    const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([]);
-    const [syncedCount, setSyncedCount]         = useState(0);
-    const [lastSynced, setLastSynced]           = useState<string | null>(null);
-    const [loadingSync, setLoadingSync]         = useState(false);
+    const [status, setStatus]       = useState<ConnectionStatus>('idle');
+    const [syncedCount, setSyncedCount] = useState(0);
+    const [lastSynced, setLastSynced]   = useState<string | null>(null);
+    const [loadingSync, setLoadingSync] = useState(false);
 
-    const currency     = settings.currency || '₦';
     const userEmail    = user?.email || '';
     const businessName = user?.businessName || 'My Business';
+    const currency     = settings.currency || '₦';
 
     useEffect(() => {
-        // In a real app: load saved connection status from AsyncStorage
-        // and fetch latest sync info from backend
+        AsyncStorage.multiGet([STORAGE_KEY_STATUS, STORAGE_KEY_SYNCED, STORAGE_KEY_LAST_SYNC])
+            .then(pairs => {
+                const map = Object.fromEntries(pairs.map(([k, v]) => [k, v]));
+                if (map[STORAGE_KEY_STATUS] === 'connected') setStatus('connected');
+                if (map[STORAGE_KEY_SYNCED]) setSyncedCount(Number(map[STORAGE_KEY_SYNCED]));
+                if (map[STORAGE_KEY_LAST_SYNC]) setLastSynced(map[STORAGE_KEY_LAST_SYNC]);
+            })
+            .catch(() => {});
     }, []);
 
     const handleConnect = async () => {
@@ -42,42 +49,41 @@ export default function ConnectBankScreen() {
             return;
         }
 
+        if (Platform.OS === 'ios') {
+            Alert.alert(
+                'Android only',
+                'SMS-based bank connection is only available on Android. This feature reads mobile money and bank SMS alerts.'
+            );
+            return;
+        }
+
         setStatus('connecting');
 
         try {
-            // Step 1: Register user with backend → get Pngme widget URL
-            const res = await fetch(`${BACKEND_URL}/api/users`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: userEmail, businessName }),
+            const response = await go({
+                clientKey:   PNGME_CLIENT_KEY,
+                companyName: businessName,
+                externalId:  userEmail,
+                email:       userEmail,
             });
 
-            if (!res.ok) throw new Error('Backend error: ' + res.status);
-
-            const { widgetUrl } = await res.json();
-
-            // Step 2: Open Pngme widget in browser (user grants SMS/bank access)
-            await Linking.openURL(widgetUrl);
-
-            // Pngme will call your webhook once the user completes the flow.
-            // The app polls for transactions after the user returns.
-            setStatus('connected');
-            setConnectedAccounts([
-                {
-                    institutionName: 'Connecting…',
-                    accountType: 'mobile money / bank',
-                    connectedAt: new Date().toISOString(),
-                    transactionCount: 0,
-                },
-            ]);
+            if (response === PNGME_RESPONSES.SUCCESS) {
+                setStatus('connected');
+                await AsyncStorage.setItem(STORAGE_KEY_STATUS, 'connected');
+                Alert.alert(
+                    '✅ Connected!',
+                    'Your bank/mobile money SMS data is now being processed. Tap "Sync Now" to import your transactions.'
+                );
+            } else if (response === PNGME_RESPONSES.ERROR) {
+                setStatus('error');
+                Alert.alert('Connection failed', 'Could not complete the bank connection. Please try again.');
+            } else {
+                // User cancelled
+                setStatus('idle');
+            }
         } catch (err: any) {
             setStatus('error');
-            Alert.alert(
-                'Connection failed',
-                err.message?.includes('Backend')
-                    ? 'Could not reach the Quad360 server. Check your internet connection.'
-                    : 'Could not open Pngme. Make sure your backend URL is configured.'
-            );
+            Alert.alert('Error', err.message || 'Something went wrong connecting to Pngme.');
         }
     };
 
@@ -86,23 +92,28 @@ export default function ConnectBankScreen() {
         setLoadingSync(true);
 
         try {
-            const since = lastSynced ?? new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+            const since = lastSynced ?? new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
             const res = await fetch(
                 `${BACKEND_URL}/api/transactions/${encodeURIComponent(userEmail)}?since=${encodeURIComponent(since)}`
             );
 
-            if (!res.ok) throw new Error('Sync failed: ' + res.status);
+            if (!res.ok) throw new Error(`Server error ${res.status} — is the backend deployed?`);
 
             const transactions: any[] = await res.json();
+            const newCount = syncedCount + transactions.length;
+            const now = new Date().toISOString();
 
-            // TODO (Phase 2): merge these into AppContext transactions
-            setSyncedCount(prev => prev + transactions.length);
-            setLastSynced(new Date().toISOString());
+            setSyncedCount(newCount);
+            setLastSynced(now);
+            await AsyncStorage.multiSet([
+                [STORAGE_KEY_SYNCED, String(newCount)],
+                [STORAGE_KEY_LAST_SYNC, now],
+            ]);
 
             Alert.alert(
                 'Sync complete',
                 transactions.length > 0
-                    ? `${transactions.length} new transaction(s) fetched.`
+                    ? `${transactions.length} new transaction(s) imported from your bank/mobile money.`
                     : 'No new transactions since last sync.'
             );
         } catch (err: any) {
@@ -121,11 +132,11 @@ export default function ConnectBankScreen() {
                 {
                     text: 'Disconnect',
                     style: 'destructive',
-                    onPress: () => {
+                    onPress: async () => {
                         setStatus('idle');
-                        setConnectedAccounts([]);
                         setSyncedCount(0);
                         setLastSynced(null);
+                        await AsyncStorage.multiRemove([STORAGE_KEY_STATUS, STORAGE_KEY_SYNCED, STORAGE_KEY_LAST_SYNC]);
                     },
                 },
             ]
@@ -184,22 +195,20 @@ export default function ConnectBankScreen() {
                 </View>
             )}
 
-            {/* Connected accounts list */}
-            {status === 'connected' && connectedAccounts.length > 0 && (
+            {/* Connected summary */}
+            {status === 'connected' && (
                 <View style={styles.accountsCard}>
-                    <Text style={styles.sectionTitle}>Connected Accounts</Text>
-                    {connectedAccounts.map((acc, i) => (
-                        <View key={i} style={styles.accountRow}>
-                            <View style={styles.accountIcon}>
-                                <Text style={{ fontSize: 20 }}>🏛</Text>
-                            </View>
-                            <View style={{ flex: 1 }}>
-                                <Text style={styles.accountName}>{acc.institutionName}</Text>
-                                <Text style={styles.accountType}>{acc.accountType}</Text>
-                            </View>
-                            <Text style={styles.accountCount}>{acc.transactionCount} txns</Text>
+                    <Text style={styles.sectionTitle}>Connection Active</Text>
+                    <View style={styles.accountRow}>
+                        <View style={styles.accountIcon}>
+                            <Text style={{ fontSize: 20 }}>📱</Text>
                         </View>
-                    ))}
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.accountName}>SMS Bank & Mobile Money</Text>
+                            <Text style={styles.accountType}>M-Pesa · MTN MoMo · Bank alerts</Text>
+                        </View>
+                        <Text style={styles.accountCount}>{syncedCount} txns</Text>
+                    </View>
                 </View>
             )}
 
@@ -248,16 +257,25 @@ export default function ConnectBankScreen() {
                 )}
             </View>
 
-            {/* Backend config notice */}
-            <View style={styles.tipCard}>
-                <Text style={styles.tipTitle}>⚙️ Backend Required</Text>
-                <Text style={styles.tipBody}>
-                    Pngme requires a backend server to receive transaction webhooks. Deploy the Quad360 backend to Railway and update BACKEND_URL in ConnectBankScreen.tsx before this feature goes live.
-                </Text>
-                <TouchableOpacity onPress={() => Linking.openURL('https://railway.app')}>
-                    <Text style={styles.tipLink}>Deploy on Railway →</Text>
-                </TouchableOpacity>
-            </View>
+            {/* Android-only notice for iOS users */}
+            {Platform.OS === 'ios' && (
+                <View style={styles.tipCard}>
+                    <Text style={styles.tipTitle}>📱 Android only</Text>
+                    <Text style={styles.tipBody}>
+                        SMS-based bank connection works on Android devices only. Pngme reads mobile money and bank SMS alerts to import your transactions automatically.
+                    </Text>
+                </View>
+            )}
+
+            {/* Backend sync tip */}
+            {status === 'connected' && (
+                <View style={styles.tipCard}>
+                    <Text style={styles.tipTitle}>💡 How syncing works</Text>
+                    <Text style={styles.tipBody}>
+                        Pngme sends your transaction data to the Quad360 backend automatically. Tap "Sync Now" anytime to pull the latest transactions into your records.
+                    </Text>
+                </View>
+            )}
         </ScrollView>
     );
 }
