@@ -17,7 +17,8 @@ export type Screen =
     | '2fa'
     | 'payment-link'
     | 'connect-bank'
-    | 'financial-health';
+    | 'financial-health'
+    | 'bank-aggregator';
 
 export interface Budget {
     id: string;

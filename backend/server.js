@@ -4,6 +4,7 @@ const helmet = require('helmet');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 
+const bankDataRoutes        = require('./routes/bank-data');
 const pngmeRoutes           = require('./routes/pngme');
 const usersRoutes           = require('./routes/users');
 const transactionsRoutes    = require('./routes/transactions');
@@ -35,6 +36,7 @@ app.get('/health', (req, res) => {
 });
 
 // Routes
+app.use('/api/bank-data', bankDataRoutes);
 app.use('/pngme', pngmeRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/transactions', transactionsRoutes);

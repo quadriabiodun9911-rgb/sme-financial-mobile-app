@@ -354,10 +354,13 @@ export default function SettingsScreen() {
                     {/* Bank / Mobile Money Connection */}
                     <CollapsibleSection title="🏦 Bank & Mobile Money" defaultOpen={false}>
                         <Text style={styles.hint}>
-                            Connect your bank or mobile money account (M-Pesa, MTN MoMo, GTBank, Access, etc.) to automatically import transactions into Quad360 via Pngme.
+                            Connect your bank or mobile money to auto-import transactions. Quad360 automatically picks the best provider for your region.
                         </Text>
-                        <TouchableOpacity style={styles.dataBtn} onPress={() => setCurrentScreen('connect-bank' as any)}>
-                            <Text style={styles.dataBtnText}>🔗  Connect Account</Text>
+                        <TouchableOpacity style={styles.dataBtn} onPress={() => setCurrentScreen('bank-aggregator' as any)}>
+                            <Text style={styles.dataBtnText}>🌍  Connect Bank (Mono · Lean · Plaid · Pngme)</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[styles.dataBtn, { marginTop: 8 }]} onPress={() => setCurrentScreen('connect-bank' as any)}>
+                            <Text style={styles.dataBtnText}>📱  Mobile Money / SMS (Android)</Text>
                         </TouchableOpacity>
                     </CollapsibleSection>
 

@@ -22,6 +22,7 @@ import TwoFactorSetupScreen from './src/screens/TwoFactorSetupScreen';
 import PaymentLinkScreen from './src/screens/PaymentLinkScreen';
 import ConnectBankScreen from './src/screens/ConnectBankScreen';
 import FinancialHealthScreen from './src/screens/FinancialHealthScreen';
+import BankAggregatorScreen from './src/screens/BankAggregatorScreen';
 
 function Navigator() {
     const { currentScreen, isLoading } = useApp();
@@ -61,6 +62,7 @@ function Navigator() {
             {currentScreen === 'payment-link' && <PaymentLinkScreen />}
             {currentScreen === 'connect-bank'     && <ConnectBankScreen />}
             {currentScreen === 'financial-health' && <FinancialHealthScreen />}
+            {currentScreen === 'bank-aggregator'  && <BankAggregatorScreen />}
         </View>
     );
 }
