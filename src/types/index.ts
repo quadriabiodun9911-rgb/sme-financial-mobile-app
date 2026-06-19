@@ -14,7 +14,9 @@ export type Screen =
     | 'cfo'
     | 'budget'
     | 'analysis'
-    | '2fa';
+    | '2fa'
+    | 'payment-link'
+    | 'connect-bank';
 
 export interface Budget {
     id: string;

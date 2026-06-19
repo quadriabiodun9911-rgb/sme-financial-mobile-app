@@ -336,6 +336,16 @@ export default function SettingsScreen() {
                     </CollapsibleSection>
 
                     {/* 4. Data & Backup — default closed */}
+                    {/* Bank / Mobile Money Connection */}
+                    <CollapsibleSection title="🏦 Bank & Mobile Money" defaultOpen={false}>
+                        <Text style={styles.hint}>
+                            Connect your bank or mobile money account (M-Pesa, MTN MoMo, GTBank, Access, etc.) to automatically import transactions into Quad360 via Pngme.
+                        </Text>
+                        <TouchableOpacity style={styles.dataBtn} onPress={() => setCurrentScreen('connect-bank' as any)}>
+                            <Text style={styles.dataBtnText}>🔗  Connect Account</Text>
+                        </TouchableOpacity>
+                    </CollapsibleSection>
+
                     <CollapsibleSection title="Data & Backup" defaultOpen={false}>
                         <Section title="Export & Import">
                             <Text style={styles.hint}>
