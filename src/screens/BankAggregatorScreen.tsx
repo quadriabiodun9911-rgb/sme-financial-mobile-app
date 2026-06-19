@@ -8,10 +8,18 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { Config } from '../config';
 
+// Mirror of backend/providers/index.js — currency → provider
+const CURRENCY_PROVIDER_MAP: Record<string, string> = {
+    NGN: 'mono', GHS: 'mono',
+    KES: 'pngme', UGX: 'pngme', TZS: 'pngme', RWF: 'pngme', ZMW: 'pngme', ETB: 'pngme', MWK: 'pngme',
+    EGP: 'lean',  SAR: 'lean',  AED: 'lean',  BHD: 'lean',  KWD: 'lean',  JOD: 'lean',  QAR: 'lean',
+    USD: 'plaid', GBP: 'plaid', EUR: 'plaid', CAD: 'plaid', AUD: 'plaid', CHF: 'plaid',
+};
+
 // Provider metadata shown in the UI
 const PROVIDER_INFO: Record<string, { name: string; logo: string; description: string; countries: string }> = {
     mono:  { name: 'Mono',  logo: '🇳🇬', description: 'Direct bank API — GTBank, Access, Zenith, UBA + more', countries: 'Nigeria · Ghana · Kenya' },
-    pngme: { name: 'Pngme', logo: '📱', description: 'SMS-based mobile money & bank alerts',                  countries: 'Kenya · Uganda · Tanzania · Rwanda · Zambia · Ethiopia' },
+    pngme: { name: 'Pngme', logo: '📱', description: 'SMS-based mobile money & bank alerts (Android only)',   countries: 'Kenya · Uganda · Tanzania · Rwanda · Zambia · Ethiopia' },
     lean:  { name: 'Lean',  logo: '🌍', description: 'Open banking for MENA region',                          countries: 'Egypt · Saudi Arabia · UAE · Bahrain · Kuwait' },
     plaid: { name: 'Plaid', logo: '🌐', description: 'Open banking for Western markets',                      countries: 'USA · UK · Canada · EU' },
 };
@@ -44,15 +52,8 @@ export default function BankAggregatorScreen() {
         AsyncStorage.getItem(STORAGE_KEY).then(raw => {
             if (raw) setConnection(JSON.parse(raw));
         }).catch(() => {});
-
-        // Fetch which provider is assigned to this currency
-        fetch(`${Config.BACKEND_URL}/api/bank-data/providers`)
-            .then(r => r.json())
-            .then(data => {
-                const match = data.find?.((p: any) => p.currencies?.includes(currency));
-                if (match) setProviderName(match.provider);
-            })
-            .catch(() => {});
+        // Resolve provider from local map — no async needed
+        setProviderName(CURRENCY_PROVIDER_MAP[currency] || 'pngme');
     }, [currency]);
 
     const providerInfo = PROVIDER_INFO[providerName] || PROVIDER_INFO['pngme'];
@@ -62,64 +63,88 @@ export default function BankAggregatorScreen() {
             Alert.alert('Login required', 'Please log in first.');
             return;
         }
+
+        // Pngme requires Android native SDK
+        if (providerName === 'pngme') {
+            if (Platform.OS !== 'android') {
+                Alert.alert(
+                    'Android only',
+                    'SMS-based bank connection (Pngme) only works on Android devices. For Kenya, Uganda, Tanzania and other East African markets, use the Quad360 Android app.',
+                );
+                return;
+            }
+            navigate('connect-bank' as any);
+            return;
+        }
+
         setLoading(true);
         try {
             const res = await fetch(`${Config.BACKEND_URL}/api/bank-data/connect`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: userEmail, currencyCode: currency, businessName }),
+                body: JSON.stringify({ userId: userEmail, currencyCode: currency, businessName, name: businessName, email: userEmail }),
             });
 
-            if (!res.ok) throw new Error(`Server error ${res.status}`);
+            if (!res.ok) throw new Error(`Server error ${res.status} — make sure MONO_SECRET_KEY / LEAN_APP_TOKEN / PLAID_SECRET is set on Render.`);
             const data = await res.json();
 
-            // Plaid returns a link_token — open in browser
-            if (data.linkToken) {
-                await Linking.openURL(`https://cdn.plaid.com/link/v2/stable/link.html?token=${data.linkToken}`);
-            }
-
-            // Lean returns a customer_id
-            if (data.customerId) {
-                const leanUrl = `https://cdn.leantech.me/link/loader/prod/ae/latest/index.html?customer_id=${data.customerId}&app_token=${data.appToken}`;
-                await Linking.openURL(leanUrl);
-            }
-
-            // Mono — user needs to use Mono Connect widget
+            // Mono — open Connect widget URL in browser
             if (data.monoConnectUrl) {
                 await Linking.openURL(data.monoConnectUrl);
-            }
-
-            // Pngme — handled natively via SDK (ConnectBankScreen)
-            if (data.message?.includes('SDK')) {
                 Alert.alert(
-                    'Use Connect Bank screen',
-                    'For mobile money / SMS-based connection, use Settings → 🏦 Bank & Mobile Money.',
-                    [
-                        { text: 'Go there', onPress: () => navigate('connect-bank' as any) },
-                        { text: 'OK', style: 'cancel' },
-                    ]
+                    'Complete connection in browser',
+                    'After you connect your bank in the Mono widget, come back and tap "I\'ve connected" to finish.',
+                    [{ text: "I've connected", onPress: () => saveConnection(data.provider || 'mono') }]
                 );
                 setLoading(false);
                 return;
             }
 
-            const newConn: ConnectionState = {
-                provider: data.provider || providerName,
-                currencyCode: currency,
-                connectedAt: new Date().toISOString(),
-                accountCount: 0,
-                lastSynced: null,
-                syncedCount: 0,
-            };
-            setConnection(newConn);
-            await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newConn));
+            // Plaid — open Link widget URL in browser
+            if (data.linkToken) {
+                await Linking.openURL(`https://cdn.plaid.com/link/v2/stable/link.html?token=${data.linkToken}`);
+                Alert.alert(
+                    'Complete connection in browser',
+                    'After you connect your bank via Plaid Link, come back and tap "I\'ve connected".',
+                    [{ text: "I've connected", onPress: () => saveConnection('plaid') }]
+                );
+                setLoading(false);
+                return;
+            }
 
-            Alert.alert('Connected!', `Your ${providerInfo.name} account is linked. Tap "Sync Transactions" to import your data.`);
+            // Lean — open Link widget URL in browser
+            if (data.customerId) {
+                const leanUrl = `https://cdn.leantech.me/link/loader/prod/ae/latest/index.html?customer_id=${data.customerId}`;
+                await Linking.openURL(leanUrl);
+                Alert.alert(
+                    'Complete connection in browser',
+                    'After you connect your bank via Lean, come back and tap "I\'ve connected".',
+                    [{ text: "I've connected", onPress: () => saveConnection('lean') }]
+                );
+                setLoading(false);
+                return;
+            }
+
+            saveConnection(data.provider || providerName);
         } catch (err: any) {
             Alert.alert('Connection failed', err.message);
         } finally {
             setLoading(false);
         }
+    };
+
+    const saveConnection = async (provider: string) => {
+        const newConn: ConnectionState = {
+            provider,
+            currencyCode: currency,
+            connectedAt: new Date().toISOString(),
+            accountCount: 0,
+            lastSynced: null,
+            syncedCount: 0,
+        };
+        setConnection(newConn);
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newConn));
+        Alert.alert('✅ Connected!', `Your bank is linked via ${provider}. Tap "Sync Transactions" to import your data.`);
     };
 
     const handleSync = async () => {
