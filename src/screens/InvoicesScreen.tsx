@@ -22,14 +22,17 @@ const EMPTY_LINE: InvoiceLineItem = { description: '', quantity: 1, unitPrice: 0
 
 function buildInvoiceHtml(inv: Invoice, businessName: string, currency: string): string {
     const lineRows = (inv.lineItems ?? []).map(li => {
-        const lineTotal = li.quantity * li.unitPrice;
-        const lineTax   = lineTotal * (li.taxRate / 100);
+        const qty       = li.quantity ?? 0;
+        const unitPrice = li.unitPrice ?? 0;
+        const taxRate   = li.taxRate ?? 0;
+        const lineTotal = qty * unitPrice;
+        const lineTax   = lineTotal * (taxRate / 100);
         return `
         <tr>
-            <td>${li.description}</td>
-            <td style="text-align:center">${li.quantity}</td>
-            <td style="text-align:right">${currency}${li.unitPrice.toFixed(2)}</td>
-            <td style="text-align:center">${li.taxRate}%</td>
+            <td>${li.description ?? ''}</td>
+            <td style="text-align:center">${qty}</td>
+            <td style="text-align:right">${currency}${unitPrice.toFixed(2)}</td>
+            <td style="text-align:center">${taxRate}%</td>
             <td style="text-align:right">${currency}${(lineTotal + lineTax).toFixed(2)}</td>
         </tr>`;
     }).join('');
@@ -91,8 +94,8 @@ function buildInvoiceHtml(inv: Invoice, businessName: string, currency: string):
 </table>
 
 <table class="totals">
-  <tr><td>Subtotal</td><td style="text-align:right">${currency}${inv.subtotal.toFixed(2)}</td></tr>
-  <tr><td>Tax</td><td style="text-align:right">${currency}${inv.taxTotal.toFixed(2)}</td></tr>
+  <tr><td>Subtotal</td><td style="text-align:right">${currency}${(inv.subtotal ?? 0).toFixed(2)}</td></tr>
+  <tr><td>Tax</td><td style="text-align:right">${currency}${(inv.taxTotal ?? 0).toFixed(2)}</td></tr>
   <tr class="grand"><td><b>Total Due</b></td><td style="text-align:right"><b>${currency}${(inv.total ?? 0).toFixed(2)}</b></td></tr>
 </table>
 
@@ -211,8 +214,11 @@ export default function InvoicesScreen() {
     const handleWhatsApp = (inv: Invoice) => {
         const businessName = user?.businessName ?? 'My Business';
         const lineItemsText = (inv.lineItems ?? []).map(li => {
-            const lineTotal = (li.quantity * li.unitPrice * (1 + li.taxRate / 100)).toFixed(2);
-            return `- ${li.description} x${li.quantity} = ${currency}${lineTotal}`;
+            const qty       = li.quantity ?? 0;
+            const unitPrice = li.unitPrice ?? 0;
+            const taxRate   = li.taxRate ?? 0;
+            const lineTotal = (qty * unitPrice * (1 + taxRate / 100)).toFixed(2);
+            return `- ${li.description ?? ''} x${qty} = ${currency}${lineTotal}`;
         }).join('\n');
         const message = `Hi ${inv.clientName},\n\nYour invoice ${inv.invoiceNumber} is ready.\n\nAmount due: ${currency}${(inv.total ?? 0).toFixed(2)}\nDue date: ${inv.dueDate}\n\nItems:\n${lineItemsText}\n\nThank you for your business!\n${businessName}`;
         const url = `https://wa.me/?text=${encodeURIComponent(message)}`;
@@ -433,21 +439,26 @@ export default function InvoicesScreen() {
                                 </Section>
 
                                 <Section title="Line Items">
-                                    {(viewInv.lineItems ?? []).map((li, i) => (
+                                    {(viewInv.lineItems ?? []).map((li, i) => {
+                                        const qty       = li.quantity ?? 0;
+                                        const unitPrice = li.unitPrice ?? 0;
+                                        const taxRate   = li.taxRate ?? 0;
+                                        return (
                                         <View key={i} style={styles.viewLine}>
                                             <Text style={styles.viewLineDesc}>{li.description}</Text>
                                             <Text style={styles.viewLineSub}>
-                                                {li.quantity} × {currency}{li.unitPrice.toFixed(2)} + {li.taxRate}% tax
+                                                {qty} × {currency}{unitPrice.toFixed(2)} + {taxRate}% tax
                                             </Text>
                                             <Text style={styles.viewLineTotal}>
-                                                {currency}{(li.quantity * li.unitPrice * (1 + li.taxRate / 100)).toFixed(2)}
+                                                {currency}{(qty * unitPrice * (1 + taxRate / 100)).toFixed(2)}
                                             </Text>
                                         </View>
-                                    ))}
+                                        );
+                                    })}
                                     <View style={styles.totalsCard}>
-                                        <TotalRow label="Subtotal" value={`${currency}${viewInv.subtotal.toFixed(2)}`} />
-                                        <TotalRow label="Tax"      value={`${currency}${viewInv.taxTotal.toFixed(2)}`} />
-                                        <TotalRow label="Total"    value={`${currency}${viewInv.total.toFixed(2)}`} bold />
+                                        <TotalRow label="Subtotal" value={`${currency}${(viewInv.subtotal ?? 0).toFixed(2)}`} />
+                                        <TotalRow label="Tax"      value={`${currency}${(viewInv.taxTotal ?? 0).toFixed(2)}`} />
+                                        <TotalRow label="Total"    value={`${currency}${(viewInv.total ?? 0).toFixed(2)}`} bold />
                                     </View>
                                 </Section>
 
