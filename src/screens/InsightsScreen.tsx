@@ -115,18 +115,24 @@ export default function InsightsScreen() {
     const [swotExpanded, setSwotExpanded] = useState(true);
     const [expandedAction, setExpandedAction] = useState<number | null>(null);
 
-    const topExpenses = getTopCategories(transactions, 'expense', 5);
-    const topIncome = getTopCategories(transactions, 'income', 5);
+    const topExpenses = useMemo(() => getTopCategories(transactions, 'expense', 5), [transactions]);
+    const topIncome   = useMemo(() => getTopCategories(transactions, 'income', 5), [transactions]);
 
     const marginDiff = (isNaN(finance.margin) ? 0 : finance.margin) - (parseFloat(targetMargin) || 0);
     const reserveOk = finance.cashBalance >= parseFloat(minReserve);
 
-    const pendingAR = transactions.filter(t => t.type === 'income' && (t.status === 'pending' || t.status === 'overdue'));
-    const pendingAP = transactions.filter(t => t.type === 'expense' && (t.status === 'pending' || t.status === 'overdue'));
-    const totalAR = pendingAR.reduce((s, t) => s + t.amount, 0);
-    const totalAP = pendingAP.reduce((s, t) => s + t.amount, 0);
-    const recurringCount = transactions.filter(t => t.isRecurring).length;
-    const overdueCount = transactions.filter(t => t.status === 'overdue').length;
+    const { pendingAR, pendingAP, totalAR, totalAP, recurringCount, overdueCount } = useMemo(() => {
+        const ar = transactions.filter(t => t.type === 'income' && (t.status === 'pending' || t.status === 'overdue'));
+        const ap = transactions.filter(t => t.type === 'expense' && (t.status === 'pending' || t.status === 'overdue'));
+        return {
+            pendingAR: ar,
+            pendingAP: ap,
+            totalAR: ar.reduce((s, t) => s + t.amount, 0),
+            totalAP: ap.reduce((s, t) => s + t.amount, 0),
+            recurringCount: transactions.filter(t => t.isRecurring).length,
+            overdueCount: transactions.filter(t => t.status === 'overdue').length,
+        };
+    }, [transactions]);
 
     const swot = useMemo(
         () => generateSwot(finance, transactions, settings),

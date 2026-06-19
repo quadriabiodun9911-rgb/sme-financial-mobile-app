@@ -361,119 +361,124 @@ export default function TransactionsScreen() {
             )}
 
             {/* ── Transaction list ─────────────────────────────────────── */}
-            <ScrollView style={styles.scroll}>
-                <View style={styles.pad}>
-                    {filtered.length === 0 && (
-                        <View style={styles.emptyBox}>
-                            <Text style={styles.emptyTitle}>No transactions</Text>
-                            <Text style={styles.emptyHint}>
-                                {search || typeFilter !== 'all' || statusFilter !== 'all'
-                                    ? 'Try clearing your filters.'
-                                    : 'Tap "+ New" to log your first entry.'}
-                            </Text>
+            <FlatList
+                style={styles.scroll}
+                data={grouped}
+                keyExtractor={item => item.date}
+                contentContainerStyle={styles.pad}
+                onEndReached={() => {
+                    if (visibleTxs.length < baseTxs.length) setPage(p => p + 1);
+                }}
+                onEndReachedThreshold={0.3}
+                ListEmptyComponent={
+                    <View style={styles.emptyBox}>
+                        <Text style={styles.emptyTitle}>No transactions</Text>
+                        <Text style={styles.emptyHint}>
+                            {search || typeFilter !== 'all' || statusFilter !== 'all'
+                                ? 'Try clearing your filters.'
+                                : 'Tap "+ New" to log your first entry.'}
+                        </Text>
+                    </View>
+                }
+                renderItem={({ item: { date, items } }) => (
+                    <View key={date}>
+                        {/* Date header */}
+                        <View style={styles.dateHeader}>
+                            <Text style={styles.dateHeaderText}>{formatDateHeader(date)}</Text>
+                            <View style={styles.dateHeaderLine} />
                         </View>
-                    )}
 
-                    {grouped.map(({ date, items }) => (
-                        <View key={date}>
-                            {/* Date header */}
-                            <View style={styles.dateHeader}>
-                                <Text style={styles.dateHeaderText}>{formatDateHeader(date)}</Text>
-                                <View style={styles.dateHeaderLine} />
-                            </View>
+                        {items.map(tx => (
+                            <TouchableOpacity
+                                key={tx.id}
+                                style={[styles.txCard, tx.type === 'income' ? styles.incomeCard : styles.expenseCard, tx.status === 'overdue' && styles.overdueCard]}
+                                onPress={() => openEdit(tx)}
+                                activeOpacity={0.8}
+                            >
+                                {/* Top row */}
+                                <View style={styles.txTop}>
+                                    <Text style={styles.txDesc} numberOfLines={1}>{tx.description}</Text>
+                                    <Text style={tx.type === 'income' ? styles.incAmt : styles.expAmt}>
+                                        {tx.type === 'income' ? '+' : '-'}{currency}{tx.amount.toLocaleString()}
+                                    </Text>
+                                </View>
 
-                            {items.map(tx => (
-                                <TouchableOpacity
-                                    key={tx.id}
-                                    style={[styles.txCard, tx.type === 'income' ? styles.incomeCard : styles.expenseCard, tx.status === 'overdue' && styles.overdueCard]}
-                                    onPress={() => openEdit(tx)}
-                                    activeOpacity={0.8}
-                                >
-                                    {/* Top row */}
-                                    <View style={styles.txTop}>
-                                        <Text style={styles.txDesc} numberOfLines={1}>{tx.description}</Text>
-                                        <Text style={tx.type === 'income' ? styles.incAmt : styles.expAmt}>
-                                            {tx.type === 'income' ? '+' : '-'}{currency}{tx.amount.toLocaleString()}
+                                {/* Second row: category + vendor */}
+                                <View style={styles.txRow2}>
+                                    <Text style={styles.catChip}>{tx.category}</Text>
+                                    {tx.vendorCustomer ? (
+                                        <Text style={styles.metaText} numberOfLines={1}>{parseVendorCustomer(tx.vendorCustomer).name || tx.vendorCustomer}</Text>
+                                    ) : null}
+                                    {tx.reference ? (
+                                        <Text style={styles.metaText}>#{tx.reference}</Text>
+                                    ) : null}
+                                </View>
+
+                                {/* Third row: badges */}
+                                <View style={styles.txBadges}>
+                                    <View style={[styles.statusBadge, { backgroundColor: statusColor(tx.status) + '22' }]}>
+                                        <View style={[styles.statusDot, { backgroundColor: statusColor(tx.status) }]} />
+                                        <Text style={[styles.statusText, { color: statusColor(tx.status) }]}>
+                                            {tx.status ?? 'paid'}
                                         </Text>
                                     </View>
+                                    {tx.status === 'pending' && tx.dueDate && new Date(tx.dueDate + 'T00:00:00') < new Date() ? (
+                                        <Text style={[styles.dueBadge, { color: Colors.expense, backgroundColor: 'rgba(239,68,68,0.12)' }]}>
+                                            {Math.ceil((Date.now() - new Date(tx.dueDate + 'T00:00:00').getTime()) / 86400000)} days overdue
+                                        </Text>
+                                    ) : tx.dueDate ? (
+                                        <Text style={styles.dueBadge}>Due {tx.dueDate}</Text>
+                                    ) : null}
+                                    {tx.taxAmount ? (
+                                        <Text style={styles.taxBadge}>Tax {currency}{tx.taxAmount.toLocaleString()}</Text>
+                                    ) : null}
+                                    {tx.isRecurring ? (
+                                        <Text style={styles.recurBadge}>↻ {tx.recurringFrequency}</Text>
+                                    ) : null}
+                                </View>
 
-                                    {/* Second row: category + vendor */}
-                                    <View style={styles.txRow2}>
-                                        <Text style={styles.catChip}>{tx.category}</Text>
-                                        {tx.vendorCustomer ? (
-                                            <Text style={styles.metaText} numberOfLines={1}>{parseVendorCustomer(tx.vendorCustomer).name || tx.vendorCustomer}</Text>
-                                        ) : null}
-                                        {tx.reference ? (
-                                            <Text style={styles.metaText}>#{tx.reference}</Text>
-                                        ) : null}
-                                    </View>
-
-                                    {/* Third row: badges */}
-                                    <View style={styles.txBadges}>
-                                        <View style={[styles.statusBadge, { backgroundColor: statusColor(tx.status) + '22' }]}>
-                                            <View style={[styles.statusDot, { backgroundColor: statusColor(tx.status) }]} />
-                                            <Text style={[styles.statusText, { color: statusColor(tx.status) }]}>
-                                                {tx.status ?? 'paid'}
-                                            </Text>
-                                        </View>
-                                        {tx.status === 'pending' && tx.dueDate && new Date(tx.dueDate + 'T00:00:00') < new Date() ? (
-                                            <Text style={[styles.dueBadge, { color: Colors.expense, backgroundColor: 'rgba(239,68,68,0.12)' }]}>
-                                                {Math.ceil((Date.now() - new Date(tx.dueDate + 'T00:00:00').getTime()) / 86400000)} days overdue
-                                            </Text>
-                                        ) : tx.dueDate ? (
-                                            <Text style={styles.dueBadge}>Due {tx.dueDate}</Text>
-                                        ) : null}
-                                        {tx.taxAmount ? (
-                                            <Text style={styles.taxBadge}>Tax {currency}{tx.taxAmount.toLocaleString()}</Text>
-                                        ) : null}
-                                        {tx.isRecurring ? (
-                                            <Text style={styles.recurBadge}>↻ {tx.recurringFrequency}</Text>
-                                        ) : null}
-                                    </View>
-
-                                    {/* Action row */}
-                                    <View style={styles.txActions}>
-                                        <Text style={styles.editHint}>Tap to edit</Text>
-                                        <View
-                                            style={styles.actionBtns}
-                                            onStartShouldSetResponder={() => true}
-                                        >
-                                            {(tx.status === 'pending' || tx.status === 'overdue') && (
-                                                <TouchableOpacity
-                                                    style={styles.paidBtn}
-                                                    onPress={() => handleMarkPaid(tx.id)}
-                                                >
-                                                    <Text style={styles.paidBtnText}>Mark Paid</Text>
-                                                </TouchableOpacity>
-                                            )}
-                                            {(() => {
-                                                const { phone } = parseVendorCustomer(tx.vendorCustomer);
-                                                if (phone && (tx.status === 'overdue' || tx.status === 'pending')) {
-                                                    return (
-                                                        <TouchableOpacity
-                                                            style={styles.callBtn}
-                                                            onPress={() => Linking.openURL('tel:' + phone)}
-                                                        >
-                                                            <Text style={styles.callBtnText}>📞 Call</Text>
-                                                        </TouchableOpacity>
-                                                    );
-                                                }
-                                                return null;
-                                            })()}
+                                {/* Action row */}
+                                <View style={styles.txActions}>
+                                    <Text style={styles.editHint}>Tap to edit</Text>
+                                    <View
+                                        style={styles.actionBtns}
+                                        onStartShouldSetResponder={() => true}
+                                    >
+                                        {(tx.status === 'pending' || tx.status === 'overdue') && (
                                             <TouchableOpacity
-                                                onPress={() => handleDelete(tx.id, tx.description)}
-                                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                                style={styles.paidBtn}
+                                                onPress={() => handleMarkPaid(tx.id)}
                                             >
-                                                <Text style={styles.deleteText}>🗑 Delete</Text>
+                                                <Text style={styles.paidBtnText}>Mark Paid</Text>
                                             </TouchableOpacity>
-                                        </View>
+                                        )}
+                                        {(() => {
+                                            const { phone } = parseVendorCustomer(tx.vendorCustomer);
+                                            if (phone && (tx.status === 'overdue' || tx.status === 'pending')) {
+                                                return (
+                                                    <TouchableOpacity
+                                                        style={styles.callBtn}
+                                                        onPress={() => Linking.openURL('tel:' + phone)}
+                                                    >
+                                                        <Text style={styles.callBtnText}>📞 Call</Text>
+                                                    </TouchableOpacity>
+                                                );
+                                            }
+                                            return null;
+                                        })()}
+                                        <TouchableOpacity
+                                            onPress={() => handleDelete(tx.id, tx.description)}
+                                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                        >
+                                            <Text style={styles.deleteText}>🗑 Delete</Text>
+                                        </TouchableOpacity>
                                     </View>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-                    ))}
-                </View>
-            </ScrollView>
+                                </View>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                )}
+            />
 
             <FooterNav />
 

@@ -78,6 +78,53 @@ export default function DashboardScreen() {
 
     const categories = qaType === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
 
+    // ── Date strings (stable across renders within same month) ───────────────
+    const today = useMemo(() => new Date().toISOString().split('T')[0], []);
+    const thisMonthStr = useMemo(() => new Date().toISOString().slice(0, 7), []);
+    const lastMonthStr = useMemo(() => {
+        const d = new Date();
+        return new Date(d.getFullYear(), d.getMonth() - 1, 1).toISOString().slice(0, 7);
+    }, []);
+
+    // ── Memoized derived data ────────────────────────────────────────────────
+    const activeGoals     = useMemo(() => goals.filter(g => g.status !== 'achieved'), [goals]);
+    const achievedGoals   = useMemo(() => goals.filter(g => g.status === 'achieved'), [goals]);
+    const offTrack        = useMemo(() => goals.filter(g => g.status === 'off_track' || g.status === 'at_risk'), [goals]);
+    const overdueCount    = useMemo(() => transactions.filter(t => t.status === 'overdue').length, [transactions]);
+    const overdueInvoices = useMemo(() => invoices.filter(inv => inv.status === 'overdue'), [invoices]);
+    const loggedToday     = useMemo(() => transactions.some(tx => tx.date === today), [transactions, today]);
+
+    const recurringDueCount = useMemo(() => transactions.filter(t =>
+        t.isRecurring && t.nextRecurringDate && t.nextRecurringDate.startsWith(thisMonthStr)
+    ).length, [transactions, thisMonthStr]);
+
+    const { lastMonthProfit, thisMonthProfit, profitDelta } = useMemo(() => {
+        const lmi = transactions.filter(t => t.type === 'income'  && t.date.startsWith(lastMonthStr)).reduce((s, t) => s + (Number(t.amount) || 0), 0);
+        const lme = transactions.filter(t => t.type === 'expense' && t.date.startsWith(lastMonthStr)).reduce((s, t) => s + (Number(t.amount) || 0), 0);
+        const lmp = lmi - lme;
+        const tmi = transactions.filter(t => t.type === 'income'  && t.date.startsWith(thisMonthStr)).reduce((s, t) => s + (Number(t.amount) || 0), 0);
+        const tme = transactions.filter(t => t.type === 'expense' && t.date.startsWith(thisMonthStr)).reduce((s, t) => s + (Number(t.amount) || 0), 0);
+        const tmp = tmi - tme;
+        return { lastMonthProfit: lmp, thisMonthProfit: tmp, profitDelta: lmp !== 0 ? ((tmp - lmp) / Math.abs(lmp)) * 100 : null };
+    }, [transactions, lastMonthStr, thisMonthStr]);
+
+    const totalCash = useMemo(() => cashPockets.reduce((s, p) => s + p.amount, 0), [cashPockets]);
+
+    const { todayProfit } = useMemo(() => {
+        const inc = transactions.filter(tx => tx.type === 'income'  && tx.date === today).reduce((s, tx) => s + (Number(tx.amount) || 0), 0);
+        const exp = transactions.filter(tx => tx.type === 'expense' && tx.date === today).reduce((s, tx) => s + (Number(tx.amount) || 0), 0);
+        return { todayProfit: inc - exp };
+    }, [transactions, today]);
+
+    const { collectionsTotal, collectionsCount } = useMemo(() => {
+        const overdueTx  = transactions.filter(t => t.status === 'overdue' || (t.status === 'pending' && t.dueDate && t.dueDate < today));
+        const overdueInv = invoices.filter(inv => inv.status === 'overdue');
+        return {
+            collectionsTotal: overdueTx.reduce((s, t) => s + (Number(t.amount) || 0), 0) + overdueInv.reduce((s, inv) => s + (inv.total ?? 0), 0),
+            collectionsCount: overdueTx.length + overdueInv.length,
+        };
+    }, [transactions, invoices, today]);
+
     const openFab = (type: 'income' | 'expense' = 'income') => {
         setQaType(type);
         setQaCategory('');
@@ -142,15 +189,6 @@ export default function DashboardScreen() {
 
     const { currency, targetMargin, minReserve } = settings;
 
-
-
-    const activeGoals   = goals.filter(g => g.status !== 'achieved');
-    const achievedGoals = goals.filter(g => g.status === 'achieved');
-    const offTrack      = goals.filter(g => g.status === 'off_track' || g.status === 'at_risk');
-    const overdueCount  = transactions.filter(t => t.status === 'overdue').length;
-    const overdueInvoices = invoices.filter(inv => inv.status === 'overdue');
-    const today = new Date().toISOString().split('T')[0];
-    const loggedToday = transactions.some(tx => tx.date === today);
     const hasTransaction = transactions.length > 0;
     const hasGoal        = goals.length > 0;
     const showOnboarding = (!hasTransaction || !hasGoal) && !onboardingDismissed;
@@ -171,36 +209,8 @@ export default function DashboardScreen() {
         return '● Saved today';
     })();
 
-    // Last month date range
     const now = new Date();
-    const thisMonthStr = now.toISOString().slice(0, 7); // YYYY-MM
-    const recurringDueCount = transactions.filter(t =>
-        t.isRecurring && t.nextRecurringDate && t.nextRecurringDate.startsWith(thisMonthStr)
-    ).length;
-    const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const lastMonthStr = lastMonthDate.toISOString().slice(0, 7);
-    const lastMonthIncome  = transactions.filter(t => t.type === 'income'  && t.date.startsWith(lastMonthStr)).reduce((s, t) => s + (Number(t.amount) || 0), 0);
-    const lastMonthExpense = transactions.filter(t => t.type === 'expense' && t.date.startsWith(lastMonthStr)).reduce((s, t) => s + (Number(t.amount) || 0), 0);
-    const lastMonthProfit  = lastMonthIncome - lastMonthExpense;
-    const thisMonthIncome  = transactions.filter(t => t.type === 'income'  && t.date.startsWith(thisMonthStr)).reduce((s, t) => s + (Number(t.amount) || 0), 0);
-    const thisMonthExpense = transactions.filter(t => t.type === 'expense' && t.date.startsWith(thisMonthStr)).reduce((s, t) => s + (Number(t.amount) || 0), 0);
-    const thisMonthProfit  = thisMonthIncome - thisMonthExpense;
-    const profitDelta = lastMonthProfit !== 0 ? ((thisMonthProfit - lastMonthProfit) / Math.abs(lastMonthProfit)) * 100 : null;
-
-    // Cash pockets
-    const totalCash = cashPockets.reduce((s, p) => s + p.amount, 0);
-
-    // Survival numbers
-    const todayIncome  = transactions.filter(tx => tx.type === 'income'  && tx.date === today).reduce((s, tx) => s + (Number(tx.amount) || 0), 0);
-    const todayExpense = transactions.filter(tx => tx.type === 'expense' && tx.date === today).reduce((s, tx) => s + (Number(tx.amount) || 0), 0);
-    const todayProfit  = todayIncome - todayExpense;
     const runwayColor2 = runwayDays === null ? Colors.income : runwayDays < 30 ? Colors.expense : runwayDays < 60 ? Colors.warning : Colors.income;
-    const collectionsTotal =
-        transactions.filter(t => t.status === 'overdue' || (t.status === 'pending' && t.dueDate && t.dueDate < today)).reduce((s, t) => s + (Number(t.amount) || 0), 0) +
-        invoices.filter(inv => inv.status === 'overdue').reduce((s, inv) => s + (inv.total ?? 0), 0);
-    const collectionsCount =
-        transactions.filter(t => t.status === 'overdue' || (t.status === 'pending' && t.dueDate && t.dueDate < today)).length +
-        invoices.filter(inv => inv.status === 'overdue').length;
 
     return (
         <SafeAreaView style={styles.safe}>

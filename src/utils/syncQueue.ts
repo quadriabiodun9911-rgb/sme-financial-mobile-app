@@ -18,7 +18,8 @@ export type SyncOperation = {
     op:        'upsert' | 'delete';
     rows:      any[];          // rows to upsert, or ids to delete
     userId:    string;
-    queuedAt:  string;         // ISO timestamp
+    queuedAt:  string;         // ISO timestamp when originally enqueued
+    updatedAt: string;         // ISO timestamp set/updated each time the op is enqueued
     attempts:  number;
 };
 
@@ -39,23 +40,25 @@ async function saveQueue(q: SyncOperation[]): Promise<void> {
 
 // ─── Enqueue a failed operation ───────────────────────────────────────────────
 
-export async function enqueue(op: Omit<SyncOperation, 'id' | 'queuedAt' | 'attempts'>): Promise<void> {
+export async function enqueue(op: Omit<SyncOperation, 'id' | 'queuedAt' | 'updatedAt' | 'attempts'>): Promise<void> {
     const q = await getQueue();
+    const now = new Date().toISOString();
     // De-duplicate: if a upsert for the same table+userId already queued,
     // replace it — no point sending stale data when we have a newer full set.
     if (op.op === 'upsert') {
         const idx = q.findIndex(e => e.table === op.table && e.userId === op.userId && e.op === 'upsert');
         if (idx !== -1) {
-            q[idx] = { ...q[idx], rows: op.rows, queuedAt: new Date().toISOString(), attempts: 0 };
+            q[idx] = { ...q[idx], rows: op.rows, updatedAt: now, attempts: 0 };
             await saveQueue(q);
             return;
         }
     }
     q.push({
         ...op,
-        id:       `${op.table}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-        queuedAt: new Date().toISOString(),
-        attempts: 0,
+        id:        `${op.table}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        queuedAt:  now,
+        updatedAt: now,
+        attempts:  0,
     });
     await saveQueue(q);
 }
@@ -83,9 +86,39 @@ export async function flushQueue(
         const op = q[i];
         try {
             if (op.op === 'upsert') {
+                // Conflict resolution: skip rows whose remote updated_at is newer than
+                // the local updatedAt timestamp (remote wins — local data is stale).
+                const localUpdatedAt = op.updatedAt ?? op.queuedAt;
+                const rowIds: string[] = op.rows.map((r: any) => r.id).filter(Boolean);
+                let rowsToUpsert = op.rows;
+                if (rowIds.length > 0) {
+                    const { data: remoteRows } = await supabase
+                        .from(op.table)
+                        .select('id, updated_at')
+                        .in('id', rowIds);
+                    if (remoteRows && remoteRows.length > 0) {
+                        const remoteMap = new Map<string, string>(
+                            remoteRows.map((r: { id: string; updated_at: string }) => [r.id, r.updated_at])
+                        );
+                        rowsToUpsert = op.rows.filter((r: any) => {
+                            const remoteUpdatedAt = remoteMap.get(r.id);
+                            // No remote row exists → always upsert
+                            if (!remoteUpdatedAt) return true;
+                            // Local is newer or equal → upsert; remote is newer → skip
+                            return localUpdatedAt >= remoteUpdatedAt;
+                        });
+                    }
+                }
+                if (rowsToUpsert.length === 0) {
+                    // All rows were superseded by newer remote data — dequeue without upserting
+                    await dequeue(op.id);
+                    synced++;
+                    onProgress?.(synced, q.length);
+                    continue;
+                }
                 const { error } = await supabase
                     .from(op.table)
-                    .upsert(op.rows, { onConflict: 'id' });
+                    .upsert(rowsToUpsert, { onConflict: 'id' });
                 if (error) throw new Error(error.message);
             } else if (op.op === 'delete') {
                 const { error } = await supabase
@@ -96,6 +129,7 @@ export async function flushQueue(
             }
             await dequeue(op.id);
             synced++;
+            onProgress?.(synced, q.length);
         } catch {
             // Increment attempt count — drop after 10 failures
             const updated = { ...op, attempts: op.attempts + 1 };
@@ -108,7 +142,6 @@ export async function flushQueue(
             }
             failed++;
         }
-        onProgress?.(synced, q.length);
     }
 
     return { synced, failed };

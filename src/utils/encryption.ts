@@ -15,6 +15,9 @@ const ENCRYPTED_FIELDS = {
     invoices: ['amount', 'description', 'clientName', 'clientEmail'],
     assets: ['description', 'purchasePrice', 'currentValue'],
     inventory: ['costPrice', 'sellingPrice'],
+    goals: ['targetAmount', 'currentAmount', 'name'],
+    loans: ['amount', 'interestRate', 'lenderName'],
+    budgets: ['amount', 'spent', 'name'],
 };
 
 interface EncryptionMetadata {
@@ -264,6 +267,117 @@ export function decryptInventoryItem(
         }
     }
 
+    const { encrypted: _, version: __, timestamp: ___, ...cleanDecrypted } = decrypted;
+    return cleanDecrypted;
+}
+
+/**
+ * Encrypt sensitive fields in a goal object
+ */
+export function encryptGoal(
+    goal: Record<string, any>,
+    key: string,
+): Record<string, any> & EncryptionMetadata {
+    const encrypted = { ...goal };
+    for (const field of ENCRYPTED_FIELDS.goals) {
+        if (field in encrypted && encrypted[field] != null) {
+            encrypted[`${field}_encrypted`] = encryptValue(encrypted[field], key);
+        }
+    }
+    return { ...encrypted, encrypted: true, version: 1, timestamp: Date.now() };
+}
+
+/**
+ * Decrypt sensitive fields in a goal object
+ */
+export function decryptGoal(
+    encrypted: Record<string, any> & EncryptionMetadata,
+    key: string,
+): Record<string, any> {
+    const decrypted = { ...encrypted };
+    for (const field of ENCRYPTED_FIELDS.goals) {
+        const encryptedField = `${field}_encrypted`;
+        if (encryptedField in decrypted && decrypted[encryptedField]) {
+            const value = decryptValue(decrypted[encryptedField], key);
+            if (value) {
+                decrypted[field] = isNaN(Number(value)) ? value : Number(value);
+            }
+        }
+    }
+    const { encrypted: _, version: __, timestamp: ___, ...cleanDecrypted } = decrypted;
+    return cleanDecrypted;
+}
+
+/**
+ * Encrypt sensitive fields in a loan object
+ */
+export function encryptLoan(
+    loan: Record<string, any>,
+    key: string,
+): Record<string, any> & EncryptionMetadata {
+    const encrypted = { ...loan };
+    for (const field of ENCRYPTED_FIELDS.loans) {
+        if (field in encrypted && encrypted[field] != null) {
+            encrypted[`${field}_encrypted`] = encryptValue(encrypted[field], key);
+        }
+    }
+    return { ...encrypted, encrypted: true, version: 1, timestamp: Date.now() };
+}
+
+/**
+ * Decrypt sensitive fields in a loan object
+ */
+export function decryptLoan(
+    encrypted: Record<string, any> & EncryptionMetadata,
+    key: string,
+): Record<string, any> {
+    const decrypted = { ...encrypted };
+    for (const field of ENCRYPTED_FIELDS.loans) {
+        const encryptedField = `${field}_encrypted`;
+        if (encryptedField in decrypted && decrypted[encryptedField]) {
+            const value = decryptValue(decrypted[encryptedField], key);
+            if (value) {
+                decrypted[field] = isNaN(Number(value)) ? value : Number(value);
+            }
+        }
+    }
+    const { encrypted: _, version: __, timestamp: ___, ...cleanDecrypted } = decrypted;
+    return cleanDecrypted;
+}
+
+/**
+ * Encrypt sensitive fields in a budget object
+ */
+export function encryptBudget(
+    budget: Record<string, any>,
+    key: string,
+): Record<string, any> & EncryptionMetadata {
+    const encrypted = { ...budget };
+    for (const field of ENCRYPTED_FIELDS.budgets) {
+        if (field in encrypted && encrypted[field] != null) {
+            encrypted[`${field}_encrypted`] = encryptValue(encrypted[field], key);
+        }
+    }
+    return { ...encrypted, encrypted: true, version: 1, timestamp: Date.now() };
+}
+
+/**
+ * Decrypt sensitive fields in a budget object
+ */
+export function decryptBudget(
+    encrypted: Record<string, any> & EncryptionMetadata,
+    key: string,
+): Record<string, any> {
+    const decrypted = { ...encrypted };
+    for (const field of ENCRYPTED_FIELDS.budgets) {
+        const encryptedField = `${field}_encrypted`;
+        if (encryptedField in decrypted && decrypted[encryptedField]) {
+            const value = decryptValue(decrypted[encryptedField], key);
+            if (value) {
+                decrypted[field] = isNaN(Number(value)) ? value : Number(value);
+            }
+        }
+    }
     const { encrypted: _, version: __, timestamp: ___, ...cleanDecrypted } = decrypted;
     return cleanDecrypted;
 }

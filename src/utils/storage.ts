@@ -3,6 +3,7 @@ import { Transaction, BusinessSettings, FinancialGoal, Invoice, TeamMember, Lang
 import { supabase } from './supabase';
 import { savePinSecurely, loadPinSecurely, clearPinSecurely, clearAllSecureData } from './secureStorage';
 import { enqueue } from './syncQueue';
+import { getEncryptionKey, encryptGoal, decryptGoal, encryptLoan, decryptLoan, encryptBudget, decryptBudget } from './encryption';
 
 const KEYS = {
     transactions:   '@quad360/transactions',
@@ -157,7 +158,13 @@ export async function saveGoals(g: FinancialGoal[]): Promise<void> {
     if (!ownerId) return;
     try {
         if (g.length > 0) {
-            const rows = g.map(goal => ({ id: goal.id, user_id: ownerId, data: goal, updated_at: new Date().toISOString() }));
+            const encKey = await getEncryptionKey();
+            const rows = g.map(goal => ({
+                id: goal.id,
+                user_id: ownerId,
+                data: encKey ? encryptGoal(goal as unknown as Record<string, any>, encKey) : goal,
+                updated_at: new Date().toISOString(),
+            }));
             const { error } = await supabase.from('goals').upsert(rows, { onConflict: 'id' });
             if (error) logSyncError('goals', 'upsert', error);
         }
@@ -188,7 +195,11 @@ export async function loadGoals(): Promise<FinancialGoal[] | null> {
                 .eq('user_id', ownerId);
             if (error) { logSyncError('goals', 'load', error); }
             else if (data && data.length > 0) {
-                const goals = data.map(r => r.data as FinancialGoal);
+                const encKey = await getEncryptionKey();
+                const goals = data.map(r => {
+                    const raw = r.data as Record<string, any>;
+                    return (encKey && raw?.encrypted ? decryptGoal(raw as any, encKey) : raw) as FinancialGoal;
+                });
                 await AsyncStorage.setItem(KEYS.goals, JSON.stringify(goals));
                 return goals;
             }
@@ -309,7 +320,13 @@ export async function saveLoans(loans: Loan[]): Promise<void> {
     if (!ownerId) return;
     try {
         if (loans.length > 0) {
-            const rows = loans.map(l => ({ id: l.id, user_id: ownerId, data: l, updated_at: new Date().toISOString() }));
+            const encKey = await getEncryptionKey();
+            const rows = loans.map(l => ({
+                id: l.id,
+                user_id: ownerId,
+                data: encKey ? encryptLoan(l as unknown as Record<string, any>, encKey) : l,
+                updated_at: new Date().toISOString(),
+            }));
             const { error } = await supabase.from('loans').upsert(rows, { onConflict: 'id' });
             if (error) logSyncError('loans', 'upsert', error);
         }
@@ -328,7 +345,11 @@ export async function loadLoans(): Promise<Loan[] | null> {
         try {
             const { data, error } = await supabase.from('loans').select('data').eq('user_id', ownerId);
             if (!error && data && data.length > 0) {
-                const loans = data.map(r => r.data as Loan);
+                const encKey = await getEncryptionKey();
+                const loans = data.map(r => {
+                    const raw = r.data as Record<string, any>;
+                    return (encKey && raw?.encrypted ? decryptLoan(raw as any, encKey) : raw) as Loan;
+                });
                 await AsyncStorage.setItem(KEYS.loans, JSON.stringify(loans));
                 return loans;
             }
@@ -345,7 +366,13 @@ export async function saveBudgets(budgets: Budget[]): Promise<void> {
     if (!ownerId) return;
     try {
         if (budgets.length > 0) {
-            const rows = budgets.map(b => ({ id: b.id, user_id: ownerId, data: b, updated_at: new Date().toISOString() }));
+            const encKey = await getEncryptionKey();
+            const rows = budgets.map(b => ({
+                id: b.id,
+                user_id: ownerId,
+                data: encKey ? encryptBudget(b as unknown as Record<string, any>, encKey) : b,
+                updated_at: new Date().toISOString(),
+            }));
             const { error } = await supabase.from('budgets').upsert(rows, { onConflict: 'id' });
             if (error) logSyncError('budgets', 'upsert', error);
         }
@@ -364,7 +391,11 @@ export async function loadBudgets(): Promise<Budget[] | null> {
         try {
             const { data, error } = await supabase.from('budgets').select('data').eq('user_id', ownerId);
             if (!error && data && data.length > 0) {
-                const budgets = data.map(r => r.data as Budget);
+                const encKey = await getEncryptionKey();
+                const budgets = data.map(r => {
+                    const raw = r.data as Record<string, any>;
+                    return (encKey && raw?.encrypted ? decryptBudget(raw as any, encKey) : raw) as Budget;
+                });
                 await AsyncStorage.setItem('@quad360/budgets', JSON.stringify(budgets));
                 return budgets;
             }
