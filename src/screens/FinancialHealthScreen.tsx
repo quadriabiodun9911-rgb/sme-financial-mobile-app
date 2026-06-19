@@ -6,7 +6,7 @@ import {
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 
-const BACKEND_URL = 'https://your-quad360-backend.onrender.com';
+const BACKEND_URL = 'https://quad360-backend.onrender.com';
 
 interface HealthData {
     income:   any | null;

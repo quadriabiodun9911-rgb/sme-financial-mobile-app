@@ -12,7 +12,7 @@ import { Colors } from '../theme/colors';
 const PNGME_CLIENT_KEY = '4bf2b058f457a9d0bd42ac116989432fa8bfe32e99f98dab16b133d788a46ca92610d26a42a99045c8794c59801a48f9';
 
 // Your deployed Render/Railway backend URL (update after deploying)
-const BACKEND_URL = 'https://your-quad360-backend.onrender.com';
+const BACKEND_URL = 'https://quad360-backend.onrender.com';
 
 const STORAGE_KEY_STATUS   = 'pngme_connected';
 const STORAGE_KEY_SYNCED   = 'pngme_synced_count';
