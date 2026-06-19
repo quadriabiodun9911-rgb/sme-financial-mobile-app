@@ -42,7 +42,7 @@ function detectLocaleCurrency(): string {
     return '$';
 }
 
-type Mode = 'owner-setup' | 'owner-login' | 'join-team' | 'reset-pin' | 'demo-pick';
+type Mode = 'owner-setup' | 'owner-login' | 'join-team' | 'reset-pin' | 'demo-pick' | 'recover';
 type LoginMethod = 'pin' | 'email';
 
 export default function LoginScreen() {
@@ -301,6 +301,61 @@ export default function LoginScreen() {
         setResetSubmitting(false);
     };
 
+    // ── Recover existing account on new device ────────────────────────────────
+    if (mode === 'recover') {
+        return (
+            <SafeAreaView style={styles.safe}>
+                <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+                    <View style={styles.card}>
+                        <Image source={require('../../assets/icon.png')} style={styles.logo} />
+                        <Text style={styles.title}>Welcome Back</Text>
+                        <Text style={styles.subtitle}>Sign in with your email and PIN to restore your account on this device.</Text>
+
+                        <View style={styles.newDeviceBanner}>
+                            <Text style={styles.newDeviceIcon}>📱</Text>
+                            <Text style={styles.newDeviceText}>
+                                New device detected. Enter your email and PIN — your data will be restored automatically.
+                            </Text>
+                        </View>
+
+                        <Field label="Email Address">
+                            <TextInput style={styles.input} value={emailLoginEmail} onChangeText={setEmailLoginEmail}
+                                placeholder="your@email.com" placeholderTextColor={Colors.muted}
+                                autoCapitalize="none" keyboardType="email-address" autoFocus />
+                        </Field>
+                        <Field label="Your PIN (6 digits)">
+                            <TextInput style={styles.input} value={emailLoginPin} onChangeText={setEmailLoginPin}
+                                placeholder="••••••" placeholderTextColor={Colors.muted}
+                                secureTextEntry keyboardType="number-pad" maxLength={6}
+                                onSubmitEditing={handleEmailLogin} />
+                        </Field>
+
+                        <TouchableOpacity
+                            style={[styles.btn, submitting && styles.btnDisabled]}
+                            onPress={handleEmailLogin}
+                            disabled={submitting}
+                        >
+                            {submitting
+                                ? <ActivityIndicator color="#fff" />
+                                : <Text style={styles.btnText}>Restore My Account →</Text>}
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.switchBtn} onPress={() => {
+                            setResetEmail(''); setResetNewPin(''); setResetConfirmPin(''); setResetStep('request');
+                            setMode('reset-pin');
+                        }}>
+                            <Text style={styles.resetText}>Forgot your PIN? Reset it →</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('owner-setup')}>
+                            <Text style={styles.switchText}>← Create a new account instead</Text>
+                        </TouchableOpacity>
+                    </View>
+                </ScrollView>
+            </SafeAreaView>
+        );
+    }
+
     // ── Demo picker ───────────────────────────────────────────────────────────
     if (mode === 'demo-pick') {
         return (
@@ -558,7 +613,7 @@ export default function LoginScreen() {
                         <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('join-team')}>
                             <Text style={styles.switchText}>{t(setupLang, 'joiningTeam')}</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('owner-login')}>
+                        <TouchableOpacity style={styles.switchBtn} onPress={() => { setEmailLoginEmail(email); setMode('recover'); }}>
                             <Text style={styles.switchText}>Already have an account? Sign In →</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.demoBtn} onPress={() => setMode('demo-pick')}>
@@ -844,6 +899,15 @@ const styles = StyleSheet.create({
         borderWidth: 1, borderColor: Colors.primary, backgroundColor: 'transparent',
     },
     demoBtnText: { color: Colors.primary, fontWeight: '600', fontSize: 13 },
+
+    newDeviceBanner: {
+        flexDirection: 'row', alignItems: 'flex-start',
+        backgroundColor: 'rgba(37,99,235,0.1)', borderWidth: 1,
+        borderColor: Colors.primary, borderRadius: 12,
+        padding: 14, marginBottom: 20, gap: 10,
+    },
+    newDeviceIcon: { fontSize: 20 },
+    newDeviceText: { flex: 1, fontSize: 13, color: Colors.textSecondary, lineHeight: 20 },
 
     socialProof: {
         flexDirection: 'row', alignItems: 'center', gap: 10,

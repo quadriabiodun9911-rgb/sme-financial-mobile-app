@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, Platform } from 'react-native';
+import * as Updates from 'expo-updates';
 import { AppProvider, useApp } from './src/contexts/AppContext';
 import { trackScreenViewed } from './src/utils/analytics';
 import ErrorBoundary from './src/components/ErrorBoundary';
@@ -69,10 +70,31 @@ function Navigator() {
     );
 }
 
+function OtaUpdater() {
+    useEffect(() => {
+        // OTA updates only apply to native builds, not web or Expo Go dev mode
+        if (Platform.OS === 'web') return;
+        (async () => {
+            try {
+                if (__DEV__) return; // skip in development
+                const update = await Updates.checkForUpdateAsync();
+                if (update.isAvailable) {
+                    await Updates.fetchUpdateAsync();
+                    await Updates.reloadAsync();
+                }
+            } catch {
+                // silently ignore — dev mode or network unavailable
+            }
+        })();
+    }, []);
+    return null;
+}
+
 export default function App() {
     return (
         <ErrorBoundary>
             <AppProvider>
+                <OtaUpdater />
                 <ErrorBoundary>
                     <Navigator />
                 </ErrorBoundary>
