@@ -7,8 +7,8 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 
 export default function PaymentLinkScreen() {
-    const { settings, user, navigate, navParam } = useApp();
-    const params = (navParam ?? {}) as { amount?: number; description?: string; customerName?: string; customerEmail?: string };
+    const { settings, user, navigate, navParams } = useApp();
+    const params = (navParams ?? {}) as { amount?: number; description?: string; customerName?: string; customerEmail?: string };
 
     const [amount, setAmount]             = useState(params.amount ? String(params.amount) : '');
     const [customerName, setCustomerName] = useState(params.customerName ?? '');

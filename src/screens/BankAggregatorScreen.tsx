@@ -44,7 +44,7 @@ export default function BankAggregatorScreen() {
     const [accounts, setAccounts]       = useState<any[]>([]);
     const [providerName, setProviderName] = useState('');
 
-    const currency     = (settings as any).currencyCode || 'NGN';
+    const currency     = settings.currencyCode || 'NGN';
     const userEmail    = user?.email || '';
     const businessName = user?.businessName || 'My Business';
 

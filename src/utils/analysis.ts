@@ -97,14 +97,14 @@ export function analyseRootCause(
         const c = curIncMap.get(cat) ?? 0;
         const p = prvIncMap.get(cat) ?? 0;
         const change = c - p;
-        return { category: cat, current: c, previous: p, change, changePct: p > 0 ? (change / p) * 100 : 100, impact: change >= 0 ? 'positive' : 'negative' };
+        return { category: cat, current: c, previous: p, change, changePct: p > 0 ? (change / p) * 100 : 100, impact: (change >= 0 ? 'positive' : 'negative') as 'positive' | 'negative' | 'neutral' };
     }).filter(d => Math.abs(d.change) > 0).sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
 
     const expenseDrivers: CategoryChange[] = [...allExpCats].map(cat => {
         const c = curExpMap.get(cat) ?? 0;
         const p = prvExpMap.get(cat) ?? 0;
         const change = c - p;
-        return { category: cat, current: c, previous: p, change, changePct: p > 0 ? (change / p) * 100 : 100, impact: change <= 0 ? 'positive' : 'negative' };
+        return { category: cat, current: c, previous: p, change, changePct: p > 0 ? (change / p) * 100 : 100, impact: (change <= 0 ? 'positive' : 'negative') as 'positive' | 'negative' | 'neutral' };
     }).filter(d => Math.abs(d.change) > 0).sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
 
     const periodLabel = period === 'month' ? 'this month vs last month' : period === 'quarter' ? 'this quarter vs last' : 'this year vs last year';
@@ -375,7 +375,7 @@ export function modelPriceIncrease(
             `If volume drops by more than ${increasePercent}%, revenue will actually fall.`,
         ],
         opportunities: [
-            `Even a ${increasePercent / 2}% price increase with no volume loss improves margin by ${(newMargin - finance.margin).toFixed(1) / 2}%.`,
+            `Even a ${increasePercent / 2}% price increase with no volume loss improves margin by ${((newMargin - finance.margin) / 2).toFixed(1)}%.`,
             `Combine with added value (better service, quality, speed) to justify the increase and retain customers.`,
         ],
     };

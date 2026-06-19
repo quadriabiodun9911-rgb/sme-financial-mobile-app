@@ -53,19 +53,19 @@ export const DEMO_BUSINESSES: DemoBusiness[] = [
             { id: 'ng15', date: d(25), description: 'Sales — weekend Oshodi market',   type: 'income',  category: 'Sales',           amount: 52000,  status: 'paid' },
         ],
         assets: [
-            { id: 'nga1', name: 'Display shelves & racks', purchaseCost: 85000, purchaseDate: d(180), category: 'Furniture', depreciationYears: 5, status: 'active', createdAt: d(180) },
-            { id: 'nga2', name: 'POS machine', purchaseCost: 35000, purchaseDate: d(90), category: 'Equipment', depreciationYears: 3, status: 'active', createdAt: d(90) },
+            { id: 'nga1', name: 'Display shelves & racks', purchaseCost: 85000, purchaseDate: d(180), category: 'furniture', usefulLifeYears: 5, status: 'active', createdAt: d(180), description: '', residualValue: 0 },
+            { id: 'nga2', name: 'POS machine', purchaseCost: 35000, purchaseDate: d(90), category: 'equipment', usefulLifeYears: 3, status: 'active', createdAt: d(90), description: '', residualValue: 0 },
         ],
         loans: [
             { id: 'ngl1', lenderName: 'First Bank Nigeria', principal: 500000, interestRate: 18, termMonths: 12, startDate: d(120), purpose: 'Stock expansion', status: 'active', payments: [{ id: 'p1', date: d(90), amount: 52000, note: 'Month 1' }, { id: 'p2', date: d(60), amount: 52000, note: 'Month 2' }], createdAt: d(120) },
         ],
         inventory: [
-            { id: 'ngi1', name: 'Ankara fabric (yards)', sku: 'ANK-001', quantity: 45, unit: 'yards', costPrice: 800, sellingPrice: 1400, category: 'Fabric', lowStockThreshold: 20, createdAt: d(30), updatedAt: d(5) },
-            { id: 'ngi2', name: 'Ladies shoes (pairs)', sku: 'SHO-001', quantity: 12, unit: 'pairs', costPrice: 5500, sellingPrice: 9500, category: 'Shoes', lowStockThreshold: 10, createdAt: d(30), updatedAt: d(8) },
-            { id: 'ngi3', name: 'Men\'s agbada sets', sku: 'AGD-001', quantity: 8, unit: 'pieces', costPrice: 15000, sellingPrice: 28000, category: 'Clothing', lowStockThreshold: 5, createdAt: d(30), updatedAt: d(10) },
+            { id: 'ngi1', name: 'Ankara fabric (yards)', quantity: 45, unit: 'yards', costPrice: 800, sellingPrice: 1400, category: 'Fabric', lowStockThreshold: 20, createdAt: d(30), updatedAt: d(5) },
+            { id: 'ngi2', name: 'Ladies shoes (pairs)', quantity: 12, unit: 'pairs', costPrice: 5500, sellingPrice: 9500, category: 'Shoes', lowStockThreshold: 10, createdAt: d(30), updatedAt: d(8) },
+            { id: 'ngi3', name: 'Men\'s agbada sets', quantity: 8, unit: 'pieces', costPrice: 15000, sellingPrice: 28000, category: 'Clothing', lowStockThreshold: 5, createdAt: d(30), updatedAt: d(10) },
         ],
         invoices: [
-            { id: 'ngiv1', invoiceNumber: 'INV-001', clientName: 'Zenith Bank Plc', clientEmail: 'procurement@zenithbank.com', items: [{ description: 'Corporate uniforms x20', quantity: 20, unitPrice: 4750, total: 95000 }], subtotal: 95000, tax: 0, total: 95000, status: 'sent', issueDate: d(20), dueDate: d(-5), createdAt: d(20) },
+            { id: 'ngiv1', invoiceNumber: 'INV-001', clientName: 'Zenith Bank Plc', clientEmail: 'procurement@zenithbank.com', clientAddress: '', notes: '', lineItems: [{ description: 'Corporate uniforms x20', quantity: 20, unitPrice: 4750, taxRate: 0 }], subtotal: 95000, taxTotal: 0, total: 95000, status: 'sent', issueDate: d(20), dueDate: d(-5), createdAt: d(20) },
         ],
     },
 
@@ -95,14 +95,14 @@ export const DEMO_BUSINESSES: DemoBusiness[] = [
             { id: 'uk13', date: d(28), description: 'Retainer — GreenTech Startup',        type: 'income',  category: 'Consulting',       amount: 1500,  status: 'pending', dueDate: d(-1) },
         ],
         assets: [
-            { id: 'uka1', name: 'MacBook Pro 16"', purchaseCost: 2400, purchaseDate: d(300), category: 'Equipment', depreciationYears: 3, status: 'active', createdAt: d(300) },
-            { id: 'uka2', name: 'Office furniture set', purchaseCost: 1200, purchaseDate: d(400), category: 'Furniture', depreciationYears: 5, status: 'active', createdAt: d(400) },
+            { id: 'uka1', name: 'MacBook Pro 16"', purchaseCost: 2400, purchaseDate: d(300), category: 'equipment', usefulLifeYears: 3, status: 'active', createdAt: d(300), description: '', residualValue: 0 },
+            { id: 'uka2', name: 'Office furniture set', purchaseCost: 1200, purchaseDate: d(400), category: 'furniture', usefulLifeYears: 5, status: 'active', createdAt: d(400), description: '', residualValue: 0 },
         ],
         loans: [],
         inventory: [],
         invoices: [
-            { id: 'ukiv1', invoiceNumber: 'INV-034', clientName: 'NHS Trust', clientEmail: 'procurement@nhstrust.nhs.uk', items: [{ description: 'Workshop facilitation — 1 day', quantity: 1, unitPrice: 2400, total: 2400 }], subtotal: 2400, tax: 0, total: 2400, status: 'sent', issueDate: d(12), dueDate: d(-2), createdAt: d(12) },
-            { id: 'ukiv2', invoiceNumber: 'INV-035', clientName: 'GreenTech Startup', clientEmail: 'cfo@greentech.io', items: [{ description: 'Monthly retainer — consulting', quantity: 1, unitPrice: 1500, total: 1500 }], subtotal: 1500, tax: 0, total: 1500, status: 'sent', issueDate: d(28), dueDate: d(-1), createdAt: d(28) },
+            { id: 'ukiv1', invoiceNumber: 'INV-034', clientName: 'NHS Trust', clientEmail: 'procurement@nhstrust.nhs.uk', clientAddress: '', notes: '', lineItems: [{ description: 'Workshop facilitation — 1 day', quantity: 1, unitPrice: 2400, taxRate: 0 }], subtotal: 2400, taxTotal: 0, total: 2400, status: 'sent', issueDate: d(12), dueDate: d(-2), createdAt: d(12) },
+            { id: 'ukiv2', invoiceNumber: 'INV-035', clientName: 'GreenTech Startup', clientEmail: 'cfo@greentech.io', clientAddress: '', notes: '', lineItems: [{ description: 'Monthly retainer — consulting', quantity: 1, unitPrice: 1500, taxRate: 0 }], subtotal: 1500, taxTotal: 0, total: 1500, status: 'sent', issueDate: d(28), dueDate: d(-1), createdAt: d(28) },
         ],
     },
 
@@ -134,17 +134,17 @@ export const DEMO_BUSINESSES: DemoBusiness[] = [
             { id: 'za15', date: d(25), description: 'Refrigerator service & repair',   type: 'expense', category: 'Maintenance',     amount: 1500,  status: 'paid' },
         ],
         assets: [
-            { id: 'zaa1', name: 'Commercial gas stove', purchaseCost: 18000, purchaseDate: d(365), category: 'Equipment', depreciationYears: 7, status: 'active', createdAt: d(365) },
-            { id: 'zaa2', name: 'Industrial fridge/freezer', purchaseCost: 25000, purchaseDate: d(200), category: 'Equipment', depreciationYears: 8, status: 'active', createdAt: d(200) },
-            { id: 'zaa3', name: 'Dining tables & chairs (8 sets)', purchaseCost: 15000, purchaseDate: d(365), category: 'Furniture', depreciationYears: 5, status: 'active', createdAt: d(365) },
+            { id: 'zaa1', name: 'Commercial gas stove', purchaseCost: 18000, purchaseDate: d(365), category: 'equipment', usefulLifeYears: 7, status: 'active', createdAt: d(365), description: '', residualValue: 0 },
+            { id: 'zaa2', name: 'Industrial fridge/freezer', purchaseCost: 25000, purchaseDate: d(200), category: 'equipment', usefulLifeYears: 8, status: 'active', createdAt: d(200), description: '', residualValue: 0 },
+            { id: 'zaa3', name: 'Dining tables & chairs (8 sets)', purchaseCost: 15000, purchaseDate: d(365), category: 'furniture', usefulLifeYears: 5, status: 'active', createdAt: d(365), description: '', residualValue: 0 },
         ],
         loans: [],
         inventory: [
-            { id: 'zai1', name: 'Maize meal (25kg)', sku: 'MAZ-001', quantity: 6, unit: 'bags', costPrice: 220, sellingPrice: 0, category: 'Ingredients', lowStockThreshold: 4, createdAt: d(30), updatedAt: d(3) },
-            { id: 'zai2', name: 'Cooking oil (5L)', sku: 'OIL-001', quantity: 4, unit: 'bottles', costPrice: 180, sellingPrice: 0, category: 'Ingredients', lowStockThreshold: 4, createdAt: d(30), updatedAt: d(3) },
+            { id: 'zai1', name: 'Maize meal (25kg)', quantity: 6, unit: 'bags', costPrice: 220, sellingPrice: 0, category: 'Ingredients', lowStockThreshold: 4, createdAt: d(30), updatedAt: d(3) },
+            { id: 'zai2', name: 'Cooking oil (5L)', quantity: 4, unit: 'bottles', costPrice: 180, sellingPrice: 0, category: 'Ingredients', lowStockThreshold: 4, createdAt: d(30), updatedAt: d(3) },
         ],
         invoices: [
-            { id: 'zaiv1', invoiceNumber: 'INV-012', clientName: 'Thabo Nkosi Events', clientEmail: 'thabo@nkosievents.co.za', items: [{ description: 'Wedding catering 150 pax', quantity: 150, unitPrice: 167, total: 25000 }], subtotal: 25000, tax: 0, total: 25000, status: 'sent', issueDate: d(12), dueDate: d(-3), createdAt: d(12) },
+            { id: 'zaiv1', invoiceNumber: 'INV-012', clientName: 'Thabo Nkosi Events', clientEmail: 'thabo@nkosievents.co.za', clientAddress: '', notes: '', lineItems: [{ description: 'Wedding catering 150 pax', quantity: 150, unitPrice: 167, taxRate: 0 }], subtotal: 25000, taxTotal: 0, total: 25000, status: 'sent', issueDate: d(12), dueDate: d(-3), createdAt: d(12) },
         ],
     },
 
@@ -174,13 +174,13 @@ export const DEMO_BUSINESSES: DemoBusiness[] = [
             { id: 'us13', date: d(25), description: 'Business insurance',                  type: 'expense', category: 'Insurance',        amount: 420,   status: 'paid' },
         ],
         assets: [
-            { id: 'usa1', name: 'MacBook Pro workstations x2', purchaseCost: 5800, purchaseDate: d(250), category: 'Equipment', depreciationYears: 3, status: 'active', createdAt: d(250) },
-            { id: 'usa2', name: 'Server hardware', purchaseCost: 12000, purchaseDate: d(400), category: 'Equipment', depreciationYears: 5, status: 'active', createdAt: d(400) },
+            { id: 'usa1', name: 'MacBook Pro workstations x2', purchaseCost: 5800, purchaseDate: d(250), category: 'equipment', usefulLifeYears: 3, status: 'active', createdAt: d(250), description: '', residualValue: 0 },
+            { id: 'usa2', name: 'Server hardware', purchaseCost: 12000, purchaseDate: d(400), category: 'equipment', usefulLifeYears: 5, status: 'active', createdAt: d(400), description: '', residualValue: 0 },
         ],
         loans: [],
         inventory: [],
         invoices: [
-            { id: 'usiv1', invoiceNumber: 'INV-078', clientName: 'EduPlatform Inc', clientEmail: 'billing@eduplatform.com', items: [{ description: 'Annual SaaS license — EDU plan', quantity: 1, unitPrice: 24000, total: 24000 }], subtotal: 24000, tax: 0, total: 24000, status: 'sent', issueDate: d(15), dueDate: d(-4), createdAt: d(15) },
+            { id: 'usiv1', invoiceNumber: 'INV-078', clientName: 'EduPlatform Inc', clientEmail: 'billing@eduplatform.com', clientAddress: '', notes: '', lineItems: [{ description: 'Annual SaaS license — EDU plan', quantity: 1, unitPrice: 24000, taxRate: 0 }], subtotal: 24000, taxTotal: 0, total: 24000, status: 'sent', issueDate: d(15), dueDate: d(-4), createdAt: d(15) },
         ],
     },
 
@@ -212,21 +212,21 @@ export const DEMO_BUSINESSES: DemoBusiness[] = [
             { id: 'eu15', date: d(25), description: 'Equipment maintenance & pitch repairs',      type: 'expense', category: 'Maintenance',      amount: 620,   status: 'paid' },
         ],
         assets: [
-            { id: 'eua1', name: 'Football training equipment set', purchaseCost: 8500, purchaseDate: d(400), category: 'Equipment', depreciationYears: 5, status: 'active', createdAt: d(400) },
-            { id: 'eua2', name: 'Gym machines & weights', purchaseCost: 22000, purchaseDate: d(300), category: 'Equipment', depreciationYears: 8, status: 'active', createdAt: d(300) },
-            { id: 'eua3', name: 'Shop fit-out & display racks', purchaseCost: 6500, purchaseDate: d(500), category: 'Furniture', depreciationYears: 7, status: 'active', createdAt: d(500) },
+            { id: 'eua1', name: 'Football training equipment set', purchaseCost: 8500, purchaseDate: d(400), category: 'equipment', usefulLifeYears: 5, status: 'active', createdAt: d(400), description: '', residualValue: 0 },
+            { id: 'eua2', name: 'Gym machines & weights', purchaseCost: 22000, purchaseDate: d(300), category: 'equipment', usefulLifeYears: 8, status: 'active', createdAt: d(300), description: '', residualValue: 0 },
+            { id: 'eua3', name: 'Shop fit-out & display racks', purchaseCost: 6500, purchaseDate: d(500), category: 'furniture', usefulLifeYears: 7, status: 'active', createdAt: d(500), description: '', residualValue: 0 },
         ],
         loans: [
             { id: 'eul1', lenderName: 'Sparkasse Berlin Business Loan', principal: 50000, interestRate: 5.5, termMonths: 36, startDate: d(240), purpose: 'Gym expansion & equipment', status: 'active', payments: [{ id: 'p1', date: d(210), amount: 1600, note: 'Month 1' }, { id: 'p2', date: d(180), amount: 1600, note: 'Month 2' }, { id: 'p3', date: d(150), amount: 1600, note: 'Month 3' }, { id: 'p4', date: d(120), amount: 1600, note: 'Month 4' }], createdAt: d(240) },
         ],
         inventory: [
-            { id: 'eui1', name: 'Football boots (pairs)', sku: 'FBT-001', quantity: 28, unit: 'pairs', costPrice: 65, sellingPrice: 110, category: 'Footwear', lowStockThreshold: 10, createdAt: d(30), updatedAt: d(2) },
-            { id: 'eui2', name: 'Training jerseys & shorts sets', sku: 'KIT-001', quantity: 40, unit: 'sets', costPrice: 38, sellingPrice: 65, category: 'Clothing', lowStockThreshold: 15, createdAt: d(30), updatedAt: d(5) },
-            { id: 'eui3', name: 'Footballs (match grade)', sku: 'BLL-001', quantity: 15, unit: 'units', costPrice: 42, sellingPrice: 75, category: 'Equipment', lowStockThreshold: 8, createdAt: d(30), updatedAt: d(7) },
-            { id: 'eui4', name: 'Resistance bands & cones set', sku: 'TRN-001', quantity: 22, unit: 'sets', costPrice: 18, sellingPrice: 32, category: 'Equipment', lowStockThreshold: 10, createdAt: d(30), updatedAt: d(10) },
+            { id: 'eui1', name: 'Football boots (pairs)', quantity: 28, unit: 'pairs', costPrice: 65, sellingPrice: 110, category: 'Footwear', lowStockThreshold: 10, createdAt: d(30), updatedAt: d(2) },
+            { id: 'eui2', name: 'Training jerseys & shorts sets', quantity: 40, unit: 'sets', costPrice: 38, sellingPrice: 65, category: 'Clothing', lowStockThreshold: 15, createdAt: d(30), updatedAt: d(5) },
+            { id: 'eui3', name: 'Footballs (match grade)', quantity: 15, unit: 'units', costPrice: 42, sellingPrice: 75, category: 'equipment', lowStockThreshold: 8, createdAt: d(30), updatedAt: d(7) },
+            { id: 'eui4', name: 'Resistance bands & cones set', quantity: 22, unit: 'sets', costPrice: 18, sellingPrice: 32, category: 'equipment', lowStockThreshold: 10, createdAt: d(30), updatedAt: d(10) },
         ],
         invoices: [
-            { id: 'euiv1', invoiceNumber: 'INV-EU-021', clientName: 'TechFirm GmbH', clientEmail: 'hr@techfirm.de', items: [{ description: 'Corporate wellness programme — 10 sessions', quantity: 10, unitPrice: 350, total: 3500 }], subtotal: 3500, tax: 0, total: 3500, status: 'sent', issueDate: d(12), dueDate: d(-3), createdAt: d(12) },
+            { id: 'euiv1', invoiceNumber: 'INV-EU-021', clientName: 'TechFirm GmbH', clientEmail: 'hr@techfirm.de', clientAddress: '', notes: '', lineItems: [{ description: 'Corporate wellness programme — 10 sessions', quantity: 10, unitPrice: 350, taxRate: 0 }], subtotal: 3500, taxTotal: 0, total: 3500, status: 'sent', issueDate: d(12), dueDate: d(-3), createdAt: d(12) },
         ],
     },
 
@@ -258,18 +258,18 @@ export const DEMO_BUSINESSES: DemoBusiness[] = [
             { id: 're15', date: d(26), description: 'Property photography & virtual tours',       type: 'expense', category: 'Marketing',         amount: 2800,   status: 'paid' },
         ],
         assets: [
-            { id: 'rea1', name: 'BMW X5 — agent vehicle', purchaseCost: 280000, purchaseDate: d(400), category: 'Vehicle', depreciationYears: 5, status: 'active', createdAt: d(400) },
-            { id: 'rea2', name: 'Office furniture & fit-out', purchaseCost: 85000, purchaseDate: d(600), category: 'Furniture', depreciationYears: 7, status: 'active', createdAt: d(600) },
-            { id: 'rea3', name: 'CRM software licence (annual)', purchaseCost: 18000, purchaseDate: d(90), category: 'Equipment', depreciationYears: 1, status: 'active', createdAt: d(90) },
+            { id: 'rea1', name: 'BMW X5 — agent vehicle', purchaseCost: 280000, purchaseDate: d(400), category: 'vehicle', usefulLifeYears: 5, status: 'active', createdAt: d(400), description: '', residualValue: 0 },
+            { id: 'rea2', name: 'Office furniture & fit-out', purchaseCost: 85000, purchaseDate: d(600), category: 'furniture', usefulLifeYears: 7, status: 'active', createdAt: d(600), description: '', residualValue: 0 },
+            { id: 'rea3', name: 'CRM software licence (annual)', purchaseCost: 18000, purchaseDate: d(90), category: 'equipment', usefulLifeYears: 1, status: 'active', createdAt: d(90), description: '', residualValue: 0 },
         ],
         loans: [],
         inventory: [
-            { id: 'rei1', name: 'Active listings — villas', sku: 'LST-VIL', quantity: 6, unit: 'properties', costPrice: 0, sellingPrice: 0, category: 'Listings', lowStockThreshold: 3, createdAt: d(30), updatedAt: d(2) },
-            { id: 'rei2', name: 'Active listings — apartments', sku: 'LST-APT', quantity: 18, unit: 'properties', costPrice: 0, sellingPrice: 0, category: 'Listings', lowStockThreshold: 8, createdAt: d(30), updatedAt: d(2) },
-            { id: 'rei3', name: 'Rental managed units', sku: 'MGT-001', quantity: 8, unit: 'units', costPrice: 0, sellingPrice: 0, category: 'Managed Properties', lowStockThreshold: 5, createdAt: d(30), updatedAt: d(4) },
+            { id: 'rei1', name: 'Active listings — villas', quantity: 6, unit: 'properties', costPrice: 0, sellingPrice: 0, category: 'Listings', lowStockThreshold: 3, createdAt: d(30), updatedAt: d(2) },
+            { id: 'rei2', name: 'Active listings — apartments', quantity: 18, unit: 'properties', costPrice: 0, sellingPrice: 0, category: 'Listings', lowStockThreshold: 8, createdAt: d(30), updatedAt: d(2) },
+            { id: 'rei3', name: 'Rental managed units', quantity: 8, unit: 'units', costPrice: 0, sellingPrice: 0, category: 'Managed Properties', lowStockThreshold: 5, createdAt: d(30), updatedAt: d(4) },
         ],
         invoices: [
-            { id: 'reiv1', invoiceNumber: 'INV-AE-041', clientName: 'Mr James Carter', clientEmail: 'j.carter@outlook.com', items: [{ description: 'Sales commission — JBR villa (2%)', quantity: 1, unitPrice: 110000, total: 110000 }], subtotal: 110000, tax: 0, total: 110000, status: 'sent', issueDate: d(12), dueDate: d(-5), createdAt: d(12) },
+            { id: 'reiv1', invoiceNumber: 'INV-AE-041', clientName: 'Mr James Carter', clientEmail: 'j.carter@outlook.com', clientAddress: '', notes: '', lineItems: [{ description: 'Sales commission — JBR villa (2%)', quantity: 1, unitPrice: 110000, taxRate: 0 }], subtotal: 110000, taxTotal: 0, total: 110000, status: 'sent', issueDate: d(12), dueDate: d(-5), createdAt: d(12) },
         ],
     },
 
@@ -299,20 +299,20 @@ export const DEMO_BUSINESSES: DemoBusiness[] = [
             { id: 'cn13', date: d(25), description: 'Export sale — laptop bags to SA',      type: 'income',  category: 'Export Sales',    amount: 72000,  status: 'paid' },
         ],
         assets: [
-            { id: 'cna1', name: 'SMT assembly machines x2', purchaseCost: 480000, purchaseDate: d(500), category: 'Equipment', depreciationYears: 8, status: 'active', createdAt: d(500) },
-            { id: 'cna2', name: 'Factory forklift', purchaseCost: 95000, purchaseDate: d(300), category: 'Equipment', depreciationYears: 8, status: 'active', createdAt: d(300) },
-            { id: 'cna3', name: 'Delivery van', purchaseCost: 125000, purchaseDate: d(400), category: 'Vehicle', depreciationYears: 5, status: 'active', createdAt: d(400) },
+            { id: 'cna1', name: 'SMT assembly machines x2', purchaseCost: 480000, purchaseDate: d(500), category: 'equipment', usefulLifeYears: 8, status: 'active', createdAt: d(500), description: '', residualValue: 0 },
+            { id: 'cna2', name: 'Factory forklift', purchaseCost: 95000, purchaseDate: d(300), category: 'equipment', usefulLifeYears: 8, status: 'active', createdAt: d(300), description: '', residualValue: 0 },
+            { id: 'cna3', name: 'Delivery van', purchaseCost: 125000, purchaseDate: d(400), category: 'vehicle', usefulLifeYears: 5, status: 'active', createdAt: d(400), description: '', residualValue: 0 },
         ],
         loans: [
             { id: 'cnl1', lenderName: 'Bank of China SME Loan', principal: 800000, interestRate: 4.35, termMonths: 36, startDate: d(300), purpose: 'Production line expansion', status: 'active', payments: [{ id: 'p1', date: d(270), amount: 28000, note: 'Month 1' }, { id: 'p2', date: d(240), amount: 28000, note: 'Month 2' }, { id: 'p3', date: d(210), amount: 28000, note: 'Month 3' }], createdAt: d(300) },
         ],
         inventory: [
-            { id: 'cni1', name: 'Assembled phones (units)', sku: 'PHN-A1', quantity: 120, unit: 'units', costPrice: 850, sellingPrice: 1400, category: 'Electronics', lowStockThreshold: 50, createdAt: d(30), updatedAt: d(2) },
-            { id: 'cni2', name: 'Lithium batteries (cells)', sku: 'BAT-18650', quantity: 2000, unit: 'cells', costPrice: 18, sellingPrice: 0, category: 'Components', lowStockThreshold: 500, createdAt: d(30), updatedAt: d(5) },
-            { id: 'cni3', name: 'Earbuds (pairs)', sku: 'EBD-001', quantity: 80, unit: 'pairs', costPrice: 420, sellingPrice: 720, category: 'Electronics', lowStockThreshold: 30, createdAt: d(30), updatedAt: d(8) },
+            { id: 'cni1', name: 'Assembled phones (units)', quantity: 120, unit: 'units', costPrice: 850, sellingPrice: 1400, category: 'Electronics', lowStockThreshold: 50, createdAt: d(30), updatedAt: d(2) },
+            { id: 'cni2', name: 'Lithium batteries (cells)', quantity: 2000, unit: 'cells', costPrice: 18, sellingPrice: 0, category: 'Components', lowStockThreshold: 500, createdAt: d(30), updatedAt: d(5) },
+            { id: 'cni3', name: 'Earbuds (pairs)', quantity: 80, unit: 'pairs', costPrice: 420, sellingPrice: 720, category: 'Electronics', lowStockThreshold: 30, createdAt: d(30), updatedAt: d(8) },
         ],
         invoices: [
-            { id: 'cniv1', invoiceNumber: 'INV-CN-056', clientName: 'TechMart USA LLC', clientEmail: 'orders@techmart.us', items: [{ description: 'Smartwatches — Model X batch', quantity: 200, unitPrice: 990, total: 198000 }], subtotal: 198000, tax: 0, total: 198000, status: 'sent', issueDate: d(8), dueDate: d(-4), createdAt: d(8) },
+            { id: 'cniv1', invoiceNumber: 'INV-CN-056', clientName: 'TechMart USA LLC', clientEmail: 'orders@techmart.us', clientAddress: '', notes: '', lineItems: [{ description: 'Smartwatches — Model X batch', quantity: 200, unitPrice: 990, taxRate: 0 }], subtotal: 198000, taxTotal: 0, total: 198000, status: 'sent', issueDate: d(8), dueDate: d(-4), createdAt: d(8) },
         ],
     },
 ];

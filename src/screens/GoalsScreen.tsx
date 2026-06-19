@@ -208,6 +208,7 @@ export default function GoalsScreen() {
                                             currency={currency}
                                             daysRemaining={daysRemaining(goal.deadline)}
                                             onStrategy={() => setStrategyGoalId(goal.id)}
+                                            onEdit={() => openEditModal(goal)}
                                             onDelete={() => handleDelete(goal.id, goal.title)}
                                         />
                                     ))}

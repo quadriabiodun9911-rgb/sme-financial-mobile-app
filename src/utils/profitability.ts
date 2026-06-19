@@ -1,5 +1,11 @@
 import { Transaction, BusinessSettings } from '../types';
 
+export interface WaterfallItem {
+    label: string;
+    value: number;
+    type: 'base' | 'positive' | 'negative' | 'total';
+}
+
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 
 function getPeriodBounds(): { currentStart: Date; currentEnd: Date; prevStart: Date; prevEnd: Date } {

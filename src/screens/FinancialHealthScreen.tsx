@@ -8,10 +8,12 @@ import { Colors } from '../theme/colors';
 import { Config } from '../config';
 
 interface HealthData {
-    income:   any | null;
-    features: any | null;
-    errors:   string[];
+    income:    any | null;
+    features:  any | null;
+    errors:    string[];
     fetchedAt: string;
+    phone?:    string;
+    country?:  string;
 }
 
 function ScoreRing({ score, max = 100, label, color }: { score: number; max?: number; label: string; color: string }) {
@@ -207,7 +209,7 @@ export default function FinancialHealthScreen() {
                     {/* Features breakdown */}
                     <View style={styles.infoCard}>
                         <Text style={styles.sectionTitle}>Account Details</Text>
-                        <DataRow label="Phone" value={data.phone} />
+                        <DataRow label="Phone" value={data.phone ?? '—'} />
                         <DataRow label="Country" value={data.country?.toUpperCase() ?? currencyCode} />
                         {activeAccounts > 0 && <DataRow label="Active Accounts" value={String(activeAccounts)} />}
                         <DataRow label="Mobile Money Active" value={mobileMoneyActive ? '✓ Yes' : '✗ No'} />

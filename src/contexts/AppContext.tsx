@@ -66,7 +66,7 @@ interface AppContextValue {
     goals: FinancialGoal[];
     addGoal: (type: GoalType, overrides: Partial<FinancialGoal>) => void;
     deleteGoal: (id: string) => void;
-    updateGoal: (id: string, changes: Partial<Pick<FinancialGoal, 'title' | 'description' | 'targetValue' | 'deadline' | 'priority'>>) => void;
+    updateGoal: (id: string, changes: Partial<Pick<FinancialGoal, 'title' | 'description' | 'targetValue' | 'deadline' | 'percentTarget'>>) => void;
     updateGoalCurrentValue: (id: string, value: number) => void;
 
     invoices: Invoice[];
@@ -136,7 +136,8 @@ const ATTEMPTS_KEY = 'quad360_loginAttempts';
 
 const DEFAULT_SETTINGS: BusinessSettings = {
     businessType: 'both',
-    currency: '$',
+    currency: '₦',
+    currencyCode: 'NGN',
     minReserve: '5000',
     targetMargin: '0',
     openingAssets: '0',
@@ -418,7 +419,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             .single();
         if (!profileRow) throw new Error('Account found but no business profile exists. Please set up your account.');
 
-        const profile = { email: profileRow.email ?? email, businessName: profileRow.business_name ?? '' };
+        const profile = { email: profileRow.email ?? email, businessName: profileRow.business_name ?? '', phone: (profileRow as any).phone as string | undefined };
 
         // Save auth locally so future logins work with PIN only
         await clearWorkspaceOwner();
@@ -623,7 +624,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setGoals(prev => prev.filter(g => g.id !== id));
     };
 
-    const updateGoal = (id: string, changes: Partial<Pick<FinancialGoal, 'title' | 'description' | 'targetValue' | 'deadline' | 'priority'>>) => {
+    const updateGoal = (id: string, changes: Partial<Pick<FinancialGoal, 'title' | 'description' | 'targetValue' | 'deadline' | 'percentTarget'>>) => {
         setGoals(prev => prev.map(g => {
             if (g.id !== id) return g;
             const updated = { ...g, ...changes };

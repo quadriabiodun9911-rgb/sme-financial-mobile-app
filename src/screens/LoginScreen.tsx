@@ -8,6 +8,7 @@ import { Colors } from '../theme/colors';
 import { t, LANGUAGES, Language } from '../utils/i18n';
 import { DEMO_BUSINESSES } from '../utils/demoData';
 import { trackUserLoggedIn, identifyUser } from '../utils/analytics';
+import { supabase } from '../utils/supabase';
 
 const CURRENCIES = [
     { label: 'USD ($)',    value: '$'   },
@@ -45,7 +46,7 @@ type Mode = 'owner-setup' | 'owner-login' | 'join-team' | 'reset-pin' | 'demo-pi
 type LoginMethod = 'pin' | 'email';
 
 export default function LoginScreen() {
-    const { isFirstLaunch, setupAccount, login, joinTeam, enterDemo, language, setLanguage, updateSettings, resetApp, isLockedOut, lockoutUntil } = useApp();
+    const { isFirstLaunch, setupAccount, login, joinTeam, enterDemo, language, setLanguage, updateSettings, resetApp, isLockedOut, lockoutUntil, recoverAccount } = useApp();
     const [mode, setMode] = useState<Mode>(isFirstLaunch ? 'owner-setup' : 'owner-login');
     const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
     const [loginMethod, setLoginMethod] = useState<LoginMethod>('pin');
@@ -185,9 +186,7 @@ export default function LoginScreen() {
 
         // If local fails, try Supabase to give specific error
         try {
-            const { error } = await import('../utils/supabase').then(m =>
-                m.supabase.auth.signInWithPassword({ email: emailLoginEmail.trim(), password: emailLoginPin + '_Q360' })
-            );
+            const { error } = await supabase.auth.signInWithPassword({ email: emailLoginEmail.trim(), password: emailLoginPin + '_Q360' });
             if (error) {
                 if (error.message.toLowerCase().includes('invalid login') || error.message.toLowerCase().includes('invalid credentials')) {
                     Alert.alert('Incorrect Details', 'The email or PIN you entered does not match any account. Please check and try again.');
@@ -231,7 +230,7 @@ export default function LoginScreen() {
         if (resetNewPin !== resetConfirmPin) { Alert.alert('Error', 'PINs do not match.'); return; }
         setResetSubmitting(true);
         try {
-            const { supabase } = await import('../utils/supabase');
+            
             const redirectTo = typeof window !== 'undefined'
                 ? `${window.location.origin}/?reset=1`
                 : undefined;
@@ -258,7 +257,7 @@ export default function LoginScreen() {
         if (resetNewPin !== resetConfirmPin) { Alert.alert('Error', 'PINs do not match.'); return; }
         setResetSubmitting(true);
         try {
-            const { supabase } = await import('../utils/supabase');
+            
             const { error } = await supabase.auth.updateUser({ password: resetNewPin + '_Q360' });
             if (error) { Alert.alert('Error', error.message); setResetSubmitting(false); return; }
             Alert.alert('PIN Reset Successful', 'Your PIN has been updated. Please log in.', [
@@ -274,7 +273,7 @@ export default function LoginScreen() {
         if (!/^\d{6}$/.test(resetOtp.trim())) { Alert.alert('Error', 'Please enter the 6-digit code from the email link.'); return; }
         setResetSubmitting(true);
         try {
-            const { supabase } = await import('../utils/supabase');
+            
             // On web the reset link sets a session automatically via the URL hash;
             // verify the OTP token directly for environments that support it
             const { error: verifyError } = await supabase.auth.verifyOtp({

@@ -221,7 +221,7 @@ export default function ConnectBankScreen() {
 
             {/* Actions */}
             <View style={styles.actions}>
-                {status === 'idle' || status === 'error' ? (
+                {status !== 'connected' ? (
                     <TouchableOpacity
                         style={styles.primaryBtn}
                         onPress={handleConnect}

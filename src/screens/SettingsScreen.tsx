@@ -217,7 +217,7 @@ export default function SettingsScreen() {
                             <View style={styles.optRow}>
                                 {BUSINESS_TYPES.map(bt => (
                                     <Opt key={bt.value} label={bt.label} active={form.businessType === bt.value}
-                                        onPress={() => setForm(f => ({ ...f, businessType: bt.value }))} />
+                                        onPress={() => setForm((f: typeof form) => ({ ...f, businessType: bt.value }))} />
                                 ))}
                             </View>
                         </Section>
@@ -237,7 +237,7 @@ export default function SettingsScreen() {
                             <View style={styles.optRow}>
                                 {CURRENCIES.map(c => (
                                     <Opt key={c.value} label={c.label} active={form.currency === c.value}
-                                        onPress={() => setForm(f => ({ ...f, currency: c.value }))} />
+                                        onPress={() => setForm((f: typeof form) => ({ ...f, currency: c.value }))} />
                                 ))}
                             </View>
                         </Section>
@@ -270,13 +270,13 @@ export default function SettingsScreen() {
                             <FieldLabel>Minimum savings to keep at all times ({form.currency})</FieldLabel>
                             <Text style={styles.hint}>The app will warn you if your account drops below this amount.</Text>
                             <TextInput style={styles.input} value={form.minReserve}
-                                onChangeText={v => setForm(f => ({ ...f, minReserve: v }))}
+                                onChangeText={v => setForm((f: typeof form) => ({ ...f, minReserve: v }))}
                                 keyboardType="numeric" placeholder="5000" placeholderTextColor={Colors.muted} />
 
                             <FieldLabel>How much of each sale should be profit? (%)</FieldLabel>
                             <Text style={styles.hint}>Example: if you charge ₦1,000 and your costs are ₦400, your profit is 60%.</Text>
                             <TextInput style={styles.input} value={form.targetMargin}
-                                onChangeText={v => setForm(f => ({ ...f, targetMargin: v }))}
+                                onChangeText={v => setForm((f: typeof form) => ({ ...f, targetMargin: v }))}
                                 keyboardType="numeric" placeholder="65" placeholderTextColor={Colors.muted} />
                         </Section>
 
@@ -287,7 +287,7 @@ export default function SettingsScreen() {
                                 Applied automatically to new transactions. Can be overridden per transaction.
                             </Text>
                             <TextInput style={styles.input} value={form.defaultTaxRate}
-                                onChangeText={v => setForm(f => ({ ...f, defaultTaxRate: v }))}
+                                onChangeText={v => setForm((f: typeof form) => ({ ...f, defaultTaxRate: v }))}
                                 keyboardType="numeric" placeholder="0" placeholderTextColor={Colors.muted} />
                         </Section>
 
@@ -298,12 +298,12 @@ export default function SettingsScreen() {
                             </Text>
                             <FieldLabel>Value of things you already owned ({form.currency})</FieldLabel>
                             <TextInput style={styles.input} value={form.openingAssets}
-                                onChangeText={v => setForm(f => ({ ...f, openingAssets: v }))}
+                                onChangeText={v => setForm((f: typeof form) => ({ ...f, openingAssets: v }))}
                                 keyboardType="numeric" placeholder="0" placeholderTextColor={Colors.muted} />
 
                             <FieldLabel>Money you already owed to others ({form.currency})</FieldLabel>
                             <TextInput style={styles.input} value={form.openingLiabilities}
-                                onChangeText={v => setForm(f => ({ ...f, openingLiabilities: v }))}
+                                onChangeText={v => setForm((f: typeof form) => ({ ...f, openingLiabilities: v }))}
                                 keyboardType="numeric" placeholder="0" placeholderTextColor={Colors.muted} />
                         </Section>
 
@@ -438,7 +438,7 @@ export default function SettingsScreen() {
 
                                 {teamMembers.length > 0 && (
                                     <View style={{ marginTop: 14 }}>
-                                        {teamMembers.map(m => (
+                                        {teamMembers.map((m: any) => (
                                             <View key={m.id} style={styles.memberRow}>
                                                 <View style={{ flex: 1 }}>
                                                     <Text style={styles.memberEmail}>{m.memberEmail}</Text>

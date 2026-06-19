@@ -346,12 +346,13 @@ export function computeAgingBuckets(
 
 export function computeRecurringDates(
     lastDate: string,
-    frequency: 'weekly' | 'monthly' | 'quarterly'
+    frequency: 'weekly' | 'monthly' | 'quarterly' | 'yearly'
 ): string {
     const d = new Date(lastDate);
-    if (frequency === 'weekly') d.setDate(d.getDate() + 7);
-    else if (frequency === 'monthly') d.setMonth(d.getMonth() + 1);
-    else d.setMonth(d.getMonth() + 3);
+    if (frequency === 'weekly')      d.setDate(d.getDate() + 7);
+    else if (frequency === 'monthly')   d.setMonth(d.getMonth() + 1);
+    else if (frequency === 'quarterly') d.setMonth(d.getMonth() + 3);
+    else                                d.setFullYear(d.getFullYear() + 1);
     return d.toISOString().split('T')[0];
 }
 

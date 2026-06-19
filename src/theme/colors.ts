@@ -16,6 +16,9 @@ export const Colors = {
     warning: '#f59e0b',
     primary: '#2563eb',
 
+    danger: '#ef4444',
+    success: '#10b981',
+
     criticalBorder: '#dc2626',
     warningBorder: '#f59e0b',
     healthyBorder: '#10b981',
