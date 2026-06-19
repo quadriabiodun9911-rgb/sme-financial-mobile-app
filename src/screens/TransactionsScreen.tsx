@@ -430,7 +430,10 @@ export default function TransactionsScreen() {
                                     {/* Action row */}
                                     <View style={styles.txActions}>
                                         <Text style={styles.editHint}>Tap to edit</Text>
-                                        <View style={styles.actionBtns}>
+                                        <View
+                                            style={styles.actionBtns}
+                                            onStartShouldSetResponder={() => true}
+                                        >
                                             {(tx.status === 'pending' || tx.status === 'overdue') && (
                                                 <TouchableOpacity
                                                     style={styles.paidBtn}
@@ -453,8 +456,11 @@ export default function TransactionsScreen() {
                                                 }
                                                 return null;
                                             })()}
-                                            <TouchableOpacity onPress={() => handleDelete(tx.id, tx.description)}>
-                                                <Text style={styles.deleteText}>Delete</Text>
+                                            <TouchableOpacity
+                                                onPress={() => handleDelete(tx.id, tx.description)}
+                                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                            >
+                                                <Text style={styles.deleteText}>🗑 Delete</Text>
                                             </TouchableOpacity>
                                         </View>
                                     </View>
