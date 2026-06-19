@@ -115,6 +115,7 @@ describe('computeOneThingInsight', () => {
         cashBalance, margin, income: 10000, expense: 0, profit: cashBalance,
         assets: cashBalance, liabilities: 0, equity: cashBalance,
         totalRevenue: 10000, totalCosts: 0, totalTaxCollected: 0, totalTaxPaid: 0, netTaxPosition: 0,
+        annualDepreciation: 0, depreciationAdjustedProfit: cashBalance,
     });
 
     it('returns critical when cash balance < min reserve', () => {

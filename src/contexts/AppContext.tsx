@@ -25,6 +25,8 @@ import {
 import { refreshGoal, goalDefaults } from '../utils/goals';
 import { requestNotificationPermission, sendWelcomeNotification, scheduleDailyReminder, scheduleWeeklySummaryReminder, scheduleOverdueInvoiceReminder } from '../utils/notifications';
 import { supabase } from '../utils/supabase';
+import NetInfo from '@react-native-community/netinfo';
+import { flushQueue, queueSize } from '../utils/syncQueue';
 import { t } from '../utils/i18n';
 import { DEMO_BUSINESSES } from '../utils/demoData';
 import {
@@ -120,6 +122,7 @@ interface AppContextValue {
     finance: FinanceData;
     insight: ReturnType<typeof computeOneThingInsight>;
     isLoading: boolean;
+    pendingSyncCount: number;   // items queued for cloud sync (0 = fully synced)
 
     exportData: () => Promise<string>;
     importData: (json: string) => Promise<void>;
@@ -193,6 +196,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const [teamMembers, setTeamMembers]     = useState<TeamMember[]>([]);
     const [language, setLang]              = useState<Language>('en');
     const [isLoading, setIsLoading]         = useState(true);
+    const [pendingSyncCount, setPendingSyncCount] = useState(0);
     // Security: Rate limiting for login attempts (persisted so restart doesn't reset)
     const [loginAttempts, setLoginAttempts]       = useState(0);
     const [isLockedOut, setIsLockedOut]           = useState(false);
@@ -278,6 +282,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
     useEffect(() => { if (!isLoading) saveInventory(inventory).catch(persistError('inventory')); }, [inventory, isLoading]);
     useEffect(() => { if (!isLoading) saveBudgets(budgets).catch(persistError('budgets')); }, [budgets, isLoading]);
     useEffect(() => { if (!isLoading) AsyncStorage.setItem('@quad360/cash_pockets', JSON.stringify(cashPockets)).catch(() => {}); }, [cashPockets, isLoading]);
+
+    // ── Offline sync queue: flush when network is restored ───────────────────
+    useEffect(() => {
+        let wasPreviouslyOffline = false;
+
+        const unsubscribe = NetInfo.addEventListener(async state => {
+            const isOnline = state.isConnected && state.isInternetReachable !== false;
+
+            // Update pending count whenever connectivity changes
+            const pending = await queueSize();
+            setPendingSyncCount(pending);
+
+            if (isOnline && wasPreviouslyOffline && pending > 0) {
+                try {
+                    const { synced, failed } = await flushQueue(supabase);
+                    const remaining = await queueSize();
+                    setPendingSyncCount(remaining);
+                    if (synced > 0) console.log(`[SyncQueue] Flushed ${synced} pending operation(s).`);
+                    if (failed > 0) console.warn(`[SyncQueue] ${failed} operation(s) still pending.`);
+                } catch (e) {
+                    console.warn('[SyncQueue] Flush error:', e);
+                }
+            }
+            wasPreviouslyOffline = !isOnline;
+        });
+
+        return () => unsubscribe();
+    }, []);
 
     const activeAssets = useMemo(() => assets.filter(a => a.status === 'active'), [assets]);
     const registeredAssetsValue = useMemo(
@@ -921,7 +953,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         cashPockets, addCashPocket, updateCashPocket, deleteCashPocket,
         teamMembers, inviteMember, removeMember, refreshTeam,
         language, setLanguage,
-        finance, insight, isLoading,
+        finance, insight, isLoading, pendingSyncCount,
         exportData, importData, clearData, resetBusinessData, deleteAccount, resetApp,
     };
 

@@ -2,7 +2,7 @@ import { generateSwot } from '../src/utils/swot';
 import { FinanceData, Transaction } from '../src/types';
 
 const settings = {
-    businessType: 'both' as const, currency: '$', minReserve: '5000',
+    businessType: 'both' as const, currency: '$', currencyCode: 'USD', minReserve: '5000',
     targetMargin: '65', openingAssets: '0', openingLiabilities: '0', openingLoans: '0', openingOtherAssets: '0', defaultTaxRate: '0',
 };
 
@@ -11,6 +11,7 @@ const makeFinance = (overrides: Partial<FinanceData> = {}): FinanceData => ({
     cashBalance: 40000, totalRevenue: 100000, totalCosts: 60000,
     assets: 40000, liabilities: 0, equity: 40000,
     totalTaxCollected: 0, totalTaxPaid: 0, netTaxPosition: 0,
+    annualDepreciation: 0, depreciationAdjustedProfit: 40000,
     ...overrides,
 });
 

@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Transaction, BusinessSettings, FinancialGoal, Invoice, TeamMember, Language, Asset, InventoryItem, Loan, Budget } from '../types';
 import { supabase } from './supabase';
 import { savePinSecurely, loadPinSecurely, clearPinSecurely, clearAllSecureData } from './secureStorage';
+import { enqueue } from './syncQueue';
 
 const KEYS = {
     transactions:   '@quad360/transactions',
@@ -49,6 +50,7 @@ export async function clearWorkspaceOwner(): Promise<void> {
 
 // ─── Transactions ─────────────────────────────────────────────────────────────
 export async function saveTransactions(t: Transaction[]): Promise<void> {
+    // Always save locally first — works offline instantly
     await AsyncStorage.setItem(KEYS.transactions, JSON.stringify(t));
     const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return;
@@ -56,7 +58,12 @@ export async function saveTransactions(t: Transaction[]): Promise<void> {
         if (t.length > 0) {
             const rows = t.map(tx => ({ id: tx.id, user_id: ownerId, data: tx, updated_at: new Date().toISOString() }));
             const { error } = await supabase.from('transactions').upsert(rows, { onConflict: 'id' });
-            if (error) logSyncError('transactions', 'upsert', error);
+            if (error) {
+                logSyncError('transactions', 'upsert', error);
+                // Queue for retry when back online
+                await enqueue({ table: 'transactions', op: 'upsert', rows, userId: ownerId });
+                return;
+            }
         }
         const { data: remote, error: fetchErr } = await supabase.from('transactions').select('id').eq('user_id', ownerId);
         if (fetchErr) { logSyncError('transactions', 'select', fetchErr); return; }
@@ -65,12 +72,18 @@ export async function saveTransactions(t: Transaction[]): Promise<void> {
             const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
             if (toDelete.length > 0) {
                 const { error: delErr } = await supabase.from('transactions').delete().in('id', toDelete);
-                if (delErr) logSyncError('transactions', 'delete', delErr);
+                if (delErr) {
+                    await enqueue({ table: 'transactions', op: 'delete', rows: toDelete, userId: ownerId });
+                }
             }
         }
     } catch (e) {
+        // Network error — queue for when internet returns
         logSyncError('transactions', 'sync', e);
-        throw e; // re-throw so AppContext can surface the warning to user
+        if (t.length > 0) {
+            const rows = t.map(tx => ({ id: tx.id, user_id: ownerId, data: tx, updated_at: new Date().toISOString() }));
+            await enqueue({ table: 'transactions', op: 'upsert', rows, userId: ownerId });
+        }
     }
 }
 
@@ -110,7 +123,8 @@ export async function saveSettings(s: BusinessSettings): Promise<void> {
         if (error) { logSyncError('settings', 'upsert', error); throw new Error(error.message); }
     } catch (e) {
         logSyncError('settings', 'sync', e);
-        throw e;
+        const row = { user_id: ownerId, data: s, updated_at: new Date().toISOString() };
+        await enqueue({ table: 'settings', op: 'upsert', rows: [row], userId: ownerId });
     }
 }
 
@@ -159,7 +173,8 @@ export async function saveGoals(g: FinancialGoal[]): Promise<void> {
         }
     } catch (e) {
         logSyncError('goals', 'sync', e);
-        throw e;
+        const _rows = g.map(goal => ({ id: goal.id, user_id: ownerId, data: goal, updated_at: new Date().toISOString() }));
+        await enqueue({ table: 'goals', op: 'upsert', rows: _rows, userId: ownerId });
     }
 }
 
@@ -208,7 +223,8 @@ export async function saveInvoices(invoices: Invoice[]): Promise<void> {
         }
     } catch (e) {
         logSyncError('invoices', 'sync', e);
-        throw e;
+        const _rows = invoices.map(inv => ({ id: inv.id, user_id: ownerId, data: inv, updated_at: new Date().toISOString() }));
+        await enqueue({ table: 'invoices', op: 'upsert', rows: _rows, userId: ownerId });
     }
 }
 
@@ -258,7 +274,8 @@ export async function saveAssets(assets: Asset[]): Promise<void> {
         }
     } catch (e) {
         logSyncError('assets', 'sync', e);
-        throw e;
+        const _rows = assets.map(a => ({ id: a.id, user_id: ownerId, data: a, updated_at: new Date().toISOString() }));
+        await enqueue({ table: 'assets', op: 'upsert', rows: _rows, userId: ownerId });
     }
 }
 

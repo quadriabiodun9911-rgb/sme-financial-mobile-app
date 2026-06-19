@@ -32,7 +32,7 @@ const ACCOUNT_ITEMS: { label: string; icon: string; screen: Screen }[] = [
 ];
 
 export default function FooterNav() {
-    const { currentScreen, setCurrentScreen, user } = useApp();
+    const { currentScreen, setCurrentScreen, user, pendingSyncCount } = useApp();
     const [moreOpen, setMoreOpen] = useState(false);
 
     const TABS: { label: string; screen: Screen; icon: string }[] = [
@@ -78,7 +78,14 @@ export default function FooterNav() {
                     style={styles.item}
                     onPress={() => setMoreOpen(true)}
                 >
-                    <Text style={styles.icon}>👤</Text>
+                    <View style={styles.iconWrapper}>
+                        <Text style={styles.icon}>👤</Text>
+                        {pendingSyncCount > 0 && (
+                            <View style={styles.syncDot}>
+                                <Text style={styles.syncDotText}>{pendingSyncCount > 9 ? '9+' : pendingSyncCount}</Text>
+                            </View>
+                        )}
+                    </View>
                     <Text style={[styles.text, moreOpen && styles.active]}>Me</Text>
                     {moreOpen && <View style={styles.indicator} />}
                 </TouchableOpacity>
@@ -102,6 +109,10 @@ export default function FooterNav() {
                         <View style={styles.profileInfo}>
                             <Text style={styles.profileName}>{user?.businessName || 'My Business'}</Text>
                             <Text style={styles.profileEmail}>{maskedEmail}</Text>
+                            {pendingSyncCount > 0
+                                ? <Text style={styles.syncPending}>⏳ {pendingSyncCount} change{pendingSyncCount > 1 ? 's' : ''} pending sync</Text>
+                                : <Text style={styles.syncOk}>✅ All data synced</Text>
+                            }
                         </View>
                         <TouchableOpacity onPress={() => goTo('settings')}>
                             <Text style={styles.profileArrow}>›</Text>
@@ -180,7 +191,10 @@ const styles = StyleSheet.create({
         borderTopWidth: 1,
         borderTopColor: Colors.border,
     },
-    item:      { alignItems: 'center', flex: 1 },
+    item:        { alignItems: 'center', flex: 1 },
+    iconWrapper: { position: 'relative' },
+    syncDot:     { position: 'absolute', top: -4, right: -6, backgroundColor: '#f59e0b', borderRadius: 8, minWidth: 16, height: 16, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
+    syncDotText: { color: '#fff', fontSize: 9, fontWeight: '800' },
     icon:      { fontSize: 14, marginBottom: 2 },
     text:      { color: Colors.textMuted, fontSize: 10 },
     active:    { color: Colors.primary, fontWeight: 'bold' },
@@ -206,8 +220,10 @@ const styles = StyleSheet.create({
     avatar:      { width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.primary, justifyContent: 'center', alignItems: 'center' },
     avatarText:  { color: '#fff', fontSize: 20, fontWeight: '800' },
     profileInfo: { flex: 1 },
-    profileName: { fontSize: 17, fontWeight: '800', color: Colors.textPrimary },
-    profileEmail:{ fontSize: 12, color: Colors.textMuted, marginTop: 3 },
+    profileName:  { fontSize: 17, fontWeight: '800', color: Colors.textPrimary },
+    profileEmail: { fontSize: 12, color: Colors.textMuted, marginTop: 3 },
+    syncOk:       { fontSize: 11, color: Colors.income, marginTop: 4 },
+    syncPending:  { fontSize: 11, color: '#f59e0b', marginTop: 4 },
     profileArrow:{ fontSize: 24, color: Colors.textMuted },
 
     // Group label
