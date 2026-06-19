@@ -1,179 +1,240 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
     View, Text, TouchableOpacity, StyleSheet,
-    Modal, SafeAreaView, StatusBar,
+    Modal, SafeAreaView, StatusBar, ScrollView,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { Screen } from '../types';
 
-// ─── Groups shown on the More screen ────────────────────────────────────────
-
-const ANALYTICS_ITEMS: { label: string; icon: string; screen: Screen }[] = [
-    { label: 'Growth',    icon: '📈', screen: 'growth'   },
-    { label: 'Insights',  icon: '💡', screen: 'insights' },
-    { label: 'Analysis',  icon: '📊', screen: 'analysis' },
-    { label: 'Advisor',   icon: '🧠', screen: 'cfo'      },
+// ─── Icon accent colours per section ────────────────────────────────────────
+const ANALYTICS_ITEMS: { label: string; icon: string; screen: Screen; color: string }[] = [
+    { label: 'Growth',   icon: '📈', screen: 'growth',   color: '#10b981' },
+    { label: 'Insights', icon: '💡', screen: 'insights', color: '#f59e0b' },
+    { label: 'Analysis', icon: '📊', screen: 'analysis', color: '#3b82f6' },
+    { label: 'Advisor',  icon: '🧠', screen: 'cfo',      color: '#8b5cf6' },
 ];
 
-const FINANCE_ITEMS: { label: string; icon: string; screen: Screen }[] = [
-    { label: 'Goals',     icon: '🎯', screen: 'goals'     },
-    { label: 'Budget',    icon: '💰', screen: 'budget'    },
-    { label: 'Assets',    icon: '🏢', screen: 'assets'    },
-    { label: 'Loans',     icon: '🏦', screen: 'loans'     },
+const FINANCE_ITEMS: { label: string; icon: string; screen: Screen; color: string }[] = [
+    { label: 'Goals',  icon: '🎯', screen: 'goals',  color: '#ef4444' },
+    { label: 'Budget', icon: '💰', screen: 'budget', color: '#10b981' },
+    { label: 'Assets', icon: '🏢', screen: 'assets', color: '#3b82f6' },
+    { label: 'Loans',  icon: '🏦', screen: 'loans',  color: '#f97316' },
 ];
 
-const OPERATIONS_ITEMS: { label: string; icon: string; screen: Screen }[] = [
-    { label: 'Inventory', icon: '📦', screen: 'inventory' },
+const OPERATIONS_ITEMS: { label: string; icon: string; screen: Screen; color: string; desc: string }[] = [
+    { label: 'Inventory', icon: '📦', screen: 'inventory', color: '#f59e0b', desc: 'Stock levels & margins' },
 ];
 
-const ACCOUNT_ITEMS: { label: string; icon: string; screen: Screen }[] = [
-    { label: 'Settings',  icon: '⚙️', screen: 'settings' },
+const ACCOUNT_ITEMS: { label: string; icon: string; screen: Screen; color: string; desc: string }[] = [
+    { label: 'Settings', icon: '⚙️', screen: 'settings', color: '#94a3b8', desc: 'Business, team & account' },
+];
+
+// ─── Footer tabs ─────────────────────────────────────────────────────────────
+const TABS: { label: string; screen: Screen; icon: string }[] = [
+    { label: 'Home',      screen: 'dashboard',    icon: '🏠' },
+    { label: 'Sales',     screen: 'transactions', icon: '📋' },
+    { label: 'Invoices',  screen: 'invoices',     icon: '🧾' },
+    { label: 'Reports',   screen: 'reports',      icon: '📊' },
 ];
 
 export default function FooterNav() {
-    const { currentScreen, setCurrentScreen, user, pendingSyncCount } = useApp();
+    const { currentScreen, setCurrentScreen, user, pendingSyncCount, transactions, goals, invoices, finance } = useApp();
     const [moreOpen, setMoreOpen] = useState(false);
-
-    const TABS: { label: string; screen: Screen; icon: string }[] = [
-        { label: 'Home',      screen: 'dashboard',    icon: '⬛' },
-        { label: 'Sales Log', screen: 'transactions', icon: '📋' },
-        { label: 'Invoices',  screen: 'invoices',     icon: '🧾' },
-        { label: 'Reports',   screen: 'reports',      icon: '📊' },
-    ];
 
     const goTo = (screen: Screen) => { setCurrentScreen(screen); setMoreOpen(false); };
 
-    // Initials avatar from business name
-    const initials = (user?.businessName || 'Q')
-        .split(' ')
-        .map(w => w[0])
-        .join('')
-        .toUpperCase()
-        .slice(0, 2);
+    const initials = useMemo(() =>
+        (user?.businessName || 'Q')
+            .split(' ')
+            .map((w: string) => w[0])
+            .join('')
+            .toUpperCase()
+            .slice(0, 2),
+        [user?.businessName]
+    );
 
     const maskedEmail = user?.email
         ? user.email.replace(/(.{2}).+(@.+)/, '$1•••$2')
         : '';
 
+    // Quick stats for the profile summary strip
+    const totalTx     = transactions.length;
+    const activeGoals = goals.filter(g => g.status !== 'achieved').length;
+    const unpaidInv   = invoices.filter(i => i.status === 'sent' || i.status === 'overdue').length;
+    const profit      = finance?.profit ?? 0;
+
     return (
         <>
-            {/* ── Bottom tab bar ──────────────────────────────────────────── */}
+            {/* ── Bottom tab bar ─────────────────────────────────────────── */}
             <View style={styles.footer}>
                 {TABS.map(tab => {
                     const active = currentScreen === tab.screen;
                     return (
                         <TouchableOpacity
                             key={tab.screen}
-                            style={styles.item}
+                            style={styles.tabItem}
                             onPress={() => setCurrentScreen(tab.screen)}
+                            activeOpacity={0.7}
                         >
-                            <Text style={styles.icon}>{tab.icon}</Text>
-                            <Text style={[styles.text, active && styles.active]}>{tab.label}</Text>
-                            {active && <View style={styles.indicator} />}
+                            <Text style={styles.tabIcon}>{tab.icon}</Text>
+                            <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{tab.label}</Text>
+                            {active && <View style={styles.tabIndicator} />}
                         </TouchableOpacity>
                     );
                 })}
+
+                {/* Me tab */}
                 <TouchableOpacity
-                    style={styles.item}
+                    style={styles.tabItem}
                     onPress={() => setMoreOpen(true)}
+                    activeOpacity={0.7}
                 >
-                    <View style={styles.iconWrapper}>
-                        <Text style={styles.icon}>👤</Text>
+                    <View style={styles.meAvatarSmall}>
+                        <Text style={styles.meAvatarSmallText}>{initials}</Text>
                         {pendingSyncCount > 0 && (
-                            <View style={styles.syncDot}>
-                                <Text style={styles.syncDotText}>{pendingSyncCount > 9 ? '9+' : pendingSyncCount}</Text>
+                            <View style={styles.syncBadge}>
+                                <Text style={styles.syncBadgeText}>{pendingSyncCount > 9 ? '9+' : pendingSyncCount}</Text>
                             </View>
                         )}
                     </View>
-                    <Text style={[styles.text, moreOpen && styles.active]}>Me</Text>
-                    {moreOpen && <View style={styles.indicator} />}
+                    <Text style={[styles.tabLabel, moreOpen && styles.tabLabelActive]}>Me</Text>
+                    {moreOpen && <View style={styles.tabIndicator} />}
                 </TouchableOpacity>
             </View>
 
-            {/* ── Full-screen Me page ─────────────────────────────────────── */}
-            <Modal visible={moreOpen} animationType="slide" presentationStyle="fullScreen" onRequestClose={() => setMoreOpen(false)}>
+            {/* ── Me full-screen modal ────────────────────────────────────── */}
+            <Modal
+                visible={moreOpen}
+                animationType="slide"
+                presentationStyle="fullScreen"
+                onRequestClose={() => setMoreOpen(false)}
+            >
                 <SafeAreaView style={styles.page}>
-                    <StatusBar barStyle="dark-content" />
+                    <StatusBar barStyle="light-content" backgroundColor={Colors.bg} />
 
-                    {/* Close button */}
-                    <TouchableOpacity style={styles.closeBtn} onPress={() => setMoreOpen(false)}>
-                        <Text style={styles.closeBtnText}>✕</Text>
-                    </TouchableOpacity>
-
-                    {/* ── Profile card ──────────────────────────────────── */}
-                    <View style={styles.profileCard}>
-                        <View style={styles.avatar}>
-                            <Text style={styles.avatarText}>{initials}</Text>
-                        </View>
-                        <View style={styles.profileInfo}>
-                            <Text style={styles.profileName}>{user?.businessName || 'My Business'}</Text>
-                            <Text style={styles.profileEmail}>{maskedEmail}</Text>
-                            {pendingSyncCount > 0
-                                ? <Text style={styles.syncPending}>⏳ {pendingSyncCount} change{pendingSyncCount > 1 ? 's' : ''} pending sync</Text>
-                                : <Text style={styles.syncOk}>✅ All data synced</Text>
-                            }
-                        </View>
-                        <TouchableOpacity onPress={() => goTo('settings')}>
-                            <Text style={styles.profileArrow}>›</Text>
+                    {/* Header */}
+                    <View style={styles.header}>
+                        <Text style={styles.headerTitle}>My Account</Text>
+                        <TouchableOpacity style={styles.closeBtn} onPress={() => setMoreOpen(false)} activeOpacity={0.7}>
+                            <Text style={styles.closeBtnText}>✕</Text>
                         </TouchableOpacity>
                     </View>
 
-                    {/* ── Analytics group ───────────────────────────────── */}
-                    <Text style={styles.groupLabel}>Analytics</Text>
-                    <View style={styles.iconGrid}>
-                        {ANALYTICS_ITEMS.map(item => (
-                            <TouchableOpacity key={item.screen} style={styles.gridItem} onPress={() => goTo(item.screen)}>
-                                <View style={styles.gridIconBox}>
-                                    <Text style={styles.gridIcon}>{item.icon}</Text>
+                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+
+                        {/* ── Profile card ──────────────────────────────── */}
+                        <TouchableOpacity style={styles.profileCard} onPress={() => goTo('settings')} activeOpacity={0.85}>
+                            <View style={styles.avatar}>
+                                <Text style={styles.avatarText}>{initials}</Text>
+                            </View>
+                            <View style={styles.profileInfo}>
+                                <Text style={styles.profileName}>{user?.businessName || 'My Business'}</Text>
+                                <Text style={styles.profileEmail}>{maskedEmail}</Text>
+                                <View style={styles.syncRow}>
+                                    {pendingSyncCount > 0 ? (
+                                        <>
+                                            <View style={[styles.syncDot, { backgroundColor: '#f59e0b' }]} />
+                                            <Text style={styles.syncTextPending}>{pendingSyncCount} change{pendingSyncCount > 1 ? 's' : ''} pending sync</Text>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <View style={[styles.syncDot, { backgroundColor: Colors.success }]} />
+                                            <Text style={styles.syncTextOk}>All data synced</Text>
+                                        </>
+                                    )}
                                 </View>
-                                <Text style={styles.gridLabel}>{item.label}</Text>
-                            </TouchableOpacity>
-                        ))}
-                    </View>
+                            </View>
+                            <Text style={styles.profileArrow}>›</Text>
+                        </TouchableOpacity>
 
-                    {/* ── Finance group ─────────────────────────────────── */}
-                    <Text style={styles.groupLabel}>Finance</Text>
-                    <View style={styles.iconGrid}>
-                        {FINANCE_ITEMS.map(item => (
-                            <TouchableOpacity key={item.screen} style={styles.gridItem} onPress={() => goTo(item.screen)}>
-                                <View style={styles.gridIconBox}>
-                                    <Text style={styles.gridIcon}>{item.icon}</Text>
-                                </View>
-                                <Text style={styles.gridLabel}>{item.label}</Text>
+                        {/* ── Quick stats strip ─────────────────────────── */}
+                        <View style={styles.statsRow}>
+                            <TouchableOpacity style={styles.statBox} onPress={() => goTo('transactions')} activeOpacity={0.8}>
+                                <Text style={styles.statValue}>{totalTx}</Text>
+                                <Text style={styles.statLabel}>Transactions</Text>
                             </TouchableOpacity>
-                        ))}
-                    </View>
+                            <View style={styles.statDivider} />
+                            <TouchableOpacity style={styles.statBox} onPress={() => goTo('goals')} activeOpacity={0.8}>
+                                <Text style={styles.statValue}>{activeGoals}</Text>
+                                <Text style={styles.statLabel}>Active Goals</Text>
+                            </TouchableOpacity>
+                            <View style={styles.statDivider} />
+                            <TouchableOpacity style={styles.statBox} onPress={() => goTo('invoices')} activeOpacity={0.8}>
+                                <Text style={styles.statValue}>{unpaidInv}</Text>
+                                <Text style={styles.statLabel}>Unpaid Inv.</Text>
+                            </TouchableOpacity>
+                            <View style={styles.statDivider} />
+                            <TouchableOpacity style={styles.statBox} onPress={() => goTo('dashboard')} activeOpacity={0.8}>
+                                <Text style={[styles.statValue, { color: profit >= 0 ? Colors.income : Colors.expense }]}>
+                                    {profit >= 0 ? '+' : ''}{(profit / 1000).toFixed(0)}k
+                                </Text>
+                                <Text style={styles.statLabel}>Profit</Text>
+                            </TouchableOpacity>
+                        </View>
 
-                    {/* ── Operations & Account — list rows ──────────────── */}
-                    <Text style={styles.groupLabel}>Operations</Text>
-                    <View style={styles.listCard}>
-                        {OPERATIONS_ITEMS.map((item, i) => (
-                            <TouchableOpacity
-                                key={item.screen}
-                                style={[styles.listRow, i > 0 && styles.listRowBorder]}
-                                onPress={() => goTo(item.screen)}
-                            >
-                                <Text style={styles.listIcon}>{item.icon}</Text>
-                                <Text style={styles.listLabel}>{item.label}</Text>
-                                <Text style={styles.listArrow}>›</Text>
-                            </TouchableOpacity>
-                        ))}
-                    </View>
+                        {/* ── Analytics ─────────────────────────────────── */}
+                        <Text style={styles.sectionTitle}>Analytics</Text>
+                        <View style={styles.gridCard}>
+                            {ANALYTICS_ITEMS.map(item => (
+                                <TouchableOpacity
+                                    key={item.screen}
+                                    style={styles.gridItem}
+                                    onPress={() => goTo(item.screen)}
+                                    activeOpacity={0.75}
+                                >
+                                    <View style={[styles.gridIconBox, { backgroundColor: item.color + '22' }]}>
+                                        <Text style={styles.gridIcon}>{item.icon}</Text>
+                                    </View>
+                                    <Text style={styles.gridLabel}>{item.label}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
 
-                    <View style={[styles.listCard, { marginTop: 10 }]}>
-                        {ACCOUNT_ITEMS.map((item, i) => (
-                            <TouchableOpacity
-                                key={item.screen}
-                                style={[styles.listRow, i > 0 && styles.listRowBorder]}
-                                onPress={() => goTo(item.screen)}
-                            >
-                                <Text style={styles.listIcon}>{item.icon}</Text>
-                                <Text style={styles.listLabel}>{item.label}</Text>
-                                <Text style={styles.listArrow}>›</Text>
-                            </TouchableOpacity>
-                        ))}
-                    </View>
+                        {/* ── Finance ───────────────────────────────────── */}
+                        <Text style={styles.sectionTitle}>Finance</Text>
+                        <View style={styles.gridCard}>
+                            {FINANCE_ITEMS.map(item => (
+                                <TouchableOpacity
+                                    key={item.screen}
+                                    style={styles.gridItem}
+                                    onPress={() => goTo(item.screen)}
+                                    activeOpacity={0.75}
+                                >
+                                    <View style={[styles.gridIconBox, { backgroundColor: item.color + '22' }]}>
+                                        <Text style={styles.gridIcon}>{item.icon}</Text>
+                                    </View>
+                                    <Text style={styles.gridLabel}>{item.label}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
+                        {/* ── Operations & Account — list rows ──────────── */}
+                        <Text style={styles.sectionTitle}>Operations & Account</Text>
+                        <View style={styles.listCard}>
+                            {[...OPERATIONS_ITEMS, ...ACCOUNT_ITEMS].map((item, i, arr) => (
+                                <TouchableOpacity
+                                    key={item.screen}
+                                    style={[styles.listRow, i < arr.length - 1 && styles.listRowBorder]}
+                                    onPress={() => goTo(item.screen)}
+                                    activeOpacity={0.75}
+                                >
+                                    <View style={[styles.listIconBox, { backgroundColor: item.color + '22' }]}>
+                                        <Text style={styles.listIcon}>{item.icon}</Text>
+                                    </View>
+                                    <View style={styles.listTextCol}>
+                                        <Text style={styles.listLabel}>{item.label}</Text>
+                                        <Text style={styles.listDesc}>{item.desc}</Text>
+                                    </View>
+                                    <Text style={styles.listArrow}>›</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
+                        {/* ── App version ───────────────────────────────── */}
+                        <Text style={styles.versionText}>Quad360 · v1.0.0</Text>
+
+                    </ScrollView>
                 </SafeAreaView>
             </Modal>
         </>
@@ -185,78 +246,121 @@ const styles = StyleSheet.create({
     footer: {
         flexDirection: 'row',
         justifyContent: 'space-around',
-        paddingVertical: 10,
-        paddingBottom: 14,
+        paddingVertical: 8,
+        paddingBottom: 12,
         backgroundColor: Colors.surface,
         borderTopWidth: 1,
         borderTopColor: Colors.border,
     },
-    item:        { alignItems: 'center', flex: 1 },
-    iconWrapper: { position: 'relative' },
-    syncDot:     { position: 'absolute', top: -4, right: -6, backgroundColor: '#f59e0b', borderRadius: 8, minWidth: 16, height: 16, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
-    syncDotText: { color: '#fff', fontSize: 9, fontWeight: '800' },
-    icon:      { fontSize: 14, marginBottom: 2 },
-    text:      { color: Colors.textMuted, fontSize: 10 },
-    active:    { color: Colors.primary, fontWeight: 'bold' },
-    indicator: { width: 4, height: 4, borderRadius: 2, backgroundColor: Colors.primary, marginTop: 3 },
+    tabItem:        { alignItems: 'center', flex: 1, paddingTop: 4 },
+    tabIcon:        { fontSize: 16, marginBottom: 2 },
+    tabLabel:       { color: Colors.textMuted, fontSize: 10, fontWeight: '500' },
+    tabLabelActive: { color: Colors.primary, fontWeight: '700' },
+    tabIndicator:   { width: 4, height: 4, borderRadius: 2, backgroundColor: Colors.primary, marginTop: 3 },
+
+    // Me avatar in tab bar
+    meAvatarSmall:     { width: 22, height: 22, borderRadius: 11, backgroundColor: Colors.primary, justifyContent: 'center', alignItems: 'center', marginBottom: 2, position: 'relative' },
+    meAvatarSmallText: { color: '#fff', fontSize: 9, fontWeight: '800' },
+    syncBadge:         { position: 'absolute', top: -3, right: -4, backgroundColor: '#f59e0b', borderRadius: 6, minWidth: 13, height: 13, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2 },
+    syncBadgeText:     { color: '#fff', fontSize: 8, fontWeight: '800' },
 
     // ── Me page ─────────────────────────────────────────────────────────────
-    page: { flex: 1, backgroundColor: '#f2f3f7' },
+    page:   { flex: 1, backgroundColor: Colors.bg },
+    scroll: { paddingBottom: 40 },
 
-    closeBtn:     { alignSelf: 'flex-end', padding: 16 },
-    closeBtnText: { fontSize: 18, color: Colors.textMuted },
+    // Header
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        paddingVertical: 14,
+        borderBottomWidth: 1,
+        borderBottomColor: Colors.border,
+    },
+    headerTitle:  { fontSize: 18, fontWeight: '800', color: Colors.textPrimary },
+    closeBtn:     { width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.surface, alignItems: 'center', justifyContent: 'center' },
+    closeBtnText: { fontSize: 14, color: Colors.textMuted, fontWeight: '700' },
 
     // Profile card
     profileCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#fff',
+        backgroundColor: Colors.surface,
         marginHorizontal: 16,
+        marginTop: 20,
         borderRadius: 16,
         padding: 16,
-        marginBottom: 20,
         gap: 14,
+        borderWidth: 1,
+        borderColor: Colors.border,
     },
-    avatar:      { width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.primary, justifyContent: 'center', alignItems: 'center' },
+    avatar:      { width: 54, height: 54, borderRadius: 27, backgroundColor: Colors.primary, justifyContent: 'center', alignItems: 'center' },
     avatarText:  { color: '#fff', fontSize: 20, fontWeight: '800' },
     profileInfo: { flex: 1 },
-    profileName:  { fontSize: 17, fontWeight: '800', color: Colors.textPrimary },
-    profileEmail: { fontSize: 12, color: Colors.textMuted, marginTop: 3 },
-    syncOk:       { fontSize: 11, color: Colors.income, marginTop: 4 },
-    syncPending:  { fontSize: 11, color: '#f59e0b', marginTop: 4 },
-    profileArrow:{ fontSize: 24, color: Colors.textMuted },
+    profileName:  { fontSize: 16, fontWeight: '800', color: Colors.textPrimary },
+    profileEmail: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
+    syncRow:      { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 5 },
+    syncDot:      { width: 7, height: 7, borderRadius: 4 },
+    syncTextOk:   { fontSize: 11, color: Colors.success, fontWeight: '600' },
+    syncTextPending: { fontSize: 11, color: '#f59e0b', fontWeight: '600' },
+    profileArrow: { fontSize: 22, color: Colors.textMuted },
 
-    // Group label
-    groupLabel: {
+    // Quick stats
+    statsRow: {
+        flexDirection: 'row',
+        backgroundColor: Colors.surface,
+        marginHorizontal: 16,
+        marginTop: 12,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: Colors.border,
+        overflow: 'hidden',
+    },
+    statBox:     { flex: 1, alignItems: 'center', paddingVertical: 14 },
+    statValue:   { fontSize: 17, fontWeight: '800', color: Colors.textPrimary },
+    statLabel:   { fontSize: 10, color: Colors.textMuted, marginTop: 3, fontWeight: '500' },
+    statDivider: { width: 1, backgroundColor: Colors.border, marginVertical: 10 },
+
+    // Section titles
+    sectionTitle: {
         fontSize: 11,
         fontWeight: '700',
         color: Colors.textMuted,
         textTransform: 'uppercase',
-        letterSpacing: 0.6,
+        letterSpacing: 0.8,
         marginLeft: 20,
-        marginBottom: 8,
+        marginTop: 24,
+        marginBottom: 10,
     },
 
-    // Icon grid (4-across)
-    iconGrid: {
+    // Icon grid
+    gridCard: {
         flexDirection: 'row',
-        backgroundColor: '#fff',
+        backgroundColor: Colors.surface,
         marginHorizontal: 16,
         borderRadius: 16,
-        marginBottom: 20,
-        paddingVertical: 16,
+        paddingVertical: 18,
+        borderWidth: 1,
+        borderColor: Colors.border,
         justifyContent: 'space-around',
     },
     gridItem:    { alignItems: 'center', flex: 1 },
-    gridIconBox: { width: 48, height: 48, borderRadius: 14, backgroundColor: Colors.bg, justifyContent: 'center', alignItems: 'center', marginBottom: 6 },
+    gridIconBox: { width: 50, height: 50, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginBottom: 7 },
     gridIcon:    { fontSize: 22 },
-    gridLabel:   { fontSize: 11, color: Colors.textPrimary, fontWeight: '600', textAlign: 'center' },
+    gridLabel:   { fontSize: 11, color: Colors.textSecondary, fontWeight: '600', textAlign: 'center' },
 
-    // List card rows
-    listCard:      { backgroundColor: '#fff', marginHorizontal: 16, borderRadius: 16, overflow: 'hidden' },
-    listRow:       { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, paddingHorizontal: 16, gap: 14 },
-    listRowBorder: { borderTopWidth: 1, borderTopColor: '#f0f0f0' },
-    listIcon:      { fontSize: 20, width: 28, textAlign: 'center' },
-    listLabel:     { flex: 1, fontSize: 15, color: Colors.textPrimary, fontWeight: '600' },
-    listArrow:     { fontSize: 22, color: Colors.textMuted },
+    // List card
+    listCard:      { backgroundColor: Colors.surface, marginHorizontal: 16, borderRadius: 16, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden' },
+    listRow:       { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, gap: 12 },
+    listRowBorder: { borderTopWidth: 1, borderTopColor: Colors.border },
+    listIconBox:   { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+    listIcon:      { fontSize: 18 },
+    listTextCol:   { flex: 1 },
+    listLabel:     { fontSize: 15, color: Colors.textPrimary, fontWeight: '700' },
+    listDesc:      { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
+    listArrow:     { fontSize: 20, color: Colors.textMuted },
+
+    // Footer
+    versionText: { textAlign: 'center', fontSize: 12, color: Colors.textMuted, marginTop: 32 },
 });
