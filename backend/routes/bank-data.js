@@ -119,24 +119,24 @@ router.get('/balance/:userId', async (req, res) => {
 
 /**
  * POST /api/bank-data/exchange
- * Mono-specific: exchange the code returned by Mono Connect widget for an accountId.
- * Body: { userId, code }
- * Called after the user completes the Mono Connect widget flow.
+ * Exchange the code/record_id returned by a bank widget (Mono or Okra) for an accountId.
+ * Body: { userId, code, currencyCode? }
+ * currencyCode defaults to NGN — determines which provider handles the exchange.
  */
 router.post('/exchange', async (req, res) => {
-  const { userId, code } = req.body || {};
+  const { userId, code, currencyCode = 'NGN' } = req.body || {};
   if (!userId) return res.status(400).json({ error: 'userId is required' });
   if (!code)   return res.status(400).json({ error: 'code is required' });
 
   try {
-    const provider = getProvider('NGN'); // Mono handles NGN/GHS
+    const provider = getProvider(currencyCode.toUpperCase());
     if (typeof provider.exchangeCode !== 'function') {
       return res.status(400).json({ error: 'This provider does not support token exchange' });
     }
     const result = await provider.exchangeCode(userId, code);
     res.json({ success: true, ...result });
   } catch (err) {
-    res.status(err.status || 500).json({ error: err.message, provider: err.provider || 'mono' });
+    res.status(err.status || 500).json({ error: err.message, provider: err.provider || 'unknown' });
   }
 });
 

@@ -10,7 +10,7 @@ import { Config } from '../config';
 
 // Mirror of backend/providers/index.js — currency → provider
 const CURRENCY_PROVIDER_MAP: Record<string, string> = {
-    NGN: 'plaid', GHS: 'plaid',
+    NGN: 'okra', GHS: 'okra',
     KES: 'pngme', UGX: 'pngme', TZS: 'pngme', RWF: 'pngme', ZMW: 'pngme', ETB: 'pngme', MWK: 'pngme',
     EGP: 'lean',  SAR: 'lean',  AED: 'lean',  BHD: 'lean',  KWD: 'lean',  JOD: 'lean',  QAR: 'lean',
     USD: 'plaid', GBP: 'plaid', EUR: 'plaid', CAD: 'plaid', AUD: 'plaid', CHF: 'plaid',
@@ -18,10 +18,11 @@ const CURRENCY_PROVIDER_MAP: Record<string, string> = {
 
 // Provider metadata shown in the UI
 const PROVIDER_INFO: Record<string, { name: string; logo: string; description: string; countries: string }> = {
-    mono:  { name: 'Mono',  logo: '🇳🇬', description: 'Direct bank API — GTBank, Access, Zenith, UBA + more', countries: 'Nigeria · Ghana · Kenya' },
-    pngme: { name: 'Pngme', logo: '📱', description: 'SMS-based mobile money & bank alerts (Android only)',   countries: 'Kenya · Uganda · Tanzania · Rwanda · Zambia · Ethiopia' },
-    lean:  { name: 'Lean',  logo: '🌍', description: 'Open banking for MENA region',                          countries: 'Egypt · Saudi Arabia · UAE · Bahrain · Kuwait' },
-    plaid: { name: 'Plaid', logo: '🌐', description: 'Open banking for Western markets',                      countries: 'USA · UK · Canada · EU · Nigeria (sandbox)' },
+    okra:  { name: 'Okra',  logo: '🇳🇬', description: 'Open banking — GTBank, Access, Zenith, UBA + 20 Nigerian banks', countries: 'Nigeria · Ghana' },
+    mono:  { name: 'Mono',  logo: '🏦', description: 'Direct bank API — GTBank, Access, Zenith, UBA + more',            countries: 'Nigeria · Ghana · Kenya' },
+    pngme: { name: 'Pngme', logo: '📱', description: 'SMS-based mobile money & bank alerts (Android only)',              countries: 'Kenya · Uganda · Tanzania · Rwanda · Zambia · Ethiopia' },
+    lean:  { name: 'Lean',  logo: '🌍', description: 'Open banking for MENA region',                                    countries: 'Egypt · Saudi Arabia · UAE · Bahrain · Kuwait' },
+    plaid: { name: 'Plaid', logo: '🌐', description: 'Open banking for Western markets',                                 countries: 'USA · UK · Canada · EU' },
 };
 
 const STORAGE_KEY = 'bank_connection_v2';
@@ -85,8 +86,20 @@ export default function BankAggregatorScreen() {
                 body: JSON.stringify({ userId: userEmail, currencyCode: currency, businessName, name: businessName, email: userEmail }),
             });
 
-            if (!res.ok) throw new Error(`Server error ${res.status} — make sure MONO_SECRET_KEY / LEAN_APP_TOKEN / PLAID_SECRET is set on Render.`);
+            if (!res.ok) throw new Error(`Server error ${res.status} — make sure OKRA_SECRET_KEY / OKRA_KEY / LEAN_APP_TOKEN / PLAID_SECRET is set on Render.`);
             const data = await res.json();
+
+            // Okra — open widget URL in browser
+            if (data.okraWidgetUrl) {
+                await Linking.openURL(data.okraWidgetUrl);
+                Alert.alert(
+                    'Complete connection in browser',
+                    'Select your bank in the Okra widget and log in. Come back and tap "I\'ve connected" to finish.',
+                    [{ text: "I've connected", onPress: () => saveConnection('okra') }]
+                );
+                setLoading(false);
+                return;
+            }
 
             // Mono — open Connect widget URL in browser
             if (data.monoConnectUrl) {
