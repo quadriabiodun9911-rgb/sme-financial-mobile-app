@@ -21,7 +21,10 @@
       "buildNumber": "1",
       "infoPlist": {
         "NSCameraUsageDescription": "Used to scan QR codes for team invite codes.",
-        "NSPhotoLibraryUsageDescription": "Used to attach receipts to transactions."
+        "NSPhotoLibraryUsageDescription": "Used to attach receipts to transactions.",
+        "UIFileSharingEnabled": true,
+        "LSSupportsOpeningDocumentsInPlace": true,
+        "NSDocumentsFolderUsageDescription": "Used to import bank statements (CSV or Excel) for transaction analysis."
       }
     },
     "android": {

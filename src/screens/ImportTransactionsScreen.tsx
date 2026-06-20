@@ -1,7 +1,7 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
     View, Text, TouchableOpacity, ScrollView, StyleSheet,
-    Alert, ActivityIndicator, FlatList, Modal,
+    Alert, ActivityIndicator, FlatList, Modal, Platform,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import Papa from 'papaparse';
@@ -232,12 +232,71 @@ export default function ImportTransactionsScreen() {
     const [loading,    setLoading]    = useState(false);
     const [rows,       setRows]       = useState<ParsedRow[]>([]);
     const [error,      setError]      = useState('');
-    const [pickerRow,  setPickerRow]  = useState<string | null>(null); // row id being categorised
+    const [pickerRow,  setPickerRow]  = useState<string | null>(null);
     const [imported,   setImported]   = useState(0);
+
+    // Web fallback: hidden <input type="file"> for iOS Safari
+    const webInputRef = useRef<any>(null);
+
+    const processFile = useCallback(async (uri: string, name: string) => {
+        setLoading(true);
+        setError('');
+        try {
+            const isExcel = /\.(xlsx|xls)$/i.test(name);
+            let rawRows: Record<string, string>[] = [];
+
+            if (isExcel) {
+                const resp   = await fetch(uri);
+                const buffer = await resp.arrayBuffer();
+                const wb     = XLSX.read(buffer, { type: 'array' });
+                const ws     = wb.Sheets[wb.SheetNames[0]];
+                rawRows      = XLSX.utils.sheet_to_json<Record<string, string>>(ws, { defval: '' });
+            } else {
+                const resp = await fetch(uri);
+                const text = await resp.text();
+                const parsed = Papa.parse<Record<string, string>>(text, {
+                    header:          true,
+                    skipEmptyLines:  true,
+                    transformHeader: h => h.trim(),
+                    transform:       v => v.trim(),
+                });
+                rawRows = parsed.data;
+            }
+
+            const { rows: parsed, error: parseError } = parseRows(rawRows);
+            if (parseError) { setError(parseError); return; }
+            setRows(parsed);
+            setStep('preview');
+        } catch (e: any) {
+            setError(e?.message || 'Failed to read file. Make sure it is a CSV or Excel file.');
+        } finally {
+            setLoading(false);
+        }
+    }, []);
 
     // ── File pick & parse ────────────────────────────────────────────────────
     const handlePickFile = useCallback(async () => {
         setError('');
+
+        // On web (including iPhone Safari) use a native <input type="file">
+        if (Platform.OS === 'web') {
+            if (typeof document !== 'undefined') {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.csv,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+                input.onchange = async (e: any) => {
+                    const file: File = e.target?.files?.[0];
+                    if (!file) return;
+                    const uri = URL.createObjectURL(file);
+                    await processFile(uri, file.name);
+                    URL.revokeObjectURL(uri);
+                };
+                input.click();
+            }
+            return;
+        }
+
+        // Native iOS / Android — use expo-document-picker
         try {
             const result = await DocumentPicker.getDocumentAsync({
                 type: [
@@ -245,56 +304,22 @@ export default function ImportTransactionsScreen() {
                     'text/comma-separated-values',
                     'application/vnd.ms-excel',
                     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    'public.comma-separated-values-text', // iOS UTI for CSV
+                    'com.microsoft.excel.xls',            // iOS UTI for xls
+                    'org.openxmlformats.spreadsheetml.sheet', // iOS UTI for xlsx
                     '*/*',
                 ],
                 copyToCacheDirectory: true,
             });
 
             if (result.canceled) return;
-
             const file = result.assets[0];
-            setLoading(true);
-
-            const isExcel = /\.(xlsx|xls)$/i.test(file.name);
-
-            let rawRows: Record<string, string>[] = [];
-
-            if (isExcel) {
-                // Read as base64 via fetch → arraybuffer
-                const resp   = await fetch(file.uri);
-                const buffer = await resp.arrayBuffer();
-                const wb     = XLSX.read(buffer, { type: 'array' });
-                const ws     = wb.Sheets[wb.SheetNames[0]];
-                rawRows      = XLSX.utils.sheet_to_json<Record<string, string>>(ws, { defval: '' });
-            } else {
-                // CSV
-                const resp = await fetch(file.uri);
-                const text = await resp.text();
-                const parsed = Papa.parse<Record<string, string>>(text, {
-                    header:           true,
-                    skipEmptyLines:   true,
-                    transformHeader:  h => h.trim(),
-                    transform:        v => v.trim(),
-                });
-                rawRows = parsed.data;
-            }
-
-            const { rows: parsed, error: parseError } = parseRows(rawRows);
-
-            if (parseError) {
-                setError(parseError);
-                setLoading(false);
-                return;
-            }
-
-            setRows(parsed);
-            setStep('preview');
+            await processFile(file.uri, file.name);
         } catch (e: any) {
-            setError(e?.message || 'Failed to read file.');
-        } finally {
+            setError(e?.message || 'Failed to open file. Please try again.');
             setLoading(false);
         }
-    }, []);
+    }, [processFile]);
 
     // ── Remove a row from preview ────────────────────────────────────────────
     const removeRow = (id: string) => setRows(prev => prev.filter(r => r.id !== id));
@@ -388,6 +413,18 @@ export default function ImportTransactionsScreen() {
                     <Text style={styles.supportedText}>✅  Works with all Nigerian banks</Text>
                     <Text style={styles.supportedText}>✅  Processed on your device — never uploaded</Text>
                 </View>
+
+                {Platform.OS === 'ios' || (Platform.OS === 'web' && typeof navigator !== 'undefined' && /iphone|ipad/i.test(navigator.userAgent ?? '')) ? (
+                    <View style={styles.iosGuideCard}>
+                        <Text style={styles.iosGuideTitle}>📱 iPhone tip</Text>
+                        <Text style={styles.iosGuideText}>
+                            1. Open your bank's website or app and download your statement as <Text style={styles.bold}>Excel or CSV</Text>.{'\n'}
+                            2. When the file downloads, tap <Text style={styles.bold}>"Files"</Text> to save it to your iPhone Files app.{'\n'}
+                            3. Come back here and tap <Text style={styles.bold}>"Choose File"</Text> below — pick the file from Files.{'\n\n'}
+                            ⚠️ If your bank only gives PDF, email it to yourself, open it on a computer and export as CSV first.
+                        </Text>
+                    </View>
+                ) : null}
 
                 {error ? (
                     <View style={styles.errorBox}>
@@ -549,6 +586,11 @@ const styles = StyleSheet.create({
     bankSteps: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
 
     supportedText: { fontSize: 13, color: Colors.textSecondary, marginBottom: 6 },
+
+    iosGuideCard:  { backgroundColor: '#1e3a5f', borderRadius: 14, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: Colors.primary },
+    iosGuideTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: 8 },
+    iosGuideText:  { fontSize: 13, color: Colors.textSecondary, lineHeight: 22 },
+    bold:          { fontWeight: '700', color: Colors.textPrimary },
 
     errorBox:  { backgroundColor: '#fef2f2', borderRadius: 10, padding: 12, marginBottom: 14, borderLeftWidth: 3, borderLeftColor: '#ef4444' },
     errorText: { fontSize: 13, color: '#b91c1c', lineHeight: 20 },
