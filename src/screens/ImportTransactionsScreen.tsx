@@ -8,6 +8,7 @@ import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
+import { parsePdfStatement } from '../utils/pdfParser';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -243,9 +244,16 @@ export default function ImportTransactionsScreen() {
         setError('');
         try {
             const isExcel = /\.(xlsx|xls)$/i.test(name);
+            const isPdf   = /\.pdf$/i.test(name);
             let rawRows: Record<string, string>[] = [];
 
-            if (isExcel) {
+            if (isPdf) {
+                const resp   = await fetch(uri);
+                const buffer = await resp.arrayBuffer();
+                const { rows: pdfRows, error: pdfError } = await parsePdfStatement(buffer);
+                if (pdfError) { setError(pdfError); return; }
+                rawRows = pdfRows;
+            } else if (isExcel) {
                 const resp   = await fetch(uri);
                 const buffer = await resp.arrayBuffer();
                 const wb     = XLSX.read(buffer, { type: 'array' });
@@ -268,7 +276,7 @@ export default function ImportTransactionsScreen() {
             setRows(parsed);
             setStep('preview');
         } catch (e: any) {
-            setError(e?.message || 'Failed to read file. Make sure it is a CSV or Excel file.');
+            setError(e?.message || 'Failed to read file. Make sure it is a CSV, Excel, or PDF file.');
         } finally {
             setLoading(false);
         }
@@ -283,7 +291,7 @@ export default function ImportTransactionsScreen() {
             if (typeof document !== 'undefined') {
                 const input = document.createElement('input');
                 input.type = 'file';
-                input.accept = '.csv,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+                input.accept = '.csv,.xlsx,.xls,.pdf,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/pdf';
                 input.onchange = async (e: any) => {
                     const file: File = e.target?.files?.[0];
                     if (!file) return;
@@ -304,9 +312,11 @@ export default function ImportTransactionsScreen() {
                     'text/comma-separated-values',
                     'application/vnd.ms-excel',
                     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    'application/pdf',
                     'public.comma-separated-values-text', // iOS UTI for CSV
                     'com.microsoft.excel.xls',            // iOS UTI for xls
                     'org.openxmlformats.spreadsheetml.sheet', // iOS UTI for xlsx
+                    'com.adobe.pdf',                      // iOS UTI for PDF
                     '*/*',
                 ],
                 copyToCacheDirectory: true,
@@ -410,6 +420,7 @@ export default function ImportTransactionsScreen() {
                     <Text style={styles.cardTitle}>Supported formats</Text>
                     <Text style={styles.supportedText}>✅  CSV  (.csv)</Text>
                     <Text style={styles.supportedText}>✅  Excel  (.xlsx  ·  .xls)</Text>
+                    <Text style={styles.supportedText}>✅  PDF bank statements  (.pdf)</Text>
                     <Text style={styles.supportedText}>✅  Works with all Nigerian banks</Text>
                     <Text style={styles.supportedText}>✅  Processed on your device — never uploaded</Text>
                 </View>
@@ -421,7 +432,7 @@ export default function ImportTransactionsScreen() {
                             1. Open your bank's website or app and download your statement as <Text style={styles.bold}>Excel or CSV</Text>.{'\n'}
                             2. When the file downloads, tap <Text style={styles.bold}>"Files"</Text> to save it to your iPhone Files app.{'\n'}
                             3. Come back here and tap <Text style={styles.bold}>"Choose File"</Text> below — pick the file from Files.{'\n\n'}
-                            ⚠️ If your bank only gives PDF, email it to yourself, open it on a computer and export as CSV first.
+                            💡 PDF bank statements are now supported directly — just pick the PDF from Files.
                         </Text>
                     </View>
                 ) : null}
@@ -439,7 +450,7 @@ export default function ImportTransactionsScreen() {
                 >
                     {loading
                         ? <ActivityIndicator color="#fff" />
-                        : <Text style={styles.primaryBtnText}>📁  Choose CSV or Excel file</Text>
+                        : <Text style={styles.primaryBtnText}>📁  Choose file (CSV, Excel or PDF)</Text>
                     }
                 </TouchableOpacity>
             </ScrollView>
