@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
-    TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Image, Modal,
+    TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Image, Modal, Platform,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -57,17 +57,14 @@ export default function LoginScreen() {
 
     // On web: detect Supabase recovery callback (access_token in URL hash) and auto-update PIN
     useEffect(() => {
-        if (typeof window === 'undefined') return;
+        if (Platform.OS !== 'web') return;
         const hash = window.location.hash;
         const params = new URLSearchParams(hash.replace('#', '?'));
         const type = params.get('type');
         const accessToken = params.get('access_token');
         if (type === 'recovery' && accessToken) {
-            // Pending PIN is stored in resetNewPin state but we need it from URL or storage
-            // Prompt user to enter their chosen new PIN to complete reset
             setMode('reset-pin');
             setResetStep('complete-web');
-            // Clear hash so back navigation doesn't retrigger
             window.history.replaceState(null, '', window.location.pathname);
         }
     }, []);
@@ -234,7 +231,7 @@ export default function LoginScreen() {
         setResetSubmitting(true);
         try {
             
-            const redirectTo = typeof window !== 'undefined'
+            const redirectTo = Platform.OS === 'web'
                 ? `${window.location.origin}/?reset=1`
                 : undefined;
             const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), { redirectTo });

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
     View, Text, TextInput, TouchableOpacity, ScrollView,
-    StyleSheet, Share, Alert, Linking,
+    StyleSheet, Share, Alert, Linking, Platform,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -58,7 +58,11 @@ export default function PaymentLinkScreen() {
 
     const handleWhatsApp = () => {
         if (!validate()) return;
-        const url = `whatsapp://send?text=${encodeURIComponent(buildMessage())}`;
+        // Use web URL on desktop browsers so it opens WhatsApp Web; native deep link on mobile
+        const text = encodeURIComponent(buildMessage());
+        const url = Platform.OS === 'web'
+            ? `https://wa.me/?text=${text}`
+            : `whatsapp://send?text=${text}`;
         Linking.openURL(url).catch(() =>
             Alert.alert('WhatsApp not found', 'Please install WhatsApp to use this feature.')
         );

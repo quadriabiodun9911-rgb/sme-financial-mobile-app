@@ -3,7 +3,19 @@ import {
     View, Text, TouchableOpacity, ScrollView,
     StyleSheet, Alert, ActivityIndicator, Platform,
 } from 'react-native';
-import { go, PNGME_RESPONSES } from '@pngme/react-native-sms-pngme-android';
+// Android-only SDK — loaded lazily to avoid crashing iOS and web builds
+let go: any;
+let PNGME_RESPONSES: any;
+if (Platform.OS === 'android') {
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const pngme = require('@pngme/react-native-sms-pngme-android');
+        go = pngme.go;
+        PNGME_RESPONSES = pngme.PNGME_RESPONSES;
+    } catch {
+        // SDK not linked — will be handled gracefully in handleConnect
+    }
+}
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -44,7 +56,7 @@ export default function ConnectBankScreen() {
             return;
         }
 
-        if (Platform.OS === 'ios') {
+        if (Platform.OS !== 'android' || !go) {
             Alert.alert(
                 'Android only',
                 'SMS-based bank connection is only available on Android. This feature reads mobile money and bank SMS alerts.'

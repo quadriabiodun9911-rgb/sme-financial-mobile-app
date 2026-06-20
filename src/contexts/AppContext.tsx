@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useMemo, useEffect, useRef, ReactNode } from 'react';
-import { Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Transaction, FinanceData, User, BusinessSettings, Screen, FinancialGoal, GoalType, NavParams, Invoice, InvoiceStatus, TeamMember, UserRole, Language, Asset, InventoryItem, Loan, LoanPayment, Budget, CashPocket } from '../types';
 import { computeFinance, computeOneThingInsight, computeRecurringDates, computeAssetCurrentValue, computeAssetAnnualDepreciation } from '../utils/finance';
@@ -288,7 +288,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         let wasPreviouslyOffline = false;
 
         const unsubscribe = NetInfo.addEventListener(async state => {
-            const isOnline = state.isConnected && state.isInternetReachable !== false;
+            const isOnline = Platform.OS === 'web'
+                ? (typeof navigator !== 'undefined' && navigator.onLine)
+                : (state.isConnected && state.isInternetReachable !== false);
 
             // Update pending count whenever connectivity changes
             const pending = await queueSize();
@@ -880,7 +882,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             setUserRole('owner'); setTransactions([]); setGoals([]);
             setSettings(DEFAULT_SETTINGS); setInvoices([]); setAssets([]);
             setInventory([]); setCurrentScreen('login');
-            if (typeof window !== 'undefined') setTimeout(() => window.location.reload(), 500);
+            if (Platform.OS === 'web') setTimeout(() => window.location.reload(), 500);
         } catch (error) {
             console.error('Error deleting account:', error);
         }
@@ -924,10 +926,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
             setCurrentScreen('login');
 
             // Force a page reload to fully clear browser state
-            if (typeof window !== 'undefined') {
-                setTimeout(() => {
-                    window.location.reload();
-                }, 500);
+            if (Platform.OS === 'web') {
+                setTimeout(() => window.location.reload(), 500);
             }
         } catch (error) {
             console.error('Error resetting app:', error);

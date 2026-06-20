@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
-    TouchableOpacity, StyleSheet, Alert, Modal, Share,
+    TouchableOpacity, StyleSheet, Alert, Modal, Share, Platform,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -91,8 +91,7 @@ export default function SettingsScreen() {
         }
         // Warn if currency changed
         if (form.currency !== settings.currency) {
-            if (typeof window !== 'undefined') {
-                // On web, Alert.alert multi-button doesn't work — use window.confirm
+            if (Platform.OS === 'web' && typeof window?.confirm === 'function') {
                 const ok = window.confirm(t(language, 'currencyChangeWarning'));
                 if (ok) doSave();
                 return;

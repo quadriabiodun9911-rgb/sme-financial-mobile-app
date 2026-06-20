@@ -9,6 +9,7 @@
 import CryptoJS from 'crypto-js';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
 const ENCRYPTION_KEY_STORAGE = '@quad360/encryption-key';
 const ENCRYPTED_FIELDS = {
@@ -34,15 +35,16 @@ interface EncryptionMetadata {
 export async function generateEncryptionKey(): Promise<string> {
     const key = CryptoJS.lib.WordArray.random(32).toString();
 
-    try {
-        await SecureStore.setItemAsync(ENCRYPTION_KEY_STORAGE, key);
-    } catch {
-        // SecureStore unavailable (e.g. web) — fall back to AsyncStorage
+    if (Platform.OS !== 'web') {
         try {
-            await AsyncStorage.setItem(ENCRYPTION_KEY_STORAGE, key);
-        } catch {
-            console.warn('[Quad360] Could not persist encryption key — encrypted data will be unreadable after restart');
-        }
+            await SecureStore.setItemAsync(ENCRYPTION_KEY_STORAGE, key);
+            return key;
+        } catch { /* fall through to AsyncStorage */ }
+    }
+    try {
+        await AsyncStorage.setItem(ENCRYPTION_KEY_STORAGE, key);
+    } catch {
+        console.warn('[Quad360] Could not persist encryption key — encrypted data will be unreadable after restart');
     }
 
     return key;
@@ -52,11 +54,12 @@ export async function generateEncryptionKey(): Promise<string> {
  * Get the user's encryption key from secure storage
  */
 export async function getEncryptionKey(): Promise<string | null> {
-    try {
-        const key = await SecureStore.getItemAsync(ENCRYPTION_KEY_STORAGE);
-        if (key) return key;
-    } catch { /* SecureStore unavailable */ }
-    // AsyncStorage fallback (web / devices where SecureStore failed during generation)
+    if (Platform.OS !== 'web') {
+        try {
+            const key = await SecureStore.getItemAsync(ENCRYPTION_KEY_STORAGE);
+            if (key) return key;
+        } catch { /* fall through */ }
+    }
     try {
         return await AsyncStorage.getItem(ENCRYPTION_KEY_STORAGE);
     } catch {

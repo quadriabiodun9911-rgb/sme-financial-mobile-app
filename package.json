@@ -36,6 +36,7 @@
     "expo-splash-screen": "~0.26.5",
     "expo-status-bar": "~1.11.1",
     "expo-updates": "~0.24.11",
+    "otplib": "^13.4.1",
     "papaparse": "^5.5.4",
     "pdfjs-dist": "^6.0.227",
     "qrcode.react": "^4.2.0",

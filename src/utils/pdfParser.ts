@@ -14,6 +14,8 @@
  *  7. Return as Record<string, string>[] — same shape as CSV/Excel output
  */
 
+import { Platform } from 'react-native';
+
 type TextItem = { x: number; y: number; text: string; page: number };
 
 // ─── Column header detection aliases (same as ImportTransactionsScreen) ──────
@@ -90,6 +92,10 @@ function mapRowToRecord(
 export async function parsePdfStatement(
     arrayBuffer: ArrayBuffer,
 ): Promise<{ rows: Record<string, string>[]; error?: string }> {
+    if (Platform.OS !== 'web') {
+        return { rows: [], error: 'PDF parsing is only supported on the web version. Please export your bank statement as CSV or Excel instead.' };
+    }
+
     try {
         // eslint-disable-next-line @typescript-eslint/no-var-requires
         const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.mjs') as typeof import('pdfjs-dist');

@@ -4,6 +4,7 @@ import {
     Alert, ActivityIndicator, FlatList, Modal, Platform,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { useApp } from '../contexts/AppContext';
@@ -254,21 +255,36 @@ export default function ImportTransactionsScreen() {
             const isPdf   = /\.pdf$/i.test(name);
             let rawRows: Record<string, string>[] = [];
 
+            // On native, fetch(file://) is unreliable — use expo-file-system for local URIs
+            const readBuffer = async (fileUri: string): Promise<ArrayBuffer> => {
+                if (Platform.OS !== 'web' && fileUri.startsWith('file://')) {
+                    const b64 = await FileSystem.readAsStringAsync(fileUri, { encoding: FileSystem.EncodingType.Base64 });
+                    const binary = atob(b64);
+                    const bytes = new Uint8Array(binary.length);
+                    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+                    return bytes.buffer;
+                }
+                return (await fetch(fileUri)).arrayBuffer();
+            };
+            const readText = async (fileUri: string): Promise<string> => {
+                if (Platform.OS !== 'web' && fileUri.startsWith('file://')) {
+                    return FileSystem.readAsStringAsync(fileUri);
+                }
+                return (await fetch(fileUri)).text();
+            };
+
             if (isPdf) {
-                const resp   = await fetch(uri);
-                const buffer = await resp.arrayBuffer();
+                const buffer = await readBuffer(uri);
                 const { rows: pdfRows, error: pdfError } = await parsePdfStatement(buffer);
                 if (pdfError) { setError(pdfError); return; }
                 rawRows = pdfRows;
             } else if (isExcel) {
-                const resp   = await fetch(uri);
-                const buffer = await resp.arrayBuffer();
+                const buffer = await readBuffer(uri);
                 const wb     = XLSX.read(buffer, { type: 'array' });
                 const ws     = wb.Sheets[wb.SheetNames[0]];
                 rawRows      = XLSX.utils.sheet_to_json<Record<string, string>>(ws, { defval: '' });
             } else {
-                const resp = await fetch(uri);
-                const text = await resp.text();
+                const text = await readText(uri);
                 const parsed = Papa.parse<Record<string, string>>(text, {
                     header:          true,
                     skipEmptyLines:  true,
@@ -303,8 +319,11 @@ export default function ImportTransactionsScreen() {
                     const file: File = e.target?.files?.[0];
                     if (!file) return;
                     const uri = URL.createObjectURL(file);
-                    await processFile(uri, file.name);
-                    URL.revokeObjectURL(uri);
+                    try {
+                        await processFile(uri, file.name);
+                    } finally {
+                        URL.revokeObjectURL(uri);
+                    }
                 };
                 input.click();
             }
@@ -432,7 +451,7 @@ export default function ImportTransactionsScreen() {
                     <Text style={styles.supportedText}>✅  Processed on your device — never uploaded</Text>
                 </View>
 
-                {Platform.OS === 'ios' || (Platform.OS === 'web' && typeof navigator !== 'undefined' && /iphone|ipad/i.test(navigator.userAgent ?? '')) ? (
+                {Platform.OS === 'ios' || (Platform.OS === 'web' && /iphone|ipad/i.test(navigator?.userAgent ?? '')) ? (
                     <View style={styles.iosGuideCard}>
                         <Text style={styles.iosGuideTitle}>📱 iPhone tip</Text>
                         <Text style={styles.iosGuideText}>

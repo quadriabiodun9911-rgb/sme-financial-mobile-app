@@ -14,7 +14,7 @@
  * 6. Save 2FA config to Supabase
  */
 
-import speakeasy from 'speakeasy';
+import CryptoJS from 'crypto-js';
 import * as SecureStore from 'expo-secure-store';
 import { supabase } from './supabase';
 import { getAuthUserId } from './storage';
@@ -42,21 +42,75 @@ const BACKUP_CODES_COUNT = 10;
  * Generate TOTP secret for the user
  * Returns secret and QR code URI
  */
+// ─── Cross-platform TOTP implementation using crypto-js ──────────────────────
+
+const BASE32_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+
+function base32ToBytes(base32: string): Uint8Array {
+    const cleaned = base32.toUpperCase().replace(/=+$/, '');
+    const bits: number[] = [];
+    for (const ch of cleaned) {
+        const val = BASE32_CHARS.indexOf(ch);
+        if (val < 0) continue;
+        for (let i = 4; i >= 0; i--) bits.push((val >> i) & 1);
+    }
+    const bytes = new Uint8Array(Math.floor(bits.length / 8));
+    for (let i = 0; i < bytes.length; i++) {
+        for (let j = 0; j < 8; j++) bytes[i] = (bytes[i] << 1) | bits[i * 8 + j];
+    }
+    return bytes;
+}
+
+function generateBase32Secret(byteLength = 20): string {
+    const bytes = CryptoJS.lib.WordArray.random(byteLength);
+    const arr = new Uint8Array(byteLength);
+    const words = bytes.words;
+    for (let i = 0; i < byteLength; i++) arr[i] = (words[i >> 2] >>> (24 - (i % 4) * 8)) & 0xff;
+    let result = '';
+    for (let i = 0; i < byteLength; i += 5) {
+        const chunk = arr.slice(i, i + 5);
+        const pad = 5 - chunk.length;
+        let val = 0n;
+        for (const b of chunk) val = (val << 8n) | BigInt(b);
+        val <<= BigInt(pad * 8);
+        for (let j = 7; j >= 0; j--) result += BASE32_CHARS[Number((val >> BigInt(j * 5)) & 0x1fn)] ?? '';
+    }
+    return result;
+}
+
+function totpCode(secret: string, timeStep?: number): string {
+    const step = timeStep ?? Math.floor(Date.now() / 1000 / 30);
+    const keyBytes = base32ToBytes(secret);
+    const keyHex = Array.from(keyBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+    // 8-byte big-endian time step
+    const msgHex = step.toString(16).padStart(16, '0');
+    const hmac = CryptoJS.HmacSHA1(CryptoJS.enc.Hex.parse(msgHex), CryptoJS.enc.Hex.parse(keyHex));
+    const bytes = new Uint8Array(hmac.words.length * 4);
+    hmac.words.forEach((w, i) => {
+        bytes[i * 4]     = (w >>> 24) & 0xff;
+        bytes[i * 4 + 1] = (w >>> 16) & 0xff;
+        bytes[i * 4 + 2] = (w >>> 8)  & 0xff;
+        bytes[i * 4 + 3] =  w         & 0xff;
+    });
+    const offset = bytes[19] & 0xf;
+    const code = (((bytes[offset] & 0x7f) << 24) | (bytes[offset + 1] << 16) | (bytes[offset + 2] << 8) | bytes[offset + 3]) % 1_000_000;
+    return code.toString().padStart(6, '0');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function generateTOTPSecret(email: string): {
     secret: string;
     qrCodeUrl: string;
     manualEntryKey: string;
 } {
-    const secret = speakeasy.generateSecret({
-        name: `${TOTP_LABEL} (${email})`,
-        issuer: TOTP_ISSUER,
-        length: 32, // 256-bit key
-    });
+    const secret = generateBase32Secret(20);
+    const qrCodeUrl = `otpauth://totp/${encodeURIComponent(TOTP_ISSUER)}:${encodeURIComponent(email)}?secret=${secret}&issuer=${encodeURIComponent(TOTP_ISSUER)}&algorithm=SHA1&digits=6&period=30`;
 
     return {
-        secret: secret.base32,
-        qrCodeUrl: secret.otpauth_url || '',
-        manualEntryKey: secret.base32,
+        secret,
+        qrCodeUrl,
+        manualEntryKey: secret,
     };
 }
 
@@ -66,14 +120,12 @@ export function generateTOTPSecret(email: string): {
  */
 export function verifyTOTPCode(secret: string, code: string): boolean {
     try {
-        const verified = speakeasy.totp.verify({
-            secret,
-            encoding: 'base32',
-            token: code,
-            window: 2, // Allow ±30 second window (1 window = 30 seconds)
-        });
-
-        return verified === true;
+        const step = Math.floor(Date.now() / 1000 / 30);
+        // Check current step ±2 windows (±60 seconds) for clock skew
+        for (let offset = -2; offset <= 2; offset++) {
+            if (totpCode(secret, step + offset) === code) return true;
+        }
+        return false;
     } catch (e) {
         console.error('[Quad360] TOTP verification failed:', e);
         return false;
