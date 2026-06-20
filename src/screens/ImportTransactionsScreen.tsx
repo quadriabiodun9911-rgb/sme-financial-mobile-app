@@ -86,8 +86,15 @@ function parseAmount(raw: string): number {
     return Math.abs(parseFloat(raw.replace(/[₦$€£,\s]/g, '')) || 0);
 }
 
+function toDateString(dt: Date): string {
+    const y  = dt.getFullYear();
+    const mo = String(dt.getMonth() + 1).padStart(2, '0');
+    const d  = String(dt.getDate()).padStart(2, '0');
+    return `${y}-${mo}-${d}`;
+}
+
 function parseDate(raw: string): string {
-    if (!raw) return new Date().toISOString();
+    if (!raw) return toDateString(new Date());
     // Try common Nigerian bank date formats
     const formats = [
         // DD/MM/YYYY or DD-MM-YYYY
@@ -110,12 +117,12 @@ function parseDate(raw: string): string {
             else if (fmt === formats[1]) { d = +m[1]; mo = months[m[2].toLowerCase()]; y = +m[3]; }
             else { [, y, mo, d] = m.map(Number) as any; }
             const dt = new Date(y, mo - 1, d);
-            if (!isNaN(dt.getTime())) return dt.toISOString();
+            if (!isNaN(dt.getTime())) return toDateString(dt);
         }
     }
     // Last resort
     const fallback = new Date(raw);
-    return isNaN(fallback.getTime()) ? new Date().toISOString() : fallback.toISOString();
+    return isNaN(fallback.getTime()) ? toDateString(new Date()) : toDateString(fallback);
 }
 
 function classifyByDescription(desc: string, direction: 'income' | 'expense'): { category: TxCategory; subCategory: string; flagged: boolean } {
@@ -357,7 +364,7 @@ export default function ImportTransactionsScreen() {
             return;
         }
 
-        rows.forEach(r => {
+        rows.forEach((r, idx) => {
             addTransaction({
                 date:                r.date,
                 description:         r.description,
@@ -368,7 +375,7 @@ export default function ImportTransactionsScreen() {
                                    : r.category === 'asset'  ? 'purchase'
                                    : r.category === 'income' ? 'sale'
                                    : 'expense',
-                reference:           `IMPORT-${Date.now()}`,
+                reference:           `IMPORT-${Date.now()}-${idx}`,
             });
         });
 

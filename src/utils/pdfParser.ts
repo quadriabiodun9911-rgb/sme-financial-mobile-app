@@ -40,7 +40,7 @@ function groupByRow(items: TextItem[], tolerance = 5): TextItem[][] {
 
     for (let i = 1; i < sorted.length; i++) {
         const item = sorted[i];
-        const prev = currentRow[0];
+        const prev = currentRow[currentRow.length - 1];
         if (item.page === prev.page && Math.abs(item.y - prev.y) <= tolerance) {
             currentRow.push(item);
         } else {
@@ -91,13 +91,13 @@ export async function parsePdfStatement(
     arrayBuffer: ArrayBuffer,
 ): Promise<{ rows: Record<string, string>[]; error?: string }> {
     try {
-        // Use legacy build — works in browser/React Native Web (no Node canvas needed)
-        const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf');
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.mjs') as typeof import('pdfjs-dist');
 
         // Worker is not needed on web — disable it
         pdfjsLib.GlobalWorkerOptions.workerSrc = '';
 
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer, useWorkerFetch: false, isEvalSupported: false, useSystemFonts: true }).promise;
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer, useWorkerFetch: false, useSystemFonts: true }).promise;
         const allItems: TextItem[] = [];
         let pageWidth = 600;
 

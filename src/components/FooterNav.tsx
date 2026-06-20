@@ -167,7 +167,7 @@ export default function FooterNav() {
                             <View style={styles.statDivider} />
                             <TouchableOpacity style={styles.statBox} onPress={() => goTo('dashboard')} activeOpacity={0.8}>
                                 <Text style={[styles.statValue, { color: profit >= 0 ? Colors.income : Colors.expense }]}>
-                                    {profit >= 0 ? '+' : ''}{(profit / 1000).toFixed(0)}k
+                                    {profit >= 0 ? '+' : ''}{Math.abs(profit) >= 1000 ? `${(profit / 1000).toFixed(0)}k` : profit.toFixed(0)}
                                 </Text>
                                 <Text style={styles.statLabel}>Profit</Text>
                             </TouchableOpacity>

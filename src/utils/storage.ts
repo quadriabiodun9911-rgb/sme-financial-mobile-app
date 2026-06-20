@@ -633,8 +633,8 @@ export async function clearAllData(): Promise<void> {
 
 // Permanently deletes all Supabase data for the owner. Use only for explicit "Delete Account" action.
 export async function deleteAccountData(): Promise<void> {
-    await clearAllData();
     const ownerId = await getWorkspaceOwnerId();
+    await clearAllData();
     if (ownerId) {
         const tables = ['transactions','goals','settings','invoices','assets','inventory','loans','budgets','audit_logs'];
         const results = await Promise.allSettled(
