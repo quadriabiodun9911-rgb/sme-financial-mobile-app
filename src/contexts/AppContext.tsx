@@ -155,6 +155,8 @@ const DEFAULT_SETTINGS: BusinessSettings = {
     openingLoans: '0',
     openingOtherAssets: '0',
     defaultTaxRate: '0',
+    paystackPublicKey: 'pk_test_fa849cd42fe4963fe50a29136b33c0af02a6823b',
+    korapayPublicKey: '',
 };
 
 
