@@ -9,6 +9,7 @@ import { t, LANGUAGES, Language } from '../utils/i18n';
 import { DEMO_BUSINESSES } from '../utils/demoData';
 import { trackUserLoggedIn, identifyUser } from '../utils/analytics';
 import { supabase } from '../utils/supabase';
+import { savePin, saveProfile } from '../utils/storage';
 import CryptoJS from 'crypto-js';
 
 const SALT = 'Q360_SME_2025';
@@ -204,14 +205,25 @@ export default function LoginScreen() {
                 }
             } else {
                 // Supabase auth succeeded — recover account data and log in
-                navigating = true;
                 await recoverAccount(emailLoginEmail.trim(), emailLoginPin);
+                navigating = true;
                 identifyUser(emailLoginEmail.trim());
                 trackUserLoggedIn('email');
                 return;
             }
-        } catch {
-            Alert.alert(t(language, 'error'), 'Incorrect email or PIN. Please try again.');
+        } catch (e: any) {
+            const msg: string = e?.message ?? '';
+            if (msg.includes('no business profile')) {
+                // Auth worked but no Supabase profile row — save locally and log in
+                await savePin(emailLoginPin).catch(() => {});
+                await saveProfile({ email: emailLoginEmail.trim(), businessName: '' }).catch(() => {});
+                navigating = true;
+                login(emailLoginPin);
+                identifyUser(emailLoginEmail.trim());
+                trackUserLoggedIn('email');
+                return;
+            }
+            Alert.alert('Sign In Failed', msg || 'Incorrect email or PIN. Please try again.');
         } finally {
             if (!navigating) setSubmitting(false);
         }

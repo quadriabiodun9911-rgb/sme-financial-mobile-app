@@ -464,15 +464,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password: hashPin(pin) });
         if (error || !data.user) throw new Error('Incorrect email or PIN. Please try again.');
 
-        // Pull profile from Supabase
+        // Pull profile from Supabase (best-effort — fall back to email if row missing)
         const { data: profileRow } = await supabase
             .from('profiles')
-            .select('business_name, email')
+            .select('business_name, email, phone')
             .eq('id', data.user.id)
             .single();
-        if (!profileRow) throw new Error('Account found but no business profile exists. Please set up your account.');
 
-        const profile = { email: profileRow.email ?? email, businessName: profileRow.business_name ?? '', phone: (profileRow as any).phone as string | undefined };
+        const profile = profileRow
+            ? { email: profileRow.email ?? email, businessName: profileRow.business_name ?? '', phone: (profileRow as any).phone as string | undefined }
+            : { email, businessName: '', phone: undefined };
 
         // Save auth locally so future logins work with PIN only
         await clearWorkspaceOwner();
