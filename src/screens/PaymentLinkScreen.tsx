@@ -20,6 +20,7 @@ export default function PaymentLinkScreen() {
     const [description, setDescription]     = useState(params.description ?? '');
     const [copied, setCopied]               = useState(false);
     const [loading, setLoading]             = useState(false);
+    const [loadingMsg, setLoadingMsg]       = useState('');
     const [amountError, setAmountError]     = useState('');
 
     const currency     = settings.currency || '₦';
@@ -104,6 +105,16 @@ export default function PaymentLinkScreen() {
         }
     };
 
+    // Opens a URL on web without popup blocking: try new tab, fall back to same tab
+    const openWebUrl = (url: string) => {
+        if (Platform.OS !== 'web') { Linking.openURL(url); return; }
+        const win = window.open(url, '_blank');
+        if (!win || win.closed || typeof win.closed === 'undefined') {
+            // Popup blocked (common on mobile browsers) — navigate in same tab
+            window.location.href = url;
+        }
+    };
+
     // ── Paystack ── initialize via backend, open authorization_url in browser
     const handlePaystack = async () => {
         if (!validate()) return;
@@ -112,6 +123,9 @@ export default function PaymentLinkScreen() {
             return;
         }
         setLoading(true);
+        setLoadingMsg('Opening Paystack… please wait');
+        // Show “server waking up” message after 5s if still loading
+        const wakeTimer = setTimeout(() => setLoadingMsg('Server starting up, please wait ~30s…'), 5000);
         try {
             const resp = await fetch(`${Config.BACKEND_URL}/api/payments/paystack/initialize`, {
                 method: 'POST',
@@ -128,7 +142,7 @@ export default function PaymentLinkScreen() {
             const data = await resp.json();
             const authUrl = data.authorization_url || data.data?.authorization_url;
             if (!authUrl) throw new Error('No payment URL returned from server');
-            if (Platform.OS === 'web') { window.open(authUrl, '_blank'); } else { await Linking.openURL(authUrl); }
+            openWebUrl(authUrl);
             Alert.alert(
                 'Payment page opened',
                 'Complete the payment in your browser. Come back here once done to confirm.',
@@ -144,7 +158,9 @@ export default function PaymentLinkScreen() {
                 Alert.alert('Paystack error', e.message || 'Could not start payment.');
             }
         } finally {
+            clearTimeout(wakeTimer);
             setLoading(false);
+            setLoadingMsg('');
         }
     };
 
@@ -156,6 +172,8 @@ export default function PaymentLinkScreen() {
             return;
         }
         setLoading(true);
+        setLoadingMsg('Opening Korapay… please wait');
+        const wakeTimer = setTimeout(() => setLoadingMsg('Server starting up, please wait ~30s…'), 5000);
         try {
             const ref  = `QD360-${Date.now()}`;
             const resp = await fetch(`${Config.BACKEND_URL}/api/payments/korapay/initialize`, {
@@ -169,7 +187,7 @@ export default function PaymentLinkScreen() {
             });
             const data = await resp.json();
             if (!data.checkoutUrl) throw new Error(data.error || 'No checkout URL returned');
-            if (Platform.OS === 'web') { window.open(data.checkoutUrl, '_blank'); } else { await Linking.openURL(data.checkoutUrl); }
+            openWebUrl(data.checkoutUrl);
             Alert.alert(
                 'Payment page opened',
                 'Complete the payment in your browser. Come back here once done to confirm.',
@@ -185,7 +203,9 @@ export default function PaymentLinkScreen() {
                 Alert.alert('Korapay error', e.message || 'Could not initialise payment.');
             }
         } finally {
+            clearTimeout(wakeTimer);
             setLoading(false);
+            setLoadingMsg('');
         }
     };
 
@@ -257,13 +277,18 @@ export default function PaymentLinkScreen() {
                     <Text style={styles.gatewayHint}>
                         Opens a secure payment page in the browser. Customer pays with card, bank transfer, USSD, or mobile money.
                     </Text>
+                    {!!loadingMsg && (
+                        <Text style={styles.loadingMsg}>⏳ {loadingMsg}</Text>
+                    )}
                     {hasPaystack && (
                         <TouchableOpacity
                             style={[styles.paystackBtn, loading && { opacity: 0.6 }]}
                             onPress={handlePaystack}
                             disabled={loading}
                         >
-                            <Text style={styles.paystackBtnText}>💳  Pay with Paystack</Text>
+                            <Text style={styles.paystackBtnText}>
+                                {loading ? '⏳  Please wait…' : '💳  Pay with Paystack'}
+                            </Text>
                             <Text style={styles.gatewaySubtitle}>Cards · Bank Transfer · USSD · MoMo</Text>
                         </TouchableOpacity>
                     )}
@@ -273,7 +298,9 @@ export default function PaymentLinkScreen() {
                             onPress={handleKorapay}
                             disabled={loading}
                         >
-                            <Text style={styles.korapayBtnText}>💳  Pay with Korapay</Text>
+                            <Text style={styles.korapayBtnText}>
+                                {loading ? '⏳  Please wait…' : '💳  Pay with Korapay'}
+                            </Text>
                             <Text style={styles.gatewaySubtitle}>Cards · Bank Transfer · USSD · MoMo</Text>
                         </TouchableOpacity>
                     )}
@@ -338,6 +365,7 @@ const styles = StyleSheet.create({
     gatewayCard:     { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14 },
     gatewayHint:     { fontSize: 12, color: Colors.textMuted, marginBottom: 14, lineHeight: 18 },
     gatewaySubtitle: { fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 3 },
+    loadingMsg:      { fontSize: 12, color: Colors.primary, textAlign: 'center', marginBottom: 10, fontWeight: '600' },
 
     paystackBtn:     { backgroundColor: '#00C3F7', paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
     paystackBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
