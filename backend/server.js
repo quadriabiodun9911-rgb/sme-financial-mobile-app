@@ -9,6 +9,7 @@ const pngmeRoutes           = require('./routes/pngme');
 const usersRoutes           = require('./routes/users');
 const transactionsRoutes    = require('./routes/transactions');
 const financialHealthRoutes = require('./routes/financial-health');
+const paymentsRoutes        = require('./routes/payments');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -41,6 +42,7 @@ app.use('/pngme', pngmeRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/transactions', transactionsRoutes);
 app.use('/api/financial-health', financialHealthRoutes);
+app.use('/api/payments', paymentsRoutes);
 
 // 404 handler
 app.use((req, res) => {

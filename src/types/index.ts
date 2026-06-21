@@ -150,6 +150,8 @@ export interface BusinessSettings {
     openingLoans: string;
     openingOtherAssets: string;
     defaultTaxRate: string;
+    paystackPublicKey?: string;
+    korapayPublicKey?: string;
 }
 
 export interface NavParams {

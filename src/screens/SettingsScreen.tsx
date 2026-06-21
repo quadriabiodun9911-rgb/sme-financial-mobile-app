@@ -349,6 +349,43 @@ export default function SettingsScreen() {
                         </Section>
                     </CollapsibleSection>
 
+                    {/* Payments */}
+                    <CollapsibleSection title="💳 Payment Gateways" defaultOpen={false}>
+                        <Text style={styles.hint}>
+                            Add your public API keys to enable Paystack or Korapay checkout directly inside the app. Your customers can pay with cards, bank transfer, USSD, or mobile money.
+                        </Text>
+
+                        <Section title="Paystack">
+                            <Text style={styles.hint}>Get your public key from dashboard.paystack.com → Settings → API Keys</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={form.paystackPublicKey ?? ''}
+                                onChangeText={v => setForm((f: typeof form) => ({ ...f, paystackPublicKey: v.trim() }))}
+                                placeholder="pk_live_xxxxxxxxxxxxxxxxxx"
+                                placeholderTextColor={Colors.muted}
+                                autoCapitalize="none"
+                                autoCorrect={false}
+                            />
+                        </Section>
+
+                        <Section title="Korapay">
+                            <Text style={styles.hint}>Get your public key from merchant.korapay.com → Settings → API Keys</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={form.korapayPublicKey ?? ''}
+                                onChangeText={v => setForm((f: typeof form) => ({ ...f, korapayPublicKey: v.trim() }))}
+                                placeholder="pk_live_xxxxxxxxxxxxxxxxxx"
+                                placeholderTextColor={Colors.muted}
+                                autoCapitalize="none"
+                                autoCorrect={false}
+                            />
+                        </Section>
+
+                        <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
+                            <Text style={styles.saveBtnText}>Save Payment Keys</Text>
+                        </TouchableOpacity>
+                    </CollapsibleSection>
+
                     {/* 4. Data & Backup — default closed */}
                     {/* Bank / Mobile Money Connection */}
                     <CollapsibleSection title="🏦 Bank & Mobile Money" defaultOpen={false}>
