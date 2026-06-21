@@ -37,6 +37,6 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         storage: authStorage,
         autoRefreshToken: true,
         persistSession: true,
-        detectSessionInUrl: false,
+        detectSessionInUrl: Platform.OS === 'web', // needed for email recovery links on web
     },
 });

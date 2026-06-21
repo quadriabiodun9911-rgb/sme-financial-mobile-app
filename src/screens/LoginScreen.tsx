@@ -272,11 +272,20 @@ export default function LoginScreen() {
         if (resetNewPin !== resetConfirmPin) { Alert.alert('Error', 'PINs do not match.'); return; }
         setResetSubmitting(true);
         try {
-            
+            // Verify we have an active session from the recovery link
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                Alert.alert('Link Expired', 'The reset link has expired. Please request a new one.');
+                setResetStep('request');
+                setResetSubmitting(false);
+                return;
+            }
             const { error } = await supabase.auth.updateUser({ password: hashPin(resetNewPin) });
             if (error) { Alert.alert('Error', error.message); setResetSubmitting(false); return; }
-            Alert.alert('PIN Reset Successful', 'Your PIN has been updated. Please log in.', [
-                { text: 'OK', onPress: () => { setMode('owner-login'); setLoginMethod('pin'); setResetStep('request'); setResetNewPin(''); setResetConfirmPin(''); } }
+            // Also save the new PIN locally so login works immediately
+            await savePin(resetNewPin).catch(() => {});
+            Alert.alert('PIN Reset Successful', 'Your PIN has been updated. You are now logged in.', [
+                { text: 'OK', onPress: () => { setResetStep('request'); setResetNewPin(''); setResetConfirmPin(''); } }
             ]);
         } catch (e: any) {
             Alert.alert('Error', e?.message ?? 'Reset failed.');
