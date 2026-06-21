@@ -97,13 +97,22 @@ export async function parsePdfStatement(
     }
 
     try {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.mjs') as typeof import('pdfjs-dist');
+        // Load pdfjs from CDN at runtime so Metro never bundles it
+        // (pdfjs uses static class blocks + dynamic imports that Metro can't process)
+        const w = window as any;
+        if (!w.pdfjsLib) {
+            await new Promise<void>((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+                script.onload = () => resolve();
+                script.onerror = () => reject(new Error('Failed to load PDF.js library'));
+                document.head.appendChild(script);
+            });
+        }
+        const pdfjsLib = w.pdfjsLib as typeof import('pdfjs-dist');
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-        // Worker is not needed on web — disable it
-        pdfjsLib.GlobalWorkerOptions.workerSrc = '';
-
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer, useWorkerFetch: false, useSystemFonts: true }).promise;
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
         const allItems: TextItem[] = [];
         let pageWidth = 600;
 
