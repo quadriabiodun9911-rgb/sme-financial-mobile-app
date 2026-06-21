@@ -39,7 +39,7 @@ export default function SettingsScreen() {
         userRole, teamMembers, inviteMember, removeMember, refreshTeam,
         language, setLanguage,
         transactions, user, updateProfile,
-    } = useApp() as any;
+    } = useApp() as ReturnType<typeof useApp>;
 
     const [form, setForm]       = useState({ ...settings });
     const [phone, setPhone]     = useState(user?.phone || '');
@@ -103,6 +103,9 @@ export default function SettingsScreen() {
         }
         if (form.openingLiabilities && isNaN(parseFloat(form.openingLiabilities))) {
             Alert.alert('Invalid value', 'Opening liabilities must be a number.'); return;
+        }
+        if (phone.trim() && !/^\+?[\d\s\-().]{7,20}$/.test(phone.trim())) {
+            Alert.alert('Invalid phone', 'Phone number must include country code (e.g. +234 801 234 5678).'); return;
         }
         // Warn if currency changed
         if (form.currency !== settings.currency) {
@@ -373,7 +376,7 @@ export default function SettingsScreen() {
                             <Text style={styles.hint}>
                                 Turn this on to require a second code when you log in. Makes your account much harder to break into.
                             </Text>
-                            <TouchableOpacity style={styles.dataBtn} onPress={() => setCurrentScreen('2fa' as any)}>
+                            <TouchableOpacity style={styles.dataBtn} onPress={() => setCurrentScreen('2fa')}>
                                 <Text style={styles.dataBtnText}>Set Up Extra Security Lock</Text>
                             </TouchableOpacity>
                         </Section>
@@ -423,7 +426,7 @@ export default function SettingsScreen() {
                                     Alert.alert('No API Key', 'Add your Paystack or Korapay public key above and tap Save first.');
                                     return;
                                 }
-                                setCurrentScreen('payment-link' as any);
+                                setCurrentScreen('payment-link');
                             }}
                         >
                             <Text style={styles.dataBtnText}>💳  Create Payment Link →</Text>
@@ -436,7 +439,7 @@ export default function SettingsScreen() {
                             Connect your bank to auto-import transactions, or upload a bank statement manually.
                         </Text>
 
-                        <TouchableOpacity style={styles.dataBtn} onPress={() => setCurrentScreen('bank-aggregator' as any)}>
+                        <TouchableOpacity style={styles.dataBtn} onPress={() => setCurrentScreen('bank-aggregator')}>
                             <Text style={styles.dataBtnText}>🌍  Connect Bank (Auto-import transactions)</Text>
                         </TouchableOpacity>
 
@@ -451,13 +454,13 @@ export default function SettingsScreen() {
                                     );
                                     return;
                                 }
-                                setCurrentScreen('connect-bank' as any);
+                                setCurrentScreen('connect-bank');
                             }}
                         >
                             <Text style={styles.dataBtnText}>📱  Mobile Money / SMS (Android)</Text>
                         </TouchableOpacity>
 
-                        <TouchableOpacity style={[styles.dataBtn, { marginTop: 8 }]} onPress={() => setCurrentScreen('import-transactions' as any)}>
+                        <TouchableOpacity style={[styles.dataBtn, { marginTop: 8 }]} onPress={() => setCurrentScreen('import-transactions')}>
                             <Text style={styles.dataBtnText}>📂  Import Bank Statement (CSV / Excel) ✓</Text>
                         </TouchableOpacity>
 
