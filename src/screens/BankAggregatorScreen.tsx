@@ -58,6 +58,45 @@ export default function BankAggregatorScreen() {
 
     const providerInfo = PROVIDER_INFO[providerName] || PROVIDER_INFO['pngme'];
 
+    // Load Plaid Link JS SDK (web only)
+    const loadPlaidScript = (): Promise<void> => new Promise((resolve, reject) => {
+        if ((window as any).Plaid) { resolve(); return; }
+        const s = document.createElement('script');
+        s.src = 'https://cdn.plaid.com/link/v2/stable/link-initialize.js';
+        s.onload = () => resolve();
+        s.onerror = () => reject(new Error('Failed to load Plaid SDK'));
+        document.head.appendChild(s);
+    });
+
+    const openPlaidWeb = async (linkToken: string) => {
+        try {
+            await loadPlaidScript();
+        } catch {
+            Alert.alert('Error', 'Could not load Plaid SDK. Please check your internet connection.');
+            return;
+        }
+        (window as any).Plaid.create({
+            token: linkToken,
+            onSuccess: async (publicToken: string) => {
+                setLoading(true);
+                try {
+                    const res = await fetch(`${Config.BACKEND_URL}/api/bank-data/plaid-exchange`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userId: userEmail, publicToken }),
+                    });
+                    if (!res.ok) throw new Error(`Exchange failed: ${res.status}`);
+                    await saveConnection('plaid');
+                } catch (e: any) {
+                    Alert.alert('Connection error', e.message || 'Could not finalise bank connection.');
+                } finally {
+                    setLoading(false);
+                }
+            },
+            onExit: () => setLoading(false),
+        }).open();
+    };
+
     const handleConnect = async () => {
         if (!userEmail) {
             Alert.alert('Login required', 'Please log in first.');
@@ -96,7 +135,7 @@ export default function BankAggregatorScreen() {
                 return;
             }
 
-            if (!res.ok) throw new Error(`Server error ${res.status} — make sure MONO_SECRET_KEY / LEAN_APP_TOKEN / PLAID_SECRET is set on Render.`);
+            if (!res.ok) throw new Error(`Server error ${res.status} — make sure PLAID_CLIENT_ID / PLAID_SECRET is set on Render.`);
             const data = await res.json();
 
             // Mono — open Connect widget URL in browser
@@ -111,14 +150,18 @@ export default function BankAggregatorScreen() {
                 return;
             }
 
-            // Plaid — open Link widget URL in browser
+            // Plaid — use JS SDK on web (gets public_token via callback), fallback URL on native
             if (data.linkToken) {
-                await Linking.openURL(`https://cdn.plaid.com/link/v2/stable/link.html?token=${data.linkToken}`);
-                Alert.alert(
-                    'Complete connection in browser',
-                    'After you connect your bank via Plaid Link, come back and tap "I\'ve connected".',
-                    [{ text: "I've connected", onPress: () => saveConnection('plaid') }]
-                );
+                if (Platform.OS === 'web') {
+                    await openPlaidWeb(data.linkToken);
+                } else {
+                    await Linking.openURL(`https://cdn.plaid.com/link/v2/stable/link.html?token=${data.linkToken}`);
+                    Alert.alert(
+                        'Complete connection in browser',
+                        'After you connect your bank via Plaid Link, come back and tap "I\'ve connected".',
+                        [{ text: "I've connected", onPress: () => saveConnection('plaid') }]
+                    );
+                }
                 setLoading(false);
                 return;
             }
@@ -170,7 +213,8 @@ export default function BankAggregatorScreen() {
             );
 
             if (!res.ok) throw new Error(`Sync error ${res.status}`);
-            const txns: any[] = await res.json();
+            const data = await res.json();
+            const txns: any[] = data.transactions || data;
 
             const updated: ConnectionState = {
                 ...connection,

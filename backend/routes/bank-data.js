@@ -118,6 +118,28 @@ router.get('/balance/:userId', async (req, res) => {
 });
 
 /**
+ * POST /api/bank-data/plaid-exchange
+ * Exchange a Plaid public_token (from Link SDK onSuccess) for a persistent access_token.
+ * Body: { userId, publicToken }
+ */
+router.post('/plaid-exchange', async (req, res) => {
+  const { userId, publicToken } = req.body || {};
+  if (!userId)      return res.status(400).json({ error: 'userId is required' });
+  if (!publicToken) return res.status(400).json({ error: 'publicToken is required' });
+
+  try {
+    const provider = getProvider('USD'); // Plaid handles USD/GBP/EUR/NGN etc.
+    if (typeof provider.exchangeToken !== 'function') {
+      return res.status(400).json({ error: 'This provider does not support token exchange' });
+    }
+    await provider.exchangeToken(userId, publicToken);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
+/**
  * POST /api/bank-data/exchange
  * Mono-specific: exchange the code returned by Mono Connect widget for an accountId.
  * Body: { userId, code }
