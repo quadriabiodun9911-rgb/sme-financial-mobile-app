@@ -81,7 +81,7 @@ export default function PaymentLinkScreen() {
         const text = encodeURIComponent(buildMessage());
         const url  = `https://wa.me/?text=${text}`;
         if (Platform.OS === 'web') {
-            window.open(url, '_blank');
+            openWebUrl(url);
         } else {
             Linking.openURL(url).catch(() =>
                 Alert.alert('WhatsApp not available', 'Please open WhatsApp manually and paste the payment request.')
