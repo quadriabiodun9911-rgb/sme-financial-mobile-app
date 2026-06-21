@@ -29,6 +29,7 @@ import FooterNav from '../components/FooterNav';
 import {
     generateTOTPSecret,
     getTwoFactorStatus,
+    verifyTOTPCode,
     verifyTwoFactorLogin,
     saveTwoFactorConfig,
     loadTwoFactorConfig,
@@ -101,7 +102,8 @@ export default function TwoFactorSetupScreen() {
 
         setVerifying(true);
         try {
-            const isValid = await verifyTwoFactorLogin(verificationCode, 'totp');
+            // Verify against the in-memory secret — it hasn't been saved yet
+            const isValid = verifyTOTPCode(secret, verificationCode);
             if (!isValid) {
                 Alert.alert('Invalid Code', 'The code you entered is incorrect. Please try again.');
                 return;

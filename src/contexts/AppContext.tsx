@@ -59,6 +59,7 @@ interface AppContextValue {
 
     settings: BusinessSettings;
     updateSettings: (patch: Partial<BusinessSettings>) => void;
+    updateProfile: (patch: Partial<Pick<User, 'phone' | 'businessName'>>) => void;
 
     transactions: Transaction[];
     addTransaction: (tx: Omit<Transaction, 'id' | 'date'> & { date?: string }) => void;
@@ -608,6 +609,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setSettings(prev => ({ ...prev, ...patch }));
     };
 
+    const updateProfile = (patch: Partial<Pick<User, 'phone' | 'businessName'>>) => {
+        setUser(prev => prev ? { ...prev, ...patch } : prev);
+    };
+
     const addTransaction = (tx: Omit<Transaction, 'id' | 'date'> & { date?: string }) => {
         if (!canWrite) { denyWrite(); return; }
         const today = new Date().toISOString().split('T')[0];
@@ -942,7 +947,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         isDemoMode, enterDemo, exitDemo,
         setupAccount, recoverAccount, login, joinTeam, logout, changePin,
         isLockedOut, lockoutUntil,
-        settings, updateSettings,
+        settings, updateSettings, updateProfile,
         transactions, addTransaction, deleteTransaction, updateTransaction,
         goals, addGoal, deleteGoal, updateGoal, updateGoalCurrentValue,
         invoices, addInvoice, updateInvoice, deleteInvoice, markInvoiceStatus,
