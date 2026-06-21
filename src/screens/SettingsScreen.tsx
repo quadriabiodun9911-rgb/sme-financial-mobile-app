@@ -356,7 +356,7 @@ export default function SettingsScreen() {
                     {/* Payments */}
                     <CollapsibleSection title="💳 Payment Gateways" defaultOpen={false}>
                         <Text style={styles.hint}>
-                            Add your public API keys to enable Paystack or Korapay checkout directly inside the app. Your customers can pay with cards, bank transfer, USSD, or mobile money.
+                            Add your public API keys below, then tap "Create Payment Link" to charge customers by card, bank transfer, or USSD.
                         </Text>
 
                         <Section title="Paystack">
@@ -388,23 +388,57 @@ export default function SettingsScreen() {
                         <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
                             <Text style={styles.saveBtnText}>Save Payment Keys</Text>
                         </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[styles.dataBtn, { marginTop: 8 }]}
+                            onPress={() => {
+                                const hasKey = (form.paystackPublicKey ?? '').trim() || (form.korapayPublicKey ?? '').trim();
+                                if (!hasKey) {
+                                    Alert.alert('No API Key', 'Add your Paystack or Korapay public key above and tap Save first.');
+                                    return;
+                                }
+                                setCurrentScreen('payment-link' as any);
+                            }}
+                        >
+                            <Text style={styles.dataBtnText}>💳  Create Payment Link →</Text>
+                        </TouchableOpacity>
                     </CollapsibleSection>
 
                     {/* 4. Data & Backup — default closed */}
                     {/* Bank / Mobile Money Connection */}
                     <CollapsibleSection title="🏦 Bank & Mobile Money" defaultOpen={false}>
                         <Text style={styles.hint}>
-                            Connect your bank or mobile money to auto-import transactions. Quad360 automatically picks the best provider for your region.
+                            Connect your bank to auto-import transactions, or upload a bank statement manually.
                         </Text>
+
                         <TouchableOpacity style={styles.dataBtn} onPress={() => setCurrentScreen('bank-aggregator' as any)}>
-                            <Text style={styles.dataBtnText}>🌍  Connect Bank (Mono · Lean · Plaid · Pngme)</Text>
+                            <Text style={styles.dataBtnText}>🌍  Connect Bank (Auto-import transactions)</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={[styles.dataBtn, { marginTop: 8 }]} onPress={() => setCurrentScreen('connect-bank' as any)}>
+
+                        <TouchableOpacity
+                            style={[styles.dataBtn, { marginTop: 8 }]}
+                            onPress={() => {
+                                if (Platform.OS !== 'android') {
+                                    Alert.alert(
+                                        '📱 Android App Required',
+                                        'SMS-based mobile money tracking reads your bank alert messages and only works on the Android app.\n\nUse "Import Bank Statement" below to manually upload transactions instead.',
+                                        [{ text: 'OK' }]
+                                    );
+                                    return;
+                                }
+                                setCurrentScreen('connect-bank' as any);
+                            }}
+                        >
                             <Text style={styles.dataBtnText}>📱  Mobile Money / SMS (Android)</Text>
                         </TouchableOpacity>
+
                         <TouchableOpacity style={[styles.dataBtn, { marginTop: 8 }]} onPress={() => setCurrentScreen('import-transactions' as any)}>
-                            <Text style={styles.dataBtnText}>📂  Import Bank Statement (CSV / Excel)</Text>
+                            <Text style={styles.dataBtnText}>📂  Import Bank Statement (CSV / Excel) ✓</Text>
                         </TouchableOpacity>
+
+                        <Text style={[styles.hint, { marginTop: 10 }]}>
+                            ✓ CSV/Excel import works on all devices. Bank auto-connect requires an internet connection to our sync server.
+                        </Text>
                     </CollapsibleSection>
 
                     <CollapsibleSection title="Data & Backup" defaultOpen={false}>

@@ -79,11 +79,22 @@ export default function BankAggregatorScreen() {
 
         setLoading(true);
         try {
-            const res = await fetch(`${Config.BACKEND_URL}/api/bank-data/connect`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: userEmail, currencyCode: currency, businessName, name: businessName, email: userEmail }),
-            });
+            let res: Response;
+            try {
+                res = await fetch(`${Config.BACKEND_URL}/api/bank-data/connect`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: userEmail, currencyCode: currency, businessName, name: businessName, email: userEmail }),
+                });
+            } catch {
+                Alert.alert(
+                    '🔌 Sync Server Unavailable',
+                    'The bank connection service is currently offline or starting up (Render free tier sleeps after inactivity).\n\nTry again in 30 seconds, or use "Import Bank Statement (CSV/Excel)" in Settings to upload transactions manually.',
+                    [{ text: 'OK' }]
+                );
+                setLoading(false);
+                return;
+            }
 
             if (!res.ok) throw new Error(`Server error ${res.status} — make sure MONO_SECRET_KEY / LEAN_APP_TOKEN / PLAID_SECRET is set on Render.`);
             const data = await res.json();
