@@ -1,11 +1,13 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 
 export default function Header() {
     const { user, logout, setCurrentScreen, currentScreen } = useApp();
     const showBack = currentScreen !== 'dashboard' && currentScreen !== 'login';
+    const { width } = useWindowDimensions();
+    const isNarrow = width < 480;
 
     return (
         <View style={styles.header}>
@@ -25,14 +27,16 @@ export default function Header() {
                     <Text style={styles.settingsIcon}>🔍</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.settingsBtn} onPress={() => setCurrentScreen('settings')}>
-                    <Text style={styles.settingsIcon}>⚙</Text>
+                    <Text style={styles.settingsIcon}>⚙️</Text>
                 </TouchableOpacity>
-                <View style={styles.userBlock}>
-                    <Text style={styles.userText}>{user?.email?.split('@')[0] || 'Admin'}</Text>
-                    <Text style={styles.userRole}>{user?.role || 'Administrator'}</Text>
-                </View>
+                {!isNarrow && (
+                    <View style={styles.userBlock}>
+                        <Text style={styles.userText}>{user?.email?.split('@')[0] || 'Admin'}</Text>
+                        <Text style={styles.userRole}>{user?.role || 'Administrator'}</Text>
+                    </View>
+                )}
                 <TouchableOpacity style={styles.signOutBtn} onPress={logout}>
-                    <Text style={styles.signOutText}>Sign Out</Text>
+                    <Text style={styles.signOutText}>{isNarrow ? 'Out' : 'Sign Out'}</Text>
                 </TouchableOpacity>
             </View>
         </View>
