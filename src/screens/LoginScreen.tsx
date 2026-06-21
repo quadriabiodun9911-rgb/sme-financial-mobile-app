@@ -62,16 +62,19 @@ export default function LoginScreen() {
         setMode(isFirstLaunch ? 'owner-setup' : 'owner-login');
     }, [isFirstLaunch]);
 
-    // On web: detect Supabase recovery callback (access_token in URL hash) and auto-update PIN
+    // On web: detect Supabase recovery callback (access_token in URL hash)
     useEffect(() => {
         if (Platform.OS !== 'web') return;
         const hash = window.location.hash;
         const params = new URLSearchParams(hash.replace('#', '?'));
         const type = params.get('type');
         const accessToken = params.get('access_token');
-        if (type === 'recovery' && accessToken) {
-            setMode('reset-pin');
-            setResetStep('complete-web');
+        if ((type === 'recovery' || type === 'signup') && accessToken) {
+            // Let Supabase process the token first, then show the PIN reset form
+            supabase.auth.getSession().then(() => {
+                setMode('reset-pin');
+                setResetStep('complete-web');
+            });
             window.history.replaceState(null, '', window.location.pathname);
         }
     }, []);
@@ -245,9 +248,8 @@ export default function LoginScreen() {
         if (resetNewPin !== resetConfirmPin) { Alert.alert('Error', 'PINs do not match.'); return; }
         setResetSubmitting(true);
         try {
-            
             const redirectTo = Platform.OS === 'web' && typeof window !== 'undefined'
-                ? `${window.location.origin}/?reset=1`
+                ? window.location.origin + '/'
                 : undefined;
             const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), { redirectTo });
             if (error) {
@@ -272,23 +274,37 @@ export default function LoginScreen() {
         if (resetNewPin !== resetConfirmPin) { Alert.alert('Error', 'PINs do not match.'); return; }
         setResetSubmitting(true);
         try {
-            // Verify we have an active session from the recovery link
+            // Wait briefly for Supabase to process the URL hash token
+            await new Promise(r => setTimeout(r, 800));
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) {
-                Alert.alert('Link Expired', 'The reset link has expired. Please request a new one.');
-                setResetStep('request');
+                Alert.alert('Link Expired', 'This reset link has expired. Please request a new one.', [
+                    { text: 'OK', onPress: () => { setResetStep('request'); setResetNewPin(''); setResetConfirmPin(''); } }
+                ]);
                 setResetSubmitting(false);
                 return;
             }
             const { error } = await supabase.auth.updateUser({ password: hashPin(resetNewPin) });
-            if (error) { Alert.alert('Error', error.message); setResetSubmitting(false); return; }
-            // Also save the new PIN locally so login works immediately
+            if (error) {
+                Alert.alert('Reset Failed', error.message + '\n\nPlease request a new reset link.', [
+                    { text: 'Try Again', onPress: () => setResetStep('request') }
+                ]);
+                setResetSubmitting(false);
+                return;
+            }
+            // Save PIN locally and auto-login
+            const email = session.user.email ?? '';
             await savePin(resetNewPin).catch(() => {});
-            Alert.alert('PIN Reset Successful', 'Your PIN has been updated. You are now logged in.', [
-                { text: 'OK', onPress: () => { setResetStep('request'); setResetNewPin(''); setResetConfirmPin(''); } }
+            await saveProfile({ email, businessName: '' }).catch(() => {});
+            Alert.alert('PIN Reset Successful', 'Your new PIN is set. You are now logged in.', [
+                { text: 'Continue', onPress: async () => {
+                    try { await recoverAccount(email, resetNewPin); } catch {}
+                    setResetStep('request'); setResetNewPin(''); setResetConfirmPin('');
+                }}
             ]);
         } catch (e: any) {
-            Alert.alert('Error', e?.message ?? 'Reset failed.');
+            Alert.alert('Error', e?.message ?? 'Reset failed. Please try again.');
+            setResetStep('request');
         }
         setResetSubmitting(false);
     };
