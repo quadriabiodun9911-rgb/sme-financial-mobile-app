@@ -76,22 +76,29 @@ router.post('/paystack/initialize', async (req, res) => {
     const secretKey = process.env.PAYSTACK_SECRET_KEY;
     if (!secretKey) return res.status(503).json({ error: 'Paystack not configured on server' });
 
+    // Paystack requires amount in subunit (kobo for NGN, pesewas for GHS, etc.)
+    const amountInSubunit = Math.round(parseFloat(amount) * 100);
+
+    const payload = {
+        amount:   amountInSubunit,
+        currency: currency.toUpperCase(),
+        email,
+        metadata: { name: name || '', description: description || '' },
+    };
+    // Only include callback_url if FRONTEND_URL is configured
+    if (process.env.FRONTEND_URL) payload.callback_url = process.env.FRONTEND_URL + '/';
+
     try {
         const response = await fetch('https://api.paystack.co/transaction/initialize', {
             method:  'POST',
             headers: { Authorization: `Bearer ${secretKey}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                amount:   Math.round(amount * 100), // naira → kobo
-                currency,
-                email,
-                name:     name || '',
-                metadata: { custom_fields: [{ display_name: 'Description', variable_name: 'description', value: description || '' }] },
-                callback_url: `${process.env.FRONTEND_URL || ''}/`,
-            }),
+            body: JSON.stringify(payload),
         });
         const data = await response.json();
 
-        if (!data.status) return res.status(400).json({ error: data.message || 'Initialization failed' });
+        console.log('[Paystack initialize] status=%s message=%s', data.status, data.message);
+
+        if (!data.status) return res.status(400).json({ error: data.message || 'Paystack initialization failed' });
 
         res.json({
             authorization_url: data.data.authorization_url,
