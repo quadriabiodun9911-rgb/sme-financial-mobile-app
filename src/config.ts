@@ -11,8 +11,8 @@ export const Config = {
     PNGME_SDK_TOKEN_TEST: process.env.EXPO_PUBLIC_PNGME_SDK_TOKEN_TEST ?? '',
     PNGME_SDK_TOKEN_PROD: process.env.EXPO_PUBLIC_PNGME_SDK_TOKEN_PROD ?? '',
 
-    // Set to true to use production Pngme token
-    IS_PRODUCTION: false,
+    // Driven by APP_ENV set in eas.json build profiles
+    IS_PRODUCTION: process.env.APP_ENV === 'production',
 
     get PNGME_SDK_TOKEN(): string {
         return this.IS_PRODUCTION ? this.PNGME_SDK_TOKEN_PROD : this.PNGME_SDK_TOKEN_TEST;

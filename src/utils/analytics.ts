@@ -9,12 +9,12 @@
  *   4. Replace the POSTHOG_KEY value below with your real key
  */
 
-const POSTHOG_KEY  = 'phc_REPLACE_WITH_YOUR_POSTHOG_KEY';
+const POSTHOG_KEY  = process.env.EXPO_PUBLIC_POSTHOG_KEY ?? 'phc_REPLACE_WITH_YOUR_POSTHOG_KEY';
 const POSTHOG_HOST = 'https://app.posthog.com';
 
 // Shared identity across a session
 let _distinctId = 'anonymous';
-let _enabled    = POSTHOG_KEY !== 'phc_REPLACE_WITH_YOUR_POSTHOG_KEY';
+let _enabled    = POSTHOG_KEY !== 'phc_REPLACE_WITH_YOUR_POSTHOG_KEY' && POSTHOG_KEY !== '';
 
 function getTimestamp() {
     return new Date().toISOString();
