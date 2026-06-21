@@ -35,6 +35,7 @@ export default function DashboardScreen() {
     const [qaCategory, setQaCategory]     = useState('');
     const [qaSubmitting, setQaSubmitting] = useState(false);
     const [showMore, setShowMore]               = useState(false);
+    const [betaCardDismissed, setBetaCardDismissed] = useState(false);
 
     const [showFullDashboard, setShowFullDashboard] = useState(false);
     const [onboardingDismissed, setOnboardingDismissed] = useState(false);
@@ -54,6 +55,9 @@ export default function DashboardScreen() {
     useEffect(() => {
         AsyncStorage.getItem('@quad360/onboarding_dismissed').then(v => {
             if (v === '1') setOnboardingDismissed(true);
+        });
+        AsyncStorage.getItem('@quad360/beta_card_dismissed').then(v => {
+            if (v === '1') setBetaCardDismissed(true);
         });
     }, []);
 
@@ -254,6 +258,55 @@ export default function DashboardScreen() {
                         </Text>
                     </TouchableOpacity>
                 </View>
+
+                {/* ── Beta Features Spotlight ──────────────────────────────── */}
+                {!isDemoMode && !betaCardDismissed && (
+                    <View style={styles.betaCard}>
+                        <View style={styles.betaCardHeader}>
+                            <View style={styles.betaBadge}>
+                                <Text style={styles.betaBadgeText}>🚀 NEW FEATURES</Text>
+                            </View>
+                            <TouchableOpacity onPress={() => {
+                                setBetaCardDismissed(true);
+                                AsyncStorage.setItem('@quad360/beta_card_dismissed', '1');
+                            }}>
+                                <Text style={styles.betaDismiss}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <Text style={styles.betaTitle}>Try these features now</Text>
+                        <Text style={styles.betaSubtitle}>Available during beta — built for your business</Text>
+
+                        {/* Feature 1 — Paystack */}
+                        <TouchableOpacity style={styles.betaFeature} onPress={() => navigate('payment-link')}>
+                            <View style={[styles.betaFeatureIcon, { backgroundColor: '#00C3F722' }]}>
+                                <Text style={{ fontSize: 22 }}>💳</Text>
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                    <Text style={styles.betaFeatureName}>Collect Payment Online</Text>
+                                    <View style={styles.betaLiveBadge}><Text style={styles.betaLiveText}>LIVE</Text></View>
+                                </View>
+                                <Text style={styles.betaFeatureDesc}>Send a Paystack checkout link to your customer. They pay with card, bank transfer, or USSD — money goes straight to you.</Text>
+                            </View>
+                            <Text style={styles.betaArrow}>›</Text>
+                        </TouchableOpacity>
+
+                        {/* Feature 2 — CSV Export */}
+                        <TouchableOpacity style={styles.betaFeature} onPress={() => navigate('transactions')}>
+                            <View style={[styles.betaFeatureIcon, { backgroundColor: '#10b98122' }]}>
+                                <Text style={{ fontSize: 22 }}>📊</Text>
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                    <Text style={styles.betaFeatureName}>Export to CSV / Excel</Text>
+                                    <View style={[styles.betaLiveBadge, { backgroundColor: '#10b981' }]}><Text style={styles.betaLiveText}>LIVE</Text></View>
+                                </View>
+                                <Text style={styles.betaFeatureDesc}>Download all your transactions as a spreadsheet. Open in Excel or Google Sheets — great for accountants and tax filing.</Text>
+                            </View>
+                            <Text style={styles.betaArrow}>›</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
 
                 {/* ── Onboarding ───────────────────────────────────────────── */}
                 {showOnboarding && (
@@ -774,6 +827,21 @@ const styles = StyleSheet.create({
     demoBannerText:    { color: '#fef3c7', fontWeight: '600', fontSize: 13, flex: 1 },
     demoBannerBtn:     { backgroundColor: '#fef3c7', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 5, marginLeft: 8 },
     demoBannerBtnText: { color: '#854d0e', fontWeight: '700', fontSize: 12 },
+
+    betaCard:           { backgroundColor: Colors.surface, borderRadius: 16, padding: 16, marginBottom: 14, borderWidth: 1.5, borderColor: Colors.primary + '55' },
+    betaCardHeader:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+    betaBadge:          { backgroundColor: Colors.primary + '22', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
+    betaBadgeText:      { color: Colors.primary, fontSize: 10, fontWeight: '800', letterSpacing: 1 },
+    betaDismiss:        { color: Colors.textMuted, fontSize: 16, paddingLeft: 12 },
+    betaTitle:          { fontSize: 17, fontWeight: '800', color: Colors.textPrimary, marginBottom: 2 },
+    betaSubtitle:       { fontSize: 12, color: Colors.textMuted, marginBottom: 14 },
+    betaFeature:        { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 12, borderTopWidth: 1, borderTopColor: Colors.border },
+    betaFeatureIcon:    { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+    betaFeatureName:    { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginBottom: 3 },
+    betaFeatureDesc:    { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
+    betaLiveBadge:      { backgroundColor: '#00C3F7', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 },
+    betaLiveText:       { color: '#fff', fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
+    betaArrow:          { color: Colors.textMuted, fontSize: 22, alignSelf: 'center' },
 
     onboardCard:        { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: Colors.primary },
     onboardHeader:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
