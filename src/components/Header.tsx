@@ -21,14 +21,14 @@ export default function Header() {
                 </TouchableOpacity>
             </View>
             <View style={styles.right}>
-                <TouchableOpacity style={styles.settingsBtn} onPress={() => setCurrentScreen('search' as any)}>
+                <TouchableOpacity style={styles.settingsBtn} onPress={() => setCurrentScreen('dashboard')}>
                     <Text style={styles.settingsIcon}>🔍</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.settingsBtn} onPress={() => setCurrentScreen('settings')}>
                     <Text style={styles.settingsIcon}>⚙</Text>
                 </TouchableOpacity>
                 <View style={styles.userBlock}>
-                    <Text style={styles.userText}>{user?.email.split('@')[0] || 'Admin'}</Text>
+                    <Text style={styles.userText}>{user?.email?.split('@')[0] || 'Admin'}</Text>
                     <Text style={styles.userRole}>{user?.role || 'Administrator'}</Text>
                 </View>
                 <TouchableOpacity style={styles.signOutBtn} onPress={logout}>
