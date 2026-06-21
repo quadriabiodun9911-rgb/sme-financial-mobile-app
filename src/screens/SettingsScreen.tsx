@@ -98,6 +98,12 @@ export default function SettingsScreen() {
         if (isNaN(taxRate) || taxRate < 0 || taxRate > 100) {
             Alert.alert('Invalid value', 'Default tax rate must be between 0 and 100.'); return;
         }
+        if (form.openingAssets && isNaN(parseFloat(form.openingAssets))) {
+            Alert.alert('Invalid value', 'Opening assets must be a number.'); return;
+        }
+        if (form.openingLiabilities && isNaN(parseFloat(form.openingLiabilities))) {
+            Alert.alert('Invalid value', 'Opening liabilities must be a number.'); return;
+        }
         // Warn if currency changed
         if (form.currency !== settings.currency) {
             if (Platform.OS === 'web' && typeof window?.confirm === 'function') {
@@ -119,6 +125,10 @@ export default function SettingsScreen() {
     };
 
     const handleSavePaymentKeys = () => {
+        if (userRole !== 'owner') {
+            Alert.alert('Permission denied', 'Only the account owner can change payment settings.');
+            return;
+        }
         const paystackPublicKey = (form.paystackPublicKey ?? '').trim();
         const korapayPublicKey  = (form.korapayPublicKey ?? '').trim();
         updateSettings({ paystackPublicKey, korapayPublicKey });
