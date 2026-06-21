@@ -20,6 +20,7 @@ export default function PaymentLinkScreen() {
     const [description, setDescription]     = useState(params.description ?? '');
     const [copied, setCopied]               = useState(false);
     const [loading, setLoading]             = useState(false);
+    const [amountError, setAmountError]     = useState('');
 
     const currency     = settings.currency || '₦';
     const currencyCode = (settings as any).currencyCode || 'NGN';
@@ -32,9 +33,10 @@ export default function PaymentLinkScreen() {
 
     const validate = () => {
         if (!amount || amountNum <= 0) {
-            Alert.alert('Amount required', 'Please enter a valid amount.');
+            setAmountError('Please enter a valid amount first.');
             return false;
         }
+        setAmountError('');
         return true;
     };
 
@@ -77,9 +79,13 @@ export default function PaymentLinkScreen() {
         if (!validate()) return;
         const text = encodeURIComponent(buildMessage());
         const url  = `https://wa.me/?text=${text}`;
-        Linking.openURL(url).catch(() =>
-            Alert.alert('WhatsApp not available', 'Please open WhatsApp manually and paste the payment request.')
-        );
+        if (Platform.OS === 'web') {
+            window.open(url, '_blank');
+        } else {
+            Linking.openURL(url).catch(() =>
+                Alert.alert('WhatsApp not available', 'Please open WhatsApp manually and paste the payment request.')
+            );
+        }
     };
 
     const handleCopy = async () => {
@@ -122,7 +128,7 @@ export default function PaymentLinkScreen() {
             const data = await resp.json();
             const authUrl = data.authorization_url || data.data?.authorization_url;
             if (!authUrl) throw new Error('No payment URL returned from server');
-            await Linking.openURL(authUrl);
+            if (Platform.OS === 'web') { window.open(authUrl, '_blank'); } else { await Linking.openURL(authUrl); }
             Alert.alert(
                 'Payment page opened',
                 'Complete the payment in your browser. Come back here once done to confirm.',
@@ -163,7 +169,7 @@ export default function PaymentLinkScreen() {
             });
             const data = await resp.json();
             if (!data.checkoutUrl) throw new Error(data.error || 'No checkout URL returned');
-            await Linking.openURL(data.checkoutUrl);
+            if (Platform.OS === 'web') { window.open(data.checkoutUrl, '_blank'); } else { await Linking.openURL(data.checkoutUrl); }
             Alert.alert(
                 'Payment page opened',
                 'Complete the payment in your browser. Come back here once done to confirm.',
@@ -226,8 +232,12 @@ export default function PaymentLinkScreen() {
             <View style={styles.formCard}>
                 <Text style={styles.sectionTitle}>Payment Details</Text>
                 <Text style={styles.label}>Amount ({currency}) *</Text>
-                <TextInput style={styles.input} value={amount} onChangeText={setAmount}
+                <TextInput
+                    style={[styles.input, amountError ? { borderColor: '#ef4444' } : null]}
+                    value={amount}
+                    onChangeText={v => { setAmount(v); if (amountError) setAmountError(''); }}
                     placeholder="0.00" placeholderTextColor={Colors.muted} keyboardType="decimal-pad" />
+                {!!amountError && <Text style={styles.errorText}>{amountError}</Text>}
                 <Text style={styles.label}>What is this for?</Text>
                 <TextInput style={styles.input} value={description} onChangeText={setDescription}
                     placeholder="e.g. Invoice #001, Consulting fee" placeholderTextColor={Colors.muted} />
@@ -323,6 +333,7 @@ const styles = StyleSheet.create({
     sectionTitle: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 14 },
     label:        { fontSize: 12, fontWeight: '600', color: Colors.textSecondary, marginBottom: 6, marginTop: 10 },
     input:        { backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, color: Colors.textPrimary, fontSize: 14 },
+    errorText:    { fontSize: 12, color: '#ef4444', marginTop: 4 },
 
     gatewayCard:     { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14 },
     gatewayHint:     { fontSize: 12, color: Colors.textMuted, marginBottom: 14, lineHeight: 18 },
