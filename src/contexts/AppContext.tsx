@@ -224,18 +224,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
         initRan.current = true;
         (async () => {
             try {
-                const [savedTx, savedSettings, savedGoals, savedInvoices, savedAssets, savedLoans, savedInventory, savedBudgets, pin, profile, lang] = await Promise.all([
-                    loadTransactions(),
-                    loadSettings(),
-                    loadGoals(),
-                    loadInvoices(),
-                    loadAssets(),
-                    loadLoans(),
-                    loadInventory(),
-                    loadBudgets(),
-                    loadPin(),
-                    loadProfile(),
-                    loadLanguage(),
+                const timeout = new Promise<never>((_, reject) =>
+                    setTimeout(() => reject(new Error('init_timeout')), 12000)
+                );
+                const [savedTx, savedSettings, savedGoals, savedInvoices, savedAssets, savedLoans, savedInventory, savedBudgets, pin, profile, lang] = await Promise.race([
+                    Promise.all([
+                        loadTransactions(),
+                        loadSettings(),
+                        loadGoals(),
+                        loadInvoices(),
+                        loadAssets(),
+                        loadLoans(),
+                        loadInventory(),
+                        loadBudgets(),
+                        loadPin(),
+                        loadProfile(),
+                        loadLanguage(),
+                    ]),
+                    timeout,
                 ]);
                 setLang(lang);
                 if (pin) setStoredPin(pin);
@@ -271,6 +277,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
                     }
                 }
                 if (savedAttempts) setLoginAttempts(parseInt(savedAttempts, 10));
+            } catch (err: unknown) {
+                if (err instanceof Error && err.message === 'init_timeout') {
+                    console.warn('[Quad360] Init timed out — loading app offline');
+                }
             } finally {
                 setIsLoading(false);
             }
