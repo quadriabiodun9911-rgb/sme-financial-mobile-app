@@ -75,12 +75,24 @@ export default function BankAggregatorScreen() {
     });
 
     const openPlaidWeb = async (linkToken: string) => {
-        // Try JS SDK first (works on desktop browsers)
+        // On mobile browsers (iOS/Android) the Plaid JS SDK popup is always
+        // blocked silently — skip it and navigate directly to the hosted page.
+        const isMobileBrowser = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        if (isMobileBrowser) {
+            sessionStorage.setItem('plaid_pending', '1');
+            sessionStorage.setItem('plaid_link_token', linkToken);
+            setLoading(false);
+            setLoadingMsg('');
+            window.location.href = `https://cdn.plaid.com/link/v2/stable/link.html?token=${linkToken}`;
+            return;
+        }
+
+        // Desktop: try JS SDK (works in non-popup-blocking desktop browsers)
         try {
             await loadPlaidScript();
         } catch {
-            // SDK failed to load — go straight to hosted page fallback
             sessionStorage.setItem('plaid_pending', '1');
+            sessionStorage.setItem('plaid_link_token', linkToken);
             window.location.href = `https://cdn.plaid.com/link/v2/stable/link.html?token=${linkToken}`;
             return;
         }
@@ -113,25 +125,20 @@ export default function BankAggregatorScreen() {
             });
             handler.open();
         } catch {
-            // open() threw — fall back to hosted page
             sessionStorage.setItem('plaid_pending', '1');
+            sessionStorage.setItem('plaid_link_token', linkToken);
             window.location.href = `https://cdn.plaid.com/link/v2/stable/link.html?token=${linkToken}`;
             return;
         }
 
-        // Check after 2s if the widget actually opened (mobile browsers block silently)
+        // Desktop fallback: if widget didn't open after 2s, show manual confirm
         setTimeout(() => {
             if (!widgetOpened) {
                 setLoading(false);
                 setLoadingMsg('');
                 setShowManualConfirm(true);
-                // Store token so user can retry
                 sessionStorage.setItem('plaid_pending', '1');
                 sessionStorage.setItem('plaid_link_token', linkToken);
-                Alert.alert(
-                    'Bank connection',
-                    'The Plaid window could not open automatically on this browser.\n\nTap "Open Plaid" on the card below to connect your bank.',
-                );
             }
         }, 2000);
     };
