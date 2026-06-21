@@ -331,13 +331,17 @@ function PaymentLinkInner() {
 // Outer component wraps with PaystackProvider so usePaystack hook is available inside
 export default function PaymentLinkScreen() {
     const { settings } = useApp() as any;
-    const paystackKey = settings?.paystackPublicKey?.trim() || 'pk_placeholder';
+    const paystackKey = settings?.paystackPublicKey?.trim() || '';
 
-    return (
-        <PaystackProvider publicKey={paystackKey} currency={(settings as any)?.currencyCode || 'NGN'}>
-            <PaymentLinkInner />
-        </PaystackProvider>
-    );
+    // Only mount PaystackProvider when a real key exists — avoids SDK warnings with empty/placeholder key
+    if (paystackKey) {
+        return (
+            <PaystackProvider publicKey={paystackKey} currency={(settings as any)?.currencyCode || 'NGN'}>
+                <PaymentLinkInner />
+            </PaystackProvider>
+        );
+    }
+    return <PaymentLinkInner />;
 }
 
 const styles = StyleSheet.create({

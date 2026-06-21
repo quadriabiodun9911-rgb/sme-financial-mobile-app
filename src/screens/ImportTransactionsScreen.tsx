@@ -6,7 +6,7 @@ import {
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import Papa from 'papaparse';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { parsePdfStatement } from '../utils/pdfParser';
@@ -280,9 +280,21 @@ export default function ImportTransactionsScreen() {
                 rawRows = pdfRows;
             } else if (isExcel) {
                 const buffer = await readBuffer(uri);
-                const wb     = XLSX.read(buffer, { type: 'array' });
-                const ws     = wb.Sheets[wb.SheetNames[0]];
-                rawRows      = XLSX.utils.sheet_to_json<Record<string, string>>(ws, { defval: '' });
+                const wb     = new ExcelJS.Workbook();
+                await wb.xlsx.load(buffer);
+                const ws = wb.worksheets[0];
+                if (!ws) throw new Error('No worksheet found in Excel file');
+                const headers: string[] = [];
+                ws.getRow(1).eachCell((cell) => { headers.push(String(cell.value ?? '').trim()); });
+                ws.eachRow((row, rowNum) => {
+                    if (rowNum === 1) return;
+                    const obj: Record<string, string> = {};
+                    row.eachCell((cell, colNum) => {
+                        const key = headers[colNum - 1];
+                        if (key) obj[key] = String(cell.value ?? '').trim();
+                    });
+                    if (Object.values(obj).some(v => v)) rawRows.push(obj);
+                });
             } else {
                 const text = await readText(uri);
                 const parsed = Papa.parse<Record<string, string>>(text, {
