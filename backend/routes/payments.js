@@ -67,6 +67,43 @@ router.post('/korapay/verify', async (req, res) => {
     }
 });
 
+// Initialise a Paystack transaction (returns authorization_url)
+// POST /api/payments/paystack/initialize
+router.post('/paystack/initialize', async (req, res) => {
+    const { amount, currency = 'NGN', email, name, description } = req.body;
+    if (!amount || !email) return res.status(400).json({ error: 'amount and email are required' });
+
+    const secretKey = process.env.PAYSTACK_SECRET_KEY;
+    if (!secretKey) return res.status(503).json({ error: 'Paystack not configured on server' });
+
+    try {
+        const response = await fetch('https://api.paystack.co/transaction/initialize', {
+            method:  'POST',
+            headers: { Authorization: `Bearer ${secretKey}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                amount:   Math.round(amount * 100), // naira → kobo
+                currency,
+                email,
+                name:     name || '',
+                metadata: { custom_fields: [{ display_name: 'Description', variable_name: 'description', value: description || '' }] },
+                callback_url: `${process.env.FRONTEND_URL || ''}/`,
+            }),
+        });
+        const data = await response.json();
+
+        if (!data.status) return res.status(400).json({ error: data.message || 'Initialization failed' });
+
+        res.json({
+            authorization_url: data.data.authorization_url,
+            access_code:       data.data.access_code,
+            reference:         data.data.reference,
+        });
+    } catch (err) {
+        console.error('[Paystack initialize]', err);
+        res.status(502).json({ error: 'Failed to contact Paystack' });
+    }
+});
+
 // Initialise a Korapay checkout (returns checkout_url)
 // POST /api/payments/korapay/initialize
 router.post('/korapay/initialize', async (req, res) => {
