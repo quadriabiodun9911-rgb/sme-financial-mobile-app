@@ -52,7 +52,6 @@ export default function BankAggregatorScreen() {
         AsyncStorage.getItem(STORAGE_KEY).then(raw => {
             if (raw) setConnection(JSON.parse(raw));
         }).catch(() => {});
-        // Resolve provider from local map — no async needed
         setProviderName(CURRENCY_PROVIDER_MAP[currency] || 'pngme');
     }, [currency]);
 
@@ -71,30 +70,33 @@ export default function BankAggregatorScreen() {
     const openPlaidWeb = async (linkToken: string) => {
         try {
             await loadPlaidScript();
+            sessionStorage.setItem('plaid_link_token', linkToken);
+            sessionStorage.setItem('plaid_user_id', userEmail);
+            const handler = (window as any).Plaid.create({
+                token: linkToken,
+                onSuccess: async (publicToken: string) => {
+                    setLoading(true);
+                    try {
+                        const res = await fetch(`${Config.BACKEND_URL}/api/bank-data/plaid-exchange`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ userId: userEmail, publicToken }),
+                        });
+                        if (!res.ok) throw new Error(`Exchange failed: ${res.status}`);
+                        await saveConnection('plaid');
+                    } catch (e: any) {
+                        Alert.alert('Connection error', e.message || 'Could not finalise bank connection.');
+                    } finally {
+                        setLoading(false);
+                    }
+                },
+                onExit: () => setLoading(false),
+            });
+            handler.open();
         } catch {
-            Alert.alert('Error', 'Could not load Plaid SDK. Please check your internet connection.');
-            return;
+            // Fallback for mobile browsers: open Plaid hosted page in same tab
+            window.location.href = `https://cdn.plaid.com/link/v2/stable/link.html?token=${linkToken}`;
         }
-        (window as any).Plaid.create({
-            token: linkToken,
-            onSuccess: async (publicToken: string) => {
-                setLoading(true);
-                try {
-                    const res = await fetch(`${Config.BACKEND_URL}/api/bank-data/plaid-exchange`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ userId: userEmail, publicToken }),
-                    });
-                    if (!res.ok) throw new Error(`Exchange failed: ${res.status}`);
-                    await saveConnection('plaid');
-                } catch (e: any) {
-                    Alert.alert('Connection error', e.message || 'Could not finalise bank connection.');
-                } finally {
-                    setLoading(false);
-                }
-            },
-            onExit: () => setLoading(false),
-        }).open();
     };
 
     const handleConnect = async () => {
@@ -103,7 +105,6 @@ export default function BankAggregatorScreen() {
             return;
         }
 
-        // Pngme requires Android native SDK
         if (providerName === 'pngme') {
             if (Platform.OS !== 'android') {
                 Alert.alert(
@@ -138,7 +139,6 @@ export default function BankAggregatorScreen() {
             if (!res.ok) throw new Error(`Server error ${res.status} — make sure PLAID_CLIENT_ID / PLAID_SECRET is set on Render.`);
             const data = await res.json();
 
-            // Mono — open Connect widget URL in browser
             if (data.monoConnectUrl) {
                 await Linking.openURL(data.monoConnectUrl);
                 Alert.alert(
@@ -150,7 +150,6 @@ export default function BankAggregatorScreen() {
                 return;
             }
 
-            // Plaid — use JS SDK on web (gets public_token via callback), fallback URL on native
             if (data.linkToken) {
                 if (Platform.OS === 'web') {
                     await openPlaidWeb(data.linkToken);
@@ -166,7 +165,6 @@ export default function BankAggregatorScreen() {
                 return;
             }
 
-            // Lean — open Link widget URL in browser
             if (data.customerId) {
                 const leanUrl = `https://cdn.leantech.me/link/loader/prod/ae/latest/index.html?customer_id=${data.customerId}`;
                 await Linking.openURL(leanUrl);
@@ -257,7 +255,6 @@ export default function BankAggregatorScreen() {
 
     return (
         <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-            {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigate('settings')}>
                     <Text style={styles.backBtn}>← Back</Text>
@@ -268,7 +265,6 @@ export default function BankAggregatorScreen() {
                 </View>
             </View>
 
-            {/* Active provider card */}
             <View style={styles.providerCard}>
                 <Text style={styles.providerLogo}>{providerInfo.logo}</Text>
                 <View style={{ flex: 1 }}>
@@ -283,7 +279,6 @@ export default function BankAggregatorScreen() {
                 </View>
             </View>
 
-            {/* Connection stats */}
             {connection && (
                 <View style={styles.statsRow}>
                     <View style={styles.statBox}>
@@ -305,7 +300,6 @@ export default function BankAggregatorScreen() {
                 </View>
             )}
 
-            {/* How it works */}
             {!connection && (
                 <View style={styles.infoCard}>
                     <Text style={styles.infoTitle}>How it works</Text>
@@ -323,7 +317,6 @@ export default function BankAggregatorScreen() {
                 </View>
             )}
 
-            {/* All providers */}
             <View style={styles.allProvidersCard}>
                 <Text style={styles.sectionTitle}>Coverage by Region</Text>
                 {Object.entries(PROVIDER_INFO).map(([key, info]) => (
@@ -342,7 +335,6 @@ export default function BankAggregatorScreen() {
                 ))}
             </View>
 
-            {/* Actions */}
             <View style={styles.actions}>
                 {!connection ? (
                     <TouchableOpacity
@@ -374,7 +366,6 @@ export default function BankAggregatorScreen() {
                 )}
             </View>
 
-            {/* Tip */}
             <View style={styles.tipCard}>
                 <Text style={styles.tipTitle}>💡 Provider is selected automatically</Text>
                 <Text style={styles.tipBody}>
