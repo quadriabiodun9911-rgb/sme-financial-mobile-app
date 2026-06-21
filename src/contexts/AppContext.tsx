@@ -1,5 +1,11 @@
 import React, { createContext, useContext, useState, useMemo, useEffect, useRef, ReactNode } from 'react';
-import { Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
+import CryptoJS from 'crypto-js';
+
+const SALT = 'Q360_SME_2025';
+function hashPin(pin: string): string {
+    return CryptoJS.SHA256(pin + SALT).toString(CryptoJS.enc.Hex) + '_Q360';
+}
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Transaction, FinanceData, User, BusinessSettings, Screen, FinancialGoal, GoalType, NavParams, Invoice, InvoiceStatus, TeamMember, UserRole, Language, Asset, InventoryItem, Loan, LoanPayment, Budget, CashPocket } from '../types';
 import { computeFinance, computeOneThingInsight, computeRecurringDates, computeAssetCurrentValue, computeAssetAnnualDepreciation } from '../utils/finance';
@@ -59,6 +65,7 @@ interface AppContextValue {
 
     settings: BusinessSettings;
     updateSettings: (patch: Partial<BusinessSettings>) => void;
+    updateProfile: (patch: Partial<Pick<User, 'phone' | 'businessName'>>) => void;
 
     transactions: Transaction[];
     addTransaction: (tx: Omit<Transaction, 'id' | 'date'> & { date?: string }) => void;
@@ -148,6 +155,8 @@ const DEFAULT_SETTINGS: BusinessSettings = {
     openingLoans: '0',
     openingOtherAssets: '0',
     defaultTaxRate: '0',
+    paystackPublicKey: 'pk_test_fa849cd42fe4963fe50a29136b33c0af02a6823b',
+    korapayPublicKey: '',
 };
 
 
@@ -288,7 +297,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         let wasPreviouslyOffline = false;
 
         const unsubscribe = NetInfo.addEventListener(async state => {
-            const isOnline = state.isConnected && state.isInternetReachable !== false;
+            const isOnline = Platform.OS === 'web'
+                ? (typeof navigator !== 'undefined' && navigator.onLine)
+                : (state.isConnected && state.isInternetReachable !== false);
 
             // Update pending count whenever connectivity changes
             const pending = await queueSize();
@@ -394,7 +405,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const setupAccount = async (email: string, businessName: string, pin: string, loadDemo: boolean, phone?: string) => {
         // Supabase auth is best-effort — never block registration if it fails
         try {
-            const { error: signUpError } = await supabase.auth.signUp({ email, password: pin + '_Q360' });
+            const { error: signUpError } = await supabase.auth.signUp({ email, password: hashPin(pin) });
             if (signUpError) {
                 const msg = signUpError.message.toLowerCase();
                 if (
@@ -407,7 +418,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 }
                 // Any other Supabase error — continue with local-only registration
             } else {
-                await supabase.auth.signInWithPassword({ email, password: pin + '_Q360' }).catch(() => {});
+                await supabase.auth.signInWithPassword({ email, password: hashPin(pin) }).catch(() => {});
             }
         } catch (e: any) {
             const msg: string = e?.message ?? '';
@@ -440,7 +451,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     // Recover existing account on a new device — authenticates with Supabase and pulls all data
     const recoverAccount = async (email: string, pin: string) => {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password: pin + '_Q360' });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password: hashPin(pin) });
         if (error || !data.user) throw new Error('Incorrect email or PIN. Please try again.');
 
         // Pull profile from Supabase
@@ -484,11 +495,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     // Team member join — creates Supabase account then links to owner workspace
     const joinTeam = async (email: string, pin: string, inviteCode: string) => {
-        const { data, error } = await supabase.auth.signUp({ email, password: pin + '_Q360' });
+        const { data, error } = await supabase.auth.signUp({ email, password: hashPin(pin) });
         if (error && error.message !== 'User already registered') throw new Error(error.message);
         let userId = data?.user?.id;
         if (error?.message === 'User already registered') {
-            const { data: sd, error: se } = await supabase.auth.signInWithPassword({ email, password: pin + '_Q360' });
+            const { data: sd, error: se } = await supabase.auth.signInWithPassword({ email, password: hashPin(pin) });
             if (se || !sd.user) throw new Error('Sign-in failed. Check your email and PIN.');
             userId = sd.user.id;
         }
@@ -558,7 +569,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         loadProfile().then(profile => {
             if (profile) {
                 identifyUser(profile.email);
-                supabase.auth.signInWithPassword({ email: profile.email, password: pin + '_Q360' }).catch(() => {});
+                supabase.auth.signInWithPassword({ email: profile.email, password: hashPin(pin) }).catch(() => {});
             }
         });
         setCurrentScreen('dashboard');
@@ -596,14 +607,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
         await AsyncStorage.multiRemove([CHANGE_PIN_KEY, CHANGE_PIN_LOCKOUT_KEY]).catch(() => {});
         setStoredPin(newPin);
-        savePin(newPin).catch(() => {});
-        supabase.auth.updateUser({ password: newPin + '_Q360' }).catch(() => {});
+        await savePin(newPin).catch(() => {});
+        await supabase.auth.updateUser({ password: hashPin(newPin) }).catch((e: unknown) => {
+            console.warn('[Quad360] Supabase password update failed — local PIN changed but cloud not synced:', e);
+        });
         return { ok: true };
     };
 
     const updateSettings = (patch: Partial<BusinessSettings>) => {
         if (!canManage) { denyManage(); return; }
         setSettings(prev => ({ ...prev, ...patch }));
+    };
+
+    const updateProfile = (patch: Partial<Pick<User, 'phone' | 'businessName'>>) => {
+        setUser(prev => prev ? { ...prev, ...patch } : prev);
     };
 
     const addTransaction = (tx: Omit<Transaction, 'id' | 'date'> & { date?: string }) => {
@@ -880,7 +897,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             setUserRole('owner'); setTransactions([]); setGoals([]);
             setSettings(DEFAULT_SETTINGS); setInvoices([]); setAssets([]);
             setInventory([]); setCurrentScreen('login');
-            if (typeof window !== 'undefined') setTimeout(() => window.location.reload(), 500);
+            if (Platform.OS === 'web') setTimeout(() => window.location.reload(), 500);
         } catch (error) {
             console.error('Error deleting account:', error);
         }
@@ -924,10 +941,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
             setCurrentScreen('login');
 
             // Force a page reload to fully clear browser state
-            if (typeof window !== 'undefined') {
-                setTimeout(() => {
-                    window.location.reload();
-                }, 500);
+            if (Platform.OS === 'web') {
+                setTimeout(() => window.location.reload(), 500);
             }
         } catch (error) {
             console.error('Error resetting app:', error);
@@ -942,7 +957,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         isDemoMode, enterDemo, exitDemo,
         setupAccount, recoverAccount, login, joinTeam, logout, changePin,
         isLockedOut, lockoutUntil,
-        settings, updateSettings,
+        settings, updateSettings, updateProfile,
         transactions, addTransaction, deleteTransaction, updateTransaction,
         goals, addGoal, deleteGoal, updateGoal, updateGoalCurrentValue,
         invoices, addInvoice, updateInvoice, deleteInvoice, markInvoiceStatus,

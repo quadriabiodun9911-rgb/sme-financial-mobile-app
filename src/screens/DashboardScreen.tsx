@@ -720,16 +720,6 @@ export default function DashboardScreen() {
             />
             <MonthlyReview visible={showMonthlyReview} onClose={() => setShowMonthlyReview(false)} />
             <CashPocketsModal visible={showCashPockets} onClose={() => setShowCashPockets(false)} />
-            <DailyReportModal
-                visible={showDailyReport}
-                onClose={() => setShowDailyReport(false)}
-                transactions={transactions}
-                goals={goals}
-                finance={finance}
-                settings={settings}
-                currency={currency}
-            />
-
             {/* ── End of Day quick-log modal ───────────────────────────────── */}
             <Modal visible={eodOpen} transparent animationType="slide" onRequestClose={() => setEodOpen(false)}>
                 <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setEodOpen(false)} />

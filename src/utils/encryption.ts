@@ -8,6 +8,8 @@
 
 import CryptoJS from 'crypto-js';
 import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
 const ENCRYPTION_KEY_STORAGE = '@quad360/encryption-key';
 const ENCRYPTED_FIELDS = {
@@ -31,14 +33,18 @@ interface EncryptionMetadata {
  * Should be called once during account setup
  */
 export async function generateEncryptionKey(): Promise<string> {
-    // Generate a random 256-bit key (44 chars in base64)
     const key = CryptoJS.lib.WordArray.random(32).toString();
 
-    // Store securely
+    if (Platform.OS !== 'web') {
+        try {
+            await SecureStore.setItemAsync(ENCRYPTION_KEY_STORAGE, key);
+            return key;
+        } catch { /* fall through to AsyncStorage */ }
+    }
     try {
-        await SecureStore.setItemAsync(ENCRYPTION_KEY_STORAGE, key);
+        await AsyncStorage.setItem(ENCRYPTION_KEY_STORAGE, key);
     } catch {
-        console.warn('[Quad360] Failed to store encryption key securely, using memory storage');
+        console.warn('[Quad360] Could not persist encryption key — encrypted data will be unreadable after restart');
     }
 
     return key;
@@ -48,8 +54,14 @@ export async function generateEncryptionKey(): Promise<string> {
  * Get the user's encryption key from secure storage
  */
 export async function getEncryptionKey(): Promise<string | null> {
+    if (Platform.OS !== 'web') {
+        try {
+            const key = await SecureStore.getItemAsync(ENCRYPTION_KEY_STORAGE);
+            if (key) return key;
+        } catch { /* fall through */ }
+    }
     try {
-        return await SecureStore.getItemAsync(ENCRYPTION_KEY_STORAGE);
+        return await AsyncStorage.getItem(ENCRYPTION_KEY_STORAGE);
     } catch {
         return null;
     }

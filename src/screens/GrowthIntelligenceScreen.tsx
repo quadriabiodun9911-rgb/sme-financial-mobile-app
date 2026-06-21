@@ -84,10 +84,10 @@ function ScoreTab({ currency }: { currency: string }) {
             <View style={gs.nextCard}>
                 <Text style={gs.sectionTitle}>HOW TO IMPROVE YOUR SCORE</Text>
                 {result.score < 25 && <Text style={gs.nextItem}>→ Log transactions consistently for 3+ months</Text>}
-                {result.pillars[2].score < 25 && <Text style={gs.nextItem}>→ Grow monthly revenue — even 5% MoM compounds fast</Text>}
-                {result.pillars[3].score < 20 && <Text style={gs.nextItem}>→ Reach breakeven by cutting your top expense category</Text>}
-                {result.pillars[4].score < 10 && <Text style={gs.nextItem}>→ Reduce customer concentration — add 2 new clients</Text>}
-                {result.pillars[1].score < 20 && <Text style={gs.nextItem}>→ Turn loss months profitable — review costs when revenue dips</Text>}
+                {(result.pillars[2]?.score ?? 100) < 25 && <Text style={gs.nextItem}>→ Grow monthly revenue — even 5% MoM compounds fast</Text>}
+                {(result.pillars[3]?.score ?? 100) < 20 && <Text style={gs.nextItem}>→ Reach breakeven by cutting your top expense category</Text>}
+                {(result.pillars[4]?.score ?? 100) < 10 && <Text style={gs.nextItem}>→ Reduce customer concentration — add 2 new clients</Text>}
+                {(result.pillars[1]?.score ?? 100) < 20 && <Text style={gs.nextItem}>→ Turn loss months profitable — review costs when revenue dips</Text>}
                 {result.score >= 75 && <Text style={gs.nextItem}>→ You're doing great. Reinvest profit into growth channels.</Text>}
             </View>
         </ScrollView>

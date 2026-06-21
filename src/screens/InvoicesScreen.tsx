@@ -148,12 +148,12 @@ export default function InvoicesScreen() {
     const openNew = () => { resetForm(); setShowForm(true); };
 
     const openEdit = (inv: Invoice) => {
-        setClientName(inv.clientName);
-        setClientEmail(inv.clientEmail);
-        setClientAddress(inv.clientAddress);
-        setDueDate(inv.dueDate);
-        setIssueDate(inv.issueDate);
-        setNotes(inv.notes);
+        setClientName(inv.clientName ?? '');
+        setClientEmail(inv.clientEmail ?? '');
+        setClientAddress(inv.clientAddress ?? '');
+        setDueDate(inv.dueDate ?? '');
+        setIssueDate(inv.issueDate ?? '');
+        setNotes(inv.notes ?? '');
         setLineItems(inv.lineItems?.length ? inv.lineItems : [{ ...EMPTY_LINE }]);
         setEditId(inv.id);
         setShowForm(true);

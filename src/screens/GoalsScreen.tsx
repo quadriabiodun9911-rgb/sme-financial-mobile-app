@@ -95,7 +95,7 @@ export default function GoalsScreen() {
             if (!isNaN(pct) && selectedType) {
                 if (selectedType === 'revenue_growth') tv = String(Math.round(finance.income * (1 + pct / 100)));
                 else if (selectedType === 'cost_reduction') tv = String(Math.round(finance.expense * (1 - pct / 100)));
-                else if (selectedType === 'margin_improvement') tv = String(parseFloat((finance.margin + pct).toFixed(1)));
+                else if (selectedType === 'margin_improvement') tv = String(parseFloat(((isFinite(finance.margin) ? finance.margin : 0) + pct).toFixed(1)));
             }
             return { ...f, percentTarget: pctStr, targetValue: tv };
         });
@@ -106,9 +106,9 @@ export default function GoalsScreen() {
             const tv = parseFloat(tvStr);
             let pct = f.percentTarget;
             if (!isNaN(tv) && selectedType) {
-                if (selectedType === 'revenue_growth') pct = ((tv - finance.income) / finance.income * 100).toFixed(1);
-                else if (selectedType === 'cost_reduction') pct = ((finance.expense - tv) / finance.expense * 100).toFixed(1);
-                else if (selectedType === 'margin_improvement') pct = (tv - finance.margin).toFixed(1);
+                if (selectedType === 'revenue_growth') pct = finance.income > 0 ? ((tv - finance.income) / finance.income * 100).toFixed(1) : '0';
+                else if (selectedType === 'cost_reduction') pct = finance.expense > 0 ? ((finance.expense - tv) / finance.expense * 100).toFixed(1) : '0';
+                else if (selectedType === 'margin_improvement') pct = isFinite(finance.margin) ? (tv - finance.margin).toFixed(1) : '0';
             }
             return { ...f, targetValue: tvStr, percentTarget: pct };
         });

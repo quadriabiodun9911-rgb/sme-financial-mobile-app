@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
-    TouchableOpacity, StyleSheet, Alert, Modal, Share,
+    TouchableOpacity, StyleSheet, Alert, Modal, Share, Platform,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -91,8 +91,7 @@ export default function SettingsScreen() {
         }
         // Warn if currency changed
         if (form.currency !== settings.currency) {
-            if (typeof window !== 'undefined') {
-                // On web, Alert.alert multi-button doesn't work — use window.confirm
+            if (Platform.OS === 'web' && typeof window?.confirm === 'function') {
                 const ok = window.confirm(t(language, 'currencyChangeWarning'));
                 if (ok) doSave();
                 return;
@@ -348,6 +347,43 @@ export default function SettingsScreen() {
                                 <Text style={styles.dataBtnText}>Set Up Extra Security Lock</Text>
                             </TouchableOpacity>
                         </Section>
+                    </CollapsibleSection>
+
+                    {/* Payments */}
+                    <CollapsibleSection title="💳 Payment Gateways" defaultOpen={false}>
+                        <Text style={styles.hint}>
+                            Add your public API keys to enable Paystack or Korapay checkout directly inside the app. Your customers can pay with cards, bank transfer, USSD, or mobile money.
+                        </Text>
+
+                        <Section title="Paystack">
+                            <Text style={styles.hint}>Get your public key from dashboard.paystack.com → Settings → API Keys</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={form.paystackPublicKey ?? ''}
+                                onChangeText={v => setForm((f: typeof form) => ({ ...f, paystackPublicKey: v.trim() }))}
+                                placeholder="pk_live_xxxxxxxxxxxxxxxxxx"
+                                placeholderTextColor={Colors.muted}
+                                autoCapitalize="none"
+                                autoCorrect={false}
+                            />
+                        </Section>
+
+                        <Section title="Korapay">
+                            <Text style={styles.hint}>Get your public key from merchant.korapay.com → Settings → API Keys</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={form.korapayPublicKey ?? ''}
+                                onChangeText={v => setForm((f: typeof form) => ({ ...f, korapayPublicKey: v.trim() }))}
+                                placeholder="pk_live_xxxxxxxxxxxxxxxxxx"
+                                placeholderTextColor={Colors.muted}
+                                autoCapitalize="none"
+                                autoCorrect={false}
+                            />
+                        </Section>
+
+                        <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
+                            <Text style={styles.saveBtnText}>Save Payment Keys</Text>
+                        </TouchableOpacity>
                     </CollapsibleSection>
 
                     {/* 4. Data & Backup — default closed */}

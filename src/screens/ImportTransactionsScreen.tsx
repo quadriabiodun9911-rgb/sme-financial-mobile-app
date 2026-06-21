@@ -4,10 +4,12 @@ import {
     Alert, ActivityIndicator, FlatList, Modal, Platform,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
+import { parsePdfStatement } from '../utils/pdfParser';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -85,8 +87,15 @@ function parseAmount(raw: string): number {
     return Math.abs(parseFloat(raw.replace(/[₦$€£,\s]/g, '')) || 0);
 }
 
+function toDateString(dt: Date): string {
+    const y  = dt.getFullYear();
+    const mo = String(dt.getMonth() + 1).padStart(2, '0');
+    const d  = String(dt.getDate()).padStart(2, '0');
+    return `${y}-${mo}-${d}`;
+}
+
 function parseDate(raw: string): string {
-    if (!raw) return new Date().toISOString();
+    if (!raw) return toDateString(new Date());
     // Try common Nigerian bank date formats
     const formats = [
         // DD/MM/YYYY or DD-MM-YYYY
@@ -109,12 +118,12 @@ function parseDate(raw: string): string {
             else if (fmt === formats[1]) { d = +m[1]; mo = months[m[2].toLowerCase()]; y = +m[3]; }
             else { [, y, mo, d] = m.map(Number) as any; }
             const dt = new Date(y, mo - 1, d);
-            if (!isNaN(dt.getTime())) return dt.toISOString();
+            if (!isNaN(dt.getTime())) return toDateString(dt);
         }
     }
     // Last resort
     const fallback = new Date(raw);
-    return isNaN(fallback.getTime()) ? new Date().toISOString() : fallback.toISOString();
+    return isNaN(fallback.getTime()) ? toDateString(new Date()) : toDateString(fallback);
 }
 
 function classifyByDescription(desc: string, direction: 'income' | 'expense'): { category: TxCategory; subCategory: string; flagged: boolean } {
@@ -243,17 +252,39 @@ export default function ImportTransactionsScreen() {
         setError('');
         try {
             const isExcel = /\.(xlsx|xls)$/i.test(name);
+            const isPdf   = /\.pdf$/i.test(name);
             let rawRows: Record<string, string>[] = [];
 
-            if (isExcel) {
-                const resp   = await fetch(uri);
-                const buffer = await resp.arrayBuffer();
+            // On native, fetch(file://) is unreliable — use expo-file-system for local URIs
+            const readBuffer = async (fileUri: string): Promise<ArrayBuffer> => {
+                if (Platform.OS !== 'web' && fileUri.startsWith('file://')) {
+                    const b64 = await FileSystem.readAsStringAsync(fileUri, { encoding: FileSystem.EncodingType.Base64 });
+                    const binary = atob(b64);
+                    const bytes = new Uint8Array(binary.length);
+                    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+                    return bytes.buffer;
+                }
+                return (await fetch(fileUri)).arrayBuffer();
+            };
+            const readText = async (fileUri: string): Promise<string> => {
+                if (Platform.OS !== 'web' && fileUri.startsWith('file://')) {
+                    return FileSystem.readAsStringAsync(fileUri);
+                }
+                return (await fetch(fileUri)).text();
+            };
+
+            if (isPdf) {
+                const buffer = await readBuffer(uri);
+                const { rows: pdfRows, error: pdfError } = await parsePdfStatement(buffer);
+                if (pdfError) { setError(pdfError); return; }
+                rawRows = pdfRows;
+            } else if (isExcel) {
+                const buffer = await readBuffer(uri);
                 const wb     = XLSX.read(buffer, { type: 'array' });
                 const ws     = wb.Sheets[wb.SheetNames[0]];
                 rawRows      = XLSX.utils.sheet_to_json<Record<string, string>>(ws, { defval: '' });
             } else {
-                const resp = await fetch(uri);
-                const text = await resp.text();
+                const text = await readText(uri);
                 const parsed = Papa.parse<Record<string, string>>(text, {
                     header:          true,
                     skipEmptyLines:  true,
@@ -268,7 +299,7 @@ export default function ImportTransactionsScreen() {
             setRows(parsed);
             setStep('preview');
         } catch (e: any) {
-            setError(e?.message || 'Failed to read file. Make sure it is a CSV or Excel file.');
+            setError(e?.message || 'Failed to read file. Make sure it is a CSV, Excel, or PDF file.');
         } finally {
             setLoading(false);
         }
@@ -283,13 +314,16 @@ export default function ImportTransactionsScreen() {
             if (typeof document !== 'undefined') {
                 const input = document.createElement('input');
                 input.type = 'file';
-                input.accept = '.csv,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+                input.accept = '.csv,.xlsx,.xls,.pdf,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/pdf';
                 input.onchange = async (e: any) => {
                     const file: File = e.target?.files?.[0];
                     if (!file) return;
                     const uri = URL.createObjectURL(file);
-                    await processFile(uri, file.name);
-                    URL.revokeObjectURL(uri);
+                    try {
+                        await processFile(uri, file.name);
+                    } finally {
+                        URL.revokeObjectURL(uri);
+                    }
                 };
                 input.click();
             }
@@ -304,9 +338,11 @@ export default function ImportTransactionsScreen() {
                     'text/comma-separated-values',
                     'application/vnd.ms-excel',
                     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    'application/pdf',
                     'public.comma-separated-values-text', // iOS UTI for CSV
                     'com.microsoft.excel.xls',            // iOS UTI for xls
                     'org.openxmlformats.spreadsheetml.sheet', // iOS UTI for xlsx
+                    'com.adobe.pdf',                      // iOS UTI for PDF
                     '*/*',
                 ],
                 copyToCacheDirectory: true,
@@ -347,7 +383,7 @@ export default function ImportTransactionsScreen() {
             return;
         }
 
-        rows.forEach(r => {
+        rows.forEach((r, idx) => {
             addTransaction({
                 date:                r.date,
                 description:         r.description,
@@ -358,7 +394,7 @@ export default function ImportTransactionsScreen() {
                                    : r.category === 'asset'  ? 'purchase'
                                    : r.category === 'income' ? 'sale'
                                    : 'expense',
-                reference:           `IMPORT-${Date.now()}`,
+                reference:           `IMPORT-${Date.now()}-${idx}`,
             });
         });
 
@@ -410,18 +446,19 @@ export default function ImportTransactionsScreen() {
                     <Text style={styles.cardTitle}>Supported formats</Text>
                     <Text style={styles.supportedText}>✅  CSV  (.csv)</Text>
                     <Text style={styles.supportedText}>✅  Excel  (.xlsx  ·  .xls)</Text>
+                    <Text style={styles.supportedText}>✅  PDF bank statements  (.pdf)</Text>
                     <Text style={styles.supportedText}>✅  Works with all Nigerian banks</Text>
                     <Text style={styles.supportedText}>✅  Processed on your device — never uploaded</Text>
                 </View>
 
-                {Platform.OS === 'ios' || (Platform.OS === 'web' && typeof navigator !== 'undefined' && /iphone|ipad/i.test(navigator.userAgent ?? '')) ? (
+                {Platform.OS === 'ios' || (Platform.OS === 'web' && /iphone|ipad/i.test(navigator?.userAgent ?? '')) ? (
                     <View style={styles.iosGuideCard}>
                         <Text style={styles.iosGuideTitle}>📱 iPhone tip</Text>
                         <Text style={styles.iosGuideText}>
                             1. Open your bank's website or app and download your statement as <Text style={styles.bold}>Excel or CSV</Text>.{'\n'}
                             2. When the file downloads, tap <Text style={styles.bold}>"Files"</Text> to save it to your iPhone Files app.{'\n'}
                             3. Come back here and tap <Text style={styles.bold}>"Choose File"</Text> below — pick the file from Files.{'\n\n'}
-                            ⚠️ If your bank only gives PDF, email it to yourself, open it on a computer and export as CSV first.
+                            💡 PDF bank statements are now supported directly — just pick the PDF from Files.
                         </Text>
                     </View>
                 ) : null}
@@ -439,7 +476,7 @@ export default function ImportTransactionsScreen() {
                 >
                     {loading
                         ? <ActivityIndicator color="#fff" />
-                        : <Text style={styles.primaryBtnText}>📁  Choose CSV or Excel file</Text>
+                        : <Text style={styles.primaryBtnText}>📁  Choose file (CSV, Excel or PDF)</Text>
                     }
                 </TouchableOpacity>
             </ScrollView>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
-    TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Image, Modal,
+    TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Image, Modal, Platform,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -9,6 +9,12 @@ import { t, LANGUAGES, Language } from '../utils/i18n';
 import { DEMO_BUSINESSES } from '../utils/demoData';
 import { trackUserLoggedIn, identifyUser } from '../utils/analytics';
 import { supabase } from '../utils/supabase';
+import CryptoJS from 'crypto-js';
+
+const SALT = 'Q360_SME_2025';
+function hashPin(pin: string): string {
+    return CryptoJS.SHA256(pin + SALT).toString(CryptoJS.enc.Hex) + '_Q360';
+}
 
 const CURRENCIES = [
     { label: 'USD ($)',    value: '$'   },
@@ -57,17 +63,14 @@ export default function LoginScreen() {
 
     // On web: detect Supabase recovery callback (access_token in URL hash) and auto-update PIN
     useEffect(() => {
-        if (typeof window === 'undefined') return;
+        if (Platform.OS !== 'web') return;
         const hash = window.location.hash;
         const params = new URLSearchParams(hash.replace('#', '?'));
         const type = params.get('type');
         const accessToken = params.get('access_token');
         if (type === 'recovery' && accessToken) {
-            // Pending PIN is stored in resetNewPin state but we need it from URL or storage
-            // Prompt user to enter their chosen new PIN to complete reset
             setMode('reset-pin');
             setResetStep('complete-web');
-            // Clear hash so back navigation doesn't retrigger
             window.history.replaceState(null, '', window.location.pathname);
         }
     }, []);
@@ -180,13 +183,15 @@ export default function LoginScreen() {
         if (!emailLoginEmail.trim()) { Alert.alert(t(language, 'error'), 'Please enter your email address.'); return; }
         if (!emailLoginPin) { Alert.alert(t(language, 'error'), 'Please enter your 6-digit PIN.'); return; }
 
-        // First try local PIN match
-        const ok = login(emailLoginPin);
-        if (ok) { identifyUser(emailLoginEmail.trim()); trackUserLoggedIn('email'); return; }
-
-        // If local fails, try Supabase to give specific error
+        setSubmitting(true);
+        let navigating = false;
         try {
-            const { error } = await supabase.auth.signInWithPassword({ email: emailLoginEmail.trim(), password: emailLoginPin + '_Q360' });
+            // First try local PIN match
+            const ok = login(emailLoginPin);
+            if (ok) { navigating = true; identifyUser(emailLoginEmail.trim()); trackUserLoggedIn('email'); return; }
+
+            // If local fails, try Supabase to give specific error
+            const { error } = await supabase.auth.signInWithPassword({ email: emailLoginEmail.trim(), password: hashPin(emailLoginPin) });
             if (error) {
                 if (error.message.toLowerCase().includes('invalid login') || error.message.toLowerCase().includes('invalid credentials')) {
                     Alert.alert('Incorrect Details', 'The email or PIN you entered does not match any account. Please check and try again.');
@@ -199,6 +204,7 @@ export default function LoginScreen() {
                 }
             } else {
                 // Supabase auth succeeded — recover account data and log in
+                navigating = true;
                 await recoverAccount(emailLoginEmail.trim(), emailLoginPin);
                 identifyUser(emailLoginEmail.trim());
                 trackUserLoggedIn('email');
@@ -206,6 +212,8 @@ export default function LoginScreen() {
             }
         } catch {
             Alert.alert(t(language, 'error'), 'Incorrect email or PIN. Please try again.');
+        } finally {
+            if (!navigating) setSubmitting(false);
         }
         setEmailLoginPin('');
     };
@@ -231,7 +239,7 @@ export default function LoginScreen() {
         setResetSubmitting(true);
         try {
             
-            const redirectTo = typeof window !== 'undefined'
+            const redirectTo = Platform.OS === 'web' && typeof window !== 'undefined'
                 ? `${window.location.origin}/?reset=1`
                 : undefined;
             const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), { redirectTo });
@@ -258,7 +266,7 @@ export default function LoginScreen() {
         setResetSubmitting(true);
         try {
             
-            const { error } = await supabase.auth.updateUser({ password: resetNewPin + '_Q360' });
+            const { error } = await supabase.auth.updateUser({ password: hashPin(resetNewPin) });
             if (error) { Alert.alert('Error', error.message); setResetSubmitting(false); return; }
             Alert.alert('PIN Reset Successful', 'Your PIN has been updated. Please log in.', [
                 { text: 'OK', onPress: () => { setMode('owner-login'); setLoginMethod('pin'); setResetStep('request'); setResetNewPin(''); setResetConfirmPin(''); } }
@@ -286,7 +294,7 @@ export default function LoginScreen() {
                 setResetSubmitting(false);
                 return;
             }
-            const { error: updateError } = await supabase.auth.updateUser({ password: resetNewPin + '_Q360' });
+            const { error: updateError } = await supabase.auth.updateUser({ password: hashPin(resetNewPin) });
             if (updateError) {
                 Alert.alert('Error', 'Could not update PIN: ' + updateError.message);
                 setResetSubmitting(false);

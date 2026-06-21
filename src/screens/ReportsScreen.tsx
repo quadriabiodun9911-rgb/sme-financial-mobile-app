@@ -10,7 +10,7 @@ import FooterNav from '../components/FooterNav';
 import AgingReport from '../components/AgingReport';
 import TaxSummary from '../components/TaxSummary';
 import SwotAnalysis from '../components/SwotAnalysis';
-import FinancialHealthAssessment from '../../financial-planning/FinancialHealthAssessment';
+import FinancialHealthAssessment from '../components/FinancialHealthAssessment';
 import BudgetForecast from '../components/BudgetForecast';
 import CashManagement from '../components/CashManagement';
 import DebtAnalysis from '../components/DebtAnalysis';
