@@ -269,11 +269,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
                     const businessName = profileRow?.business_name ?? profile?.businessName ?? '';
                     const phone = (profileRow as any)?.phone ?? profile?.phone;
                     if (!profile) await saveProfile({ email, businessName, phone }).catch(() => {});
+                    // Existing user resuming session — skip first-run wizard
+                    await AsyncStorage.setItem('@quad360/first_run_done', '1').catch(() => {});
                     setHasProfile(true);
                     setUser({ email, businessName, role: 'Administrator', phone });
                     setCurrentScreen('dashboard');
                 } else if (pin && profile) {
-                    // Offline fallback: local PIN + profile exist
+                    // Offline fallback: local PIN + profile exist — also an existing user
+                    await AsyncStorage.setItem('@quad360/first_run_done', '1').catch(() => {});
                     setUser({ email: profile.email, businessName: profile.businessName, role: 'Administrator', phone: profile.phone });
                 }
                 // Restore lockout state across restarts
