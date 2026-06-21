@@ -168,7 +168,17 @@ export default function SettingsScreen() {
     const handleExport = async () => {
         try {
             const json = await exportData();
-            await Share.share({ message: json, title: 'Quad360 Backup' });
+            if (Platform.OS === 'web') {
+                const blob = new Blob([json], { type: 'application/json' });
+                const url  = URL.createObjectURL(blob);
+                const a    = document.createElement('a');
+                a.href     = url;
+                a.download = `quad360-backup-${new Date().toISOString().slice(0,10)}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+            } else {
+                await Share.share({ message: json, title: 'Quad360 Backup' });
+            }
         } catch {
             Alert.alert('Export failed', 'Could not export data. Please try again.');
         }
@@ -201,6 +211,10 @@ export default function SettingsScreen() {
     };
 
     const handleRemoveMember = (id: string, email: string) => {
+        if (Platform.OS === 'web') {
+            if (window.confirm(`Remove ${email} from your team?`)) removeMember(id);
+            return;
+        }
         Alert.alert('Remove member', `Remove ${email} from your team?`, [
             { text: 'Cancel', style: 'cancel' },
             { text: 'Remove', style: 'destructive', onPress: () => removeMember(id) },
@@ -213,21 +227,15 @@ export default function SettingsScreen() {
     };
 
     const handleClearData = () => {
-        Alert.alert(
-            'Sign Out & Clear Local Cache',
-            'This signs you out and clears the local app cache. Your data stays safely in the cloud — sign back in any time to restore everything.',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Sign Out',
-                    style: 'destructive',
-                    onPress: async () => {
-                        await clearData();
-                        logout();
-                    },
-                },
-            ],
-        );
+        const msg = 'This signs you out and clears the local app cache. Your data stays safely in the cloud — sign back in any time to restore everything.';
+        if (Platform.OS === 'web') {
+            if (window.confirm(msg)) { clearData().then(() => logout()); }
+            return;
+        }
+        Alert.alert('Sign Out & Clear Local Cache', msg, [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Sign Out', style: 'destructive', onPress: async () => { await clearData(); logout(); } },
+        ]);
     };
 
     const handleDeleteAccount = () => {
@@ -597,7 +605,13 @@ export default function SettingsScreen() {
                                     They enter this code on the "Join a Team" screen in the app along with their email and a new PIN.
                                 </Text>
                                 <TouchableOpacity style={styles.saveBtn} onPress={async () => {
-                                    await Share.share({ message: `Your Quad360 invite code: ${pendingCode}` });
+                                    const msg = `Your Quad360 invite code: ${pendingCode}`;
+                                    if (Platform.OS === 'web') {
+                                        if (navigator.share) { await navigator.share({ text: msg }); }
+                                        else { await navigator.clipboard.writeText(msg); Alert.alert('Copied!', 'Invite code copied to clipboard.'); }
+                                    } else {
+                                        await Share.share({ message: msg });
+                                    }
                                 }}>
                                     <Text style={styles.saveBtnText}>Share Code</Text>
                                 </TouchableOpacity>
