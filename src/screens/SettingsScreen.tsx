@@ -44,6 +44,15 @@ export default function SettingsScreen() {
     const [form, setForm]       = useState({ ...settings });
     const [phone, setPhone]     = useState(user?.phone || '');
 
+    // Sync payment keys from settings when they load from storage/Supabase
+    useEffect(() => {
+        setForm(f => ({
+            ...f,
+            paystackPublicKey: settings.paystackPublicKey ?? f.paystackPublicKey ?? '',
+            korapayPublicKey:  settings.korapayPublicKey  ?? f.korapayPublicKey  ?? '',
+        }));
+    }, [settings.paystackPublicKey, settings.korapayPublicKey]);
+
     // Change PIN
     const [currentPin, setCurrentPin] = useState('');
     const [newPin, setNewPin]         = useState('');
