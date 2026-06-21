@@ -109,6 +109,13 @@ export default function SettingsScreen() {
         doSave();
     };
 
+    const handleSavePaymentKeys = () => {
+        const paystackPublicKey = (form.paystackPublicKey ?? '').trim();
+        const korapayPublicKey  = (form.korapayPublicKey ?? '').trim();
+        updateSettings({ paystackPublicKey, korapayPublicKey });
+        Alert.alert('✅ Saved', 'Payment keys saved. Tap "Create Payment Link →" to charge customers.');
+    };
+
     const handleChangePin = async () => {
         if (!/^\d{6}$/.test(newPin)) {
             Alert.alert('Invalid PIN', 'New PIN must be exactly 6 digits.');
@@ -385,7 +392,7 @@ export default function SettingsScreen() {
                             />
                         </Section>
 
-                        <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
+                        <TouchableOpacity style={styles.saveBtn} onPress={handleSavePaymentKeys}>
                             <Text style={styles.saveBtnText}>Save Payment Keys</Text>
                         </TouchableOpacity>
 
@@ -404,7 +411,6 @@ export default function SettingsScreen() {
                         </TouchableOpacity>
                     </CollapsibleSection>
 
-                    {/* 4. Data & Backup — default closed */}
                     {/* Bank / Mobile Money Connection */}
                     <CollapsibleSection title="🏦 Bank & Mobile Money" defaultOpen={false}>
                         <Text style={styles.hint}>
@@ -618,7 +624,7 @@ export default function SettingsScreen() {
                             value={importJson}
                             onChangeText={setImportJson}
                             multiline
-                            placeholder={'{ "version": 1, ... }'}
+                            placeholder={'{"version": 1, ...}'}
                             placeholderTextColor={Colors.muted}
                             textAlignVertical="top"
                         />
