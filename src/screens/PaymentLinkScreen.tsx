@@ -122,9 +122,11 @@ export default function PaymentLinkScreen() {
             Alert.alert('Email required', 'Please enter the customer email to use Paystack.');
             return;
         }
+        // Open a blank window NOW (synchronous, in the tap handler) so iOS Safari
+        // won't block it as a popup when we set its URL after the async fetch.
+        const payWin = Platform.OS === 'web' ? window.open('', '_blank') : null;
         setLoading(true);
         setLoadingMsg('Opening Paystack… please wait');
-        // Show “server waking up” message after 5s if still loading
         const wakeTimer = setTimeout(() => setLoadingMsg('Server starting up, please wait ~30s…'), 5000);
         try {
             const resp = await fetch(`${Config.BACKEND_URL}/api/payments/paystack/initialize`, {
@@ -142,13 +144,18 @@ export default function PaymentLinkScreen() {
             const data = await resp.json();
             const authUrl = data.authorization_url || data.data?.authorization_url;
             if (!authUrl) throw new Error('No payment URL returned from server');
-            openWebUrl(authUrl);
+            if (payWin && !payWin.closed) {
+                payWin.location.href = authUrl;
+            } else {
+                openWebUrl(authUrl);
+            }
             Alert.alert(
                 'Payment page opened',
                 'Complete the payment in your browser. Come back here once done to confirm.',
                 [{ text: 'Mark as Paid', onPress: () => recordManualPayment('Paystack') }]
             );
         } catch (e: any) {
+            if (payWin && !payWin.closed) payWin.close();
             if (e.message?.includes('Server error') || e.message?.includes('fetch') || e.message?.includes('Network')) {
                 Alert.alert(
                     '🔌 Server unavailable',
@@ -171,6 +178,7 @@ export default function PaymentLinkScreen() {
             Alert.alert('Email required', 'Please enter the customer email to use Korapay.');
             return;
         }
+        const payWin = Platform.OS === 'web' ? window.open('', '_blank') : null;
         setLoading(true);
         setLoadingMsg('Opening Korapay… please wait');
         const wakeTimer = setTimeout(() => setLoadingMsg('Server starting up, please wait ~30s…'), 5000);
@@ -187,13 +195,18 @@ export default function PaymentLinkScreen() {
             });
             const data = await resp.json();
             if (!data.checkoutUrl) throw new Error(data.error || 'No checkout URL returned');
-            openWebUrl(data.checkoutUrl);
+            if (payWin && !payWin.closed) {
+                payWin.location.href = data.checkoutUrl;
+            } else {
+                openWebUrl(data.checkoutUrl);
+            }
             Alert.alert(
                 'Payment page opened',
                 'Complete the payment in your browser. Come back here once done to confirm.',
                 [{ text: 'Mark as Paid', onPress: () => recordManualPayment('Korapay') }]
             );
         } catch (e: any) {
+            if (payWin && !payWin.closed) payWin.close();
             if (e.message?.includes('fetch') || e.message?.includes('Network')) {
                 Alert.alert(
                     '🔌 Server unavailable',

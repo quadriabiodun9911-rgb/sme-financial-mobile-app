@@ -145,14 +145,21 @@ export default function LoginScreen() {
         } catch (e: any) {
             const msg: string = e?.message ?? '';
             if (msg.toLowerCase().includes('already registered') || msg.toLowerCase().includes('already been registered') || msg.toLowerCase().includes('user already exists') || msg.toLowerCase().includes('email address is already')) {
-                Alert.alert(
-                    'Email Already Registered',
-                    'An account with this email already exists. Please sign in instead, or use a different email address.',
-                    [
-                        { text: 'Sign In', onPress: () => { setMode('owner-login'); setLoginMethod('email'); setEmailLoginEmail(email.trim()); } },
-                        { text: 'Use Different Email', style: 'cancel' },
-                    ]
-                );
+                if (Platform.OS === 'web' && typeof window !== 'undefined') {
+                    const goSignIn = window.confirm(
+                        'An account with this email already exists.\n\nPress OK to sign in, or Cancel to use a different email.'
+                    );
+                    if (goSignIn) { setMode('owner-login'); setLoginMethod('email'); setEmailLoginEmail(email.trim()); }
+                } else {
+                    Alert.alert(
+                        'Email Already Registered',
+                        'An account with this email already exists. Please sign in instead, or use a different email address.',
+                        [
+                            { text: 'Sign In', onPress: () => { setMode('owner-login'); setLoginMethod('email'); setEmailLoginEmail(email.trim()); } },
+                            { text: 'Use Different Email', style: 'cancel' },
+                        ]
+                    );
+                }
             } else {
                 Alert.alert(t(setupLang, 'error'), msg || 'Could not create account. Please try again.');
             }
@@ -615,7 +622,7 @@ export default function LoginScreen() {
                         </Field>
                         <Field label="Phone Number (for financial health score)">
                             <TextInput style={styles.input} value={phone} onChangeText={setPhone}
-                                placeholder="+2348012345678" placeholderTextColor={Colors.muted}
+                                placeholder="+1 555 000 1234" placeholderTextColor={Colors.muted}
                                 keyboardType="phone-pad" />
                         </Field>
                         <Field label={t(setupLang, 'businessName')}>
@@ -742,6 +749,9 @@ export default function LoginScreen() {
                             <TouchableOpacity style={styles.btn} onPress={handleLogin}>
                                 <Text style={styles.btnText}>{t(language, 'unlock')}</Text>
                             </TouchableOpacity>
+                            <Text style={{ textAlign: 'center', color: Colors.muted, fontSize: 12, marginTop: 8 }}>
+                                New device or browser? Use the <Text style={{ color: Colors.primary }} onPress={() => setLoginMethod('email')}>Email tab</Text> instead.
+                            </Text>
                         </>
                     ) : (
                         // Email Login Form
@@ -768,8 +778,11 @@ export default function LoginScreen() {
                                     onSubmitEditing={handleEmailLogin}
                                 />
                             </Field>
-                            <TouchableOpacity style={styles.btn} onPress={handleEmailLogin}>
-                                <Text style={styles.btnText}>Unlock</Text>
+                            <TouchableOpacity style={[styles.btn, submitting && styles.btnDisabled]} onPress={handleEmailLogin} disabled={submitting}>
+                                {submitting
+                                    ? <ActivityIndicator color="#fff" />
+                                    : <Text style={styles.btnText}>Unlock</Text>
+                                }
                             </TouchableOpacity>
                         </>
                     )}
