@@ -9,6 +9,12 @@ import { t, LANGUAGES, Language } from '../utils/i18n';
 import { DEMO_BUSINESSES } from '../utils/demoData';
 import { trackUserLoggedIn, identifyUser } from '../utils/analytics';
 import { supabase } from '../utils/supabase';
+import CryptoJS from 'crypto-js';
+
+const SALT = 'Q360_SME_2025';
+function hashPin(pin: string): string {
+    return CryptoJS.SHA256(pin + SALT).toString(CryptoJS.enc.Hex) + '_Q360';
+}
 
 const CURRENCIES = [
     { label: 'USD ($)',    value: '$'   },
@@ -185,7 +191,7 @@ export default function LoginScreen() {
             if (ok) { navigating = true; identifyUser(emailLoginEmail.trim()); trackUserLoggedIn('email'); return; }
 
             // If local fails, try Supabase to give specific error
-            const { error } = await supabase.auth.signInWithPassword({ email: emailLoginEmail.trim(), password: emailLoginPin + '_Q360' });
+            const { error } = await supabase.auth.signInWithPassword({ email: emailLoginEmail.trim(), password: hashPin(emailLoginPin) });
             if (error) {
                 if (error.message.toLowerCase().includes('invalid login') || error.message.toLowerCase().includes('invalid credentials')) {
                     Alert.alert('Incorrect Details', 'The email or PIN you entered does not match any account. Please check and try again.');
@@ -260,7 +266,7 @@ export default function LoginScreen() {
         setResetSubmitting(true);
         try {
             
-            const { error } = await supabase.auth.updateUser({ password: resetNewPin + '_Q360' });
+            const { error } = await supabase.auth.updateUser({ password: hashPin(resetNewPin) });
             if (error) { Alert.alert('Error', error.message); setResetSubmitting(false); return; }
             Alert.alert('PIN Reset Successful', 'Your PIN has been updated. Please log in.', [
                 { text: 'OK', onPress: () => { setMode('owner-login'); setLoginMethod('pin'); setResetStep('request'); setResetNewPin(''); setResetConfirmPin(''); } }
@@ -288,7 +294,7 @@ export default function LoginScreen() {
                 setResetSubmitting(false);
                 return;
             }
-            const { error: updateError } = await supabase.auth.updateUser({ password: resetNewPin + '_Q360' });
+            const { error: updateError } = await supabase.auth.updateUser({ password: hashPin(resetNewPin) });
             if (updateError) {
                 Alert.alert('Error', 'Could not update PIN: ' + updateError.message);
                 setResetSubmitting(false);

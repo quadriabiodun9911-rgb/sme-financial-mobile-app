@@ -1,5 +1,11 @@
 import React, { createContext, useContext, useState, useMemo, useEffect, useRef, ReactNode } from 'react';
 import { Alert, Platform } from 'react-native';
+import CryptoJS from 'crypto-js';
+
+const SALT = 'Q360_SME_2025';
+function hashPin(pin: string): string {
+    return CryptoJS.SHA256(pin + SALT).toString(CryptoJS.enc.Hex) + '_Q360';
+}
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Transaction, FinanceData, User, BusinessSettings, Screen, FinancialGoal, GoalType, NavParams, Invoice, InvoiceStatus, TeamMember, UserRole, Language, Asset, InventoryItem, Loan, LoanPayment, Budget, CashPocket } from '../types';
 import { computeFinance, computeOneThingInsight, computeRecurringDates, computeAssetCurrentValue, computeAssetAnnualDepreciation } from '../utils/finance';
@@ -397,7 +403,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const setupAccount = async (email: string, businessName: string, pin: string, loadDemo: boolean, phone?: string) => {
         // Supabase auth is best-effort — never block registration if it fails
         try {
-            const { error: signUpError } = await supabase.auth.signUp({ email, password: pin + '_Q360' });
+            const { error: signUpError } = await supabase.auth.signUp({ email, password: hashPin(pin) });
             if (signUpError) {
                 const msg = signUpError.message.toLowerCase();
                 if (
@@ -410,7 +416,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 }
                 // Any other Supabase error — continue with local-only registration
             } else {
-                await supabase.auth.signInWithPassword({ email, password: pin + '_Q360' }).catch(() => {});
+                await supabase.auth.signInWithPassword({ email, password: hashPin(pin) }).catch(() => {});
             }
         } catch (e: any) {
             const msg: string = e?.message ?? '';
@@ -443,7 +449,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     // Recover existing account on a new device — authenticates with Supabase and pulls all data
     const recoverAccount = async (email: string, pin: string) => {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password: pin + '_Q360' });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password: hashPin(pin) });
         if (error || !data.user) throw new Error('Incorrect email or PIN. Please try again.');
 
         // Pull profile from Supabase
@@ -487,11 +493,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     // Team member join — creates Supabase account then links to owner workspace
     const joinTeam = async (email: string, pin: string, inviteCode: string) => {
-        const { data, error } = await supabase.auth.signUp({ email, password: pin + '_Q360' });
+        const { data, error } = await supabase.auth.signUp({ email, password: hashPin(pin) });
         if (error && error.message !== 'User already registered') throw new Error(error.message);
         let userId = data?.user?.id;
         if (error?.message === 'User already registered') {
-            const { data: sd, error: se } = await supabase.auth.signInWithPassword({ email, password: pin + '_Q360' });
+            const { data: sd, error: se } = await supabase.auth.signInWithPassword({ email, password: hashPin(pin) });
             if (se || !sd.user) throw new Error('Sign-in failed. Check your email and PIN.');
             userId = sd.user.id;
         }
@@ -561,7 +567,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         loadProfile().then(profile => {
             if (profile) {
                 identifyUser(profile.email);
-                supabase.auth.signInWithPassword({ email: profile.email, password: pin + '_Q360' }).catch(() => {});
+                supabase.auth.signInWithPassword({ email: profile.email, password: hashPin(pin) }).catch(() => {});
             }
         });
         setCurrentScreen('dashboard');
@@ -600,7 +606,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         await AsyncStorage.multiRemove([CHANGE_PIN_KEY, CHANGE_PIN_LOCKOUT_KEY]).catch(() => {});
         setStoredPin(newPin);
         await savePin(newPin).catch(() => {});
-        await supabase.auth.updateUser({ password: newPin + '_Q360' }).catch((e: unknown) => {
+        await supabase.auth.updateUser({ password: hashPin(newPin) }).catch((e: unknown) => {
             console.warn('[Quad360] Supabase password update failed — local PIN changed but cloud not synced:', e);
         });
         return { ok: true };

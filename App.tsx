@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, ActivityIndicator, Platform } from 'react-native';
+import { View, ActivityIndicator, Platform, BackHandler, Alert } from 'react-native';
 import * as Updates from 'expo-updates';
 import { AppProvider, useApp } from './src/contexts/AppContext';
 import { trackScreenViewed } from './src/utils/analytics';
@@ -27,13 +27,29 @@ import BankAggregatorScreen from './src/screens/BankAggregatorScreen';
 import ImportTransactionsScreen from './src/screens/ImportTransactionsScreen';
 
 function Navigator() {
-    const { currentScreen, isLoading } = useApp();
+    const { currentScreen, isLoading, setCurrentScreen } = useApp();
 
     useEffect(() => {
         if (!isLoading && currentScreen !== 'login') {
             trackScreenViewed(currentScreen);
         }
     }, [currentScreen, isLoading]);
+
+    useEffect(() => {
+        if (Platform.OS !== 'android') return;
+        const handler = BackHandler.addEventListener('hardwareBackPress', () => {
+            if (currentScreen === 'dashboard' || currentScreen === 'login') {
+                Alert.alert('Exit App', 'Are you sure you want to exit?', [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Exit', style: 'destructive', onPress: () => BackHandler.exitApp() },
+                ]);
+                return true;
+            }
+            setCurrentScreen('dashboard');
+            return true;
+        });
+        return () => handler.remove();
+    }, [currentScreen, setCurrentScreen]);
 
     if (isLoading) {
         return (
