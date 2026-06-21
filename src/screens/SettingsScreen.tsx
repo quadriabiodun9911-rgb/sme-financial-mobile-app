@@ -105,7 +105,7 @@ export default function SettingsScreen() {
             Alert.alert('Invalid value', 'Opening liabilities must be a number.'); return;
         }
         if (phone.trim() && !/^\+?[\d\s\-().]{7,20}$/.test(phone.trim())) {
-            Alert.alert('Invalid phone', 'Phone number must include country code (e.g. +234 801 234 5678).'); return;
+            Alert.alert('Invalid phone', 'Enter your number with country code, e.g. +1 555 000 1234 (USA), +44 7700 900123 (UK), +234 801 234 5678 (Nigeria).'); return;
         }
         // Warn if currency changed
         if (form.currency !== settings.currency) {
@@ -284,12 +284,12 @@ export default function SettingsScreen() {
 
                         {/* Phone for Pngme */}
                         <Section title="Phone Number">
-                            <Text style={styles.hint}>Used for Pngme Financial Health scoring. Include country code e.g. +2348012345678</Text>
+                            <Text style={styles.hint}>Include your country code — e.g. +1 (USA/Canada), +44 (UK), +234 (Nigeria), +27 (South Africa), +254 (Kenya), +233 (Ghana)</Text>
                             <TextInput
                                 style={styles.input}
                                 value={phone}
                                 onChangeText={setPhone}
-                                placeholder="+2348012345678"
+                                placeholder="+1 555 000 1234"
                                 placeholderTextColor="#888"
                                 keyboardType="phone-pad"
                             />
