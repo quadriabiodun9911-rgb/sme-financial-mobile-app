@@ -124,12 +124,16 @@ export default function SettingsScreen() {
                 const mins = Math.ceil((result.lockedUntil - Date.now()) / 60000);
                 Alert.alert('Too Many Attempts', `PIN change locked for ${mins} minute${mins !== 1 ? 's' : ''}. Use "Forgot PIN?" if needed.`);
             } else {
-                Alert.alert('Incorrect PIN', 'Current PIN is incorrect.');
+                Alert.alert('Incorrect PIN', 'Your current PIN is wrong. Please try again.');
             }
             return;
         }
         setCurrentPin(''); setNewPin(''); setConfirmPin('');
-        Alert.alert('Success', 'PIN changed successfully.');
+        if (result.cloudSynced) {
+            Alert.alert('✅ PIN Changed', 'Your PIN has been updated on all devices. You can now log in with your new PIN anywhere.');
+        } else {
+            Alert.alert('⚠️ PIN Changed Locally', 'Your PIN was updated on this device but could not sync to the cloud right now.\n\nYou can still use this device normally. To log in on other devices, use "Forgot PIN?" to reset it when you have internet access.');
+        }
     };
 
     const handleExport = async () => {

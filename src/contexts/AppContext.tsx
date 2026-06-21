@@ -58,7 +58,7 @@ interface AppContextValue {
     login: (pin: string) => boolean;
     joinTeam: (email: string, pin: string, inviteCode: string) => Promise<void>;
     logout: () => void;
-    changePin: (currentPin: string, newPin: string) => Promise<{ ok: boolean; lockedUntil?: number }>;
+    changePin: (currentPin: string, newPin: string) => Promise<{ ok: boolean; lockedUntil?: number; cloudSynced?: boolean }>;
     // Security: Lockout info
     isLockedOut: boolean;
     lockoutUntil: number | null;
@@ -652,10 +652,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         await AsyncStorage.multiRemove([CHANGE_PIN_KEY, CHANGE_PIN_LOCKOUT_KEY]).catch(() => {});
         setStoredPin(newPin);
         await savePin(newPin).catch(() => {});
-        await supabase.auth.updateUser({ password: hashPin(newPin) }).catch((e: unknown) => {
-            console.warn('[Quad360] Supabase password update failed — local PIN changed but cloud not synced:', e);
-        });
-        return { ok: true };
+        let cloudSynced = false;
+        try {
+            const { error } = await supabase.auth.updateUser({ password: hashPin(newPin) });
+            cloudSynced = !error;
+            if (error) console.warn('[Quad360] Supabase PIN update failed:', error.message);
+        } catch (e) {
+            console.warn('[Quad360] Supabase PIN update error:', e);
+        }
+        return { ok: true, cloudSynced };
     };
 
     const updateSettings = (patch: Partial<BusinessSettings>) => {
