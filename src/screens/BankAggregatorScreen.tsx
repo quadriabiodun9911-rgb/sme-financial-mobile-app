@@ -420,19 +420,22 @@ export default function BankAggregatorScreen() {
                 </View>
             )}
 
+            <View style={styles.comingSoonCard}>
+                <Text style={styles.comingSoonIcon}>🚧</Text>
+                <Text style={styles.comingSoonTitle}>Coming Soon — Bank Connection</Text>
+                <Text style={styles.comingSoonBody}>
+                    We're finalising production access with our banking partners (Plaid, Mono, Lean, Pngme).
+                    This feature will be fully available shortly after beta launch.
+                </Text>
+            </View>
+
             <View style={styles.actions}>
                 {!!loadingMsg && <Text style={styles.loadingMsg}>⏳ {loadingMsg}</Text>}
                 {!connection ? (
-                    <TouchableOpacity
-                        style={[styles.primaryBtn, loading && styles.btnDisabled]}
-                        onPress={handleConnect}
-                        disabled={loading}
-                    >
-                        {loading
-                            ? <ActivityIndicator color="#fff" />
-                            : <Text style={styles.primaryBtnText}>🔗  Connect via {providerInfo.name}</Text>
-                        }
-                    </TouchableOpacity>
+                    <View style={[styles.primaryBtn, { opacity: 0.45 }]}>
+                        <Text style={styles.primaryBtnText}>🔗  Connect via {providerInfo.name}</Text>
+                        <Text style={{ color: '#ffffff99', fontSize: 11, marginTop: 3 }}>Available after beta</Text>
+                    </View>
                 ) : (
                     <>
                         <TouchableOpacity
@@ -520,6 +523,11 @@ const styles = StyleSheet.create({
     tipCard:  { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, borderLeftWidth: 3, borderLeftColor: Colors.primary },
     tipTitle: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 },
     tipBody:  { fontSize: 12, color: Colors.textMuted, lineHeight: 18 },
+
+    comingSoonCard:  { backgroundColor: '#f59e0b18', borderRadius: 14, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: '#f59e0b55', alignItems: 'center' },
+    comingSoonIcon:  { fontSize: 28, marginBottom: 6 },
+    comingSoonTitle: { fontSize: 14, fontWeight: '800', color: '#b45309', marginBottom: 6, textAlign: 'center' },
+    comingSoonBody:  { fontSize: 12, color: '#92400e', lineHeight: 18, textAlign: 'center' },
 
     loadingMsg:    { fontSize: 12, color: Colors.primary, textAlign: 'center', marginBottom: 8, fontWeight: '600' },
     confirmCard:   { backgroundColor: Colors.surface, borderRadius: 14, padding: 18, marginBottom: 16, borderWidth: 1, borderColor: Colors.primary + '40' },

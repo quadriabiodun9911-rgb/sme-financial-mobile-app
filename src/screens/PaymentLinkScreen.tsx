@@ -306,16 +306,15 @@ export default function PaymentLinkScreen() {
                         </TouchableOpacity>
                     )}
                     {hasKorapay && (
-                        <TouchableOpacity
-                            style={[styles.korapayBtn, hasPaystack && { marginTop: 10 }, loading && { opacity: 0.6 }]}
-                            onPress={handleKorapay}
-                            disabled={loading}
-                        >
-                            <Text style={styles.korapayBtnText}>
-                                {loading ? '⏳  Please wait…' : '💳  Pay with Korapay'}
-                            </Text>
-                            <Text style={styles.gatewaySubtitle}>Cards · Bank Transfer · USSD · MoMo</Text>
-                        </TouchableOpacity>
+                        <View style={[styles.korapayBtn, hasPaystack && { marginTop: 10 }, { opacity: 0.55 }]}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                <Text style={styles.korapayBtnText}>💳  Pay with Korapay</Text>
+                                <View style={styles.comingSoonBadge}>
+                                    <Text style={styles.comingSoonText}>Coming Soon</Text>
+                                </View>
+                            </View>
+                            <Text style={styles.gatewaySubtitle}>KYC verification in progress</Text>
+                        </View>
                     )}
                 </View>
             )}
@@ -385,6 +384,8 @@ const styles = StyleSheet.create({
 
     korapayBtn:     { backgroundColor: '#5C2E91', paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
     korapayBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
+    comingSoonBadge: { backgroundColor: '#ffffff33', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 },
+    comingSoonText:  { color: '#fff', fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
 
     actions:         { gap: 10, marginBottom: 16 },
     primaryBtn:      { backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
