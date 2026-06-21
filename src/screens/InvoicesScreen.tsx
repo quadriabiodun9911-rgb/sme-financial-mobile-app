@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
-    TouchableOpacity, StyleSheet, Alert, Modal, Share, Linking,
+    TouchableOpacity, StyleSheet, Alert, Modal, Share, Linking, Platform,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -199,13 +199,14 @@ export default function InvoicesScreen() {
     };
 
     const handleShare = async (inv: Invoice) => {
-        const html = buildInvoiceHtml(inv, user?.businessName ?? 'My Business', currency);
+        const msg = `Invoice ${inv.invoiceNumber} for ${inv.clientName}\nTotal: ${currency}${(inv.total ?? 0).toFixed(2)}\nDue: ${inv.dueDate}`;
         try {
-            // Share as HTML text — on device, user can open in browser and print/save as PDF
-            await Share.share({
-                message: `Invoice ${inv.invoiceNumber} for ${inv.clientName}\nTotal: ${currency}${(inv.total ?? 0).toFixed(2)}\nDue: ${inv.dueDate}`,
-                title: `Invoice ${inv.invoiceNumber}`,
-            });
+            if (Platform.OS === 'web') {
+                if (navigator.share) { await navigator.share({ title: `Invoice ${inv.invoiceNumber}`, text: msg }); }
+                else { await navigator.clipboard.writeText(msg); Alert.alert('Copied!', 'Invoice details copied to clipboard.'); }
+            } else {
+                await Share.share({ message: msg, title: `Invoice ${inv.invoiceNumber}` });
+            }
         } catch {
             Alert.alert('Error', 'Could not share invoice.');
         }
@@ -222,7 +223,12 @@ export default function InvoicesScreen() {
         }).join('\n');
         const message = `Hi ${inv.clientName},\n\nYour invoice ${inv.invoiceNumber} is ready.\n\nAmount due: ${currency}${(inv.total ?? 0).toFixed(2)}\nDue date: ${inv.dueDate}\n\nItems:\n${lineItemsText}\n\nThank you for your business!\n${businessName}`;
         const url = `https://wa.me/?text=${encodeURIComponent(message)}`;
-        Linking.openURL(url).catch(() => Alert.alert('Error', 'Could not open WhatsApp.'));
+        if (Platform.OS === 'web') {
+            const win = window.open(url, '_blank');
+            if (!win || win.closed) window.location.href = url;
+        } else {
+            Linking.openURL(url).catch(() => Alert.alert('Error', 'Could not open WhatsApp.'));
+        }
     };
 
     const handleDelete = (inv: Invoice) => {

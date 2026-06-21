@@ -186,7 +186,11 @@ export default function BankAggregatorScreen() {
             const data = await res.json();
 
             if (data.monoConnectUrl) {
-                await Linking.openURL(data.monoConnectUrl);
+                if (Platform.OS === 'web') {
+                    window.location.href = data.monoConnectUrl;
+                } else {
+                    await Linking.openURL(data.monoConnectUrl);
+                }
                 Alert.alert(
                     'Complete connection in browser',
                     'After you connect your bank in the Mono widget, come back and tap "I\'ve connected" to finish.',
@@ -213,7 +217,11 @@ export default function BankAggregatorScreen() {
 
             if (data.customerId) {
                 const leanUrl = `https://cdn.leantech.me/link/loader/prod/ae/latest/index.html?customer_id=${data.customerId}`;
-                await Linking.openURL(leanUrl);
+                if (Platform.OS === 'web') {
+                    window.location.href = leanUrl;
+                } else {
+                    await Linking.openURL(leanUrl);
+                }
                 Alert.alert(
                     'Complete connection in browser',
                     'After you connect your bank via Lean, come back and tap "I\'ve connected".',

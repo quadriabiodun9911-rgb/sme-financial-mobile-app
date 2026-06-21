@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
-    TouchableOpacity, Modal, StyleSheet, Alert, Share, Linking, FlatList,
+    TouchableOpacity, Modal, StyleSheet, Alert, Share, Linking, FlatList, Platform,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -238,8 +238,17 @@ export default function TransactionsScreen() {
     const handleMarkPaid = (id: string) => updateTransaction(id, { status: 'paid' });
 
     const handleExportCSV = async () => {
+        const csv = transactionsToCSV(filtered);
         try {
-            await Share.share({ message: transactionsToCSV(filtered), title: 'Quad360 Export' });
+            if (Platform.OS === 'web') {
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url  = URL.createObjectURL(blob);
+                const a    = document.createElement('a');
+                a.href = url; a.download = 'quad360-transactions.csv'; a.click();
+                URL.revokeObjectURL(url);
+            } else {
+                await Share.share({ message: csv, title: 'Quad360 Export' });
+            }
         } catch (_) {}
     };
 

@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text,
-    TouchableOpacity, StyleSheet, Dimensions, Share, TextInput,
+    TouchableOpacity, StyleSheet, Dimensions, Share, TextInput, Platform,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -161,7 +161,15 @@ export default function ReportsScreen() {
 
     const exportPnL = async () => {
         const csv = transactionsToCSV(filteredTx);
-        await Share.share({ message: csv, title: 'P&L Export' });
+        if (Platform.OS === 'web') {
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            a.href = url; a.download = 'quad360-pnl.csv'; a.click();
+            URL.revokeObjectURL(url);
+        } else {
+            await Share.share({ message: csv, title: 'P&L Export' });
+        }
     };
 
     return (
