@@ -259,7 +259,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 if (savedBudgets)  setBudgets(savedBudgets);
                 const savedPockets = await AsyncStorage.getItem('@quad360/cash_pockets');
                 if (savedPockets) setCashPockets(JSON.parse(savedPockets));
-                if (pin && profile) {
+
+                // Check for existing Supabase session — auto-login on any device
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session?.user) {
+                    const email = session.user.email ?? '';
+                    const { data: profileRow } = await supabase
+                        .from('profiles').select('business_name, phone').eq('id', session.user.id).single();
+                    const businessName = profileRow?.business_name ?? profile?.businessName ?? '';
+                    const phone = (profileRow as any)?.phone ?? profile?.phone;
+                    if (!profile) await saveProfile({ email, businessName, phone }).catch(() => {});
+                    setHasProfile(true);
+                    setUser({ email, businessName, role: 'Administrator', phone });
+                    setCurrentScreen('dashboard');
+                } else if (pin && profile) {
+                    // Offline fallback: local PIN + profile exist
                     setUser({ email: profile.email, businessName: profile.businessName, role: 'Administrator', phone: profile.phone });
                 }
                 // Restore lockout state across restarts
@@ -285,6 +299,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 setIsLoading(false);
             }
         })();
+    }, []);
+
+    // Keep session in sync across tabs and handle token refresh
+    useEffect(() => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            if (event === 'SIGNED_OUT') {
+                setUser(null);
+                setCurrentScreen('login');
+            } else if (event === 'TOKEN_REFRESHED' && session?.user && !user) {
+                // Session silently refreshed — restore user state
+                const email = session.user.email ?? '';
+                loadProfile().then(p => {
+                    setUser({ email, businessName: p?.businessName ?? '', role: 'Administrator', phone: p?.phone });
+                    setCurrentScreen('dashboard');
+                }).catch(() => {});
+            }
+        });
+        return () => subscription.unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const persistError = (label: string) => (err: unknown) => {

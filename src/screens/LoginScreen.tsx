@@ -187,24 +187,27 @@ export default function LoginScreen() {
         setSubmitting(true);
         let navigating = false;
         try {
-            // First try local PIN match
-            const ok = login(emailLoginPin);
-            if (ok) { navigating = true; identifyUser(emailLoginEmail.trim()); trackUserLoggedIn('email'); return; }
-
-            // If local fails, try Supabase to give specific error
-            const { error } = await supabase.auth.signInWithPassword({ email: emailLoginEmail.trim(), password: hashPin(emailLoginPin) });
+            // Always try Supabase first — works on every device
+            const { error } = await supabase.auth.signInWithPassword({
+                email: emailLoginEmail.trim(),
+                password: hashPin(emailLoginPin),
+            });
             if (error) {
-                if (error.message.toLowerCase().includes('invalid login') || error.message.toLowerCase().includes('invalid credentials')) {
-                    Alert.alert('Incorrect Details', 'The email or PIN you entered does not match any account. Please check and try again.');
-                } else if (error.message.toLowerCase().includes('email not confirmed')) {
-                    Alert.alert('Email Not Verified', 'Please check your inbox and confirm your email before logging in.');
-                } else if (error.message.toLowerCase().includes('too many requests')) {
+                const msg = error.message.toLowerCase();
+                if (msg.includes('invalid login') || msg.includes('invalid credentials') || msg.includes('invalid email or password')) {
+                    Alert.alert('Incorrect Details', 'The email or PIN you entered is incorrect. Please try again.');
+                } else if (msg.includes('email not confirmed')) {
+                    Alert.alert('Email Not Verified', 'Please check your inbox and confirm your email before signing in.');
+                } else if (msg.includes('too many requests')) {
                     Alert.alert('Too Many Attempts', 'Too many login attempts. Please wait a few minutes and try again.');
                 } else {
-                    Alert.alert(t(language, 'error'), 'Incorrect email or PIN. Please try again.');
+                    // Network / offline — fall back to local PIN
+                    const ok = login(emailLoginPin);
+                    if (ok) { navigating = true; identifyUser(emailLoginEmail.trim()); trackUserLoggedIn('email'); return; }
+                    Alert.alert('Sign In Failed', 'Could not reach the server. Please check your connection and try again.');
                 }
             } else {
-                // Supabase auth succeeded — recover account data and log in
+                // Supabase session created — restore profile + data and navigate
                 await recoverAccount(emailLoginEmail.trim(), emailLoginPin);
                 navigating = true;
                 identifyUser(emailLoginEmail.trim());
@@ -212,18 +215,10 @@ export default function LoginScreen() {
                 return;
             }
         } catch (e: any) {
-            const msg: string = e?.message ?? '';
-            if (msg.includes('no business profile')) {
-                // Auth worked but no Supabase profile row — save locally and log in
-                await savePin(emailLoginPin).catch(() => {});
-                await saveProfile({ email: emailLoginEmail.trim(), businessName: '' }).catch(() => {});
-                navigating = true;
-                login(emailLoginPin);
-                identifyUser(emailLoginEmail.trim());
-                trackUserLoggedIn('email');
-                return;
-            }
-            Alert.alert('Sign In Failed', msg || 'Incorrect email or PIN. Please try again.');
+            // Network error — try local PIN as offline fallback
+            const ok = login(emailLoginPin);
+            if (ok) { navigating = true; identifyUser(emailLoginEmail.trim()); trackUserLoggedIn('email'); return; }
+            Alert.alert('Sign In Failed', 'Could not connect. Please check your internet connection and try again.');
         } finally {
             if (!navigating) setSubmitting(false);
         }
