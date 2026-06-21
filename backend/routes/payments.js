@@ -135,7 +135,10 @@ router.post('/korapay/initialize', async (req, res) => {
         });
         const data = await response.json();
 
+        console.log('[Korapay initialize] status=%s checkout_url=%s message=%s', data.status, data.data?.checkout_url, data.message);
+
         if (!data.status) return res.status(400).json({ error: data.message || 'Initialization failed' });
+        if (!data.data?.checkout_url) return res.status(502).json({ error: 'Korapay did not return a checkout URL. Make sure your Korapay account is active and the secret key is correct.' });
 
         res.json({
             checkoutUrl: data.data.checkout_url,
