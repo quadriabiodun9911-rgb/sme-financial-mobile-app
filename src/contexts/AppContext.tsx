@@ -599,8 +599,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
         await AsyncStorage.multiRemove([CHANGE_PIN_KEY, CHANGE_PIN_LOCKOUT_KEY]).catch(() => {});
         setStoredPin(newPin);
-        savePin(newPin).catch(() => {});
-        supabase.auth.updateUser({ password: newPin + '_Q360' }).catch(() => {});
+        await savePin(newPin).catch(() => {});
+        await supabase.auth.updateUser({ password: newPin + '_Q360' }).catch((e: unknown) => {
+            console.warn('[Quad360] Supabase password update failed — local PIN changed but cloud not synced:', e);
+        });
         return { ok: true };
     };
 

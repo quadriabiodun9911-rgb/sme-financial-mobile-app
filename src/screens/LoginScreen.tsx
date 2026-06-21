@@ -233,7 +233,7 @@ export default function LoginScreen() {
         setResetSubmitting(true);
         try {
             
-            const redirectTo = Platform.OS === 'web'
+            const redirectTo = Platform.OS === 'web' && typeof window !== 'undefined'
                 ? `${window.location.origin}/?reset=1`
                 : undefined;
             const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), { redirectTo });
