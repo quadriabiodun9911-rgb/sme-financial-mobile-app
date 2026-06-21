@@ -38,11 +38,13 @@ interface ConnectionState {
 export default function BankAggregatorScreen() {
     const { navigate, user, settings } = useApp();
 
-    const [connection, setConnection]   = useState<ConnectionState | null>(null);
-    const [loading, setLoading]         = useState(false);
-    const [syncing, setSyncing]         = useState(false);
-    const [accounts, setAccounts]       = useState<any[]>([]);
+    const [connection, setConnection]     = useState<ConnectionState | null>(null);
+    const [loading, setLoading]           = useState(false);
+    const [loadingMsg, setLoadingMsg]     = useState('');
+    const [syncing, setSyncing]           = useState(false);
+    const [accounts, setAccounts]         = useState<any[]>([]);
     const [providerName, setProviderName] = useState('');
+    const [showManualConfirm, setShowManualConfirm] = useState(false);
 
     const currency     = settings.currencyCode || 'NGN';
     const userEmail    = user?.email || '';
@@ -53,6 +55,11 @@ export default function BankAggregatorScreen() {
             if (raw) setConnection(JSON.parse(raw));
         }).catch(() => {});
         setProviderName(CURRENCY_PROVIDER_MAP[currency] || 'pngme');
+
+        // If returning from Plaid hosted page (mobile fallback), show confirm card
+        if (Platform.OS === 'web' && sessionStorage.getItem('plaid_pending')) {
+            setShowManualConfirm(true);
+        }
     }, [currency]);
 
     const providerInfo = PROVIDER_INFO[providerName] || PROVIDER_INFO['pngme'];
@@ -68,14 +75,23 @@ export default function BankAggregatorScreen() {
     });
 
     const openPlaidWeb = async (linkToken: string) => {
+        // Try JS SDK first (works on desktop browsers)
         try {
             await loadPlaidScript();
-            sessionStorage.setItem('plaid_link_token', linkToken);
-            sessionStorage.setItem('plaid_user_id', userEmail);
+        } catch {
+            // SDK failed to load — go straight to hosted page fallback
+            sessionStorage.setItem('plaid_pending', '1');
+            window.location.href = `https://cdn.plaid.com/link/v2/stable/link.html?token=${linkToken}`;
+            return;
+        }
+
+        let widgetOpened = false;
+        try {
             const handler = (window as any).Plaid.create({
                 token: linkToken,
                 onSuccess: async (publicToken: string) => {
                     setLoading(true);
+                    setLoadingMsg('Finalising bank connection…');
                     try {
                         const res = await fetch(`${Config.BACKEND_URL}/api/bank-data/plaid-exchange`, {
                             method: 'POST',
@@ -83,20 +99,41 @@ export default function BankAggregatorScreen() {
                             body: JSON.stringify({ userId: userEmail, publicToken }),
                         });
                         if (!res.ok) throw new Error(`Exchange failed: ${res.status}`);
+                        sessionStorage.removeItem('plaid_pending');
                         await saveConnection('plaid');
                     } catch (e: any) {
                         Alert.alert('Connection error', e.message || 'Could not finalise bank connection.');
                     } finally {
                         setLoading(false);
+                        setLoadingMsg('');
                     }
                 },
-                onExit: () => setLoading(false),
+                onExit: () => { setLoading(false); setLoadingMsg(''); },
+                onLoad: () => { widgetOpened = true; },
             });
             handler.open();
         } catch {
-            // Fallback for mobile browsers: open Plaid hosted page in same tab
+            // open() threw — fall back to hosted page
+            sessionStorage.setItem('plaid_pending', '1');
             window.location.href = `https://cdn.plaid.com/link/v2/stable/link.html?token=${linkToken}`;
+            return;
         }
+
+        // Check after 2s if the widget actually opened (mobile browsers block silently)
+        setTimeout(() => {
+            if (!widgetOpened) {
+                setLoading(false);
+                setLoadingMsg('');
+                setShowManualConfirm(true);
+                // Store token so user can retry
+                sessionStorage.setItem('plaid_pending', '1');
+                sessionStorage.setItem('plaid_link_token', linkToken);
+                Alert.alert(
+                    'Bank connection',
+                    'The Plaid window could not open automatically on this browser.\n\nTap "Open Plaid" on the card below to connect your bank.',
+                );
+            }
+        }, 2000);
     };
 
     const handleConnect = async () => {
@@ -113,11 +150,13 @@ export default function BankAggregatorScreen() {
                 );
                 return;
             }
-            navigate('connect-bank' as any);
+            navigate('connect-bank');
             return;
         }
 
         setLoading(true);
+        setLoadingMsg('Connecting… please wait');
+        const wakeTimer = setTimeout(() => setLoadingMsg('Server starting up, please wait ~30s…'), 5000);
         try {
             let res: Response;
             try {
@@ -181,7 +220,9 @@ export default function BankAggregatorScreen() {
         } catch (err: any) {
             Alert.alert('Connection failed', err.message);
         } finally {
+            clearTimeout(wakeTimer);
             setLoading(false);
+            setLoadingMsg('');
         }
     };
 
@@ -236,21 +277,23 @@ export default function BankAggregatorScreen() {
     };
 
     const handleDisconnect = () => {
-        Alert.alert(
-            'Disconnect',
-            'Stop syncing from this bank connection? Existing transactions will not be deleted.',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Disconnect', style: 'destructive',
-                    onPress: async () => {
-                        setConnection(null);
-                        setAccounts([]);
-                        await AsyncStorage.removeItem(STORAGE_KEY);
-                    },
-                },
-            ]
-        );
+        const msg = 'Stop syncing from this bank connection? Existing transactions will not be deleted.';
+        const doDisconnect = async () => {
+            setConnection(null);
+            setAccounts([]);
+            sessionStorage.removeItem('plaid_pending');
+            sessionStorage.removeItem('plaid_link_token');
+            setShowManualConfirm(false);
+            await AsyncStorage.removeItem(STORAGE_KEY);
+        };
+        if (Platform.OS === 'web') {
+            if (window.confirm(msg)) doDisconnect();
+            return;
+        }
+        Alert.alert('Disconnect', msg, [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Disconnect', style: 'destructive', onPress: doDisconnect },
+        ]);
     };
 
     return (
@@ -335,7 +378,35 @@ export default function BankAggregatorScreen() {
                 ))}
             </View>
 
+            {/* Manual confirm card — shown when Plaid widget was blocked or user returns from hosted page */}
+            {showManualConfirm && !connection && (
+                <View style={styles.confirmCard}>
+                    <Text style={styles.confirmTitle}>🏦 Connect your bank</Text>
+                    <Text style={styles.confirmBody}>
+                        Your browser blocked the Plaid popup. Tap the button below to open Plaid in this tab and connect your bank.
+                        When you're done, come back here and tap "I've connected".
+                    </Text>
+                    <TouchableOpacity style={styles.primaryBtn} onPress={() => {
+                        const token = sessionStorage.getItem('plaid_link_token');
+                        if (token) window.location.href = `https://cdn.plaid.com/link/v2/stable/link.html?token=${token}`;
+                    }}>
+                        <Text style={styles.primaryBtnText}>🔗  Open Plaid</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.syncBtn, { marginTop: 10 }]} onPress={() => {
+                        sessionStorage.removeItem('plaid_pending');
+                        setShowManualConfirm(false);
+                        saveConnection('plaid');
+                    }}>
+                        <Text style={styles.syncBtnText}>✅  I've connected — confirm</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => { sessionStorage.removeItem('plaid_pending'); setShowManualConfirm(false); }}>
+                        <Text style={[styles.disconnectBtnText, { marginTop: 10, textAlign: 'center' }]}>Cancel</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
+
             <View style={styles.actions}>
+                {!!loadingMsg && <Text style={styles.loadingMsg}>⏳ {loadingMsg}</Text>}
                 {!connection ? (
                     <TouchableOpacity
                         style={[styles.primaryBtn, loading && styles.btnDisabled]}
@@ -434,4 +505,9 @@ const styles = StyleSheet.create({
     tipCard:  { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, borderLeftWidth: 3, borderLeftColor: Colors.primary },
     tipTitle: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 },
     tipBody:  { fontSize: 12, color: Colors.textMuted, lineHeight: 18 },
+
+    loadingMsg:    { fontSize: 12, color: Colors.primary, textAlign: 'center', marginBottom: 8, fontWeight: '600' },
+    confirmCard:   { backgroundColor: Colors.surface, borderRadius: 14, padding: 18, marginBottom: 16, borderWidth: 1, borderColor: Colors.primary + '40' },
+    confirmTitle:  { fontSize: 15, fontWeight: '800', color: Colors.textPrimary, marginBottom: 8 },
+    confirmBody:   { fontSize: 13, color: Colors.textSecondary, lineHeight: 20, marginBottom: 14 },
 });
