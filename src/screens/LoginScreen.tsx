@@ -178,10 +178,11 @@ export default function LoginScreen() {
         if (!emailLoginPin) { Alert.alert(t(language, 'error'), 'Please enter your 6-digit PIN.'); return; }
 
         setSubmitting(true);
+        let navigating = false;
         try {
             // First try local PIN match
             const ok = login(emailLoginPin);
-            if (ok) { identifyUser(emailLoginEmail.trim()); trackUserLoggedIn('email'); return; }
+            if (ok) { navigating = true; identifyUser(emailLoginEmail.trim()); trackUserLoggedIn('email'); return; }
 
             // If local fails, try Supabase to give specific error
             const { error } = await supabase.auth.signInWithPassword({ email: emailLoginEmail.trim(), password: emailLoginPin + '_Q360' });
@@ -197,6 +198,7 @@ export default function LoginScreen() {
                 }
             } else {
                 // Supabase auth succeeded — recover account data and log in
+                navigating = true;
                 await recoverAccount(emailLoginEmail.trim(), emailLoginPin);
                 identifyUser(emailLoginEmail.trim());
                 trackUserLoggedIn('email');
@@ -205,7 +207,7 @@ export default function LoginScreen() {
         } catch {
             Alert.alert(t(language, 'error'), 'Incorrect email or PIN. Please try again.');
         } finally {
-            setSubmitting(false);
+            if (!navigating) setSubmitting(false);
         }
         setEmailLoginPin('');
     };

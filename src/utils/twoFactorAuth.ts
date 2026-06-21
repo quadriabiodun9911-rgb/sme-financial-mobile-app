@@ -62,12 +62,14 @@ function base32ToBytes(base32: string): Uint8Array {
 }
 
 function generateBase32Secret(byteLength = 20): string {
-    const bytes = CryptoJS.lib.WordArray.random(byteLength);
-    const arr = new Uint8Array(byteLength);
-    const words = bytes.words;
-    for (let i = 0; i < byteLength; i++) arr[i] = (words[i >> 2] >>> (24 - (i % 4) * 8)) & 0xff;
+    const wordArray = CryptoJS.lib.WordArray.random(byteLength);
+    // Use sigBytes (actual byte count) — WordArray may allocate extra word padding
+    const count = wordArray.sigBytes;
+    const arr = new Uint8Array(count);
+    const words = wordArray.words;
+    for (let i = 0; i < count; i++) arr[i] = (words[i >> 2] >>> (24 - (i % 4) * 8)) & 0xff;
     let result = '';
-    for (let i = 0; i < byteLength; i += 5) {
+    for (let i = 0; i < count; i += 5) {
         const chunk = arr.slice(i, i + 5);
         const pad = 5 - chunk.length;
         let val = 0n;
@@ -92,7 +94,7 @@ function totpCode(secret: string, timeStep?: number): string {
         bytes[i * 4 + 2] = (w >>> 8)  & 0xff;
         bytes[i * 4 + 3] =  w         & 0xff;
     });
-    const offset = bytes[19] & 0xf;
+    const offset = bytes[bytes.length - 1] & 0xf;
     const code = (((bytes[offset] & 0x7f) << 24) | (bytes[offset + 1] << 16) | (bytes[offset + 2] << 8) | bytes[offset + 3]) % 1_000_000;
     return code.toString().padStart(6, '0');
 }
