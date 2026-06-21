@@ -9,7 +9,7 @@
  *   4. Replace the POSTHOG_KEY value below with your real key
  */
 
-const POSTHOG_KEY  = process.env.EXPO_PUBLIC_POSTHOG_KEY ?? 'phc_REPLACE_WITH_YOUR_POSTHOG_KEY';
+const POSTHOG_KEY  = process.env.EXPO_PUBLIC_POSTHOG_KEY ?? 'phc_pFhpUVaDw5PD4NoTwqgL7EWANxbsYdavkHWFcCrVnkzE';
 const POSTHOG_HOST = 'https://app.posthog.com';
 
 // Shared identity across a session
