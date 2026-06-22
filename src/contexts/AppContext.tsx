@@ -34,6 +34,7 @@ import { supabase } from '../utils/supabase';
 import NetInfo from '@react-native-community/netinfo';
 import { flushQueue, queueSize } from '../utils/syncQueue';
 import { t } from '../utils/i18n';
+import { loadTwoFactorConfig } from '../utils/twoFactorAuth';
 import { DEMO_BUSINESSES } from '../utils/demoData';
 import {
     trackAppOpened, trackDemoStarted, trackDemoConvertTapped,
@@ -648,7 +649,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
             }
             // Enforce 2FA: if not set up, redirect to 2FA setup screen
             try {
-                const { loadTwoFactorConfig } = await import('../utils/twoFactorAuth');
                 const tfConfig = await loadTwoFactorConfig();
                 if (!tfConfig || tfConfig.status === 'disabled') {
                     setCurrentScreen('2fa');
@@ -669,7 +669,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const CHANGE_PIN_KEY = 'quad360_changePinAttempts';
     const CHANGE_PIN_LOCKOUT_KEY = 'quad360_changePinLockout';
-    const changePin = async (currentPin: string, newPin: string): Promise<{ ok: boolean; lockedUntil?: number }> => {
+    const changePin = async (currentPin: string, newPin: string): Promise<{ ok: boolean; lockedUntil?: number; cloudSynced?: boolean }> => {
         // Rate limit: 5 wrong attempts → 15 minute lockout
         const lockoutRaw = await AsyncStorage.getItem(CHANGE_PIN_LOCKOUT_KEY).catch(() => null);
         if (lockoutRaw) {

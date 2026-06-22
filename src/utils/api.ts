@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { Config } from './config';
+import { Config } from '../config';
 
 /**
  * Authenticated fetch to the Quad360 backend.
