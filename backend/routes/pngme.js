@@ -45,8 +45,8 @@ function mapToQuad360Transaction(data) {
 function verifyWebhookSignature(rawBody, signatureHeader) {
   const secret = process.env.PNGME_WEBHOOK_SECRET;
   if (!secret) {
-    console.warn('PNGME_WEBHOOK_SECRET not set — skipping signature verification');
-    return true;
+    console.error('[SECURITY] PNGME_WEBHOOK_SECRET not configured — rejecting webhook. Set this env var on Render.');
+    return false;
   }
   if (!signatureHeader) return false;
 

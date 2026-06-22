@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { Config } from '../config';
+import { apiFetch } from '../utils/api';
 
 // Mirror of backend/providers/index.js — currency → provider
 const CURRENCY_PROVIDER_MAP: Record<string, string> = {
@@ -105,12 +106,10 @@ export default function BankAggregatorScreen() {
                     setLoading(true);
                     setLoadingMsg('Finalising bank connection…');
                     try {
-                        const res = await fetch(`${Config.BACKEND_URL}/api/bank-data/plaid-exchange`, {
+                        await apiFetch('/api/bank-data/plaid-exchange', {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ userId: userEmail, publicToken }),
                         });
-                        if (!res.ok) throw new Error(`Exchange failed: ${res.status}`);
                         sessionStorage.removeItem('plaid_pending');
                         await saveConnection('plaid');
                     } catch (e: any) {
@@ -165,14 +164,13 @@ export default function BankAggregatorScreen() {
         setLoadingMsg('Connecting… please wait');
         const wakeTimer = setTimeout(() => setLoadingMsg('Server starting up, please wait ~30s…'), 5000);
         try {
-            let res: Response;
+            let data: any;
             try {
-                res = await fetch(`${Config.BACKEND_URL}/api/bank-data/connect`, {
+                data = await apiFetch('/api/bank-data/connect', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ userId: userEmail, currencyCode: currency, businessName, name: businessName, email: userEmail }),
                 });
-            } catch {
+            } catch (e: any) {
                 Alert.alert(
                     '🔌 Sync Server Unavailable',
                     'The bank connection service is currently offline or starting up (Render free tier sleeps after inactivity).\n\nTry again in 30 seconds, or use "Import Bank Statement (CSV/Excel)" in Settings to upload transactions manually.',
@@ -181,9 +179,6 @@ export default function BankAggregatorScreen() {
                 setLoading(false);
                 return;
             }
-
-            if (!res.ok) throw new Error(`Server error ${res.status} — make sure PLAID_CLIENT_ID / PLAID_SECRET is set on Render.`);
-            const data = await res.json();
 
             if (data.monoConnectUrl) {
                 if (Platform.OS === 'web') {
@@ -262,12 +257,9 @@ export default function BankAggregatorScreen() {
             const since = connection.lastSynced
                 ?? new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
 
-            const res = await fetch(
-                `${Config.BACKEND_URL}/api/bank-data/transactions/${encodeURIComponent(userEmail)}?currencyCode=${currency}&since=${encodeURIComponent(since)}`
+            const data = await apiFetch(
+                `/api/bank-data/transactions/${encodeURIComponent(userEmail)}?currencyCode=${currency}&since=${encodeURIComponent(since)}`
             );
-
-            if (!res.ok) throw new Error(`Sync error ${res.status}`);
-            const data = await res.json();
             const txns: any[] = data.transactions || data;
 
             // De-duplicate: skip any bank transaction whose reference already exists

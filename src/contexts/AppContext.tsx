@@ -155,7 +155,7 @@ const DEFAULT_SETTINGS: BusinessSettings = {
     openingLoans: '0',
     openingOtherAssets: '0',
     defaultTaxRate: '0',
-    paystackPublicKey: 'pk_test_fa849cd42fe4963fe50a29136b33c0af02a6823b',
+    paystackPublicKey: '',
     korapayPublicKey: '',
 };
 
@@ -190,7 +190,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const [navParams, setNavParams]         = useState<NavParams | null>(null);
     const [user, setUser]                   = useState<User | null>(null);
     const [userRole, setUserRole]           = useState<UserRole>('owner');
-    const [storedPin, setStoredPin]         = useState<string | null>(null);
+    // PIN is never kept in state — only in SecureStore. Use loadPin() to compare.
+    const [hasPin, _setHasPin]              = useState<boolean>(false);
+    const storedPin                         = null; // removed from state — kept for legacy TS compat
+    const setStoredPin = (pin: string | null) => { _setHasPin(pin !== null); };
     const [hasProfile, setHasProfile]       = useState(false);
     const [isDemoMode, setIsDemoMode]       = useState(false);
     const [settings, setSettings]           = useState<BusinessSettings>(DEFAULT_SETTINGS);
@@ -441,7 +444,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const exitDemo = () => {
         setIsDemoMode(false);
-        setHasProfile(storedPin !== null);
+        setHasProfile(hasPin);
         setTransactions([]);
         setAssets([]);
         setLoans([]);
@@ -595,8 +598,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
             setLoginAttempts(0);
         }
 
-        // Validate PIN
-        if (pin !== storedPin) {
+        // Validate PIN — read from SecureStore, never from state
+        const savedPin = await loadPin();
+        if (pin !== savedPin) {
             const newAttempts = loginAttempts + 1;
             setLoginAttempts(newAttempts);
 
@@ -652,7 +656,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
             if (Date.now() < until) return { ok: false, lockedUntil: until };
             await AsyncStorage.multiRemove([CHANGE_PIN_LOCKOUT_KEY, CHANGE_PIN_KEY]).catch(() => {});
         }
-        if (currentPin !== storedPin) {
+        const savedPin2 = await loadPin();
+        if (currentPin !== savedPin2) {
             const attemptsRaw = await AsyncStorage.getItem(CHANGE_PIN_KEY).catch(() => null);
             const attempts = (parseInt(attemptsRaw ?? '0', 10) || 0) + 1;
             if (attempts >= 5) {

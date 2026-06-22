@@ -10,13 +10,30 @@ const usersRoutes           = require('./routes/users');
 const transactionsRoutes    = require('./routes/transactions');
 const financialHealthRoutes = require('./routes/financial-health');
 const paymentsRoutes        = require('./routes/payments');
+const { requireAuth }       = require('./middleware/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Security middleware
 app.use(helmet());
-app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
+
+const allowedOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
+  : [];
+
+if (allowedOrigins.length === 0) {
+  console.warn('[SECURITY] CORS_ORIGIN env var not set — all cross-origin requests will be blocked. Set CORS_ORIGIN=https://your-app.vercel.app on Render.');
+}
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow server-to-server (no origin) and explicitly allowed origins
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    callback(new Error(`CORS: origin ${origin} not allowed`));
+  },
+  credentials: true,
+}));
 
 // Rate limiting
 const limiter = rateLimit({
@@ -36,23 +53,33 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Routes
-app.use('/api/bank-data', bankDataRoutes);
-app.use('/pngme', pngmeRoutes);
+// Routes — payment and bank routes require valid Supabase session token
+app.use('/api/payments', requireAuth, paymentsRoutes);
+app.use('/api/bank-data', requireAuth, bankDataRoutes);
+app.use('/api/transactions', requireAuth, transactionsRoutes);
+app.use('/api/financial-health', requireAuth, financialHealthRoutes);
+// Users and webhooks don't require auth (registration + server callbacks)
 app.use('/api/users', usersRoutes);
-app.use('/api/transactions', transactionsRoutes);
-app.use('/api/financial-health', financialHealthRoutes);
-app.use('/api/payments', paymentsRoutes);
+app.use('/pngme', pngmeRoutes);
 
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
 
-// Error handler
+// Error handler — never expose internal details to clients
 app.use((err, req, res, next) => {
-  console.error(err);
-  res.status(err.status || 500).json({ error: err.message || 'Internal server error' });
+  console.error('[ERROR]', err);
+  const status = err.status || 500;
+  // Only expose safe, user-facing messages
+  const safeMessages = {
+    400: 'Bad request',
+    401: 'Unauthorized',
+    403: 'Forbidden',
+    404: 'Not found',
+    429: 'Too many requests',
+  };
+  res.status(status).json({ error: safeMessages[status] || 'An error occurred. Please try again.' });
 });
 
 app.listen(PORT, () => {

@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
-import { Config } from '../config';
+import { apiFetch } from '../utils/api';
 
 export default function PaymentLinkScreen() {
     const { settings, user, navigate, navParams, addTransaction, markInvoiceStatus } = useApp() as any;
@@ -130,9 +130,8 @@ export default function PaymentLinkScreen() {
         setLoadingMsg('Opening Paystack… please wait');
         const wakeTimer = setTimeout(() => setLoadingMsg('Server starting up, please wait ~30s…'), 5000);
         try {
-            const resp = await fetch(`${Config.BACKEND_URL}/api/payments/paystack/initialize`, {
+            const data = await apiFetch('/api/payments/paystack/initialize', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     amount: amountNum,
                     email: customerEmail,
@@ -141,8 +140,6 @@ export default function PaymentLinkScreen() {
                     currency: currencyCode,
                 }),
             });
-            if (!resp.ok) throw new Error(`Server error ${resp.status}`);
-            const data = await resp.json();
             const authUrl = data.authorization_url || data.data?.authorization_url;
             if (!authUrl) throw new Error('No payment URL returned from server');
             if (payWin && !payWin.closed) {
@@ -185,16 +182,14 @@ export default function PaymentLinkScreen() {
         const wakeTimer = setTimeout(() => setLoadingMsg('Server starting up, please wait ~30s…'), 5000);
         try {
             const ref  = `QD360-${Date.now()}`;
-            const resp = await fetch(`${Config.BACKEND_URL}/api/payments/korapay/initialize`, {
+            const data = await apiFetch('/api/payments/korapay/initialize', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     amount: amountNum, currency: currencyCode,
                     email: customerEmail, name: customerName,
                     reference: ref, narration: description || `Payment to ${businessName}`,
                 }),
             });
-            const data = await resp.json();
             if (!data.checkoutUrl) throw new Error(data.error || 'No checkout URL returned');
             if (payWin && !payWin.closed) {
                 payWin.location.href = data.checkoutUrl;

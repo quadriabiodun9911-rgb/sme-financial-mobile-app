@@ -1,5 +1,25 @@
 const express = require('express');
+const crypto  = require('crypto');
 const router  = express.Router();
+
+// POST /api/payments/paystack/webhook
+// Receives Paystack event notifications — must be registered in Paystack dashboard
+router.post('/paystack/webhook', express.raw({ type: 'application/json' }), (req, res) => {
+    const secret = process.env.PAYSTACK_SECRET_KEY;
+    if (!secret) {
+        console.error('[SECURITY] PAYSTACK_SECRET_KEY not set — rejecting webhook');
+        return res.status(503).json({ error: 'Not configured' });
+    }
+    const signature = req.headers['x-paystack-signature'];
+    const expected  = crypto.createHmac('sha512', secret).update(req.body).digest('hex');
+    if (!signature || signature !== expected) {
+        return res.status(401).json({ error: 'Invalid signature' });
+    }
+    const event = JSON.parse(req.body.toString('utf8'));
+    console.log('[Paystack webhook]', event.event, event.data?.reference);
+    // TODO: update payment status in database on charge.success
+    res.json({ received: true });
+});
 
 // Verify a Paystack transaction reference
 // POST /api/payments/paystack/verify
@@ -72,12 +92,16 @@ router.post('/korapay/verify', async (req, res) => {
 router.post('/paystack/initialize', async (req, res) => {
     const { amount, currency = 'NGN', email, name, description } = req.body;
     if (!amount || !email) return res.status(400).json({ error: 'amount and email are required' });
+    const amountNum = parseFloat(amount);
+    if (!Number.isFinite(amountNum) || amountNum <= 0 || amountNum > 10_000_000) {
+        return res.status(400).json({ error: 'amount must be a positive number not exceeding 10,000,000' });
+    }
 
     const secretKey = process.env.PAYSTACK_SECRET_KEY;
     if (!secretKey) return res.status(503).json({ error: 'Paystack not configured on server' });
 
     // Paystack requires amount in subunit (kobo for NGN, pesewas for GHS, etc.)
-    const amountInSubunit = Math.round(parseFloat(amount) * 100);
+    const amountInSubunit = Math.round(amountNum * 100);
 
     const payload = {
         amount:   amountInSubunit,
