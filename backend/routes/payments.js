@@ -188,6 +188,10 @@ router.post('/paystack/initialize', async (req, res) => {
 router.post('/korapay/initialize', async (req, res) => {
     const { amount, currency = 'NGN', email, name, reference, narration } = req.body;
     if (!amount || !email) return res.status(400).json({ error: 'amount and email are required' });
+    const amountNum = parseFloat(amount);
+    if (!Number.isFinite(amountNum) || amountNum <= 0 || amountNum > 10_000_000) {
+        return res.status(400).json({ error: 'amount must be a positive number not exceeding 10,000,000' });
+    }
 
     const secretKey = process.env.KORAPAY_SECRET_KEY;
     if (!secretKey) return res.status(503).json({ error: 'Korapay not configured on server' });
