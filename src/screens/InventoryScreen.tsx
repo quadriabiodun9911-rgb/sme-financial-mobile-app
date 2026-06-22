@@ -141,14 +141,20 @@ export default function InventoryScreen() {
     };
 
     const confirmDelete = (item: InventoryItem) => {
-        Alert.alert(
-            'Delete Item',
-            `Remove "${item.name}" from inventory?`,
-            [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Delete', style: 'destructive', onPress: () => deleteInventoryItem(item.id) },
-            ],
-        );
+        if (Platform.OS === 'web') {
+            if (window.confirm(`Remove "${item.name}" from inventory?`)) {
+                deleteInventoryItem(item.id);
+            }
+        } else {
+            Alert.alert(
+                'Delete Item',
+                `Remove "${item.name}" from inventory?`,
+                [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Delete', style: 'destructive', onPress: () => deleteInventoryItem(item.id) },
+                ],
+            );
+        }
     };
 
     const confirmSell = () => {

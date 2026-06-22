@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text,
-    TouchableOpacity, StyleSheet, TextInput, Modal, Alert,
+    TouchableOpacity, StyleSheet, TextInput, Modal, Alert, Platform,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -74,10 +74,16 @@ export default function BudgetScreen() {
     }
 
     function handleDelete(id: string, cat: string) {
-        Alert.alert('Delete Budget', `Remove budget for "${cat}"?`, [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Delete', style: 'destructive', onPress: () => deleteBudget(id) },
-        ]);
+        if (Platform.OS === 'web') {
+            if (window.confirm(`Remove budget for "${cat}"?`)) {
+                deleteBudget(id);
+            }
+        } else {
+            Alert.alert('Delete Budget', `Remove budget for "${cat}"?`, [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Delete', style: 'destructive', onPress: () => deleteBudget(id) },
+            ]);
+        }
     }
 
     function statusColor(status: string) {

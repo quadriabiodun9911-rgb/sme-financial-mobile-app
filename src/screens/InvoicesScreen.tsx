@@ -232,10 +232,16 @@ export default function InvoicesScreen() {
     };
 
     const handleDelete = (inv: Invoice) => {
-        Alert.alert('Delete Invoice', `Delete ${inv.invoiceNumber}? This cannot be undone.`, [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Delete', style: 'destructive', onPress: () => deleteInvoice(inv.id) },
-        ]);
+        if (Platform.OS === 'web') {
+            if (window.confirm(`Delete ${inv.invoiceNumber}? This cannot be undone.`)) {
+                deleteInvoice(inv.id);
+            }
+        } else {
+            Alert.alert('Delete Invoice', `Delete ${inv.invoiceNumber}? This cannot be undone.`, [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Delete', style: 'destructive', onPress: () => deleteInvoice(inv.id) },
+            ]);
+        }
     };
 
     const updateLine = (idx: number, patch: Partial<InvoiceLineItem>) => {

@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
-    TouchableOpacity, StyleSheet, Modal, Alert,
+    TouchableOpacity, StyleSheet, Modal, Alert, Platform,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -124,10 +124,16 @@ export default function LoansScreen() {
     };
 
     const confirmDelete = (id: string) => {
-        Alert.alert('Delete Loan', 'Remove this loan and all its payment history?', [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Delete', style: 'destructive', onPress: () => deleteLoan(id) },
-        ]);
+        if (Platform.OS === 'web') {
+            if (window.confirm('Remove this loan and all its payment history?')) {
+                deleteLoan(id);
+            }
+        } else {
+            Alert.alert('Delete Loan', 'Remove this loan and all its payment history?', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Delete', style: 'destructive', onPress: () => deleteLoan(id) },
+            ]);
+        }
     };
 
     // Summary stats

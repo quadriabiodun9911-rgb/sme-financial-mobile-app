@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
-    TouchableOpacity, Modal, StyleSheet, Alert,
+    TouchableOpacity, Modal, StyleSheet, Alert, Platform,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -134,10 +134,16 @@ export default function GoalsScreen() {
     };
 
     const handleDelete = (id: string, title: string) => {
-        Alert.alert('Delete Goal', `Remove "${title}"?`, [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Delete', style: 'destructive', onPress: () => deleteGoal(id) },
-        ]);
+        if (Platform.OS === 'web') {
+            if (window.confirm(`Remove "${title}"?`)) {
+                deleteGoal(id);
+            }
+        } else {
+            Alert.alert('Delete Goal', `Remove "${title}"?`, [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Delete', style: 'destructive', onPress: () => deleteGoal(id) },
+            ]);
+        }
     };
 
     const openEditModal = (goal: FinancialGoal) => {
