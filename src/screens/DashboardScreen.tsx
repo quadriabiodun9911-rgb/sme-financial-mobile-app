@@ -26,7 +26,7 @@ const INCOME_CATEGORIES = ['Sales', 'Service', 'Consulting', 'Rental', 'Interest
 const EXPENSE_CATEGORIES = ['Rent', 'Salaries', 'Utilities', 'Marketing', 'Supplies', 'Transport', 'Meals', 'Software', 'Tax', 'Other'];
 
 export default function DashboardScreen() {
-    const { finance, settings, goals, transactions, invoices, assets, loans, navigate, setCurrentScreen, language, isLoading, addTransaction, isDemoMode, exitDemo, cashPockets, deleteGoal, updateGoal } = useApp();
+    const { finance, settings, goals, transactions, invoices, assets, loans, navigate, setCurrentScreen, language, isLoading, addTransaction, isDemoMode, exitDemo, cashPockets, deleteGoal, updateGoal, budgets, inventory } = useApp();
 
     const [fabOpen, setFabOpen]           = useState(false);
     const [qaType, setQaType]             = useState<'income' | 'expense'>('income');
@@ -96,6 +96,19 @@ export default function DashboardScreen() {
     const offTrack        = useMemo(() => goals.filter(g => g.status === 'off_track' || g.status === 'at_risk'), [goals]);
     const overdueCount    = useMemo(() => transactions.filter(t => t.status === 'overdue').length, [transactions]);
     const overdueInvoices = useMemo(() => invoices.filter(inv => inv.status === 'overdue'), [invoices]);
+
+    const overspentBudgets = useMemo(() => {
+        const monthStr = thisMonthStr;
+        return budgets.filter(b => {
+            if (b.period && b.period !== monthStr) return false;
+            const spent = transactions
+                .filter(t => t.type === 'expense' && t.category === b.category && t.date.startsWith(monthStr))
+                .reduce((s, t) => s + t.amount, 0);
+            return spent > b.monthlyAmount;
+        });
+    }, [budgets, transactions, thisMonthStr]);
+
+    const lowStockItems = useMemo(() => inventory.filter(i => i.quantity <= i.lowStockThreshold), [inventory]);
     const loggedToday     = useMemo(() => transactions.some(tx => tx.date === today), [transactions, today]);
 
     const recurringDueCount = useMemo(() => transactions.filter(t =>
@@ -381,6 +394,16 @@ export default function DashboardScreen() {
                     <View style={styles.dangerBanner}>
                         <Text style={styles.dangerText}>🔴 {finance.profit >= 0 ? 'Cash positive but loss after depreciation' : 'Spending more than you earn'} — review expenses</Text>
                     </View>
+                )}
+                {overspentBudgets.length > 0 && (
+                    <TouchableOpacity style={styles.alertBanner} onPress={() => setCurrentScreen('budget')}>
+                        <Text style={styles.alertText}>📊 {overspentBudgets.length} budget{overspentBudgets.length > 1 ? 's' : ''} overspent this month — tap to review →</Text>
+                    </TouchableOpacity>
+                )}
+                {lowStockItems.length > 0 && (
+                    <TouchableOpacity style={styles.alertBanner} onPress={() => setCurrentScreen('inventory')}>
+                        <Text style={styles.alertText}>📦 {lowStockItems.length} item{lowStockItems.length > 1 ? 's' : ''} low on stock — tap to restock →</Text>
+                    </TouchableOpacity>
                 )}
 
                 {/* ── 3 Quick Stats row ────────────────────────────────────── */}

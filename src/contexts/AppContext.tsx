@@ -806,6 +806,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const disposeAsset = (id: string, disposalDate: string, disposalValue: number) => {
         if (!canManage) { denyManage(); return; }
+        const asset = assets.find(a => a.id === id);
+        if (asset) {
+            const bookValue = computeAssetCurrentValue(asset);
+            const gainLoss = disposalValue - bookValue;
+            if (gainLoss !== 0) {
+                const newTx: Transaction = {
+                    id: generateId(),
+                    date: disposalDate,
+                    description: `Asset disposal: ${asset.name}`,
+                    type: gainLoss >= 0 ? 'income' : 'expense',
+                    category: gainLoss >= 0 ? 'Asset Sale Gain' : 'Asset Disposal Loss',
+                    amount: Math.abs(gainLoss),
+                    status: 'paid',
+                };
+                setTransactions(prev => [newTx, ...prev]);
+            }
+        }
         setAssets(prev => prev.map(a => a.id === id ? { ...a, status: 'disposed' as const, disposalDate, disposalValue } : a));
     };
 
@@ -829,6 +846,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const addLoanPayment = (loanId: string, payment: Omit<LoanPayment, 'id'>) => {
         if (!canManage) { denyManage(); return; }
         const newPayment: LoanPayment = { ...payment, id: generateId() };
+        const loan = loans.find(l => l.id === loanId);
+        if (loan) {
+            const expenseTx: Transaction = {
+                id: generateId(),
+                date: payment.date,
+                description: payment.note || `Loan repayment: ${loan.lenderName}`,
+                type: 'expense',
+                category: 'Loan Repayment',
+                amount: payment.amount,
+                status: 'paid',
+            };
+            setTransactions(prev => [expenseTx, ...prev]);
+        }
         setLoans(prev => prev.map(l => {
             if (l.id !== loanId) return l;
             const payments = [...l.payments, newPayment];
