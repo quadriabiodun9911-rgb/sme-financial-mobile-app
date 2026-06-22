@@ -894,23 +894,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
 
     const updateInventoryItem = (id: string, patch: Partial<InventoryItem>) => {
+        if (!canManage) { denyManage(); return; }
         setInventory(prev => prev.map(i => i.id === id ? { ...i, ...patch, updatedAt: new Date().toISOString() } : i));
     };
 
     const deleteInventoryItem = (id: string) => {
+        if (!canManage) { denyManage(); return; }
         setInventory(prev => prev.filter(i => i.id !== id));
     };
 
     const addBudget = (b: Omit<Budget, 'id'>) => {
+        if (!canManage) { denyManage(); return; }
         const item: Budget = { ...b, id: generateId() };
         setBudgets(prev => [item, ...prev]);
     };
 
     const updateBudget = (id: string, patch: Partial<Budget>) => {
+        if (!canManage) { denyManage(); return; }
         setBudgets(prev => prev.map(b => b.id === id ? { ...b, ...patch } : b));
     };
 
     const deleteBudget = (id: string) => {
+        if (!canManage) { denyManage(); return; }
         setBudgets(prev => prev.filter(b => b.id !== id));
     };
 
