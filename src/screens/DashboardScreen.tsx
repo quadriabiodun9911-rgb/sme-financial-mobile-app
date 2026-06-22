@@ -213,8 +213,6 @@ export default function DashboardScreen() {
         return '● Saved today';
     })();
 
-    const now = new Date();
-    const runwayColor2 = runwayDays === null ? Colors.income : runwayDays < 30 ? Colors.expense : runwayDays < 60 ? Colors.warning : Colors.income;
 
     return (
         <SafeAreaView style={styles.safe}>
@@ -247,7 +245,7 @@ export default function DashboardScreen() {
                     </View>
                     <View style={styles.survivalCard}>
                         <Text style={styles.survivalLabel}>⏳ Money Lasts</Text>
-                        <Text style={[styles.survivalValue, { color: runwayColor2 }]}>
+                        <Text style={[styles.survivalValue, { color: runwayColor }]}>
                             {runwayDays === null ? 'Add costs' : runwayDays > 365 ? '1 year+' : runwayDays > 90 ? `${Math.floor(runwayDays/30)} months` : `${runwayDays} days`}
                         </Text>
                     </View>

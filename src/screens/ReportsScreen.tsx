@@ -127,8 +127,10 @@ export default function ReportsScreen() {
     useEffect(() => {
         if (navParams?.reportSection) {
             const s = navParams.reportSection as SectionKey;
+            const validSection = SECTIONS.find(sec => sec.key === s);
+            if (!validSection) return;
             setSection(s);
-            if (navParams.reportTab) {
+            if (navParams.reportTab && SECTION_TABS[s].some((t: { key: SubTab; label: string }) => t.key === navParams.reportTab)) {
                 setActiveTab(navParams.reportTab as SubTab);
             } else {
                 setActiveTab(SECTION_TABS[s][0].key);

@@ -839,6 +839,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
 
     const addInventoryItem = (item: Omit<InventoryItem, 'id' | 'createdAt' | 'updatedAt'>) => {
+        if (!canManage) { denyManage(); return; }
         const now = new Date().toISOString();
         const newItem: InventoryItem = { ...item, id: generateId(), createdAt: now, updatedAt: now };
         trackInventoryItemAdded();
