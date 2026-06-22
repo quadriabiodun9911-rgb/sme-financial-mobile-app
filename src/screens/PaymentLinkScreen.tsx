@@ -8,10 +8,11 @@ import { Colors } from '../theme/colors';
 import { Config } from '../config';
 
 export default function PaymentLinkScreen() {
-    const { settings, user, navigate, navParams, addTransaction } = useApp() as any;
+    const { settings, user, navigate, navParams, addTransaction, markInvoiceStatus } = useApp() as any;
     const params = (navParams ?? {}) as {
         amount?: number; description?: string;
         customerName?: string; customerEmail?: string;
+        invoiceId?: string;
     };
 
     const [amount, setAmount]               = useState(params.amount ? String(params.amount) : '');
@@ -226,11 +227,16 @@ export default function PaymentLinkScreen() {
         if (!addTransaction) return;
         addTransaction({
             type: 'income', amount: amountNum,
-            description: description || 'Payment received',
+            description: description || `Payment via ${method}`,
             category: 'Sales', date: new Date().toISOString().split('T')[0],
-            vendorCustomer: customerName, paymentMethod: method,
+            vendorCustomer: customerName,
+            status: 'paid',
         });
-        Alert.alert('✅ Recorded', 'Income added to your transactions.');
+        // If this payment came from an invoice, mark that invoice as paid too
+        if (params.invoiceId && markInvoiceStatus) {
+            markInvoiceStatus(params.invoiceId, 'paid');
+        }
+        Alert.alert('✅ Recorded', 'Payment saved to your transactions.' + (params.invoiceId ? ' Invoice marked as paid.' : ''));
         navigate('transactions');
     };
 

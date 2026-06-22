@@ -158,6 +158,12 @@ export interface NavParams {
     reportSection?: 'statements' | 'operations' | 'planning' | 'analysis';
     reportTab?: string;
     goalType?: GoalType;
+    // Payment link pre-fill from invoice
+    amount?: number;
+    description?: string;
+    customerName?: string;
+    customerEmail?: string;
+    invoiceId?: string;
 }
 
 export type UserRole = 'owner' | 'accountant' | 'staff';

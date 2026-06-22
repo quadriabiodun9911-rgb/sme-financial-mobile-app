@@ -109,7 +109,7 @@ ${inv.notes ? `<div class="notes" style="clear:both;margin-top:60px"><b>Notes:</
 }
 
 export default function InvoicesScreen() {
-    const { invoices, addInvoice, updateInvoice, deleteInvoice, markInvoiceStatus, settings, user } = useApp();
+    const { invoices, addInvoice, updateInvoice, deleteInvoice, markInvoiceStatus, settings, user, navigate } = useApp();
     const currency = settings.currency;
 
     const [filter, setFilter]       = useState<InvoiceStatus | 'all'>('all');
@@ -322,7 +322,16 @@ export default function InvoicesScreen() {
                                         <Text style={styles.whatsappBtnText}>WhatsApp</Text>
                                     </TouchableOpacity>
                                     {inv.status !== 'paid' && (
-                                        <ActionBtn label="Mark Paid" onPress={() => markInvoiceStatus(inv.id, 'paid')} color={Colors.income} />
+                                        <>
+                                            <ActionBtn label="Collect Payment" onPress={() => navigate('payment-link', {
+                                                amount: inv.total,
+                                                description: `Invoice ${inv.invoiceNumber}`,
+                                                customerName: inv.clientName,
+                                                customerEmail: inv.clientEmail || '',
+                                                invoiceId: inv.id,
+                                            })} color="#00C3F7" />
+                                            <ActionBtn label="Mark Paid" onPress={() => markInvoiceStatus(inv.id, 'paid')} color={Colors.income} />
+                                        </>
                                     )}
                                     {inv.status === 'draft' && (
                                         <ActionBtn label="Send" onPress={() => markInvoiceStatus(inv.id, 'sent')} color={Colors.warning} />
@@ -478,10 +487,22 @@ export default function InvoicesScreen() {
                                     <Text style={styles.saveBtnText}>Share Invoice</Text>
                                 </TouchableOpacity>
                                 {viewInv.status !== 'paid' && (
-                                    <TouchableOpacity style={[styles.draftBtn, { marginTop: 8 }]}
-                                        onPress={() => { markInvoiceStatus(viewInv.id, 'paid'); setViewInv(null); }}>
-                                        <Text style={styles.draftBtnText}>Mark as Paid</Text>
-                                    </TouchableOpacity>
+                                    <>
+                                        <TouchableOpacity style={[styles.draftBtn, { marginTop: 8, backgroundColor: '#00C3F7' }]}
+                                            onPress={() => { setViewInv(null); navigate('payment-link', {
+                                                amount: viewInv.total,
+                                                description: `Invoice ${viewInv.invoiceNumber}`,
+                                                customerName: viewInv.clientName,
+                                                customerEmail: viewInv.clientEmail || '',
+                                                invoiceId: viewInv.id,
+                                            }); }}>
+                                            <Text style={styles.draftBtnText}>💳 Collect Payment via Paystack</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity style={[styles.draftBtn, { marginTop: 8 }]}
+                                            onPress={() => { markInvoiceStatus(viewInv.id, 'paid'); setViewInv(null); }}>
+                                            <Text style={styles.draftBtnText}>Mark as Paid</Text>
+                                        </TouchableOpacity>
+                                    </>
                                 )}
                             </View>
                         </ScrollView>

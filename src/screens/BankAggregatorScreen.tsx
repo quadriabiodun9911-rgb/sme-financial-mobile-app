@@ -36,7 +36,7 @@ interface ConnectionState {
 }
 
 export default function BankAggregatorScreen() {
-    const { navigate, user, settings } = useApp();
+    const { navigate, user, settings, addTransaction, transactions } = useApp();
 
     const [connection, setConnection]     = useState<ConnectionState | null>(null);
     const [loading, setLoading]           = useState(false);
@@ -270,18 +270,37 @@ export default function BankAggregatorScreen() {
             const data = await res.json();
             const txns: any[] = data.transactions || data;
 
+            // De-duplicate: skip any bank transaction whose reference already exists
+            const existingRefs = new Set(transactions.map((t: any) => t.reference).filter(Boolean));
+            let imported = 0;
+            for (const tx of txns) {
+                const ref = tx.id || tx.reference || tx.transaction_id;
+                if (ref && existingRefs.has(ref)) continue; // already imported
+                addTransaction({
+                    type:            tx.type === 'debit' ? 'expense' : 'income',
+                    amount:          Math.abs(parseFloat(tx.amount) || 0),
+                    description:     tx.narration || tx.description || tx.name || 'Bank transaction',
+                    category:        tx.category || (tx.type === 'debit' ? 'General' : 'Sales'),
+                    date:            (tx.date || tx.created_at || new Date().toISOString()).split('T')[0],
+                    vendorCustomer:  tx.counterparty || tx.merchant_name || '',
+                    reference:       ref || undefined,
+                    status:          'paid',
+                });
+                imported++;
+            }
+
             const updated: ConnectionState = {
                 ...connection,
                 lastSynced: new Date().toISOString(),
-                syncedCount: (connection.syncedCount || 0) + txns.length,
+                syncedCount: (connection.syncedCount || 0) + imported,
             };
             setConnection(updated);
             await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
 
             Alert.alert(
                 'Sync complete',
-                txns.length > 0
-                    ? `${txns.length} transaction(s) imported from ${providerInfo.name}.`
+                imported > 0
+                    ? `${imported} new transaction(s) imported from ${providerInfo.name}. Check your Transactions screen.`
                     : 'No new transactions since last sync.'
             );
         } catch (err: any) {
