@@ -4,12 +4,14 @@ const { getTransactionsForUser } = require('./pngme');
 const router = express.Router();
 
 /**
- * GET /api/transactions/:userId
- * Returns mapped Quad360 transactions for a user.
+ * GET /api/transactions
+ * Returns mapped Quad360 transactions for the authenticated user.
  * Optional query param: ?since=ISO_DATE — filters transactions on or after the given date.
+ * userId is taken from req.userId set by requireAuth middleware — never from URL params.
  */
-router.get('/:userId', (req, res) => {
-  const { userId } = req.params;
+router.get('/', (req, res) => {
+  const userId = req.userId;
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
   const { since } = req.query;
 
   let transactions = getTransactionsForUser(userId);

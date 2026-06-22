@@ -55,7 +55,7 @@ interface AppContextValue {
     isFirstLaunch: boolean;
     setupAccount: (email: string, businessName: string, pin: string, loadDemo: boolean, phone?: string) => Promise<void>;
     recoverAccount: (email: string, pin: string) => Promise<void>;
-    login: (pin: string) => boolean;
+    login: (pin: string) => Promise<boolean>;
     joinTeam: (email: string, pin: string, inviteCode: string) => Promise<void>;
     logout: () => void;
     changePin: (currentPin: string, newPin: string) => Promise<{ ok: boolean; lockedUntil?: number; cloudSynced?: boolean }>;
@@ -586,7 +586,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setCurrentScreen('dashboard');
     };
 
-    const login = (pin: string): boolean => {
+    const login = async (pin: string): Promise<boolean> => {
         // Rate limiting: check if locked out
         if (isLockedOut && lockoutUntil && Date.now() < lockoutUntil) {
             return false; // Still locked out

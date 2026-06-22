@@ -258,7 +258,7 @@ export default function BankAggregatorScreen() {
                 ?? new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
 
             const data = await apiFetch(
-                `/api/bank-data/transactions/${encodeURIComponent(userEmail)}?currencyCode=${currency}&since=${encodeURIComponent(since)}`
+                `/api/bank-data/transactions?currencyCode=${currency}&since=${encodeURIComponent(since)}`
             );
             const txns: any[] = data.transactions || data;
 

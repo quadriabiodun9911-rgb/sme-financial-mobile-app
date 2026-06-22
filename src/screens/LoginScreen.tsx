@@ -167,7 +167,7 @@ export default function LoginScreen() {
         }
     };
 
-    const handleLogin = () => {
+    const handleLogin = async () => {
         if (isLockedOut && timeRemaining !== null && timeRemaining > 0) {
             Alert.alert(
                 'Account Locked',
@@ -176,7 +176,7 @@ export default function LoginScreen() {
             return;
         }
         if (!returnPin) { Alert.alert(t(language, 'error'), 'Please enter your 6-digit PIN.'); return; }
-        const ok = login(returnPin);
+        const ok = await login(returnPin);
         if (!ok) {
             Alert.alert(t(language, 'error'), 'Incorrect PIN. Please try again.');
             setReturnPin('');
@@ -212,7 +212,7 @@ export default function LoginScreen() {
                     Alert.alert('Too Many Attempts', 'Too many login attempts. Please wait a few minutes and try again.');
                 } else {
                     // Network / offline — fall back to local PIN
-                    const ok = login(emailLoginPin);
+                    const ok = await login(emailLoginPin);
                     if (ok) { navigating = true; identifyUser(emailLoginEmail.trim()); trackUserLoggedIn('email'); return; }
                     Alert.alert('Sign In Failed', 'Could not reach the server. Please check your connection and try again.');
                 }
@@ -226,7 +226,7 @@ export default function LoginScreen() {
             }
         } catch (e: any) {
             // Network error — try local PIN as offline fallback
-            const ok = login(emailLoginPin);
+            const ok = await login(emailLoginPin);
             if (ok) { navigating = true; identifyUser(emailLoginEmail.trim()); trackUserLoggedIn('email'); return; }
             Alert.alert('Sign In Failed', 'Could not connect. Please check your internet connection and try again.');
         } finally {

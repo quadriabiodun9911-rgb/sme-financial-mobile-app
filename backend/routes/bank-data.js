@@ -25,12 +25,14 @@ function validateCurrency(currencyCode, res) {
 
 /**
  * POST /api/bank-data/connect
- * Body: { userId, currencyCode, ...options }
+ * Body: { currencyCode, ...options }
+ * userId is taken from the authenticated session (req.userId), never from body.
  */
 router.post('/connect', async (req, res) => {
-  const { userId, currencyCode, ...options } = req.body || {};
+  const userId = req.userId;
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+  const { currencyCode, ...options } = req.body || {};
 
-  if (!userId) return res.status(400).json({ error: 'userId is required' });
   if (!validateCurrency(currencyCode, res)) return;
 
   try {
@@ -46,10 +48,12 @@ router.post('/connect', async (req, res) => {
 });
 
 /**
- * GET /api/bank-data/accounts/:userId?currencyCode=NGN
+ * GET /api/bank-data/accounts?currencyCode=NGN
+ * userId from authenticated session only.
  */
-router.get('/accounts/:userId', async (req, res) => {
-  const { userId } = req.params;
+router.get('/accounts', async (req, res) => {
+  const userId = req.userId;
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
   const { currencyCode, ...options } = req.query;
 
   if (!validateCurrency(currencyCode, res)) return;
@@ -67,10 +71,12 @@ router.get('/accounts/:userId', async (req, res) => {
 });
 
 /**
- * GET /api/bank-data/transactions/:userId?currencyCode=NGN&since=ISO
+ * GET /api/bank-data/transactions?currencyCode=NGN&since=ISO
+ * userId from authenticated session only.
  */
-router.get('/transactions/:userId', async (req, res) => {
-  const { userId } = req.params;
+router.get('/transactions', async (req, res) => {
+  const userId = req.userId;
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
   const { currencyCode, since, ...options } = req.query;
 
   if (!validateCurrency(currencyCode, res)) return;
@@ -97,10 +103,12 @@ router.get('/transactions/:userId', async (req, res) => {
 });
 
 /**
- * GET /api/bank-data/balance/:userId?currencyCode=NGN
+ * GET /api/bank-data/balance?currencyCode=NGN
+ * userId from authenticated session only.
  */
-router.get('/balance/:userId', async (req, res) => {
-  const { userId } = req.params;
+router.get('/balance', async (req, res) => {
+  const userId = req.userId;
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
   const { currencyCode, ...options } = req.query;
 
   if (!validateCurrency(currencyCode, res)) return;
@@ -123,8 +131,9 @@ router.get('/balance/:userId', async (req, res) => {
  * Body: { userId, publicToken }
  */
 router.post('/plaid-exchange', async (req, res) => {
-  const { userId, publicToken } = req.body || {};
-  if (!userId)      return res.status(400).json({ error: 'userId is required' });
+  const userId = req.userId;
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+  const { publicToken } = req.body || {};
   if (!publicToken) return res.status(400).json({ error: 'publicToken is required' });
 
   try {
@@ -146,9 +155,10 @@ router.post('/plaid-exchange', async (req, res) => {
  * Called after the user completes the Mono Connect widget flow.
  */
 router.post('/exchange', async (req, res) => {
-  const { userId, code } = req.body || {};
-  if (!userId) return res.status(400).json({ error: 'userId is required' });
-  if (!code)   return res.status(400).json({ error: 'code is required' });
+  const userId = req.userId;
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+  const { code } = req.body || {};
+  if (!code) return res.status(400).json({ error: 'code is required' });
 
   try {
     const provider = getProvider('NGN'); // Mono handles NGN/GHS

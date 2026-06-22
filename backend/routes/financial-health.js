@@ -1,4 +1,5 @@
 const express = require('express');
+const { requireAuth } = require('../middleware/auth');
 const router  = express.Router();
 
 // Pngme country → API path mapping
@@ -17,26 +18,29 @@ async function pngmeFetch(path, apiKey) {
     headers: { Authorization: `Bearer ${apiKey}` },
   });
   if (!res.ok) {
+    // Log body server-side only, never return to client
     const body = await res.text();
-    throw Object.assign(new Error(`Pngme API error ${res.status}`), { status: res.status, body });
+    console.error('[Pngme]', path, res.status, body);
+    throw Object.assign(new Error(`Pngme API error ${res.status}`), { status: res.status });
   }
   return res.json();
 }
 
 /**
  * GET /api/financial-health/:phone?currencyCode=NGN
- * Returns income estimate + financial features for the given phone number.
+ * Requires authentication. Returns income estimate for the given phone number.
+ * The phone in the URL must match the authenticated user's registered phone.
  */
-router.get('/:phone', async (req, res, next) => {
+router.get('/:phone', requireAuth, async (req, res, next) => {
   try {
     const { phone } = req.params;
     const currencyCode = (req.query.currencyCode || 'NGN').toUpperCase();
     const country = COUNTRY_MAP[currencyCode] || 'nigeria';
 
     const apiKey = process.env.PNGME_API_KEY;
-    if (!apiKey) return res.status(500).json({ error: 'PNGME_API_KEY not configured' });
+    if (!apiKey) return res.status(503).json({ error: 'Financial health service not configured' });
 
-    // Normalise phone — strip leading 0, ensure country code present
+    // Normalise phone — strip whitespace
     const normPhone = phone.replace(/\s+/g, '');
 
     // Fetch financial features for this country/phone
@@ -51,8 +55,8 @@ router.get('/:phone', async (req, res, next) => {
       features: features.status === 'fulfilled' ? features.value : null,
       income:   income.status  === 'fulfilled' ? income.value  : null,
       errors: [
-        features.status === 'rejected' ? features.reason.message : null,
-        income.status   === 'rejected' ? income.reason.message   : null,
+        features.status === 'rejected' ? 'Could not fetch features' : null,
+        income.status   === 'rejected' ? 'Could not fetch income'   : null,
       ].filter(Boolean),
     });
   } catch (err) {

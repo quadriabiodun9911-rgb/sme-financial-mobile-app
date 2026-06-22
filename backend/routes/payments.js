@@ -90,7 +90,10 @@ router.post('/korapay/verify', async (req, res) => {
 // Initialise a Paystack transaction (returns authorization_url)
 // POST /api/payments/paystack/initialize
 router.post('/paystack/initialize', async (req, res) => {
-    const { amount, currency = 'NGN', email, name, description } = req.body;
+    // Use authenticated user's email from middleware; fall back to body email for
+    // customer-facing payments where the payer email differs from the business owner
+    const { amount, currency = 'NGN', email: bodyEmail, name, description } = req.body;
+    const email = bodyEmail || req.userEmail;
     if (!amount || !email) return res.status(400).json({ error: 'amount and email are required' });
     const amountNum = parseFloat(amount);
     if (!Number.isFinite(amountNum) || amountNum <= 0 || amountNum > 10_000_000) {
