@@ -34,13 +34,15 @@ const EMPTY_FORM: FormState = {
 };
 
 export default function InventoryScreen() {
-    const { inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem, settings, navigate } = useApp();
+    const { inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem, settings, navigate, addTransaction } = useApp();
     const { currency } = settings;
 
     const [activeTab, setActiveTab] = useState<InventoryTab>('stock');
     const [modalOpen, setModalOpen] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [form, setForm] = useState<FormState>(EMPTY_FORM);
+    const [sellModal, setSellModal] = useState<{ item: InventoryItem } | null>(null);
+    const [sellQty, setSellQty] = useState('');
 
     // ── Summary calculations ──────────────────────────────────────────────────
     const totalStockValue = inventory.reduce((sum, item) => sum + item.quantity * item.costPrice, 0);
@@ -149,6 +151,27 @@ export default function InventoryScreen() {
         );
     };
 
+    const confirmSell = () => {
+        if (!sellModal) return;
+        const { item } = sellModal;
+        const qty = parseFloat(sellQty);
+        if (isNaN(qty) || qty <= 0) { Alert.alert('Validation', 'Enter a valid quantity.'); return; }
+        if (qty > item.quantity) { Alert.alert('Validation', `Only ${item.quantity} ${item.unit} in stock.`); return; }
+        updateInventoryItem(item.id, { quantity: item.quantity - qty });
+        addTransaction({
+            type: 'income',
+            amount: qty * item.sellingPrice,
+            description: `Sale: ${item.name}`,
+            category: 'Sales',
+            date: new Date().toISOString().split('T')[0],
+            status: 'paid',
+            transactionCategory: 'sale',
+        });
+        setSellModal(null);
+        setSellQty('');
+        Alert.alert('Recorded', `${qty} ${item.unit} of ${item.name} sold.`);
+    };
+
     // ── Stock colour helper ───────────────────────────────────────────────────
     const stockColor = (item: InventoryItem): string => {
         if (item.quantity <= item.lowStockThreshold) return Colors.expense;
@@ -249,6 +272,9 @@ export default function InventoryScreen() {
                                             <Text style={styles.itemCategory}>{item.category}</Text>
                                         </View>
                                         <View style={styles.itemActions}>
+                                            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: Colors.income }]} onPress={() => { setSellModal({ item }); setSellQty(''); }}>
+                                                <Text style={[styles.actionBtnText, { color: '#fff' }]}>Sell</Text>
+                                            </TouchableOpacity>
                                             <TouchableOpacity style={styles.actionBtn} onPress={() => openEdit(item)}>
                                                 <Text style={styles.actionBtnText}>✏</Text>
                                             </TouchableOpacity>
@@ -490,6 +516,39 @@ export default function InventoryScreen() {
                             <Text style={styles.cancelBtnText}>Cancel</Text>
                         </TouchableOpacity>
                     </ScrollView>
+                </KeyboardAvoidingView>
+            </Modal>
+
+            {/* ── Sell Stock Modal ──────────────────────────────────────────────── */}
+            <Modal visible={!!sellModal} transparent animationType="slide" onRequestClose={() => setSellModal(null)}>
+                <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setSellModal(null)} />
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalSheet}>
+                    <View style={styles.modalHandle} />
+                    <Text style={styles.modalTitle}>Record Sale</Text>
+                    {sellModal && (
+                        <>
+                            <Text style={{ color: Colors.textSecondary, marginBottom: 8 }}>
+                                {sellModal.item.name} — {sellModal.item.quantity} {sellModal.item.unit} in stock
+                            </Text>
+                            <TextInput
+                                style={styles.input}
+                                placeholder={`Quantity sold (${sellModal.item.unit})`}
+                                placeholderTextColor={Colors.textMuted}
+                                keyboardType="decimal-pad"
+                                value={sellQty}
+                                onChangeText={setSellQty}
+                            />
+                            <Text style={{ color: Colors.textMuted, fontSize: 12, marginBottom: 12 }}>
+                                Revenue: {currency}{sellQty ? (parseFloat(sellQty) * sellModal.item.sellingPrice || 0).toLocaleString() : '0'}
+                            </Text>
+                            <TouchableOpacity style={[styles.submitBtn, { backgroundColor: Colors.income }]} onPress={confirmSell}>
+                                <Text style={styles.submitBtnText}>Record Sale</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.cancelBtn} onPress={() => setSellModal(null)}>
+                                <Text style={styles.cancelBtnText}>Cancel</Text>
+                            </TouchableOpacity>
+                        </>
+                    )}
                 </KeyboardAvoidingView>
             </Modal>
         </SafeAreaView>

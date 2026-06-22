@@ -332,6 +332,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     useEffect(() => { if (!isLoading) saveSettings(settings).catch(persistError('settings')); }, [settings, isLoading]);
     useEffect(() => { if (!isLoading) saveGoals(goals).catch(persistError('goals')); }, [goals, isLoading]);
     useEffect(() => { if (!isLoading) saveInvoices(invoices).catch(persistError('invoices')); }, [invoices, isLoading]);
+
+    // Auto-mark sent invoices as overdue when past their due date
+    useEffect(() => {
+        if (isLoading) return;
+        const today = new Date().toISOString().split('T')[0];
+        setInvoices(prev => prev.map(inv => {
+            if ((inv.status === 'sent' || inv.status === 'draft') && inv.dueDate && inv.dueDate < today) {
+                return { ...inv, status: 'overdue' as const };
+            }
+            return inv;
+        }));
+    }, [isLoading]);
     useEffect(() => { if (!isLoading) saveAssets(assets).catch(persistError('assets')); }, [assets, isLoading]);
     useEffect(() => { if (!isLoading) saveLoans(loans).catch(persistError('loans')); }, [loans, isLoading]);
     useEffect(() => { if (!isLoading) saveInventory(inventory).catch(persistError('inventory')); }, [inventory, isLoading]);
