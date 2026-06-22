@@ -1,23 +1,68 @@
 const express = require('express');
 const crypto  = require('crypto');
+const { createClient } = require('@supabase/supabase-js');
 const router  = express.Router();
 
+function getSupabase() {
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_KEY;
+    if (!url || !key) return null;
+    return createClient(url, key);
+}
+
 // POST /api/payments/paystack/webhook
-// Receives Paystack event notifications — must be registered in Paystack dashboard
-router.post('/paystack/webhook', express.raw({ type: 'application/json' }), (req, res) => {
+// Registered in Paystack dashboard → Settings → Webhooks
+router.post('/paystack/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
     const secret = process.env.PAYSTACK_SECRET_KEY;
     if (!secret) {
         console.error('[SECURITY] PAYSTACK_SECRET_KEY not set — rejecting webhook');
         return res.status(503).json({ error: 'Not configured' });
     }
+
+    // Verify HMAC-SHA512 signature
     const signature = req.headers['x-paystack-signature'];
     const expected  = crypto.createHmac('sha512', secret).update(req.body).digest('hex');
     if (!signature || signature !== expected) {
         return res.status(401).json({ error: 'Invalid signature' });
     }
+
     const event = JSON.parse(req.body.toString('utf8'));
     console.log('[Paystack webhook]', event.event, event.data?.reference);
-    // TODO: update payment status in database on charge.success
+
+    // Handle successful payment
+    if (event.event === 'charge.success') {
+        const data = event.data;
+        const reference = data?.reference;
+        const amountPaid = (data?.amount || 0) / 100; // kobo → naira
+        const email      = data?.customer?.email;
+        const currency   = data?.currency;
+        const paidAt     = data?.paid_at;
+
+        const supabase = getSupabase();
+        if (supabase && reference) {
+            // Record the payment in the payments table
+            const { error: insertError } = await supabase
+                .from('payments')
+                .upsert({
+                    reference,
+                    amount:    amountPaid,
+                    currency,
+                    status:    'paid',
+                    email,
+                    paid_at:   paidAt,
+                    provider:  'paystack',
+                    raw_event: event,
+                }, { onConflict: 'reference' });
+
+            if (insertError) {
+                console.error('[Paystack webhook] Failed to save payment:', insertError.message);
+            } else {
+                console.log(`[Paystack webhook] Payment ${reference} (${currency} ${amountPaid}) recorded.`);
+            }
+        }
+    }
+
+    // Always acknowledge quickly so Paystack doesn't retry
     res.json({ received: true });
 });
 

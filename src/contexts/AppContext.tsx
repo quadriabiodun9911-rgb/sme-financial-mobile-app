@@ -353,20 +353,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     useEffect(() => { if (!isLoading) saveBudgets(budgets).catch(persistError('budgets')); }, [budgets, isLoading]);
     useEffect(() => { if (!isLoading) AsyncStorage.setItem('@quad360/cash_pockets', JSON.stringify(cashPockets)).catch(() => {}); }, [cashPockets, isLoading]);
 
-    // ── Offline sync queue: flush when network is restored ───────────────────
+    // ── Offline sync queue: flush on launch + when network is restored ──────
     useEffect(() => {
         let wasPreviouslyOffline = false;
 
-        const unsubscribe = NetInfo.addEventListener(async state => {
-            const isOnline = Platform.OS === 'web'
-                ? (typeof navigator !== 'undefined' && navigator.onLine)
-                : (state.isConnected && state.isInternetReachable !== false);
-
-            // Update pending count whenever connectivity changes
+        async function tryFlush(isOnline: boolean) {
             const pending = await queueSize();
             setPendingSyncCount(pending);
-
-            if (isOnline && wasPreviouslyOffline && pending > 0) {
+            if (isOnline && pending > 0) {
                 try {
                     const { synced, failed } = await flushQueue(supabase);
                     const remaining = await queueSize();
@@ -377,6 +371,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
                     console.warn('[SyncQueue] Flush error:', e);
                 }
             }
+        }
+
+        // Auto-flush on launch if online and items are pending
+        const checkOnLaunch = async () => {
+            const isOnline = Platform.OS === 'web'
+                ? (typeof navigator !== 'undefined' && navigator.onLine)
+                : (await NetInfo.fetch()).isConnected === true;
+            await tryFlush(isOnline);
+        };
+        checkOnLaunch();
+
+        const unsubscribe = NetInfo.addEventListener(async state => {
+            const isOnline = Platform.OS === 'web'
+                ? (typeof navigator !== 'undefined' && navigator.onLine)
+                : (state.isConnected && state.isInternetReachable !== false);
+
+            if (isOnline && wasPreviouslyOffline) await tryFlush(true);
+            else { const p = await queueSize(); setPendingSyncCount(p); }
             wasPreviouslyOffline = !isOnline;
         });
 
@@ -629,13 +641,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
         auditEvents.login();
         trackUserLoggedIn('pin');
 
-        loadProfile().then(profile => {
+        loadProfile().then(async profile => {
             if (profile) {
                 identifyUser(profile.email);
                 supabase.auth.signInWithPassword({ email: profile.email, password: hashPin(pin) }).catch(() => {});
             }
+            // Enforce 2FA: if not set up, redirect to 2FA setup screen
+            try {
+                const { loadTwoFactorConfig } = await import('../utils/twoFactorAuth');
+                const tfConfig = await loadTwoFactorConfig();
+                if (!tfConfig || tfConfig.status === 'disabled') {
+                    setCurrentScreen('2fa');
+                    return;
+                }
+            } catch {}
+            setCurrentScreen('dashboard');
         });
-        setCurrentScreen('dashboard');
         return true;
     };
 
