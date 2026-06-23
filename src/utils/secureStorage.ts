@@ -1,15 +1,20 @@
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
 const SECURE_KEYS = {
     pin: '@quad360/secure/pin',
     sessionToken: '@quad360/secure/session',
 };
 
+// expo-secure-store has no web support — skip it entirely on web
+const isNative = Platform.OS !== 'web';
+
 async function safeSecureStoreOperation<T>(
     operation: () => Promise<T>,
     fallback: () => Promise<T>,
 ): Promise<T> {
+    if (!isNative) return fallback();
     try {
         return await operation();
     } catch (e) {
@@ -33,6 +38,7 @@ export async function loadPinSecurely(): Promise<string | null> {
 }
 
 export async function clearPinSecurely(): Promise<void> {
+    if (!isNative) { await AsyncStorage.removeItem(SECURE_KEYS.pin); return; }
     try {
         await SecureStore.deleteItemAsync(SECURE_KEYS.pin);
     } catch {
@@ -55,6 +61,7 @@ export async function loadSessionTokenSecurely(): Promise<string | null> {
 }
 
 export async function clearSessionTokenSecurely(): Promise<void> {
+    if (!isNative) { await AsyncStorage.removeItem(SECURE_KEYS.sessionToken); return; }
     try {
         await SecureStore.deleteItemAsync(SECURE_KEYS.sessionToken);
     } catch {

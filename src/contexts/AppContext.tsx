@@ -7,7 +7,7 @@ function hashPin(pin: string): string {
     return CryptoJS.SHA256(pin + SALT).toString(CryptoJS.enc.Hex) + '_Q360';
 }
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Transaction, FinanceData, User, BusinessSettings, Screen, FinancialGoal, GoalType, NavParams, Invoice, InvoiceStatus, TeamMember, UserRole, Language, Asset, InventoryItem, Loan, LoanPayment, Budget, CashPocket } from '../types';
+import { Transaction, FinanceData, User, BusinessSettings, Screen, FinancialGoal, GoalType, NavParams, Invoice, InvoiceStatus, TeamMember, UserRole, Language, Asset, InventoryItem, Loan, LoanPayment, Budget, CashPocket, StaffMember, PayrollRun, PayrollItem } from '../types';
 import { computeFinance, computeOneThingInsight, computeRecurringDates, computeAssetCurrentValue, computeAssetAnnualDepreciation } from '../utils/finance';
 import { generateId } from '../utils/uuid';
 import { auditEvents } from '../utils/auditLog';
@@ -20,6 +20,8 @@ import {
     saveLoans, loadLoans,
     saveInventory, loadInventory,
     saveBudgets, loadBudgets,
+    saveStaff, loadStaff,
+    savePayrollRuns, loadPayrollRuns,
     savePin, loadPin,
     saveProfile, loadProfile,
     saveLanguage, loadLanguage,
@@ -111,6 +113,15 @@ interface AppContextValue {
     addCashPocket: (name: string, amount: number) => void;
     updateCashPocket: (id: string, amount: number) => void;
     deleteCashPocket: (id: string) => void;
+
+    // Payroll
+    staff: StaffMember[];
+    addStaff: (s: Omit<StaffMember, 'id' | 'createdAt'>) => void;
+    updateStaff: (id: string, patch: Partial<StaffMember>) => void;
+    deleteStaff: (id: string) => void;
+    payrollRuns: PayrollRun[];
+    runPayroll: (period: string, items: PayrollItem[], deductionRate?: number) => void;
+    deletePayrollRun: (id: string) => void;
 
     // Team
     teamMembers: TeamMember[];
@@ -205,6 +216,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const [loans, setLoans]                 = useState<Loan[]>([]);
     const [inventory, setInventory]         = useState<InventoryItem[]>([]);
     const [budgets, setBudgets]             = useState<Budget[]>([]);
+    const [staff, setStaff]                 = useState<StaffMember[]>([]);
+    const [payrollRuns, setPayrollRuns]     = useState<PayrollRun[]>([]);
     const [cashPockets, setCashPockets]     = useState<CashPocket[]>([]);
     const [teamMembers, setTeamMembers]     = useState<TeamMember[]>([]);
     const [language, setLang]              = useState<Language>('en');
@@ -261,6 +274,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 if (savedLoans)    setLoans(savedLoans);
                 if (savedInventory) setInventory(savedInventory);
                 if (savedBudgets)  setBudgets(savedBudgets);
+                const [savedStaff, savedPayrollRuns] = await Promise.all([loadStaff(), loadPayrollRuns()]);
+                if (savedStaff)       setStaff(savedStaff);
+                if (savedPayrollRuns) setPayrollRuns(savedPayrollRuns);
                 const savedPockets = await AsyncStorage.getItem('@quad360/cash_pockets');
                 if (savedPockets) setCashPockets(JSON.parse(savedPockets));
 
@@ -352,6 +368,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     useEffect(() => { if (!isLoading) saveLoans(loans).catch(persistError('loans')); }, [loans, isLoading]);
     useEffect(() => { if (!isLoading) saveInventory(inventory).catch(persistError('inventory')); }, [inventory, isLoading]);
     useEffect(() => { if (!isLoading) saveBudgets(budgets).catch(persistError('budgets')); }, [budgets, isLoading]);
+    useEffect(() => { if (!isLoading) saveStaff(staff).catch(persistError('staff')); }, [staff, isLoading]);
+    useEffect(() => { if (!isLoading) savePayrollRuns(payrollRuns).catch(persistError('payrollRuns')); }, [payrollRuns, isLoading]);
     useEffect(() => { if (!isLoading) AsyncStorage.setItem('@quad360/cash_pockets', JSON.stringify(cashPockets)).catch(() => {}); }, [cashPockets, isLoading]);
 
     // ── Offline sync queue: flush on launch + when network is restored ──────
@@ -383,15 +401,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
         };
         checkOnLaunch();
 
-        const unsubscribe = NetInfo.addEventListener(async state => {
-            const isOnline = Platform.OS === 'web'
-                ? (typeof navigator !== 'undefined' && navigator.onLine)
-                : (state.isConnected && state.isInternetReachable !== false);
-
-            if (isOnline && wasPreviouslyOffline) await tryFlush(true);
-            else { const p = await queueSize(); setPendingSyncCount(p); }
-            wasPreviouslyOffline = !isOnline;
-        });
+        let unsubscribe: () => void;
+        if (Platform.OS === 'web') {
+            // NetInfo native listeners don't fire on web — use browser events
+            const onOnline  = async () => { if (wasPreviouslyOffline) await tryFlush(true); wasPreviouslyOffline = false; };
+            const onOffline = async () => { wasPreviouslyOffline = true; const p = await queueSize(); setPendingSyncCount(p); };
+            window.addEventListener('online',  onOnline);
+            window.addEventListener('offline', onOffline);
+            unsubscribe = () => { window.removeEventListener('online', onOnline); window.removeEventListener('offline', onOffline); };
+        } else {
+            unsubscribe = NetInfo.addEventListener(async state => {
+                const isOnline = state.isConnected && state.isInternetReachable !== false;
+                if (isOnline && wasPreviouslyOffline) await tryFlush(true);
+                else { const p = await queueSize(); setPendingSyncCount(p); }
+                wasPreviouslyOffline = !isOnline;
+            });
+        }
 
         return () => unsubscribe();
     }, []);
@@ -549,17 +574,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setUser({ email: profile.email, businessName: profile.businessName, role: 'Administrator', phone: profile.phone });
 
         // Load all their cloud data
-        const [savedTx, savedSettings, savedGoals, savedInvoices, savedAssets2, savedInventory2, savedLoans2, savedBudgets2] = await Promise.all([
-            loadTransactions(), loadSettings(), loadGoals(), loadInvoices(), loadAssets(), loadInventory(), loadLoans(), loadBudgets(),
+        const [savedTx, savedSettings, savedGoals, savedInvoices, savedAssets2, savedInventory2, savedLoans2, savedBudgets2, savedStaff2, savedPayrollRuns2] = await Promise.all([
+            loadTransactions(), loadSettings(), loadGoals(), loadInvoices(), loadAssets(), loadInventory(), loadLoans(), loadBudgets(), loadStaff(), loadPayrollRuns(),
         ]);
         if (savedTx) { const { updated, newEntries } = processDueRecurring(savedTx); setTransactions([...newEntries, ...updated]); }
-        if (savedSettings)   setSettings({ ...DEFAULT_SETTINGS, ...savedSettings });
-        if (savedGoals)      setGoals(savedGoals);
-        if (savedInvoices)   setInvoices(savedInvoices);
-        if (savedAssets2)    setAssets(savedAssets2);
-        if (savedInventory2) setInventory(savedInventory2);
-        if (savedLoans2)     setLoans(savedLoans2);
-        if (savedBudgets2)   setBudgets(savedBudgets2);
+        if (savedSettings)      setSettings({ ...DEFAULT_SETTINGS, ...savedSettings });
+        if (savedGoals)         setGoals(savedGoals);
+        if (savedInvoices)      setInvoices(savedInvoices);
+        if (savedAssets2)       setAssets(savedAssets2);
+        if (savedInventory2)    setInventory(savedInventory2);
+        if (savedLoans2)        setLoans(savedLoans2);
+        if (savedBudgets2)      setBudgets(savedBudgets2);
+        if (savedStaff2?.length)       setStaff(savedStaff2);
+        if (savedPayrollRuns2?.length) setPayrollRuns(savedPayrollRuns2);
 
         setCurrentScreen('dashboard');
         // Re-schedule reminders on sign-in so they stay active
@@ -664,6 +691,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         supabase.auth.signOut().catch(() => {});
         trackUserLoggedOut();
         resetIdentity();
+        // Clear all in-memory state so the next user on this device starts fresh
+        setUser(null);
+        setTransactions([]); setGoals([]); setSettings(DEFAULT_SETTINGS);
+        setInvoices([]); setAssets([]); setInventory([]); setLoans([]); setBudgets([]);
+        setStaff([]); setPayrollRuns([]);
         setCurrentScreen('login');
     };
 
@@ -815,6 +847,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
 
     const markInvoiceStatus = (id: string, status: InvoiceStatus) => {
+        if (!canManage) { denyManage(); return; }
         setInvoices(prev => prev.map(inv => inv.id === id ? { ...inv, status } : inv));
         if (status === 'paid') {
             const inv = invoices.find(i => i.id === id);
@@ -940,6 +973,55 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setBudgets(prev => prev.filter(b => b.id !== id));
     };
 
+    // ── Payroll ────────────────────────────────────────────────────────────────
+    const addStaff = (s: Omit<StaffMember, 'id' | 'createdAt'>) => {
+        if (!canManage) { denyManage(); return; }
+        const member: StaffMember = { ...s, id: generateId(), createdAt: new Date().toISOString() };
+        setStaff(prev => [...prev, member]);
+    };
+    const updateStaff = (id: string, patch: Partial<StaffMember>) => {
+        if (!canManage) { denyManage(); return; }
+        setStaff(prev => prev.map(s => s.id === id ? { ...s, ...patch } : s));
+    };
+    const deleteStaff = (id: string) => {
+        if (!canManage) { denyManage(); return; }
+        setStaff(prev => prev.filter(s => s.id !== id));
+    };
+    const runPayroll = (period: string, items: PayrollItem[], deductionRate = 0) => {
+        if (!canManage) { denyManage(); return; }
+        const totalGross = items.reduce((s, i) => s + i.grossSalary, 0);
+        const totalDeductions = items.reduce((s, i) => s + i.deductions, 0);
+        const totalNet = totalGross - totalDeductions;
+        const runId = generateId();
+        const today = new Date().toISOString().split('T')[0];
+        // Date transaction to last day of the payroll period so it lands in the correct reporting month
+        const [py, pm] = period.split('-').map(Number);
+        const periodEndDate = new Date(py, pm, 0).toISOString().split('T')[0]; // last day of month
+        const txId = generateId();
+        const payrollTx: Transaction = {
+            id: txId, date: periodEndDate,
+            description: `Payroll — ${period}`,
+            type: 'expense', category: 'Salaries',
+            amount: totalNet, status: 'paid',
+        };
+        setTransactions(prev => [payrollTx, ...prev]);
+        const run: PayrollRun = {
+            id: runId, period, runDate: today, items,
+            totalGross, totalDeductions, totalNet,
+            status: 'paid', transactionId: txId,
+            createdAt: new Date().toISOString(),
+        };
+        setPayrollRuns(prev => [run, ...prev]);
+    };
+    const deletePayrollRun = (id: string) => {
+        if (!canManage) { denyManage(); return; }
+        const run = payrollRuns.find(r => r.id === id);
+        if (run?.transactionId) {
+            setTransactions(prev => prev.filter(t => t.id !== run.transactionId));
+        }
+        setPayrollRuns(prev => prev.filter(r => r.id !== id));
+    };
+
     const addCashPocket = (name: string, amount: number) => {
         const pocket: CashPocket = { id: Date.now().toString(), name, amount, updatedAt: new Date().toISOString() };
         setCashPockets(prev => [...prev, pocket]);
@@ -978,7 +1060,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const clearData = async () => {
         await clearAllData();
-        setTransactions([]); setGoals([]); setSettings(DEFAULT_SETTINGS); setInvoices([]); setAssets([]);
+        setTransactions([]); setGoals([]); setSettings(DEFAULT_SETTINGS);
+        setInvoices([]); setAssets([]); setInventory([]); setLoans([]); setBudgets([]);
+        setStaff([]); setPayrollRuns([]);
     };
 
     // Wipes all business data from Supabase but keeps the auth account and profile intact.
@@ -1002,6 +1086,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 '@quad360/assets', '@quad360/inventory', '@quad360/loans', '@quad360/budgets',
             ]).catch(() => {});
             setTransactions([]); setGoals([]); setInvoices([]); setAssets([]); setInventory([]); setLoans([]); setBudgets([]);
+            setStaff([]); setPayrollRuns([]);
             Alert.alert('Done', 'All business data has been reset.');
         } catch (e) {
             console.error('Error resetting business data:', e);
@@ -1091,6 +1176,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         loans, addLoan, updateLoan, deleteLoan, addLoanPayment,
         inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem,
         budgets, addBudget, updateBudget, deleteBudget,
+        staff, addStaff, updateStaff, deleteStaff,
+        payrollRuns, runPayroll, deletePayrollRun,
         cashPockets, addCashPocket, updateCashPocket, deleteCashPocket,
         teamMembers, inviteMember, removeMember, refreshTeam,
         language, setLanguage,
@@ -1101,7 +1188,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         currentScreen, navParams, user, userRole, hasProfile, isLoading,
         isDemoMode, isLockedOut, lockoutUntil,
         settings, transactions, goals, invoices, assets, loans, inventory,
-        budgets, cashPockets, teamMembers, language,
+        budgets, cashPockets, teamMembers, language, staff, payrollRuns,
         finance, insight, pendingSyncCount,
     ]);
 

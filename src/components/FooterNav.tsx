@@ -1,8 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import {
     View, Text, TouchableOpacity, StyleSheet,
-    Modal, SafeAreaView, StatusBar, ScrollView,
+    Modal, ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { Screen } from '../types';
@@ -23,7 +25,10 @@ const FINANCE_ITEMS: { label: string; icon: string; screen: Screen; color: strin
 ];
 
 const OPERATIONS_ITEMS: { label: string; icon: string; screen: Screen; color: string; desc: string }[] = [
-    { label: 'Inventory', icon: '📦', screen: 'inventory', color: '#f59e0b', desc: 'Stock levels & margins' },
+    { label: 'Inventory',      icon: '📦', screen: 'inventory',      color: '#f59e0b', desc: 'Stock levels & margins' },
+    { label: 'Cash Flow',      icon: '💧', screen: 'cashflow',       color: '#3b82f6', desc: 'Forecast, runway & AR risk' },
+    { label: 'Payroll',        icon: '👥', screen: 'payroll',        color: '#10b981', desc: 'Staff & monthly pay runs' },
+    { label: 'Reconciliation', icon: '🔗', screen: 'reconciliation', color: '#8b5cf6', desc: 'Match bank vs app records' },
 ];
 
 const ACCOUNT_ITEMS: { label: string; icon: string; screen: Screen; color: string; desc: string }[] = [
@@ -111,7 +116,7 @@ export default function FooterNav() {
                 onRequestClose={() => setMoreOpen(false)}
             >
                 <SafeAreaView style={styles.page}>
-                    <StatusBar barStyle="light-content" backgroundColor={Colors.bg} />
+                    <StatusBar style="light" backgroundColor={Colors.bg} />
 
                     {/* Header */}
                     <View style={styles.header}>

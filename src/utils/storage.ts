@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Transaction, BusinessSettings, FinancialGoal, Invoice, TeamMember, Language, Asset, InventoryItem, Loan, Budget } from '../types';
+import { Transaction, BusinessSettings, FinancialGoal, Invoice, TeamMember, Language, Asset, InventoryItem, Loan, Budget, StaffMember, PayrollRun } from '../types';
 import { supabase } from './supabase';
 import { savePinSecurely, loadPinSecurely, clearPinSecurely, clearAllSecureData } from './secureStorage';
 import { enqueue } from './syncQueue';
@@ -16,6 +16,8 @@ const KEYS = {
     language:       '@quad360/language',
     assets:         '@quad360/assets',
     loans:          '@quad360/loans',
+    staff:          '@quad360/staff',
+    payrollRuns:    '@quad360/payroll_runs',
 };
 
 function logSyncError(table: string, op: string, error: unknown) {
@@ -629,6 +631,28 @@ export async function clearAllData(): Promise<void> {
         KEYS.workspaceOwner, '@quad360/inventory', '@quad360/budgets',
     ]);
     await clearAllSecureData();
+}
+
+// ─── Staff ────────────────────────────────────────────────────────────────────
+export async function saveStaff(staff: StaffMember[]): Promise<void> {
+    await AsyncStorage.setItem(KEYS.staff, JSON.stringify(staff));
+}
+export async function loadStaff(): Promise<StaffMember[]> {
+    try {
+        const raw = await AsyncStorage.getItem(KEYS.staff);
+        return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+}
+
+// ─── Payroll Runs ─────────────────────────────────────────────────────────────
+export async function savePayrollRuns(runs: PayrollRun[]): Promise<void> {
+    await AsyncStorage.setItem(KEYS.payrollRuns, JSON.stringify(runs));
+}
+export async function loadPayrollRuns(): Promise<PayrollRun[]> {
+    try {
+        const raw = await AsyncStorage.getItem(KEYS.payrollRuns);
+        return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
 }
 
 // Permanently deletes all Supabase data for the owner. Use only for explicit "Delete Account" action.

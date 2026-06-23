@@ -25,6 +25,9 @@ import ConnectBankScreen from './src/screens/ConnectBankScreen';
 import FinancialHealthScreen from './src/screens/FinancialHealthScreen';
 import BankAggregatorScreen from './src/screens/BankAggregatorScreen';
 import ImportTransactionsScreen from './src/screens/ImportTransactionsScreen';
+import CashFlowScreen from './src/screens/CashFlowScreen';
+import PayrollScreen from './src/screens/PayrollScreen';
+import ReconciliationScreen from './src/screens/ReconciliationScreen';
 
 function Navigator() {
     const { currentScreen, isLoading, setCurrentScreen } = useApp();
@@ -82,6 +85,9 @@ function Navigator() {
             {currentScreen === 'financial-health' && <FinancialHealthScreen />}
             {currentScreen === 'bank-aggregator'       && <BankAggregatorScreen />}
             {currentScreen === 'import-transactions'  && <ImportTransactionsScreen />}
+            {currentScreen === 'cashflow'       && <CashFlowScreen />}
+            {currentScreen === 'payroll'        && <PayrollScreen />}
+            {currentScreen === 'reconciliation' && <ReconciliationScreen />}
         </View>
     );
 }

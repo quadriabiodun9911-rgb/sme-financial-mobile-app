@@ -316,6 +316,48 @@ export default function DashboardScreen() {
                             </View>
                             <Text style={styles.betaArrow}>›</Text>
                         </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.betaFeature} onPress={() => setCurrentScreen('cashflow')} activeOpacity={0.75}>
+                            <View style={[styles.betaFeatureIcon, { backgroundColor: '#3b82f622' }]}>
+                                <Text style={{ fontSize: 22 }}>💧</Text>
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                    <Text style={styles.betaFeatureName}>Cash Flow Forecast</Text>
+                                    <View style={[styles.betaLiveBadge, { backgroundColor: '#3b82f6' }]}><Text style={styles.betaLiveText}>NEW</Text></View>
+                                </View>
+                                <Text style={styles.betaFeatureDesc}>90-day weekly cash projection, runway calculator, and AR collection risk scoring.</Text>
+                            </View>
+                            <Text style={styles.betaArrow}>›</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.betaFeature} onPress={() => setCurrentScreen('payroll')} activeOpacity={0.75}>
+                            <View style={[styles.betaFeatureIcon, { backgroundColor: '#10b98122' }]}>
+                                <Text style={{ fontSize: 22 }}>👥</Text>
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                    <Text style={styles.betaFeatureName}>Payroll</Text>
+                                    <View style={[styles.betaLiveBadge, { backgroundColor: '#10b981' }]}><Text style={styles.betaLiveText}>NEW</Text></View>
+                                </View>
+                                <Text style={styles.betaFeatureDesc}>Manage staff, run monthly payroll with automatic deductions, and track salary history.</Text>
+                            </View>
+                            <Text style={styles.betaArrow}>›</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.betaFeature} onPress={() => setCurrentScreen('reconciliation')} activeOpacity={0.75}>
+                            <View style={[styles.betaFeatureIcon, { backgroundColor: '#8b5cf622' }]}>
+                                <Text style={{ fontSize: 22 }}>🔗</Text>
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                    <Text style={styles.betaFeatureName}>Bank Reconciliation</Text>
+                                    <View style={[styles.betaLiveBadge, { backgroundColor: '#8b5cf6' }]}><Text style={styles.betaLiveText}>NEW</Text></View>
+                                </View>
+                                <Text style={styles.betaFeatureDesc}>Import your bank statement and auto-match transactions to catch discrepancies instantly.</Text>
+                            </View>
+                            <Text style={styles.betaArrow}>›</Text>
+                        </TouchableOpacity>
                     </View>
                 )}
 
