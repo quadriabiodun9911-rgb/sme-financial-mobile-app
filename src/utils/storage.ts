@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import CryptoJS from 'crypto-js';
 import { Transaction, BusinessSettings, FinancialGoal, Invoice, TeamMember, Language, Asset, InventoryItem, Loan, Budget, StaffMember, PayrollRun } from '../types';
 import { supabase } from './supabase';
 import { savePinSecurely, loadPinSecurely, clearPinSecurely, clearAllSecureData } from './secureStorage';
@@ -562,7 +563,9 @@ export async function loadLanguage(): Promise<Language> {
 // ─── PIN (local only — never sent to server) ──────────────────────────────────
 // PIN is now stored securely using expo-secure-store
 export async function savePin(pin: string): Promise<void> {
-    await savePinSecurely(pin);
+    // Store hash not raw PIN so plaintext never sits in storage
+    const hashed = CryptoJS.SHA256(pin + 'Q360_SME_2025').toString(CryptoJS.enc.Hex) + '_Q360';
+    await savePinSecurely(hashed);
 }
 export async function loadPin(): Promise<string | null> {
     return loadPinSecurely();
@@ -653,6 +656,52 @@ export async function loadPayrollRuns(): Promise<PayrollRun[]> {
         const raw = await AsyncStorage.getItem(KEYS.payrollRuns);
         return raw ? JSON.parse(raw) : [];
     } catch { return []; }
+}
+
+// ─── Staff — Supabase sync ────────────────────────────────────────────────────
+export async function syncStaffToSupabase(staff: StaffMember[], userId: string): Promise<void> {
+    try {
+        if (!staff.length) return;
+        const rows = staff.map(s => ({ id: s.id, user_id: userId, data: s, updated_at: new Date().toISOString() }));
+        await supabase.from('staff').upsert(rows, { onConflict: 'id' });
+    } catch { /* offline — local save already done */ }
+}
+
+export async function loadStaffFromSupabase(userId: string): Promise<StaffMember[]> {
+    try {
+        const { data, error } = await supabase.from('staff').select('data').eq('user_id', userId).order('data->createdAt', { ascending: true });
+        if (error || !data) return [];
+        return data.map((r: any) => r.data as StaffMember);
+    } catch { return []; }
+}
+
+// ─── Payroll Runs — Supabase sync ─────────────────────────────────────────────
+export async function syncPayrollRunsToSupabase(runs: PayrollRun[], userId: string): Promise<void> {
+    try {
+        if (!runs.length) return;
+        const rows = runs.map(r => ({ id: r.id, user_id: userId, data: r, updated_at: new Date().toISOString() }));
+        await supabase.from('payroll_runs').upsert(rows, { onConflict: 'id' });
+    } catch { /* offline */ }
+}
+
+export async function loadPayrollRunsFromSupabase(userId: string): Promise<PayrollRun[]> {
+    try {
+        const { data, error } = await supabase.from('payroll_runs').select('data').eq('user_id', userId).order('data->createdAt', { ascending: false });
+        if (error || !data) return [];
+        return data.map((r: any) => r.data as PayrollRun);
+    } catch { return []; }
+}
+
+export async function deleteStaffFromSupabase(staffId: string, userId: string): Promise<void> {
+    try {
+        await supabase.from('staff').delete().eq('id', staffId).eq('user_id', userId);
+    } catch { /* offline */ }
+}
+
+export async function deletePayrollRunFromSupabase(runId: string, userId: string): Promise<void> {
+    try {
+        await supabase.from('payroll_runs').delete().eq('id', runId).eq('user_id', userId);
+    } catch { /* offline */ }
 }
 
 // Permanently deletes all Supabase data for the owner. Use only for explicit "Delete Account" action.

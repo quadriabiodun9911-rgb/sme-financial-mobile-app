@@ -22,12 +22,15 @@ import {
     saveBudgets, loadBudgets,
     saveStaff, loadStaff,
     savePayrollRuns, loadPayrollRuns,
+    syncStaffToSupabase, loadStaffFromSupabase,
+    syncPayrollRunsToSupabase, loadPayrollRunsFromSupabase,
+    deleteStaffFromSupabase, deletePayrollRunFromSupabase,
     savePin, loadPin,
     saveProfile, loadProfile,
     saveLanguage, loadLanguage,
     exportAllData, importAllData, clearAllData, deleteAccountData,
     loadTeamMembers, inviteTeamMember, removeTeamMember, joinTeamWithCode,
-    setWorkspaceOwner, clearWorkspaceOwner,
+    setWorkspaceOwner, clearWorkspaceOwner, getWorkspaceOwnerId,
     AppBackup,
 } from '../utils/storage';
 import { refreshGoal, goalDefaults } from '../utils/goals';
@@ -368,8 +371,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     useEffect(() => { if (!isLoading) saveLoans(loans).catch(persistError('loans')); }, [loans, isLoading]);
     useEffect(() => { if (!isLoading) saveInventory(inventory).catch(persistError('inventory')); }, [inventory, isLoading]);
     useEffect(() => { if (!isLoading) saveBudgets(budgets).catch(persistError('budgets')); }, [budgets, isLoading]);
-    useEffect(() => { if (!isLoading) saveStaff(staff).catch(persistError('staff')); }, [staff, isLoading]);
-    useEffect(() => { if (!isLoading) savePayrollRuns(payrollRuns).catch(persistError('payrollRuns')); }, [payrollRuns, isLoading]);
+    useEffect(() => {
+        if (isLoading) return;
+        saveStaff(staff).catch(persistError('staff'));
+        getWorkspaceOwnerId().then(ownerId => { if (ownerId) syncStaffToSupabase(staff, ownerId); }).catch(() => {});
+    }, [staff, isLoading]);
+    useEffect(() => {
+        if (isLoading) return;
+        savePayrollRuns(payrollRuns).catch(persistError('payrollRuns'));
+        getWorkspaceOwnerId().then(ownerId => { if (ownerId) syncPayrollRunsToSupabase(payrollRuns, ownerId); }).catch(() => {});
+    }, [payrollRuns, isLoading]);
     useEffect(() => { if (!isLoading) AsyncStorage.setItem('@quad360/cash_pockets', JSON.stringify(cashPockets)).catch(() => {}); }, [cashPockets, isLoading]);
 
     // ── Offline sync queue: flush on launch + when network is restored ──────
@@ -588,6 +599,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (savedStaff2?.length)       setStaff(savedStaff2);
         if (savedPayrollRuns2?.length) setPayrollRuns(savedPayrollRuns2);
 
+        // Also pull from cloud in case local was wiped (new device restore)
+        const cloudStaff = await loadStaffFromSupabase(data.user.id);
+        const cloudRuns  = await loadPayrollRunsFromSupabase(data.user.id);
+        if (cloudStaff.length > 0)  setStaff(cloudStaff);
+        if (cloudRuns.length > 0)   setPayrollRuns(cloudRuns);
+
         setCurrentScreen('dashboard');
         // Re-schedule reminders on sign-in so they stay active
         requestNotificationPermission().then(granted => {
@@ -640,7 +657,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         // Validate PIN — read from SecureStore, never from state
         const savedPin = await loadPin();
-        if (pin !== savedPin) {
+        const submittedHash = hashPin(pin);
+        if (submittedHash !== savedPin) {
             const newAttempts = loginAttempts + 1;
             setLoginAttempts(newAttempts);
 
@@ -710,7 +728,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             await AsyncStorage.multiRemove([CHANGE_PIN_LOCKOUT_KEY, CHANGE_PIN_KEY]).catch(() => {});
         }
         const savedPin2 = await loadPin();
-        if (currentPin !== savedPin2) {
+        if (hashPin(currentPin) !== savedPin2) {
             const attemptsRaw = await AsyncStorage.getItem(CHANGE_PIN_KEY).catch(() => null);
             const attempts = (parseInt(attemptsRaw ?? '0', 10) || 0) + 1;
             if (attempts >= 5) {
@@ -985,6 +1003,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
     const deleteStaff = (id: string) => {
         if (!canManage) { denyManage(); return; }
+        getWorkspaceOwnerId().then(ownerId => { if (ownerId) deleteStaffFromSupabase(id, ownerId); }).catch(() => {});
         setStaff(prev => prev.filter(s => s.id !== id));
     };
     const runPayroll = (period: string, items: PayrollItem[], deductionRate = 0) => {
@@ -1019,6 +1038,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (run?.transactionId) {
             setTransactions(prev => prev.filter(t => t.id !== run.transactionId));
         }
+        getWorkspaceOwnerId().then(ownerId => { if (ownerId) deletePayrollRunFromSupabase(id, ownerId); }).catch(() => {});
         setPayrollRuns(prev => prev.filter(r => r.id !== id));
     };
 

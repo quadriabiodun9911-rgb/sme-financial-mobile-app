@@ -9,6 +9,7 @@ import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { BusinessSettings } from '../types';
 import { t, LANGUAGES } from '../utils/i18n';
+import { generateAccountantReportCSV } from '../utils/finance';
 
 const CURRENCIES = [
     { label: 'USD ($)',    value: '$'   },
@@ -39,6 +40,7 @@ export default function SettingsScreen() {
         userRole, teamMembers, inviteMember, removeMember, refreshTeam,
         language, setLanguage,
         transactions, user, updateProfile,
+        finance, assets, loans,
     } = useApp() as ReturnType<typeof useApp>;
 
     const [form, setForm]       = useState({ ...settings });
@@ -181,6 +183,26 @@ export default function SettingsScreen() {
             }
         } catch {
             Alert.alert('Export failed', 'Could not export data. Please try again.');
+        }
+    };
+
+    const handleAccountantExport = () => {
+        try {
+            const csv = generateAccountantReportCSV(finance, transactions, assets, loans);
+            const filename = `quad360-accountant-report-${new Date().toISOString().slice(0, 10)}.csv`;
+            if (Platform.OS === 'web') {
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url  = URL.createObjectURL(blob);
+                const a    = document.createElement('a');
+                a.href     = url;
+                a.download = filename;
+                a.click();
+                URL.revokeObjectURL(url);
+            } else {
+                Share.share({ message: csv, title: filename });
+            }
+        } catch {
+            Alert.alert('Export failed', 'Could not generate report. Please try again.');
         }
     };
 
@@ -483,8 +505,14 @@ export default function SettingsScreen() {
                                 Export a full JSON backup of all your transactions, goals, and settings. Import to restore on a new device.
                             </Text>
                             <TouchableOpacity style={styles.dataBtn} onPress={handleExport}>
-                                <Text style={styles.dataBtnText}>Export All Data</Text>
+                                <Text style={styles.dataBtnText}>📦 Export All Data (JSON Backup)</Text>
                             </TouchableOpacity>
+                            <TouchableOpacity style={[styles.dataBtn, { marginTop: 8, backgroundColor: '#10b981' }]} onPress={handleAccountantExport}>
+                                <Text style={styles.dataBtnText}>📊 Export Accountant Report (CSV)</Text>
+                            </TouchableOpacity>
+                            <Text style={[styles.hint, { marginTop: 6 }]}>
+                                Includes P&L, Balance Sheet, Cash Flow summary, and full transaction list — ready for your accountant or tax filing.
+                            </Text>
                             <TouchableOpacity style={[styles.dataBtn, { marginTop: 8 }]} onPress={() => setImportModal(true)}>
                                 <Text style={styles.dataBtnText}>Import Data</Text>
                             </TouchableOpacity>
