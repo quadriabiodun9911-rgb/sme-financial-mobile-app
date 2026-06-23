@@ -1,8 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import {
     View, Text, TouchableOpacity, StyleSheet,
-    Modal, SafeAreaView, StatusBar, ScrollView,
+    Modal, ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { Screen } from '../types';
@@ -114,7 +116,7 @@ export default function FooterNav() {
                 onRequestClose={() => setMoreOpen(false)}
             >
                 <SafeAreaView style={styles.page}>
-                    <StatusBar barStyle="light-content" backgroundColor={Colors.bg} />
+                    <StatusBar style="light" backgroundColor={Colors.bg} />
 
                     {/* Header */}
                     <View style={styles.header}>

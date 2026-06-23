@@ -401,15 +401,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
         };
         checkOnLaunch();
 
-        const unsubscribe = NetInfo.addEventListener(async state => {
-            const isOnline = Platform.OS === 'web'
-                ? (typeof navigator !== 'undefined' && navigator.onLine)
-                : (state.isConnected && state.isInternetReachable !== false);
-
-            if (isOnline && wasPreviouslyOffline) await tryFlush(true);
-            else { const p = await queueSize(); setPendingSyncCount(p); }
-            wasPreviouslyOffline = !isOnline;
-        });
+        let unsubscribe: () => void;
+        if (Platform.OS === 'web') {
+            // NetInfo native listeners don't fire on web — use browser events
+            const onOnline  = async () => { if (wasPreviouslyOffline) await tryFlush(true); wasPreviouslyOffline = false; };
+            const onOffline = async () => { wasPreviouslyOffline = true; const p = await queueSize(); setPendingSyncCount(p); };
+            window.addEventListener('online',  onOnline);
+            window.addEventListener('offline', onOffline);
+            unsubscribe = () => { window.removeEventListener('online', onOnline); window.removeEventListener('offline', onOffline); };
+        } else {
+            unsubscribe = NetInfo.addEventListener(async state => {
+                const isOnline = state.isConnected && state.isInternetReachable !== false;
+                if (isOnline && wasPreviouslyOffline) await tryFlush(true);
+                else { const p = await queueSize(); setPendingSyncCount(p); }
+                wasPreviouslyOffline = !isOnline;
+            });
+        }
 
         return () => unsubscribe();
     }, []);
