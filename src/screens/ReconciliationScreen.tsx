@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import {
-    SafeAreaView, ScrollView, View, Text, TouchableOpacity,
-    StyleSheet, TextInput, Alert, Modal,
+    ScrollView, View, Text, TouchableOpacity,
+    StyleSheet, TextInput, Alert, Modal, Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
@@ -200,7 +201,7 @@ export default function ReconciliationScreen() {
                 ))}
             </View>
 
-            <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+            <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
                 {/* ── Import Tab ──────────────────────────────────────────── */}
                 {tab === 'import' && (
@@ -351,7 +352,7 @@ export default function ReconciliationScreen() {
                             <Text style={styles.modalClose}>✕</Text>
                         </TouchableOpacity>
                     </View>
-                    <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+                    <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
                         <Text style={styles.fieldLabel}>Date</Text>
                         <TextInput style={styles.input} value={manualForm.date} onChangeText={v => setManualForm(p => ({ ...p, date: v }))} placeholder="YYYY-MM-DD" placeholderTextColor={Colors.textMuted} />
 
@@ -404,7 +405,7 @@ const styles = StyleSheet.create({
     cardTitle: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginBottom: 4 },
     cardSubtitle: { fontSize: 12, color: Colors.textMuted, marginBottom: 12, lineHeight: 17 },
 
-    csvInput: { backgroundColor: Colors.bg, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, padding: 12, fontSize: 12, color: Colors.textPrimary, height: 140, textAlignVertical: 'top', fontFamily: 'monospace', marginBottom: 12 },
+    csvInput: { backgroundColor: Colors.bg, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, padding: 12, paddingTop: 10, fontSize: 12, color: Colors.textPrimary, height: 140, textAlignVertical: 'top', fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace', marginBottom: 12 },
     input: { backgroundColor: Colors.bg, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: Colors.textPrimary },
     primaryBtn: { backgroundColor: Colors.primary, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
     primaryBtnText: { color: '#fff', fontWeight: '800', fontSize: 14 },

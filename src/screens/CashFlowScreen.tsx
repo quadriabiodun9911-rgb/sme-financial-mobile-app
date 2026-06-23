@@ -1,18 +1,19 @@
 import React, { useMemo, useState } from 'react';
 import {
-    SafeAreaView, ScrollView, View, Text,
+    ScrollView, View, Text,
     TouchableOpacity, StyleSheet,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
-import { computeCashFlowForecast, computeRevenueForecast, computeWorkingCapitalMetrics } from '../utils/finance';
+import { computeCashFlowForecast, computeRevenueForecast } from '../utils/finance';
 
 type Tab = 'forecast' | 'runway' | 'ar';
 
 export default function CashFlowScreen() {
-    const { transactions, loans, invoices, finance, settings } = useApp();
+    const { transactions, loans, invoices, finance, settings, setCurrentScreen } = useApp();
     const [tab, setTab] = useState<Tab>('forecast');
     const sym = settings.currency || '₦';
 

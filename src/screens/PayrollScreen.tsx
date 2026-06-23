@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import {
-    SafeAreaView, ScrollView, View, Text, TouchableOpacity,
+    ScrollView, View, Text, TouchableOpacity,
     StyleSheet, TextInput, Modal, Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
@@ -265,7 +266,7 @@ export default function PayrollScreen() {
                             <Text style={styles.modalClose}>✕</Text>
                         </TouchableOpacity>
                     </View>
-                    <ScrollView style={styles.modalScroll} contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+                    <ScrollView style={styles.modalScroll} contentContainerStyle={{ padding: 20, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
                         {([
                             { label: 'Full Name *', key: 'name', placeholder: 'e.g. Ada Johnson' },
                             { label: 'Job Title *', key: 'role', placeholder: 'e.g. Sales Manager' },
