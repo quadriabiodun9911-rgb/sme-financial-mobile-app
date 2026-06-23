@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { View, ActivityIndicator, Platform, BackHandler, Alert } from 'react-native';
 import * as Updates from 'expo-updates';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppProvider, useApp } from './src/contexts/AppContext';
 import { trackScreenViewed } from './src/utils/analytics';
 import ErrorBoundary from './src/components/ErrorBoundary';
@@ -114,13 +115,15 @@ function OtaUpdater() {
 
 export default function App() {
     return (
-        <ErrorBoundary>
-            <AppProvider>
-                <OtaUpdater />
-                <ErrorBoundary>
-                    <Navigator />
-                </ErrorBoundary>
-            </AppProvider>
-        </ErrorBoundary>
+        <SafeAreaProvider>
+            <ErrorBoundary>
+                <AppProvider>
+                    <OtaUpdater />
+                    <ErrorBoundary>
+                        <Navigator />
+                    </ErrorBoundary>
+                </AppProvider>
+            </ErrorBoundary>
+        </SafeAreaProvider>
     );
 }
