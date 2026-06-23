@@ -23,7 +23,10 @@ const FINANCE_ITEMS: { label: string; icon: string; screen: Screen; color: strin
 ];
 
 const OPERATIONS_ITEMS: { label: string; icon: string; screen: Screen; color: string; desc: string }[] = [
-    { label: 'Inventory', icon: '📦', screen: 'inventory', color: '#f59e0b', desc: 'Stock levels & margins' },
+    { label: 'Inventory',      icon: '📦', screen: 'inventory',      color: '#f59e0b', desc: 'Stock levels & margins' },
+    { label: 'Cash Flow',      icon: '💧', screen: 'cashflow',       color: '#3b82f6', desc: 'Forecast, runway & AR risk' },
+    { label: 'Payroll',        icon: '👥', screen: 'payroll',        color: '#10b981', desc: 'Staff & monthly pay runs' },
+    { label: 'Reconciliation', icon: '🔗', screen: 'reconciliation', color: '#8b5cf6', desc: 'Match bank vs app records' },
 ];
 
 const ACCOUNT_ITEMS: { label: string; icon: string; screen: Screen; color: string; desc: string }[] = [

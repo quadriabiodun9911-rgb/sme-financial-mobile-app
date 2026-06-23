@@ -7,7 +7,7 @@ function hashPin(pin: string): string {
     return CryptoJS.SHA256(pin + SALT).toString(CryptoJS.enc.Hex) + '_Q360';
 }
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Transaction, FinanceData, User, BusinessSettings, Screen, FinancialGoal, GoalType, NavParams, Invoice, InvoiceStatus, TeamMember, UserRole, Language, Asset, InventoryItem, Loan, LoanPayment, Budget, CashPocket } from '../types';
+import { Transaction, FinanceData, User, BusinessSettings, Screen, FinancialGoal, GoalType, NavParams, Invoice, InvoiceStatus, TeamMember, UserRole, Language, Asset, InventoryItem, Loan, LoanPayment, Budget, CashPocket, StaffMember, PayrollRun, PayrollItem } from '../types';
 import { computeFinance, computeOneThingInsight, computeRecurringDates, computeAssetCurrentValue, computeAssetAnnualDepreciation } from '../utils/finance';
 import { generateId } from '../utils/uuid';
 import { auditEvents } from '../utils/auditLog';
@@ -20,6 +20,8 @@ import {
     saveLoans, loadLoans,
     saveInventory, loadInventory,
     saveBudgets, loadBudgets,
+    saveStaff, loadStaff,
+    savePayrollRuns, loadPayrollRuns,
     savePin, loadPin,
     saveProfile, loadProfile,
     saveLanguage, loadLanguage,
@@ -111,6 +113,15 @@ interface AppContextValue {
     addCashPocket: (name: string, amount: number) => void;
     updateCashPocket: (id: string, amount: number) => void;
     deleteCashPocket: (id: string) => void;
+
+    // Payroll
+    staff: StaffMember[];
+    addStaff: (s: Omit<StaffMember, 'id' | 'createdAt'>) => void;
+    updateStaff: (id: string, patch: Partial<StaffMember>) => void;
+    deleteStaff: (id: string) => void;
+    payrollRuns: PayrollRun[];
+    runPayroll: (period: string, items: PayrollItem[], deductionRate?: number) => void;
+    deletePayrollRun: (id: string) => void;
 
     // Team
     teamMembers: TeamMember[];
@@ -205,6 +216,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const [loans, setLoans]                 = useState<Loan[]>([]);
     const [inventory, setInventory]         = useState<InventoryItem[]>([]);
     const [budgets, setBudgets]             = useState<Budget[]>([]);
+    const [staff, setStaff]                 = useState<StaffMember[]>([]);
+    const [payrollRuns, setPayrollRuns]     = useState<PayrollRun[]>([]);
     const [cashPockets, setCashPockets]     = useState<CashPocket[]>([]);
     const [teamMembers, setTeamMembers]     = useState<TeamMember[]>([]);
     const [language, setLang]              = useState<Language>('en');
@@ -261,6 +274,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 if (savedLoans)    setLoans(savedLoans);
                 if (savedInventory) setInventory(savedInventory);
                 if (savedBudgets)  setBudgets(savedBudgets);
+                const [savedStaff, savedPayrollRuns] = await Promise.all([loadStaff(), loadPayrollRuns()]);
+                if (savedStaff)       setStaff(savedStaff);
+                if (savedPayrollRuns) setPayrollRuns(savedPayrollRuns);
                 const savedPockets = await AsyncStorage.getItem('@quad360/cash_pockets');
                 if (savedPockets) setCashPockets(JSON.parse(savedPockets));
 
@@ -352,6 +368,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     useEffect(() => { if (!isLoading) saveLoans(loans).catch(persistError('loans')); }, [loans, isLoading]);
     useEffect(() => { if (!isLoading) saveInventory(inventory).catch(persistError('inventory')); }, [inventory, isLoading]);
     useEffect(() => { if (!isLoading) saveBudgets(budgets).catch(persistError('budgets')); }, [budgets, isLoading]);
+    useEffect(() => { if (!isLoading) saveStaff(staff).catch(persistError('staff')); }, [staff, isLoading]);
+    useEffect(() => { if (!isLoading) savePayrollRuns(payrollRuns).catch(persistError('payrollRuns')); }, [payrollRuns, isLoading]);
     useEffect(() => { if (!isLoading) AsyncStorage.setItem('@quad360/cash_pockets', JSON.stringify(cashPockets)).catch(() => {}); }, [cashPockets, isLoading]);
 
     // ── Offline sync queue: flush on launch + when network is restored ──────
@@ -940,6 +958,49 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setBudgets(prev => prev.filter(b => b.id !== id));
     };
 
+    // ── Payroll ────────────────────────────────────────────────────────────────
+    const addStaff = (s: Omit<StaffMember, 'id' | 'createdAt'>) => {
+        if (!canManage) { denyManage(); return; }
+        const member: StaffMember = { ...s, id: generateId(), createdAt: new Date().toISOString() };
+        setStaff(prev => [...prev, member]);
+    };
+    const updateStaff = (id: string, patch: Partial<StaffMember>) => {
+        if (!canManage) { denyManage(); return; }
+        setStaff(prev => prev.map(s => s.id === id ? { ...s, ...patch } : s));
+    };
+    const deleteStaff = (id: string) => {
+        if (!canManage) { denyManage(); return; }
+        setStaff(prev => prev.filter(s => s.id !== id));
+    };
+    const runPayroll = (period: string, items: PayrollItem[], deductionRate = 0) => {
+        if (!canManage) { denyManage(); return; }
+        const totalGross = items.reduce((s, i) => s + i.grossSalary, 0);
+        const totalDeductions = items.reduce((s, i) => s + i.deductions, 0);
+        const totalNet = totalGross - totalDeductions;
+        const runId = generateId();
+        const today = new Date().toISOString().split('T')[0];
+        // Auto-create expense transaction for total net payroll
+        const txId = generateId();
+        const payrollTx: Transaction = {
+            id: txId, date: today,
+            description: `Payroll — ${period}`,
+            type: 'expense', category: 'Salaries',
+            amount: totalNet, status: 'paid',
+        };
+        setTransactions(prev => [payrollTx, ...prev]);
+        const run: PayrollRun = {
+            id: runId, period, runDate: today, items,
+            totalGross, totalDeductions, totalNet,
+            status: 'paid', transactionId: txId,
+            createdAt: new Date().toISOString(),
+        };
+        setPayrollRuns(prev => [run, ...prev]);
+    };
+    const deletePayrollRun = (id: string) => {
+        if (!canManage) { denyManage(); return; }
+        setPayrollRuns(prev => prev.filter(r => r.id !== id));
+    };
+
     const addCashPocket = (name: string, amount: number) => {
         const pocket: CashPocket = { id: Date.now().toString(), name, amount, updatedAt: new Date().toISOString() };
         setCashPockets(prev => [...prev, pocket]);
@@ -1091,6 +1152,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         loans, addLoan, updateLoan, deleteLoan, addLoanPayment,
         inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem,
         budgets, addBudget, updateBudget, deleteBudget,
+        staff, addStaff, updateStaff, deleteStaff,
+        payrollRuns, runPayroll, deletePayrollRun,
         cashPockets, addCashPocket, updateCashPocket, deleteCashPocket,
         teamMembers, inviteMember, removeMember, refreshTeam,
         language, setLanguage,
@@ -1101,7 +1164,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         currentScreen, navParams, user, userRole, hasProfile, isLoading,
         isDemoMode, isLockedOut, lockoutUntil,
         settings, transactions, goals, invoices, assets, loans, inventory,
-        budgets, cashPockets, teamMembers, language,
+        budgets, cashPockets, teamMembers, language, staff, payrollRuns,
         finance, insight, pendingSyncCount,
     ]);
 

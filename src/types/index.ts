@@ -19,13 +19,53 @@ export type Screen =
     | 'connect-bank'
     | 'financial-health'
     | 'bank-aggregator'
-    | 'import-transactions';
+    | 'import-transactions'
+    | 'cashflow'
+    | 'payroll'
+    | 'reconciliation';
 
 export interface Budget {
     id: string;
     category: string;
     monthlyAmount: number;
     period: string; // YYYY-MM
+}
+
+// ─── Payroll ──────────────────────────────────────────────────────────────────
+export interface StaffMember {
+    id: string;
+    name: string;
+    role: string;
+    salary: number;          // gross monthly salary
+    salaryType: 'monthly' | 'weekly' | 'daily';
+    startDate: string;       // ISO date
+    status: 'active' | 'inactive';
+    email?: string;
+    phone?: string;
+    bankName?: string;
+    accountNumber?: string;
+    createdAt: string;
+}
+
+export interface PayrollItem {
+    staffId: string;
+    staffName: string;
+    grossSalary: number;
+    deductions: number;
+    netSalary: number;
+}
+
+export interface PayrollRun {
+    id: string;
+    period: string;          // YYYY-MM
+    runDate: string;         // ISO date
+    items: PayrollItem[];
+    totalGross: number;
+    totalDeductions: number;
+    totalNet: number;
+    status: 'draft' | 'paid';
+    transactionId?: string;  // linked expense transaction id
+    createdAt: string;
 }
 
 export type ReportTab =
