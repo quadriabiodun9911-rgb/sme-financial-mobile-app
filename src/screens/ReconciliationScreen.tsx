@@ -331,9 +331,13 @@ export default function ReconciliationScreen() {
                                                 {a.type === 'income' ? '+' : '-'}{fmt(a.amount)}
                                             </Text>
                                         </View>
-                                        <View style={[styles.importBtn, { backgroundColor: Colors.warning + '22' }]}>
+                                        <TouchableOpacity
+                                            style={[styles.importBtn, { backgroundColor: Colors.warning + '22' }]}
+                                            onPress={() => Alert.alert('App-only Transaction', `"${a.description}" exists in your app but not in the bank statement.\n\nPossible reasons:\n• Cash payment not via bank\n• Pending bank clearance\n• Entry error — check Transactions screen`)}
+                                            activeOpacity={0.7}
+                                        >
                                             <Text style={[styles.importBtnText, { color: Colors.warning }]}>Review</Text>
-                                        </View>
+                                        </TouchableOpacity>
                                     </View>
                                 ))}
                             </>

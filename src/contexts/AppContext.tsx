@@ -574,17 +574,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setUser({ email: profile.email, businessName: profile.businessName, role: 'Administrator', phone: profile.phone });
 
         // Load all their cloud data
-        const [savedTx, savedSettings, savedGoals, savedInvoices, savedAssets2, savedInventory2, savedLoans2, savedBudgets2] = await Promise.all([
-            loadTransactions(), loadSettings(), loadGoals(), loadInvoices(), loadAssets(), loadInventory(), loadLoans(), loadBudgets(),
+        const [savedTx, savedSettings, savedGoals, savedInvoices, savedAssets2, savedInventory2, savedLoans2, savedBudgets2, savedStaff2, savedPayrollRuns2] = await Promise.all([
+            loadTransactions(), loadSettings(), loadGoals(), loadInvoices(), loadAssets(), loadInventory(), loadLoans(), loadBudgets(), loadStaff(), loadPayrollRuns(),
         ]);
         if (savedTx) { const { updated, newEntries } = processDueRecurring(savedTx); setTransactions([...newEntries, ...updated]); }
-        if (savedSettings)   setSettings({ ...DEFAULT_SETTINGS, ...savedSettings });
-        if (savedGoals)      setGoals(savedGoals);
-        if (savedInvoices)   setInvoices(savedInvoices);
-        if (savedAssets2)    setAssets(savedAssets2);
-        if (savedInventory2) setInventory(savedInventory2);
-        if (savedLoans2)     setLoans(savedLoans2);
-        if (savedBudgets2)   setBudgets(savedBudgets2);
+        if (savedSettings)      setSettings({ ...DEFAULT_SETTINGS, ...savedSettings });
+        if (savedGoals)         setGoals(savedGoals);
+        if (savedInvoices)      setInvoices(savedInvoices);
+        if (savedAssets2)       setAssets(savedAssets2);
+        if (savedInventory2)    setInventory(savedInventory2);
+        if (savedLoans2)        setLoans(savedLoans2);
+        if (savedBudgets2)      setBudgets(savedBudgets2);
+        if (savedStaff2?.length)       setStaff(savedStaff2);
+        if (savedPayrollRuns2?.length) setPayrollRuns(savedPayrollRuns2);
 
         setCurrentScreen('dashboard');
         // Re-schedule reminders on sign-in so they stay active
@@ -689,6 +691,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         supabase.auth.signOut().catch(() => {});
         trackUserLoggedOut();
         resetIdentity();
+        // Clear all in-memory state so the next user on this device starts fresh
+        setUser(null);
+        setTransactions([]); setGoals([]); setSettings(DEFAULT_SETTINGS);
+        setInvoices([]); setAssets([]); setInventory([]); setLoans([]); setBudgets([]);
+        setStaff([]); setPayrollRuns([]);
         setCurrentScreen('login');
     };
 
@@ -840,6 +847,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
 
     const markInvoiceStatus = (id: string, status: InvoiceStatus) => {
+        if (!canManage) { denyManage(); return; }
         setInvoices(prev => prev.map(inv => inv.id === id ? { ...inv, status } : inv));
         if (status === 'paid') {
             const inv = invoices.find(i => i.id === id);
@@ -986,10 +994,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const totalNet = totalGross - totalDeductions;
         const runId = generateId();
         const today = new Date().toISOString().split('T')[0];
-        // Auto-create expense transaction for total net payroll
+        // Date transaction to last day of the payroll period so it lands in the correct reporting month
+        const [py, pm] = period.split('-').map(Number);
+        const periodEndDate = new Date(py, pm, 0).toISOString().split('T')[0]; // last day of month
         const txId = generateId();
         const payrollTx: Transaction = {
-            id: txId, date: today,
+            id: txId, date: periodEndDate,
             description: `Payroll — ${period}`,
             type: 'expense', category: 'Salaries',
             amount: totalNet, status: 'paid',
@@ -1005,6 +1015,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
     const deletePayrollRun = (id: string) => {
         if (!canManage) { denyManage(); return; }
+        const run = payrollRuns.find(r => r.id === id);
+        if (run?.transactionId) {
+            setTransactions(prev => prev.filter(t => t.id !== run.transactionId));
+        }
         setPayrollRuns(prev => prev.filter(r => r.id !== id));
     };
 
@@ -1046,7 +1060,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const clearData = async () => {
         await clearAllData();
-        setTransactions([]); setGoals([]); setSettings(DEFAULT_SETTINGS); setInvoices([]); setAssets([]);
+        setTransactions([]); setGoals([]); setSettings(DEFAULT_SETTINGS);
+        setInvoices([]); setAssets([]); setInventory([]); setLoans([]); setBudgets([]);
+        setStaff([]); setPayrollRuns([]);
     };
 
     // Wipes all business data from Supabase but keeps the auth account and profile intact.
@@ -1070,6 +1086,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 '@quad360/assets', '@quad360/inventory', '@quad360/loans', '@quad360/budgets',
             ]).catch(() => {});
             setTransactions([]); setGoals([]); setInvoices([]); setAssets([]); setInventory([]); setLoans([]); setBudgets([]);
+            setStaff([]); setPayrollRuns([]);
             Alert.alert('Done', 'All business data has been reset.');
         } catch (e) {
             console.error('Error resetting business data:', e);

@@ -8,7 +8,7 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
-import { computeCashFlowForecast, computeRevenueForecast } from '../utils/finance';
+import { computeCashFlowForecast } from '../utils/finance';
 
 type Tab = 'forecast' | 'runway' | 'ar';
 
@@ -52,11 +52,6 @@ export default function CashFlowScreen() {
             const clientHistory = invoices.filter(i =>
                 i.clientName === inv.clientName && i.status === 'paid'
             );
-            const lateCount = clientHistory.filter(i => {
-                if (!i.dueDate || !i.createdAt) return false;
-                // We can't know actual payment date, so proxy: overdue status was ever set
-                return false;
-            }).length;
             const overdueHistory = invoices.filter(i =>
                 i.clientName === inv.clientName && i.status === 'overdue'
             ).length;
