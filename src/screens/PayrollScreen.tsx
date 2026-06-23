@@ -18,7 +18,7 @@ const EMPTY_STAFF: Omit<StaffMember, 'id' | 'createdAt'> = {
 };
 
 export default function PayrollScreen() {
-    const { staff, addStaff, updateStaff, deleteStaff, payrollRuns, runPayroll, deletePayrollRun, settings, setCurrentScreen } = useApp();
+    const { staff, addStaff, updateStaff, deleteStaff, payrollRuns, runPayroll, deletePayrollRun, settings } = useApp();
     const [tab, setTab] = useState<Tab>('staff');
     const [staffModal, setStaffModal] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -75,7 +75,7 @@ export default function PayrollScreen() {
 
     return (
         <SafeAreaView style={styles.safe}>
-            <Header title="Payroll" onBack={() => setCurrentScreen('dashboard')} />
+            <Header />
 
             {/* Tab bar */}
             <View style={styles.tabs}>
@@ -410,5 +410,4 @@ const styles = StyleSheet.create({
     segmentText: { fontSize: 13, color: Colors.textMuted, fontWeight: '600' },
     segmentTextActive: { color: Colors.primary, fontWeight: '800' },
 
-    warning: { color: '#f59e0b' },
 });

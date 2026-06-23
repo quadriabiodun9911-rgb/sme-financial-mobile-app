@@ -12,7 +12,7 @@ import { computeCashFlowForecast, computeRevenueForecast, computeWorkingCapitalM
 type Tab = 'forecast' | 'runway' | 'ar';
 
 export default function CashFlowScreen() {
-    const { transactions, loans, invoices, finance, settings, setCurrentScreen } = useApp();
+    const { transactions, loans, invoices, finance, settings } = useApp();
     const [tab, setTab] = useState<Tab>('forecast');
     const sym = settings.currency || '₦';
 
@@ -83,7 +83,7 @@ export default function CashFlowScreen() {
 
     return (
         <SafeAreaView style={styles.safe}>
-            <Header title="Cash Flow" onBack={() => setCurrentScreen('dashboard')} />
+            <Header />
 
             {/* Tabs */}
             <View style={styles.tabRow}>

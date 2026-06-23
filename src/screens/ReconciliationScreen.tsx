@@ -59,7 +59,7 @@ const SAMPLE_CSV = `date,description,amount,type
 2024-01-20,TRANSFER FROM CLIENT,75000,credit`;
 
 export default function ReconciliationScreen() {
-    const { transactions, addTransaction, settings, setCurrentScreen } = useApp();
+    const { transactions, addTransaction, settings } = useApp();
     const [tab, setTab] = useState<Tab>('import');
     const [bankTxs, setBankTxs] = useState<BankTx[]>([]);
     const [csvText, setCsvText] = useState('');
@@ -107,14 +107,16 @@ export default function ReconciliationScreen() {
                 });
             }
             if (parsed.length === 0) { Alert.alert('No valid rows found'); return; }
+            let addedCount = 0;
             setBankTxs(prev => {
                 const existingIds = new Set(prev.map(b => `${b.date}-${b.amount}-${b.description}`));
                 const newOnes = parsed.filter(p => !existingIds.has(`${p.date}-${p.amount}-${p.description}`));
+                addedCount = newOnes.length;
                 return [...prev, ...newOnes];
             });
             setCsvText('');
             setTab('matched');
-            Alert.alert('Imported', `${parsed.length} bank transactions loaded. ${matched.length + unmatchedBank.length} processed.`);
+            Alert.alert('Imported', `${parsed.length} rows parsed, ${addedCount} new bank transactions added.`);
         } catch {
             Alert.alert('Parse Error', 'Could not parse the CSV. Check format.');
         }
@@ -164,7 +166,7 @@ export default function ReconciliationScreen() {
 
     return (
         <SafeAreaView style={styles.safe}>
-            <Header title="Reconciliation" onBack={() => setCurrentScreen('dashboard')} />
+            <Header />
 
             {/* Summary banner */}
             {bankTxs.length > 0 && (
@@ -455,5 +457,4 @@ const styles = StyleSheet.create({
     segmentText:   { fontSize: 12, color: Colors.textMuted, fontWeight: '600', textAlign: 'center' },
     segmentTextActive: { color: Colors.primary, fontWeight: '800' },
 
-    warning: { color: '#f59e0b' },
 });
