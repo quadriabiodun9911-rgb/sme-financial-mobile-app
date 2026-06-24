@@ -453,22 +453,18 @@ export default function DashboardScreen() {
                 )}
 
                 {/* ── 3 Quick Stats row ────────────────────────────────────── */}
-                {(() => {
-                    return (
-                        <View style={styles.quickStatsRow}>
-                            <TouchableOpacity style={styles.quickStatCard} onPress={() => setShowCashPockets(true)}>
-                                <Text style={styles.quickStatIcon}>💵</Text>
-                                <Text style={styles.quickStatLabel}>{cashPockets.length > 0 ? 'My Cash (all pockets)' : 'Cash · Tap to add pockets'}</Text>
-                                <Text style={styles.quickStatValue}>{currency}{cashPockets.length > 0 ? totalCash.toLocaleString() : finance.cashBalance.toLocaleString()}</Text>
-                            </TouchableOpacity>
-                            <View style={styles.quickStatCard}>
-                                <Text style={styles.quickStatIcon}>👥</Text>
-                                <Text style={styles.quickStatLabel}>Owed to You</Text>
-                                <Text style={styles.quickStatValue}>{currency}{owedToYou.toLocaleString()}</Text>
-                            </View>
-                        </View>
-                    );
-                })()}
+                <View style={styles.quickStatsRow}>
+                    <TouchableOpacity style={styles.quickStatCard} onPress={() => setShowCashPockets(true)}>
+                        <Text style={styles.quickStatIcon}>💵</Text>
+                        <Text style={styles.quickStatLabel}>{cashPockets.length > 0 ? 'My Cash (all pockets)' : 'Cash · Tap to add pockets'}</Text>
+                        <Text style={styles.quickStatValue}>{currency}{cashPockets.length > 0 ? totalCash.toLocaleString() : finance.cashBalance.toLocaleString()}</Text>
+                    </TouchableOpacity>
+                    <View style={styles.quickStatCard}>
+                        <Text style={styles.quickStatIcon}>👥</Text>
+                        <Text style={styles.quickStatLabel}>Owed to You</Text>
+                        <Text style={styles.quickStatValue}>{currency}{owedToYou.toLocaleString()}</Text>
+                    </View>
+                </View>
 
                 {/* ── Full Dashboard toggle ─────────────────────────────────── */}
                 <TouchableOpacity style={styles.fullDashToggle} onPress={() => setShowFullDashboard(v => !v)}>

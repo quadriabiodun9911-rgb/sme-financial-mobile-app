@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useMemo, useEffect, useRef, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useMemo, useEffect, useRef, ReactNode } from 'react';
 import { Alert, Platform } from 'react-native';
 import CryptoJS from 'crypto-js';
 
@@ -807,7 +807,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const addGoal = (type: GoalType, overrides: Partial<FinancialGoal>) => {
         if (!canManage) { denyManage(); return; }
-        const defaults = goalDefaults(type, finance, settings);
+        const defaults = goalDefaults(type, finance, settings, transactions);
         const now = new Date().toISOString().split('T')[0];
         const goal: FinancialGoal = {
             id: generateId(), type, title: '', description: '',
