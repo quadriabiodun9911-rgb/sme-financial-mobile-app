@@ -782,7 +782,7 @@ export function computeCashFlowForecast(transactions: Transaction[], loans: Loan
         if (due < today) continue;
         const diffDays = Math.floor((due.getTime() - today.getTime()) / 86400000);
         const weekKey = `W${Math.floor(diffDays / 7) + 1}`;
-        invoiceMap.set(weekKey, (invoiceMap.get(weekKey) ?? 0) + inv.total);
+        invoiceMap.set(weekKey, (invoiceMap.get(weekKey) ?? 0) + (inv.total ?? 0));
     }
 
     let cumulative = 0;

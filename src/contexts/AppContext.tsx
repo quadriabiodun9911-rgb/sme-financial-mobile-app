@@ -703,15 +703,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 identifyUser(profile.email);
                 supabase.auth.signInWithPassword({ email: profile.email, password: hashPin(pin) }).catch(() => {});
             }
-            // Enforce 2FA: if not set up, redirect to 2FA setup screen
+            // Enforce 2FA: any failure to load config is treated as not-configured (safe default)
             try {
                 const tfConfig = await loadTwoFactorConfig();
-                if (!tfConfig || tfConfig.status === 'disabled') {
+                if (tfConfig && tfConfig.status !== 'disabled') {
+                    setCurrentScreen('dashboard');
+                } else {
                     setCurrentScreen('2fa');
-                    return;
                 }
-            } catch {}
-            setCurrentScreen('dashboard');
+            } catch {
+                // Storage error: fail secure — force 2FA setup rather than granting access
+                setCurrentScreen('2fa');
+            }
         });
         return true;
     };
