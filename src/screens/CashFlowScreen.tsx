@@ -70,8 +70,8 @@ export default function CashFlowScreen() {
         });
     }, [invoices]);
 
-    const totalAR = arRisk.reduce((s, r) => s + r.inv.total, 0);
-    const atRiskAR = arRisk.filter(r => r.risk === 'high').reduce((s, r) => s + r.inv.total, 0);
+    const totalAR = arRisk.reduce((s, r) => s + (r.inv.total ?? 0), 0);
+    const atRiskAR = arRisk.filter(r => r.risk === 'high').reduce((s, r) => s + (r.inv.total ?? 0), 0);
 
     // Summary metrics
     const totalInflow  = weeks.reduce((s, w) => s + w.projectedInflow, 0);

@@ -451,7 +451,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // Live loan balances from Loan Register
     const liveLoansBalance = useMemo(
         () => loans.filter(l => l.status === 'active').reduce((sum, l) => {
-            const paid = l.payments.reduce((s: number, p: any) => s + (p.amount || 0), 0);
+            const paid = (l.payments ?? []).reduce((s: number, p: any) => s + (p.amount || 0), 0);
             return sum + Math.max(0, (l.principal || 0) - paid);
         }, 0),
         [loans],
