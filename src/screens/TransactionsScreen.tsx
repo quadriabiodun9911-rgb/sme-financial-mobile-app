@@ -171,19 +171,28 @@ export default function TransactionsScreen() {
     const grouped = useMemo(() => groupByDate(visibleTxs), [visibleTxs]);
 
     const totals = useMemo(() => {
-        const income  = filtered.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-        const expense = filtered.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+        let income = 0, expense = 0;
+        for (const t of filtered) {
+            if (t.type === 'income') income += t.amount;
+            else expense += t.amount;
+        }
         return { income, expense, net: income - expense };
     }, [filtered]);
 
-    // ── Category breakdown for chart ─────────────────────────────────────────
+    // ── Category breakdown — single pass ────────────────────────────────────
     const categoryBreakdown = useMemo(() => {
         const incomeMap = new Map<string, number>();
         const expenseMap = new Map<string, number>();
-        filtered.filter(t => t.type === 'income').forEach(t => incomeMap.set(t.category, (incomeMap.get(t.category) ?? 0) + t.amount));
-        filtered.filter(t => t.type === 'expense').forEach(t => expenseMap.set(t.category, (expenseMap.get(t.category) ?? 0) + t.amount));
-        const totalIncome  = [...incomeMap.values()].reduce((s, v) => s + v, 0);
-        const totalExpense = [...expenseMap.values()].reduce((s, v) => s + v, 0);
+        let totalIncome = 0, totalExpense = 0;
+        for (const t of filtered) {
+            if (t.type === 'income') {
+                incomeMap.set(t.category, (incomeMap.get(t.category) ?? 0) + t.amount);
+                totalIncome += t.amount;
+            } else {
+                expenseMap.set(t.category, (expenseMap.get(t.category) ?? 0) + t.amount);
+                totalExpense += t.amount;
+            }
+        }
         return { incomeMap, expenseMap, totalIncome, totalExpense };
     }, [filtered]);
     const openNew = () => {

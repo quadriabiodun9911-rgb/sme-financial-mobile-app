@@ -178,7 +178,10 @@ export async function saveGoals(g: FinancialGoal[]): Promise<void> {
             const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
             if (toDelete.length > 0) {
                 const { error: delErr } = await supabase.from('goals').delete().in('id', toDelete);
-                if (delErr) logSyncError('goals', 'delete', delErr);
+                if (delErr) {
+                    logSyncError('goals', 'delete', delErr);
+                    await enqueue({ table: 'goals', op: 'delete', rows: toDelete, userId: ownerId });
+                }
             }
         }
     } catch (e) {

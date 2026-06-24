@@ -44,19 +44,21 @@ export default function CashFlowScreen() {
 
     const runwayColor = runwayDays < 30 ? Colors.expense : runwayDays < 90 ? Colors.warning : Colors.income;
 
-    // AR risk scoring — clients with pattern of late payment
+    // AR risk scoring — O(n) with pre-computed client history Map
     const arRisk = useMemo(() => {
+        // Single pass: build overdue count per client
+        const overdueByClient = new Map<string, number>();
+        for (const i of invoices) {
+            if (i.status === 'overdue') {
+                overdueByClient.set(i.clientName, (overdueByClient.get(i.clientName) ?? 0) + 1);
+            }
+        }
+        const now = Date.now();
         const unpaid = invoices.filter(i => i.status === 'sent' || i.status === 'overdue');
         return unpaid.map(inv => {
-            // Count past overdue invoices for this client
-            const clientHistory = invoices.filter(i =>
-                i.clientName === inv.clientName && i.status === 'paid'
-            );
-            const overdueHistory = invoices.filter(i =>
-                i.clientName === inv.clientName && i.status === 'overdue'
-            ).length;
+            const overdueHistory = overdueByClient.get(inv.clientName) ?? 0;
             const daysUntilDue = inv.dueDate
-                ? Math.ceil((new Date(inv.dueDate).getTime() - Date.now()) / 86400000)
+                ? Math.ceil((new Date(inv.dueDate).getTime() - now) / 86400000)
                 : null;
             const isOverdue = daysUntilDue !== null && daysUntilDue < 0;
             const risk: 'high' | 'medium' | 'low' = isOverdue || overdueHistory > 0 ? 'high'
@@ -68,8 +70,8 @@ export default function CashFlowScreen() {
         });
     }, [invoices]);
 
-    const totalAR = arRisk.reduce((s, r) => s + r.inv.total, 0);
-    const atRiskAR = arRisk.filter(r => r.risk === 'high').reduce((s, r) => s + r.inv.total, 0);
+    const totalAR = arRisk.reduce((s, r) => s + (r.inv.total ?? 0), 0);
+    const atRiskAR = arRisk.filter(r => r.risk === 'high').reduce((s, r) => s + (r.inv.total ?? 0), 0);
 
     // Summary metrics
     const totalInflow  = weeks.reduce((s, w) => s + w.projectedInflow, 0);

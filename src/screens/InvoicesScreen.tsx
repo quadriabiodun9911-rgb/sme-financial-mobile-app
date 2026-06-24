@@ -254,7 +254,7 @@ export default function InvoicesScreen() {
         paid:    invoices.filter(i => i.status === 'paid').length,
         overdue: invoices.filter(i => i.status === 'overdue').length,
         outstanding: invoices.filter(i => i.status === 'sent' || i.status === 'overdue')
-            .reduce((s, i) => s + i.total, 0),
+            .reduce((s, i) => s + (i.total ?? 0), 0),
     }), [invoices]);
 
     return (

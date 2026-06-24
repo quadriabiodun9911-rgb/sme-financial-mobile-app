@@ -62,7 +62,8 @@ export default function PayrollScreen() {
         if (activeStaff.length === 0) { Alert.alert('No active staff'); return; }
         const existing = payrollRuns.find(r => r.period === runPeriod);
         if (existing) { Alert.alert('Already run', `Payroll for ${runPeriod} already exists.`); return; }
-        const rate = parseFloat(deductRate) / 100;
+        const parsedRate = parseFloat(deductRate);
+        const rate = (isNaN(parsedRate) || parsedRate < 0) ? 0 : parsedRate / 100;
         const items: PayrollItem[] = activeStaff.map(m => {
             const gross = m.salaryType === 'monthly' ? m.salary : m.salaryType === 'weekly' ? m.salary * 4.33 : m.salary * 22;
             const deductions = gross * rate;
@@ -178,7 +179,7 @@ export default function PayrollScreen() {
                                 <Text style={styles.cardTitle}>Preview</Text>
                                 {activeStaff.map(s => {
                                     const gross = s.salaryType === 'monthly' ? s.salary : s.salaryType === 'weekly' ? s.salary * 4.33 : s.salary * 22;
-                                    const deductions = gross * (parseFloat(deductRate) / 100 || 0);
+                                    const deductions = gross * (Math.max(0, parseFloat(deductRate) || 0) / 100);
                                     const net = gross - deductions;
                                     return (
                                         <View key={s.id} style={styles.previewRow}>
@@ -196,7 +197,7 @@ export default function PayrollScreen() {
                                     <Text style={styles.previewTotalValue}>
                                         {fmt(activeStaff.reduce((s, m) => {
                                             const g = m.salaryType === 'monthly' ? m.salary : m.salaryType === 'weekly' ? m.salary * 4.33 : m.salary * 22;
-                                            return s + g * (1 - (parseFloat(deductRate) / 100 || 0));
+                                            return s + g * (1 - (Math.max(0, parseFloat(deductRate) || 0) / 100));
                                         }, 0))}
                                     </Text>
                                 </View>

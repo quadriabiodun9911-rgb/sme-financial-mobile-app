@@ -13,9 +13,11 @@ import DateInput from '../components/DateInput';
 // ── Loan math helpers ────────────────────────────────────────────────────────
 
 function monthlyPayment(principal: number, annualRate: number, termMonths: number): number {
+    if (!termMonths || termMonths <= 0) return 0;
     if (annualRate === 0) return principal / termMonths;
     const r = annualRate / 100 / 12;
-    return principal * (r * Math.pow(1 + r, termMonths)) / (Math.pow(1 + r, termMonths) - 1);
+    const factor = Math.pow(1 + r, termMonths);
+    return principal * (r * factor) / (factor - 1);
 }
 
 function totalInterest(principal: number, annualRate: number, termMonths: number): number {
@@ -23,7 +25,7 @@ function totalInterest(principal: number, annualRate: number, termMonths: number
 }
 
 function totalPaid(loan: Loan): number {
-    return loan.payments.reduce((s, p) => s + p.amount, 0);
+    return (loan.payments ?? []).reduce((s, p) => s + p.amount, 0);
 }
 
 function outstandingBalance(loan: Loan): number {
@@ -32,7 +34,7 @@ function outstandingBalance(loan: Loan): number {
 
 function nextDueDate(loan: Loan): string {
     const start = new Date(loan.startDate);
-    const paid  = loan.payments.length;
+    const paid  = (loan.payments ?? []).length;
     const next  = new Date(start);
     next.setMonth(next.getMonth() + paid + 1);
     return next.toISOString().split('T')[0];

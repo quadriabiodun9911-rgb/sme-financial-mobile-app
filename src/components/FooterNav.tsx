@@ -63,10 +63,10 @@ export default function FooterNav() {
         ? user.email.replace(/(.{2}).+(@.+)/, '$1•••$2')
         : '';
 
-    // Quick stats for the profile summary strip
+    // Quick stats — memoized to avoid recomputing on every render
     const totalTx     = transactions.length;
-    const activeGoals = goals.filter(g => g.status !== 'achieved').length;
-    const unpaidInv   = invoices.filter(i => i.status === 'sent' || i.status === 'overdue').length;
+    const activeGoals = useMemo(() => goals.filter(g => g.status !== 'achieved').length, [goals]);
+    const unpaidInv   = useMemo(() => invoices.filter(i => i.status === 'sent' || i.status === 'overdue').length, [invoices]);
     const profit      = finance?.profit ?? 0;
 
     return (

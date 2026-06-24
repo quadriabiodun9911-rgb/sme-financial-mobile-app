@@ -568,7 +568,9 @@ export function computeBreakEven(
     }
     const breakEvenUnits = fixedCosts / contributionMarginPerUnit;
     const breakEvenRevenue = breakEvenUnits * revenuePerUnit;
-    const marginOfSafety = revenuePerUnit > 0 ? ((revenuePerUnit - breakEvenRevenue / Math.max(1, breakEvenUnits)) / revenuePerUnit) * 100 : 0;
+    // Contribution margin ratio: % of each sale that covers fixed costs and profit.
+    // (True margin-of-safety requires actual revenue — not available here.)
+    const marginOfSafety = (contributionMarginPerUnit / revenuePerUnit) * 100;
     return { breakEvenUnits, breakEvenRevenue, marginOfSafety };
 }
 
@@ -581,9 +583,11 @@ export interface DSCRResult {
 }
 
 function loanMonthlyPayment(principal: number, annualRate: number, termMonths: number): number {
+    if (!termMonths || termMonths <= 0) return 0;
     if (annualRate === 0) return principal / termMonths;
     const r = annualRate / 100 / 12;
-    return principal * (r * Math.pow(1 + r, termMonths)) / (Math.pow(1 + r, termMonths) - 1);
+    const factor = Math.pow(1 + r, termMonths);
+    return principal * (r * factor) / (factor - 1);
 }
 
 export function computeDSCR(transactions: Transaction[], loans: Loan[]): DSCRResult {
@@ -778,7 +782,7 @@ export function computeCashFlowForecast(transactions: Transaction[], loans: Loan
         if (due < today) continue;
         const diffDays = Math.floor((due.getTime() - today.getTime()) / 86400000);
         const weekKey = `W${Math.floor(diffDays / 7) + 1}`;
-        invoiceMap.set(weekKey, (invoiceMap.get(weekKey) ?? 0) + inv.total);
+        invoiceMap.set(weekKey, (invoiceMap.get(weekKey) ?? 0) + (inv.total ?? 0));
     }
 
     let cumulative = 0;

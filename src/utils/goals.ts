@@ -286,6 +286,7 @@ export function goalDefaults(
     type: GoalType,
     finance: FinanceData,
     settings: BusinessSettings,
+    transactions: Transaction[] = [],
 ): Partial<FinancialGoal> {
     const { currency } = settings;
     switch (type) {
@@ -324,14 +325,18 @@ export function goalDefaults(
                 baselineValue: finance.cashBalance,
                 unit: currency,
             };
-        case 'reduce_overdue_ar':
+        case 'reduce_overdue_ar': {
+            const overdueAR = transactions
+                .filter(t => t.type === 'income' && t.status === 'overdue')
+                .reduce((s, t) => s + t.amount, 0);
             return {
                 title: 'Eliminate Overdue Receivables',
                 description: 'Collect all outstanding overdue invoices and keep AR current.',
                 targetValue: 0,
-                baselineValue: 0,
+                baselineValue: overdueAR,
                 unit: currency,
             };
+        }
         case 'custom':
         default:
             return {

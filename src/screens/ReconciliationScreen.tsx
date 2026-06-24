@@ -21,6 +21,26 @@ interface BankTx {
 
 type Tab = 'import' | 'matched' | 'unmatched';
 
+// Normalize date strings to YYYY-MM-DD so new Date() is reliable.
+// Nigerian bank CSVs often use DD/MM/YYYY or DD-MM-YYYY or DD MMM YYYY.
+function normalizeDate(raw: string): string {
+    const s = raw.trim();
+    // Already ISO: YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    // DD/MM/YYYY or DD-MM-YYYY
+    const dmy = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (dmy) return `${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`;
+    // MM/DD/YYYY (US format — only if day > 12 can we distinguish; default DD/MM above)
+    // DD MMM YYYY e.g. "20 Jan 2024"
+    const dMonthY = s.match(/^(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})$/);
+    if (dMonthY) {
+        const months: Record<string, string> = { jan:'01', feb:'02', mar:'03', apr:'04', may:'05', jun:'06', jul:'07', aug:'08', sep:'09', oct:'10', nov:'11', dec:'12' };
+        const m = months[dMonthY[2].toLowerCase()];
+        if (m) return `${dMonthY[3]}-${m}-${dMonthY[1].padStart(2, '0')}`;
+    }
+    return s; // fallback — let Date() try
+}
+
 // Match: bank tx to app tx if amount within 2% AND date within 5 days
 function matchTransactions(bankTxs: BankTx[], appTxs: Transaction[]) {
     const matched: { bank: BankTx; app: Transaction }[] = [];
@@ -28,7 +48,7 @@ function matchTransactions(bankTxs: BankTx[], appTxs: Transaction[]) {
     const usedAppIds = new Set<string>();
 
     for (const b of bankTxs) {
-        const bDate = new Date(b.date).getTime();
+        const bDate = new Date(normalizeDate(b.date)).getTime();
         const bAmt = b.amount;
         const bType = b.type === 'credit' ? 'income' : 'expense';
 
@@ -101,7 +121,7 @@ export default function ReconciliationScreen() {
                     : 'credit';
                 parsed.push({
                     id: `bank-${Date.now()}-${i}`,
-                    date: cols[dateIdx] || new Date().toISOString().split('T')[0],
+                    date: normalizeDate(cols[dateIdx] || new Date().toISOString().split('T')[0]),
                     description: descIdx >= 0 ? (cols[descIdx] || 'Bank Transaction') : 'Bank Transaction',
                     amount,
                     type,
