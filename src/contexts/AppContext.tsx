@@ -1,10 +1,21 @@
-import React, { createContext, useContext, useState, useMemo, useEffect, useRef, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useMemo, useEffect, useRef, useCallback, ReactNode } from 'react';
 import { Alert, Platform } from 'react-native';
 import CryptoJS from 'crypto-js';
 
 const SALT = 'Q360_SME_2025';
 function hashPin(pin: string): string {
     return CryptoJS.SHA256(pin + SALT).toString(CryptoJS.enc.Hex) + '_Q360';
+}
+
+// Debounced persist: avoids hammering AsyncStorage on rapid state changes
+function useDebouncedEffect(fn: () => void, deps: React.DependencyList, delay = 800) {
+    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    useEffect(() => {
+        if (timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(fn, delay);
+        return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, deps);
 }
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Transaction, FinanceData, User, BusinessSettings, Screen, FinancialGoal, GoalType, NavParams, Invoice, InvoiceStatus, TeamMember, UserRole, Language, Asset, InventoryItem, Loan, LoanPayment, Budget, CashPocket, StaffMember, PayrollRun, PayrollItem } from '../types';
@@ -351,10 +362,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         Alert.alert('Save Warning', `Could not save ${label}. Your changes may be lost if the app closes. Check your network connection.`);
     };
 
-    useEffect(() => { if (!isLoading) saveTransactions(transactions).catch(persistError('transactions')); }, [transactions, isLoading]);
-    useEffect(() => { if (!isLoading) saveSettings(settings).catch(persistError('settings')); }, [settings, isLoading]);
-    useEffect(() => { if (!isLoading) saveGoals(goals).catch(persistError('goals')); }, [goals, isLoading]);
-    useEffect(() => { if (!isLoading) saveInvoices(invoices).catch(persistError('invoices')); }, [invoices, isLoading]);
+    useDebouncedEffect(() => { if (!isLoading) saveTransactions(transactions).catch(persistError('transactions')); }, [transactions, isLoading]);
+    useDebouncedEffect(() => { if (!isLoading) saveSettings(settings).catch(persistError('settings')); }, [settings, isLoading]);
+    useDebouncedEffect(() => { if (!isLoading) saveGoals(goals).catch(persistError('goals')); }, [goals, isLoading]);
+    useDebouncedEffect(() => { if (!isLoading) saveInvoices(invoices).catch(persistError('invoices')); }, [invoices, isLoading]);
 
     // Auto-mark sent invoices as overdue when past their due date
     useEffect(() => {
@@ -367,21 +378,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
             return inv;
         }));
     }, [isLoading]);
-    useEffect(() => { if (!isLoading) saveAssets(assets).catch(persistError('assets')); }, [assets, isLoading]);
-    useEffect(() => { if (!isLoading) saveLoans(loans).catch(persistError('loans')); }, [loans, isLoading]);
-    useEffect(() => { if (!isLoading) saveInventory(inventory).catch(persistError('inventory')); }, [inventory, isLoading]);
-    useEffect(() => { if (!isLoading) saveBudgets(budgets).catch(persistError('budgets')); }, [budgets, isLoading]);
-    useEffect(() => {
+    useDebouncedEffect(() => { if (!isLoading) saveAssets(assets).catch(persistError('assets')); }, [assets, isLoading]);
+    useDebouncedEffect(() => { if (!isLoading) saveLoans(loans).catch(persistError('loans')); }, [loans, isLoading]);
+    useDebouncedEffect(() => { if (!isLoading) saveInventory(inventory).catch(persistError('inventory')); }, [inventory, isLoading]);
+    useDebouncedEffect(() => { if (!isLoading) saveBudgets(budgets).catch(persistError('budgets')); }, [budgets, isLoading]);
+    useDebouncedEffect(() => {
         if (isLoading) return;
         saveStaff(staff).catch(persistError('staff'));
         getWorkspaceOwnerId().then(ownerId => { if (ownerId) syncStaffToSupabase(staff, ownerId); }).catch(() => {});
     }, [staff, isLoading]);
-    useEffect(() => {
+    useDebouncedEffect(() => {
         if (isLoading) return;
         savePayrollRuns(payrollRuns).catch(persistError('payrollRuns'));
         getWorkspaceOwnerId().then(ownerId => { if (ownerId) syncPayrollRunsToSupabase(payrollRuns, ownerId); }).catch(() => {});
     }, [payrollRuns, isLoading]);
-    useEffect(() => { if (!isLoading) AsyncStorage.setItem('@quad360/cash_pockets', JSON.stringify(cashPockets)).catch(() => {}); }, [cashPockets, isLoading]);
+    useDebouncedEffect(() => { if (!isLoading) AsyncStorage.setItem('@quad360/cash_pockets', JSON.stringify(cashPockets)).catch(() => {}); }, [cashPockets, isLoading]);
 
     // ── Offline sync queue: flush on launch + when network is restored ──────
     useEffect(() => {
