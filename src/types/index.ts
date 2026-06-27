@@ -177,6 +177,11 @@ export interface User {
     businessName: string;
     role: string;
     phone?: string;
+    daysActive?: number;
+    avgMonthlyRevenue?: number;
+    avgMonthlyProfit?: number;
+    financialHealthScore?: number;
+    createdAt?: string;
 }
 
 export interface BusinessSettings {
@@ -310,4 +315,56 @@ export interface CashPocket {
     name: string;
     amount: number;
     updatedAt: string; // ISO date
+}
+
+// ─── Merchant Financing ────────────────────────────────────────────────────────
+export type MerchantFinancingStatus = 'pending' | 'approved' | 'rejected' | 'funded' | 'repaying' | 'paid_off';
+export type LoanPurpose = 'inventory' | 'equipment' | 'both' | 'other';
+
+export interface MerchantFinancingPayment {
+    id: string;
+    date: string;
+    amount: number;
+    note?: string;
+}
+
+export interface MerchantFinancingApplication {
+    id: string;
+    userId: string;
+    status: MerchantFinancingStatus;
+    requestedAmount: number;
+    approvedAmount?: number;
+    approvalDate?: string;
+    fundingDate?: string;
+    payoffDate?: string;
+    purpose: LoanPurpose;
+    monthlyPayment?: number;
+    interestRate: number;
+    termMonths: number;
+    lenderName: string;
+    lenderId: string;
+    appliedDate: string;
+    rejectionReason?: string;
+    nextPaymentDue?: string;
+    monthlyProfitAtApproval: number;
+    monthlyProfitCurrent: number;
+    totalRepaid?: number;
+    payments?: MerchantFinancingPayment[];
+}
+
+export interface FinancingQualification {
+    daysActiveOk: boolean;
+    revenueOk: boolean;
+    healthScoreOk: boolean;
+}
+
+export interface FinancingContextData {
+    isQualified: boolean;
+    qualification?: FinancingQualification;
+    minQualifiedAmount?: number;
+    maxQualifiedAmount?: number;
+    application?: MerchantFinancingApplication;
+    activeLoan?: MerchantFinancingApplication;
+    pastApplications?: MerchantFinancingApplication[];
+    applicationStatus?: MerchantFinancingStatus | null;
 }

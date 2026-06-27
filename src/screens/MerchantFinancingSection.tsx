@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
-    TouchableOpacity, StyleSheet, Modal, Alert, Platform, Slider,
+    TouchableOpacity, StyleSheet, Modal, Alert, Platform,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -10,7 +10,7 @@ import DateInput from '../components/DateInput';
 // ── MAIN SECTION COMPONENT ────────────────────────────────────────────────────
 
 export default function MerchantFinancingSection() {
-    const { user, financing, addMerchantLoan, updateMerchantLoan, settings, navigate } = useApp();
+    const { user, financing, applyForMerchantFinancing, settings, navigate } = useApp();
     const { currency } = settings;
 
     const [showApplyModal, setShowApplyModal] = useState(false);
@@ -100,8 +100,12 @@ export default function MerchantFinancingSection() {
                     currency={currency}
                     onClose={() => setShowApplyModal(false)}
                     onSubmit={(amount, purpose) => {
-                        addMerchantLoan({ amount, purpose });
-                        setShowApplyModal(false);
+                        applyForMerchantFinancing(amount, purpose as any).then(() => {
+                            setShowApplyModal(false);
+                            Alert.alert('Success', 'Your application has been submitted');
+                        }).catch(() => {
+                            Alert.alert('Error', 'Failed to submit application');
+                        });
                     }}
                 />
             )}
@@ -594,17 +598,20 @@ function ApplyForFinancingModal({ visible, maxLoan, minLoan, monthlyProfit, curr
                                     </Text>
                                 </View>
 
-                                {/* Slider */}
-                                <Slider
-                                    style={s.slider}
-                                    minimumValue={minLoan}
-                                    maximumValue={maxLoan}
-                                    step={50000}
-                                    value={amount}
-                                    onValueChange={setAmount}
-                                    minimumTrackTintColor={Colors.primary}
-                                    maximumTrackTintColor={Colors.border}
-                                />
+                                {/* Amount Input */}
+                                <View style={s.amountInputContainer}>
+                                    <TextInput
+                                        style={s.amountInput}
+                                        placeholder={`Enter amount (${minLoan} - ${maxLoan})`}
+                                        placeholderTextColor={Colors.textMuted}
+                                        keyboardType="decimal-pad"
+                                        value={amount.toString()}
+                                        onChangeText={(text) => {
+                                            const val = parseInt(text.replace(/\D/g, ''), 10) || minLoan;
+                                            setAmount(Math.max(minLoan, Math.min(maxLoan, val)));
+                                        }}
+                                    />
+                                </View>
 
                                 {/* Quick Amounts */}
                                 <View style={s.quickAmountsRow}>
@@ -1421,6 +1428,20 @@ const s = StyleSheet.create({
         fontSize: 32,
         fontWeight: '700',
         color: Colors.primary,
+    },
+    amountInputContainer: {
+        marginBottom: 16,
+    },
+    amountInput: {
+        width: '100%',
+        paddingVertical: 12,
+        paddingHorizontal: 12,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: Colors.border,
+        color: Colors.textPrimary,
+        fontSize: 16,
+        backgroundColor: Colors.surface,
     },
     slider: {
         width: '100%',
