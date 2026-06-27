@@ -78,7 +78,7 @@ SPEAKER NOTES: "The incumbents can't compete with this speed. That's why fintech
 
 **Slide 4: What is Quad360?**
 ```
-HEADLINE: "Quad360: Financial Operating System for African SMEs"
+HEADLINE: "Quad360: Financial Operating System for Nigerian SMEs"
 
 VISUAL: 5 overlapping circles (the Financial OS pillars)
 1. CAPTURES (auto-log transactions)
@@ -481,10 +481,10 @@ MARKET CONDITION 4: SME Readiness
 - Pain point: Urgent and clear (loss of business = inability to access credit)
 
 COMPETITIVE URGENCY:
-- Wave is raising funding for Africa expansion
+- Wave is strengthening Nigeria presence
 - Zoho is building Nigeria tax integration
 - Kippa is already talking to Lagos banks
-- First bank to move wins 18-month head start
+- First bank to move wins 18-month head start in Nigerian market
 - Action needed: THIS QUARTER (Q2/Q3 2026)
 
 VISUAL: Timeline showing "Window closes in 6 months" with competitor logos

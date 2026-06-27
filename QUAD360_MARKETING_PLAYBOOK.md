@@ -6,7 +6,7 @@
 ## PART 1: WHAT QUAD360 ACTUALLY DOES (App Map)
 
 ### The One-Line Pitch
-> **Quad360 is the all-in-one financial operating system built specifically for African SMEs — replacing spreadsheets, paper records, and 6 separate tools with one mobile app.**
+> **Quad360 is the all-in-one financial operating system built specifically for Nigerian SMEs — replacing spreadsheets, paper records, and 6 separate tools with one mobile app.**
 
 ---
 
@@ -193,7 +193,7 @@ The first screen every user sees. It surfaces:
 - *"Stop guessing. Start growing."*
 - *"Your business's brain — always in your pocket."*
 - *"The CFO you couldn't afford. Now you can."*
-- *"Built for African businesses. Finally."*
+- *"Built for Nigerian businesses. Finally."*
 - *"Every naira tracked. Every invoice paid. Every payroll done."*
 
 #### Core Message (30-second elevator pitch)
@@ -222,7 +222,7 @@ Content pillars:
 Post schedule: 5x/week Instagram, 3x/week TikTok
 
 #### 3. LinkedIn (Investors + B2B)
-- Founder thought leadership: articles on the SME financing gap in Africa
+- Founder thought leadership: articles on the SME financing gap in Nigeria
 - Data insights: "78% of Nigerian SMEs don't know their monthly profit" (cite surveys)
 - Partnership announcements (Pngme, Paystack, Flutterwave integrations)
 - Target: investors, accelerators, bank SME desks, fintech journalists
@@ -244,7 +244,7 @@ Keywords to rank for:
 - "invoice app Nigeria"
 - "small business finance app"
 - "payroll app Nigeria"
-- "SME accounting app Africa"
+- "SME accounting app Nigeria"
 - "naira expense tracker"
 
 ---
@@ -292,13 +292,13 @@ Every payment link shared via WhatsApp or Instagram exposes the Quad360 brand to
 ### Investor Pitch Angles
 
 #### The Problem (Market Size)
-- 41 million SMEs in Nigeria alone (NBS 2023)
+- 41 million SMEs in Nigeria (NBS 2023)
 - 90%+ have no formal financial records
 - Less than 3% have access to formal credit — primarily because they can't prove financial health
-- African SME financing gap: **$331 billion** (IFC)
+- Nigerian SME financing gap: **₦50+ trillion** (derived from credit unavailability and NPL rates)
 
 #### The Solution
-Quad360 is the financial infrastructure layer for African SMEs — the operating system that:
+Quad360 is the financial infrastructure layer for Nigerian SMEs — the operating system that:
 1. Generates the financial data these businesses have never had
 2. Creates the track record that unlocks credit
 3. Connects SMEs to financial services (lending, insurance, payments) through that data
@@ -319,8 +319,8 @@ Quad360 is the financial infrastructure layer for African SMEs — the operating
 #### Comparable Companies (for investor context)
 - **Wave** (West Africa) — payments, but no financial management
 - **Kippa** (Nigeria) — bookkeeping only, no payroll/loans/invoicing
-- **Zoho Books** / **QuickBooks** — too complex, not Africa-native
-- **Quad360 = the gap**: African-native, mobile-first, all-in-one financial OS
+- **Zoho Books** / **QuickBooks** — too complex, not Nigeria-native
+- **Quad360 = the gap**: Nigeria-native, mobile-first, all-in-one financial OS
 
 ---
 
@@ -365,4 +365,4 @@ Quad360 is the financial infrastructure layer for African SMEs — the operating
 
 ---
 
-*Quad360 — Built for the African business owner. Engineered for growth.*
+*Quad360 — Built for the Nigerian business owner. Engineered for dominance.*
