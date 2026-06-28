@@ -27,6 +27,17 @@ export default function MerchantFinancingSection() {
     const isApproved = financing?.applicationStatus === 'approved' || financing?.applicationStatus === 'funded';
     const hasActiveLoan = financing?.activeLoan !== null;
 
+    // Show loading state if user data not loaded yet
+    if (!user) {
+        return (
+            <View style={s.container}>
+                <View style={s.loadingState}>
+                    <Text style={s.loadingText}>Loading financing information...</Text>
+                </View>
+            </View>
+        );
+    }
+
     return (
         <View style={s.container}>
             {/* SECTION 1: Pre-Qualification Widget */}
@@ -885,6 +896,19 @@ const s = StyleSheet.create({
         flex: 1,
         padding: 16,
         paddingBottom: 100,
+    },
+
+    loadingState: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingVertical: 50,
+    },
+
+    loadingText: {
+        fontSize: 14,
+        color: Colors.textMuted,
+        textAlign: 'center',
     },
 
     // ── Pre-Qualification Widget ──────────────────────────────────────────
