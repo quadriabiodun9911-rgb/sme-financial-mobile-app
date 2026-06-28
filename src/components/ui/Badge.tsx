@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
 
 type BadgeVariant = 'success' | 'warning' | 'danger' | 'info' | 'neutral' | 'paid' | 'overdue' | 'sent' | 'draft' | 'partial';
@@ -22,7 +22,7 @@ interface BadgeProps {
   style?: ViewStyle;
 }
 
-export function Badge({ variant, label, style }: BadgeProps) {
+function BadgeComponent({ variant, label, style }: BadgeProps) {
   const config = VARIANT_MAP[variant] ?? VARIANT_MAP.neutral;
   const text = label ?? config.label ?? variant;
 
@@ -32,6 +32,8 @@ export function Badge({ variant, label, style }: BadgeProps) {
     </View>
   );
 }
+
+export const Badge = memo(BadgeComponent);
 
 const styles = StyleSheet.create({
   base: {

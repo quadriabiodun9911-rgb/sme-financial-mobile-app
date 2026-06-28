@@ -240,6 +240,22 @@ export function computeFinance(
 
     const netTaxPosition = totalTaxCollected - totalTaxPaid;
 
+    // Calculate runway: days of cash at current burn rate
+    let runway = 365; // default 1 year if no burn
+    if (transactions.length >= 2) {
+        const dates = transactions.map(t => t.date).sort();
+        const spanDays = Math.max(1, (new Date(dates[dates.length - 1]).getTime() - new Date(dates[0]).getTime()) / 86400000);
+        const monthlyBurn = Math.max(0, expense - income) * (30 / spanDays);
+        if (monthlyBurn > 0 && cashBalance > 0) {
+            runway = Math.round((cashBalance / monthlyBurn) * 30); // convert to days
+        } else if (monthlyBurn === 0 && cashBalance > 0) {
+            runway = Infinity;
+        } else if (cashBalance <= 0) {
+            runway = 0;
+        }
+        runway = Math.min(9999, runway); // cap at 9999 days to avoid display issues
+    }
+
     return {
         income,
         expense,
@@ -256,6 +272,9 @@ export function computeFinance(
         netTaxPosition,
         annualDepreciation,
         depreciationAdjustedProfit,
+        runway,
+        revenue: income, // alias for backward compatibility
+        expenses: expense, // alias for backward compatibility
     };
 }
 

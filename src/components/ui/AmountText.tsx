@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { Text, StyleSheet, TextStyle } from 'react-native';
 
 interface AmountTextProps {
@@ -12,7 +12,7 @@ interface AmountTextProps {
 
 const SIZE_MAP = { sm: 13, md: 16, lg: 20, xl: 26 };
 
-export function AmountText({ amount, currency = '₦', style, size = 'md', colorize = false, showSign = false }: AmountTextProps) {
+function AmountTextComponent({ amount, currency = '₦', style, size = 'md', colorize = false, showSign = false }: AmountTextProps) {
   const abs = Math.abs(amount);
   const formatted = abs.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const sign = showSign && amount !== 0 ? (amount > 0 ? '+' : '-') : amount < 0 ? '-' : '';
@@ -27,6 +27,8 @@ export function AmountText({ amount, currency = '₦', style, size = 'md', color
     </Text>
   );
 }
+
+export const AmountText = memo(AmountTextComponent);
 
 const styles = StyleSheet.create({
   base: { color: '#f1f5f9', fontWeight: '700', fontVariant: ['tabular-nums'] as any },

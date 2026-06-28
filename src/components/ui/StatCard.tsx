@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
 
 type Trend = 'up' | 'down' | 'neutral';
@@ -19,7 +19,7 @@ const TREND_COLOR: Record<Trend, string> = {
 };
 const TREND_ICON: Record<Trend, string> = { up: '↑', down: '↓', neutral: '→' };
 
-export function StatCard({ label, value, trend, trendLabel, accent = '#3b82f6', style }: StatCardProps) {
+function StatCardComponent({ label, value, trend, trendLabel, accent = '#3b82f6', style }: StatCardProps) {
   return (
     <View style={[styles.card, style]}>
       <View style={[styles.accent, { backgroundColor: accent }]} />
@@ -34,6 +34,8 @@ export function StatCard({ label, value, trend, trendLabel, accent = '#3b82f6', 
     </View>
   );
 }
+
+export const StatCard = memo(StatCardComponent);
 
 const styles = StyleSheet.create({
   card: {

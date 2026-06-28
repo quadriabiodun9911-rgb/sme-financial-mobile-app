@@ -1,11 +1,11 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { getTopCategories } from '../utils/finance';
 
 export default function TaxSummary() {
-    const { finance, transactions, settings } = useApp();
+    const { finance, transactions, settings, navigate } = useApp();
     const { currency } = settings;
 
     const taxByCategory = useMemo(() => {
@@ -76,6 +76,18 @@ export default function TaxSummary() {
                 <MetricRow label="Transactions with Tax" value={`${transactions.filter(t => (t.taxAmount ?? 0) > 0).length}`} />
             </View>
 
+            {/* Tax Planning Tool */}
+            <TouchableOpacity onPress={() => navigate('tax-planning')}>
+                <View style={styles.featureCard}>
+                    <Text style={styles.featureIcon}>📊</Text>
+                    <View style={styles.featureContent}>
+                        <Text style={styles.featureTitle}>Tax Planning Tool</Text>
+                        <Text style={styles.featureDesc}>Quarterly planning, deductions, and tax filing checklist</Text>
+                    </View>
+                    <Text style={styles.featureArrow}>→</Text>
+                </View>
+            </TouchableOpacity>
+
             {/* By Category */}
             {taxByCategory.length > 0 && (
                 <View style={styles.card}>
@@ -137,4 +149,10 @@ const styles = StyleSheet.create({
     emptyText: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 20 },
     disclaimerCard: { backgroundColor: 'rgba(245,158,11,0.08)', borderRadius: 10, padding: 12, marginBottom: 14, borderWidth: 1, borderColor: 'rgba(245,158,11,0.3)' },
     disclaimerText: { fontSize: 11, color: Colors.warning, lineHeight: 18 },
+    featureCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 14, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: Colors.primary + '40' },
+    featureIcon: { fontSize: 28 },
+    featureContent: { flex: 1 },
+    featureTitle: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },
+    featureDesc: { fontSize: 12, color: Colors.textMuted },
+    featureArrow: { fontSize: 16, color: Colors.primary, fontWeight: 'bold' },
 });

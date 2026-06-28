@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
 
 interface CardProps {
@@ -10,7 +10,7 @@ interface CardProps {
   padded?: boolean;
 }
 
-export function Card({ children, title, subtitle, onPress, style, padded = true }: CardProps) {
+function CardComponent({ children, title, subtitle, onPress, style, padded = true }: CardProps) {
   const Container = onPress ? TouchableOpacity : View;
   const containerProps = onPress
     ? { onPress, activeOpacity: 0.75, accessibilityRole: 'button' as const }
@@ -28,6 +28,8 @@ export function Card({ children, title, subtitle, onPress, style, padded = true 
     </Container>
   );
 }
+
+export const Card = memo(CardComponent);
 
 const styles = StyleSheet.create({
   card: {
