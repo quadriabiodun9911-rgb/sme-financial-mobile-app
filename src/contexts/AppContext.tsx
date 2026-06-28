@@ -1412,3 +1412,12 @@ export function useApp(): AppContextValue {
     if (!ctx) throw new Error('useApp must be used within AppProvider');
     return ctx;
 }
+
+// ============================================================================
+// COMPATIBILITY EXPORT - Re-export useApp from OptimizedContexts
+// ============================================================================
+// This allows existing screens to continue using:
+// import { useApp } from '../contexts/AppContext';
+// While the actual implementation is in OptimizedContexts
+
+export { useApp } from './OptimizedContexts';

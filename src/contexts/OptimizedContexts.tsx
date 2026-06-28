@@ -443,3 +443,74 @@ export function useBudgets(): Budget[] {
  * - Optimize with selectors
  * - Add time-travel debugging (Redux DevTools)
  */
+
+// ============================================================================
+// COMPATIBILITY HOOK - useApp() for backward compatibility with existing screens
+// ============================================================================
+
+/**
+ * Compatibility hook that combines all contexts into a single useApp hook
+ * This allows existing screens to work without modification
+ *
+ * Usage: const { user, transactions, finance, settings, navigate, ... } = useApp();
+ */
+export function useApp() {
+  const auth = useAuth();
+  const finance = useFinance();
+  const goals = useContext(GoalContext);
+  const invoices = useContext(InvoiceContext);
+  const settings = useContext(SettingsContext);
+
+  if (!goals || !invoices || !settings) {
+    throw new Error('useApp must be used within AppProvider (all contexts)');
+  }
+
+  return {
+    // Auth state
+    user: auth.user,
+    isLoading: auth.isLoading,
+    currentScreen: auth.currentScreen,
+    setCurrentScreen: auth.setCurrentScreen,
+    navigate: auth.navigate,
+    login: auth.login,
+    logout: auth.logout,
+
+    // Finance state
+    transactions: finance.transactions,
+    assets: finance.assets,
+    loans: finance.loans,
+    budgets: finance.budgets,
+    inventory: finance.inventory,
+    finance: finance.finance,
+    addTransaction: finance.addTransaction,
+    updateTransaction: finance.updateTransaction,
+    deleteTransaction: finance.deleteTransaction,
+    addAsset: finance.addAsset,
+    updateAsset: finance.updateAsset,
+    deleteAsset: finance.deleteAsset,
+    addLoan: finance.addLoan,
+    updateLoan: finance.updateLoan,
+    deleteLoan: finance.deleteLoan,
+    addBudget: finance.addBudget,
+    updateBudget: finance.updateBudget,
+    deleteBudget: finance.deleteBudget,
+
+    // Goals state
+    goals: goals.goals,
+    addGoal: goals.addGoal,
+    updateGoal: goals.updateGoal,
+    deleteGoal: goals.deleteGoal,
+
+    // Invoices state
+    invoices: invoices.invoices,
+    addInvoice: invoices.addInvoice,
+    updateInvoice: invoices.updateInvoice,
+    deleteInvoice: invoices.deleteInvoice,
+
+    // Settings state
+    settings: settings.settings,
+    language: settings.language,
+    updateSettings: settings.updateSettings,
+    setLanguage: settings.setLanguage,
+  };
+}
