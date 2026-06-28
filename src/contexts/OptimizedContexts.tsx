@@ -9,7 +9,7 @@
  */
 
 import React, { createContext, useContext, useState, useMemo, useEffect, ReactNode } from 'react';
-import { User, Invoice, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData } from '../types';
+import { User, Invoice, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, StaffMember, PayrollRun, UserRole } from '../types';
 import { computeFinance } from '../utils/finance';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -547,5 +547,48 @@ export function useApp() {
       pastApplications: [],
       applicationStatus: null,
     },
+
+    // Payroll & Staff (should be in separate context, but added here for compatibility)
+    staff: [],
+    payrollRuns: [],
+    addStaff: () => {},
+    updateStaff: () => {},
+    deleteStaff: () => {},
+    runPayroll: () => {},
+    deletePayrollRun: () => {},
+    teamMembers: [],
+    userRole: 'owner' as const,
+    inviteMember: () => {},
+    removeMember: () => {},
+    joinTeam: () => {},
+    refreshTeam: () => {},
+
+    // Other missing properties
+    navParams: {},
+    isFirstLaunch: false,
+    pendingSyncCount: 0,
+    lockoutUntil: null,
+    isLockedOut: false,
+    applyForMerchantFinancing: () => {},
+    setupAccount: () => {},
+    updateProfile: () => {},
+    updateInventoryItem: () => {},
+    addInventoryItem: () => {},
+    deleteInventoryItem: () => {},
+    updateCashPocket: () => {},
+    addCashPocket: () => {},
+    deleteCashPocket: () => {},
+    changePin: () => {},
+    clearData: () => {},
+    resetApp: () => {},
+    resetBusinessData: () => {},
+    deleteAccount: () => {},
+    recoverAccount: () => {},
+    importData: () => {},
+    exportData: () => {},
+    enterDemo: () => {},
+    markInvoiceStatus: () => {},
+    disposeAsset: () => {},
+    addLoanPayment: () => {},
   };
 }
