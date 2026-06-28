@@ -108,6 +108,14 @@ export default function MerchantFinancingSection() {
                 />
             ) : null}
 
+            {/* ULTIMATE FALLBACK: If absolutely nothing rendered, show a message */}
+            {hasActiveLoan || hasApplied || isApproved || isQualified ? null : (
+                <View style={s.emptyStateContainer}>
+                    <Text style={s.emptyStateTitle}>Merchant Financing</Text>
+                    <Text style={s.emptyStateSubtitle}>Complete your profile to get started</Text>
+                </View>
+            )}
+
             {/* Apply For Financing Modal */}
             {showApplyModal && (
                 <ApplyForFinancingModal
