@@ -43,6 +43,9 @@ export default function SettingsScreen() {
         finance, assets, loans,
     } = useApp() as ReturnType<typeof useApp>;
 
+    // Feature flags
+    const enableTeam = process.env.EXPO_PUBLIC_ENABLE_TEAM !== 'false';
+
     const [form, setForm]       = useState({ ...settings });
     const [phone, setPhone]     = useState(user?.phone || '');
 
@@ -564,7 +567,7 @@ export default function SettingsScreen() {
                     </CollapsibleSection>
 
                     {/* 6. Team — default open, owner only */}
-                    {userRole === 'owner' && (
+                    {enableTeam && userRole === 'owner' && (
                         <CollapsibleSection title="Team" defaultOpen={true}>
                             <Section title="Team Management">
                                 <Text style={styles.hint}>

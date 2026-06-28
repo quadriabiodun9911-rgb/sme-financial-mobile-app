@@ -18,7 +18,7 @@ function useDebouncedEffect(fn: () => void, deps: React.DependencyList, delay = 
     }, deps);
 }
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Transaction, FinanceData, User, BusinessSettings, Screen, FinancialGoal, GoalType, NavParams, Invoice, InvoiceStatus, TeamMember, UserRole, Language, Asset, InventoryItem, Loan, LoanPayment, Budget, CashPocket, StaffMember, PayrollRun, PayrollItem } from '../types';
+import { Transaction, FinanceData, User, BusinessSettings, Screen, FinancialGoal, GoalType, NavParams, Invoice, InvoiceStatus, TeamMember, UserRole, Language, Asset, InventoryItem, Loan, LoanPayment, Budget, CashPocket, StaffMember, PayrollRun, PayrollItem, MerchantFinancingApplication, FinancingContextData, LoanPurpose } from '../types';
 import { computeFinance, computeOneThingInsight, computeRecurringDates, computeAssetCurrentValue, computeAssetAnnualDepreciation } from '../utils/finance';
 import { generateId } from '../utils/uuid';
 import { auditEvents } from '../utils/auditLog';
@@ -112,6 +112,13 @@ interface AppContextValue {
     updateLoan: (id: string, patch: Partial<Loan>) => void;
     deleteLoan: (id: string) => void;
     addLoanPayment: (loanId: string, payment: Omit<LoanPayment, 'id'>) => void;
+
+    // Merchant Financing
+    financing: FinancingContextData;
+    checkMerchantFinancingEligibility: () => void;
+    applyForMerchantFinancing: (amount: number, purpose: LoanPurpose) => Promise<void>;
+    updateMerchantFinancingStatus: (applicationId: string, status: string, details?: any) => void;
+    recordMerchantLoanPayment: (loanId: string, amount: number, date: string) => void;
 
     inventory: InventoryItem[];
     addInventoryItem: (item: Omit<InventoryItem, 'id' | 'createdAt' | 'updatedAt'>) => void;
@@ -228,6 +235,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const [invoices, setInvoices]           = useState<Invoice[]>([]);
     const [assets, setAssets]               = useState<Asset[]>([]);
     const [loans, setLoans]                 = useState<Loan[]>([]);
+    const [financing, setFinancing]         = useState<FinancingContextData>({
+        isQualified: false,
+        applicationStatus: null,
+    });
     const [inventory, setInventory]         = useState<InventoryItem[]>([]);
     const [budgets, setBudgets]             = useState<Budget[]>([]);
     const [staff, setStaff]                 = useState<StaffMember[]>([]);
@@ -476,6 +487,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setGoals(prev => prev.map(g => refreshGoal(g, finance, transactions)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [finance, isLoading]);
+
+    useEffect(() => {
+        if (isLoading) return;
+        checkMerchantFinancingEligibility();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user?.daysActive, user?.avgMonthlyRevenue, user?.financialHealthScore, isLoading]);
 
     const navigate = (s: Screen, params?: NavParams) => {
         setNavParams(params ?? null);
@@ -971,6 +988,104 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }));
     };
 
+    const checkMerchantFinancingEligibility = () => {
+        const daysActiveOk = (user?.daysActive || 0) >= 90;
+        const revenueOk = (user?.avgMonthlyRevenue || 0) >= 200000;
+        const healthScoreOk = (user?.financialHealthScore || 0) >= 50;
+
+        setFinancing(prev => ({
+            ...prev,
+            isQualified: daysActiveOk && revenueOk && healthScoreOk,
+            qualification: { daysActiveOk, revenueOk, healthScoreOk },
+            minQualifiedAmount: 2000000,
+            maxQualifiedAmount: Math.min(5000000, (user?.avgMonthlyProfit || 0) * 12),
+        }));
+    };
+
+    const applyForMerchantFinancing = async (amount: number, purpose: LoanPurpose) => {
+        if (!canManage) { denyManage(); return; }
+        try {
+            const application: MerchantFinancingApplication = {
+                id: generateId(),
+                userId: user?.email || '',
+                status: 'pending',
+                requestedAmount: amount,
+                purpose,
+                interestRate: 18,
+                termMonths: 60,
+                lenderName: 'Zenith Bank',
+                lenderId: 'zenith_bank_001',
+                appliedDate: new Date().toISOString().split('T')[0],
+                monthlyProfitAtApproval: user?.avgMonthlyProfit || 0,
+                monthlyProfitCurrent: user?.avgMonthlyProfit || 0,
+            };
+
+            setFinancing(prev => ({
+                ...prev,
+                application,
+                applicationStatus: 'pending',
+            }));
+        } catch (error) {
+            Alert.alert('Error', 'Failed to submit financing application');
+            throw error;
+        }
+    };
+
+    const updateMerchantFinancingStatus = (applicationId: string, status: string, details?: any) => {
+        setFinancing(prev => {
+            if (!prev.application) return prev;
+
+            const updatedApp: MerchantFinancingApplication = {
+                ...prev.application,
+                status: status as any,
+                approvalDate: status === 'approved' ? details?.approvalDate : prev.application.approvalDate,
+                approvedAmount: status === 'approved' ? details?.approvedAmount : prev.application.approvedAmount,
+                fundingDate: status === 'funded' ? details?.fundingDate : prev.application.fundingDate,
+                monthlyPayment: details?.monthlyPayment || prev.application.monthlyPayment,
+                nextPaymentDue: details?.nextPaymentDue,
+            };
+
+            if (status === 'approved' || status === 'funded' || status === 'repaying') {
+                return {
+                    ...prev,
+                    application: undefined,
+                    activeLoan: updatedApp,
+                    applicationStatus: null,
+                };
+            }
+
+            return {
+                ...prev,
+                application: updatedApp,
+                applicationStatus: status as any,
+            };
+        });
+    };
+
+    const recordMerchantLoanPayment = (loanId: string, amount: number, date: string) => {
+        if (!canManage) { denyManage(); return; }
+        setFinancing(prev => {
+            if (!prev.activeLoan) return prev;
+
+            return {
+                ...prev,
+                activeLoan: {
+                    ...prev.activeLoan,
+                    totalRepaid: (prev.activeLoan.totalRepaid || 0) + amount,
+                    payments: [
+                        ...(prev.activeLoan.payments || []),
+                        {
+                            id: generateId(),
+                            date,
+                            amount,
+                            note: 'Payment',
+                        },
+                    ],
+                },
+            };
+        });
+    };
+
     const addInventoryItem = (item: Omit<InventoryItem, 'id' | 'createdAt' | 'updatedAt'>) => {
         if (!canManage) { denyManage(); return; }
         const now = new Date().toISOString();
@@ -1208,6 +1323,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         invoices, addInvoice, updateInvoice, deleteInvoice, markInvoiceStatus,
         assets, addAsset, updateAsset, deleteAsset, disposeAsset,
         loans, addLoan, updateLoan, deleteLoan, addLoanPayment,
+        financing, checkMerchantFinancingEligibility, applyForMerchantFinancing, updateMerchantFinancingStatus, recordMerchantLoanPayment,
         inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem,
         budgets, addBudget, updateBudget, deleteBudget,
         staff, addStaff, updateStaff, deleteStaff,
@@ -1221,7 +1337,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }), [
         currentScreen, navParams, user, userRole, hasProfile, isLoading,
         isDemoMode, isLockedOut, lockoutUntil,
-        settings, transactions, goals, invoices, assets, loans, inventory,
+        settings, transactions, goals, invoices, assets, loans, financing, inventory,
         budgets, cashPockets, teamMembers, language, staff, payrollRuns,
         finance, insight, pendingSyncCount,
     ]);

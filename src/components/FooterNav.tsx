@@ -47,6 +47,11 @@ export default function FooterNav() {
     const { currentScreen, setCurrentScreen, user, pendingSyncCount, transactions, goals, invoices, finance } = useApp();
     const [moreOpen, setMoreOpen] = useState(false);
 
+    // Feature flags
+    const enableReports = process.env.EXPO_PUBLIC_ENABLE_REPORTS !== 'false';
+    const enableTeam = process.env.EXPO_PUBLIC_ENABLE_TEAM !== 'false';
+    const enableFinancing = process.env.EXPO_PUBLIC_ENABLE_FINANCING !== 'false';
+
     const goTo = (screen: Screen) => { setCurrentScreen(screen); setMoreOpen(false); };
 
     const initials = useMemo(() =>
@@ -69,11 +74,34 @@ export default function FooterNav() {
     const unpaidInv   = useMemo(() => invoices.filter(i => i.status === 'sent' || i.status === 'overdue').length, [invoices]);
     const profit      = finance?.profit ?? 0;
 
+    // Filter tabs and menu items based on feature flags
+    const visibleTabs = useMemo(() =>
+        TABS.filter(tab => {
+            if (tab.screen === 'reports' && !enableReports) return false;
+            return true;
+        }),
+        [enableReports]
+    );
+
+    const visibleAnalytics = useMemo(() => ANALYTICS_ITEMS, []);
+
+    const visibleFinance = useMemo(() => FINANCE_ITEMS, []);
+
+    const visibleOperations = useMemo(() => OPERATIONS_ITEMS, []);
+
+    const visibleAccount = useMemo(() =>
+        ACCOUNT_ITEMS.filter(item => {
+            // Team feature is shown in Settings, so no need to filter here
+            return true;
+        }),
+        []
+    );
+
     return (
         <>
             {/* ── Bottom tab bar ─────────────────────────────────────────── */}
             <View style={styles.footer}>
-                {TABS.map(tab => {
+                {visibleTabs.map(tab => {
                     const active = currentScreen === tab.screen;
                     return (
                         <TouchableOpacity
@@ -181,7 +209,7 @@ export default function FooterNav() {
                         {/* ── Analytics ─────────────────────────────────── */}
                         <Text style={styles.sectionTitle}>Analytics</Text>
                         <View style={styles.gridCard}>
-                            {ANALYTICS_ITEMS.map(item => (
+                            {visibleAnalytics.map(item => (
                                 <TouchableOpacity
                                     key={item.screen}
                                     style={styles.gridItem}
@@ -199,7 +227,7 @@ export default function FooterNav() {
                         {/* ── Finance ───────────────────────────────────── */}
                         <Text style={styles.sectionTitle}>Finance</Text>
                         <View style={styles.gridCard}>
-                            {FINANCE_ITEMS.map(item => (
+                            {visibleFinance.map(item => (
                                 <TouchableOpacity
                                     key={item.screen}
                                     style={styles.gridItem}
@@ -217,7 +245,7 @@ export default function FooterNav() {
                         {/* ── Operations & Account — list rows ──────────── */}
                         <Text style={styles.sectionTitle}>Operations & Account</Text>
                         <View style={styles.listCard}>
-                            {[...OPERATIONS_ITEMS, ...ACCOUNT_ITEMS].map((item, i, arr) => (
+                            {[...visibleOperations, ...visibleAccount].map((item, i, arr) => (
                                 <TouchableOpacity
                                     key={item.screen}
                                     style={[styles.listRow, i < arr.length - 1 && styles.listRowBorder]}
