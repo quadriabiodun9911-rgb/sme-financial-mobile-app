@@ -71,7 +71,7 @@ export default function LoansScreen() {
     const { currency } = settings;
 
     // Feature flag for merchant financing
-    const enableFinancing = process.env.EXPO_PUBLIC_ENABLE_FINANCING === 'true';
+    const enableFinancing = process.env.EXPO_PUBLIC_ENABLE_FINANCING !== 'false';
 
     const [activeTab, setActiveTab] = useState<'existing' | 'financing'>('existing');
     const [showForm, setShowForm] = useState(false);
