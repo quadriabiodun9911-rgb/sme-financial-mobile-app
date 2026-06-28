@@ -29,6 +29,10 @@ import ImportTransactionsScreen from './src/screens/ImportTransactionsScreen';
 import CashFlowScreen from './src/screens/CashFlowScreen';
 import PayrollScreen from './src/screens/PayrollScreen';
 import ReconciliationScreen from './src/screens/ReconciliationScreen';
+import TaxPlanningScreen from './src/screens/TaxPlanningScreen';
+import CreditWorthinessScreen from './src/screens/CreditWorthinessScreen';
+import LoanEligibilityScreen from './src/screens/LoanEligibilityScreen';
+import FinancialHealthCoachScreen from './src/screens/FinancialHealthCoachScreen';
 
 function Navigator() {
     const { currentScreen, isLoading, setCurrentScreen } = useApp();
@@ -89,6 +93,10 @@ function Navigator() {
             {currentScreen === 'cashflow'       && <CashFlowScreen />}
             {currentScreen === 'payroll'        && <PayrollScreen />}
             {currentScreen === 'reconciliation' && <ReconciliationScreen />}
+            {currentScreen === 'tax-planning'   && <TaxPlanningScreen />}
+            {currentScreen === 'credit-worthiness' && <CreditWorthinessScreen />}
+            {currentScreen === 'loan-eligibility'  && <LoanEligibilityScreen />}
+            {currentScreen === 'financial-coach'   && <FinancialHealthCoachScreen />}
         </View>
     );
 }

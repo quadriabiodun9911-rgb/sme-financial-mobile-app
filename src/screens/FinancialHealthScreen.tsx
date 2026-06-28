@@ -247,6 +247,29 @@ export default function FinancialHealthScreen() {
                     {'\n'}• Track financial activity over time
                 </Text>
             </View>
+
+            {/* Feature Cards - Navigation to coaching and credit tools */}
+            <TouchableOpacity onPress={() => navigate('credit-worthiness')} style={styles.featureCardContainer}>
+                <View style={styles.featureCard}>
+                    <Text style={styles.featureIcon}>📈</Text>
+                    <View style={styles.featureContent}>
+                        <Text style={styles.featureTitle}>Credit Worthiness</Text>
+                        <Text style={styles.featureDesc}>Understand lender requirements & improve your profile</Text>
+                    </View>
+                    <Text style={styles.featureArrow}>→</Text>
+                </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={() => navigate('financial-coach')} style={styles.featureCardContainer}>
+                <View style={styles.featureCard}>
+                    <Text style={styles.featureIcon}>🎯</Text>
+                    <View style={styles.featureContent}>
+                        <Text style={styles.featureTitle}>Financial Health Coach</Text>
+                        <Text style={styles.featureDesc}>Get personalized recommendations & track milestones</Text>
+                    </View>
+                    <Text style={styles.featureArrow}>→</Text>
+                </View>
+            </TouchableOpacity>
         </ScrollView>
     );
 }
@@ -303,4 +326,12 @@ const styles = StyleSheet.create({
     tipCard:  { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, borderLeftWidth: 3, borderLeftColor: Colors.primary },
     tipTitle: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 },
     tipBody:  { fontSize: 12, color: Colors.textMuted, lineHeight: 20 },
+
+    featureCardContainer: { marginBottom: 12 },
+    featureCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: Colors.primary + '40' },
+    featureIcon: { fontSize: 28 },
+    featureContent: { flex: 1 },
+    featureTitle: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },
+    featureDesc: { fontSize: 12, color: Colors.textMuted },
+    featureArrow: { fontSize: 16, color: Colors.primary, fontWeight: 'bold' },
 });

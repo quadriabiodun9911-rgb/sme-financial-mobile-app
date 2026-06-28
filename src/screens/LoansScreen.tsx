@@ -196,6 +196,16 @@ export default function LoansScreen() {
                         <SummaryCard label="Active Loans" value={String(activeLoans.length)} color={Colors.textPrimary} />
                     </View>
 
+                    {/* Loan Eligibility Tool */}
+                    <TouchableOpacity onPress={() => navigate('loan-eligibility')} style={s.featureCard}>
+                        <Text style={s.featureIcon}>💼</Text>
+                        <View style={s.featureContent}>
+                            <Text style={s.featureTitle}>Loan Eligibility Tracker</Text>
+                            <Text style={s.featureDesc}>Compare 4 loan types and check your eligibility</Text>
+                        </View>
+                        <Text style={s.featureArrow}>→</Text>
+                    </TouchableOpacity>
+
                     {/* Overdue alert */}
                     {overdueLoans.length > 0 && (
                         <View style={s.alertBanner}>
@@ -578,4 +588,11 @@ const s = StyleSheet.create({
         shadowOpacity: 0.3, shadowRadius: 6, elevation: 8,
     },
     fabText: { fontSize: 28, color: Colors.textPrimary, lineHeight: 32 },
+
+    featureCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 14, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: Colors.primary + '40' },
+    featureIcon: { fontSize: 28 },
+    featureContent: { flex: 1 },
+    featureTitle: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },
+    featureDesc: { fontSize: 12, color: Colors.textMuted },
+    featureArrow: { fontSize: 16, color: Colors.primary, fontWeight: 'bold' },
 });
