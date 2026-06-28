@@ -59,19 +59,23 @@ export async function saveTransactions(t: Transaction[]): Promise<void> {
     const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return;
     try {
-        if (t.length > 0) {
-            const rows = t.map(tx => ({ id: tx.id, user_id: ownerId, data: tx, updated_at: new Date().toISOString() }));
-            const { error } = await supabase.from('transactions').upsert(rows, { onConflict: 'id' });
-            if (error) {
-                logSyncError('transactions', 'upsert', error);
-                // Queue for retry when back online
-                await enqueue({ table: 'transactions', op: 'upsert', rows, userId: ownerId });
-                return;
-            }
+        const rows = t.length > 0 ? t.map(tx => ({ id: tx.id, user_id: ownerId, data: tx, updated_at: new Date().toISOString() })) : [];
+
+        // Fetch remote IDs in parallel with upsert for optimal performance
+        const [upsertResult, { data: remote, error: fetchErr }] = await Promise.all([
+            t.length > 0 ? supabase.from('transactions').upsert(rows, { onConflict: 'id' }) : Promise.resolve({ error: null }),
+            supabase.from('transactions').select('id').eq('user_id', ownerId),
+        ]);
+
+        if (upsertResult.error) {
+            logSyncError('transactions', 'upsert', upsertResult.error);
+            if (rows.length > 0) await enqueue({ table: 'transactions', op: 'upsert', rows, userId: ownerId });
+            return;
         }
-        const { data: remote, error: fetchErr } = await supabase.from('transactions').select('id').eq('user_id', ownerId);
+
         if (fetchErr) { logSyncError('transactions', 'select', fetchErr); return; }
-        if (remote) {
+
+        if (remote && remote.length > 0) {
             const localIds = new Set(t.map(tx => tx.id));
             const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
             if (toDelete.length > 0) {
@@ -160,20 +164,24 @@ export async function saveGoals(g: FinancialGoal[]): Promise<void> {
     const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return;
     try {
-        if (g.length > 0) {
-            const encKey = await getEncryptionKey();
-            const rows = g.map(goal => ({
-                id: goal.id,
-                user_id: ownerId,
-                data: encKey ? encryptGoal(goal as unknown as Record<string, any>, encKey) : goal,
-                updated_at: new Date().toISOString(),
-            }));
-            const { error } = await supabase.from('goals').upsert(rows, { onConflict: 'id' });
-            if (error) logSyncError('goals', 'upsert', error);
-        }
-        const { data: remote, error: fetchErr } = await supabase.from('goals').select('id').eq('user_id', ownerId);
+        const encKey = await getEncryptionKey();
+        const rows = g.length > 0 ? g.map(goal => ({
+            id: goal.id,
+            user_id: ownerId,
+            data: encKey ? encryptGoal(goal as unknown as Record<string, any>, encKey) : goal,
+            updated_at: new Date().toISOString(),
+        })) : [];
+
+        // Parallel upsert + fetch remote IDs
+        const [upsertResult, { data: remote, error: fetchErr }] = await Promise.all([
+            rows.length > 0 ? supabase.from('goals').upsert(rows, { onConflict: 'id' }) : Promise.resolve({ error: null }),
+            supabase.from('goals').select('id').eq('user_id', ownerId),
+        ]);
+
+        if (upsertResult.error) logSyncError('goals', 'upsert', upsertResult.error);
         if (fetchErr) { logSyncError('goals', 'select', fetchErr); return; }
-        if (remote) {
+
+        if (remote && remote.length > 0) {
             const localIds = new Set(g.map(goal => goal.id));
             const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
             if (toDelete.length > 0) {
@@ -186,8 +194,8 @@ export async function saveGoals(g: FinancialGoal[]): Promise<void> {
         }
     } catch (e) {
         logSyncError('goals', 'sync', e);
-        const _rows = g.map(goal => ({ id: goal.id, user_id: ownerId, data: goal, updated_at: new Date().toISOString() }));
-        await enqueue({ table: 'goals', op: 'upsert', rows: _rows, userId: ownerId });
+        const rows = g.map(goal => ({ id: goal.id, user_id: ownerId, data: goal, updated_at: new Date().toISOString() }));
+        await enqueue({ table: 'goals', op: 'upsert', rows, userId: ownerId });
     }
 }
 
@@ -223,14 +231,18 @@ export async function saveInvoices(invoices: Invoice[]): Promise<void> {
     const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return;
     try {
-        if (invoices.length > 0) {
-            const rows = invoices.map(inv => ({ id: inv.id, user_id: ownerId, data: inv, updated_at: new Date().toISOString() }));
-            const { error } = await supabase.from('invoices').upsert(rows, { onConflict: 'id' });
-            if (error) logSyncError('invoices', 'upsert', error);
-        }
-        const { data: remote, error: fetchErr } = await supabase.from('invoices').select('id').eq('user_id', ownerId);
+        const rows = invoices.length > 0 ? invoices.map(inv => ({ id: inv.id, user_id: ownerId, data: inv, updated_at: new Date().toISOString() })) : [];
+
+        // Parallel upsert + fetch remote IDs
+        const [upsertResult, { data: remote, error: fetchErr }] = await Promise.all([
+            rows.length > 0 ? supabase.from('invoices').upsert(rows, { onConflict: 'id' }) : Promise.resolve({ error: null }),
+            supabase.from('invoices').select('id').eq('user_id', ownerId),
+        ]);
+
+        if (upsertResult.error) logSyncError('invoices', 'upsert', upsertResult.error);
         if (fetchErr) { logSyncError('invoices', 'select', fetchErr); return; }
-        if (remote) {
+
+        if (remote && remote.length > 0) {
             const localIds = new Set(invoices.map(inv => inv.id));
             const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
             if (toDelete.length > 0) {
@@ -240,8 +252,8 @@ export async function saveInvoices(invoices: Invoice[]): Promise<void> {
         }
     } catch (e) {
         logSyncError('invoices', 'sync', e);
-        const _rows = invoices.map(inv => ({ id: inv.id, user_id: ownerId, data: inv, updated_at: new Date().toISOString() }));
-        await enqueue({ table: 'invoices', op: 'upsert', rows: _rows, userId: ownerId });
+        const rows = invoices.map(inv => ({ id: inv.id, user_id: ownerId, data: inv, updated_at: new Date().toISOString() }));
+        await enqueue({ table: 'invoices', op: 'upsert', rows, userId: ownerId });
     }
 }
 
@@ -274,14 +286,18 @@ export async function saveAssets(assets: Asset[]): Promise<void> {
     const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return;
     try {
-        if (assets.length > 0) {
-            const rows = assets.map(a => ({ id: a.id, user_id: ownerId, data: a, updated_at: new Date().toISOString() }));
-            const { error } = await supabase.from('assets').upsert(rows, { onConflict: 'id' });
-            if (error) logSyncError('assets', 'upsert', error);
-        }
-        const { data: remote, error: fetchErr } = await supabase.from('assets').select('id').eq('user_id', ownerId);
+        const rows = assets.length > 0 ? assets.map(a => ({ id: a.id, user_id: ownerId, data: a, updated_at: new Date().toISOString() })) : [];
+
+        // Parallel upsert + fetch remote IDs
+        const [upsertResult, { data: remote, error: fetchErr }] = await Promise.all([
+            rows.length > 0 ? supabase.from('assets').upsert(rows, { onConflict: 'id' }) : Promise.resolve({ error: null }),
+            supabase.from('assets').select('id').eq('user_id', ownerId),
+        ]);
+
+        if (upsertResult.error) logSyncError('assets', 'upsert', upsertResult.error);
         if (fetchErr) { logSyncError('assets', 'select', fetchErr); return; }
-        if (remote) {
+
+        if (remote && remote.length > 0) {
             const localIds = new Set(assets.map(a => a.id));
             const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
             if (toDelete.length > 0) {
@@ -291,8 +307,8 @@ export async function saveAssets(assets: Asset[]): Promise<void> {
         }
     } catch (e) {
         logSyncError('assets', 'sync', e);
-        const _rows = assets.map(a => ({ id: a.id, user_id: ownerId, data: a, updated_at: new Date().toISOString() }));
-        await enqueue({ table: 'assets', op: 'upsert', rows: _rows, userId: ownerId });
+        const rows = assets.map(a => ({ id: a.id, user_id: ownerId, data: a, updated_at: new Date().toISOString() }));
+        await enqueue({ table: 'assets', op: 'upsert', rows, userId: ownerId });
     }
 }
 
@@ -489,26 +505,30 @@ export async function saveInventory(items: InventoryItem[]): Promise<void> {
     const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return;
     try {
-        if (items.length > 0) {
-            const rows = items.map(item => ({
-                id: item.id,
-                user_id: ownerId,
-                name: item.name,
-                category: item.category,
-                quantity: item.quantity,
-                unit: item.unit,
-                cost_price: item.costPrice,
-                selling_price: item.sellingPrice,
-                low_stock_threshold: item.lowStockThreshold,
-                created_at: item.createdAt,
-                updated_at: item.updatedAt,
-            }));
-            const { error } = await supabase.from('inventory').upsert(rows, { onConflict: 'id' });
-            if (error) logSyncError('inventory', 'upsert', error);
-        }
-        const { data: remote, error: fetchErr } = await supabase.from('inventory').select('id').eq('user_id', ownerId);
+        const rows = items.length > 0 ? items.map(item => ({
+            id: item.id,
+            user_id: ownerId,
+            name: item.name,
+            category: item.category,
+            quantity: item.quantity,
+            unit: item.unit,
+            cost_price: item.costPrice,
+            selling_price: item.sellingPrice,
+            low_stock_threshold: item.lowStockThreshold,
+            created_at: item.createdAt,
+            updated_at: item.updatedAt,
+        })) : [];
+
+        // Parallel upsert + fetch remote IDs
+        const [upsertResult, { data: remote, error: fetchErr }] = await Promise.all([
+            rows.length > 0 ? supabase.from('inventory').upsert(rows, { onConflict: 'id' }) : Promise.resolve({ error: null }),
+            supabase.from('inventory').select('id').eq('user_id', ownerId),
+        ]);
+
+        if (upsertResult.error) logSyncError('inventory', 'upsert', upsertResult.error);
         if (fetchErr) { logSyncError('inventory', 'select', fetchErr); return; }
-        if (remote) {
+
+        if (remote && remote.length > 0) {
             const localIds = new Set(items.map(i => i.id));
             const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
             if (toDelete.length > 0) {
