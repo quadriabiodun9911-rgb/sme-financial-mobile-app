@@ -26,7 +26,7 @@ import {
   TextStyle,
   ReturnKeyTypeOptions,
 } from 'react-native';
-import { useTheme } from '../contexts/ThemeContext';
+import { useTheme } from '../../contexts/ThemeContext';
 
 export interface TextFieldProps {
   // Content
