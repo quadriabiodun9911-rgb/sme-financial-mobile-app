@@ -40,8 +40,26 @@ export default function MerchantFinancingSection() {
 
     return (
         <View style={s.container}>
-            {/* SECTION 1: Pre-Qualification Widget */}
-            {isQualified && !hasActiveLoan && (
+            {/* SECTION 1: Active Merchant Loan - Priority 1 */}
+            {hasActiveLoan && financing?.activeLoan ? (
+                <ActiveMerchantLoanCard
+                    loan={financing.activeLoan}
+                    currency={currency}
+                    expanded={expandedId === 'active'}
+                    onToggle={() => setExpandedId(expandedId === 'active' ? null : 'active')}
+                />
+            ) : null}
+
+            {/* SECTION 2: Application Status - Priority 2 */}
+            {hasApplied && !isApproved && financing?.application ? (
+                <ApplicationStatusCard
+                    application={financing.application}
+                    currency={currency}
+                />
+            ) : null}
+
+            {/* SECTION 3: Pre-Qualification Widget - Priority 3 */}
+            {!hasActiveLoan && isQualified && !hasApplied ? (
                 <PreQualificationWidget
                     maxLoan={financing?.maxQualifiedAmount || 5000000}
                     minLoan={financing?.minQualifiedAmount || 2000000}
@@ -49,28 +67,10 @@ export default function MerchantFinancingSection() {
                     currency={currency}
                     onApply={() => setShowApplyModal(true)}
                 />
-            )}
-
-            {/* SECTION 2: Active Merchant Loan */}
-            {hasActiveLoan && financing?.activeLoan && (
-                <ActiveMerchantLoanCard
-                    loan={financing.activeLoan}
-                    currency={currency}
-                    expanded={expandedId === 'active'}
-                    onToggle={() => setExpandedId(expandedId === 'active' ? null : 'active')}
-                />
-            )}
-
-            {/* SECTION 3: Application Status (Pending/Rejected) */}
-            {hasApplied && !isApproved && financing?.application && (
-                <ApplicationStatusCard
-                    application={financing.application}
-                    currency={currency}
-                />
-            )}
+            ) : null}
 
             {/* SECTION 4: Application History */}
-            {financing?.pastApplications && financing.pastApplications.length > 0 && (
+            {financing?.pastApplications && financing.pastApplications.length > 0 ? (
                 <View style={s.historySection}>
                     <Text style={s.sectionTitle}>Previous Applications</Text>
                     {financing.pastApplications.map((app, idx) => (
@@ -82,24 +82,24 @@ export default function MerchantFinancingSection() {
                         />
                     ))}
                 </View>
-            )}
+            ) : null}
 
-            {/* EMPTY STATE: Not Qualified Yet */}
-            {!isQualified && !hasActiveLoan && (
+            {/* EMPTY STATE: Not Qualified Yet - Fallback */}
+            {!hasActiveLoan && !hasApplied && !isQualified ? (
                 <NotQualifiedState
                     daysActive={user?.daysActive || 0}
                     monthlyRevenue={user?.avgMonthlyRevenue || 0}
                     healthScore={user?.financialHealthScore || 0}
                     currency={currency}
                 />
-            )}
+            ) : null}
 
-            {/* EMPTY STATE: No Activity */}
-            {isQualified && !hasActiveLoan && !hasApplied && (
+            {/* EMPTY STATE: Qualified No Activity - Fallback */}
+            {!hasActiveLoan && isQualified && !hasApplied && !isApproved ? (
                 <QualifiedEmptyState
                     onApply={() => setShowApplyModal(true)}
                 />
-            )}
+            ) : null}
 
             {/* Apply For Financing Modal */}
             {showApplyModal && (
@@ -896,6 +896,7 @@ const s = StyleSheet.create({
         flex: 1,
         padding: 16,
         paddingBottom: 100,
+        minHeight: 400,
     },
 
     loadingState: {
