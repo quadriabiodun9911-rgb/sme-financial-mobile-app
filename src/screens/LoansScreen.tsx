@@ -235,7 +235,7 @@ export default function LoansScreen() {
                     )}
                 </ScrollView>
             ) : enableFinancing && activeTab === 'financing' ? (
-                <ScrollView style={s.scroll}>
+                <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
                     <MerchantFinancingSection />
                 </ScrollView>
             ) : null}
