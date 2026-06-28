@@ -465,6 +465,15 @@ export function useApp() {
     throw new Error('useApp must be used within AppProvider (all contexts)');
   }
 
+  // Safe defaults for arrays to prevent undefined errors
+  const transactions = finance?.transactions ?? [];
+  const assets = finance?.assets ?? [];
+  const loans = finance?.loans ?? [];
+  const budgets = finance?.budgets ?? [];
+  const inventory = finance?.inventory ?? [];
+  const goalsArray = goals?.goals ?? [];
+  const invoicesArray = invoices?.invoices ?? [];
+
   return {
     // Auth state
     user: auth.user,
@@ -476,45 +485,55 @@ export function useApp() {
     logout: auth.logout,
 
     // Finance state
-    transactions: finance.transactions || [],
-    assets: finance.assets || [],
-    loans: finance.loans || [],
-    budgets: finance.budgets || [],
-    inventory: finance.inventory || [],
-    finance: finance.finance,
-    addTransaction: finance.addTransaction,
-    updateTransaction: finance.updateTransaction,
-    deleteTransaction: finance.deleteTransaction,
-    addAsset: finance.addAsset,
-    updateAsset: finance.updateAsset,
-    deleteAsset: finance.deleteAsset,
-    addLoan: finance.addLoan,
-    updateLoan: finance.updateLoan,
-    deleteLoan: finance.deleteLoan,
-    addBudget: finance.addBudget,
-    updateBudget: finance.updateBudget,
-    deleteBudget: finance.deleteBudget,
+    transactions,
+    assets,
+    loans,
+    budgets,
+    inventory,
+    finance: finance?.finance,
+    addTransaction: finance?.addTransaction || (() => {}),
+    updateTransaction: finance?.updateTransaction || (() => {}),
+    deleteTransaction: finance?.deleteTransaction || (() => {}),
+    addAsset: finance?.addAsset || (() => {}),
+    updateAsset: finance?.updateAsset || (() => {}),
+    deleteAsset: finance?.deleteAsset || (() => {}),
+    addLoan: finance?.addLoan || (() => {}),
+    updateLoan: finance?.updateLoan || (() => {}),
+    deleteLoan: finance?.deleteLoan || (() => {}),
+    addBudget: finance?.addBudget || (() => {}),
+    updateBudget: finance?.updateBudget || (() => {}),
+    deleteBudget: finance?.deleteBudget || (() => {}),
 
     // Goals state
-    goals: goals.goals || [],
-    addGoal: goals.addGoal,
-    updateGoal: goals.updateGoal,
-    deleteGoal: goals.deleteGoal,
+    goals: goalsArray,
+    addGoal: goals?.addGoal || (() => {}),
+    updateGoal: goals?.updateGoal || (() => {}),
+    deleteGoal: goals?.deleteGoal || (() => {}),
 
     // Invoices state
-    invoices: invoices.invoices || [],
-    addInvoice: invoices.addInvoice,
-    updateInvoice: invoices.updateInvoice,
-    deleteInvoice: invoices.deleteInvoice,
+    invoices: invoicesArray,
+    addInvoice: invoices?.addInvoice || (() => {}),
+    updateInvoice: invoices?.updateInvoice || (() => {}),
+    deleteInvoice: invoices?.deleteInvoice || (() => {}),
 
     // Settings state
-    settings: settings.settings,
-    language: settings.language,
-    updateSettings: settings.updateSettings,
-    setLanguage: settings.setLanguage,
+    settings: settings?.settings || {
+      businessType: 'both',
+      currency: '₦',
+      currencyCode: 'NGN',
+      minReserve: '0',
+      targetMargin: '20',
+      openingAssets: '0',
+      openingLiabilities: '0',
+      openingLoans: '0',
+      openingOtherAssets: '0',
+      defaultTaxRate: '0.2',
+    },
+    language: settings?.language || 'en',
+    updateSettings: settings?.updateSettings || (() => {}),
+    setLanguage: settings?.setLanguage || (() => {}),
 
     // Placeholder properties (for screens that reference them)
-    // These should ideally be in actual contexts, but added here for compatibility
     isDemoMode: false,
     exitDemo: () => {},
     cashPockets: [],
