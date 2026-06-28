@@ -9,7 +9,8 @@
  */
 
 import React, { createContext, useContext, useState, useMemo, ReactNode } from 'react';
-import { Settings, User, Goal, Invoice, Transaction, Loan, Asset, Budget, InventoryItem } from '../types';
+import { Settings, User, Goal, Invoice, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal } from '../types';
+import { computeFinance } from '../utils/finance';
 
 // ============================================================================
 // 1. FINANCE CONTEXT - Transactions, Assets, Loans, Budgets
@@ -111,16 +112,16 @@ export function useFinance(): FinanceContextValue {
 // ============================================================================
 
 interface GoalContextValue {
-  goals: Goal[];
-  addGoal: (goal: Goal) => void;
-  updateGoal: (id: string, goal: Partial<Goal>) => void;
+  goals: FinancialGoal[];
+  addGoal: (goal: FinancialGoal) => void;
+  updateGoal: (id: string, goal: Partial<FinancialGoal>) => void;
   deleteGoal: (id: string) => void;
 }
 
 const GoalContext = createContext<GoalContextValue | undefined>(undefined);
 
 export function GoalProvider({ children }: { children: ReactNode }) {
-  const [goals, setGoals] = useState<Goal[]>([]);
+  const [goals, setGoals] = useState<FinancialGoal[]>([]);
 
   const value: GoalContextValue = useMemo(
     () => ({
@@ -201,16 +202,16 @@ export function useInvoices(): InvoiceContextValue {
 // ============================================================================
 
 interface SettingsContextValue {
-  settings: Settings;
+  settings: BusinessSettings;
   language: string;
-  updateSettings: (settings: Partial<Settings>) => void;
+  updateSettings: (settings: Partial<BusinessSettings>) => void;
   setLanguage: (lang: string) => void;
 }
 
 const SettingsContext = createContext<SettingsContextValue | undefined>(undefined);
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
-  const [settings, setSettings] = useState<Settings>({
+  const [settings, setSettings] = useState<BusinessSettings>({
     currency: '₦',
     currencyCode: 'NGN',
     minReserve: '0',
@@ -226,8 +227,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     () => ({
       settings,
       language,
-      updateSettings: (s) => setSettings((prev) => ({ ...prev, ...s })),
-      setLanguage: (lang) => setLanguage(lang),
+      updateSettings: (s: Partial<BusinessSettings>) => setSettings((prev: BusinessSettings) => ({ ...prev, ...s })),
+      setLanguage: (lang: string) => setLanguage(lang),
     }),
     [settings, language]
   );
