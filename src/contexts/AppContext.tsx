@@ -238,6 +238,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const [financing, setFinancing]         = useState<FinancingContextData>({
         isQualified: false,
         applicationStatus: null,
+        // Demo active loan for testing merchant financing UI
+        activeLoan: {
+            id: 'demo-loan-001',
+            amount: 3500000,
+            approvedAmount: 3500000,
+            purpose: 'inventory',
+            status: 'active',
+            applicationDate: new Date().toISOString(),
+            approvalDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+            monthlyPayment: 79000,
+            interestRate: 18,
+            termMonths: 60,
+            monthlyProfitAtApproval: 200000,
+            monthlyProfitCurrent: 200000,
+            totalRepaid: 237000,
+            payments: [
+                { date: '2024-05-15', amount: 79000, note: 'Monthly payment' },
+                { date: '2024-04-15', amount: 79000, note: 'Monthly payment' },
+                { date: '2024-03-15', amount: 79000, note: 'Monthly payment' },
+            ],
+            nextPaymentDue: '2024-07-15',
+        } as any,
     });
     const [inventory, setInventory]         = useState<InventoryItem[]>([]);
     const [budgets, setBudgets]             = useState<Budget[]>([]);
