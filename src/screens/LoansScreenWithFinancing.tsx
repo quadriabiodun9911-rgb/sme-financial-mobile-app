@@ -70,6 +70,9 @@ export default function LoansScreen() {
     const { loans, addLoan, updateLoan, deleteLoan, addLoanPayment, settings, navigate } = useApp();
     const { currency } = settings;
 
+    // Feature flag for merchant financing
+    const enableFinancing = process.env.EXPO_PUBLIC_ENABLE_FINANCING === 'true';
+
     const [activeTab, setActiveTab] = useState<'existing' | 'financing'>('existing');
     const [showForm, setShowForm] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -172,15 +175,17 @@ export default function LoansScreen() {
                     active={activeTab === 'existing'}
                     onPress={() => setActiveTab('existing')}
                 />
-                <TabButton
-                    label="Merchant Financing"
-                    active={activeTab === 'financing'}
-                    onPress={() => setActiveTab('financing')}
-                />
+                {enableFinancing && (
+                    <TabButton
+                        label="Merchant Financing"
+                        active={activeTab === 'financing'}
+                        onPress={() => setActiveTab('financing')}
+                    />
+                )}
             </View>
 
             {/* TAB CONTENT */}
-            {activeTab === 'existing' ? (
+            {(activeTab === 'existing' || !enableFinancing) ? (
                 <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
                     <Text style={s.title}>Loan Register</Text>
 
@@ -229,11 +234,11 @@ export default function LoansScreen() {
                         ))
                     )}
                 </ScrollView>
-            ) : (
+            ) : enableFinancing && activeTab === 'financing' ? (
                 <ScrollView style={s.scroll}>
                     <MerchantFinancingSection />
                 </ScrollView>
-            )}
+            ) : null}
 
             <TouchableOpacity style={s.fab} onPress={openAdd}>
                 <Text style={s.fabText}>+</Text>

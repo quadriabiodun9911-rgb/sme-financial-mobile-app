@@ -393,20 +393,46 @@ function NotQualifiedState({ daysActive, monthlyRevenue, healthScore, currency }
     healthScore: number;
     currency: string;
 }) {
+    const daysRemaining = Math.max(0, 90 - daysActive);
     const requirements = [
-        { met: daysActive >= 90, label: 'Track for 90 days', current: daysActive, needed: 90, type: 'days' },
-        { met: monthlyRevenue >= 200000, label: 'Monthly revenue', current: monthlyRevenue, needed: 200000, type: 'currency', currency },
-        { met: healthScore >= 50, label: 'Financial health score', current: healthScore, needed: 50, type: 'score' },
+        {
+            met: daysActive >= 90,
+            label: 'Account Age',
+            current: daysActive,
+            needed: 90,
+            type: 'days',
+            hint: daysActive >= 90 ? 'Complete ✅' : `${daysRemaining} days remaining`
+        },
+        {
+            met: monthlyRevenue >= 200000,
+            label: 'Monthly Revenue',
+            current: monthlyRevenue,
+            needed: 200000,
+            type: 'currency',
+            currency,
+            hint: monthlyRevenue >= 200000 ? 'Complete ✅' : `Need ${currency}${(200000 - monthlyRevenue).toLocaleString()} more`
+        },
+        {
+            met: healthScore >= 50,
+            label: 'Financial Health Score',
+            current: healthScore,
+            needed: 50,
+            type: 'score',
+            hint: healthScore >= 50 ? 'Complete ✅' : `${50 - healthScore} points needed`
+        },
     ];
+
+    const completedCount = requirements.filter(r => r.met).length;
+    const totalCount = requirements.length;
 
     return (
         <View style={s.emptyStateContainer}>
             <View style={s.emptyStateIcon}>
-                <Text style={s.emptyStateIconText}>🔐</Text>
+                <Text style={s.emptyStateIconText}>🎯</Text>
             </View>
-            <Text style={s.emptyStateTitle}>Not Yet Qualified</Text>
+            <Text style={s.emptyStateTitle}>Almost There!</Text>
             <Text style={s.emptyStateSubtitle}>
-                Complete these requirements to unlock merchant financing:
+                You're {completedCount}/{totalCount} steps away from qualifying for merchant financing.
             </Text>
 
             {requirements.map((req, idx) => {
@@ -415,7 +441,7 @@ function NotQualifiedState({ daysActive, monthlyRevenue, healthScore, currency }
                     <View key={idx} style={s.requirementItem}>
                         <View style={s.requirementHeader}>
                             <Text style={[s.requirementLabel, { color: req.met ? Colors.income : Colors.textSecondary }]}>
-                                {req.met ? '✅' : '⏳'} {req.label}
+                                {req.met ? '✅' : '📍'} {req.label}
                             </Text>
                             <Text style={s.requirementValue}>
                                 {req.type === 'days' && `${req.current}/${req.needed} days`}
@@ -424,17 +450,27 @@ function NotQualifiedState({ daysActive, monthlyRevenue, healthScore, currency }
                             </Text>
                         </View>
                         <View style={s.requirementBar}>
-                            <View style={[s.requirementFill, { width: `${percent}%` }]} />
+                            <View style={[s.requirementFill, { width: `${percent}%`, backgroundColor: req.met ? Colors.income : Colors.primary }]} />
                         </View>
+                        <Text style={s.requirementHint}>{req.hint}</Text>
                     </View>
                 );
             })}
 
-            <View style={[s.infoBox, { marginTop: 16 }]}>
+            <View style={[s.infoBox, { marginTop: 16, borderLeftColor: Colors.primary, borderLeftWidth: 4 }]}>
                 <Text style={s.infoIcon}>💡</Text>
-                <Text style={s.infoText}>
-                    Keep logging transactions daily to build your financial profile. You're making progress!
-                </Text>
+                <View>
+                    <Text style={[s.infoText, { fontWeight: '600', marginBottom: 4 }]}>How to improve:</Text>
+                    {daysActive < 90 && (
+                        <Text style={s.infoText}>• Log transactions consistently for {daysRemaining} more days</Text>
+                    )}
+                    {monthlyRevenue < 200000 && (
+                        <Text style={s.infoText}>• Increase sales and log all transactions (invoices, payments, transfers)</Text>
+                    )}
+                    {healthScore < 50 && (
+                        <Text style={s.infoText}>• Maintain healthy cash flow and settle due payments on time</Text>
+                    )}
+                </View>
             </View>
         </View>
     );
@@ -1358,6 +1394,12 @@ const s = StyleSheet.create({
         height: 6,
         backgroundColor: Colors.primary,
         borderRadius: 3,
+    },
+    requirementHint: {
+        fontSize: 11,
+        color: Colors.textMuted,
+        marginTop: 4,
+        fontStyle: 'italic',
     },
 
     // ── Modal ─────────────────────────────────────────────────────────────
