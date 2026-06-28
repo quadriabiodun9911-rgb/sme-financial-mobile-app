@@ -30,16 +30,23 @@ export default function MerchantFinancingSection() {
     // Show loading state if user data not loaded yet
     if (!user) {
         return (
-            <View style={s.container}>
-                <View style={s.loadingState}>
-                    <Text style={s.loadingText}>Loading financing information...</Text>
-                </View>
+            <View style={[s.container, { backgroundColor: '#1a1a1a', justifyContent: 'center', alignItems: 'center' }]}>
+                <Text style={s.loadingText}>Loading financing information...</Text>
             </View>
         );
     }
 
     return (
-        <View style={s.container}>
+        <View style={[s.container, { backgroundColor: '#0a0a0a' }]}>
+            {/* DEBUG: Show current state */}
+            <View style={{ padding: 16, backgroundColor: '#1a1a1a', marginBottom: 16, borderRadius: 8 }}>
+                <Text style={{ color: '#fff', fontSize: 12, marginBottom: 4 }}>📊 Status:</Text>
+                <Text style={{ color: '#888', fontSize: 11 }}>Qualified: {isQualified ? '✅' : '❌'}</Text>
+                <Text style={{ color: '#888', fontSize: 11 }}>Has Loan: {hasActiveLoan ? '✅' : '❌'}</Text>
+                <Text style={{ color: '#888', fontSize: 11 }}>Has Applied: {hasApplied ? '✅' : '❌'}</Text>
+                <Text style={{ color: '#888', fontSize: 11 }}>Approved: {isApproved ? '✅' : '❌'}</Text>
+            </View>
+
             {/* SECTION 1: Active Merchant Loan - Priority 1 */}
             {hasActiveLoan && financing?.activeLoan ? (
                 <ActiveMerchantLoanCard
