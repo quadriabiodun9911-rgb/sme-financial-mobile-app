@@ -51,6 +51,13 @@ export default function MerchantFinancingSection() {
                 <Text style={{ color: '#fff', fontSize: 12 }}>isApproved: {String(isApproved)}</Text>
             </View>
 
+            {/* TEST: Show if we even try to render ActiveMerchantLoanCard */}
+            {hasActiveLoan ? (
+                <Text style={{ color: '#fff', backgroundColor: '#green', padding: 8, marginBottom: 8 }}>
+                    ✅ Should render ActiveMerchantLoanCard
+                </Text>
+            ) : null}
+
             {/* SECTION 1: Active Merchant Loan - Priority 1 */}
             {hasActiveLoan && financing?.activeLoan ? (
                 <ActiveMerchantLoanCard
