@@ -14,6 +14,7 @@ export interface ThemeColors {
   textMuted: string;
   bg: string;
   surface: string;
+  surfaceVariant: string;
   border: string;
   muted: string;
 }
@@ -67,6 +68,7 @@ const darkTheme: Theme = {
     textMuted: '#94a3b8',
     bg: '#0f172a',
     surface: '#1e293b',
+    surfaceVariant: '#334155',
     border: '#334155',
     muted: '#475569',
   },
@@ -114,6 +116,7 @@ const lightTheme: Theme = {
     textMuted: '#94a3b8',
     bg: '#f8fafc',
     surface: '#ffffff',
+    surfaceVariant: '#f1f5f9',
     border: '#e2e8f0',
     muted: '#f1f5f9',
   },
