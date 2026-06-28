@@ -1,4 +1,4 @@
-import React, { useEffect, lazy, Suspense } from 'react';
+import React, { useEffect } from 'react';
 import { View, ActivityIndicator, Platform, BackHandler, Alert } from 'react-native';
 import * as Updates from 'expo-updates';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -8,6 +8,7 @@ import { trackScreenViewed } from './src/utils/analytics';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import LoginScreen from './src/screens/LoginScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
+import ReportsScreen from './src/screens/ReportsScreen';
 import TransactionsScreen from './src/screens/TransactionsScreen';
 import InsightsScreen from './src/screens/InsightsScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
@@ -19,6 +20,7 @@ import InventoryScreen from './src/screens/InventoryScreen';
 import GrowthIntelligenceScreen from './src/screens/GrowthIntelligenceScreen';
 import CFOScreen from './src/screens/CFOScreen';
 import BudgetScreen from './src/screens/BudgetScreen';
+import AnalysisScreen from './src/screens/AnalysisScreen';
 import TwoFactorSetupScreen from './src/screens/TwoFactorSetupScreen';
 import PaymentLinkScreen from './src/screens/PaymentLinkScreen';
 import ConnectBankScreen from './src/screens/ConnectBankScreen';
@@ -26,25 +28,12 @@ import FinancialHealthScreen from './src/screens/FinancialHealthScreen';
 import BankAggregatorScreen from './src/screens/BankAggregatorScreen';
 import ImportTransactionsScreen from './src/screens/ImportTransactionsScreen';
 import CashFlowScreen from './src/screens/CashFlowScreen';
+import PayrollScreen from './src/screens/PayrollScreen';
 import ReconciliationScreen from './src/screens/ReconciliationScreen';
 import TaxPlanningScreen from './src/screens/TaxPlanningScreen';
 import CreditWorthinessScreen from './src/screens/CreditWorthinessScreen';
 import LoanEligibilityScreen from './src/screens/LoanEligibilityScreen';
 import FinancialHealthCoachScreen from './src/screens/FinancialHealthCoachScreen';
-
-// Code splitting: lazy-load heavy screens that aren't essential on app start
-const ReportsScreen = lazy(() => import('./src/screens/ReportsScreen'));
-const AnalysisScreen = lazy(() => import('./src/screens/AnalysisScreen'));
-const PayrollScreen = lazy(() => import('./src/screens/PayrollScreen'));
-
-// Fallback loading component for lazy screens
-function ScreenLoader() {
-    return (
-        <View style={{ flex: 1, backgroundColor: '#0f172a', justifyContent: 'center', alignItems: 'center' }}>
-            <ActivityIndicator size="large" color="#3b82f6" />
-        </View>
-    );
-}
 
 function NavigatorContent() {
     const { user, isLoading, currentScreen, setCurrentScreen } = useAuth();
@@ -83,7 +72,7 @@ function NavigatorContent() {
         <View style={{ flex: 1 }}>
             {currentScreen === 'login'        && <LoginScreen />}
             {currentScreen === 'dashboard'    && <DashboardScreen />}
-            {currentScreen === 'reports'      && <Suspense fallback={<ScreenLoader />}><ReportsScreen /></Suspense>}
+            {currentScreen === 'reports'      && <ReportsScreen />}
             {currentScreen === 'transactions' && <TransactionsScreen />}
             {currentScreen === 'insights'     && <InsightsScreen />}
             {currentScreen === 'settings'     && <SettingsScreen />}
@@ -95,7 +84,7 @@ function NavigatorContent() {
             {currentScreen === 'growth'       && <GrowthIntelligenceScreen />}
             {currentScreen === 'cfo'          && <CFOScreen />}
             {currentScreen === 'budget'       && <BudgetScreen />}
-            {currentScreen === 'analysis'     && <Suspense fallback={<ScreenLoader />}><AnalysisScreen /></Suspense>}
+            {currentScreen === 'analysis'     && <AnalysisScreen />}
             {currentScreen === '2fa'          && <TwoFactorSetupScreen />}
             {currentScreen === 'payment-link' && <PaymentLinkScreen />}
             {currentScreen === 'connect-bank'     && <ConnectBankScreen />}
@@ -103,7 +92,7 @@ function NavigatorContent() {
             {currentScreen === 'bank-aggregator'       && <BankAggregatorScreen />}
             {currentScreen === 'import-transactions'  && <ImportTransactionsScreen />}
             {currentScreen === 'cashflow'       && <CashFlowScreen />}
-            {currentScreen === 'payroll'        && <Suspense fallback={<ScreenLoader />}><PayrollScreen /></Suspense>}
+            {currentScreen === 'payroll'        && <PayrollScreen />}
             {currentScreen === 'reconciliation' && <ReconciliationScreen />}
             {currentScreen === 'tax-planning'   && <TaxPlanningScreen />}
             {currentScreen === 'credit-worthiness' && <CreditWorthinessScreen />}
