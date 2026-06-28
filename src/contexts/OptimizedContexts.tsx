@@ -476,11 +476,11 @@ export function useApp() {
     logout: auth.logout,
 
     // Finance state
-    transactions: finance.transactions,
-    assets: finance.assets,
-    loans: finance.loans,
-    budgets: finance.budgets,
-    inventory: finance.inventory,
+    transactions: finance.transactions || [],
+    assets: finance.assets || [],
+    loans: finance.loans || [],
+    budgets: finance.budgets || [],
+    inventory: finance.inventory || [],
     finance: finance.finance,
     addTransaction: finance.addTransaction,
     updateTransaction: finance.updateTransaction,
@@ -496,13 +496,13 @@ export function useApp() {
     deleteBudget: finance.deleteBudget,
 
     // Goals state
-    goals: goals.goals,
+    goals: goals.goals || [],
     addGoal: goals.addGoal,
     updateGoal: goals.updateGoal,
     deleteGoal: goals.deleteGoal,
 
     // Invoices state
-    invoices: invoices.invoices,
+    invoices: invoices.invoices || [],
     addInvoice: invoices.addInvoice,
     updateInvoice: invoices.updateInvoice,
     deleteInvoice: invoices.deleteInvoice,
@@ -512,5 +512,12 @@ export function useApp() {
     language: settings.language,
     updateSettings: settings.updateSettings,
     setLanguage: settings.setLanguage,
+
+    // Placeholder properties (for screens that reference them)
+    // These should ideally be in actual contexts, but added here for compatibility
+    isDemoMode: false,
+    exitDemo: () => {},
+    cashPockets: [],
+    financing: null,
   };
 }
