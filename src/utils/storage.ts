@@ -707,6 +707,23 @@ export async function deletePayrollRunFromSupabase(runId: string, userId: string
     } catch { /* offline */ }
 }
 
+// ─── Merchant Financing — Supabase sync ──────────────────────────────────────
+export async function syncFinancingToSupabase(financing: FinancingContextData, userId: string): Promise<void> {
+    try {
+        if (!financing) return;
+        const row = { id: 'financing', user_id: userId, data: financing, updated_at: new Date().toISOString() };
+        await supabase.from('merchant_financing').upsert([row], { onConflict: 'id,user_id' });
+    } catch { /* offline — local save already done */ }
+}
+
+export async function loadFinancingFromSupabase(userId: string): Promise<FinancingContextData | null> {
+    try {
+        const { data, error } = await supabase.from('merchant_financing').select('data').eq('user_id', userId).single();
+        if (error || !data) return null;
+        return data.data as FinancingContextData;
+    } catch { return null; }
+}
+
 // Permanently deletes all Supabase data for the owner. Use only for explicit "Delete Account" action.
 export async function deleteAccountData(): Promise<void> {
     const ownerId = await getWorkspaceOwnerId();

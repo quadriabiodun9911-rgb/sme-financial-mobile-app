@@ -36,6 +36,7 @@ import {
     syncStaffToSupabase, loadStaffFromSupabase,
     syncPayrollRunsToSupabase, loadPayrollRunsFromSupabase,
     deleteStaffFromSupabase, deletePayrollRunFromSupabase,
+    syncFinancingToSupabase, loadFinancingFromSupabase,
     savePin, loadPin,
     saveProfile, loadProfile,
     saveLanguage, loadLanguage,
@@ -318,6 +319,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
                     await AsyncStorage.setItem('@quad360/first_run_done', '1').catch(() => {});
                     setHasProfile(true);
                     setUser({ email, businessName, role: 'Administrator', phone });
+                    // Load financing data from Supabase
+                    const financingData = await loadFinancingFromSupabase(session.user.id).catch(() => null);
+                    if (financingData) setFinancing(financingData);
                     setCurrentScreen('dashboard');
                 } else if (pin && profile) {
                     // Offline fallback: local PIN + profile exist — also an existing user
@@ -377,6 +381,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     useDebouncedEffect(() => { if (!isLoading) saveSettings(settings).catch(persistError('settings')); }, [settings, isLoading]);
     useDebouncedEffect(() => { if (!isLoading) saveGoals(goals).catch(persistError('goals')); }, [goals, isLoading]);
     useDebouncedEffect(() => { if (!isLoading) saveInvoices(invoices).catch(persistError('invoices')); }, [invoices, isLoading]);
+    useDebouncedEffect(() => { if (!isLoading && user?.email) syncFinancingToSupabase(financing, user.email).catch(persistError('financing')); }, [financing, user?.email, isLoading]);
 
     // Auto-mark sent invoices as overdue when past their due date
     useEffect(() => {
@@ -1020,11 +1025,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 monthlyProfitCurrent: user?.avgMonthlyProfit || 0,
             };
 
-            setFinancing(prev => ({
-                ...prev,
+            const newFinancing: FinancingContextData = {
+                isQualified: financing.isQualified,
+                qualification: financing.qualification,
+                minQualifiedAmount: financing.minQualifiedAmount,
+                maxQualifiedAmount: financing.maxQualifiedAmount,
                 application,
                 applicationStatus: 'pending',
-            }));
+                activeLoan: financing.activeLoan,
+            };
+
+            setFinancing(newFinancing);
+
+            // Save to Supabase
+            if (user?.email) {
+                await syncFinancingToSupabase(newFinancing, user.email).catch(err => {
+                    console.error('Failed to sync financing application:', err);
+                });
+            }
         } catch (error) {
             Alert.alert('Error', 'Failed to submit financing application');
             throw error;
@@ -1045,20 +1063,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 nextPaymentDue: details?.nextPaymentDue,
             };
 
-            if (status === 'approved' || status === 'funded' || status === 'repaying') {
-                return {
+            const newFinancing = status === 'approved' || status === 'funded' || status === 'repaying'
+                ? {
                     ...prev,
                     application: undefined,
                     activeLoan: updatedApp,
                     applicationStatus: null,
+                }
+                : {
+                    ...prev,
+                    application: updatedApp,
+                    applicationStatus: status as any,
                 };
+
+            // Save to Supabase
+            if (user?.email) {
+                syncFinancingToSupabase(newFinancing, user.email).catch(err => {
+                    console.error('Failed to sync financing status update:', err);
+                });
             }
 
-            return {
-                ...prev,
-                application: updatedApp,
-                applicationStatus: status as any,
-            };
+            return newFinancing;
         });
     };
 
@@ -1067,7 +1092,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setFinancing(prev => {
             if (!prev.activeLoan) return prev;
 
-            return {
+            const newFinancing = {
                 ...prev,
                 activeLoan: {
                     ...prev.activeLoan,
@@ -1083,6 +1108,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
                     ],
                 },
             };
+
+            // Save to Supabase
+            if (user?.email) {
+                syncFinancingToSupabase(newFinancing, user.email).catch(err => {
+                    console.error('Failed to sync financing payment:', err);
+                });
+            }
+
+            return newFinancing;
         });
     };
 
