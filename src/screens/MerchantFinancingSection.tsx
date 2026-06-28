@@ -38,6 +38,11 @@ export default function MerchantFinancingSection() {
 
     return (
         <View style={s.container}>
+            {/* SIMPLE TEST: Just show a title to confirm component is rendering */}
+            <Text style={{ fontSize: 24, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 20 }}>
+                💰 Merchant Financing
+            </Text>
+
             {/* SECTION 1: Active Merchant Loan - Priority 1 */}
             {hasActiveLoan && financing?.activeLoan ? (
                 <ActiveMerchantLoanCard
