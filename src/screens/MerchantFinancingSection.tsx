@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
     TouchableOpacity, StyleSheet, Modal, Alert, Platform,
@@ -417,6 +417,14 @@ function NotQualifiedState({ daysActive, monthlyRevenue, healthScore, currency }
     currency: string;
 }) {
     const daysRemaining = Math.max(0, 90 - daysActive);
+    const estimatedQualificationDate = useMemo(() => {
+        if (daysActive >= 90) return null;
+        const today = new Date();
+        const qualifyDate = new Date(today);
+        qualifyDate.setDate(qualifyDate.getDate() + daysRemaining);
+        return qualifyDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }, [daysActive, daysRemaining]);
+
     const requirements = [
         {
             met: daysActive >= 90,
@@ -424,7 +432,8 @@ function NotQualifiedState({ daysActive, monthlyRevenue, healthScore, currency }
             current: daysActive,
             needed: 90,
             type: 'days',
-            hint: daysActive >= 90 ? 'Complete ✅' : `${daysRemaining} days remaining`
+            hint: daysActive >= 90 ? 'Complete ✅' : `${daysRemaining} days remaining`,
+            progress: Math.min(100, (daysActive / 90) * 100),
         },
         {
             met: monthlyRevenue >= 200000,
@@ -433,7 +442,8 @@ function NotQualifiedState({ daysActive, monthlyRevenue, healthScore, currency }
             needed: 200000,
             type: 'currency',
             currency,
-            hint: monthlyRevenue >= 200000 ? 'Complete ✅' : `Need ${currency}${(200000 - monthlyRevenue).toLocaleString()} more`
+            hint: monthlyRevenue >= 200000 ? 'Complete ✅' : `Need ${currency}${(200000 - monthlyRevenue).toLocaleString()} more`,
+            progress: Math.min(100, (monthlyRevenue / 200000) * 100),
         },
         {
             met: healthScore >= 50,
@@ -441,7 +451,8 @@ function NotQualifiedState({ daysActive, monthlyRevenue, healthScore, currency }
             current: healthScore,
             needed: 50,
             type: 'score',
-            hint: healthScore >= 50 ? 'Complete ✅' : `${50 - healthScore} points needed`
+            hint: healthScore >= 50 ? 'Complete ✅' : `${50 - healthScore} points needed`,
+            progress: Math.min(100, (healthScore / 50) * 100),
         },
     ];
 
@@ -457,6 +468,16 @@ function NotQualifiedState({ daysActive, monthlyRevenue, healthScore, currency }
             <Text style={s.emptyStateSubtitle}>
                 You're {completedCount}/{totalCount} steps away from qualifying for merchant financing.
             </Text>
+
+            {estimatedQualificationDate && (
+                <View style={[s.infoBox, { marginBottom: 16, backgroundColor: Colors.primary + '15', borderLeftColor: Colors.primary }]}>
+                    <Text style={s.infoIcon}>📅</Text>
+                    <View>
+                        <Text style={[s.infoText, { fontWeight: '600', color: Colors.primary }]}>Estimated Qualification Date</Text>
+                        <Text style={[s.infoText, { color: Colors.textPrimary, fontSize: 14, marginTop: 4 }]}>{estimatedQualificationDate}</Text>
+                    </View>
+                </View>
+            )}
 
             {requirements.map((req, idx) => {
                 const percent = Math.min(100, (req.current / req.needed) * 100);

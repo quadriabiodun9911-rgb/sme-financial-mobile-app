@@ -21,12 +21,13 @@ import DailyTargetCard from '../components/DailyTargetCard';
 import MonthlyReview from '../components/MonthlyReview';
 import CashPocketsModal from '../components/CashPocketsModal';
 import DailyReportModal from '../components/DailyReportModal';
+import MerchantFinancingQualificationWidget from '../components/MerchantFinancingQualificationWidget';
 
 const INCOME_CATEGORIES = ['Sales', 'Service', 'Consulting', 'Rental', 'Interest', 'Other Income'];
 const EXPENSE_CATEGORIES = ['Rent', 'Salaries', 'Utilities', 'Marketing', 'Supplies', 'Transport', 'Meals', 'Software', 'Tax', 'Other'];
 
 export default function DashboardScreen() {
-    const { finance, settings, goals, transactions, invoices, assets, loans, navigate, setCurrentScreen, language, isLoading, addTransaction, isDemoMode, exitDemo, cashPockets, deleteGoal, updateGoal, budgets, inventory } = useApp();
+    const { finance, settings, goals, transactions, invoices, assets, loans, navigate, setCurrentScreen, language, isLoading, addTransaction, isDemoMode, exitDemo, cashPockets, deleteGoal, updateGoal, budgets, inventory, user, financing } = useApp();
 
     const [fabOpen, setFabOpen]           = useState(false);
     const [qaType, setQaType]             = useState<'income' | 'expense'>('income');
@@ -273,6 +274,19 @@ export default function DashboardScreen() {
                         </Text>
                     </TouchableOpacity>
                 </View>
+
+                {/* ── Merchant Financing Qualification Widget ────────────────── */}
+                {!isDemoMode && user && (
+                    <MerchantFinancingQualificationWidget
+                        daysActive={user.daysActive || 0}
+                        monthlyRevenue={user.avgMonthlyRevenue || 0}
+                        healthScore={user.financialHealthScore || 0}
+                        currency={settings.currency || '₦'}
+                        isQualified={financing.isQualified || false}
+                        hasActiveLoan={financing.activeLoan !== undefined && financing.activeLoan !== null}
+                        onPress={() => setCurrentScreen('loans')}
+                    />
+                )}
 
                 {/* ── Beta Features Spotlight ──────────────────────────────── */}
                 {!isDemoMode && !betaCardDismissed && (

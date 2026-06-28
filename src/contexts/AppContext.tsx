@@ -46,7 +46,7 @@ import {
     AppBackup,
 } from '../utils/storage';
 import { refreshGoal, goalDefaults } from '../utils/goals';
-import { requestNotificationPermission, sendWelcomeNotification, scheduleDailyReminder, scheduleWeeklySummaryReminder, scheduleOverdueInvoiceReminder } from '../utils/notifications';
+import { requestNotificationPermission, sendWelcomeNotification, scheduleDailyReminder, scheduleWeeklySummaryReminder, scheduleOverdueInvoiceReminder, notifyFinancingQualificationProgress } from '../utils/notifications';
 import { supabase } from '../utils/supabase';
 import NetInfo from '@react-native-community/netinfo';
 import { flushQueue, queueSize } from '../utils/syncQueue';
@@ -520,6 +520,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         checkMerchantFinancingEligibility();
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user?.daysActive, user?.avgMonthlyRevenue, user?.financialHealthScore, isLoading]);
+
+    // Notify user when close to financing qualification (75+ days)
+    useEffect(() => {
+        if (isLoading || !user?.daysActive || isLockedOut) return;
+        notifyFinancingQualificationProgress(user.daysActive).catch(() => {});
+    }, [user?.daysActive, isLoading, isLockedOut]);
 
     const navigate = (s: Screen, params?: NavParams) => {
         setNavParams(params ?? null);

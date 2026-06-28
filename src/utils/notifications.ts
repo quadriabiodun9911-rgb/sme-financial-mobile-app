@@ -13,6 +13,7 @@ Notifications.setNotificationHandler({
 const KEYS = {
     dailyId:  '@quad360/notif_daily_id',
     weeklyId: '@quad360/notif_weekly_id',
+    financingQualifyId: '@quad360/notif_financing_qualify_id',
 };
 
 export async function requestNotificationPermission(): Promise<boolean> {
@@ -88,6 +89,37 @@ export async function sendWelcomeNotification(businessName: string): Promise<voi
             },
             trigger: { seconds: 2 } as any,
         });
+    } catch {
+        // Fail silently
+    }
+}
+
+export async function notifyFinancingQualificationProgress(daysActive: number): Promise<void> {
+    try {
+        if (Platform.OS === 'web') return;
+
+        // Only notify if user is between 75 and 90 days active
+        if (daysActive < 75 || daysActive >= 90) return;
+
+        const prevNotified = await AsyncStorage.getItem(KEYS.financingQualifyId);
+        // Only send once per 7 days
+        if (prevNotified) {
+            const lastNotifTime = parseInt(prevNotified, 10);
+            const daysSinceLastNotif = (Date.now() - lastNotifTime) / (1000 * 60 * 60 * 24);
+            if (daysSinceLastNotif < 7) return;
+        }
+
+        const daysRemaining = 90 - daysActive;
+        await Notifications.scheduleNotificationAsync({
+            content: {
+                title: 'You\'re Almost Qualified! 🎉',
+                body: `Just ${daysRemaining} more days of activity and you'll unlock merchant financing. Keep logging transactions!`,
+            },
+            trigger: null,
+        });
+
+        // Mark that we've sent this notification
+        await AsyncStorage.setItem(KEYS.financingQualifyId, Date.now().toString());
     } catch {
         // Fail silently
     }
