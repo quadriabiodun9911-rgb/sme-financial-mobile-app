@@ -1,0 +1,247 @@
+name: Deploy to Vercel
+
+on:
+  push:
+    branches:
+      - main
+      - claude/tender-ritchie-9y0iez
+  pull_request:
+    branches:
+      - main
+
+env:
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+  VERCEL_PROJECT_ID_STAGING: ${{ secrets.VERCEL_PROJECT_ID_STAGING }}
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    name: Build & Test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run TypeScript check
+        run: npm run ts:check
+
+      - name: Run tests
+        run: npm test -- --coverage --passWithNoTests
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage/lcov.info
+          fail_ci_if_error: false
+
+  build-web:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    name: Build Web App
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web app
+        run: npm run build:web
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7
+
+  deploy-staging:
+    if: github.ref == 'refs/heads/claude/tender-ritchie-9y0iez'
+    needs: build-web
+    runs-on: ubuntu-latest
+    name: Deploy to Staging
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel
+
+      - name: Download dist artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: dist
+          path: dist
+
+      - name: Deploy to Staging
+        run: |
+          vercel deploy \
+            --token=${{ secrets.VERCEL_TOKEN }} \
+            --prod \
+            dist/
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_STAGING }}
+
+      - name: Comment PR with staging URL
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const staging_url = 'https://quad360-staging.vercel.app';
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🚀 **Staging deployment ready!**\n\n[Visit Staging](${staging_url})`
+            });
+
+  deploy-production:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: build-web
+    runs-on: ubuntu-latest
+    name: Deploy to Production
+    environment:
+      name: production
+      url: https://quad360.vercel.app
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel
+
+      - name: Download dist artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: dist
+          path: dist
+
+      - name: Deploy to Production
+        run: |
+          vercel deploy \
+            --token=${{ secrets.VERCEL_TOKEN }} \
+            --prod \
+            dist/
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Create Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ github.run_number }}
+          release_name: Release ${{ github.run_number }}
+          body: |
+            🚀 Production deployment complete!
+
+            **Live URL:** https://quad360.vercel.app
+            **Commit:** ${{ github.sha }}
+            **Branch:** main
+          draft: false
+          prerelease: false
+
+  deploy-preview:
+    if: github.event_name == 'pull_request'
+    needs: build-web
+    runs-on: ubuntu-latest
+    name: Deploy Preview
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel
+
+      - name: Download dist artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: dist
+          path: dist
+
+      - name: Deploy Preview
+        id: preview
+        run: |
+          OUTPUT=$(vercel deploy \
+            --token=${{ secrets.VERCEL_TOKEN }} \
+            dist/ 2>&1)
+          PREVIEW_URL=$(echo "$OUTPUT" | grep -oP 'https://[^ ]+' | head -1)
+          echo "preview_url=$PREVIEW_URL" >> $GITHUB_OUTPUT
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+
+      - name: Comment PR with preview URL
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const preview_url = '${{ steps.preview.outputs.preview_url }}';
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `✅ **Preview deployment ready!**\n\n[Visit Preview](${preview_url})\n\n**Build Info:**\n- Commit: ${{ github.sha }}\n- Branch: ${{ github.head_ref }}`
+            });
+
+  notify-deployment:
+    if: always()
+    runs-on: ubuntu-latest
+    name: Notify Deployment Status
+    needs: [build-and-test, deploy-production, deploy-staging]
+
+    steps:
+      - name: Check deployment status
+        run: |
+          if [[ "${{ needs.deploy-production.result }}" == "success" ]] || [[ "${{ needs.deploy-staging.result }}" == "success" ]]; then
+            echo "✅ Deployment successful!"
+          else
+            echo "⚠️ Deployment had issues"
+          fi
+
+      - name: Post to Slack (optional)
+        if: always()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: 'Deployment pipeline completed'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        continue-on-error: true
