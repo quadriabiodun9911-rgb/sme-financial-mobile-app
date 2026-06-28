@@ -11,7 +11,7 @@ interface CardProps {
 }
 
 function CardComponent({ children, title, subtitle, onPress, style, padded = true }: CardProps) {
-  const Container = onPress ? TouchableOpacity : View;
+  const Container = (onPress ? TouchableOpacity : View) as React.ComponentType<any>;
   const containerProps = onPress
     ? { onPress, activeOpacity: 0.75, accessibilityRole: 'button' as const }
     : {};

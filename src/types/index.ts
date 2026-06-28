@@ -192,6 +192,7 @@ export interface User {
 }
 
 export interface BusinessSettings {
+    businessName?: string;
     businessType: 'product' | 'service' | 'both';
     currency: string;
     currencyCode: string;  // ISO code e.g. 'NGN', 'USD'

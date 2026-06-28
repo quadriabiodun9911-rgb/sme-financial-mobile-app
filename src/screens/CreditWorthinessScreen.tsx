@@ -234,7 +234,7 @@ export default function CreditWorthinessScreen() {
                     <Text style={s.sectionTitle}>🏦 What Lenders Look For</Text>
                     <LenderCheckpoint label="Credit Score" status={overallCreditScore >= 70} description="70+ score increases approval odds" />
                     <LenderCheckpoint label="Payment History" status={creditFactors[0]?.score >= 80} description="On-time payment record" />
-                    <LenderCheckpoint label="Cash Flow" status={finance.runway && finance.runway >= 90} description="3+ months runway" />
+                    <LenderCheckpoint label="Cash Flow" status={!!(finance.runway && finance.runway >= 90)} description="3+ months runway" />
                     <LenderCheckpoint label="Revenue Level" status={(user?.avgMonthlyRevenue || 0) >= 200000} description={`${currency}200k+ monthly revenue`} />
                     <LenderCheckpoint label="Business Age" status={(user?.daysActive || 0) >= 90} description="90+ days operating history" />
                     <LenderCheckpoint label="Debt Ratio" status={creditFactors[1]?.score >= 70} description="Debt < 30% of available credit" />
@@ -303,7 +303,7 @@ const s = StyleSheet.create({
     scoreEmoji: { fontSize: 48, marginBottom: 8 },
     scoreLabel: { fontSize: 14, color: Colors.textSecondary, marginBottom: 4 },
     scoreValue: { fontSize: 56, fontWeight: 'bold', marginBottom: 4 },
-    scoreRating: { fontSize: 16, fontWeight: '600', color: Colors.textPrimary, marginBottom: 20, paddingTop: 12, borderTopWidth: 1, borderTopColor: Colors.muted, width: '100%', paddingTop: 12, textAlign: 'center' },
+    scoreRating: { fontSize: 16, fontWeight: '600', color: Colors.textPrimary, marginBottom: 20, paddingTop: 12, borderTopWidth: 1, borderTopColor: Colors.muted, width: '100%', textAlign: 'center' },
     scoreBreakdown: { width: '100%', marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: Colors.muted },
     breakdownLabel: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary, marginBottom: 8 },
     breakdownItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 },
