@@ -22,7 +22,11 @@ export type Screen =
     | 'import-transactions'
     | 'cashflow'
     | 'payroll'
-    | 'reconciliation';
+    | 'reconciliation'
+    | 'tax-planning'
+    | 'credit-worthiness'
+    | 'loan-eligibility'
+    | 'financial-coach';
 
 export interface Budget {
     id: string;
@@ -170,6 +174,9 @@ export interface FinanceData {
     netTaxPosition: number;
     annualDepreciation: number;   // total depreciation charge for the year
     depreciationAdjustedProfit: number; // profit after depreciation
+    runway?: number; // days of cash runway at current burn rate
+    revenue?: number; // alias for income for backward compatibility
+    expenses?: number; // alias for expense for backward compatibility
 }
 
 export interface User {

@@ -24,8 +24,8 @@ export default function FinancialHealthCoachScreen() {
         }> = [];
 
         // 1. Profitability
-        const profitMargin = finance.profit > 0 && finance.revenue > 0
-            ? (finance.profit / finance.revenue) * 100
+        const profitMargin = finance.profit > 0 && finance.income > 0
+            ? (finance.profit / finance.income) * 100
             : 0;
 
         if (profitMargin < 20) {
@@ -81,7 +81,7 @@ export default function FinancialHealthCoachScreen() {
         }
 
         // 5. Expense Control
-        const expenseRatio = finance.revenue > 0 ? (finance.expenses / finance.revenue) * 100 : 0;
+        const expenseRatio = finance.income > 0 ? (finance.expense / finance.income) * 100 : 0;
         if (expenseRatio > 80) {
             recs.push({
                 priority: 'high',
@@ -106,7 +106,7 @@ export default function FinancialHealthCoachScreen() {
             .sort((a, b) => b.amount - a.amount)[0];
 
         if (topCategoryIncome) {
-            const topCategoryPercent = (topCategoryIncome.amount / finance.revenue) * 100;
+            const topCategoryPercent = (topCategoryIncome.amount / finance.income) * 100;
             if (topCategoryPercent > 60) {
                 recs.push({
                     priority: 'medium',
@@ -139,10 +139,10 @@ export default function FinancialHealthCoachScreen() {
 
     // Industry benchmarks
     const benchmarks = useMemo(() => {
-        const profitMargin = finance.profit > 0 && finance.revenue > 0
-            ? (finance.profit / finance.revenue) * 100
+        const profitMargin = finance.profit > 0 && finance.income > 0
+            ? (finance.profit / finance.income) * 100
             : 0;
-        const expenseRatio = finance.revenue > 0 ? (finance.expenses / finance.revenue) * 100 : 0;
+        const expenseRatio = finance.income > 0 ? (finance.expense / finance.income) * 100 : 0;
         const runway = finance.runway || 0;
 
         return [
