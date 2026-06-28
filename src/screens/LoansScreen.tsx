@@ -1,3 +1,14 @@
+/**
+ * UPDATED LoansScreen with Merchant Financing Tab
+ *
+ * This is the new version of LoansScreen that includes both:
+ * 1. Loan Register (existing loans the SME has)
+ * 2. Merchant Financing (new financing available through Quad360)
+ *
+ * Integration note: Replace src/screens/LoansScreen.tsx with this file,
+ * or import MerchantFinancingSection as a separate component.
+ */
+
 import React, { useState, useMemo } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
@@ -9,9 +20,9 @@ import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { Loan, LoanStatus } from '../types';
 import DateInput from '../components/DateInput';
+import MerchantFinancingSection from './MerchantFinancingSection';
 
-// ── Loan math helpers ────────────────────────────────────────────────────────
-
+// Original Loans Screen helpers
 function monthlyPayment(principal: number, annualRate: number, termMonths: number): number {
     if (!termMonths || termMonths <= 0) return 0;
     if (annualRate === 0) return principal / termMonths;
@@ -34,15 +45,15 @@ function outstandingBalance(loan: Loan): number {
 
 function nextDueDate(loan: Loan): string {
     const start = new Date(loan.startDate);
-    const paid  = (loan.payments ?? []).length;
-    const next  = new Date(start);
+    const paid = (loan.payments ?? []).length;
+    const next = new Date(start);
     next.setMonth(next.getMonth() + paid + 1);
     return next.toISOString().split('T')[0];
 }
 
 function payoffDate(loan: Loan): string {
     const start = new Date(loan.startDate);
-    const end   = new Date(start);
+    const end = new Date(start);
     end.setMonth(end.getMonth() + loan.termMonths);
     return end.toISOString().split('T')[0];
 }
@@ -53,30 +64,34 @@ function isOverdue(loan: Loan): boolean {
     return due < new Date();
 }
 
-// ── Component ────────────────────────────────────────────────────────────────
+// ── MAIN COMPONENT ────────────────────────────────────────────────────────
 
 export default function LoansScreen() {
     const { loans, addLoan, updateLoan, deleteLoan, addLoanPayment, settings, navigate } = useApp();
     const { currency } = settings;
 
-    const [showForm, setShowForm]         = useState(false);
-    const [editingId, setEditingId]       = useState<string | null>(null);
-    const [showPayment, setShowPayment]   = useState<string | null>(null);
-    const [expandedId, setExpandedId]     = useState<string | null>(null);
+    // Feature flag for merchant financing
+    const enableFinancing = process.env.EXPO_PUBLIC_ENABLE_FINANCING !== 'false';
+
+    const [activeTab, setActiveTab] = useState<'existing' | 'financing'>('existing');
+    const [showForm, setShowForm] = useState(false);
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [showPayment, setShowPayment] = useState<string | null>(null);
+    const [expandedId, setExpandedId] = useState<string | null>(null);
 
     // Loan form
-    const [lender, setLender]       = useState('');
-    const [purpose, setPurpose]     = useState('');
+    const [lender, setLender] = useState('');
+    const [purpose, setPurpose] = useState('');
     const [principal, setPrincipal] = useState('');
-    const [rate, setRate]           = useState('');
-    const [term, setTerm]           = useState('');
-    const [startDate, setStart]     = useState(new Date().toISOString().split('T')[0]);
-    const [status, setStatus]       = useState<LoanStatus>('active');
+    const [rate, setRate] = useState('');
+    const [term, setTerm] = useState('');
+    const [startDate, setStart] = useState(new Date().toISOString().split('T')[0]);
+    const [status, setStatus] = useState<LoanStatus>('active');
 
     // Payment form
     const [payAmount, setPayAmount] = useState('');
-    const [payDate, setPayDate]     = useState(new Date().toISOString().split('T')[0]);
-    const [payNote, setPayNote]     = useState('');
+    const [payDate, setPayDate] = useState(new Date().toISOString().split('T')[0]);
+    const [payNote, setPayNote] = useState('');
 
     const resetForm = () => {
         setLender(''); setPurpose(''); setPrincipal(''); setRate('');
@@ -99,7 +114,7 @@ export default function LoansScreen() {
         const r = parseFloat(rate);
         const t = parseInt(term, 10);
         if (isNaN(p) || p <= 0) { Alert.alert('Error', 'Please enter a valid loan amount.'); return; }
-        if (isNaN(r) || r < 0)  { Alert.alert('Error', 'Please enter a valid interest rate (0 for interest-free).'); return; }
+        if (isNaN(r) || r < 0) { Alert.alert('Error', 'Please enter a valid interest rate (0 for interest-free).'); return; }
         if (isNaN(t) || t <= 0) { Alert.alert('Error', 'Please enter a valid loan term in months.'); return; }
 
         const payload = {
@@ -139,10 +154,10 @@ export default function LoansScreen() {
     };
 
     // Summary stats
-    const activeLoans   = loans.filter(l => l.status === 'active');
-    const totalDebt     = activeLoans.reduce((s, l) => s + outstandingBalance(l), 0);
-    const totalMonthly  = activeLoans.reduce((s, l) => s + monthlyPayment(l.principal, l.interestRate, l.termMonths), 0);
-    const overdueLoans  = activeLoans.filter(isOverdue);
+    const activeLoans = loans.filter(l => l.status === 'active');
+    const totalDebt = activeLoans.reduce((s, l) => s + outstandingBalance(l), 0);
+    const totalMonthly = activeLoans.reduce((s, l) => s + monthlyPayment(l.principal, l.interestRate, l.termMonths), 0);
+    const overdueLoans = activeLoans.filter(isOverdue);
 
     return (
         <SafeAreaView style={s.safe}>
@@ -152,54 +167,78 @@ export default function LoansScreen() {
                     <Text style={{ color: Colors.primary, fontSize: 14 }}>← Dashboard</Text>
                 </TouchableOpacity>
             </View>
-            <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
-                <Text style={s.title}>Loan Register</Text>
 
-                {/* Summary */}
-                <View style={s.summaryRow}>
-                    <SummaryCard label="Total Outstanding" value={`${currency}${totalDebt.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} color={Colors.expense} />
-                    <SummaryCard label="Monthly Repayment" value={`${currency}${totalMonthly.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} color={Colors.warning} />
-                    <SummaryCard label="Active Loans" value={String(activeLoans.length)} color={Colors.textPrimary} />
-                </View>
-
-                {/* Overdue alert */}
-                {overdueLoans.length > 0 && (
-                    <View style={s.alertBanner}>
-                        <Text style={s.alertText}>
-                            ⚠️ {overdueLoans.length} loan payment{overdueLoans.length > 1 ? 's are' : ' is'} overdue
-                        </Text>
-                    </View>
+            {/* TAB BAR */}
+            <View style={s.tabBar}>
+                <TabButton
+                    label="Loan Register"
+                    active={activeTab === 'existing'}
+                    onPress={() => setActiveTab('existing')}
+                />
+                {enableFinancing && (
+                    <TabButton
+                        label="Merchant Financing"
+                        active={activeTab === 'financing'}
+                        onPress={() => setActiveTab('financing')}
+                    />
                 )}
+            </View>
 
-                {loans.length === 0 ? (
-                    <View style={s.emptyState}>
-                        <Text style={s.emptyIcon}>🏦</Text>
-                        <Text style={s.emptyTitle}>No loans recorded yet.</Text>
-                        <Text style={s.emptySub}>
-                            Add bank loans, family loans, or any money your business owes. Tracking loans helps you see total repayment obligations and interest costs.
-                        </Text>
-                        <TouchableOpacity style={s.emptyAddBtn} onPress={openAdd}>
-                            <Text style={s.emptyAddBtnText}>+ Add Loan</Text>
-                        </TouchableOpacity>
+            {/* TAB CONTENT */}
+            {(activeTab === 'existing' || !enableFinancing) ? (
+                <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
+                    <Text style={s.title}>Loan Register</Text>
+
+                    {/* Summary */}
+                    <View style={s.summaryRow}>
+                        <SummaryCard label="Total Outstanding" value={`${currency}${totalDebt.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} color={Colors.expense} />
+                        <SummaryCard label="Monthly Repayment" value={`${currency}${totalMonthly.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} color={Colors.warning} />
+                        <SummaryCard label="Active Loans" value={String(activeLoans.length)} color={Colors.textPrimary} />
                     </View>
-                ) : (
-                    loans.map(loan => (
-                        <LoanCard
-                            key={loan.id}
-                            loan={loan}
-                            currency={currency}
-                            expanded={expandedId === loan.id}
-                            onToggle={() => setExpandedId(expandedId === loan.id ? null : loan.id)}
-                            onEdit={() => openEdit(loan)}
-                            onDelete={() => confirmDelete(loan.id)}
-                            onAddPayment={() => {
-                                setShowPayment(loan.id);
-                                setPayDate(new Date().toISOString().split('T')[0]);
-                            }}
-                        />
-                    ))
-                )}
-            </ScrollView>
+
+                    {/* Overdue alert */}
+                    {overdueLoans.length > 0 && (
+                        <View style={s.alertBanner}>
+                            <Text style={s.alertText}>
+                                ⚠️ {overdueLoans.length} loan payment{overdueLoans.length > 1 ? 's are' : ' is'} overdue
+                            </Text>
+                        </View>
+                    )}
+
+                    {loans.length === 0 ? (
+                        <View style={s.emptyState}>
+                            <Text style={s.emptyIcon}>🏦</Text>
+                            <Text style={s.emptyTitle}>No loans recorded yet.</Text>
+                            <Text style={s.emptySub}>
+                                Add bank loans, family loans, or any money your business owes. Tracking loans helps you see total repayment obligations and interest costs.
+                            </Text>
+                            <TouchableOpacity style={s.emptyAddBtn} onPress={openAdd}>
+                                <Text style={s.emptyAddBtnText}>+ Add Loan</Text>
+                            </TouchableOpacity>
+                        </View>
+                    ) : (
+                        loans.map(loan => (
+                            <LoanCard
+                                key={loan.id}
+                                loan={loan}
+                                currency={currency}
+                                expanded={expandedId === loan.id}
+                                onToggle={() => setExpandedId(expandedId === loan.id ? null : loan.id)}
+                                onEdit={() => openEdit(loan)}
+                                onDelete={() => confirmDelete(loan.id)}
+                                onAddPayment={() => {
+                                    setShowPayment(loan.id);
+                                    setPayDate(new Date().toISOString().split('T')[0]);
+                                }}
+                            />
+                        ))
+                    )}
+                </ScrollView>
+            ) : enableFinancing && activeTab === 'financing' ? (
+                <ScrollView style={s.scroll}>
+                    <MerchantFinancingSection />
+                </ScrollView>
+            ) : null}
 
             <TouchableOpacity style={s.fab} onPress={openAdd}>
                 <Text style={s.fabText}>+</Text>
@@ -294,18 +333,32 @@ export default function LoansScreen() {
     );
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
+// ── SUB-COMPONENTS ────────────────────────────────────────────────────────
+
+function TabButton({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+    return (
+        <TouchableOpacity
+            style={[s.tabButton, active && s.tabButtonActive]}
+            onPress={onPress}
+        >
+            <Text style={[s.tabButtonText, active && s.tabButtonTextActive]}>
+                {label}
+            </Text>
+            {active && <View style={s.tabUnderline} />}
+        </TouchableOpacity>
+    );
+}
 
 function LoanCard({ loan, currency, expanded, onToggle, onEdit, onDelete, onAddPayment }: {
     loan: Loan; currency: string; expanded: boolean;
     onToggle: () => void; onEdit: () => void; onDelete: () => void; onAddPayment: () => void;
 }) {
-    const paid       = totalPaid(loan);
-    const balance    = outstandingBalance(loan);
-    const monthly    = monthlyPayment(loan.principal, loan.interestRate, loan.termMonths);
-    const interest   = totalInterest(loan.principal, loan.interestRate, loan.termMonths);
-    const progress   = Math.min(100, (paid / loan.principal) * 100);
-    const overdue    = isOverdue(loan);
+    const paid = totalPaid(loan);
+    const balance = outstandingBalance(loan);
+    const monthly = monthlyPayment(loan.principal, loan.interestRate, loan.termMonths);
+    const interest = totalInterest(loan.principal, loan.interestRate, loan.termMonths);
+    const progress = Math.min(100, (paid / loan.principal) * 100);
+    const overdue = isOverdue(loan);
     const statusColor = loan.status === 'paid_off' ? Colors.income : loan.status === 'defaulted' ? Colors.expense : overdue ? Colors.warning : Colors.textMuted;
 
     return (
@@ -406,13 +459,47 @@ function FieldLabel({ text }: { text: string }) {
     return <Text style={s.fieldLabel}>{text}</Text>;
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
+// ── STYLES ────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-    safe:   { flex: 1, backgroundColor: Colors.bg },
+    safe: { flex: 1, backgroundColor: Colors.bg },
     scroll: { flex: 1 },
-    pad:    { padding: 16, paddingBottom: 100 },
-    title:  { fontSize: 22, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 14 },
+    pad: { padding: 16, paddingBottom: 100 },
+    title: { fontSize: 22, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 14 },
+
+    // Tab Bar
+    tabBar: {
+        flexDirection: 'row',
+        borderBottomWidth: 1,
+        borderBottomColor: Colors.border,
+        backgroundColor: Colors.surface,
+    },
+    tabButton: {
+        flex: 1,
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    tabButtonActive: {
+        borderBottomWidth: 3,
+        borderBottomColor: Colors.primary,
+    },
+    tabButtonText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: Colors.textMuted,
+    },
+    tabButtonTextActive: {
+        color: Colors.primary,
+        fontWeight: '700',
+    },
+    tabUnderline: {
+        position: 'absolute',
+        bottom: 0,
+        height: 3,
+        backgroundColor: Colors.primary,
+    },
 
     summaryRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
     summaryCard: { flex: 1, backgroundColor: Colors.surface, borderRadius: 10, padding: 12, alignItems: 'center' },
@@ -420,23 +507,23 @@ const s = StyleSheet.create({
     summaryValue: { fontSize: 14, fontWeight: '700' },
 
     alertBanner: { backgroundColor: 'rgba(239,68,68,0.12)', borderWidth: 1, borderColor: Colors.expense, borderRadius: 10, padding: 12, marginBottom: 12 },
-    alertText:   { color: Colors.expense, fontWeight: '600', fontSize: 13, textAlign: 'center' },
+    alertText: { color: Colors.expense, fontWeight: '600', fontSize: 13, textAlign: 'center' },
 
-    emptyState:    { alignItems: 'center', paddingTop: 60 },
-    emptyIcon:     { fontSize: 48, marginBottom: 12 },
-    emptyTitle:    { fontSize: 16, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 },
-    emptySub:      { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 20, paddingHorizontal: 20, marginBottom: 20 },
-    emptyAddBtn:   { backgroundColor: Colors.primary, borderRadius: 10, paddingHorizontal: 28, paddingVertical: 12 },
+    emptyState: { alignItems: 'center', paddingTop: 60 },
+    emptyIcon: { fontSize: 48, marginBottom: 12 },
+    emptyTitle: { fontSize: 16, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 },
+    emptySub: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 20, paddingHorizontal: 20, marginBottom: 20 },
+    emptyAddBtn: { backgroundColor: Colors.primary, borderRadius: 10, paddingHorizontal: 28, paddingVertical: 12 },
     emptyAddBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 
     card: { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: Colors.border },
     cardHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 },
-    lenderName:  { fontSize: 15, fontWeight: '700', color: Colors.textPrimary },
+    lenderName: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary },
     loanPurpose: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
     statusBadge: { fontSize: 11, fontWeight: '600', marginBottom: 2 },
     balanceText: { fontSize: 16, fontWeight: '800', color: Colors.expense },
 
-    progressBg:   { height: 6, backgroundColor: Colors.border, borderRadius: 3, marginBottom: 4 },
+    progressBg: { height: 6, backgroundColor: Colors.border, borderRadius: 3, marginBottom: 4 },
     progressFill: { height: 6, borderRadius: 3 },
     progressLabel: { fontSize: 10, color: Colors.textMuted, marginBottom: 10 },
 
@@ -445,24 +532,24 @@ const s = StyleSheet.create({
     metricValue: { fontSize: 11, fontWeight: '700', color: Colors.textPrimary, textAlign: 'center' },
 
     expanded: { borderTopWidth: 1, borderTopColor: Colors.border, marginTop: 10, paddingTop: 10 },
-    nextDueRow:   { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
+    nextDueRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
     nextDueLabel: { fontSize: 12, color: Colors.textMuted },
-    nextDueDate:  { fontSize: 12, fontWeight: '700', color: Colors.textPrimary },
+    nextDueDate: { fontSize: 12, fontWeight: '700', color: Colors.textPrimary },
 
-    paymentHistory:      { backgroundColor: Colors.bg, borderRadius: 8, padding: 10, marginBottom: 10 },
+    paymentHistory: { backgroundColor: Colors.bg, borderRadius: 8, padding: 10, marginBottom: 10 },
     paymentHistoryTitle: { fontSize: 11, fontWeight: '700', color: Colors.textSecondary, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
-    paymentRow:  { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
+    paymentRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
     paymentDate: { fontSize: 11, color: Colors.textMuted, width: 85 },
     paymentNote: { flex: 1, fontSize: 11, color: Colors.textSecondary },
-    paymentAmt:  { fontSize: 12, fontWeight: '700' },
+    paymentAmt: { fontSize: 12, fontWeight: '700' },
     morePayments: { fontSize: 10, color: Colors.textMuted, textAlign: 'center', marginTop: 2 },
 
-    actionRow:    { flexDirection: 'row', gap: 8 },
-    actionBtn:    { flex: 1, paddingVertical: 7, borderRadius: 6, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
+    actionRow: { flexDirection: 'row', gap: 8 },
+    actionBtn: { flex: 1, paddingVertical: 7, borderRadius: 6, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
     actionBtnText: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary },
 
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-    sheet:   { backgroundColor: Colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '92%' },
+    sheet: { backgroundColor: Colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '92%' },
     modalTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 16 },
 
     fieldLabel: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary, marginBottom: 5, marginTop: 10 },
@@ -472,15 +559,15 @@ const s = StyleSheet.create({
         color: Colors.textPrimary, fontSize: 14,
     },
 
-    previewBox:   { backgroundColor: Colors.bg, borderRadius: 8, padding: 12, marginTop: 12, borderWidth: 1, borderColor: Colors.primary + '44' },
+    previewBox: { backgroundColor: Colors.bg, borderRadius: 8, padding: 12, marginTop: 12, borderWidth: 1, borderColor: Colors.primary + '44' },
     previewTitle: { fontSize: 12, fontWeight: '700', color: Colors.primary, marginBottom: 6 },
-    previewLine:  { fontSize: 12, color: Colors.textSecondary, marginBottom: 3 },
-    previewVal:   { fontWeight: '700', color: Colors.textPrimary },
+    previewLine: { fontSize: 12, color: Colors.textSecondary, marginBottom: 3 },
+    previewVal: { fontWeight: '700', color: Colors.textPrimary },
 
-    btnRow:     { flexDirection: 'row', gap: 10, marginTop: 20, marginBottom: 10 },
-    btn:        { flex: 1, backgroundColor: Colors.primary, paddingVertical: 13, borderRadius: 8, alignItems: 'center' },
-    btnSec:     { backgroundColor: 'transparent', borderWidth: 1, borderColor: Colors.border },
-    btnText:    { color: Colors.textPrimary, fontWeight: 'bold', fontSize: 14 },
+    btnRow: { flexDirection: 'row', gap: 10, marginTop: 20, marginBottom: 10 },
+    btn: { flex: 1, backgroundColor: Colors.primary, paddingVertical: 13, borderRadius: 8, alignItems: 'center' },
+    btnSec: { backgroundColor: 'transparent', borderWidth: 1, borderColor: Colors.border },
+    btnText: { color: Colors.textPrimary, fontWeight: 'bold', fontSize: 14 },
     btnSecText: { color: Colors.textSecondary, fontWeight: '600', fontSize: 14 },
 
     fab: {
