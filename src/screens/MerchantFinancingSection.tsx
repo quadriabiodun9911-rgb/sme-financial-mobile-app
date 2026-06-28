@@ -51,13 +51,6 @@ export default function MerchantFinancingSection() {
                 <Text style={{ color: '#fff', fontSize: 12 }}>isApproved: {String(isApproved)}</Text>
             </View>
 
-            {/* TEST: Show if we even try to render ActiveMerchantLoanCard */}
-            {hasActiveLoan ? (
-                <Text style={{ color: '#fff', backgroundColor: '#green', padding: 8, marginBottom: 8 }}>
-                    ✅ Should render ActiveMerchantLoanCard
-                </Text>
-            ) : null}
-
             {/* SECTION 1: Active Merchant Loan - Priority 1 */}
             {hasActiveLoan && financing?.activeLoan ? (
                 <ActiveMerchantLoanCard
@@ -66,6 +59,12 @@ export default function MerchantFinancingSection() {
                     expanded={expandedId === 'active'}
                     onToggle={() => setExpandedId(expandedId === 'active' ? null : 'active')}
                 />
+            ) : hasActiveLoan && !financing?.activeLoan ? (
+                /* Fallback: hasActiveLoan is true but activeLoan data is missing */
+                <View style={s.emptyStateContainer}>
+                    <Text style={s.emptyStateTitle}>💰 Active Merchant Loan</Text>
+                    <Text style={s.emptyStateSubtitle}>Your loan details are loading...</Text>
+                </View>
             ) : null}
 
             {/* SECTION 2: Application Status - Priority 2 */}
