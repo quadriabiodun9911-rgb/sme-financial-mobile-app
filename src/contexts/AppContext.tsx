@@ -1407,12 +1407,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return <AppContext.Provider value={contextValue}>{children}</AppContext.Provider>;
 }
 
-export function useApp(): AppContextValue {
-    const ctx = useContext(AppContext);
-    if (!ctx) throw new Error('useApp must be used within AppProvider');
-    return ctx;
-}
-
 // ============================================================================
 // COMPATIBILITY EXPORT - Re-export useApp from OptimizedContexts
 // ============================================================================
