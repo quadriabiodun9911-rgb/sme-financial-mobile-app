@@ -8,9 +8,10 @@
  * After: Transaction change → only FinanceContext consumers re-render
  */
 
-import React, { createContext, useContext, useState, useMemo, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useMemo, useEffect, ReactNode } from 'react';
 import { User, Invoice, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal } from '../types';
 import { computeFinance } from '../utils/finance';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ============================================================================
 // 1. FINANCE CONTEXT - Transactions, Assets, Loans, Budgets
@@ -278,6 +279,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [currentScreen, setCurrentScreenState] = useState('login');
+
+  // Initialize auth state on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const savedUser = await AsyncStorage.getItem('@quad360/profile');
+        if (savedUser) {
+          setUser(JSON.parse(savedUser));
+          setCurrentScreenState('dashboard');
+        }
+      } catch (e) {
+        console.error('[Auth] Failed to restore session:', e);
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+  }, []);
 
   const value: AuthContextValue = useMemo(
     () => ({
