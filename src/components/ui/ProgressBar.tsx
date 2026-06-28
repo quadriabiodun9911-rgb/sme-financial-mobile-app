@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
 
 type ProgressVariant = 'primary' | 'success' | 'warning' | 'danger';
@@ -19,7 +19,7 @@ interface ProgressBarProps {
   style?: ViewStyle;
 }
 
-export function ProgressBar({
+function ProgressBarComponent({
   progress,
   label,
   valueLabel,
@@ -53,6 +53,8 @@ export function ProgressBar({
     </View>
   );
 }
+
+export const ProgressBar = memo(ProgressBarComponent);
 
 const styles = StyleSheet.create({
   container: { gap: 6 },

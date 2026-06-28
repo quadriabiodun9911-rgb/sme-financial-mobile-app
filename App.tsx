@@ -2,7 +2,8 @@ import React, { useEffect } from 'react';
 import { View, ActivityIndicator, Platform, BackHandler, Alert } from 'react-native';
 import * as Updates from 'expo-updates';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { AppProvider, useApp } from './src/contexts/AppContext';
+import { ThemeProvider } from './src/contexts/ThemeContext';
+import { AuthProvider, SettingsProvider, FinanceProvider, GoalProvider, InvoiceProvider, useAuth } from './src/contexts/OptimizedContexts';
 import { trackScreenViewed } from './src/utils/analytics';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import LoginScreen from './src/screens/LoginScreen';
@@ -34,8 +35,8 @@ import CreditWorthinessScreen from './src/screens/CreditWorthinessScreen';
 import LoanEligibilityScreen from './src/screens/LoanEligibilityScreen';
 import FinancialHealthCoachScreen from './src/screens/FinancialHealthCoachScreen';
 
-function Navigator() {
-    const { currentScreen, isLoading, setCurrentScreen } = useApp();
+function NavigatorContent() {
+    const { user, isLoading, currentScreen, setCurrentScreen } = useAuth();
 
     useEffect(() => {
         if (!isLoading && currentScreen !== 'login') {
@@ -125,12 +126,22 @@ export default function App() {
     return (
         <SafeAreaProvider>
             <ErrorBoundary>
-                <AppProvider>
-                    <OtaUpdater />
-                    <ErrorBoundary>
-                        <Navigator />
-                    </ErrorBoundary>
-                </AppProvider>
+                <ThemeProvider>
+                    <AuthProvider>
+                        <SettingsProvider>
+                            <FinanceProvider>
+                                <GoalProvider>
+                                    <InvoiceProvider>
+                                        <OtaUpdater />
+                                        <ErrorBoundary>
+                                            <NavigatorContent />
+                                        </ErrorBoundary>
+                                    </InvoiceProvider>
+                                </GoalProvider>
+                            </FinanceProvider>
+                        </SettingsProvider>
+                    </AuthProvider>
+                </ThemeProvider>
             </ErrorBoundary>
         </SafeAreaProvider>
     );

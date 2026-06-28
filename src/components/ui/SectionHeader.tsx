@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
 
 interface SectionHeaderProps {
@@ -8,7 +8,7 @@ interface SectionHeaderProps {
   style?: ViewStyle;
 }
 
-export function SectionHeader({ title, actionLabel, onAction, style }: SectionHeaderProps) {
+function SectionHeaderComponent({ title, actionLabel, onAction, style }: SectionHeaderProps) {
   return (
     <View style={[styles.row, style]}>
       <Text style={styles.title}>{title}</Text>
@@ -20,6 +20,8 @@ export function SectionHeader({ title, actionLabel, onAction, style }: SectionHe
     </View>
   );
 }
+
+export const SectionHeader = memo(SectionHeaderComponent);
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
