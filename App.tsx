@@ -14,7 +14,7 @@ import SettingsScreen from './src/screens/SettingsScreen';
 import GoalsScreen from './src/screens/GoalsScreen';
 import InvoicesScreen from './src/screens/InvoicesScreen';
 import AssetsScreen from './src/screens/AssetsScreen';
-import LoansScreen from './src/screens/LoansScreenWithFinancing';
+import LoansScreen from './src/screens/LoansScreen';
 import InventoryScreen from './src/screens/InventoryScreen';
 import GrowthIntelligenceScreen from './src/screens/GrowthIntelligenceScreen';
 import CFOScreen from './src/screens/CFOScreen';
