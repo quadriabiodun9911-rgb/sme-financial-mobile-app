@@ -6,6 +6,7 @@ node_modules
 *.key
 .DS_Store
 build/
+dist/
 .expo/
 .next/
 .watchmanconfig
