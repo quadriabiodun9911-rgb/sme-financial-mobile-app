@@ -22,7 +22,7 @@ import {
   ViewStyle,
   AccessibilityRole,
 } from 'react-native';
-import { useTheme } from '../contexts/ThemeContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import Button from './Button';
 
 export type AsyncStatus = 'idle' | 'pending' | 'success' | 'error' | 'empty';
