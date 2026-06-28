@@ -9,7 +9,7 @@
  */
 
 import React, { createContext, useContext, useState, useMemo, ReactNode } from 'react';
-import { Settings, User, Goal, Invoice, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal } from '../types';
+import { User, Invoice, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal } from '../types';
 import { computeFinance } from '../utils/finance';
 
 // ============================================================================
@@ -49,8 +49,16 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   // Computed finance - memoized with specific dependency
   const finance = useMemo(() => {
-    return computeFinance(transactions, assets, loans);
-  }, [transactions, assets, loans]); // Only re-compute if these change
+    // Note: computeFinance uses Pick of BusinessSettings (only specific fields)
+    const settingsSubset = {
+      openingAssets: '0',
+      openingLiabilities: '0',
+      openingLoans: '0',
+      openingOtherAssets: '0',
+    };
+    const totalAssetsValue = assets.reduce((sum, a) => sum + (a.purchaseCost || 0), 0);
+    return computeFinance(transactions, settingsSubset, totalAssetsValue, assets);
+  }, [transactions, assets]); // Only re-compute if these change
 
   const value: FinanceContextValue = useMemo(
     () => ({
@@ -212,6 +220,7 @@ const SettingsContext = createContext<SettingsContextValue | undefined>(undefine
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<BusinessSettings>({
+    businessType: 'both',
     currency: '₦',
     currencyCode: 'NGN',
     minReserve: '0',
@@ -220,6 +229,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     openingLiabilities: '0',
     openingLoans: '0',
     openingOtherAssets: '0',
+    defaultTaxRate: '0.2',
   });
   const [language, setLanguage] = useState('en');
 
