@@ -9,7 +9,7 @@
  */
 
 import React, { createContext, useContext, useState, useMemo, useEffect, ReactNode } from 'react';
-import { User, Invoice, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal } from '../types';
+import { User, Invoice, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData } from '../types';
 import { computeFinance } from '../utils/finance';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -518,6 +518,15 @@ export function useApp() {
     isDemoMode: false,
     exitDemo: () => {},
     cashPockets: [],
-    financing: null,
+    financing: {
+      isQualified: false,
+      qualification: undefined,
+      minQualifiedAmount: undefined,
+      maxQualifiedAmount: undefined,
+      application: undefined,
+      activeLoan: undefined,
+      pastApplications: [],
+      applicationStatus: null,
+    },
   };
 }
