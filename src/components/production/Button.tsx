@@ -156,9 +156,7 @@ const Button = React.forwardRef<TouchableOpacity, ButtonProps>(({
       lineHeight: sizeStyle.lineHeight,
       fontWeight: '600',
     },
-    icon: {
-      lineHeight: 1,
-    },
+    icon: {},
   });
 
   const accessibilityLabel = customLabel || (typeof children === 'string' ? children : 'Button');

@@ -50,7 +50,7 @@ export const Skeleton = ({
       testID={testID}
       accessible
       accessibilityRole="progressbar"
-      aria-busy="true"
+      accessibilityLiveRegion="polite"
     >
       {Array.from({ length: count }).map((_, idx) => (
         <Animated.View
@@ -58,11 +58,11 @@ export const Skeleton = ({
           style={[
             styles.skeleton,
             {
-              width,
+              width: typeof width === 'string' ? width : width,
               height,
               borderRadius,
               opacity: animated ? opacity : 1,
-            },
+            } as any,
             style,
           ]}
         />
@@ -92,7 +92,8 @@ export const SkeletonCard = ({
           key={idx}
           height={14}
           borderRadius={4}
-          style={[styles.line, { width: idx === lines - 1 ? '70%' : '100%' }]}
+          width={idx === lines - 1 ? '70%' : '100%'}
+          style={styles.line}
         />
       ))}
     </View>

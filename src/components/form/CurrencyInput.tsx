@@ -71,7 +71,7 @@ export const CurrencyInput = React.forwardRef<any, CurrencyInputProps>(
         )}
 
         <View style={styles.inputWrapper}>
-          <Text style={[styles.currencySymbol, error && styles.symbolError]}>
+          <Text style={[styles.currencySymbol, ...(error ? [styles.symbolError] : [])]}>
             {symbol}
           </Text>
           <Input

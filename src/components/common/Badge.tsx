@@ -49,7 +49,6 @@ export const Badge = ({
       testID={testID}
       accessible
       accessibilityLabel={accessibilityLabel || label}
-      accessibilityRole="status"
     >
       <Text
         style={[

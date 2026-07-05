@@ -51,9 +51,9 @@ export const Input = React.forwardRef<TextInput, InputProps>(
           ref={ref}
           style={[
             styles.input,
-            multiline && styles.multiline,
-            error && styles.inputError,
-            disabled && styles.inputDisabled,
+            ...(multiline ? [styles.multiline] : []),
+            ...(error ? [styles.inputError] : []),
+            ...(disabled ? [styles.inputDisabled] : []),
             inputStyle,
           ]}
           value={value}
