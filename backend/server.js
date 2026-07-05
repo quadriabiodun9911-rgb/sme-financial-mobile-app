@@ -11,9 +11,15 @@ const transactionsRoutes    = require('./routes/transactions');
 const financialHealthRoutes = require('./routes/financial-health');
 const paymentsRoutes        = require('./routes/payments');
 const { requireAuth }       = require('./middleware/auth');
+const { ConnectionPool }    = require('./utils/connection-pool');
+const { Cache }             = require('./utils/cache');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Initialize connection pool and cache
+const connectionPool = new ConnectionPool(50, 1000);
+const responseCache = new Cache(1000, 60000); // 60s TTL
 
 // Security middleware
 app.use(helmet());
@@ -35,22 +41,65 @@ app.use(cors({
   credentials: true,
 }));
 
-// Rate limiting (disabled for load testing)
-// const limiter = rateLimit({
-//   windowMs: 15 * 60 * 1000, // 15 minutes
-//   max: 100,
-//   standardHeaders: true,
-//   legacyHeaders: false,
-// });
-// app.use(limiter);
+// Rate limiting - increased for load testing (normally 100/15min in production)
+const limiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute (for testing, production uses 15 min)
+  max: 5000, // 5000 requests per minute (test mode)
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.path === '/health', // Don't rate limit health checks
+});
+app.use(limiter);
 
 // Body parser — webhook route needs raw body for signature verification
 app.use('/pngme/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json());
 
-// Health check
+// Health check - optimized for high load
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    memory: {
+      heapUsed: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+      heapTotal: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),
+    },
+  });
+});
+
+// Metrics endpoint - monitor pool and cache performance
+app.get('/metrics', (req, res) => {
+  res.json({
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    connectionPool: connectionPool.getStats(),
+    cache: responseCache.getStats(),
+    memory: {
+      heapUsed: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+      heapTotal: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),
+      external: Math.round(process.memoryUsage().external / 1024 / 1024),
+    },
+  });
+});
+
+// Connection pool middleware - manage concurrent requests
+app.use(async (req, res, next) => {
+  try {
+    const release = await connectionPool.acquire();
+    res.on('finish', () => {
+      connectionPool.recordRequest(res.statusCode < 400);
+      release();
+    });
+    res.on('error', () => {
+      connectionPool.recordRequest(false);
+      release();
+    });
+    next();
+  } catch (err) {
+    console.error('[POOL] Queue full:', err.message);
+    res.status(503).json({ error: 'Service temporarily unavailable' });
+  }
 });
 
 // Routes — payment and bank routes require valid Supabase session token
