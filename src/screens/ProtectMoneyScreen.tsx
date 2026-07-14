@@ -164,14 +164,14 @@ export default function ProtectMoneyScreen() {
 
         {/* Recommendations */}
         <View style={styles.sectionBox}>
-          <ForecastRecommendations recommendations={forecast.recommendations} currency={currency} />
+          <ForecastRecommendations recommendations={forecast.recommendations} currency={settings.currency} />
         </View>
 
         {/* Quick Actions */}
         <View style={styles.actionsSection}>
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() => navigate('reports', { reportSection: 'planning', reportTab: 'cash_flow_statement' })}
+            onPress={() => navigate('reports')}
           >
             <Text style={styles.actionEmoji}>📊</Text>
             <View style={styles.actionContent}>
