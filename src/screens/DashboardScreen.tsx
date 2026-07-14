@@ -23,12 +23,16 @@ import CashPocketsModal from '../components/CashPocketsModal';
 import DailyReportModal from '../components/DailyReportModal';
 import MerchantFinancingQualificationWidget from '../components/MerchantFinancingQualificationWidget';
 import { MetricsComputer } from '../utils/metricsComputer';
+import PillarSection from '../components/PillarSection';
+import MetricTile from '../components/MetricTile';
+import { computeMomentum, computeGrowthScore } from '../utils/profitability';
+import { computeWeeklyCFOSummary } from '../utils/finance';
 
 const INCOME_CATEGORIES = ['Sales', 'Service', 'Consulting', 'Rental', 'Interest', 'Other Income'];
 const EXPENSE_CATEGORIES = ['Rent', 'Salaries', 'Utilities', 'Marketing', 'Supplies', 'Transport', 'Meals', 'Software', 'Tax', 'Other'];
 
 export default function DashboardScreen() {
-    const { finance, settings, goals, transactions, invoices, assets, loans, navigate, setCurrentScreen, language, isLoading, addTransaction, isDemoMode, exitDemo, cashPockets, deleteGoal, updateGoal, budgets, inventory, user, financing } = useApp();
+    const { finance, settings, goals, transactions, invoices, assets, loans, navigate, setCurrentScreen, language, isLoading, addTransaction, isDemoMode, exitDemo, cashPockets, deleteGoal, updateGoal, budgets, inventory, user, financing, staff, teamMembers } = useApp();
 
     const [fabOpen, setFabOpen]           = useState(false);
     const [qaType, setQaType]             = useState<'income' | 'expense'>('income');
@@ -36,10 +40,8 @@ export default function DashboardScreen() {
     const [qaDesc, setQaDesc]             = useState('');
     const [qaCategory, setQaCategory]     = useState('');
     const [qaSubmitting, setQaSubmitting] = useState(false);
-    const [showMore, setShowMore]               = useState(false);
     const [betaCardDismissed, setBetaCardDismissed] = useState(false);
 
-    const [showFullDashboard, setShowFullDashboard] = useState(false);
     const [onboardingDismissed, setOnboardingDismissed] = useState(false);
     const [showOnboardingWizard, setShowOnboardingWizard] = useState(false);
     const [showShareCard, setShowShareCard]     = useState(false);
@@ -111,8 +113,6 @@ export default function DashboardScreen() {
     const thisMonthProfit = metrics.thisMonthProfit;
     const profitDelta = metrics.profitDelta;
     const loggedToday = metrics.loggedToday;
-    const collectionsTotal = metrics.collectionsTotal;
-    const collectionsCount = metrics.collectionsCount;
 
     // ── Remaining memoized values (not in MetricsComputer yet) ──
     const overspentBudgets = useMemo(() => {
@@ -128,6 +128,38 @@ export default function DashboardScreen() {
 
     const lowStockItems = useMemo(() => inventory.filter(i => i.quantity <= i.lowStockThreshold), [inventory]);
     const totalCash = useMemo(() => cashPockets.reduce((s, p) => s + p.amount, 0), [cashPockets]);
+
+    // ── Grow Money pillar data ────────────────────────────────────────────────
+    const momentum = useMemo(() => computeMomentum(transactions), [transactions]);
+    const growthScoreResult = useMemo(() => computeGrowthScore(transactions, settings), [transactions, settings]);
+
+    // ── AI Advisor pillar data ────────────────────────────────────────────────
+    const weeklyCFO = useMemo(() => computeWeeklyCFOSummary(transactions, goals, loans, finance), [transactions, goals, loans, finance]);
+
+    // ── Funding pillar data ───────────────────────────────────────────────────
+    const fundingDaysActive = user?.daysActive || 0;
+    const fundingMonthlyRevenue = user?.avgMonthlyRevenue || 0;
+    const fundingHealthScore = user?.financialHealthScore || 0;
+    const fundingChecks = [fundingDaysActive >= 90, fundingMonthlyRevenue >= 200000, fundingHealthScore >= 50];
+    const fundingScorePct = Math.round((fundingChecks.filter(Boolean).length / fundingChecks.length) * 100);
+    const fundingNextMilestone = useMemo(() => {
+        const daysRemaining = Math.max(0, 90 - fundingDaysActive);
+        const revenueRemaining = Math.max(0, 200000 - fundingMonthlyRevenue);
+        const scoreRemaining = Math.max(0, 50 - fundingHealthScore);
+        const milestones = [
+            daysRemaining > 0 ? `${daysRemaining} days to Account Age qualified` : null,
+            revenueRemaining > 0 ? `${settings.currency}${revenueRemaining.toLocaleString()} more monthly revenue needed` : null,
+            scoreRemaining > 0 ? `${scoreRemaining} points to Health Score qualified` : null,
+        ].filter((m): m is string => m !== null);
+        return milestones[0] || 'All requirements met ✓';
+    }, [fundingDaysActive, fundingMonthlyRevenue, fundingHealthScore, settings.currency]);
+
+    // ── Business pillar data ──────────────────────────────────────────────────
+    const activeStaff = useMemo(() => staff.filter(s => s.status === 'active'), [staff]);
+    const totalMonthlyPayroll = useMemo(() => activeStaff.reduce((s, m) =>
+        s + (m.salaryType === 'monthly' ? m.salary : m.salaryType === 'weekly' ? m.salary * 4.33 : m.salary * 22), 0),
+        [activeStaff]);
+    const pendingTeamInvites = useMemo(() => teamMembers.filter(m => m.status === 'pending').length, [teamMembers]);
 
     const openFab = (type: 'income' | 'expense' = 'income') => {
         setQaType(type);
@@ -205,15 +237,6 @@ export default function DashboardScreen() {
     const runwayDays = finance.expense > 0 ? Math.floor(finance.cashBalance / (finance.expense / 30)) : null;
     const runwayColor = runwayDays === null ? Colors.income : runwayDays < 30 ? Colors.expense : runwayDays < 60 ? Colors.warning : Colors.income;
 
-    // Sync label (how recently data was saved)
-    const syncLabel = (() => {
-        const diffMin = Math.floor((Date.now() - lastSynced.getTime()) / 60000);
-        if (diffMin < 2)  return '● Saved just now';
-        if (diffMin < 60) return `● Saved ${diffMin} min ago`;
-        return '● Saved today';
-    })();
-
-
     return (
         <SafeAreaView style={styles.safe}>
             <Header />
@@ -235,40 +258,29 @@ export default function DashboardScreen() {
                     </View>
                 )}
 
-                {/* ── 3 Survival Numbers strip — always first ───────────────── */}
-                <View style={styles.survivalRow}>
-                    <View style={styles.survivalCard}>
-                        <Text style={styles.survivalLabel}>💰 Profit TODAY</Text>
-                        <Text style={[styles.survivalValue, { color: todayProfit >= 0 ? Colors.income : Colors.expense }]}>
-                            {todayProfit >= 0 ? '+' : ''}{currency}{todayProfit.toLocaleString()}
-                        </Text>
-                    </View>
-                    <View style={styles.survivalCard}>
-                        <Text style={styles.survivalLabel}>⏳ Money Lasts</Text>
-                        <Text style={[styles.survivalValue, { color: runwayColor }]}>
-                            {runwayDays === null ? 'Add costs' : runwayDays > 365 ? '1 year+' : runwayDays > 90 ? `${Math.floor(runwayDays/30)} months` : `${runwayDays} days`}
-                        </Text>
-                    </View>
-                    <TouchableOpacity style={styles.survivalCard} onPress={() => setCurrentScreen('transactions')}>
-                        <Text style={styles.survivalLabel}>📥 Collect</Text>
-                        <Text style={[styles.survivalValue, { color: collectionsCount > 0 ? Colors.warning : Colors.income }]}>
-                            {collectionsCount > 0 ? `${currency}${collectionsTotal.toLocaleString()}` : '✓ Clear'}
-                        </Text>
-                    </TouchableOpacity>
-                </View>
-
-                {/* ── Merchant Financing Qualification Widget ────────────────── */}
-                {!isDemoMode && user && (
-                    <MerchantFinancingQualificationWidget
-                        daysActive={user.daysActive || 0}
-                        monthlyRevenue={user.avgMonthlyRevenue || 0}
-                        healthScore={user.financialHealthScore || 0}
-                        currency={settings.currency || '₦'}
-                        isQualified={financing.isQualified || false}
-                        hasActiveLoan={financing.activeLoan !== undefined && financing.activeLoan !== null}
+                {/* ── TODAY — always first ─────────────────────────────────── */}
+                <PillarSection icon="" title="TODAY">
+                    <MetricTile
+                        icon="💰"
+                        label="Profit"
+                        value={`${todayProfit >= 0 ? '+' : ''}${currency}${todayProfit.toLocaleString()}`}
+                        valueColor={todayProfit >= 0 ? Colors.income : Colors.expense}
+                        onPress={() => setCurrentScreen('reports')}
+                    />
+                    <MetricTile
+                        icon="💵"
+                        label="Cash Balance"
+                        value={`${currency}${(cashPockets.length > 0 ? totalCash : finance.cashBalance).toLocaleString()}`}
+                        onPress={() => setShowCashPockets(true)}
+                    />
+                    <MetricTile
+                        icon="🏦"
+                        label="Funding Readiness"
+                        value={`${fundingScorePct}%`}
+                        valueColor={fundingScorePct >= 100 ? Colors.income : Colors.textPrimary}
                         onPress={() => setCurrentScreen('loans')}
                     />
-                )}
+                </PillarSection>
 
                 {/* ── Beta Features Spotlight ──────────────────────────────── */}
                 {!isDemoMode && !betaCardDismissed && (
@@ -448,82 +460,6 @@ export default function DashboardScreen() {
                     </TouchableOpacity>
                 )}
 
-                {/* ── 3 Quick Stats row ────────────────────────────────────── */}
-                <View style={styles.quickStatsRow}>
-                    <TouchableOpacity style={styles.quickStatCard} onPress={() => setShowCashPockets(true)}>
-                        <Text style={styles.quickStatIcon}>💵</Text>
-                        <Text style={styles.quickStatLabel}>{cashPockets.length > 0 ? 'My Cash (all pockets)' : 'Cash · Tap to add pockets'}</Text>
-                        <Text style={styles.quickStatValue}>{currency}{cashPockets.length > 0 ? totalCash.toLocaleString() : finance.cashBalance.toLocaleString()}</Text>
-                    </TouchableOpacity>
-                    <View style={styles.quickStatCard}>
-                        <Text style={styles.quickStatIcon}>👥</Text>
-                        <Text style={styles.quickStatLabel}>Owed to You</Text>
-                        <Text style={styles.quickStatValue}>{currency}{owedToYou.toLocaleString()}</Text>
-                    </View>
-                </View>
-
-                {/* ── Full Dashboard toggle ─────────────────────────────────── */}
-                <TouchableOpacity style={styles.fullDashToggle} onPress={() => setShowFullDashboard(v => !v)}>
-                    <Text style={styles.fullDashToggleText}>{showFullDashboard ? '▲ Hide' : '📊 See Full Dashboard ▼'}</Text>
-                </TouchableOpacity>
-
-                {showFullDashboard && (
-                <>
-
-                {/* ── CARD 1: Profit hero ──────────────────────────────────── */}
-                <View style={[styles.heroCard, { borderColor: finance.profit >= 0 ? Colors.income : Colors.expense }]}>
-                    <Text style={[styles.heroStatus, { color: finance.profit >= 0 ? Colors.income : Colors.expense }]}>
-                        {finance.profit >= 0 ? 'PROFITABLE ✓' : 'LOSING MONEY ✗'}
-                    </Text>
-                    <Text style={[styles.heroProfit, { color: finance.profit >= 0 ? Colors.income : Colors.expense }]}>
-                        {finance.profit >= 0 ? '+' : ''}{currency}{finance.profit.toLocaleString()}
-                    </Text>
-                    <View style={styles.heroSubRow}>
-                        <Text style={[styles.heroMargin, { color: finance.profit >= 0 ? Colors.income : Colors.expense }]}>
-                            {finance.profit >= 0
-                                ? `${(isNaN(finance.margin) ? 0 : finance.margin).toFixed(0)}% of your income is profit`
-                                : 'You are spending more than you earn'}
-                        </Text>
-                    </View>
-                    {lastMonthProfit !== 0 && profitDelta !== null && (
-                        <View style={styles.deltaRow}>
-                            <Text style={[styles.deltaBadge, { backgroundColor: profitDelta >= 0 ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', color: profitDelta >= 0 ? Colors.income : Colors.expense }]}>
-                                {profitDelta >= 0 ? '▲' : '▼'} {Math.abs(profitDelta).toFixed(0)}% vs last month
-                            </Text>
-                            <Text style={styles.deltaHint}>{profitDelta >= 0 ? 'Growing ✓' : 'Down from last month'}</Text>
-                        </View>
-                    )}
-                    <View style={styles.heroMetricsRow}>
-                        <TouchableOpacity style={styles.heroMetric} onPress={() => setCurrentScreen('transactions')}>
-                            <Text style={styles.heroMetricLabel}>Income</Text>
-                            <Text style={[styles.heroMetricVal, { color: Colors.income }]}>{currency}{finance.income.toLocaleString()}</Text>
-                        </TouchableOpacity>
-                        <View style={styles.heroMetricDivider} />
-                        <TouchableOpacity style={styles.heroMetric} onPress={() => setCurrentScreen('transactions')}>
-                            <Text style={styles.heroMetricLabel}>Expenses</Text>
-                            <Text style={[styles.heroMetricVal, { color: Colors.expense }]}>{currency}{finance.expense.toLocaleString()}</Text>
-                        </TouchableOpacity>
-                        <View style={styles.heroMetricDivider} />
-                        <View style={styles.heroMetric}>
-                            <Text style={styles.heroMetricLabel}>Cash Profit</Text>
-                            <Text style={[styles.heroMetricVal, { color: finance.profit >= 0 ? Colors.income : Colors.expense }]}>
-                                {finance.profit >= 0 ? '+' : ''}{currency}{finance.profit.toLocaleString()}
-                            </Text>
-                        </View>
-                    </View>
-                    {finance.annualDepreciation > 0 && (
-                        <Text style={styles.deprNote}>
-                            After {currency}{Math.round(finance.annualDepreciation || 0).toLocaleString()} depreciation: {currency}{(finance.depreciationAdjustedProfit || 0).toLocaleString()} · Cash profit shown above
-                        </Text>
-                    )}
-                    {finance.profit > 0 && hasTransaction && (
-                        <TouchableOpacity style={styles.shareWinBtn} onPress={() => setShowShareCard(true)}>
-                            <Text style={styles.shareWinText}>📤 Share your win</Text>
-                        </TouchableOpacity>
-                    )}
-                    <Text style={styles.syncLabel}>{syncLabel}</Text>
-                </View>
-
                 {/* ── Loss guidance ────────────────────────────────────────── */}
                 {finance.profit < 0 && hasTransaction && (
                     <View style={styles.lossGuide}>
@@ -550,52 +486,38 @@ export default function DashboardScreen() {
                     </View>
                 )}
 
-                {/* ── Quick Answers ─────────────────────────────────────────── */}
-                {hasTransaction && (
-                    <View style={styles.qaRow}>
-                        {(() => {
-                            const now = new Date();
-                            const weekStart = new Date(now);
-                            weekStart.setDate(now.getDate() - now.getDay());
-                            const weekStr = weekStart.toISOString().split('T')[0];
-                            const weekIncome  = transactions.filter(t => t.type === 'income'  && t.date >= weekStr).reduce((s, t) => s + (Number(t.amount) || 0), 0);
-                            const weekExpense = transactions.filter(t => t.type === 'expense' && t.date >= weekStr).reduce((s, t) => s + (Number(t.amount) || 0), 0);
-                            const weekProfit  = weekIncome - weekExpense;
-                            const cats: Record<string, number> = {};
-                            transactions.filter(t => t.type === 'expense').forEach(t => {
-                                const c = t.category || 'Other';
-                                cats[c] = (cats[c] || 0) + (Number(t.amount) || 0);
-                            });
-                            const topCat = Object.entries(cats).sort((a, b) => b[1] - a[1])[0];
-                            const owedCount = overdueInvoices.length + transactions.filter(t => t.status === 'overdue').length;
-                            return (
-                                <>
-                                    <TouchableOpacity style={[styles.qaCard, { borderColor: weekProfit >= 0 ? Colors.income : Colors.expense }]} onPress={() => setCurrentScreen('reports')}>
-                                        <Text style={styles.qaQuestion}>Did I make money this week?</Text>
-                                        <Text style={[styles.qaAnswer, { color: weekProfit >= 0 ? Colors.income : Colors.expense }]}>
-                                            {weekProfit >= 0 ? '✅ Yes' : '❌ No'}
-                                        </Text>
-                                        <Text style={[styles.qaValue, { color: weekProfit >= 0 ? Colors.income : Colors.expense }]}>
-                                            {weekProfit >= 0 ? '+' : ''}{currency}{weekProfit.toLocaleString()}
-                                        </Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity style={styles.qaCard} onPress={() => setCurrentScreen('transactions')}>
-                                        <Text style={styles.qaQuestion}>Where did most money go?</Text>
-                                        <Text style={styles.qaAnswer}>{topCat ? topCat[0] : '—'}</Text>
-                                        <Text style={styles.qaValue}>{topCat ? `${currency}${topCat[1].toLocaleString()}` : 'No expenses yet'}</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity style={[styles.qaCard, { borderColor: owedCount > 0 ? Colors.warning : Colors.border }]} onPress={() => setCurrentScreen('invoices')}>
-                                        <Text style={styles.qaQuestion}>Who owes me money?</Text>
-                                        <Text style={[styles.qaAnswer, { color: owedCount > 0 ? Colors.warning : Colors.income }]}>{owedCount > 0 ? `${owedCount} unpaid` : '✅ All clear'}</Text>
-                                        <Text style={styles.qaValue}>{owedCount > 0 ? 'Tap to chase →' : 'No unpaid invoices'}</Text>
-                                    </TouchableOpacity>
-                                </>
-                            );
-                        })()}
-                    </View>
-                )}
+                {/* ═══════════════════ SIX PILLARS ═══════════════════════════ */}
 
-                {/* ── CARD 2: Quick actions row ────────────────────────────── */}
+                {/* ── 💰 MAKE MONEY ────────────────────────────────────────── */}
+                <PillarSection icon="💰" title="MAKE MONEY">
+                    <MetricTile
+                        label="Income"
+                        value={`${currency}${finance.income.toLocaleString()}`}
+                        valueColor={Colors.income}
+                        onPress={() => setCurrentScreen('transactions')}
+                    />
+                    <MetricTile
+                        label="Expenses"
+                        value={`${currency}${finance.expense.toLocaleString()}`}
+                        valueColor={Colors.expense}
+                        onPress={() => setCurrentScreen('transactions')}
+                    />
+                    <MetricTile
+                        label="Profit"
+                        value={`${finance.profit >= 0 ? '+' : ''}${currency}${finance.profit.toLocaleString()}`}
+                        valueColor={finance.profit >= 0 ? Colors.income : Colors.expense}
+                        sub={finance.profit >= 0 ? `${(isNaN(finance.margin) ? 0 : finance.margin).toFixed(0)}% margin` : 'Spending more than you earn'}
+                        onPress={() => setCurrentScreen('reports')}
+                    />
+                    <MetricTile
+                        label="Invoices"
+                        value={`${currency}${owedToYou.toLocaleString()}`}
+                        valueColor={overdueInvoices.length > 0 ? Colors.warning : Colors.income}
+                        sub={overdueInvoices.length > 0 ? `${overdueInvoices.length} overdue` : 'All caught up'}
+                        onPress={() => setCurrentScreen('invoices')}
+                    />
+                </PillarSection>
+
                 <View style={styles.quickActionsRow}>
                     <TouchableOpacity style={[styles.quickAction, { backgroundColor: 'rgba(16,185,129,0.15)' }]} onPress={() => openFab('income')}>
                         <Text style={styles.quickActionIcon}>+</Text>
@@ -615,34 +537,30 @@ export default function DashboardScreen() {
                     </TouchableOpacity>
                 </View>
 
-                {/* ── CARD 4: Cash position ────────────────────────────────── */}
-                <View style={styles.row}>
-                    <View style={[styles.card, styles.flex]}>
-                        <Text style={styles.cardLabel}>Money in Your Account</Text>
-                        <TouchableOpacity onPress={() => setCurrentScreen('transactions')}>
-                            <Text style={[styles.bigNum, { color: Colors.income }]}>{currency}{finance.cashBalance.toLocaleString()}</Text>
-                        </TouchableOpacity>
-                        <View style={[styles.reserveBadge, { backgroundColor: finance.cashBalance >= parseFloat(minReserve) ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)' }]}>
-                            <Text style={{ fontSize: 10, fontWeight: '700', color: finance.cashBalance >= parseFloat(minReserve) ? Colors.income : Colors.expense }}>
-                                {finance.cashBalance >= parseFloat(minReserve) ? 'Reserve OK ✓' : 'Below Reserve ✗'}
-                            </Text>
-                        </View>
-                    </View>
-                    <View style={[styles.card, styles.flex]}>
-                        <Text style={styles.cardLabel}>How Long Your Money Lasts</Text>
-                        <TouchableOpacity onPress={() => setCurrentScreen('reports')}>
-                            <Text style={[styles.bigNum, { color: runwayColor }]}>
-                                {runwayDays === null ? 'Unknown' : runwayDays > 365 ? '1 year+' : runwayDays > 90 ? `${Math.floor(runwayDays/30)} months` : `${runwayDays} days`}
-                            </Text>
-                        </TouchableOpacity>
-                        <Text style={[styles.hint, { color: runwayColor }]}>
-                            {runwayDays === null ? 'Log your expenses so we can tell you how long your cash will last' : runwayDays < 30 ? '⚠️ Less than a month left — cut spending now' : runwayDays < 60 ? 'Getting tight — keep an eye on costs' : '✅ You have enough cash to keep going'}
-                        </Text>
-                    </View>
-                </View>
+                {/* ── 🛡️ PROTECT MONEY ─────────────────────────────────────── */}
+                <PillarSection icon="🛡️" title="PROTECT MONEY">
+                    <MetricTile
+                        label="Cash Runway"
+                        value={runwayDays === null ? 'Add costs' : runwayDays > 365 ? '1 year+' : runwayDays > 90 ? `${Math.floor(runwayDays / 30)} months` : `${runwayDays} days`}
+                        valueColor={runwayColor}
+                        onPress={() => setCurrentScreen('reports')}
+                    />
+                    <MetricTile
+                        label="Budget"
+                        value={overspentBudgets.length > 0 ? `${overspentBudgets.length} over` : budgets.length > 0 ? 'On track' : 'Not set'}
+                        valueColor={overspentBudgets.length > 0 ? Colors.expense : Colors.income}
+                        sub={budgets.length > 0 ? `${budgets.length} categories tracked` : 'Tap to set a budget'}
+                        onPress={() => setCurrentScreen('budget')}
+                    />
+                    <MetricTile
+                        label="Reserve"
+                        value={finance.cashBalance >= parseFloat(minReserve) ? 'OK ✓' : 'Below ✗'}
+                        valueColor={finance.cashBalance >= parseFloat(minReserve) ? Colors.income : Colors.expense}
+                        sub={`${currency}${parseFloat(minReserve).toLocaleString()} minimum`}
+                        onPress={() => setCurrentScreen('reports')}
+                    />
+                </PillarSection>
 
-
-                {/* ── Recurring due this month ──────────────────────────────── */}
                 {recurringDueCount > 0 && (
                     <TouchableOpacity style={styles.recurringBanner} onPress={() => setCurrentScreen('transactions')}>
                         <Text style={styles.recurringIcon}>🔁</Text>
@@ -653,75 +571,124 @@ export default function DashboardScreen() {
                     </TouchableOpacity>
                 )}
 
-                {/* ── See more toggle ──────────────────────────────────────── */}
-                <TouchableOpacity style={styles.seeMoreBtn} onPress={() => setShowMore(v => !v)}>
-                    <Text style={styles.seeMoreText}>
-                        {showMore ? '▲ Show less' : '▼ Tax, assets & equity'}
-                    </Text>
-                </TouchableOpacity>
+                {/* ── 📈 GROW MONEY ────────────────────────────────────────── */}
+                <PillarSection icon="📈" title="GROW MONEY">
+                    <MetricTile
+                        label="Health Score"
+                        value={`${growthScoreResult.score}/100`}
+                        valueColor={growthScoreResult.color}
+                        sub={growthScoreResult.label}
+                        onPress={() => setCurrentScreen('growth')}
+                    />
+                    <MetricTile
+                        label="Growth Trend"
+                        value={momentum.growthTrend === 'up' ? '📈 Up' : momentum.growthTrend === 'down' ? '📉 Down' : '➖ Flat'}
+                        valueColor={momentum.growthTrend === 'up' ? Colors.income : momentum.growthTrend === 'down' ? Colors.expense : Colors.warning}
+                        sub={`${momentum.revenueGrowthPct >= 0 ? '+' : ''}${momentum.revenueGrowthPct.toFixed(0)}% revenue vs last month`}
+                        onPress={() => setCurrentScreen('growth')}
+                    />
+                    <MetricTile
+                        label="Business Worth"
+                        value={`${currency}${(isNaN(finance.equity) ? 0 : finance.equity).toLocaleString()}`}
+                        valueColor={Colors.equity}
+                        sub={t(language, 'assetsMinusLiabilities')}
+                        onPress={() => setCurrentScreen('reports')}
+                    />
+                </PillarSection>
 
-                {showMore && (
-                    <>
-                        {/* Tax summary */}
-                        <View style={[styles.card, styles.taxRow]}>
-                            <View style={styles.taxItem}>
-                                <Text style={styles.taxLabel}>{t(language, 'taxCollected')}</Text>
-                                <Text style={[styles.taxVal, { color: Colors.warning }]}>{currency}{finance.totalTaxCollected.toLocaleString()}</Text>
-                            </View>
-                            <View style={styles.taxDivider} />
-                            <View style={styles.taxItem}>
-                                <Text style={styles.taxLabel}>{t(language, 'taxPaid')}</Text>
-                                <Text style={[styles.taxVal, { color: Colors.warning }]}>{currency}{finance.totalTaxPaid.toLocaleString()}</Text>
-                            </View>
-                            <View style={styles.taxDivider} />
-                            <View style={styles.taxItem}>
-                                <Text style={styles.taxLabel}>{t(language, 'netTax')}</Text>
-                                <Text style={[styles.taxVal, { color: finance.netTaxPosition >= 0 ? Colors.income : Colors.expense }]}>
-                                    {finance.netTaxPosition >= 0 ? '+' : ''}{currency}{finance.netTaxPosition.toLocaleString()}
-                                </Text>
-                            </View>
-                        </View>
+                {/* ── 🏦 FUNDING ───────────────────────────────────────────── */}
+                <PillarSection icon="🏦" title="FUNDING">
+                    <MetricTile
+                        label="Funding Score"
+                        value={`${fundingScorePct}%`}
+                        valueColor={fundingScorePct >= 100 ? Colors.income : Colors.primary}
+                        sub={`${fundingChecks.filter(Boolean).length}/3 requirements met`}
+                        onPress={() => setCurrentScreen('loans')}
+                    />
+                    <MetricTile
+                        label="Loan Readiness"
+                        value={financing.isQualified ? 'Qualified ✓' : 'Not yet'}
+                        valueColor={financing.isQualified ? Colors.income : Colors.textMuted}
+                        sub="Merchant financing"
+                        onPress={() => setCurrentScreen('loan-eligibility')}
+                    />
+                    <MetricTile
+                        label="Next Milestone"
+                        value={fundingNextMilestone}
+                        wide
+                        onPress={() => setCurrentScreen('loans')}
+                    />
+                </PillarSection>
 
-                        {/* Assets / Liabilities / Equity */}
-                        <View style={styles.row}>
-                            <View style={[styles.card, styles.flex]}>
-                                <Text style={styles.cardLabel}>{t(language, 'totalAssets')}</Text>
-                                <Text style={[styles.bigNum, { color: Colors.asset, fontSize: 18 }]}>{currency}{(isNaN(finance.assets) ? 0 : finance.assets).toLocaleString()}</Text>
-                            </View>
-                            <View style={[styles.card, styles.flex]}>
-                                <Text style={styles.cardLabel}>{t(language, 'totalLiabilities')}</Text>
-                                <Text style={[styles.bigNum, { color: Colors.liability, fontSize: 18 }]}>{currency}{(isNaN(finance.liabilities) ? 0 : finance.liabilities).toLocaleString()}</Text>
-                            </View>
-                        </View>
-                        <View style={styles.card}>
-                            <Text style={styles.cardLabel}>{t(language, 'ownersEquity')}</Text>
-                            <Text style={[styles.bigNum, { color: Colors.equity }]}>{currency}{(isNaN(finance.equity) ? 0 : finance.equity).toLocaleString()}</Text>
-                            <Text style={styles.hint}>{t(language, 'assetsMinusLiabilities')}</Text>
-                        </View>
-
-                    </>
+                {!isDemoMode && user && (
+                    <MerchantFinancingQualificationWidget
+                        daysActive={user.daysActive || 0}
+                        monthlyRevenue={user.avgMonthlyRevenue || 0}
+                        healthScore={user.financialHealthScore || 0}
+                        currency={settings.currency || '₦'}
+                        isQualified={financing.isQualified || false}
+                        hasActiveLoan={financing.activeLoan !== undefined && financing.activeLoan !== null}
+                        onPress={() => setCurrentScreen('loans')}
+                    />
                 )}
 
-                <TouchableOpacity style={styles.reviewBtn} onPress={() => setShowDailyReport(true)}>
-                    <Text style={styles.reviewBtnIcon}>📊</Text>
-                    <View>
-                        <Text style={styles.reviewBtnText}>Today's Report</Text>
-                        <Text style={styles.reviewBtnSub}>End-of-day summary · Tomorrow's action plan</Text>
-                    </View>
-                    <Text style={styles.quickArrow}>›</Text>
-                </TouchableOpacity>
+                {/* ── ⚙️ BUSINESS ──────────────────────────────────────────── */}
+                <PillarSection icon="⚙️" title="BUSINESS">
+                    <MetricTile
+                        label="Inventory"
+                        value={`${inventory.length} items`}
+                        valueColor={lowStockItems.length > 0 ? Colors.warning : Colors.income}
+                        sub={lowStockItems.length > 0 ? `${lowStockItems.length} low stock` : 'Stock healthy'}
+                        onPress={() => setCurrentScreen('inventory')}
+                    />
+                    <MetricTile
+                        label="Payroll"
+                        value={`${currency}${totalMonthlyPayroll.toLocaleString()}`}
+                        sub={`${activeStaff.length} active staff`}
+                        onPress={() => setCurrentScreen('payroll')}
+                    />
+                    <MetricTile
+                        label="Taxes"
+                        value={`${currency}${(isNaN(finance.netTaxPosition) ? 0 : finance.netTaxPosition).toLocaleString()}`}
+                        valueColor={finance.netTaxPosition >= 0 ? Colors.income : Colors.expense}
+                        sub="Net tax position"
+                        onPress={() => setCurrentScreen('tax-planning')}
+                    />
+                    <MetricTile
+                        label="Team"
+                        value={`${teamMembers.length} member${teamMembers.length === 1 ? '' : 's'}`}
+                        sub={pendingTeamInvites > 0 ? `${pendingTeamInvites} pending invite${pendingTeamInvites === 1 ? '' : 's'}` : 'Manage access'}
+                        onPress={() => setCurrentScreen('settings')}
+                    />
+                </PillarSection>
 
-                <TouchableOpacity style={styles.reviewBtn} onPress={() => setShowMonthlyReview(true)}>
-                    <Text style={styles.reviewBtnIcon}>📋</Text>
-                    <View>
-                        <Text style={styles.reviewBtnText}>Monthly Review</Text>
-                        <Text style={styles.reviewBtnSub}>Did I make money? · Where did it go? · Who owes me?</Text>
-                    </View>
-                    <Text style={styles.quickArrow}>›</Text>
-                </TouchableOpacity>
-
-                </>
-                )}
+                {/* ── 🧠 AI ADVISOR ────────────────────────────────────────── */}
+                <PillarSection icon="🧠" title="AI ADVISOR">
+                    <MetricTile
+                        label="Today's Report"
+                        value="View →"
+                        sub="End-of-day summary"
+                        onPress={() => setShowDailyReport(true)}
+                    />
+                    <MetricTile
+                        label="Tomorrow's Plan"
+                        value="View →"
+                        sub="Your action plan for tomorrow"
+                        onPress={() => setShowDailyReport(true)}
+                    />
+                    <MetricTile
+                        label="Monthly Review"
+                        value="View →"
+                        sub="Did I make money? Where did it go?"
+                        onPress={() => setShowMonthlyReview(true)}
+                    />
+                    <MetricTile
+                        label="Recommended Actions"
+                        value={weeklyCFO.topActions[0] || 'You\'re on track'}
+                        wide
+                        onPress={() => setCurrentScreen('cfo')}
+                    />
+                </PillarSection>
 
                 <TouchableOpacity style={styles.btn} onPress={() => setCurrentScreen('reports')}>
                     <Text style={styles.btnText}>{t(language, 'viewDetailedReports')}</Text>
