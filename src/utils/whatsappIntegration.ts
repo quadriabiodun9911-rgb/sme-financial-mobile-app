@@ -229,6 +229,107 @@ const openWhatsAppWithMessage = (phoneNumber: string, message: string) => {
   }
 };
 
+// ─── Send automated overdue invoice alert ─────────────────────────────────
+export const sendOverdueInvoiceAlert = async (
+  customerPhone: string,
+  businessName: string,
+  invoiceNumber: string,
+  amount: number,
+  daysOverdue: number,
+  currency: string = '₦'
+) => {
+  try {
+    const formattedPhone = formatPhoneToE164(customerPhone);
+
+    const message = `⏰ Payment Reminder\n\nHi! Your invoice #${invoiceNumber} from ${businessName} is now ${daysOverdue} days overdue.\n\nAmount Due: ${currency}${amount.toLocaleString()}\n\nPlease arrange payment at your earliest convenience. Thank you!`;
+
+    openWhatsAppWithMessage(formattedPhone, message);
+  } catch (error) {
+    console.error('Error sending overdue alert:', error);
+  }
+};
+
+// ─── Send cash flow alert via WhatsApp ─────────────────────────────────────
+export const sendCashFlowAlert = async (
+  recipientPhone: string,
+  alertType: 'low_cash' | 'negative_forecast' | 'large_expense',
+  details: {
+    currentCash?: number;
+    threshold?: number;
+    projectedMonth?: string;
+    currency?: string;
+  }
+) => {
+  try {
+    let message = '';
+
+    switch (alertType) {
+      case 'low_cash':
+        message = `⚠️ Low Cash Alert\n\nYour cash balance has dropped to ${details.currency}${details.currentCash?.toLocaleString()}\n\nYour minimum threshold is: ${details.currency}${details.threshold?.toLocaleString()}\n\nReview your cash position immediately.`;
+        break;
+      case 'negative_forecast':
+        message = `📉 Forecast Alert\n\nBased on current trends, your cash is projected to run negative by ${details.projectedMonth}.\n\nTake action now:\n• Accelerate customer collections\n• Negotiate extended payment terms\n• Review discretionary expenses`;
+        break;
+      case 'large_expense':
+        message = `💸 Large Expense Alert\n\nA significant expense is scheduled for the next 7 days: ${details.currency}${details.currentCash?.toLocaleString()}\n\nEnsure sufficient cash on hand to cover this payment.`;
+        break;
+    }
+
+    openWhatsAppWithMessage(recipientPhone, message);
+  } catch (error) {
+    console.error('Error sending cash flow alert:', error);
+  }
+};
+
+// ─── Automatically detect and send overdue invoice alerts ──────────────────
+export const detectAndSendOverdueAlerts = async (
+  invoices: Invoice[],
+  businessName: string,
+  overdueThresholdDays: number = 7,
+  sentAlertIds: Set<string> = new Set()
+): Promise<string[]> => {
+  const newAlertsSent: string[] = [];
+  const now = new Date();
+
+  for (const invoice of invoices) {
+    // Skip already sent, paid, or draft invoices
+    if (
+      sentAlertIds.has(invoice.id) ||
+      invoice.status === 'paid' ||
+      invoice.status === 'draft'
+    ) {
+      continue;
+    }
+
+    // Check if invoice is overdue
+    const dueDate = new Date(invoice.dueDate);
+    const daysOverdue = Math.floor((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (daysOverdue >= overdueThresholdDays) {
+      try {
+        // Get customer phone (assuming it's in vendorCustomer field or needs to be added)
+        const customerPhone = (invoice as any).customerPhone || (invoice as any).vendorCustomer;
+
+        if (customerPhone) {
+          await sendOverdueInvoiceAlert(
+            customerPhone,
+            businessName,
+            invoice.invoiceNumber,
+            invoice.total,
+            daysOverdue,
+            '₦'
+          );
+          newAlertsSent.push(invoice.id);
+        }
+      } catch (error) {
+        console.error(`Failed to send alert for invoice ${invoice.id}:`, error);
+      }
+    }
+  }
+
+  return newAlertsSent;
+};
+
 // ─── Usage Examples ────────────────────────────────────────────────────────
 /**
  * EXAMPLE 1: Add button to InvoicesScreen
@@ -243,19 +344,24 @@ const openWhatsAppWithMessage = (phoneNumber: string, message: string) => {
  *   <Text>📤 Share via WhatsApp</Text>
  * </TouchableOpacity>
  *
- * EXAMPLE 3: Call after payment received
+ * EXAMPLE 3: Automated overdue alert (run periodically)
  *
- * if (paymentConfirmed) {
- *   await sendPaymentConfirmationViaWhatsApp(
- *     customer.phone,
- *     businessName,
- *     invoice.id,
- *     invoice.amount,
- *     currency
- *   );
+ * useEffect(() => {
+ *   const sentAlerts = new Set<string>();
+ *   detectAndSendOverdueAlerts(invoices, businessName, 7, sentAlerts);
+ * }, [invoices]);
+ *
+ * EXAMPLE 4: Send cash flow alert
+ *
+ * if (currentCash < lowCashThreshold) {
+ *   await sendCashFlowAlert(userPhone, 'low_cash', {
+ *     currentCash,
+ *     threshold: lowCashThreshold,
+ *     currency: '₦'
+ *   });
  * }
  *
- * EXAMPLE 4: Check if WhatsApp installed before showing button
+ * EXAMPLE 5: Check if WhatsApp installed before showing button
  *
  * const whatsappAvailable = await isWhatsAppInstalled();
  * if (whatsappAvailable) {
