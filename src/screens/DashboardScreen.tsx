@@ -27,9 +27,6 @@ import StickyMetricsHeader from '../components/StickyMetricsHeader';
 import { MetricsComputer } from '../utils/metricsComputer';
 import GreetingCard from '../components/GreetingCard';
 import TodaysNumbersCard from '../components/TodaysNumbersCard';
-import BusinessHealthWheel from '../components/BusinessHealthWheel';
-import QuadAICard from '../components/QuadAICard';
-import PillarsNavigation from '../components/PillarsNavigation';
 import AlertsWidget from '../components/AlertsWidget';
 
 const INCOME_CATEGORIES = ['Sales', 'Service', 'Consulting', 'Rental', 'Interest', 'Other Income'];
@@ -250,50 +247,164 @@ export default function DashboardScreen() {
                 )}
 
                 {/* ══════════════════════════════════════════════════════════════════
-                    🎯 BUSINESS COMMAND CENTRE
+                    ⚙️ OPERATIONS COMMAND CENTRE
                     ══════════════════════════════════════════════════════════════════ */}
 
-                {/* 1. Greeting + Financial Score */}
-                <GreetingCard
-                  userName={user?.businessName?.split(' ')[0] || 'User'}
-                  financialScore={Math.round(finance.cashBalance > 0 && finance.profit > 0 ? 75 + (Math.min(finance.margin, 50) / 50 * 15) : 65)}
-                  status={finance.cashBalance > 0 && runwayDays && runwayDays > 30 ? 'healthy' : runwayDays && runwayDays > 7 ? 'warning' : 'critical'}
-                />
+                {/* SECTION 1: VITAL SIGNS - Critical metrics at a glance */}
+                <View style={styles.operationsSection}>
+                  <Text style={styles.operationsSectionTitle}>💊 VITAL SIGNS</Text>
 
-                {/* 2. Today's Numbers */}
-                <TodaysNumbersCard
-                  sales={todayProfit >= 0 ? finance.income : finance.income - todayProfit}
-                  expenses={todayProfit >= 0 ? finance.expense : finance.expense + (Math.abs(todayProfit) - Math.abs(finance.profit))}
-                  profit={todayProfit}
-                  margin={finance.profit > 0 ? (finance.profit / finance.income * 100) : 0}
-                  currency={currency}
-                />
+                  {/* Cash Position Card - Most Important */}
+                  <View style={styles.vitalCard}>
+                    <View style={styles.vitalCardTop}>
+                      <View style={styles.vitalMetric}>
+                        <Text style={styles.vitalLabel}>Cash in Hand</Text>
+                        <Text style={styles.vitalValue}>{currency}{Math.round(finance.cashBalance).toLocaleString()}</Text>
+                        <Text style={styles.vitalSubtext}>+{currency}{Math.round(totalCash).toLocaleString()} in pockets</Text>
+                      </View>
+                      <View style={[styles.runwayBadge, { backgroundColor: runwayColor + '22', borderColor: runwayColor }]}>
+                        <Text style={[styles.runwayBadgeValue, { color: runwayColor }]}>{runwayDays || '?'}</Text>
+                        <Text style={styles.runwayBadgeLabel}>days</Text>
+                      </View>
+                    </View>
+                    <View style={styles.vitalDivider} />
+                    <View style={styles.vitalCardBottom}>
+                      <View style={styles.vitalMetric}>
+                        <Text style={styles.vitalLabel}>Today's Profit</Text>
+                        <Text style={[styles.vitalValue, { color: todayProfit >= 0 ? Colors.income : Colors.expense }]}>
+                          {todayProfit >= 0 ? '+' : ''}{currency}{Math.round(todayProfit).toLocaleString()}
+                        </Text>
+                      </View>
+                      <View style={styles.vitalMetric}>
+                        <Text style={styles.vitalLabel}>This Month</Text>
+                        <Text style={[styles.vitalValue, { color: thisMonthProfit >= 0 ? Colors.income : Colors.expense }]}>
+                          {thisMonthProfit >= 0 ? '+' : ''}{currency}{Math.round(thisMonthProfit).toLocaleString()}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
 
-                {/* 3. Business Health Wheel */}
-                <BusinessHealthWheel
-                  growth={profitDelta ? Math.min(Math.max(50 + profitDelta, 20), 100) : 65}
-                  profit={finance.profit > 0 ? 80 : 40}
-                  cash={finance.cashBalance > 0 ? Math.min(60 + (finance.cashBalance / 1000000 * 20), 95) : 35}
-                  funding={financing?.isQualified ? 80 : 55}
-                  control={inventory.length > 0 && budgets.length > 0 ? 75 : 60}
-                  overall={Math.round(finance.cashBalance > 0 && finance.profit > 0 ? 75 + (Math.min(finance.margin, 50) / 50 * 15) : 65)}
-                />
+                {/* SECTION 2: TODAY'S PRIORITIES - Action items */}
+                <View style={styles.operationsSection}>
+                  <Text style={styles.operationsSectionTitle}>✋ TODAY'S PRIORITIES</Text>
 
-                {/* 4. Quad AI Card */}
-                <QuadAICard
-                  updates={[
-                    ...(profitDelta && profitDelta > 10 ? [{ type: 'success' as const, emoji: '✅', message: `Sales increased ${Math.round(profitDelta)}% this month` }] : []),
-                    ...(overdueInvoices.length > 0 ? [{ type: 'alert' as const, emoji: '⚠️', message: `${overdueInvoices.length} customer${overdueInvoices.length > 1 ? 's' : ''} owe ₦${overdueInvoices.reduce((s, i) => s + i.total, 0).toLocaleString()}` }] : []),
-                    ...(lowStockItems.length > 0 ? [{ type: 'alert' as const, emoji: '📦', message: `${lowStockItems.length} items low on stock` }] : []),
-                  ].slice(0, 3)}
-                  recommendedAction={overdueInvoices.length > 0 ? `Follow up ${overdueInvoices.length} overdue customer${overdueInvoices.length > 1 ? 's' : ''} today` : profitDelta && profitDelta < 0 ? 'Review expenses to improve profitability' : 'Keep up momentum — maintain sales streak'}
-                  onViewDetails={() => setShowDailyReport(true)}
-                />
+                  {/* Collections Alert */}
+                  {overdueInvoices.length > 0 && (
+                    <TouchableOpacity
+                      style={[styles.priorityCard, styles.priorityCardAlert]}
+                      onPress={() => setCurrentScreen('invoices')}
+                    >
+                      <Text style={styles.priorityEmoji}>💰</Text>
+                      <View style={styles.priorityContent}>
+                        <Text style={styles.priorityTitle}>{overdueInvoices.length} Customer{overdueInvoices.length > 1 ? 's' : ''} Overdue</Text>
+                        <Text style={styles.priorityAmount}>
+                          {currency}{overdueInvoices.reduce((s, i) => s + i.total, 0).toLocaleString()} to collect
+                        </Text>
+                      </View>
+                      <Text style={styles.priorityArrow}>→</Text>
+                    </TouchableOpacity>
+                  )}
 
+                  {/* Low Stock Alert */}
+                  {lowStockItems.length > 0 && (
+                    <TouchableOpacity
+                      style={[styles.priorityCard, styles.priorityCardWarning]}
+                      onPress={() => setCurrentScreen('inventory')}
+                    >
+                      <Text style={styles.priorityEmoji}>📦</Text>
+                      <View style={styles.priorityContent}>
+                        <Text style={styles.priorityTitle}>{lowStockItems.length} Item{lowStockItems.length > 1 ? 's' : ''} Low in Stock</Text>
+                        <Text style={styles.priorityAmount}>Reorder to avoid stockout</Text>
+                      </View>
+                      <Text style={styles.priorityArrow}>→</Text>
+                    </TouchableOpacity>
+                  )}
 
-                {/* ── Merchant Financing Qualification Widget ────────────────── */}
+                  {/* Budget Alerts */}
+                  {overspentBudgets.length > 0 && (
+                    <TouchableOpacity
+                      style={[styles.priorityCard, styles.priorityCardWarning]}
+                      onPress={() => setCurrentScreen('budget')}
+                    >
+                      <Text style={styles.priorityEmoji}>⚠️</Text>
+                      <View style={styles.priorityContent}>
+                        <Text style={styles.priorityTitle}>{overspentBudgets.length} Budget{overspentBudgets.length > 1 ? 's' : ''} Exceeded</Text>
+                        <Text style={styles.priorityAmount}>{overspentBudgets.map(b => b.category).join(', ')}</Text>
+                      </View>
+                      <Text style={styles.priorityArrow}>→</Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {/* No Priorities */}
+                  {overdueInvoices.length === 0 && lowStockItems.length === 0 && overspentBudgets.length === 0 && (
+                    <View style={styles.priorityCard}>
+                      <Text style={styles.priorityEmoji}>✅</Text>
+                      <View style={styles.priorityContent}>
+                        <Text style={styles.priorityTitle}>All Clear for Today</Text>
+                        <Text style={styles.priorityAmount}>No alerts — keep up the momentum!</Text>
+                      </View>
+                    </View>
+                  )}
+                </View>
+
+                {/* SECTION 3: KEY METRICS - Monthly snapshot */}
+                <View style={styles.operationsSection}>
+                  <Text style={styles.operationsSectionTitle}>📊 MONTHLY SNAPSHOT</Text>
+                  <View style={styles.metricsGrid}>
+                    <View style={styles.metricBox}>
+                      <Text style={styles.metricEmoji}>📈</Text>
+                      <Text style={styles.metricLabel}>Total Revenue</Text>
+                      <Text style={styles.metricValue}>{currency}{Math.round(finance.income).toLocaleString()}</Text>
+                    </View>
+                    <View style={styles.metricBox}>
+                      <Text style={styles.metricEmoji}>📉</Text>
+                      <Text style={styles.metricLabel}>Total Expenses</Text>
+                      <Text style={styles.metricValue}>{currency}{Math.round(finance.expense).toLocaleString()}</Text>
+                    </View>
+                    <View style={styles.metricBox}>
+                      <Text style={styles.metricEmoji}>💹</Text>
+                      <Text style={styles.metricLabel}>Profit Margin</Text>
+                      <Text style={[styles.metricValue, { color: finance.profit > 0 ? Colors.income : Colors.expense }]}>
+                        {finance.income > 0 ? ((finance.profit / finance.income) * 100).toFixed(1) : 0}%
+                      </Text>
+                    </View>
+                    <View style={styles.metricBox}>
+                      <Text style={styles.metricEmoji}>📝</Text>
+                      <Text style={styles.metricLabel}>Pending Invoices</Text>
+                      <Text style={styles.metricValue}>{invoices.filter(i => i.status !== 'paid').length}</Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* SECTION 4: QUICK ACTIONS - One-tap operations */}
+                <View style={styles.operationsSection}>
+                  <Text style={styles.operationsSectionTitle}>⚡ QUICK ACTIONS</Text>
+                  <View style={styles.actionsGrid}>
+                    <TouchableOpacity style={styles.actionCard} onPress={() => openFab('income')}>
+                      <Text style={styles.actionEmoji}>💵</Text>
+                      <Text style={styles.actionLabel}>Log Sales</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.actionCard} onPress={() => setCurrentScreen('invoices')}>
+                      <Text style={styles.actionEmoji}>📄</Text>
+                      <Text style={styles.actionLabel}>Send Invoice</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.actionCard} onPress={() => openFab('expense')}>
+                      <Text style={styles.actionEmoji}>💸</Text>
+                      <Text style={styles.actionLabel}>Record Expense</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.actionCard} onPress={() => setCurrentScreen('reports')}>
+                      <Text style={styles.actionEmoji}>📊</Text>
+                      <Text style={styles.actionLabel}>View Reports</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {/* SECTION 5: Financing Status */}
                 {!isDemoMode && user && (
-                    <MerchantFinancingQualificationWidget
+                    <View style={styles.operationsSection}>
+                      <Text style={styles.operationsSectionTitle}>🎯 GROWTH TRACKER</Text>
+                      <MerchantFinancingQualificationWidget
                         daysActive={user.daysActive || 0}
                         monthlyRevenue={user.avgMonthlyRevenue || 0}
                         healthScore={user.financialHealthScore || 0}
@@ -301,7 +412,8 @@ export default function DashboardScreen() {
                         isQualified={financing.isQualified || false}
                         hasActiveLoan={financing.activeLoan !== undefined && financing.activeLoan !== null}
                         onPress={() => setCurrentScreen('loans')}
-                    />
+                      />
+                    </View>
                 )}
 
                 {/* ── Beta Features Spotlight ──────────────────────────────── */}
@@ -849,6 +961,189 @@ const styles = StyleSheet.create({
     deltaHint:  { fontSize: 11, color: Colors.textMuted },
 
     insightStale: { fontSize: 11, color: Colors.textMuted, fontStyle: 'italic', marginTop: 4 },
+
+    // ── Operations Command Centre Styles ──
+    operationsSection: {
+      marginBottom: 20,
+    },
+    operationsSectionTitle: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: Colors.textPrimary,
+      marginBottom: 12,
+      letterSpacing: 0.5,
+    },
+    vitalCard: {
+      backgroundColor: Colors.surface,
+      borderRadius: 14,
+      borderWidth: 2,
+      borderColor: Colors.primary + '33',
+      overflow: 'hidden',
+      shadowColor: Colors.primary,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 3,
+    },
+    vitalCardTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: 16,
+      backgroundColor: Colors.primary + '08',
+    },
+    vitalCardBottom: {
+      flexDirection: 'row',
+      padding: 16,
+      gap: 12,
+    },
+    vitalMetric: {
+      flex: 1,
+    },
+    vitalLabel: {
+      fontSize: 11,
+      color: Colors.textMuted,
+      fontWeight: '600',
+      marginBottom: 4,
+      textTransform: 'uppercase',
+      letterSpacing: 0.3,
+    },
+    vitalValue: {
+      fontSize: 22,
+      fontWeight: '800',
+      color: Colors.textPrimary,
+      marginBottom: 2,
+    },
+    vitalSubtext: {
+      fontSize: 10,
+      color: Colors.textSecondary,
+    },
+    runwayBadge: {
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      borderRadius: 10,
+      borderWidth: 2,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    runwayBadgeValue: {
+      fontSize: 28,
+      fontWeight: '800',
+      lineHeight: 30,
+    },
+    runwayBadgeLabel: {
+      fontSize: 9,
+      fontWeight: '700',
+      color: Colors.textMuted,
+      marginTop: 2,
+      textTransform: 'uppercase',
+    },
+    vitalDivider: {
+      height: 1,
+      backgroundColor: Colors.border,
+    },
+
+    priorityCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: Colors.surface,
+      borderRadius: 12,
+      padding: 14,
+      marginBottom: 10,
+      borderLeftWidth: 4,
+      borderLeftColor: Colors.primary,
+      gap: 12,
+    },
+    priorityCardAlert: {
+      borderLeftColor: Colors.expense,
+      backgroundColor: Colors.expense + '08',
+    },
+    priorityCardWarning: {
+      borderLeftColor: Colors.warning,
+      backgroundColor: Colors.warning + '08',
+    },
+    priorityEmoji: {
+      fontSize: 24,
+    },
+    priorityContent: {
+      flex: 1,
+    },
+    priorityTitle: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: Colors.textPrimary,
+      marginBottom: 2,
+    },
+    priorityAmount: {
+      fontSize: 11,
+      color: Colors.textSecondary,
+      fontWeight: '500',
+    },
+    priorityArrow: {
+      fontSize: 18,
+      color: Colors.primary,
+      fontWeight: '600',
+    },
+
+    metricsGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 10,
+      justifyContent: 'space-between',
+    },
+    metricBox: {
+      width: '48%',
+      backgroundColor: Colors.surface,
+      borderRadius: 12,
+      padding: 12,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: Colors.border,
+    },
+    metricEmoji: {
+      fontSize: 24,
+      marginBottom: 6,
+    },
+    metricLabel: {
+      fontSize: 10,
+      color: Colors.textMuted,
+      fontWeight: '600',
+      textAlign: 'center',
+      marginBottom: 6,
+    },
+    metricValue: {
+      fontSize: 16,
+      fontWeight: '800',
+      color: Colors.textPrimary,
+      textAlign: 'center',
+    },
+
+    actionsGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 10,
+      justifyContent: 'space-between',
+    },
+    actionCard: {
+      width: '48%',
+      backgroundColor: Colors.primary + '12',
+      borderRadius: 12,
+      padding: 16,
+      alignItems: 'center',
+      borderWidth: 1.5,
+      borderColor: Colors.primary,
+      active: 0.7,
+    },
+    actionEmoji: {
+      fontSize: 32,
+      marginBottom: 8,
+    },
+    actionLabel: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: Colors.primary,
+      textAlign: 'center',
+    },
 
     fab:     { position: 'absolute', right: 20, bottom: 80, width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.income, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 8 },
     fabText: { fontSize: 30, color: Colors.textPrimary, lineHeight: 34 },
