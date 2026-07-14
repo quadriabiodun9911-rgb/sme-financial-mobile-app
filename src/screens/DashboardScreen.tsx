@@ -25,6 +25,12 @@ import DailyReportModal from '../components/DailyReportModal';
 import MerchantFinancingQualificationWidget from '../components/MerchantFinancingQualificationWidget';
 import StickyMetricsHeader from '../components/StickyMetricsHeader';
 import { MetricsComputer } from '../utils/metricsComputer';
+import GreetingCard from '../components/GreetingCard';
+import TodaysNumbersCard from '../components/TodaysNumbersCard';
+import BusinessHealthWheel from '../components/BusinessHealthWheel';
+import QuadAICard from '../components/QuadAICard';
+import PillarsNavigation from '../components/PillarsNavigation';
+import AlertsWidget from '../components/AlertsWidget';
 
 const INCOME_CATEGORIES = ['Sales', 'Service', 'Consulting', 'Rental', 'Interest', 'Other Income'];
 const EXPENSE_CATEGORIES = ['Rent', 'Salaries', 'Utilities', 'Marketing', 'Supplies', 'Transport', 'Meals', 'Software', 'Tax', 'Other'];
@@ -244,7 +250,60 @@ export default function DashboardScreen() {
                 )}
 
                 {/* ══════════════════════════════════════════════════════════════════
-                    📍 SECTION 1: TODAY
+                    🎯 BUSINESS COMMAND CENTRE
+                    ══════════════════════════════════════════════════════════════════ */}
+
+                {/* 1. Greeting + Financial Score */}
+                <GreetingCard
+                  userName={user?.businessName?.split(' ')[0] || 'User'}
+                  financialScore={Math.round(finance.cashBalance > 0 && finance.profit > 0 ? 75 + (Math.min(finance.margin, 50) / 50 * 15) : 65)}
+                  status={finance.cashBalance > 0 && runwayDays && runwayDays > 30 ? 'healthy' : runwayDays && runwayDays > 7 ? 'warning' : 'critical'}
+                />
+
+                {/* 2. Today's Numbers */}
+                <TodaysNumbersCard
+                  sales={todayProfit >= 0 ? finance.income : finance.income - todayProfit}
+                  expenses={todayProfit >= 0 ? finance.expense : finance.expense + (Math.abs(todayProfit) - Math.abs(finance.profit))}
+                  profit={todayProfit}
+                  margin={finance.profit > 0 ? (finance.profit / finance.income * 100) : 0}
+                  currency={currency}
+                />
+
+                {/* 3. Business Health Wheel */}
+                <BusinessHealthWheel
+                  growth={profitDelta ? Math.min(Math.max(50 + profitDelta, 20), 100) : 65}
+                  profit={finance.profit > 0 ? 80 : 40}
+                  cash={finance.cashBalance > 0 ? Math.min(60 + (finance.cashBalance / 1000000 * 20), 95) : 35}
+                  funding={financing?.isQualified ? 80 : 55}
+                  control={inventory.length > 0 && budgets.length > 0 ? 75 : 60}
+                  overall={Math.round(finance.cashBalance > 0 && finance.profit > 0 ? 75 + (Math.min(finance.margin, 50) / 50 * 15) : 65)}
+                />
+
+                {/* 4. Quad AI Card */}
+                <QuadAICard
+                  updates={[
+                    ...(profitDelta && profitDelta > 10 ? [{ type: 'success' as const, emoji: '✅', message: `Sales increased ${Math.round(profitDelta)}% this month` }] : []),
+                    ...(overdueInvoices.length > 0 ? [{ type: 'alert' as const, emoji: '⚠️', message: `${overdueInvoices.length} customer${overdueInvoices.length > 1 ? 's' : ''} owe ₦${overdueInvoices.reduce((s, i) => s + i.total, 0).toLocaleString()}` }] : []),
+                    ...(lowStockItems.length > 0 ? [{ type: 'alert' as const, emoji: '📦', message: `${lowStockItems.length} items low on stock` }] : []),
+                  ].slice(0, 3)}
+                  recommendedAction={overdueInvoices.length > 0 ? `Follow up ${overdueInvoices.length} overdue customer${overdueInvoices.length > 1 ? 's' : ''} today` : profitDelta && profitDelta < 0 ? 'Review expenses to improve profitability' : 'Keep up momentum — maintain sales streak'}
+                  onViewDetails={() => setShowDailyReport(true)}
+                />
+
+                {/* 5. Business Pillars Navigation */}
+                <PillarsNavigation
+                  pillars={[
+                    { id: 'make', emoji: '💰', title: 'MAKE MONEY', subtitle: 'Revenue & Profit', onPress: () => setCurrentScreen('reports') },
+                    { id: 'protect', emoji: '🛡️', title: 'PROTECT MONEY', subtitle: 'Cash & Runway', onPress: () => setCurrentScreen('cashflow') },
+                    { id: 'grow', emoji: '📈', title: 'GROW MONEY', subtitle: 'Growth & Value', onPress: () => setCurrentScreen('reports') },
+                    { id: 'borrow', emoji: '🏦', title: 'BORROW MONEY', subtitle: 'Funding', onPress: () => setCurrentScreen('loans') },
+                    { id: 'run', emoji: '⚙️', title: 'RUN BUSINESS', subtitle: 'Operations', onPress: () => setCurrentScreen('inventory') },
+                    { id: 'understand', emoji: '🧠', title: 'UNDERSTAND', subtitle: 'AI Advisor', onPress: () => setShowDailyReport(true) },
+                  ]}
+                />
+
+                {/* ══════════════════════════════════════════════════════════════════
+                    📍 SECTION 1: TODAY (LEGACY)
                     ══════════════════════════════════════════════════════════════════ */}
                 <SectionHeader emoji="📍" title="TODAY" />
 
