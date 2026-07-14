@@ -53,7 +53,7 @@ export default function CashFlowForecastChart({ forecast, currency }: Props) {
       <View style={styles.healthContainer}>
         <View style={styles.healthCard}>
           <Text style={styles.healthLabel}>Health Score</Text>
-          <Text style={[styles.healthValue, { color: this.getScoreColor(forecast.healthScore) }]}>
+          <Text style={[styles.healthValue, { color: getScoreColor(forecast.healthScore) }]}>
             {forecast.healthScore}/100
           </Text>
         </View>
