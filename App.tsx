@@ -41,6 +41,9 @@ import BorrowMoneyScreen from './src/screens/BorrowMoneyScreen';
 import FundingQualificationScreen from './src/screens/FundingQualificationScreen';
 import RunBusinessScreen from './src/screens/RunBusinessScreen';
 import UnderstandBusinessScreen from './src/screens/UnderstandBusinessScreen';
+import FinancialAssessmentScreen from './src/screens/FinancialAssessmentScreen';
+import ActionTrackerScreen from './src/screens/ActionTrackerScreen';
+import GoalBridgeScreen from './src/screens/GoalBridgeScreen';
 
 function NavigatorContent() {
     const { user, isLoading, currentScreen, setCurrentScreen } = useAuth();
@@ -112,6 +115,9 @@ function NavigatorContent() {
             {currentScreen === 'funding-qualification' && <FundingQualificationScreen />}
             {currentScreen === 'run-business'  && <RunBusinessScreen />}
             {currentScreen === 'understand-business' && <UnderstandBusinessScreen />}
+            {currentScreen === 'financial-assessment' && <FinancialAssessmentScreen />}
+            {currentScreen === 'action-tracker' && <ActionTrackerScreen />}
+            {currentScreen === 'goal-bridge' && <GoalBridgeScreen />}
         </View>
     );
 }

@@ -400,6 +400,37 @@ export default function DashboardScreen() {
                   </View>
                 </View>
 
+                {/* SECTION 4B: AI FINANCIAL ENGINE - Assessment & Action Planning */}
+                <View style={styles.operationsSection}>
+                  <Text style={styles.operationsSectionTitle}>🤖 AI Financial Engine</Text>
+                  <View style={styles.engineCardsGrid}>
+                    <TouchableOpacity
+                      style={styles.engineCard}
+                      onPress={() => setCurrentScreen('financial-assessment')}
+                    >
+                      <Text style={styles.engineEmoji}>🔍</Text>
+                      <Text style={styles.engineTitle}>Financial<br/>Assessment</Text>
+                      <Text style={styles.engineSubtext}>Diagnose issues</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.engineCard}
+                      onPress={() => setCurrentScreen('action-tracker')}
+                    >
+                      <Text style={styles.engineEmoji}>⚡</Text>
+                      <Text style={styles.engineTitle}>Action<br/>Tracker</Text>
+                      <Text style={styles.engineSubtext}>Prioritized tactics</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.engineCard}
+                      onPress={() => setCurrentScreen('goal-bridge')}
+                    >
+                      <Text style={styles.engineEmoji}>🌉</Text>
+                      <Text style={styles.engineTitle}>Goal<br/>Bridge</Text>
+                      <Text style={styles.engineSubtext}>Connect to goals</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
                 {/* SECTION 5: Financing Status */}
                 {!isDemoMode && user && (
                     <View style={styles.operationsSection}>
@@ -1142,6 +1173,37 @@ const styles = StyleSheet.create({
       fontSize: 12,
       fontWeight: '700',
       color: Colors.primary,
+      textAlign: 'center',
+    },
+
+    engineCardsGrid: {
+      flexDirection: 'row',
+      gap: 10,
+      justifyContent: 'space-between',
+    },
+    engineCard: {
+      width: '32%',
+      backgroundColor: Colors.primary + '15',
+      borderRadius: 14,
+      padding: 12,
+      alignItems: 'center',
+      borderWidth: 1.5,
+      borderColor: Colors.primary,
+      gap: 6,
+    },
+    engineEmoji: {
+      fontSize: 32,
+    },
+    engineTitle: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: Colors.primary,
+      textAlign: 'center',
+      lineHeight: 14,
+    },
+    engineSubtext: {
+      fontSize: 9,
+      color: Colors.textMuted,
       textAlign: 'center',
     },
 
