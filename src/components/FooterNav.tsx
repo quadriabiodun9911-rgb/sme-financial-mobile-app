@@ -13,7 +13,6 @@ import { Screen } from '../types';
 const ANALYTICS_ITEMS: { label: string; icon: string; screen: Screen; color: string }[] = [
     { label: 'Growth',   icon: '📈', screen: 'growth',   color: '#10b981' },
     { label: 'Insights', icon: '💡', screen: 'insights', color: '#f59e0b' },
-    { label: 'Analysis', icon: '📊', screen: 'analysis', color: '#3b82f6' },
     { label: 'Advisor',  icon: '🧠', screen: 'cfo',      color: '#8b5cf6' },
 ];
 
@@ -26,7 +25,6 @@ const FINANCE_ITEMS: { label: string; icon: string; screen: Screen; color: strin
 
 const OPERATIONS_ITEMS: { label: string; icon: string; screen: Screen; color: string; desc: string }[] = [
     { label: 'Inventory',      icon: '📦', screen: 'inventory',      color: '#f59e0b', desc: 'Stock levels & margins' },
-    { label: 'Cash Flow',      icon: '💧', screen: 'cashflow',       color: '#3b82f6', desc: 'Forecast, runway & AR risk' },
     { label: 'Payroll',        icon: '👥', screen: 'payroll',        color: '#10b981', desc: 'Staff & monthly pay runs' },
     { label: 'Reconciliation', icon: '🔗', screen: 'reconciliation', color: '#8b5cf6', desc: 'Match bank vs app records' },
 ];
@@ -207,7 +205,7 @@ export default function FooterNav() {
                         </View>
 
                         {/* ── Analytics ─────────────────────────────────── */}
-                        <Text style={styles.sectionTitle}>Analytics</Text>
+                        <Text style={styles.sectionHeader}>📊 ANALYTICS</Text>
                         <View style={styles.gridCard}>
                             {visibleAnalytics.map(item => (
                                 <TouchableOpacity
@@ -225,7 +223,7 @@ export default function FooterNav() {
                         </View>
 
                         {/* ── Finance ───────────────────────────────────── */}
-                        <Text style={styles.sectionTitle}>Finance</Text>
+                        <Text style={styles.sectionHeader}>💰 FINANCE</Text>
                         <View style={styles.gridCard}>
                             {visibleFinance.map(item => (
                                 <TouchableOpacity
@@ -242,10 +240,32 @@ export default function FooterNav() {
                             ))}
                         </View>
 
-                        {/* ── Operations & Account — list rows ──────────── */}
-                        <Text style={styles.sectionTitle}>Operations & Account</Text>
+                        {/* ── Operations ────────────────────────────────── */}
+                        <Text style={styles.sectionHeader}>⚙️ OPERATIONS</Text>
                         <View style={styles.listCard}>
-                            {[...visibleOperations, ...visibleAccount].map((item, i, arr) => (
+                            {visibleOperations.map((item, i, arr) => (
+                                <TouchableOpacity
+                                    key={item.screen}
+                                    style={[styles.listRow, i < arr.length - 1 && styles.listRowBorder]}
+                                    onPress={() => goTo(item.screen)}
+                                    activeOpacity={0.75}
+                                >
+                                    <View style={[styles.listIconBox, { backgroundColor: item.color + '22' }]}>
+                                        <Text style={styles.listIcon}>{item.icon}</Text>
+                                    </View>
+                                    <View style={styles.listTextCol}>
+                                        <Text style={styles.listLabel}>{item.label}</Text>
+                                        <Text style={styles.listDesc}>{item.desc}</Text>
+                                    </View>
+                                    <Text style={styles.listArrow}>›</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
+                        {/* ── Account ───────────────────────────────────── */}
+                        <Text style={styles.sectionHeader}>ACCOUNT</Text>
+                        <View style={styles.listCard}>
+                            {visibleAccount.map((item, i, arr) => (
                                 <TouchableOpacity
                                     key={item.screen}
                                     style={[styles.listRow, i < arr.length - 1 && styles.listRowBorder]}
@@ -365,6 +385,16 @@ const styles = StyleSheet.create({
         marginLeft: 20,
         marginTop: 24,
         marginBottom: 10,
+    },
+
+    sectionHeader: {
+        fontSize: 14,
+        fontWeight: '800',
+        color: Colors.textPrimary,
+        marginBottom: 10,
+        marginTop: 16,
+        letterSpacing: 0.3,
+        marginLeft: 20,
     },
 
     // Icon grid
