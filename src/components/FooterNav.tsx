@@ -13,6 +13,7 @@ import { Screen } from '../types';
 const ANALYTICS_ITEMS: { label: string; icon: string; screen: Screen; color: string }[] = [
     { label: 'Growth',   icon: '📈', screen: 'growth',   color: '#10b981' },
     { label: 'Insights', icon: '💡', screen: 'insights', color: '#f59e0b' },
+    { label: 'Analysis', icon: '📊', screen: 'analysis', color: '#3b82f6' },
     { label: 'Advisor',  icon: '🧠', screen: 'cfo',      color: '#8b5cf6' },
 ];
 
@@ -25,6 +26,7 @@ const FINANCE_ITEMS: { label: string; icon: string; screen: Screen; color: strin
 
 const OPERATIONS_ITEMS: { label: string; icon: string; screen: Screen; color: string; desc: string }[] = [
     { label: 'Inventory',      icon: '📦', screen: 'inventory',      color: '#f59e0b', desc: 'Stock levels & margins' },
+    { label: 'Cash Flow',      icon: '💧', screen: 'cashflow',       color: '#3b82f6', desc: 'Forecast, runway & AR risk' },
     { label: 'Payroll',        icon: '👥', screen: 'payroll',        color: '#10b981', desc: 'Staff & monthly pay runs' },
     { label: 'Reconciliation', icon: '🔗', screen: 'reconciliation', color: '#8b5cf6', desc: 'Match bank vs app records' },
 ];
@@ -115,21 +117,14 @@ export default function FooterNav() {
                     );
                 })}
 
-                {/* Me tab */}
+                {/* More tab */}
                 <TouchableOpacity
                     style={styles.tabItem}
                     onPress={() => setMoreOpen(true)}
                     activeOpacity={0.7}
                 >
-                    <View style={styles.meAvatarSmall}>
-                        <Text style={styles.meAvatarSmallText}>{initials}</Text>
-                        {pendingSyncCount > 0 && (
-                            <View style={styles.syncBadge}>
-                                <Text style={styles.syncBadgeText}>{pendingSyncCount > 9 ? '9+' : pendingSyncCount}</Text>
-                            </View>
-                        )}
-                    </View>
-                    <Text style={[styles.tabLabel, moreOpen && styles.tabLabelActive]}>Me</Text>
+                    <Text style={styles.tabIcon}>⋯</Text>
+                    <Text style={[styles.tabLabel, moreOpen && styles.tabLabelActive]}>More</Text>
                     {moreOpen && <View style={styles.tabIndicator} />}
                 </TouchableOpacity>
             </View>
@@ -146,7 +141,7 @@ export default function FooterNav() {
 
                     {/* Header */}
                     <View style={styles.header}>
-                        <Text style={styles.headerTitle}>My Account</Text>
+                        <Text style={styles.headerTitle}>More</Text>
                         <TouchableOpacity style={styles.closeBtn} onPress={() => setMoreOpen(false)} activeOpacity={0.7}>
                             <Text style={styles.closeBtnText}>✕</Text>
                         </TouchableOpacity>
@@ -311,11 +306,6 @@ const styles = StyleSheet.create({
     tabLabelActive: { color: Colors.primary, fontWeight: '700' },
     tabIndicator:   { width: 4, height: 4, borderRadius: 2, backgroundColor: Colors.primary, marginTop: 3 },
 
-    // Me avatar in tab bar
-    meAvatarSmall:     { width: 22, height: 22, borderRadius: 11, backgroundColor: Colors.primary, justifyContent: 'center', alignItems: 'center', marginBottom: 2, position: 'relative' },
-    meAvatarSmallText: { color: '#fff', fontSize: 9, fontWeight: '800' },
-    syncBadge:         { position: 'absolute', top: -3, right: -4, backgroundColor: '#f59e0b', borderRadius: 6, minWidth: 13, height: 13, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2 },
-    syncBadgeText:     { color: '#fff', fontSize: 8, fontWeight: '800' },
 
     // ── Me page ─────────────────────────────────────────────────────────────
     page:   { flex: 1, backgroundColor: Colors.bg },
