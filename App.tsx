@@ -38,6 +38,7 @@ import MakeMoneyScreen from './src/screens/MakeMoneyScreen';
 import ProtectMoneyScreen from './src/screens/ProtectMoneyScreen';
 import GrowMoneyScreen from './src/screens/GrowMoneyScreen';
 import BorrowMoneyScreen from './src/screens/BorrowMoneyScreen';
+import FundingQualificationScreen from './src/screens/FundingQualificationScreen';
 import RunBusinessScreen from './src/screens/RunBusinessScreen';
 import UnderstandBusinessScreen from './src/screens/UnderstandBusinessScreen';
 
@@ -108,6 +109,7 @@ function NavigatorContent() {
             {currentScreen === 'protect-money' && <ProtectMoneyScreen />}
             {currentScreen === 'grow-money'    && <GrowMoneyScreen />}
             {currentScreen === 'borrow-money'  && <BorrowMoneyScreen />}
+            {currentScreen === 'funding-qualification' && <FundingQualificationScreen />}
             {currentScreen === 'run-business'  && <RunBusinessScreen />}
             {currentScreen === 'understand-business' && <UnderstandBusinessScreen />}
         </View>
