@@ -121,7 +121,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 16, fontWeight: '700', color: Colors.textPrimary, marginBottom: 12 },
   empty: { alignItems: 'center', paddingVertical: 24 },
   emptyText: { color: Colors.textMuted, fontSize: 14 },
-  card: { backgroundColor: Colors.cardBg, borderRadius: 12, padding: 12, marginBottom: 10 },
+  card: { backgroundColor: Colors.card, borderRadius: 12, padding: 12, marginBottom: 10 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
   cardInfo: { flex: 1 },
   cardTitle: { fontSize: 14, fontWeight: '600', color: Colors.textPrimary },

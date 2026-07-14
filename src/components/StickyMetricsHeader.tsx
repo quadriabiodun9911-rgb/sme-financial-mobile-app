@@ -56,7 +56,7 @@ export default function StickyMetricsHeader({ finance, currency, isSticky = fals
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: Colors.cardBg,
+    backgroundColor: Colors.card,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
