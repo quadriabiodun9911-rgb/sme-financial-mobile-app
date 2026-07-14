@@ -302,33 +302,6 @@ export default function DashboardScreen() {
                   ]}
                 />
 
-                {/* ══════════════════════════════════════════════════════════════════
-                    📍 SECTION 1: TODAY (LEGACY)
-                    ══════════════════════════════════════════════════════════════════ */}
-                <SectionHeader emoji="📍" title="TODAY" />
-
-                {/* Profit, Cash Balance, Funding Readiness */}
-                <View style={styles.sectionGrid}>
-                    <View style={[styles.sectionCard, styles.sectionCardFlex]}>
-                        <Text style={styles.sectionCardLabel}>Profit</Text>
-                        <Text style={[styles.sectionCardValue, { color: todayProfit >= 0 ? Colors.income : Colors.expense }]}>
-                            {todayProfit >= 0 ? '+' : ''}{currency}{todayProfit.toLocaleString()}
-                        </Text>
-                    </View>
-                    <View style={[styles.sectionCard, styles.sectionCardFlex]}>
-                        <Text style={styles.sectionCardLabel}>Cash Balance</Text>
-                        <Text style={[styles.sectionCardValue, { color: Colors.primary }]}>
-                            {currency}{finance.cashBalance.toLocaleString()}
-                        </Text>
-                    </View>
-                    <View style={[styles.sectionCard, styles.sectionCardFlex]}>
-                        <Text style={styles.sectionCardLabel}>Funding</Text>
-                        <Text style={[styles.sectionCardValue, { color: Colors.primary }]}>
-                            {financing?.isQualified ? '✓' : '...'}
-                        </Text>
-                    </View>
-                </View>
-
                 {/* ── Merchant Financing Qualification Widget ────────────────── */}
                 {!isDemoMode && user && (
                     <MerchantFinancingQualificationWidget
