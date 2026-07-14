@@ -34,6 +34,12 @@ import TaxPlanningScreen from './src/screens/TaxPlanningScreen';
 import CreditWorthinessScreen from './src/screens/CreditWorthinessScreen';
 import LoanEligibilityScreen from './src/screens/LoanEligibilityScreen';
 import FinancialHealthCoachScreen from './src/screens/FinancialHealthCoachScreen';
+import MakeMoneyScreen from './src/screens/MakeMoneyScreen';
+import ProtectMoneyScreen from './src/screens/ProtectMoneyScreen';
+import GrowMoneyScreen from './src/screens/GrowMoneyScreen';
+import BorrowMoneyScreen from './src/screens/BorrowMoneyScreen';
+import RunBusinessScreen from './src/screens/RunBusinessScreen';
+import UnderstandBusinessScreen from './src/screens/UnderstandBusinessScreen';
 
 function NavigatorContent() {
     const { user, isLoading, currentScreen, setCurrentScreen } = useAuth();
@@ -98,6 +104,12 @@ function NavigatorContent() {
             {currentScreen === 'credit-worthiness' && <CreditWorthinessScreen />}
             {currentScreen === 'loan-eligibility'  && <LoanEligibilityScreen />}
             {currentScreen === 'financial-coach'   && <FinancialHealthCoachScreen />}
+            {currentScreen === 'make-money'    && <MakeMoneyScreen />}
+            {currentScreen === 'protect-money' && <ProtectMoneyScreen />}
+            {currentScreen === 'grow-money'    && <GrowMoneyScreen />}
+            {currentScreen === 'borrow-money'  && <BorrowMoneyScreen />}
+            {currentScreen === 'run-business'  && <RunBusinessScreen />}
+            {currentScreen === 'understand-business' && <UnderstandBusinessScreen />}
         </View>
     );
 }
