@@ -484,68 +484,6 @@ export default function DashboardScreen() {
                     </TouchableOpacity>
                 )}
 
-                {/* ══════════════════════════════════════════════════════════════════
-                    🏦 SECTION 5: FUNDING
-                    ══════════════════════════════════════════════════════════════════ */}
-                <SectionHeader emoji="🏦" title="FUNDING" />
-
-                {/* Merchant Financing Widget */}
-                <TouchableOpacity style={[styles.sectionActionCard, { borderLeftWidth: 4, borderLeftColor: Colors.primary }]} onPress={() => setCurrentScreen('financing')}>
-                    <Text style={styles.sectionActionIcon}>💳</Text>
-                    <View style={{ flex: 1 }}>
-                        <Text style={styles.sectionActionTitle}>Merchant Financing</Text>
-                        <Text style={[styles.sectionActionSub, { color: financing?.isQualified ? Colors.income : Colors.warning }]}>
-                            {financing?.isQualified ? '✓ Qualified for loans' : 'Build your score to qualify'}
-                        </Text>
-                    </View>
-                    <Text style={styles.sectionActionArrow}>›</Text>
-                </TouchableOpacity>
-
-                {/* ══════════════════════════════════════════════════════════════════
-                    ⚙️ SECTION 6: BUSINESS
-                    ══════════════════════════════════════════════════════════════════ */}
-                <SectionHeader emoji="⚙️" title="BUSINESS" />
-
-                <View style={styles.sectionGrid}>
-                    <TouchableOpacity style={[styles.sectionCard, styles.sectionCardFlex]} onPress={() => setCurrentScreen('inventory')}>
-                        <Text style={styles.sectionCardLabel}>Inventory</Text>
-                        <Text style={[styles.sectionCardValue, { color: lowStockItems.length > 0 ? Colors.warning : Colors.income }]}>
-                            {lowStockItems.length > 0 ? `${lowStockItems.length} 📦` : `${inventory.length}`}
-                        </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.sectionCard, styles.sectionCardFlex]} onPress={() => setCurrentScreen('payroll')}>
-                        <Text style={styles.sectionCardLabel}>Payroll</Text>
-                        <Text style={styles.sectionCardValue}>—</Text>
-                    </TouchableOpacity>
-                    <View style={[styles.sectionCard, styles.sectionCardFlex]}>
-                        <Text style={styles.sectionCardLabel}>Taxes</Text>
-                        <Text style={[styles.sectionCardValue, { color: Colors.warning }]}>{currency}{finance.totalTaxCollected.toLocaleString()}</Text>
-                    </View>
-                </View>
-
-                {/* ══════════════════════════════════════════════════════════════════
-                    🧠 SECTION 7: AI ADVISOR
-                    ══════════════════════════════════════════════════════════════════ */}
-                <SectionHeader emoji="🧠" title="AI ADVISOR" />
-
-                <TouchableOpacity style={styles.sectionActionCard} onPress={() => setShowDailyReport(true)}>
-                    <Text style={styles.sectionActionIcon}>📊</Text>
-                    <View style={{ flex: 1 }}>
-                        <Text style={styles.sectionActionTitle}>Today's Report</Text>
-                        <Text style={styles.sectionActionSub}>End-of-day summary & action plan</Text>
-                    </View>
-                    <Text style={styles.sectionActionArrow}>›</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.sectionActionCard} onPress={() => setShowMonthlyReview(true)}>
-                    <Text style={styles.sectionActionIcon}>📋</Text>
-                    <View style={{ flex: 1 }}>
-                        <Text style={styles.sectionActionTitle}>Monthly Review</Text>
-                        <Text style={styles.sectionActionSub}>Profit, spending, collections & trends</Text>
-                    </View>
-                    <Text style={styles.sectionActionArrow}>›</Text>
-                </TouchableOpacity>
-
                 {/* Loss guidance */}
                 {finance.profit < 0 && hasTransaction && (
                     <View style={styles.lossGuide}>
