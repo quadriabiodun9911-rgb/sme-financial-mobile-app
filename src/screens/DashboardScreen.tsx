@@ -12,6 +12,7 @@ import { trackDemoConvertTapped, trackScreenViewed } from '../utils/analytics';
 import FooterNav from '../components/FooterNav';
 import { t } from '../utils/i18n';
 import { validateAmount, validateDescription } from '../utils/validation';
+import { Language } from '../types';
 import OnboardingWizard from '../components/OnboardingWizard';
 import ProfitShareCard from '../components/ProfitShareCard';
 import RetentionNudges from '../components/RetentionNudges';
@@ -28,7 +29,8 @@ const INCOME_CATEGORIES = ['Sales', 'Service', 'Consulting', 'Rental', 'Interest
 const EXPENSE_CATEGORIES = ['Rent', 'Salaries', 'Utilities', 'Marketing', 'Supplies', 'Transport', 'Meals', 'Software', 'Tax', 'Other'];
 
 export default function DashboardScreen() {
-    const { finance, settings, goals, transactions, invoices, assets, loans, navigate, setCurrentScreen, language, isLoading, addTransaction, isDemoMode, exitDemo, cashPockets, deleteGoal, updateGoal, budgets, inventory, user, financing } = useApp();
+    const { finance, settings, goals, transactions, invoices, assets, loans, navigate, setCurrentScreen, language: rawLanguage, isLoading, addTransaction, isDemoMode, exitDemo, cashPockets, deleteGoal, updateGoal, budgets, inventory, user, financing } = useApp();
+    const language = rawLanguage as Language;
 
     const [fabOpen, setFabOpen]           = useState(false);
     const [qaType, setQaType]             = useState<'income' | 'expense'>('income');
@@ -146,8 +148,8 @@ export default function DashboardScreen() {
         const inc = parseFloat(eodIncome) || 0;
         const exp = parseFloat(eodExpense) || 0;
         if (inc <= 0 && exp <= 0) { Alert.alert('Nothing to save', 'Enter at least one amount.'); return; }
-        if (inc > 0) addTransaction({ type: 'income',  amount: inc, description: 'End of day income',   category: 'Sales',  status: 'paid' });
-        if (exp > 0) addTransaction({ type: 'expense', amount: exp, description: 'End of day expenses', category: 'Other',  status: 'paid' });
+        if (inc > 0) addTransaction({ type: 'income',  amount: inc, description: 'End of day income',   category: 'Sales' });
+        if (exp > 0) addTransaction({ type: 'expense', amount: exp, description: 'End of day expenses', category: 'Other' });
         setEodIncome(''); setEodExpense(''); setEodOpen(false);
         setLastSynced(new Date());
         const newProfit = finance.profit + inc - exp;
@@ -168,7 +170,6 @@ export default function DashboardScreen() {
                 amount: amt,
                 description: qaDesc.trim(),
                 category: qaCategory || (qaType === 'income' ? 'Sales' : 'General'),
-                status: 'paid',
             });
             setQaAmount(''); setQaDesc(''); setQaCategory(''); setFabOpen(false);
             const newProfit = finance.profit + (qaType === 'income' ? amt : -amt);
