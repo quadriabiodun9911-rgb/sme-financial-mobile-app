@@ -268,7 +268,6 @@ export default function DashboardScreen() {
                     </View>
                 </View>
 
-<<<<<<< HEAD
                 {/* ── Merchant Financing Qualification Widget ────────────────── */}
                 {!isDemoMode && user && (
                     <MerchantFinancingQualificationWidget
@@ -372,9 +371,6 @@ export default function DashboardScreen() {
                         </TouchableOpacity>
                     </View>
                 )}
-
-=======
->>>>>>> c2cd7913 (Restructure dashboard to 7-section architecture (TODAY, MAKE MONEY, PROTECT MONEY, GROW MONEY, FUNDING, BUSINESS, AI ADVISOR))
                 {/* ── Onboarding ───────────────────────────────────────────── */}
                 {showOnboarding && (
                     <View style={styles.onboardCard}>
