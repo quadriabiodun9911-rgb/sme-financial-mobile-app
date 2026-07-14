@@ -184,12 +184,85 @@ export default function ReportsScreen() {
                     <Text style={styles.landingTitle}>Reports</Text>
                     <Text style={styles.landingSub}>Tap any report to open it</Text>
 
+                    {/* ── MONEY Section ───────────────────────────────────── */}
+                    <Text style={styles.reportGroupHeader}>💰 MONEY</Text>
                     {[
                         { icon: '📊', label: 'Profit & Loss', sub: 'Did I make money? Revenue vs costs breakdown', section: 'statements' as SectionKey, tab: 'pnl' as SubTab },
-                        { icon: '💰', label: 'Who Owes Me', sub: 'Unpaid invoices and overdue payments', section: 'operations' as SectionKey, tab: 'aging' as SubTab },
                         { icon: '💧', label: 'Cash Flow', sub: 'Money coming in and going out over time', section: 'planning' as SectionKey, tab: 'cashflow' as SubTab },
-                        { icon: '🏥', label: 'Business Health Check', sub: 'Strengths, weaknesses, risks and opportunities', section: 'analysis' as SectionKey, tab: 'swot' as SubTab },
-                        { icon: '📈', label: 'Growth Trends', sub: 'Revenue and profit trend over the past months', section: 'growth' as SectionKey, tab: 'growth' as SubTab },
+                    ].map(item => (
+                        <TouchableOpacity
+                            key={item.tab}
+                            style={styles.landingCard}
+                            onPress={() => {
+                                setSection(item.section);
+                                setActiveTab(item.tab);
+                                setSimpleView(['statements','operations'].includes(item.section));
+                                setShowLanding(false);
+                            }}
+                        >
+                            <Text style={styles.landingCardIcon}>{item.icon}</Text>
+                            <View style={styles.landingCardText}>
+                                <Text style={styles.landingCardLabel}>{item.label}</Text>
+                                <Text style={styles.landingCardSub}>{item.sub}</Text>
+                            </View>
+                            <Text style={styles.landingCardArrow}>›</Text>
+                        </TouchableOpacity>
+                    ))}
+
+                    {/* ── CUSTOMERS Section ───────────────────────────────── */}
+                    <Text style={styles.reportGroupHeader}>👥 CUSTOMERS</Text>
+                    {[
+                        { icon: '💰', label: 'Who Owes Me', sub: 'Unpaid invoices and overdue payments', section: 'operations' as SectionKey, tab: 'aging' as SubTab },
+                        { icon: '📄', label: 'Invoices', sub: 'View all sent invoices and collection status', section: 'operations' as SectionKey, tab: 'aging' as SubTab },
+                    ].map(item => (
+                        <TouchableOpacity
+                            key={item.tab + item.label}
+                            style={styles.landingCard}
+                            onPress={() => {
+                                setSection(item.section);
+                                setActiveTab(item.tab);
+                                setSimpleView(['statements','operations'].includes(item.section));
+                                setShowLanding(false);
+                            }}
+                        >
+                            <Text style={styles.landingCardIcon}>{item.icon}</Text>
+                            <View style={styles.landingCardText}>
+                                <Text style={styles.landingCardLabel}>{item.label}</Text>
+                                <Text style={styles.landingCardSub}>{item.sub}</Text>
+                            </View>
+                            <Text style={styles.landingCardArrow}>›</Text>
+                        </TouchableOpacity>
+                    ))}
+
+                    {/* ── BUSINESS Section ────────────────────────────────── */}
+                    <Text style={styles.reportGroupHeader}>⚙️ BUSINESS</Text>
+                    {[
+                        { icon: '📈', label: 'Growth', sub: 'Revenue and profit trend over the past months', section: 'growth' as SectionKey, tab: 'growth' as SubTab },
+                        { icon: '🏥', label: 'Business Health', sub: 'Strengths, weaknesses, risks and opportunities', section: 'analysis' as SectionKey, tab: 'swot' as SubTab },
+                        { icon: '💎', label: 'Business Worth', sub: 'What your business is worth over time', section: 'statements' as SectionKey, tab: 'balancesheet' as SubTab },
+                    ].map(item => (
+                        <TouchableOpacity
+                            key={item.tab + item.label}
+                            style={styles.landingCard}
+                            onPress={() => {
+                                setSection(item.section);
+                                setActiveTab(item.tab);
+                                setSimpleView(['statements','operations'].includes(item.section));
+                                setShowLanding(false);
+                            }}
+                        >
+                            <Text style={styles.landingCardIcon}>{item.icon}</Text>
+                            <View style={styles.landingCardText}>
+                                <Text style={styles.landingCardLabel}>{item.label}</Text>
+                                <Text style={styles.landingCardSub}>{item.sub}</Text>
+                            </View>
+                            <Text style={styles.landingCardArrow}>›</Text>
+                        </TouchableOpacity>
+                    ))}
+
+                    {/* ── TAX Section ────────────────────────────────────── */}
+                    <Text style={styles.reportGroupHeader}>🧾 TAX</Text>
+                    {[
                         { icon: '🧾', label: 'Tax Summary', sub: 'Tax collected, paid and your net tax position', section: 'operations' as SectionKey, tab: 'tax' as SubTab },
                     ].map(item => (
                         <TouchableOpacity
@@ -926,15 +999,16 @@ const styles = StyleSheet.create({
     landingPad:    { padding: 16, paddingBottom: 40 },
     landingTitle:  { fontSize: 22, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 4 },
     landingSub:    { fontSize: 13, color: Colors.textMuted, marginBottom: 18 },
+    reportGroupHeader: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: 10, marginTop: 16, letterSpacing: 0.3 },
     landingCard:   { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 14, borderWidth: 1, borderColor: Colors.border },
     landingCardIcon:  { fontSize: 28 },
     landingCardText:  { flex: 1 },
     landingCardLabel: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },
     landingCardSub:   { fontSize: 12, color: Colors.textMuted },
     landingCardArrow: { fontSize: 22, color: Colors.textMuted },
-    exportSection: { marginTop: 10, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 16 },
+    exportSection: { marginTop: 20, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 16 },
     exportTitle:   { fontSize: 13, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
-    exportBtn:     { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 14, borderWidth: 1, borderColor: Colors.border },
+    exportCsvBtn:  { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 14, borderWidth: 1, borderColor: Colors.border },
     exportBtnIcon: { fontSize: 24 },
     exportBtnLabel:{ fontSize: 14, fontWeight: '700', color: Colors.primary },
     exportBtnSub:  { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
@@ -970,7 +1044,6 @@ const styles = StyleSheet.create({
     cardHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
     note:          { fontSize: 11, color: Colors.textMuted, fontStyle: 'italic', marginTop: 10, lineHeight: 16 },
     sizeBadge:     { fontSize: 11, color: Colors.primary, fontWeight: '600', backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.primary, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
-    exportCsvBtn:  { paddingHorizontal: 10, paddingVertical: 4, backgroundColor: Colors.primary, borderRadius: 8 },
     exportText:    { fontSize: 11, color: Colors.textPrimary, fontWeight: '600' },
 
     viewToggleRow:        { flexDirection: 'row', backgroundColor: Colors.surface, padding: 8, gap: 6, borderBottomWidth: 1, borderBottomColor: Colors.border },

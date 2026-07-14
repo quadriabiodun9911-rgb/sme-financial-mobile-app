@@ -243,11 +243,6 @@ const TextField = React.forwardRef<TextInput, TextFieldProps>(({
 
       <View
         style={[styles.inputWrapper, style]}
-        accessibilityRole="textbox"
-        accessibilityState={{
-          disabled,
-          editable: !disabled && !readOnly,
-        }}
       >
         {startIcon && (
           <View style={styles.icon}>
@@ -275,7 +270,6 @@ const TextField = React.forwardRef<TextInput, TextFieldProps>(({
           accessibilityHint={accessibilityHint}
           accessibilityState={{
             disabled,
-            required,
           }}
           {...(Platform.OS === 'web' && {
             aria: {

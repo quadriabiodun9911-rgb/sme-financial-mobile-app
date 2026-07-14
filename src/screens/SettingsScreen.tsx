@@ -275,9 +275,11 @@ export default function SettingsScreen() {
                 <View style={styles.pad}>
                     <Text style={styles.title}>Settings</Text>
 
-                    {/* 1. My Business — default open */}
-                    <CollapsibleSection title="My Business" defaultOpen={true}>
-                        {/* Business Type */}
+                    {/* ⚙️ OPERATIONS */}
+                    <SectionHeader title="⚙️ OPERATIONS" />
+
+                    {/* Business Setup */}
+                    <CollapsibleSection title="Business Setup" defaultOpen={true}>
                         <Section title="Business Type">
                             <View style={styles.optRow}>
                                 {BUSINESS_TYPES.map(bt => (
@@ -287,7 +289,6 @@ export default function SettingsScreen() {
                             </View>
                         </Section>
 
-                        {/* Language */}
                         <Section title={t(language, 'language')}>
                             <View style={styles.optRow}>
                                 {LANGUAGES.map(l => (
@@ -297,7 +298,6 @@ export default function SettingsScreen() {
                             </View>
                         </Section>
 
-                        {/* Currency */}
                         <Section title={t(language, 'currency')}>
                             <View style={styles.optRow}>
                                 {CURRENCIES.map(c => (
@@ -307,7 +307,6 @@ export default function SettingsScreen() {
                             </View>
                         </Section>
 
-                        {/* Phone for Pngme */}
                         <Section title="Phone Number">
                             <Text style={styles.hint}>Include your country code — e.g. +1 (USA/Canada), +44 (UK), +234 (Nigeria), +27 (South Africa), +254 (Kenya), +233 (Ghana)</Text>
                             <TextInput
@@ -328,9 +327,115 @@ export default function SettingsScreen() {
                         </TouchableOpacity>
                     </CollapsibleSection>
 
-                    {/* 2. Targets & Tax — default closed */}
+                    {/* Security */}
+                    <CollapsibleSection title="Security" defaultOpen={false}>
+                        <Section title="Change PIN">
+                            <FieldLabel>Current PIN</FieldLabel>
+                            <TextInput style={styles.input} value={currentPin}
+                                onChangeText={setCurrentPin}
+                                secureTextEntry keyboardType="number-pad" maxLength={6}
+                                placeholder="••••" placeholderTextColor={Colors.muted} />
+                            <FieldLabel>New PIN</FieldLabel>
+                            <TextInput style={styles.input} value={newPin}
+                                onChangeText={setNewPin}
+                                secureTextEntry keyboardType="number-pad" maxLength={6}
+                                placeholder="••••" placeholderTextColor={Colors.muted} />
+                            <FieldLabel>Confirm New PIN</FieldLabel>
+                            <TextInput style={styles.input} value={confirmPin}
+                                onChangeText={setConfirmPin}
+                                secureTextEntry keyboardType="number-pad" maxLength={6}
+                                placeholder="••••" placeholderTextColor={Colors.muted} />
+                            <TouchableOpacity style={[styles.saveBtn, { marginTop: 12, marginBottom: 0 }]} onPress={handleChangePin}>
+                                <Text style={styles.saveBtnText}>Update PIN</Text>
+                            </TouchableOpacity>
+                        </Section>
+
+                        <Section title="Extra Security Lock">
+                            <Text style={styles.hint}>
+                                Turn this on to require a second code when you log in. Makes your account much harder to break into.
+                            </Text>
+                            <TouchableOpacity style={styles.dataBtn} onPress={() => setCurrentScreen('2fa')}>
+                                <Text style={styles.dataBtnText}>Set Up Extra Security Lock</Text>
+                            </TouchableOpacity>
+                        </Section>
+                    </CollapsibleSection>
+
+                    {/* Team (Operations category) */}
+                    {enableTeam && userRole === 'owner' && (
+                        <CollapsibleSection title="Team" defaultOpen={false}>
+                            <Section title="Team Management">
+                                <Text style={styles.hint}>
+                                    Invite team members to access your business data. Accountants can view and export. Staff can add transactions.
+                                </Text>
+                                <TouchableOpacity style={styles.dataBtn} onPress={() => { setPendingCode(null); setInviteModal(true); }}>
+                                    <Text style={styles.dataBtnText}>+ Invite Team Member</Text>
+                                </TouchableOpacity>
+
+                                {teamMembers.length > 0 && (
+                                    <View style={{ marginTop: 14 }}>
+                                        {teamMembers.map((m: any) => (
+                                            <View key={m.id} style={styles.memberRow}>
+                                                <View style={{ flex: 1 }}>
+                                                    <Text style={styles.memberEmail}>{m.memberEmail}</Text>
+                                                    <View style={styles.memberMeta}>
+                                                        <View style={[styles.roleBadge, { backgroundColor: m.role === 'accountant' ? Colors.primary + '22' : Colors.warning + '22' }]}>
+                                                            <Text style={[styles.roleText, { color: m.role === 'accountant' ? Colors.primary : Colors.warning }]}>
+                                                                {m.role.toUpperCase()}
+                                                            </Text>
+                                                        </View>
+                                                        <View style={[styles.roleBadge, { backgroundColor: m.status === 'active' ? Colors.income + '22' : Colors.textMuted + '22' }]}>
+                                                            <Text style={[styles.roleText, { color: m.status === 'active' ? Colors.income : Colors.textMuted }]}>
+                                                                {m.status.toUpperCase()}
+                                                            </Text>
+                                                        </View>
+                                                    </View>
+                                                </View>
+                                                <TouchableOpacity onPress={() => handleRemoveMember(m.id, m.memberEmail)}>
+                                                    <Text style={{ color: Colors.expense, fontSize: 12, fontWeight: '600' }}>Remove</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        ))}
+                                    </View>
+                                )}
+                            </Section>
+                        </CollapsibleSection>
+                    )}
+
+                    {/* Danger Zone */}
+                    <CollapsibleSection title="Danger Zone" defaultOpen={false}>
+                        <Section title="Reset Business Data">
+                            <Text style={styles.hint}>
+                                Permanently deletes all transactions, invoices, goals, assets, loans, and inventory. Your account and settings are kept — use this to start fresh without creating a new account.
+                            </Text>
+                            <TouchableOpacity style={styles.dangerBtn} onPress={handleResetBusinessData}>
+                                <Text style={styles.dangerBtnText}>Reset Business Data</Text>
+                            </TouchableOpacity>
+                        </Section>
+
+                        <Section title="Sign Out">
+                            <Text style={styles.hint}>
+                                Signs you out and clears the local cache. Your data is safely stored in the cloud and will be restored when you sign back in.
+                            </Text>
+                            <TouchableOpacity style={styles.dangerBtn} onPress={handleClearData}>
+                                <Text style={styles.dangerBtnText}>Sign Out & Clear Cache</Text>
+                            </TouchableOpacity>
+                        </Section>
+
+                        <Section title="Delete Account">
+                            <Text style={styles.hint}>
+                                Permanently removes all your business data from the cloud. This cannot be undone.
+                            </Text>
+                            <TouchableOpacity style={[styles.dangerBtn, { borderColor: '#7f1d1d', backgroundColor: 'rgba(127,29,29,0.12)' }]} onPress={handleDeleteAccount}>
+                                <Text style={[styles.dangerBtnText, { color: '#ef4444' }]}>Delete Account</Text>
+                            </TouchableOpacity>
+                        </Section>
+                    </CollapsibleSection>
+
+                    {/* 💰 FINANCE */}
+                    <SectionHeader title="💰 FINANCE" />
+
+                    {/* Profit Goals & Tax */}
                     <CollapsibleSection title="Profit Goals & Tax" defaultOpen={false}>
-                        {/* Financial thresholds */}
                         <Section title="Your Targets">
                             <FieldLabel>Minimum savings to keep at all times ({form.currency})</FieldLabel>
                             <Text style={styles.hint}>The app will warn you if your account drops below this amount.</Text>
@@ -345,7 +450,6 @@ export default function SettingsScreen() {
                                 keyboardType="numeric" placeholder="65" placeholderTextColor={Colors.muted} />
                         </Section>
 
-                        {/* Tax */}
                         <Section title="Tax Settings">
                             <FieldLabel>Default Tax Rate (%)</FieldLabel>
                             <Text style={styles.hint}>
@@ -356,7 +460,6 @@ export default function SettingsScreen() {
                                 keyboardType="numeric" placeholder="0" placeholderTextColor={Colors.muted} />
                         </Section>
 
-                        {/* Opening Balances */}
                         <Section title="Money & Things You Had Before Using This App">
                             <Text style={styles.hint}>
                                 If you already had money, equipment, or loans before you started using Quad360, enter them here so your numbers are accurate from day one.
@@ -380,43 +483,8 @@ export default function SettingsScreen() {
                         </TouchableOpacity>
                     </CollapsibleSection>
 
-                    {/* 3. Security — default closed */}
-                    <CollapsibleSection title="Security" defaultOpen={false}>
-                        {/* Change PIN */}
-                        <Section title="Change PIN">
-                            <FieldLabel>Current PIN</FieldLabel>
-                            <TextInput style={styles.input} value={currentPin}
-                                onChangeText={setCurrentPin}
-                                secureTextEntry keyboardType="number-pad" maxLength={6}
-                                placeholder="••••" placeholderTextColor={Colors.muted} />
-                            <FieldLabel>New PIN</FieldLabel>
-                            <TextInput style={styles.input} value={newPin}
-                                onChangeText={setNewPin}
-                                secureTextEntry keyboardType="number-pad" maxLength={6}
-                                placeholder="••••" placeholderTextColor={Colors.muted} />
-                            <FieldLabel>Confirm New PIN</FieldLabel>
-                            <TextInput style={styles.input} value={confirmPin}
-                                onChangeText={setConfirmPin}
-                                secureTextEntry keyboardType="number-pad" maxLength={6}
-                                placeholder="••••" placeholderTextColor={Colors.muted} />
-                            <TouchableOpacity style={[styles.saveBtn, { marginTop: 12, marginBottom: 0 }]} onPress={handleChangePin}>
-                                <Text style={styles.saveBtnText}>Update PIN</Text>
-                            </TouchableOpacity>
-                        </Section>
-
-                        {/* Two-Factor Authentication */}
-                        <Section title="Extra Security Lock">
-                            <Text style={styles.hint}>
-                                Turn this on to require a second code when you log in. Makes your account much harder to break into.
-                            </Text>
-                            <TouchableOpacity style={styles.dataBtn} onPress={() => setCurrentScreen('2fa')}>
-                                <Text style={styles.dataBtnText}>Set Up Extra Security Lock</Text>
-                            </TouchableOpacity>
-                        </Section>
-                    </CollapsibleSection>
-
-                    {/* Payments */}
-                    <CollapsibleSection title="💳 Payment Gateways" defaultOpen={false}>
+                    {/* Payment Gateways */}
+                    <CollapsibleSection title="Payment Gateways" defaultOpen={false}>
                         <Text style={styles.hint}>
                             Add your public API keys below, then tap "Create Payment Link" to charge customers by card, bank transfer, or USSD.
                         </Text>
@@ -466,8 +534,8 @@ export default function SettingsScreen() {
                         </TouchableOpacity>
                     </CollapsibleSection>
 
-                    {/* Bank / Mobile Money Connection */}
-                    <CollapsibleSection title="🏦 Bank & Mobile Money" defaultOpen={false}>
+                    {/* Bank & Mobile Money */}
+                    <CollapsibleSection title="Bank & Mobile Money" defaultOpen={false}>
                         <Text style={styles.hint}>
                             Connect your bank to auto-import transactions, or upload a bank statement manually.
                         </Text>
@@ -502,6 +570,10 @@ export default function SettingsScreen() {
                         </Text>
                     </CollapsibleSection>
 
+                    {/* 📊 ANALYTICS */}
+                    <SectionHeader title="📊 ANALYTICS" />
+
+                    {/* Data & Backup */}
                     <CollapsibleSection title="Data & Backup" defaultOpen={false}>
                         <Section title="Export & Import">
                             <Text style={styles.hint}>
@@ -531,80 +603,6 @@ export default function SettingsScreen() {
                             </Text>
                             <Text style={styles.dataSafetyStatus}>Last backup: synced to cloud ✓</Text>
                         </View>
-                    )}
-
-                    {/* 5. Danger Zone — default closed */}
-                    <CollapsibleSection title="Danger Zone" defaultOpen={false}>
-                        {/* Reset Business Data */}
-                        <Section title="Reset Business Data">
-                            <Text style={styles.hint}>
-                                Permanently deletes all transactions, invoices, goals, assets, loans, and inventory. Your account and settings are kept — use this to start fresh without creating a new account.
-                            </Text>
-                            <TouchableOpacity style={styles.dangerBtn} onPress={handleResetBusinessData}>
-                                <Text style={styles.dangerBtnText}>Reset Business Data</Text>
-                            </TouchableOpacity>
-                        </Section>
-
-                        {/* Sign Out */}
-                        <Section title="Sign Out">
-                            <Text style={styles.hint}>
-                                Signs you out and clears the local cache. Your data is safely stored in the cloud and will be restored when you sign back in.
-                            </Text>
-                            <TouchableOpacity style={styles.dangerBtn} onPress={handleClearData}>
-                                <Text style={styles.dangerBtnText}>Sign Out & Clear Cache</Text>
-                            </TouchableOpacity>
-                        </Section>
-
-                        {/* Delete Account */}
-                        <Section title="Delete Account">
-                            <Text style={styles.hint}>
-                                Permanently removes all your business data from the cloud. This cannot be undone.
-                            </Text>
-                            <TouchableOpacity style={[styles.dangerBtn, { borderColor: '#7f1d1d', backgroundColor: 'rgba(127,29,29,0.12)' }]} onPress={handleDeleteAccount}>
-                                <Text style={[styles.dangerBtnText, { color: '#ef4444' }]}>Delete Account</Text>
-                            </TouchableOpacity>
-                        </Section>
-                    </CollapsibleSection>
-
-                    {/* 6. Team — default open, owner only */}
-                    {enableTeam && userRole === 'owner' && (
-                        <CollapsibleSection title="Team" defaultOpen={true}>
-                            <Section title="Team Management">
-                                <Text style={styles.hint}>
-                                    Invite team members to access your business data. Accountants can view and export. Staff can add transactions.
-                                </Text>
-                                <TouchableOpacity style={styles.dataBtn} onPress={() => { setPendingCode(null); setInviteModal(true); }}>
-                                    <Text style={styles.dataBtnText}>+ Invite Team Member</Text>
-                                </TouchableOpacity>
-
-                                {teamMembers.length > 0 && (
-                                    <View style={{ marginTop: 14 }}>
-                                        {teamMembers.map((m: any) => (
-                                            <View key={m.id} style={styles.memberRow}>
-                                                <View style={{ flex: 1 }}>
-                                                    <Text style={styles.memberEmail}>{m.memberEmail}</Text>
-                                                    <View style={styles.memberMeta}>
-                                                        <View style={[styles.roleBadge, { backgroundColor: m.role === 'accountant' ? Colors.primary + '22' : Colors.warning + '22' }]}>
-                                                            <Text style={[styles.roleText, { color: m.role === 'accountant' ? Colors.primary : Colors.warning }]}>
-                                                                {m.role.toUpperCase()}
-                                                            </Text>
-                                                        </View>
-                                                        <View style={[styles.roleBadge, { backgroundColor: m.status === 'active' ? Colors.income + '22' : Colors.textMuted + '22' }]}>
-                                                            <Text style={[styles.roleText, { color: m.status === 'active' ? Colors.income : Colors.textMuted }]}>
-                                                                {m.status.toUpperCase()}
-                                                            </Text>
-                                                        </View>
-                                                    </View>
-                                                </View>
-                                                <TouchableOpacity onPress={() => handleRemoveMember(m.id, m.memberEmail)}>
-                                                    <Text style={{ color: Colors.expense, fontSize: 12, fontWeight: '600' }}>Remove</Text>
-                                                </TouchableOpacity>
-                                            </View>
-                                        ))}
-                                    </View>
-                                )}
-                            </Section>
-                        </CollapsibleSection>
                     )}
 
                     {/* Role info for non-owners */}
@@ -778,6 +776,10 @@ export default function SettingsScreen() {
     );
 }
 
+function SectionHeader({ title }: { title: string }) {
+    return <Text style={styles.sectionHeaderMain}>{title}</Text>;
+}
+
 function CollapsibleSection({ title, children, defaultOpen = false }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
     const [open, setOpen] = useState(defaultOpen);
     return (
@@ -815,6 +817,8 @@ const styles = StyleSheet.create({
     scroll: { flex: 1 },
     pad:    { padding: 16 },
     title:  { fontSize: 20, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 20 },
+
+    sectionHeaderMain: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: 10, marginTop: 16, letterSpacing: 0.3 },
 
     section:        { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 16 },
     sectionHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

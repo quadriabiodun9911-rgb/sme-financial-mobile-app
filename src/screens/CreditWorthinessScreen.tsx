@@ -319,7 +319,7 @@ const s = StyleSheet.create({
     progressBar: { height: 6, backgroundColor: Colors.muted, borderRadius: 3, overflow: 'hidden', marginBottom: 8 },
     progressFill: { height: 6, borderRadius: 3 },
     tipsList: { gap: 4 },
-    tipItem: { fontSize: 11, color: Colors.textSecondary, lineHeight: 16 },
+    tipItem: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
     factorCard: { backgroundColor: Colors.bg, borderRadius: 8, padding: 12, marginBottom: 12 },
     factorHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
     factorName: { fontSize: 13, fontWeight: '600', color: Colors.textPrimary },

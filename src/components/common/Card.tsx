@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, ViewStyle, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ViewStyle, TouchableOpacity, TouchableOpacityProps, ViewProps } from 'react-native';
 import { Colors } from '../../theme/colors';
 
 interface CardProps {
@@ -22,7 +22,7 @@ const paddingMap = {
   lg: 16,
 };
 
-export const Card = React.forwardRef<View, CardProps>(
+export const Card = React.forwardRef<View | TouchableOpacity, CardProps>(
   ({
     children,
     padding = 'md',
@@ -36,28 +36,38 @@ export const Card = React.forwardRef<View, CardProps>(
     accessibilityLabel,
   }, ref) => {
     const paddingValue = paddingMap[padding];
-    const Component = clickable ? TouchableOpacity : View;
+
+    const baseProps = {
+      ref,
+      style: [
+        styles.base,
+        variant === 'outlined' && styles.outlined,
+        variant === 'elevated' && styles.elevated,
+        hoverable && styles.hoverable,
+        { padding: paddingValue },
+        style,
+      ] as any,
+      testID,
+      accessible: true,
+      accessibilityRole: (accessibilityRole || (clickable ? 'button' : 'region')) as any,
+      accessibilityLabel,
+    };
+
+    if (clickable) {
+      return (
+        <TouchableOpacity
+          {...(baseProps as TouchableOpacityProps)}
+          onPress={onPress}
+        >
+          {children}
+        </TouchableOpacity>
+      );
+    }
 
     return (
-      <Component
-        ref={ref as any}
-        style={[
-          styles.base,
-          variant === 'outlined' && styles.outlined,
-          variant === 'elevated' && styles.elevated,
-          hoverable && styles.hoverable,
-          { padding: paddingValue },
-          style,
-        ]}
-        onPress={onPress}
-        disabled={!clickable}
-        testID={testID}
-        accessible
-        accessibilityRole={accessibilityRole || (clickable ? 'button' : 'region')}
-        accessibilityLabel={accessibilityLabel}
-      >
+      <View {...(baseProps as ViewProps)}>
         {children}
-      </Component>
+      </View>
     );
   }
 );
@@ -97,9 +107,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 3,
   },
-  hoverable: {
-    activeOpacity: 0.8,
-  },
+  hoverable: {},
   header: {
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,

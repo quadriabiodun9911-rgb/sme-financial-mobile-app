@@ -117,21 +117,14 @@ export default function FooterNav() {
                     );
                 })}
 
-                {/* Me tab */}
+                {/* More tab */}
                 <TouchableOpacity
                     style={styles.tabItem}
                     onPress={() => setMoreOpen(true)}
                     activeOpacity={0.7}
                 >
-                    <View style={styles.meAvatarSmall}>
-                        <Text style={styles.meAvatarSmallText}>{initials}</Text>
-                        {pendingSyncCount > 0 && (
-                            <View style={styles.syncBadge}>
-                                <Text style={styles.syncBadgeText}>{pendingSyncCount > 9 ? '9+' : pendingSyncCount}</Text>
-                            </View>
-                        )}
-                    </View>
-                    <Text style={[styles.tabLabel, moreOpen && styles.tabLabelActive]}>Me</Text>
+                    <Text style={styles.tabIcon}>⋯</Text>
+                    <Text style={[styles.tabLabel, moreOpen && styles.tabLabelActive]}>More</Text>
                     {moreOpen && <View style={styles.tabIndicator} />}
                 </TouchableOpacity>
             </View>
@@ -148,7 +141,7 @@ export default function FooterNav() {
 
                     {/* Header */}
                     <View style={styles.header}>
-                        <Text style={styles.headerTitle}>My Account</Text>
+                        <Text style={styles.headerTitle}>More</Text>
                         <TouchableOpacity style={styles.closeBtn} onPress={() => setMoreOpen(false)} activeOpacity={0.7}>
                             <Text style={styles.closeBtnText}>✕</Text>
                         </TouchableOpacity>
@@ -207,7 +200,7 @@ export default function FooterNav() {
                         </View>
 
                         {/* ── Analytics ─────────────────────────────────── */}
-                        <Text style={styles.sectionTitle}>Analytics</Text>
+                        <Text style={styles.sectionHeader}>📊 ANALYTICS</Text>
                         <View style={styles.gridCard}>
                             {visibleAnalytics.map(item => (
                                 <TouchableOpacity
@@ -225,7 +218,7 @@ export default function FooterNav() {
                         </View>
 
                         {/* ── Finance ───────────────────────────────────── */}
-                        <Text style={styles.sectionTitle}>Finance</Text>
+                        <Text style={styles.sectionHeader}>💰 FINANCE</Text>
                         <View style={styles.gridCard}>
                             {visibleFinance.map(item => (
                                 <TouchableOpacity
@@ -242,10 +235,32 @@ export default function FooterNav() {
                             ))}
                         </View>
 
-                        {/* ── Operations & Account — list rows ──────────── */}
-                        <Text style={styles.sectionTitle}>Operations & Account</Text>
+                        {/* ── Operations ────────────────────────────────── */}
+                        <Text style={styles.sectionHeader}>⚙️ OPERATIONS</Text>
                         <View style={styles.listCard}>
-                            {[...visibleOperations, ...visibleAccount].map((item, i, arr) => (
+                            {visibleOperations.map((item, i, arr) => (
+                                <TouchableOpacity
+                                    key={item.screen}
+                                    style={[styles.listRow, i < arr.length - 1 && styles.listRowBorder]}
+                                    onPress={() => goTo(item.screen)}
+                                    activeOpacity={0.75}
+                                >
+                                    <View style={[styles.listIconBox, { backgroundColor: item.color + '22' }]}>
+                                        <Text style={styles.listIcon}>{item.icon}</Text>
+                                    </View>
+                                    <View style={styles.listTextCol}>
+                                        <Text style={styles.listLabel}>{item.label}</Text>
+                                        <Text style={styles.listDesc}>{item.desc}</Text>
+                                    </View>
+                                    <Text style={styles.listArrow}>›</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
+                        {/* ── Account ───────────────────────────────────── */}
+                        <Text style={styles.sectionHeader}>ACCOUNT</Text>
+                        <View style={styles.listCard}>
+                            {visibleAccount.map((item, i, arr) => (
                                 <TouchableOpacity
                                     key={item.screen}
                                     style={[styles.listRow, i < arr.length - 1 && styles.listRowBorder]}
@@ -291,11 +306,6 @@ const styles = StyleSheet.create({
     tabLabelActive: { color: Colors.primary, fontWeight: '700' },
     tabIndicator:   { width: 4, height: 4, borderRadius: 2, backgroundColor: Colors.primary, marginTop: 3 },
 
-    // Me avatar in tab bar
-    meAvatarSmall:     { width: 22, height: 22, borderRadius: 11, backgroundColor: Colors.primary, justifyContent: 'center', alignItems: 'center', marginBottom: 2, position: 'relative' },
-    meAvatarSmallText: { color: '#fff', fontSize: 9, fontWeight: '800' },
-    syncBadge:         { position: 'absolute', top: -3, right: -4, backgroundColor: '#f59e0b', borderRadius: 6, minWidth: 13, height: 13, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2 },
-    syncBadgeText:     { color: '#fff', fontSize: 8, fontWeight: '800' },
 
     // ── Me page ─────────────────────────────────────────────────────────────
     page:   { flex: 1, backgroundColor: Colors.bg },
@@ -365,6 +375,16 @@ const styles = StyleSheet.create({
         marginLeft: 20,
         marginTop: 24,
         marginBottom: 10,
+    },
+
+    sectionHeader: {
+        fontSize: 14,
+        fontWeight: '800',
+        color: Colors.textPrimary,
+        marginBottom: 10,
+        marginTop: 16,
+        letterSpacing: 0.3,
+        marginLeft: 20,
     },
 
     // Icon grid
