@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
     TouchableOpacity, StyleSheet, Alert, Modal, Share, Linking, Platform,
@@ -10,6 +10,7 @@ import FooterNav from '../components/FooterNav';
 import { Invoice, InvoiceLineItem, InvoiceStatus } from '../types';
 import { generateId } from '../utils/uuid';
 import DateInput from '../components/DateInput';
+import { sendInvoiceReminderViaWhatsApp, sendPaymentRequestViaWhatsApp, isWhatsAppInstalled } from '../utils/whatsappIntegration';
 
 const STATUS_COLOR: Record<InvoiceStatus, string> = {
     draft:   Colors.textMuted,
@@ -116,6 +117,7 @@ export default function InvoicesScreen() {
     const [showForm, setShowForm]   = useState(false);
     const [editId, setEditId]       = useState<string | null>(null);
     const [viewInv, setViewInv]     = useState<Invoice | null>(null);
+    const [whatsappAvailable, setWhatsappAvailable] = useState(false);
 
     // Form state
     const [clientName, setClientName]       = useState('');
@@ -137,6 +139,10 @@ export default function InvoicesScreen() {
         const taxTotal = items.reduce((s, li) => s + li.quantity * li.unitPrice * (li.taxRate / 100), 0);
         return { subtotal, taxTotal, total: subtotal + taxTotal };
     }, [lineItems]);
+
+    useEffect(() => {
+        isWhatsAppInstalled().then(setWhatsappAvailable);
+    }, []);
 
     const resetForm = () => {
         setClientName(''); setClientEmail(''); setClientAddress('');
@@ -492,6 +498,20 @@ export default function InvoicesScreen() {
                                 <TouchableOpacity style={styles.saveBtn} onPress={() => handleShare(viewInv)}>
                                     <Text style={styles.saveBtnText}>Share Invoice</Text>
                                 </TouchableOpacity>
+
+                                {whatsappAvailable && viewInv.status !== 'paid' && (
+                                    <>
+                                        <TouchableOpacity style={[styles.draftBtn, { marginTop: 8, backgroundColor: '#25D366' }]}
+                                            onPress={() => sendInvoiceReminderViaWhatsApp(viewInv, settings.businessName || 'Business')}>
+                                            <Text style={styles.draftBtnText}>💬 Send Reminder via WhatsApp</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity style={[styles.draftBtn, { marginTop: 8, backgroundColor: '#128C7E' }]}
+                                            onPress={() => sendPaymentRequestViaWhatsApp(viewInv, settings.businessName || 'Business', currency)}>
+                                            <Text style={styles.draftBtnText}>💳 Request Payment via WhatsApp</Text>
+                                        </TouchableOpacity>
+                                    </>
+                                )}
+
                                 {viewInv.status !== 'paid' && (
                                     <>
                                         <TouchableOpacity style={[styles.draftBtn, { marginTop: 8, backgroundColor: '#00C3F7' }]}

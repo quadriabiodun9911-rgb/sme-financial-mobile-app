@@ -23,6 +23,7 @@ import MonthlyReview from '../components/MonthlyReview';
 import CashPocketsModal from '../components/CashPocketsModal';
 import DailyReportModal from '../components/DailyReportModal';
 import MerchantFinancingQualificationWidget from '../components/MerchantFinancingQualificationWidget';
+import StickyMetricsHeader from '../components/StickyMetricsHeader';
 import { MetricsComputer } from '../utils/metricsComputer';
 
 const INCOME_CATEGORIES = ['Sales', 'Service', 'Consulting', 'Rental', 'Interest', 'Other Income'];
@@ -223,6 +224,7 @@ export default function DashboardScreen() {
     return (
         <SafeAreaView style={styles.safe}>
             <Header />
+            <StickyMetricsHeader finance={finance} currency={currency} isSticky={true} />
             <ScrollView style={styles.scroll} contentContainerStyle={styles.pad}>
 
                 <TouchableOpacity style={styles.searchTrigger} onPress={() => setShowSearch(true)}>

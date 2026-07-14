@@ -10,6 +10,7 @@ import FooterNav from '../components/FooterNav';
 import DateInput from '../components/DateInput';
 import { Transaction, TransactionStatus, RecurringFrequency } from '../types';
 import { transactionsToCSV } from '../utils/finance';
+import RecurringTransactionManager from '../components/RecurringTransactionManager';
 
 type FilterType   = 'all' | 'income' | 'expense' | 'collect';
 type StatusFilter = 'all' | 'paid' | 'pending' | 'overdue';
@@ -376,6 +377,22 @@ export default function TransactionsScreen() {
                     currency={currency}
                     typeFilter={typeFilter}
                 />
+            )}
+
+            {/* ── Recurring Transactions Section ──────────────────────── */}
+            {transactions.filter(t => t.isRecurring).length > 0 && (
+                <View style={styles.recurringSection}>
+                    <RecurringTransactionManager
+                        recurringTransactions={transactions.filter(t => t.isRecurring) as any[]}
+                        onEdit={openEdit}
+                        onDelete={tx => {
+                            Alert.alert('Delete', 'Remove this recurring transaction?', [
+                                { text: 'Cancel' },
+                                { text: 'Delete', onPress: () => deleteTransaction(tx.id), style: 'destructive' }
+                            ]);
+                        }}
+                    />
+                </View>
             )}
 
             {/* ── Transaction list ─────────────────────────────────────── */}
