@@ -290,17 +290,6 @@ export default function DashboardScreen() {
                   onViewDetails={() => setShowDailyReport(true)}
                 />
 
-                {/* 5. Business Pillars Navigation */}
-                <PillarsNavigation
-                  pillars={[
-                    { id: 'make', emoji: '💰', title: 'MAKE MONEY', subtitle: 'Revenue & Profit', onPress: () => setCurrentScreen('make-money') },
-                    { id: 'protect', emoji: '🛡️', title: 'PROTECT MONEY', subtitle: 'Cash & Runway', onPress: () => setCurrentScreen('protect-money') },
-                    { id: 'grow', emoji: '📈', title: 'GROW MONEY', subtitle: 'Growth & Value', onPress: () => setCurrentScreen('grow-money') },
-                    { id: 'borrow', emoji: '🏦', title: 'BORROW MONEY', subtitle: 'Funding', onPress: () => setCurrentScreen('borrow-money') },
-                    { id: 'run', emoji: '⚙️', title: 'RUN BUSINESS', subtitle: 'Operations', onPress: () => setCurrentScreen('run-business') },
-                    { id: 'understand', emoji: '🧠', title: 'UNDERSTAND', subtitle: 'AI Advisor', onPress: () => setCurrentScreen('understand-business') },
-                  ]}
-                />
 
                 {/* ── Merchant Financing Qualification Widget ────────────────── */}
                 {!isDemoMode && user && (
