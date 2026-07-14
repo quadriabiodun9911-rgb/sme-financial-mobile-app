@@ -226,6 +226,29 @@ export default function UnderstandBusinessScreen() {
           <Text style={styles.subtitle}>AI-Driven Business Intelligence</Text>
         </View>
 
+        {/* AI Advisor Reports */}
+        <View style={styles.sectionBox}>
+          <Text style={styles.sectionTitle}>📊 AI ADVISOR</Text>
+
+          <TouchableOpacity style={styles.reportCard}>
+            <Text style={styles.reportEmoji}>📈</Text>
+            <View style={styles.reportContent}>
+              <Text style={styles.reportTitle}>Today's Report</Text>
+              <Text style={styles.reportSubtext}>End-of-day summary & action plan</Text>
+            </View>
+            <Text style={styles.reportArrow}>›</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.reportCard}>
+            <Text style={styles.reportEmoji}>📋</Text>
+            <View style={styles.reportContent}>
+              <Text style={styles.reportTitle}>Monthly Review</Text>
+              <Text style={styles.reportSubtext}>Profit, spending, collections & trends</Text>
+            </View>
+            <Text style={styles.reportArrow}>›</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* AI Insights */}
         <View style={styles.sectionBox}>
           <Text style={styles.sectionTitle}>💡 AI Insights</Text>
@@ -458,4 +481,10 @@ const styles = StyleSheet.create({
   recContent: { flex: 1 },
   recTitle: { fontSize: 11, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },
   recText: { fontSize: 10, color: Colors.textSecondary, lineHeight: 13 },
+  reportCard: { flexDirection: 'row', backgroundColor: 'rgba(59, 130, 246, 0.1)', borderRadius: 8, padding: 12, marginBottom: 10, alignItems: 'center' },
+  reportEmoji: { fontSize: 22, marginRight: 12 },
+  reportContent: { flex: 1 },
+  reportTitle: { fontSize: 12, fontWeight: '600', color: Colors.textPrimary, marginBottom: 2 },
+  reportSubtext: { fontSize: 10, color: Colors.textMuted },
+  reportArrow: { fontSize: 16, color: Colors.primary },
 });
