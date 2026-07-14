@@ -1,5 +1,4 @@
-import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
+import { Platform } from 'react-native';
 
 export interface ExportData {
   title: string;
@@ -14,11 +13,16 @@ export interface ExportData {
 export const generatePDF = async (data: ExportData): Promise<string> => {
   const htmlContent = generateHTMLContent(data);
   const fileName = `quad360-${data.title.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`;
-  const filePath = `${FileSystem.documentDirectory}${fileName}`;
+
+  if (Platform.OS === 'web') {
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    return URL.createObjectURL(blob);
+  }
 
   try {
-    // Use a simple PDF generation approach via web rendering
-    // In production, consider using native PDF libraries
+    const FileSystem = require('expo-file-system');
+    const filePath = `${FileSystem.documentDirectory}${fileName}`;
+    await FileSystem.writeAsStringAsync(filePath, htmlContent, { encoding: 'utf8' });
     return filePath;
   } catch (error) {
     console.error('PDF generation error:', error);
@@ -84,6 +88,19 @@ const generateHTMLContent = (data: ExportData): string => {
 
 export const sharePDF = async (filePath: string, title: string): Promise<void> => {
   try {
+    if (Platform.OS === 'web') {
+      if (filePath.startsWith('blob:')) {
+        const link = document.createElement('a');
+        link.href = filePath;
+        link.download = `${title}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+      return;
+    }
+
+    const Sharing = require('expo-sharing');
     const isAvailable = await Sharing.isAvailableAsync();
     if (!isAvailable) {
       throw new Error('Sharing is not available on this device');
@@ -97,6 +114,11 @@ export const sharePDF = async (filePath: string, title: string): Promise<void> =
 
 export const savePDFToDevice = async (filePath: string): Promise<void> => {
   try {
+    if (Platform.OS === 'web') {
+      return;
+    }
+
+    const FileSystem = require('expo-file-system');
     const fileName = filePath.split('/').pop() || 'export.pdf';
     await FileSystem.copyAsync({
       from: filePath,
