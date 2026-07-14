@@ -87,12 +87,12 @@ export default function ProtectMoneyScreen() {
   const upcomingPayments = useMemo(() => {
     const now = new Date();
     const upcomingInvoices = invoices
-      .filter(i => i.status === 'unpaid' && new Date(i.dueDate) > now)
+      .filter(i => i.status !== 'paid' && new Date(i.dueDate) > now)
       .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
       .slice(0, 3);
 
     return upcomingInvoices.map(inv => ({
-      name: inv.customerName,
+      name: inv.clientName,
       amount: inv.total,
       dueDate: inv.dueDate,
       daysUntil: Math.ceil((new Date(inv.dueDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)),
@@ -170,11 +170,11 @@ export default function ProtectMoneyScreen() {
           <View style={styles.barChart}>
             <View style={[styles.bar, { width: '85%', backgroundColor: '#10b981' }]} />
           </View>
-          <Text style={styles.chartLabel} style={{ marginTop: 12 }}>Money Out</Text>
+          <Text style={[styles.chartLabel, { marginTop: 12 }]}>Money Out</Text>
           <View style={styles.barChart}>
             <View style={[styles.bar, { width: '65%', backgroundColor: '#ef4444' }]} />
           </View>
-          <Text style={styles.chartLabel} style={{ marginTop: 12 }}>Net Cash</Text>
+          <Text style={[styles.chartLabel, { marginTop: 12 }]}>Net Cash</Text>
           <View style={styles.barChart}>
             <View style={[styles.bar, { width: '45%', backgroundColor: '#3b82f6' }]} />
           </View>
