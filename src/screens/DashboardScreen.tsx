@@ -199,7 +199,7 @@ export default function DashboardScreen() {
         );
     }
 
-    const { currency, targetMargin, minReserve } = settings;
+    const { currency = '₦', targetMargin, minReserve } = settings;
 
     const hasTransaction = transactions.length > 0;
     const hasGoal        = goals.length > 0;
