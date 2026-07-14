@@ -94,7 +94,7 @@ export default function ReportsScreen() {
     const { finance: allFinance, settings, updateSettings, transactions, assets, loans: loansList, navParams, inventory, invoices } = useApp();
     const { currency, minReserve, targetMargin } = settings;
 
-    const [showLanding, setShowLanding] = useState(true);
+    const [showLanding, setShowLanding] = useState(false);
     const [section, setSection]       = useState<SectionKey>('statements');
     const [activeTab, setActiveTab]   = useState<SubTab>('balancesheet');
     const [period, setPeriod]         = useState<ReportPeriod>('all');
