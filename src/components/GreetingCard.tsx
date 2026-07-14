@@ -9,6 +9,13 @@ interface Props {
 }
 
 export default function GreetingCard({ userName, financialScore, status }: Props) {
+  const getTimeBasedGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good Morning';
+    if (hour < 18) return 'Good Afternoon';
+    return 'Good Evening';
+  };
+
   const getStatusEmoji = (s: string) => {
     switch (s) {
       case 'healthy':
@@ -46,7 +53,7 @@ export default function GreetingCard({ userName, financialScore, status }: Props
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.greeting}>
-          <Text style={styles.greetingText}>Good Morning, {userName} 👋</Text>
+          <Text style={styles.greetingText}>{getTimeBasedGreeting()}, {userName} 👋</Text>
           <Text style={styles.subtitle}>Your Business Today</Text>
         </View>
       </View>
