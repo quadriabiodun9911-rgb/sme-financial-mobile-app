@@ -6,7 +6,7 @@ import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 
 export default function BorrowMoneyScreen() {
-  const { transactions, invoices, finance, currency } = useApp();
+  const { transactions, invoices, finance, settings } = useApp();
 
   const creditScore = useMemo(() => {
     const profitMargin = finance.income > 0 ? (finance.profit / finance.income) * 100 : 0;
@@ -47,9 +47,9 @@ export default function BorrowMoneyScreen() {
   }, [finance]);
 
   const formatCurrency = (amount: number) => {
-    if (Math.abs(amount) >= 1000000) return `${currency}${(amount / 1000000).toFixed(1)}M`;
-    if (Math.abs(amount) >= 1000) return `${currency}${(amount / 1000).toFixed(0)}K`;
-    return `${currency}${amount.toFixed(0)}`;
+    if (Math.abs(amount) >= 1000000) return `${settings.currency}${(amount / 1000000).toFixed(1)}M`;
+    if (Math.abs(amount) >= 1000) return `${settings.currency}${(amount / 1000).toFixed(0)}K`;
+    return `${settings.currency}${amount.toFixed(0)}`;
   };
 
   const getScoreColor = (score: number): string => {

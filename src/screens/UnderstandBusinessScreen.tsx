@@ -6,7 +6,7 @@ import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 
 export default function UnderstandBusinessScreen() {
-  const { transactions, invoices, finance, currency } = useApp();
+  const { transactions, invoices, finance, settings } = useApp();
 
   const businessInsights = useMemo(() => {
     const now = new Date();
@@ -147,9 +147,9 @@ export default function UnderstandBusinessScreen() {
   }, [transactions]);
 
   const formatCurrency = (amount: number) => {
-    if (Math.abs(amount) >= 1000000) return `${currency}${(amount / 1000000).toFixed(1)}M`;
-    if (Math.abs(amount) >= 1000) return `${currency}${(amount / 1000).toFixed(0)}K`;
-    return `${currency}${amount.toFixed(0)}`;
+    if (Math.abs(amount) >= 1000000) return `${settings.currency}${(amount / 1000000).toFixed(1)}M`;
+    if (Math.abs(amount) >= 1000) return `${settings.currency}${(amount / 1000).toFixed(0)}K`;
+    return `${settings.currency}${amount.toFixed(0)}`;
   };
 
   const generateAIInsights = () => {

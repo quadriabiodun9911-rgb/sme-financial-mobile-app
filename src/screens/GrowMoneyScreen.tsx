@@ -6,7 +6,7 @@ import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 
 export default function GrowMoneyScreen() {
-  const { transactions, finance, navigate, currency } = useApp();
+  const { transactions, finance, navigate, settings } = useApp();
 
   const metrics = useMemo(() => {
     const now = new Date();
@@ -31,9 +31,9 @@ export default function GrowMoneyScreen() {
   }, [finance]);
 
   const formatCurrency = (amount: number) => {
-    if (Math.abs(amount) >= 1000000) return `${currency}${(amount / 1000000).toFixed(1)}M`;
-    if (Math.abs(amount) >= 1000) return `${currency}${(amount / 1000).toFixed(0)}K`;
-    return `${currency}${amount.toFixed(0)}`;
+    if (Math.abs(amount) >= 1000000) return `${settings.currency}${(amount / 1000000).toFixed(1)}M`;
+    if (Math.abs(amount) >= 1000) return `${settings.currency}${(amount / 1000).toFixed(0)}K`;
+    return `${settings.currency}${amount.toFixed(0)}`;
   };
 
   return (

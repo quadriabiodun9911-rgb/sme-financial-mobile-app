@@ -10,7 +10,7 @@ import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 
 export default function ProtectMoneyScreen() {
-  const { transactions, invoices, finance, settings, navigate, currency } = useApp();
+  const { transactions, invoices, finance, settings, navigate } = useApp();
 
   // Generate forecast
   const forecast = useMemo(() => {
@@ -51,12 +51,12 @@ export default function ProtectMoneyScreen() {
 
   const formatCurrency = (amount: number) => {
     if (Math.abs(amount) >= 1000000) {
-      return `${currency}${(amount / 1000000).toFixed(1)}M`;
+      return `${settings.currency}${(amount / 1000000).toFixed(1)}M`;
     }
     if (Math.abs(amount) >= 1000) {
-      return `${currency}${(amount / 1000).toFixed(0)}K`;
+      return `${settings.currency}${(amount / 1000).toFixed(0)}K`;
     }
-    return `${currency}${amount.toFixed(0)}`;
+    return `${settings.currency}${amount.toFixed(0)}`;
   };
 
   const runwayDays = Math.max(
@@ -159,7 +159,7 @@ export default function ProtectMoneyScreen() {
 
         {/* Forecast Chart */}
         <View style={styles.sectionBox}>
-          <CashFlowForecastChart forecast={forecast} currency={currency} />
+          <CashFlowForecastChart forecast={forecast} currency={settings.currency} />
         </View>
 
         {/* Recommendations */}
