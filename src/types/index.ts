@@ -187,6 +187,7 @@ export interface User {
     daysActive?: number;
     avgMonthlyRevenue?: number;
     avgMonthlyProfit?: number;
+    totalRecordedRevenue?: number;
     financialHealthScore?: number;
     createdAt?: string;
 }
