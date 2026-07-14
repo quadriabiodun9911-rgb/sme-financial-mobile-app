@@ -33,6 +33,7 @@ const OPERATIONS_ITEMS: { label: string; icon: string; screen: Screen; color: st
 
 const ACCOUNT_ITEMS: { label: string; icon: string; screen: Screen; color: string; desc: string }[] = [
     { label: 'Settings', icon: '⚙️', screen: 'settings', color: '#94a3b8', desc: 'Business, team & account' },
+    { label: 'Export Data', icon: '📥', screen: 'settings', color: '#10b981', desc: 'Download reports & backups' },
 ];
 
 // ─── Footer tabs ─────────────────────────────────────────────────────────────
