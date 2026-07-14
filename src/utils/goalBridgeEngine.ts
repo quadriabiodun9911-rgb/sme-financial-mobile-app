@@ -170,7 +170,8 @@ function generateMilestones(
 
   for (let month = stepSize; month <= timeline; month += stepSize) {
     const progressPercentage = month / timeline;
-    const targetValue = metrics.totalRevenue + goal.gap * progressPercentage;
+    const gap = Math.max(0, goal.targetValue - goal.currentValue);
+    const targetValue = goal.currentValue + gap * progressPercentage;
 
     // Find which tactics are active at this month
     const activeTactics = tacticAllocations

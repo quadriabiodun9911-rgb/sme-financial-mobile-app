@@ -35,9 +35,9 @@ export default function GoalBridgeScreen() {
     id: 'goal-profit',
     type: 'profit',
     currentValue: finance.profit,
-    targetValue: parseInt(targetValue) || 1000000,
-    timelineMonths: parseInt(timelineMonths) || 12,
-    description: `Reach ₦${parseInt(targetValue || 0).toLocaleString()} monthly profit`,
+    targetValue: parseInt(targetValue || '1000000') || 1000000,
+    timelineMonths: parseInt(timelineMonths || '12') || 12,
+    description: `Reach ₦${(parseInt(targetValue || '0') || 0).toLocaleString()} monthly profit`,
   };
 
   const bridge = useMemo(() => {
@@ -55,9 +55,9 @@ export default function GoalBridgeScreen() {
       id: `goal-${Date.now()}`,
       type: goalType,
       currentValue: finance[goalType === 'profit' ? 'profit' : goalType === 'revenue' ? 'income' : 'cashBalance'],
-      targetValue: parseInt(targetValue) || 1000000,
-      timelineMonths: parseInt(timelineMonths) || 12,
-      description: `Reach ₦${parseInt(targetValue || 0).toLocaleString()} ${goalType}`,
+      targetValue: parseInt(targetValue || '1000000') || 1000000,
+      timelineMonths: parseInt(timelineMonths || '12') || 12,
+      description: `Reach ₦${(parseInt(targetValue || '0') || 0).toLocaleString()} ${goalType}`,
     });
     setShowGoalModal(false);
   };
