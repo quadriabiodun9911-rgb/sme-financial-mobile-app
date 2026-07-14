@@ -214,6 +214,11 @@ export default function DashboardScreen() {
     })();
 
 
+    // ── 7-Section Header Component ──
+    const SectionHeader = ({ emoji, title }: { emoji: string; title: string }) => (
+        <Text style={styles.sectionHeader}>{emoji} {title}</Text>
+    );
+
     return (
         <SafeAreaView style={styles.safe}>
             <Header />
@@ -235,28 +240,34 @@ export default function DashboardScreen() {
                     </View>
                 )}
 
-                {/* ── 3 Survival Numbers strip — always first ───────────────── */}
-                <View style={styles.survivalRow}>
-                    <View style={styles.survivalCard}>
-                        <Text style={styles.survivalLabel}>💰 Profit TODAY</Text>
-                        <Text style={[styles.survivalValue, { color: todayProfit >= 0 ? Colors.income : Colors.expense }]}>
+                {/* ══════════════════════════════════════════════════════════════════
+                    📍 SECTION 1: TODAY
+                    ══════════════════════════════════════════════════════════════════ */}
+                <SectionHeader emoji="📍" title="TODAY" />
+
+                {/* Profit, Cash Balance, Funding Readiness */}
+                <View style={styles.sectionGrid}>
+                    <View style={[styles.sectionCard, styles.sectionCardFlex]}>
+                        <Text style={styles.sectionCardLabel}>Profit</Text>
+                        <Text style={[styles.sectionCardValue, { color: todayProfit >= 0 ? Colors.income : Colors.expense }]}>
                             {todayProfit >= 0 ? '+' : ''}{currency}{todayProfit.toLocaleString()}
                         </Text>
                     </View>
-                    <View style={styles.survivalCard}>
-                        <Text style={styles.survivalLabel}>⏳ Money Lasts</Text>
-                        <Text style={[styles.survivalValue, { color: runwayColor }]}>
-                            {runwayDays === null ? 'Add costs' : runwayDays > 365 ? '1 year+' : runwayDays > 90 ? `${Math.floor(runwayDays/30)} months` : `${runwayDays} days`}
+                    <View style={[styles.sectionCard, styles.sectionCardFlex]}>
+                        <Text style={styles.sectionCardLabel}>Cash Balance</Text>
+                        <Text style={[styles.sectionCardValue, { color: Colors.primary }]}>
+                            {currency}{finance.cashBalance.toLocaleString()}
                         </Text>
                     </View>
-                    <TouchableOpacity style={styles.survivalCard} onPress={() => setCurrentScreen('transactions')}>
-                        <Text style={styles.survivalLabel}>📥 Collect</Text>
-                        <Text style={[styles.survivalValue, { color: collectionsCount > 0 ? Colors.warning : Colors.income }]}>
-                            {collectionsCount > 0 ? `${currency}${collectionsTotal.toLocaleString()}` : '✓ Clear'}
+                    <View style={[styles.sectionCard, styles.sectionCardFlex]}>
+                        <Text style={styles.sectionCardLabel}>Funding</Text>
+                        <Text style={[styles.sectionCardValue, { color: Colors.primary }]}>
+                            {financing?.isQualified ? '✓' : '...'}
                         </Text>
-                    </TouchableOpacity>
+                    </View>
                 </View>
 
+<<<<<<< HEAD
                 {/* ── Merchant Financing Qualification Widget ────────────────── */}
                 {!isDemoMode && user && (
                     <MerchantFinancingQualificationWidget
@@ -361,6 +372,8 @@ export default function DashboardScreen() {
                     </View>
                 )}
 
+=======
+>>>>>>> c2cd7913 (Restructure dashboard to 7-section architecture (TODAY, MAKE MONEY, PROTECT MONEY, GROW MONEY, FUNDING, BUSINESS, AI ADVISOR))
                 {/* ── Onboarding ───────────────────────────────────────────── */}
                 {showOnboarding && (
                     <View style={styles.onboardCard}>
@@ -401,6 +414,51 @@ export default function DashboardScreen() {
                     </View>
                 )}
 
+                {/* ── Alert banners ──────────────────────────────────────────– */}
+                {overdueInvoices.length > 0 && (
+                    <TouchableOpacity style={styles.alertBanner} onPress={() => setCurrentScreen('invoices')}>
+                        <Text style={styles.alertText}>💰 {overdueInvoices.length} unpaid invoice{overdueInvoices.length > 1 ? 's' : ''} overdue — tap to chase →</Text>
+                    </TouchableOpacity>
+                )}
+                {overdueCount > 0 && (
+                    <TouchableOpacity style={styles.alertBanner} onPress={() => navigate('reports', { reportSection: 'operations', reportTab: 'aging' })}>
+                        <Text style={styles.alertText}>⚠ {overdueCount} overdue transaction{overdueCount > 1 ? 's' : ''} — tap to review →</Text>
+                    </TouchableOpacity>
+                )}
+
+                {/* ══════════════════════════════════════════════════════════════════
+                    💰 SECTION 2: MAKE MONEY
+                    ══════════════════════════════════════════════════════════════════ */}
+                <SectionHeader emoji="💰" title="MAKE MONEY" />
+
+                {/* Income, Expenses, Profit */}
+                <View style={styles.sectionGrid}>
+                    <TouchableOpacity style={[styles.sectionCard, styles.sectionCardFlex]} onPress={() => setCurrentScreen('transactions')}>
+                        <Text style={styles.sectionCardLabel}>Income</Text>
+                        <Text style={[styles.sectionCardValue, { color: Colors.income }]}>{currency}{finance.income.toLocaleString()}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.sectionCard, styles.sectionCardFlex]} onPress={() => setCurrentScreen('transactions')}>
+                        <Text style={styles.sectionCardLabel}>Expenses</Text>
+                        <Text style={[styles.sectionCardValue, { color: Colors.expense }]}>{currency}{finance.expense.toLocaleString()}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.sectionCard, styles.sectionCardFlex]} onPress={() => setCurrentScreen('transactions')}>
+                        <Text style={styles.sectionCardLabel}>Profit</Text>
+                        <Text style={[styles.sectionCardValue, { color: finance.profit >= 0 ? Colors.income : Colors.expense }]}>
+                            {finance.profit >= 0 ? '+' : ''}{currency}{finance.profit.toLocaleString()}
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+
+                {/* Invoices */}
+                <TouchableOpacity style={styles.sectionActionCard} onPress={() => setCurrentScreen('invoices')}>
+                    <Text style={styles.sectionActionIcon}>🧾</Text>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.sectionActionTitle}>Invoices</Text>
+                        <Text style={styles.sectionActionSub}>{invoices.length > 0 ? `${invoices.length} invoice${invoices.length > 1 ? 's' : ''}` : 'No invoices yet'}</Text>
+                    </View>
+                    <Text style={styles.sectionActionArrow}>›</Text>
+                </TouchableOpacity>
+
                 {/* ── Daily Revenue Target ─────────────────────────────────── */}
                 <DailyTargetCard
                     goals={goals}
@@ -410,6 +468,144 @@ export default function DashboardScreen() {
                     onEditGoal={(id, changes) => updateGoal(id, changes)}
                     onDeleteGoal={(id) => deleteGoal(id)}
                 />
+
+                {/* ══════════════════════════════════════════════════════════════════
+                    🛡️ SECTION 3: PROTECT MONEY
+                    ══════════════════════════════════════════════════════════════════ */}
+                <SectionHeader emoji="🛡️" title="PROTECT MONEY" />
+
+                <View style={styles.sectionGrid}>
+                    <View style={[styles.sectionCard, styles.sectionCardFlex]}>
+                        <Text style={styles.sectionCardLabel}>Cash Runway</Text>
+                        <Text style={[styles.sectionCardValue, { color: runwayColor }]}>
+                            {runwayDays === null ? '—' : runwayDays > 365 ? '1y+' : runwayDays > 90 ? `${Math.floor(runwayDays/30)}m` : `${runwayDays}d`}
+                        </Text>
+                    </View>
+                    <View style={[styles.sectionCard, styles.sectionCardFlex]}>
+                        <Text style={styles.sectionCardLabel}>Budgets</Text>
+                        <Text style={[styles.sectionCardValue, { color: overspentBudgets.length > 0 ? Colors.warning : Colors.income }]}>
+                            {overspentBudgets.length > 0 ? `${overspentBudgets.length} ⚠️` : '✓'}
+                        </Text>
+                    </View>
+                    <View style={[styles.sectionCard, styles.sectionCardFlex]}>
+                        <Text style={styles.sectionCardLabel}>Reserve</Text>
+                        <Text style={[styles.sectionCardValue, { color: finance.cashBalance >= parseFloat(minReserve) ? Colors.income : Colors.expense }]}>
+                            {finance.cashBalance >= parseFloat(minReserve) ? '✓' : '⚠️'}
+                        </Text>
+                    </View>
+                </View>
+
+                {/* ══════════════════════════════════════════════════════════════════
+                    📈 SECTION 4: GROW MONEY
+                    ══════════════════════════════════════════════════════════════════ */}
+                <SectionHeader emoji="📈" title="GROW MONEY" />
+
+                <View style={styles.sectionGrid}>
+                    <TouchableOpacity style={[styles.sectionCard, styles.sectionCardFlex]} onPress={() => setCurrentScreen('reports')}>
+                        <Text style={styles.sectionCardLabel}>Profit Margin</Text>
+                        <Text style={[styles.sectionCardValue, { color: finance.profit >= 0 ? Colors.income : Colors.expense }]}>
+                            {finance.profit >= 0 ? `${(isNaN(finance.margin) ? 0 : finance.margin).toFixed(0)}%` : '—'}
+                        </Text>
+                    </TouchableOpacity>
+                    <View style={[styles.sectionCard, styles.sectionCardFlex]}>
+                        <Text style={styles.sectionCardLabel}>Growth</Text>
+                        <Text style={[styles.sectionCardValue, { color: profitDelta && profitDelta >= 0 ? Colors.income : Colors.expense }]}>
+                            {profitDelta ? `${profitDelta >= 0 ? '▲' : '▼'}${Math.abs(profitDelta).toFixed(0)}%` : '—'}
+                        </Text>
+                    </View>
+                    <TouchableOpacity style={[styles.sectionCard, styles.sectionCardFlex]} onPress={() => setCurrentScreen('reports')}>
+                        <Text style={styles.sectionCardLabel}>Business Worth</Text>
+                        <Text style={[styles.sectionCardValue, { color: Colors.primary }]}>{currency}{(isNaN(finance.equity) ? 0 : finance.equity).toLocaleString()}</Text>
+                    </TouchableOpacity>
+                </View>
+
+                {/* ══════════════════════════════════════════════════════════════════
+                    🏦 SECTION 5: FUNDING
+                    ══════════════════════════════════════════════════════════════════ */}
+                <SectionHeader emoji="🏦" title="FUNDING" />
+
+                {/* Merchant Financing Widget */}
+                <TouchableOpacity style={[styles.sectionActionCard, { borderLeftWidth: 4, borderLeftColor: Colors.primary }]} onPress={() => setCurrentScreen('financing')}>
+                    <Text style={styles.sectionActionIcon}>💳</Text>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.sectionActionTitle}>Merchant Financing</Text>
+                        <Text style={[styles.sectionActionSub, { color: financing?.isQualified ? Colors.income : Colors.warning }]}>
+                            {financing?.isQualified ? '✓ Qualified for loans' : 'Build your score to qualify'}
+                        </Text>
+                    </View>
+                    <Text style={styles.sectionActionArrow}>›</Text>
+                </TouchableOpacity>
+
+                {/* ══════════════════════════════════════════════════════════════════
+                    ⚙️ SECTION 6: BUSINESS
+                    ══════════════════════════════════════════════════════════════════ */}
+                <SectionHeader emoji="⚙️" title="BUSINESS" />
+
+                <View style={styles.sectionGrid}>
+                    <TouchableOpacity style={[styles.sectionCard, styles.sectionCardFlex]} onPress={() => setCurrentScreen('inventory')}>
+                        <Text style={styles.sectionCardLabel}>Inventory</Text>
+                        <Text style={[styles.sectionCardValue, { color: lowStockItems.length > 0 ? Colors.warning : Colors.income }]}>
+                            {lowStockItems.length > 0 ? `${lowStockItems.length} 📦` : `${inventory.length}`}
+                        </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.sectionCard, styles.sectionCardFlex]} onPress={() => setCurrentScreen('payroll')}>
+                        <Text style={styles.sectionCardLabel}>Payroll</Text>
+                        <Text style={styles.sectionCardValue}>—</Text>
+                    </TouchableOpacity>
+                    <View style={[styles.sectionCard, styles.sectionCardFlex]}>
+                        <Text style={styles.sectionCardLabel}>Taxes</Text>
+                        <Text style={[styles.sectionCardValue, { color: Colors.warning }]}>{currency}{finance.totalTaxCollected.toLocaleString()}</Text>
+                    </View>
+                </View>
+
+                {/* ══════════════════════════════════════════════════════════════════
+                    🧠 SECTION 7: AI ADVISOR
+                    ══════════════════════════════════════════════════════════════════ */}
+                <SectionHeader emoji="🧠" title="AI ADVISOR" />
+
+                <TouchableOpacity style={styles.sectionActionCard} onPress={() => setShowDailyReport(true)}>
+                    <Text style={styles.sectionActionIcon}>📊</Text>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.sectionActionTitle}>Today's Report</Text>
+                        <Text style={styles.sectionActionSub}>End-of-day summary & action plan</Text>
+                    </View>
+                    <Text style={styles.sectionActionArrow}>›</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.sectionActionCard} onPress={() => setShowMonthlyReview(true)}>
+                    <Text style={styles.sectionActionIcon}>📋</Text>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.sectionActionTitle}>Monthly Review</Text>
+                        <Text style={styles.sectionActionSub}>Profit, spending, collections & trends</Text>
+                    </View>
+                    <Text style={styles.sectionActionArrow}>›</Text>
+                </TouchableOpacity>
+
+                {/* Loss guidance */}
+                {finance.profit < 0 && hasTransaction && (
+                    <View style={styles.lossGuide}>
+                        <Text style={styles.lossGuideTitle}>💡 Recommended Action</Text>
+                        {(() => {
+                            const cats: Record<string, number> = {};
+                            transactions.filter(t => t.type === 'expense').forEach(t => {
+                                const c = t.category || 'Other';
+                                cats[c] = (cats[c] || 0) + (Number(t.amount) || 0);
+                            });
+                            const top = Object.entries(cats).sort((a, b) => b[1] - a[1])[0];
+                            return top ? (
+                                <Text style={styles.lossGuideText}>
+                                    Your biggest cost is <Text style={styles.lossGuideHighlight}>{top[0]} ({currency}{top[1].toLocaleString()})</Text>.{'\n'}
+                                    Can you increase prices or reduce this expense?
+                                </Text>
+                            ) : (
+                                <Text style={styles.lossGuideText}>Log all expenses to identify where money goes.</Text>
+                            );
+                        })()}
+                        <TouchableOpacity onPress={() => setCurrentScreen('transactions')} style={styles.lossGuideBtn}>
+                            <Text style={styles.lossGuideBtnText}>See expenses →</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
 
                 {/* ── Retention nudges ─────────────────────────────────────── */}
                 {!isDemoMode && (
@@ -421,307 +617,53 @@ export default function DashboardScreen() {
                     />
                 )}
 
-                {/* ── Alert banners (always visible) ───────────────────────── */}
-                {overdueInvoices.length > 0 && (
-                    <TouchableOpacity style={styles.alertBanner} onPress={() => setCurrentScreen('invoices')}>
-                        <Text style={styles.alertText}>💰 {overdueInvoices.length} unpaid invoice{overdueInvoices.length > 1 ? 's' : ''} overdue — tap to chase →</Text>
-                    </TouchableOpacity>
-                )}
-                {overdueCount > 0 && (
-                    <TouchableOpacity style={styles.alertBanner} onPress={() => navigate('reports', { reportSection: 'operations', reportTab: 'aging' })}>
-                        <Text style={styles.alertText}>⚠ {overdueCount} overdue transaction{overdueCount > 1 ? 's' : ''} — tap to review →</Text>
-                    </TouchableOpacity>
-                )}
-                {finance.depreciationAdjustedProfit < 0 && (
-                    <View style={styles.dangerBanner}>
-                        <Text style={styles.dangerText}>🔴 {finance.profit >= 0 ? 'Cash positive but loss after depreciation' : 'Spending more than you earn'} — review expenses</Text>
-                    </View>
-                )}
-                {overspentBudgets.length > 0 && (
-                    <TouchableOpacity style={styles.alertBanner} onPress={() => setCurrentScreen('budget')}>
-                        <Text style={styles.alertText}>📊 {overspentBudgets.length} budget{overspentBudgets.length > 1 ? 's' : ''} overspent this month — tap to review →</Text>
-                    </TouchableOpacity>
-                )}
-                {lowStockItems.length > 0 && (
-                    <TouchableOpacity style={styles.alertBanner} onPress={() => setCurrentScreen('inventory')}>
-                        <Text style={styles.alertText}>📦 {lowStockItems.length} item{lowStockItems.length > 1 ? 's' : ''} low on stock — tap to restock →</Text>
-                    </TouchableOpacity>
-                )}
-
-                {/* ── 3 Quick Stats row ────────────────────────────────────── */}
-                <View style={styles.quickStatsRow}>
-                    <TouchableOpacity style={styles.quickStatCard} onPress={() => setShowCashPockets(true)}>
-                        <Text style={styles.quickStatIcon}>💵</Text>
-                        <Text style={styles.quickStatLabel}>{cashPockets.length > 0 ? 'My Cash (all pockets)' : 'Cash · Tap to add pockets'}</Text>
-                        <Text style={styles.quickStatValue}>{currency}{cashPockets.length > 0 ? totalCash.toLocaleString() : finance.cashBalance.toLocaleString()}</Text>
-                    </TouchableOpacity>
-                    <View style={styles.quickStatCard}>
-                        <Text style={styles.quickStatIcon}>👥</Text>
-                        <Text style={styles.quickStatLabel}>Owed to You</Text>
-                        <Text style={styles.quickStatValue}>{currency}{owedToYou.toLocaleString()}</Text>
-                    </View>
-                </View>
-
-                {/* ── Full Dashboard toggle ─────────────────────────────────── */}
-                <TouchableOpacity style={styles.fullDashToggle} onPress={() => setShowFullDashboard(v => !v)}>
-                    <Text style={styles.fullDashToggleText}>{showFullDashboard ? '▲ Hide' : '📊 See Full Dashboard ▼'}</Text>
-                </TouchableOpacity>
-
-                {showFullDashboard && (
-                <>
-
-                {/* ── CARD 1: Profit hero ──────────────────────────────────── */}
-                <View style={[styles.heroCard, { borderColor: finance.profit >= 0 ? Colors.income : Colors.expense }]}>
-                    <Text style={[styles.heroStatus, { color: finance.profit >= 0 ? Colors.income : Colors.expense }]}>
-                        {finance.profit >= 0 ? 'PROFITABLE ✓' : 'LOSING MONEY ✗'}
-                    </Text>
-                    <Text style={[styles.heroProfit, { color: finance.profit >= 0 ? Colors.income : Colors.expense }]}>
-                        {finance.profit >= 0 ? '+' : ''}{currency}{finance.profit.toLocaleString()}
-                    </Text>
-                    <View style={styles.heroSubRow}>
-                        <Text style={[styles.heroMargin, { color: finance.profit >= 0 ? Colors.income : Colors.expense }]}>
-                            {finance.profit >= 0
-                                ? `${(isNaN(finance.margin) ? 0 : finance.margin).toFixed(0)}% of your income is profit`
-                                : 'You are spending more than you earn'}
-                        </Text>
-                    </View>
-                    {lastMonthProfit !== 0 && profitDelta !== null && (
-                        <View style={styles.deltaRow}>
-                            <Text style={[styles.deltaBadge, { backgroundColor: profitDelta >= 0 ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', color: profitDelta >= 0 ? Colors.income : Colors.expense }]}>
-                                {profitDelta >= 0 ? '▲' : '▼'} {Math.abs(profitDelta).toFixed(0)}% vs last month
-                            </Text>
-                            <Text style={styles.deltaHint}>{profitDelta >= 0 ? 'Growing ✓' : 'Down from last month'}</Text>
-                        </View>
-                    )}
-                    <View style={styles.heroMetricsRow}>
-                        <TouchableOpacity style={styles.heroMetric} onPress={() => setCurrentScreen('transactions')}>
-                            <Text style={styles.heroMetricLabel}>Income</Text>
-                            <Text style={[styles.heroMetricVal, { color: Colors.income }]}>{currency}{finance.income.toLocaleString()}</Text>
-                        </TouchableOpacity>
-                        <View style={styles.heroMetricDivider} />
-                        <TouchableOpacity style={styles.heroMetric} onPress={() => setCurrentScreen('transactions')}>
-                            <Text style={styles.heroMetricLabel}>Expenses</Text>
-                            <Text style={[styles.heroMetricVal, { color: Colors.expense }]}>{currency}{finance.expense.toLocaleString()}</Text>
-                        </TouchableOpacity>
-                        <View style={styles.heroMetricDivider} />
-                        <View style={styles.heroMetric}>
-                            <Text style={styles.heroMetricLabel}>Cash Profit</Text>
-                            <Text style={[styles.heroMetricVal, { color: finance.profit >= 0 ? Colors.income : Colors.expense }]}>
-                                {finance.profit >= 0 ? '+' : ''}{currency}{finance.profit.toLocaleString()}
-                            </Text>
-                        </View>
-                    </View>
-                    {finance.annualDepreciation > 0 && (
-                        <Text style={styles.deprNote}>
-                            After {currency}{Math.round(finance.annualDepreciation || 0).toLocaleString()} depreciation: {currency}{(finance.depreciationAdjustedProfit || 0).toLocaleString()} · Cash profit shown above
-                        </Text>
-                    )}
-                    {finance.profit > 0 && hasTransaction && (
-                        <TouchableOpacity style={styles.shareWinBtn} onPress={() => setShowShareCard(true)}>
-                            <Text style={styles.shareWinText}>📤 Share your win</Text>
-                        </TouchableOpacity>
-                    )}
-                    <Text style={styles.syncLabel}>{syncLabel}</Text>
-                </View>
-
-                {/* ── Loss guidance ────────────────────────────────────────── */}
-                {finance.profit < 0 && hasTransaction && (
-                    <View style={styles.lossGuide}>
-                        <Text style={styles.lossGuideTitle}>💡 Here's what you can do</Text>
-                        {(() => {
-                            const cats: Record<string, number> = {};
-                            transactions.filter(t => t.type === 'expense').forEach(t => {
-                                const c = t.category || 'Other';
-                                cats[c] = (cats[c] || 0) + (Number(t.amount) || 0);
-                            });
-                            const top = Object.entries(cats).sort((a, b) => b[1] - a[1])[0];
-                            return top ? (
-                                <Text style={styles.lossGuideText}>
-                                    Your biggest cost is <Text style={styles.lossGuideHighlight}>{top[0]} ({currency}{top[1].toLocaleString()})</Text>.{'\n'}
-                                    Can you charge customers a little more, or spend less on {top[0].toLowerCase()}?
-                                </Text>
-                            ) : (
-                                <Text style={styles.lossGuideText}>Try logging all your expenses — knowing where money goes is the first step to fixing it.</Text>
-                            );
-                        })()}
-                        <TouchableOpacity onPress={() => setCurrentScreen('transactions')} style={styles.lossGuideBtn}>
-                            <Text style={styles.lossGuideBtnText}>See all my expenses →</Text>
-                        </TouchableOpacity>
-                    </View>
-                )}
-
-                {/* ── Quick Answers ─────────────────────────────────────────── */}
-                {hasTransaction && (
-                    <View style={styles.qaRow}>
-                        {(() => {
-                            const now = new Date();
-                            const weekStart = new Date(now);
-                            weekStart.setDate(now.getDate() - now.getDay());
-                            const weekStr = weekStart.toISOString().split('T')[0];
-                            const weekIncome  = transactions.filter(t => t.type === 'income'  && t.date >= weekStr).reduce((s, t) => s + (Number(t.amount) || 0), 0);
-                            const weekExpense = transactions.filter(t => t.type === 'expense' && t.date >= weekStr).reduce((s, t) => s + (Number(t.amount) || 0), 0);
-                            const weekProfit  = weekIncome - weekExpense;
-                            const cats: Record<string, number> = {};
-                            transactions.filter(t => t.type === 'expense').forEach(t => {
-                                const c = t.category || 'Other';
-                                cats[c] = (cats[c] || 0) + (Number(t.amount) || 0);
-                            });
-                            const topCat = Object.entries(cats).sort((a, b) => b[1] - a[1])[0];
-                            const owedCount = overdueInvoices.length + transactions.filter(t => t.status === 'overdue').length;
-                            return (
-                                <>
-                                    <TouchableOpacity style={[styles.qaCard, { borderColor: weekProfit >= 0 ? Colors.income : Colors.expense }]} onPress={() => setCurrentScreen('reports')}>
-                                        <Text style={styles.qaQuestion}>Did I make money this week?</Text>
-                                        <Text style={[styles.qaAnswer, { color: weekProfit >= 0 ? Colors.income : Colors.expense }]}>
-                                            {weekProfit >= 0 ? '✅ Yes' : '❌ No'}
-                                        </Text>
-                                        <Text style={[styles.qaValue, { color: weekProfit >= 0 ? Colors.income : Colors.expense }]}>
-                                            {weekProfit >= 0 ? '+' : ''}{currency}{weekProfit.toLocaleString()}
-                                        </Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity style={styles.qaCard} onPress={() => setCurrentScreen('transactions')}>
-                                        <Text style={styles.qaQuestion}>Where did most money go?</Text>
-                                        <Text style={styles.qaAnswer}>{topCat ? topCat[0] : '—'}</Text>
-                                        <Text style={styles.qaValue}>{topCat ? `${currency}${topCat[1].toLocaleString()}` : 'No expenses yet'}</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity style={[styles.qaCard, { borderColor: owedCount > 0 ? Colors.warning : Colors.border }]} onPress={() => setCurrentScreen('invoices')}>
-                                        <Text style={styles.qaQuestion}>Who owes me money?</Text>
-                                        <Text style={[styles.qaAnswer, { color: owedCount > 0 ? Colors.warning : Colors.income }]}>{owedCount > 0 ? `${owedCount} unpaid` : '✅ All clear'}</Text>
-                                        <Text style={styles.qaValue}>{owedCount > 0 ? 'Tap to chase →' : 'No unpaid invoices'}</Text>
-                                    </TouchableOpacity>
-                                </>
-                            );
-                        })()}
-                    </View>
-                )}
-
-                {/* ── CARD 2: Quick actions row ────────────────────────────── */}
-                <View style={styles.quickActionsRow}>
-                    <TouchableOpacity style={[styles.quickAction, { backgroundColor: 'rgba(16,185,129,0.15)' }]} onPress={() => openFab('income')}>
-                        <Text style={styles.quickActionIcon}>+</Text>
-                        <Text style={[styles.quickActionText, { color: Colors.income }]}>Income</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.quickAction, { backgroundColor: 'rgba(239,68,68,0.15)' }]} onPress={() => openFab('expense')}>
-                        <Text style={styles.quickActionIcon}>−</Text>
-                        <Text style={[styles.quickActionText, { color: Colors.expense }]}>Expense</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.quickAction, { backgroundColor: 'rgba(59,130,246,0.15)' }]} onPress={() => setCurrentScreen('invoices')}>
-                        <Text style={styles.quickActionIcon}>🧾</Text>
-                        <Text style={[styles.quickActionText, { color: Colors.primary }]}>Invoice</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.quickAction, { backgroundColor: 'rgba(245,158,11,0.15)' }]} onPress={() => setCurrentScreen('reports')}>
-                        <Text style={styles.quickActionIcon}>📊</Text>
-                        <Text style={[styles.quickActionText, { color: Colors.warning }]}>Reports</Text>
-                    </TouchableOpacity>
-                </View>
-
-                {/* ── CARD 4: Cash position ────────────────────────────────── */}
-                <View style={styles.row}>
-                    <View style={[styles.card, styles.flex]}>
-                        <Text style={styles.cardLabel}>Money in Your Account</Text>
-                        <TouchableOpacity onPress={() => setCurrentScreen('transactions')}>
-                            <Text style={[styles.bigNum, { color: Colors.income }]}>{currency}{finance.cashBalance.toLocaleString()}</Text>
-                        </TouchableOpacity>
-                        <View style={[styles.reserveBadge, { backgroundColor: finance.cashBalance >= parseFloat(minReserve) ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)' }]}>
-                            <Text style={{ fontSize: 10, fontWeight: '700', color: finance.cashBalance >= parseFloat(minReserve) ? Colors.income : Colors.expense }}>
-                                {finance.cashBalance >= parseFloat(minReserve) ? 'Reserve OK ✓' : 'Below Reserve ✗'}
-                            </Text>
-                        </View>
-                    </View>
-                    <View style={[styles.card, styles.flex]}>
-                        <Text style={styles.cardLabel}>How Long Your Money Lasts</Text>
-                        <TouchableOpacity onPress={() => setCurrentScreen('reports')}>
-                            <Text style={[styles.bigNum, { color: runwayColor }]}>
-                                {runwayDays === null ? 'Unknown' : runwayDays > 365 ? '1 year+' : runwayDays > 90 ? `${Math.floor(runwayDays/30)} months` : `${runwayDays} days`}
-                            </Text>
-                        </TouchableOpacity>
-                        <Text style={[styles.hint, { color: runwayColor }]}>
-                            {runwayDays === null ? 'Log your expenses so we can tell you how long your cash will last' : runwayDays < 30 ? '⚠️ Less than a month left — cut spending now' : runwayDays < 60 ? 'Getting tight — keep an eye on costs' : '✅ You have enough cash to keep going'}
-                        </Text>
-                    </View>
-                </View>
-
-
-                {/* ── Recurring due this month ──────────────────────────────── */}
-                {recurringDueCount > 0 && (
-                    <TouchableOpacity style={styles.recurringBanner} onPress={() => setCurrentScreen('transactions')}>
-                        <Text style={styles.recurringIcon}>🔁</Text>
-                        <Text style={styles.recurringText}>
-                            {recurringDueCount} recurring transaction{recurringDueCount > 1 ? 's' : ''} due this month — tap to review
-                        </Text>
-                        <Text style={styles.recurringArrow}>›</Text>
-                    </TouchableOpacity>
-                )}
-
-                {/* ── See more toggle ──────────────────────────────────────── */}
-                <TouchableOpacity style={styles.seeMoreBtn} onPress={() => setShowMore(v => !v)}>
-                    <Text style={styles.seeMoreText}>
-                        {showMore ? '▲ Show less' : '▼ Tax, assets & equity'}
-                    </Text>
-                </TouchableOpacity>
-
-                {showMore && (
-                    <>
-                        {/* Tax summary */}
-                        <View style={[styles.card, styles.taxRow]}>
-                            <View style={styles.taxItem}>
-                                <Text style={styles.taxLabel}>{t(language, 'taxCollected')}</Text>
-                                <Text style={[styles.taxVal, { color: Colors.warning }]}>{currency}{finance.totalTaxCollected.toLocaleString()}</Text>
+                {/* ── Beta Features ──────────────────────────────────────────– */}
+                {!isDemoMode && !betaCardDismissed && (
+                    <View style={styles.betaCard}>
+                        <View style={styles.betaCardHeader}>
+                            <View style={styles.betaBadge}>
+                                <Text style={styles.betaBadgeText}>🚀 NEW FEATURES</Text>
                             </View>
-                            <View style={styles.taxDivider} />
-                            <View style={styles.taxItem}>
-                                <Text style={styles.taxLabel}>{t(language, 'taxPaid')}</Text>
-                                <Text style={[styles.taxVal, { color: Colors.warning }]}>{currency}{finance.totalTaxPaid.toLocaleString()}</Text>
-                            </View>
-                            <View style={styles.taxDivider} />
-                            <View style={styles.taxItem}>
-                                <Text style={styles.taxLabel}>{t(language, 'netTax')}</Text>
-                                <Text style={[styles.taxVal, { color: finance.netTaxPosition >= 0 ? Colors.income : Colors.expense }]}>
-                                    {finance.netTaxPosition >= 0 ? '+' : ''}{currency}{finance.netTaxPosition.toLocaleString()}
-                                </Text>
-                            </View>
+                            <TouchableOpacity onPress={() => {
+                                setBetaCardDismissed(true);
+                                AsyncStorage.setItem('@quad360/beta_card_dismissed', '1');
+                            }}>
+                                <Text style={styles.betaDismiss}>✕</Text>
+                            </TouchableOpacity>
                         </View>
+                        <Text style={styles.betaTitle}>Try these features now</Text>
+                        <Text style={styles.betaSubtitle}>Available during beta — built for your business</Text>
 
-                        {/* Assets / Liabilities / Equity */}
-                        <View style={styles.row}>
-                            <View style={[styles.card, styles.flex]}>
-                                <Text style={styles.cardLabel}>{t(language, 'totalAssets')}</Text>
-                                <Text style={[styles.bigNum, { color: Colors.asset, fontSize: 18 }]}>{currency}{(isNaN(finance.assets) ? 0 : finance.assets).toLocaleString()}</Text>
+                        <TouchableOpacity style={styles.betaFeature} onPress={() => navigate('payment-link')}>
+                            <View style={[styles.betaFeatureIcon, { backgroundColor: '#00C3F722' }]}>
+                                <Text style={{ fontSize: 22 }}>💳</Text>
                             </View>
-                            <View style={[styles.card, styles.flex]}>
-                                <Text style={styles.cardLabel}>{t(language, 'totalLiabilities')}</Text>
-                                <Text style={[styles.bigNum, { color: Colors.liability, fontSize: 18 }]}>{currency}{(isNaN(finance.liabilities) ? 0 : finance.liabilities).toLocaleString()}</Text>
+                            <View style={{ flex: 1 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                    <Text style={styles.betaFeatureName}>Collect Payment Online</Text>
+                                    <View style={styles.betaLiveBadge}><Text style={styles.betaLiveText}>LIVE</Text></View>
+                                </View>
+                                <Text style={styles.betaFeatureDesc}>Send a Paystack checkout link.</Text>
                             </View>
-                        </View>
-                        <View style={styles.card}>
-                            <Text style={styles.cardLabel}>{t(language, 'ownersEquity')}</Text>
-                            <Text style={[styles.bigNum, { color: Colors.equity }]}>{currency}{(isNaN(finance.equity) ? 0 : finance.equity).toLocaleString()}</Text>
-                            <Text style={styles.hint}>{t(language, 'assetsMinusLiabilities')}</Text>
-                        </View>
+                            <Text style={styles.betaArrow}>›</Text>
+                        </TouchableOpacity>
 
-                    </>
+                        <TouchableOpacity style={styles.betaFeature} onPress={() => navigate('transactions')}>
+                            <View style={[styles.betaFeatureIcon, { backgroundColor: '#10b98122' }]}>
+                                <Text style={{ fontSize: 22 }}>📊</Text>
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                    <Text style={styles.betaFeatureName}>Export to CSV / Excel</Text>
+                                    <View style={[styles.betaLiveBadge, { backgroundColor: '#10b981' }]}><Text style={styles.betaLiveText}>LIVE</Text></View>
+                                </View>
+                                <Text style={styles.betaFeatureDesc}>Download transactions as a spreadsheet.</Text>
+                            </View>
+                            <Text style={styles.betaArrow}>›</Text>
+                        </TouchableOpacity>
+                    </View>
                 )}
 
-                <TouchableOpacity style={styles.reviewBtn} onPress={() => setShowDailyReport(true)}>
-                    <Text style={styles.reviewBtnIcon}>📊</Text>
-                    <View>
-                        <Text style={styles.reviewBtnText}>Today's Report</Text>
-                        <Text style={styles.reviewBtnSub}>End-of-day summary · Tomorrow's action plan</Text>
-                    </View>
-                    <Text style={styles.quickArrow}>›</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.reviewBtn} onPress={() => setShowMonthlyReview(true)}>
-                    <Text style={styles.reviewBtnIcon}>📋</Text>
-                    <View>
-                        <Text style={styles.reviewBtnText}>Monthly Review</Text>
-                        <Text style={styles.reviewBtnSub}>Did I make money? · Where did it go? · Who owes me?</Text>
-                    </View>
-                    <Text style={styles.quickArrow}>›</Text>
-                </TouchableOpacity>
-
-                </>
-                )}
 
                 <TouchableOpacity style={styles.btn} onPress={() => setCurrentScreen('reports')}>
                     <Text style={styles.btnText}>{t(language, 'viewDetailedReports')}</Text>
@@ -1069,4 +1011,17 @@ const styles = StyleSheet.create({
     modalInput:       { backgroundColor: Colors.bg, borderColor: Colors.border, borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 11, color: Colors.textPrimary, fontSize: 14, marginBottom: 12 },
     modalSubmit:      { paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginTop: 4 },
     modalSubmitText:  { color: '#fff', fontWeight: 'bold', fontSize: 15 },
+
+    // Section Styles (7-Section Architecture)
+    sectionHeader:    { fontSize: 16, fontWeight: '700', color: Colors.textPrimary, marginBottom: 12, marginTop: 8 },
+    sectionGrid:      { flexDirection: 'row', gap: 10, marginBottom: 12 },
+    sectionCard:      { flex: 1, backgroundColor: Colors.surface, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
+    sectionCardFlex:  { flex: 1 },
+    sectionCardLabel: { fontSize: 11, color: Colors.textMuted, marginBottom: 4, textAlign: 'center' },
+    sectionCardValue: { fontSize: 16, fontWeight: '700', color: Colors.textPrimary, textAlign: 'center' },
+    sectionActionCard: { backgroundColor: Colors.surface, borderRadius: 10, padding: 12, marginBottom: 10, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: Colors.border, gap: 12 },
+    sectionActionIcon: { fontSize: 22 },
+    sectionActionTitle: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },
+    sectionActionSub: { fontSize: 11, color: Colors.textMuted },
+    sectionActionArrow: { fontSize: 22, color: Colors.textMuted },
 });
