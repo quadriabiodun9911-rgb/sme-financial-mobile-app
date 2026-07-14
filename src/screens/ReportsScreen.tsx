@@ -29,22 +29,24 @@ import { InventoryItem } from '../types';
 import { generatePDF, sharePDF } from '../utils/pdfExport';
 
 // ─── Section groups ────────────────────────────────────────────────────────────
-type SectionKey = 'statements' | 'operations' | 'planning' | 'analysis' | 'growth';
+type SectionKey = 'statements' | 'customers' | 'tax' | 'planning' | 'growth' | 'health';
 
-const SECTIONS: { key: SectionKey; label: string }[] = [
-    { key: 'statements', label: 'Summary' },
-    { key: 'operations', label: 'Invoices' },
-    { key: 'planning',   label: 'Planning' },
-    { key: 'growth',     label: 'Growth' },
-    { key: 'analysis',   label: 'Health' },
+const SECTIONS: { key: SectionKey; label: string; icon: string; desc: string }[] = [
+    { key: 'statements', label: '📊 Financial Statements', icon: '📊', desc: 'Balance Sheet, P&L, Inventory, Cash Flow' },
+    { key: 'customers',  label: '💰 Customers & Collections', icon: '💰', desc: 'Who Owes Me - Unpaid Invoices' },
+    { key: 'tax',        label: '🏛️ Tax & Compliance', icon: '🏛️', desc: 'Tax Summary and Obligations' },
+    { key: 'planning',   label: '📈 Planning & Forecasts', icon: '📈', desc: 'Budget, Cash Timeline, Loans & Debt' },
+    { key: 'growth',     label: '🚀 Growth Analytics', icon: '🚀', desc: 'Growth Trends, Best Customers & Products' },
+    { key: 'health',     label: '💪 Business Health', icon: '💪', desc: 'Business Score, SWOT Analysis' },
 ];
 
 type SubTab =
     | 'balancesheet' | 'pnl' | 'inventory' | 'accrual'
-    | 'aging' | 'tax'
+    | 'aging'
+    | 'tax'
     | 'budget' | 'cashflow' | 'cashmgmt' | 'debt' | 'assets'
-    | 'health' | 'swot'
-    | 'customers' | 'products' | 'growth' | 'pricing';
+    | 'growth' | 'customers' | 'products' | 'pricing'
+    | 'health' | 'swot';
 
 const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
     statements: [
@@ -53,9 +55,11 @@ const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
         { key: 'inventory',    label: 'Stock' },
         { key: 'accrual',      label: 'Cash Flow' },
     ],
-    operations: [
+    customers: [
         { key: 'aging', label: 'Who Owes Me' },
-        { key: 'tax',   label: 'Tax' },
+    ],
+    tax: [
+        { key: 'tax', label: 'Tax Summary' },
     ],
     planning: [
         { key: 'budget',   label: 'Budget' },
@@ -65,14 +69,14 @@ const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
         { key: 'assets',   label: 'Assets' },
     ],
     growth: [
-        { key: 'growth',    label: 'Growth' },
+        { key: 'growth',    label: 'Growth Trends' },
         { key: 'customers', label: 'Best Customers' },
         { key: 'products',  label: 'Best Products' },
-        { key: 'pricing',   label: 'Pricing' },
+        { key: 'pricing',   label: 'Pricing Optimization' },
     ],
-    analysis: [
+    health: [
         { key: 'health', label: 'Business Score' },
-        { key: 'swot',   label: 'SWOT' },
+        { key: 'swot',   label: 'SWOT Analysis' },
     ],
 };
 
@@ -91,7 +95,6 @@ export default function ReportsScreen() {
     const { currency, minReserve, targetMargin } = settings;
 
     const [showLanding, setShowLanding] = useState(true);
-    const [simpleView, setSimpleView]  = useState(true);
     const [section, setSection]       = useState<SectionKey>('statements');
     const [activeTab, setActiveTab]   = useState<SubTab>('balancesheet');
     const [period, setPeriod]         = useState<ReportPeriod>('all');
@@ -142,20 +145,7 @@ export default function ReportsScreen() {
     }, []);
 
     const periodActive = PERIOD_AWARE.includes(activeTab);
-
-    const SIMPLE_SECTIONS: SectionKey[] = ['statements', 'operations'];
-    const visibleSections = simpleView
-        ? SECTIONS.filter(s => SIMPLE_SECTIONS.includes(s.key))
-        : SECTIONS;
-
-    // If simpleView is toggled on and current section is hidden, reset to first simple section
-    useEffect(() => {
-        if (simpleView && !SIMPLE_SECTIONS.includes(section)) {
-            setSection('statements');
-            setActiveTab(SECTION_TABS['statements'][0].key);
-        }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [simpleView]);
+    const visibleSections = SECTIONS;
 
     const handleSectionChange = (s: SectionKey) => {
         setSection(s);
@@ -197,7 +187,6 @@ export default function ReportsScreen() {
                             onPress={() => {
                                 setSection(item.section);
                                 setActiveTab(item.tab);
-                                setSimpleView(['statements','operations'].includes(item.section));
                                 setShowLanding(false);
                             }}
                         >
@@ -222,7 +211,6 @@ export default function ReportsScreen() {
                             onPress={() => {
                                 setSection(item.section);
                                 setActiveTab(item.tab);
-                                setSimpleView(['statements','operations'].includes(item.section));
                                 setShowLanding(false);
                             }}
                         >
@@ -248,7 +236,6 @@ export default function ReportsScreen() {
                             onPress={() => {
                                 setSection(item.section);
                                 setActiveTab(item.tab);
-                                setSimpleView(['statements','operations'].includes(item.section));
                                 setShowLanding(false);
                             }}
                         >
@@ -272,7 +259,6 @@ export default function ReportsScreen() {
                             onPress={() => {
                                 setSection(item.section);
                                 setActiveTab(item.tab);
-                                setSimpleView(['statements','operations'].includes(item.section));
                                 setShowLanding(false);
                             }}
                         >
@@ -304,22 +290,6 @@ export default function ReportsScreen() {
                 <Text style={styles.backToLandingText}>← All Reports</Text>
             </TouchableOpacity>
 
-            {/* ── Simple / Full toggle ──────────────────────────────── */}
-            <View style={styles.viewToggleRow}>
-                <TouchableOpacity
-                    style={[styles.viewToggleBtn, simpleView && styles.viewToggleBtnActive]}
-                    onPress={() => setSimpleView(true)}>
-                    <Text style={[styles.viewToggleText, simpleView && styles.viewToggleTextActive]}>Simple</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.viewToggleBtn, !simpleView && styles.viewToggleBtnActive]}
-                    onPress={() => setSimpleView(false)}>
-                    <Text style={[styles.viewToggleText, !simpleView && styles.viewToggleTextActive]}>Full Reports</Text>
-                </TouchableOpacity>
-            </View>
-            {simpleView && (
-                <Text style={styles.viewToggleHint}>Full Reports unlocks Planning, Growth &amp; Health Analysis</Text>
-            )}
 
             {/* ── Section picker ────────────────────────────────────── */}
             <View style={styles.sectionRow}>
