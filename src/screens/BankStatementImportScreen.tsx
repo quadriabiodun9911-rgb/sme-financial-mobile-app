@@ -18,11 +18,12 @@ import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { useApp } from '../contexts/AppContext';
 
 export default function BankStatementImportScreen() {
-  const { transactions: existingTransactions, invoices, finance, settings, setCurrentScreen } = useApp();
+  const { transactions: existingTransactions, invoices, finance, settings, setCurrentScreen, addTransaction } = useApp();
   const [step, setStep] = useState<'upload' | 'review' | 'complete'>('upload');
   const [parsed, setParsed] = useState<ParsedStatement | null>(null);
   const [csvContent, setCsvContent] = useState('');
   const [loading, setLoading] = useState(false);
+  const [importedCount, setImportedCount] = useState(0);
 
   const handleSampleCSV = () => {
     const sample = `Date,Description,Amount,Type
@@ -65,17 +66,43 @@ export default function BankStatementImportScreen() {
   const handleImportAndCreateTactics = () => {
     if (!parsed) return;
 
-    // Show success and navigate to Action Tracker
-    Alert.alert('Success!', 'Bank statement imported and tactics generated.', [
-      {
-        text: 'View Tactics',
-        onPress: () => setCurrentScreen('action-tracker'),
-      },
-      {
-        text: 'Stay Here',
-        onPress: () => setStep('complete'),
-      },
-    ]);
+    try {
+      // Add all parsed transactions to the app
+      let addedCount = 0;
+      parsed.transactions.forEach((transaction) => {
+        // Check if transaction doesn't already exist (avoid duplicates)
+        const exists = existingTransactions.some(
+          (t) =>
+            t.date === transaction.date &&
+            t.description === transaction.description &&
+            t.amount === transaction.amount &&
+            t.type === transaction.type
+        );
+
+        if (!exists) {
+          addTransaction({
+            description: transaction.description,
+            type: transaction.type,
+            category: transaction.category,
+            amount: transaction.amount,
+            date: transaction.date,
+            vendorCustomer: extractVendorCustomer(transaction.description),
+          } as any);
+          addedCount++;
+        }
+      });
+
+      setImportedCount(addedCount);
+      setStep('complete');
+    } catch (error) {
+      Alert.alert('Error', `Failed to import transactions: ${error}`);
+    }
+  };
+
+  const extractVendorCustomer = (description: string): string => {
+    // Try to extract vendor/customer name from description
+    const parts = description.split(/[#\-:\|]/);
+    return parts[0]?.trim() || description;
   };
 
   if (step === 'upload') {
@@ -263,7 +290,7 @@ export default function BankStatementImportScreen() {
           <Text style={styles.completeEmoji}>✅</Text>
           <Text style={styles.completeTitle}>Statement Imported!</Text>
           <Text style={styles.completeSubtitle}>
-            {parsed?.generatedTactics.length || 0} tactics generated and ready to execute
+            {importedCount} transactions added • {parsed?.generatedTactics.length || 0} tactics generated
           </Text>
 
           {parsed && (
@@ -283,22 +310,75 @@ export default function BankStatementImportScreen() {
             </View>
           )}
 
+          {/* Data Availability Section */}
+          <View style={styles.dataAvailabilitySection}>
+            <Text style={styles.dataAvailabilityTitle}>📍 Your data is now available in:</Text>
+
+            <TouchableOpacity
+              style={styles.dataCard}
+              onPress={() => setCurrentScreen('reports')}
+            >
+              <Text style={styles.dataCardIcon}>📊</Text>
+              <View style={styles.dataCardContent}>
+                <Text style={styles.dataCardTitle}>Financial Reports</Text>
+                <Text style={styles.dataCardDesc}>View in P&L, Balance Sheet, and Cash Flow</Text>
+              </View>
+              <Text style={styles.dataCardArrow}>→</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.dataCard}
+              onPress={() => setCurrentScreen('transactions')}
+            >
+              <Text style={styles.dataCardIcon}>📝</Text>
+              <View style={styles.dataCardContent}>
+                <Text style={styles.dataCardTitle}>Transactions Screen</Text>
+                <Text style={styles.dataCardDesc}>All {importedCount} transactions listed and categorized</Text>
+              </View>
+              <Text style={styles.dataCardArrow}>→</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.dataCard}
+              onPress={() => setCurrentScreen('invoices')}
+            >
+              <Text style={styles.dataCardIcon}>💵</Text>
+              <View style={styles.dataCardContent}>
+                <Text style={styles.dataCardTitle}>Sales & Invoices</Text>
+                <Text style={styles.dataCardDesc}>Link income transactions to customer invoices</Text>
+              </View>
+              <Text style={styles.dataCardArrow}>→</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.dataCard}
+              onPress={() => setCurrentScreen('action-tracker')}
+            >
+              <Text style={styles.dataCardIcon}>⚡</Text>
+              <View style={styles.dataCardContent}>
+                <Text style={styles.dataCardTitle}>Action Tracker</Text>
+                <Text style={styles.dataCardDesc}>{parsed?.generatedTactics.length || 0} tactics ready to execute</Text>
+              </View>
+              <Text style={styles.dataCardArrow}>→</Text>
+            </TouchableOpacity>
+          </View>
+
           <View style={styles.nextSteps}>
-            <Text style={styles.nextStepsTitle}>Next Steps:</Text>
+            <Text style={styles.nextStepsTitle}>💡 What's Next:</Text>
             <Text style={styles.nextStepsText}>
-              1. View generated tactics in Action Tracker{'\n'}
-              2. Review recommended priorities{'\n'}
-              3. Start with high-impact, easy tactics{'\n'}
-              4. Track progress and adjust as needed
+              1. 📊 Review your financial reports with new data{'\n'}
+              2. 💵 Check sales breakdown by customer{'\n'}
+              3. ⚡ Execute high-impact tactics from Action Tracker{'\n'}
+              4. 📈 Track progress and adjust strategies
             </Text>
           </View>
 
           <View style={styles.completeButtonContainer}>
             <TouchableOpacity
               style={styles.primaryButton}
-              onPress={() => setCurrentScreen('action-tracker')}
+              onPress={() => setCurrentScreen('reports')}
             >
-              <Text style={styles.buttonText}>🚀 View Action Tracker</Text>
+              <Text style={styles.buttonText}>📊 View Financial Reports</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.button, styles.secondaryButton]}
@@ -437,6 +517,24 @@ const styles = StyleSheet.create({
   nextSteps: { backgroundColor: Colors.primary + '10', borderRadius: 12, padding: 14, width: '100%', marginBottom: 20 },
   nextStepsTitle: { fontSize: 12, fontWeight: '700', color: Colors.primary, marginBottom: 8 },
   nextStepsText: { fontSize: 11, color: Colors.textSecondary, lineHeight: 18 },
+
+  dataAvailabilitySection: { width: '100%', marginBottom: 20 },
+  dataAvailabilityTitle: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: 12 },
+
+  dataCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+    gap: 12,
+  },
+  dataCardIcon: { fontSize: 28 },
+  dataCardContent: { flex: 1 },
+  dataCardTitle: { fontSize: 12, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },
+  dataCardDesc: { fontSize: 10, color: Colors.textMuted },
+  dataCardArrow: { fontSize: 14, color: Colors.primary, fontWeight: '700' },
 
   completeButtonContainer: { width: '100%', gap: 10 },
 });
