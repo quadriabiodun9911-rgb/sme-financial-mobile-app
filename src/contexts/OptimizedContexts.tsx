@@ -160,21 +160,21 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       budgets,
       inventory,
       finance,
-      addTransaction: (tx) => setTransactions((prev) => [...prev, tx]),
+      addTransaction: (tx) => setTransactions((prev) => [...prev, { ...tx, id: tx.id || genId() }]),
       updateTransaction: (id, tx) => setTransactions((prev) =>
         prev.map((t) => (t.id === id ? { ...t, ...tx } : t))
       ),
       deleteTransaction: (id) => setTransactions((prev) =>
         prev.filter((t) => t.id !== id)
       ),
-      addAsset: (asset) => setAssets((prev) => [...prev, asset]),
+      addAsset: (asset) => setAssets((prev) => [...prev, { ...asset, id: asset.id || genId(), createdAt: asset.createdAt || new Date().toISOString() }]),
       updateAsset: (id, asset) => setAssets((prev) =>
         prev.map((a) => (a.id === id ? { ...a, ...asset } : a))
       ),
       deleteAsset: (id) => setAssets((prev) =>
         prev.filter((a) => a.id !== id)
       ),
-      addLoan: (loan) => setLoans((prev) => [...prev, { ...loan, payments: loan.payments ?? [] }]),
+      addLoan: (loan) => setLoans((prev) => [...prev, { ...loan, id: loan.id || genId(), payments: loan.payments ?? [] }]),
       updateLoan: (id, loan) => setLoans((prev) =>
         prev.map((l) => (l.id === id ? { ...l, ...loan } : l))
       ),
@@ -192,7 +192,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           return { ...l, payments, status };
         })
       ),
-      addBudget: (budget) => setBudgets((prev) => [...prev, budget]),
+      addBudget: (budget) => setBudgets((prev) => [...prev, { ...budget, id: budget.id || genId() }]),
       updateBudget: (id, budget) => setBudgets((prev) =>
         prev.map((b) => (b.id === id ? { ...b, ...budget } : b))
       ),
@@ -202,7 +202,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       disposeAsset: (id, disposalDate, disposalValue) => setAssets((prev) =>
         prev.map((a) => (a.id === id ? { ...a, status: 'disposed', disposalDate, disposalValue } as Asset : a))
       ),
-      addInventoryItem: (item) => setInventory((prev) => [...prev, item]),
+      addInventoryItem: (item) => setInventory((prev) => [...prev, { ...item, id: item.id || genId() }]),
       updateInventoryItem: (id, item) => setInventory((prev) =>
         prev.map((i) => (i.id === id ? { ...i, ...item } : i))
       ),
@@ -289,7 +289,7 @@ export function GoalProvider({ children }: { children: ReactNode }) {
   const value: GoalContextValue = useMemo(
     () => ({
       goals,
-      addGoal: (goal) => setGoals((prev) => [...prev, goal]),
+      addGoal: (goal) => setGoals((prev) => [...prev, { ...goal, id: goal.id || genId() }]),
       updateGoal: (id, goal) => setGoals((prev) =>
         prev.map((g) => (g.id === id ? { ...g, ...goal } : g))
       ),
@@ -347,7 +347,7 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
   const value: InvoiceContextValue = useMemo(
     () => ({
       invoices,
-      addInvoice: (invoice) => setInvoices((prev) => [...prev, invoice]),
+      addInvoice: (invoice) => setInvoices((prev) => [...prev, { ...invoice, id: invoice.id || genId() }]),
       markInvoiceStatus: (id, status) => setInvoices((prev) => prev.map((inv) => (inv.id === id ? { ...inv, status } : inv))),
       updateInvoice: (id, invoice) => setInvoices((prev) =>
         prev.map((i) => (i.id === id ? { ...i, ...invoice } : i))
