@@ -33,6 +33,7 @@ import {
 import { TeamMember } from '../types';
 import { supabase } from '../utils/supabase';
 import { getTwoFactorStatus, verifyTwoFactorLogin } from '../utils/twoFactorAuth';
+import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import CryptoJS from 'crypto-js';
 
 const PIN_SALT = 'Q360_SME_2025';
@@ -530,7 +531,7 @@ interface AuthContextValue {
   navigate: (screen: string, params?: any) => void;
   navParams: any;
   login: (pin: string) => Promise<boolean>;
-  pendingTwoFactorProfile: { email: string; businessName: string; phone?: string } | null;
+  pendingTwoFactorProfile: { email: string; businessName: string; phone?: string; createdAt?: string } | null;
   completeTwoFactorLogin: (code: string, method?: 'totp' | 'sms') => Promise<boolean>;
   cancelTwoFactorLogin: () => void;
   logout: () => Promise<void>;
@@ -570,7 +571,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Holds the profile of a user who passed their PIN but still needs to
   // verify a 2FA code before `user` is actually set — real enforcement:
   // 2FA config was previously saved to Supabase but never checked at login.
-  const [pendingTwoFactorProfile, setPendingTwoFactorProfile] = useState<{ email: string; businessName: string; phone?: string } | null>(null);
+  const [pendingTwoFactorProfile, setPendingTwoFactorProfile] = useState<{ email: string; businessName: string; phone?: string; createdAt?: string } | null>(null);
 
   // Destructive resets clear storage, then reload so every provider re-hydrates
   // from the now-empty (or restored) state. Web-only reload; safe no-op elsewhere.
@@ -586,7 +587,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           AsyncStorage.getItem(LOCKOUT_KEY),
         ]);
         if (profile) {
-          setUser({ email: profile.email, businessName: profile.businessName, phone: profile.phone, role: 'Administrator' });
+          setUser({ email: profile.email, businessName: profile.businessName, phone: profile.phone, role: 'Administrator', createdAt: profile.createdAt });
           setCurrentScreenState('dashboard');
         } else {
           setIsFirstLaunch(true);
@@ -649,11 +650,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (twoFactorStatus === 'enabled') {
           // PIN was correct, but don't grant access yet — hold the profile
           // and route to the code-entry screen instead of the dashboard.
-          setPendingTwoFactorProfile({ email: profile.email, businessName: profile.businessName, phone: profile.phone });
+          setPendingTwoFactorProfile({ email: profile.email, businessName: profile.businessName, phone: profile.phone, createdAt: profile.createdAt });
           setCurrentScreenState('two-factor-verify');
           return true;
         }
-        setUser({ email: profile.email, businessName: profile.businessName, phone: profile.phone, role: 'Administrator' });
+        setUser({ email: profile.email, businessName: profile.businessName, phone: profile.phone, role: 'Administrator', createdAt: profile.createdAt });
         setCurrentScreenState('dashboard');
         return true;
       },
@@ -661,7 +662,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       completeTwoFactorLogin: async (code: string, method: 'totp' | 'sms' = 'totp'): Promise<boolean> => {
         const ok = await verifyTwoFactorLogin(code, method).catch(() => false);
         if (!ok || !pendingTwoFactorProfile) return false;
-        setUser({ email: pendingTwoFactorProfile.email, businessName: pendingTwoFactorProfile.businessName, phone: pendingTwoFactorProfile.phone, role: 'Administrator' });
+        setUser({ email: pendingTwoFactorProfile.email, businessName: pendingTwoFactorProfile.businessName, phone: pendingTwoFactorProfile.phone, role: 'Administrator', createdAt: pendingTwoFactorProfile.createdAt });
         setPendingTwoFactorProfile(null);
         setCurrentScreenState('dashboard');
         return true;
@@ -706,9 +707,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // force-closed) — same leak this closes on the logout path.
         await clearLocalFinancialCache().catch(() => {});
         await savePin(pin);
-        await saveProfile({ email, businessName, phone });
+        // Stamp the real signup date so 'days active' reflects actual history
+        // instead of always reading 0 (the field was never set anywhere before).
+        await saveProfile({ email, businessName, phone, createdAt: new Date().toISOString() });
         setIsFirstLaunch(false);
-        setUser({ email, businessName, role: 'Administrator', phone });
+        setUser({ email, businessName, role: 'Administrator', phone, createdAt: new Date().toISOString() });
         setCurrentScreenState('dashboard');
       },
       recoverAccount: async (email, pin) => {
@@ -721,11 +724,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await savePin(pin).catch(() => {});
         let profile = await loadProfile();
         if (!profile || profile.email !== email) {
-          profile = { email, businessName: profile?.businessName ?? 'My Business' };
+          profile = { email, businessName: profile?.businessName ?? 'My Business', createdAt: new Date().toISOString() };
+          await saveProfile(profile);
+        } else if (!profile.createdAt) {
+          // Backfill for an existing local profile saved before this field
+          // existed — best we can do is anchor from today rather than leave
+          // it undefined (which is what caused daysActive to always read 0).
+          profile = { ...profile, createdAt: new Date().toISOString() };
           await saveProfile(profile);
         }
         setIsFirstLaunch(false);
-        setUser({ email: profile.email, businessName: profile.businessName, phone: profile.phone, role: 'Administrator' });
+        setUser({ email: profile.email, businessName: profile.businessName, phone: profile.phone, role: 'Administrator', createdAt: profile.createdAt });
         setCurrentScreenState('dashboard');
       },
       joinTeam: async (email, pin, inviteCode) => {
@@ -743,9 +752,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // identity's locally-cached data.
         await clearLocalFinancialCache().catch(() => {});
         await savePin(pin);
-        await saveProfile({ email, businessName: 'Team Member' });
+        await saveProfile({ email, businessName: 'Team Member', createdAt: new Date().toISOString() });
         setIsFirstLaunch(false);
-        setUser({ email, businessName: 'Team Member', role: role === 'accountant' ? 'Accountant' : 'Staff' });
+        setUser({ email, businessName: 'Team Member', role: role === 'accountant' ? 'Accountant' : 'Staff', createdAt: new Date().toISOString() });
         setCurrentScreenState('dashboard');
       },
 
@@ -945,9 +954,33 @@ export function useApp() {
   const goalsArray = goals?.goals ?? [];
   const invoicesArray = invoices?.invoices ?? [];
 
+  // Derived business metrics, computed from real data instead of being read
+  // as raw User fields that were never populated anywhere (daysActive,
+  // avgMonthlyRevenue, avgMonthlyProfit, financialHealthScore always came
+  // back undefined, which crashed any unguarded .toFixed()/.toLocaleString()
+  // call downstream and made every eligibility/health screen permanently
+  // show a zero/new-business state regardless of actual history).
+  const financeData = finance?.finance;
+  const daysActive = auth.user?.createdAt
+    ? Math.max(0, Math.floor((Date.now() - new Date(auth.user.createdAt).getTime()) / 86400000))
+    : 0;
+  const activeMonths = new Set(transactions.map((t) => (t.date || '').slice(0, 7)).filter(Boolean)).size || 1;
+  const avgMonthlyRevenue = (financeData?.income ?? 0) / activeMonths;
+  const avgMonthlyProfit = (financeData?.profit ?? 0) / activeMonths;
+  const totalRecordedRevenue = financeData?.income ?? 0;
+  // Reuses the same root-cause diagnosis engine as the AI Advisor for a
+  // consistent, real health score instead of a hardcoded placeholder.
+  const financialHealthScore = transactions.length >= 5 && financeData
+    ? performFinancialDiagnosis(transactions, invoicesArray, financeData.cashBalance, (financeData.expense || 1) / activeMonths, settings?.settings?.currency ?? '₦').overallHealth
+    : 0;
+
+  const userWithMetrics = auth.user
+    ? { ...auth.user, daysActive, avgMonthlyRevenue, avgMonthlyProfit, totalRecordedRevenue, financialHealthScore }
+    : auth.user;
+
   return {
     // Auth state
-    user: auth.user,
+    user: userWithMetrics,
     isLoading: auth.isLoading,
     currentScreen: auth.currentScreen,
     setCurrentScreen: auth.setCurrentScreen,
