@@ -10,7 +10,7 @@
 
 import React, { createContext, useContext, useState, useMemo, useEffect, ReactNode } from 'react';
 import { User, Invoice, InvoiceStatus, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, StaffMember, PayrollRun, PayrollItem, CashPocket, UserRole } from '../types';
-import { computeFinance } from '../utils/finance';
+import { computeFinance, computeAssetCurrentValue } from '../utils/finance';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   loadTransactions, saveTransactions,
@@ -181,17 +181,37 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       deleteLoan: (id) => setLoans((prev) =>
         prev.filter((l) => l.id !== id)
       ),
-      addLoanPayment: (loanId, payment) => setLoans((prev) =>
-        prev.map((l) => {
-          if (l.id !== loanId) return l;
-          const prevPays = l.payments ?? [];
-          const newPay = { ...payment, id: `pay-${loanId}-${prevPays.length}-${Date.now()}` };
-          const payments = [...prevPays, newPay];
-          const totalPaid = payments.reduce((s, p) => s + p.amount, 0);
-          const status: Loan['status'] = totalPaid >= l.principal ? 'paid_off' : l.status;
-          return { ...l, payments, status };
-        })
-      ),
+      addLoanPayment: (loanId, payment) => {
+        // Recording a loan payment is a real cash outflow — post the matching
+        // expense so the P&L/cash balance reflect it (previously only the
+        // loan balance updated, silently diverging from actual cash).
+        const loan = loans.find((l) => l.id === loanId);
+        if (loan) {
+          setTransactions((prev) => [
+            {
+              id: genId(),
+              date: payment.date,
+              description: payment.note || `Loan repayment: ${loan.lenderName}`,
+              type: 'expense',
+              category: 'Loan Repayment',
+              amount: payment.amount,
+              status: 'paid',
+            } as Transaction,
+            ...prev,
+          ]);
+        }
+        setLoans((prev) =>
+          prev.map((l) => {
+            if (l.id !== loanId) return l;
+            const prevPays = l.payments ?? [];
+            const newPay = { ...payment, id: `pay-${loanId}-${prevPays.length}-${Date.now()}` };
+            const payments = [...prevPays, newPay];
+            const totalPaid = payments.reduce((s, p) => s + p.amount, 0);
+            const status: Loan['status'] = totalPaid >= l.principal ? 'paid_off' : l.status;
+            return { ...l, payments, status };
+          })
+        );
+      },
       addBudget: (budget) => setBudgets((prev) => [...prev, { ...budget, id: budget.id || genId() }]),
       updateBudget: (id, budget) => setBudgets((prev) =>
         prev.map((b) => (b.id === id ? { ...b, ...budget } : b))
@@ -199,9 +219,32 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       deleteBudget: (id) => setBudgets((prev) =>
         prev.filter((b) => b.id !== id)
       ),
-      disposeAsset: (id, disposalDate, disposalValue) => setAssets((prev) =>
-        prev.map((a) => (a.id === id ? { ...a, status: 'disposed', disposalDate, disposalValue } as Asset : a))
-      ),
+      disposeAsset: (id, disposalDate, disposalValue) => {
+        // Disposing above/below book value is a real gain/loss — post it so
+        // the P&L reflects it (previously only the asset status changed).
+        const asset = assets.find((a) => a.id === id);
+        if (asset) {
+          const bookValue = computeAssetCurrentValue(asset);
+          const gainLoss = disposalValue - bookValue;
+          if (gainLoss !== 0) {
+            setTransactions((prev) => [
+              {
+                id: genId(),
+                date: disposalDate,
+                description: `Asset disposal: ${asset.name}`,
+                type: gainLoss >= 0 ? 'income' : 'expense',
+                category: gainLoss >= 0 ? 'Asset Sale Gain' : 'Asset Disposal Loss',
+                amount: Math.abs(gainLoss),
+                status: 'paid',
+              } as Transaction,
+              ...prev,
+            ]);
+          }
+        }
+        setAssets((prev) =>
+          prev.map((a) => (a.id === id ? { ...a, status: 'disposed', disposalDate, disposalValue } as Asset : a))
+        );
+      },
       addInventoryItem: (item) => setInventory((prev) => [...prev, { ...item, id: item.id || genId() }]),
       updateInventoryItem: (id, item) => setInventory((prev) =>
         prev.map((i) => (i.id === id ? { ...i, ...item } : i))
