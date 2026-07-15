@@ -24,7 +24,12 @@ import {
   loadStaff, saveStaff,
   loadPayrollRuns, savePayrollRuns,
   loadCashPockets, saveCashPockets,
+  saveProfile, savePin, loadPin,
+  clearAllData, exportAllData, importAllData,
+  inviteTeamMember, removeTeamMember, loadTeamMembers,
 } from '../utils/storage';
+import { TeamMember } from '../types';
+import CryptoJS from 'crypto-js';
 
 // Simple monotonic id generator for records created client-side.
 let _idCounter = 0;
@@ -439,6 +444,19 @@ interface AuthContextValue {
   navParams: any;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  updateProfile: (patch: Partial<Pick<User, 'phone' | 'businessName'>>) => void;
+  changePin: (currentPin: string, newPin: string) => Promise<{ ok: boolean }>;
+  isDemoMode: boolean;
+  enterDemo: (businessId: string) => void;
+  exitDemo: () => void;
+  clearData: () => Promise<void>;
+  resetBusinessData: () => Promise<void>;
+  resetApp: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
+  teamMembers: TeamMember[];
+  inviteMember: (email: string, role: 'accountant' | 'staff') => Promise<string>;
+  removeMember: (id: string) => Promise<void>;
+  refreshTeam: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -448,6 +466,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [currentScreen, setCurrentScreenState] = useState('login');
   const [navParams, setNavParams] = useState<any>(null);
+  const [isDemoMode, setIsDemoMode] = useState(false);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+
+  // Destructive resets clear storage, then reload so every provider re-hydrates
+  // from the now-empty (or restored) state. Web-only reload; safe no-op elsewhere.
+  const reloadApp = () => { if (typeof window !== 'undefined' && window.location) window.location.reload(); };
 
   // Initialize auth state on mount
   useEffect(() => {
@@ -499,8 +523,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setIsLoading(false);
         }
       },
+
+      updateProfile: (patch) => {
+        setUser((prev) => (prev ? { ...prev, ...patch } : prev));
+        if (user) {
+          saveProfile({
+            email: user.email,
+            businessName: patch.businessName ?? user.businessName,
+            phone: patch.phone ?? user.phone,
+          }).catch(() => {});
+        }
+      },
+      changePin: async (currentPin, newPin) => {
+        try {
+          const stored = await loadPin();
+          // Match savePin's hashing exactly so verification lines up.
+          const hash = (p: string) => CryptoJS.SHA256(p + 'Q360_SME_2025').toString(CryptoJS.enc.Hex) + '_Q360';
+          // If a PIN exists, verify the current one before changing.
+          if (stored && stored !== hash(currentPin)) return { ok: false };
+          await savePin(newPin);
+          return { ok: true };
+        } catch { return { ok: false }; }
+      },
+      isDemoMode,
+      enterDemo: () => setIsDemoMode(true),
+      exitDemo: () => setIsDemoMode(false),
+      clearData: async () => { await clearAllData(); reloadApp(); },
+      resetBusinessData: async () => { await clearAllData(); reloadApp(); },
+      resetApp: async () => { await clearAllData(); setUser(null); reloadApp(); },
+      deleteAccount: async () => { await clearAllData(); setUser(null); setCurrentScreenState('login'); reloadApp(); },
+      teamMembers,
+      inviteMember: async (email, role) => {
+        const code = await inviteTeamMember(email, role);
+        const members = await loadTeamMembers();
+        setTeamMembers(members);
+        return code;
+      },
+      removeMember: async (id) => {
+        await removeTeamMember(id);
+        setTeamMembers((prev) => prev.filter((m) => m.id !== id));
+      },
+      refreshTeam: async () => {
+        const members = await loadTeamMembers();
+        setTeamMembers(members);
+      },
     }),
-    [user, isLoading, currentScreen, navParams]
+    [user, isLoading, currentScreen, navParams, isDemoMode, teamMembers]
   );
 
   return (
@@ -705,8 +773,8 @@ export function useApp() {
     setLanguage: settings?.setLanguage || (() => {}),
 
     // Placeholder properties (for screens that reference them)
-    isDemoMode: false,
-    exitDemo: () => Promise.resolve(),
+    isDemoMode: auth.isDemoMode ?? false,
+    exitDemo: auth.exitDemo || (() => {}),
     cashPockets: finance?.cashPockets ?? [],
     financing: {
       isQualified: false,
@@ -727,12 +795,12 @@ export function useApp() {
     deleteStaff: finance?.deleteStaff || (() => {}),
     runPayroll: finance?.runPayroll || (() => {}),
     deletePayrollRun: finance?.deletePayrollRun || (() => {}),
-    teamMembers: [],
+    teamMembers: auth.teamMembers ?? [],
     userRole: 'owner' as const,
-    inviteMember: () => Promise.resolve(),
-    removeMember: () => Promise.resolve(),
+    inviteMember: auth.inviteMember || (async () => ''),
+    removeMember: auth.removeMember || (() => Promise.resolve()),
     joinTeam: () => Promise.resolve(),
-    refreshTeam: () => Promise.resolve(),
+    refreshTeam: auth.refreshTeam || (() => Promise.resolve()),
 
     // Other missing properties
     navParams: auth.navParams ?? {},
@@ -742,22 +810,22 @@ export function useApp() {
     isLockedOut: false,
     applyForMerchantFinancing: () => Promise.resolve(),
     setupAccount: () => Promise.resolve(),
-    updateProfile: () => Promise.resolve(),
+    updateProfile: auth.updateProfile || (() => {}),
     updateInventoryItem: finance?.updateInventoryItem || (() => {}),
     addInventoryItem: finance?.addInventoryItem || (() => {}),
     deleteInventoryItem: finance?.deleteInventoryItem || (() => {}),
     updateCashPocket: finance?.updateCashPocket || (() => {}),
     addCashPocket: finance?.addCashPocket || (() => {}),
     deleteCashPocket: finance?.deleteCashPocket || (() => {}),
-    changePin: () => Promise.resolve(),
-    clearData: () => Promise.resolve(),
-    resetApp: () => Promise.resolve(),
-    resetBusinessData: () => Promise.resolve(),
-    deleteAccount: () => Promise.resolve(),
+    changePin: auth.changePin || (async () => ({ ok: false })),
+    clearData: auth.clearData || (() => Promise.resolve()),
+    resetApp: auth.resetApp || (() => Promise.resolve()),
+    resetBusinessData: auth.resetBusinessData || (() => Promise.resolve()),
+    deleteAccount: auth.deleteAccount || (() => Promise.resolve()),
     recoverAccount: () => Promise.resolve(),
-    importData: () => Promise.resolve(),
-    exportData: () => Promise.resolve(),
-    enterDemo: () => Promise.resolve(),
+    importData: async (json) => { await importAllData(json); if (typeof window !== 'undefined' && window.location) window.location.reload(); },
+    exportData: () => exportAllData(transactions, (settings?.settings as any), goalsArray),
+    enterDemo: auth.enterDemo || (() => {}),
     markInvoiceStatus: invoices?.markInvoiceStatus || (() => {}),
     disposeAsset: finance?.disposeAsset || (() => {}),
   };
