@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   Alert,
   Modal,
-  Picker,
+  FlatList,
 } from 'react-native';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
@@ -31,6 +31,7 @@ export default function BankStatementImportScreen() {
   const [importedCount, setImportedCount] = useState(0);
   const [columnMapping, setColumnMapping] = useState<ColumnMapping | null>(null);
   const [columnOptions, setColumnOptions] = useState<string[]>([]);
+  const [showColumnSelector, setShowColumnSelector] = useState<string | null>(null);
 
   const handleSampleCSV = () => {
     const sample = `Date,Description,Amount,Type
@@ -68,11 +69,17 @@ export default function BankStatementImportScreen() {
       if (detected) {
         setColumnMapping(detected);
       } else {
-        // If auto-detection fails, show mapping UI
-        if (rows.length > 0) {
-          const headerRow = rows[0].split(',').map(h => h.trim());
-          setColumnOptions(headerRow);
-        }
+        // If auto-detection fails, use default mapping (0, 1, 2)
+        setColumnMapping({
+          dateColumn: 0,
+          descriptionColumn: 1,
+          amountColumn: 2,
+        });
+      }
+
+      if (rows.length > 0) {
+        const headerRow = rows[0].split(',').map(h => h.trim());
+        setColumnOptions(headerRow);
       }
 
       setStep('mapping');
@@ -266,78 +273,112 @@ export default function BankStatementImportScreen() {
           {/* Column Mapping UI */}
           <View style={styles.mappingContainer}>
             <Text style={styles.mappingLabel}>📅 Date Column</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={columnMapping?.dateColumn ?? 0}
-                onValueChange={(value) => {
-                  setColumnMapping(prev => ({
-                    ...prev!,
-                    dateColumn: value as number,
-                  }));
-                }}
-                style={styles.picker}
-              >
-                {headerRow.map((header, idx) => (
-                  <Picker.Item key={idx} label={header} value={idx} />
-                ))}
-              </Picker>
-            </View>
+            <TouchableOpacity
+              style={styles.columnSelector}
+              onPress={() => setShowColumnSelector('date')}
+            >
+              <Text style={styles.columnSelectorText}>
+                {columnMapping ? headerRow[columnMapping.dateColumn] : 'Select column...'}
+              </Text>
+              <Text style={styles.columnSelectorArrow}>▼</Text>
+            </TouchableOpacity>
 
             <Text style={styles.mappingLabel}>📝 Description Column</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={columnMapping?.descriptionColumn ?? 1}
-                onValueChange={(value) => {
-                  setColumnMapping(prev => ({
-                    ...prev!,
-                    descriptionColumn: value as number,
-                  }));
-                }}
-                style={styles.picker}
-              >
-                {headerRow.map((header, idx) => (
-                  <Picker.Item key={idx} label={header} value={idx} />
-                ))}
-              </Picker>
-            </View>
+            <TouchableOpacity
+              style={styles.columnSelector}
+              onPress={() => setShowColumnSelector('description')}
+            >
+              <Text style={styles.columnSelectorText}>
+                {columnMapping ? headerRow[columnMapping.descriptionColumn] : 'Select column...'}
+              </Text>
+              <Text style={styles.columnSelectorArrow}>▼</Text>
+            </TouchableOpacity>
 
             <Text style={styles.mappingLabel}>💰 Amount Column</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={columnMapping?.amountColumn ?? 2}
-                onValueChange={(value) => {
-                  setColumnMapping(prev => ({
-                    ...prev!,
-                    amountColumn: value as number,
-                  }));
-                }}
-                style={styles.picker}
-              >
-                {headerRow.map((header, idx) => (
-                  <Picker.Item key={idx} label={header} value={idx} />
-                ))}
-              </Picker>
-            </View>
+            <TouchableOpacity
+              style={styles.columnSelector}
+              onPress={() => setShowColumnSelector('amount')}
+            >
+              <Text style={styles.columnSelectorText}>
+                {columnMapping ? headerRow[columnMapping.amountColumn] : 'Select column...'}
+              </Text>
+              <Text style={styles.columnSelectorArrow}>▼</Text>
+            </TouchableOpacity>
 
             <Text style={styles.mappingLabel}>🏷️ Type Column (Optional)</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={columnMapping?.typeColumn ?? -1}
-                onValueChange={(value) => {
-                  setColumnMapping(prev => ({
-                    ...prev!,
-                    typeColumn: value === -1 ? undefined : (value as number),
-                  }));
-                }}
-                style={styles.picker}
-              >
-                <Picker.Item label="Auto-detect" value={-1} />
-                {headerRow.map((header, idx) => (
-                  <Picker.Item key={idx} label={header} value={idx} />
-                ))}
-              </Picker>
-            </View>
+            <TouchableOpacity
+              style={styles.columnSelector}
+              onPress={() => setShowColumnSelector('type')}
+            >
+              <Text style={styles.columnSelectorText}>
+                {columnMapping?.typeColumn !== undefined
+                  ? headerRow[columnMapping.typeColumn]
+                  : 'Auto-detect'}
+              </Text>
+              <Text style={styles.columnSelectorArrow}>▼</Text>
+            </TouchableOpacity>
           </View>
+
+          {/* Column Selector Modal */}
+          <Modal
+            visible={showColumnSelector !== null}
+            transparent
+            animationType="slide"
+            onRequestClose={() => setShowColumnSelector(null)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>
+                  Select {showColumnSelector === 'date' ? 'Date' :
+                          showColumnSelector === 'description' ? 'Description' :
+                          showColumnSelector === 'amount' ? 'Amount' : 'Type'} Column
+                </Text>
+                <FlatList
+                  data={headerRow}
+                  keyExtractor={(_, idx) => idx.toString()}
+                  renderItem={({ item, index }) => (
+                    <TouchableOpacity
+                      style={styles.columnOption}
+                      onPress={() => {
+                        if (showColumnSelector === 'date') {
+                          setColumnMapping(prev => ({ ...prev!, dateColumn: index }));
+                        } else if (showColumnSelector === 'description') {
+                          setColumnMapping(prev => ({ ...prev!, descriptionColumn: index }));
+                        } else if (showColumnSelector === 'amount') {
+                          setColumnMapping(prev => ({ ...prev!, amountColumn: index }));
+                        } else if (showColumnSelector === 'type') {
+                          setColumnMapping(prev => ({ ...prev!, typeColumn: index }));
+                        }
+                        setShowColumnSelector(null);
+                      }}
+                    >
+                      <Text style={styles.columnOptionText}>{item}</Text>
+                    </TouchableOpacity>
+                  )}
+                  scrollEnabled
+                />
+                {showColumnSelector === 'type' && (
+                  <TouchableOpacity
+                    style={styles.columnOption}
+                    onPress={() => {
+                      setColumnMapping(prev => ({ ...prev!, typeColumn: undefined }));
+                      setShowColumnSelector(null);
+                    }}
+                  >
+                    <Text style={[styles.columnOptionText, { color: Colors.primary, fontWeight: '600' }]}>
+                      Auto-detect
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                  style={styles.modalCloseButton}
+                  onPress={() => setShowColumnSelector(null)}
+                >
+                  <Text style={styles.modalCloseText}>Done</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
 
           <View style={styles.infoCard}>
             <Text style={styles.infoTitle}>💡 About Column Mapping:</Text>
@@ -679,15 +720,51 @@ const styles = StyleSheet.create({
   // Mapping screen
   mappingContainer: { marginBottom: 16 },
   mappingLabel: { fontSize: 12, fontWeight: '700', color: Colors.textPrimary, marginTop: 12, marginBottom: 8 },
-  pickerContainer: {
+  columnSelector: {
     backgroundColor: Colors.surface,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: Colors.border,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     marginBottom: 12,
-    overflow: 'hidden',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
-  picker: { height: 50, color: Colors.textPrimary },
+  columnSelectorText: { fontSize: 13, color: Colors.textPrimary, flex: 1 },
+  columnSelectorArrow: { fontSize: 12, color: Colors.textMuted, marginLeft: 10 },
+
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: Colors.bg,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    maxHeight: '70%',
+  },
+  modalTitle: { fontSize: 16, fontWeight: '700', color: Colors.textPrimary, marginBottom: 12 },
+  columnOption: {
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  columnOptionText: { fontSize: 14, color: Colors.textSecondary },
+  modalCloseButton: {
+    backgroundColor: Colors.primary,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginVertical: 12,
+  },
+  modalCloseText: { fontSize: 13, fontWeight: '700', color: '#fff' },
 
   // Complete screen
   completeContainer: { alignItems: 'center', paddingVertical: 40 },
