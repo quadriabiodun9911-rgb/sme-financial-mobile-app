@@ -15,6 +15,7 @@ export type Screen =
     | 'budget'
     | 'analysis'
     | '2fa'
+    | 'two-factor-verify'
     | 'payment-link'
     | 'connect-bank'
     | 'financial-health'

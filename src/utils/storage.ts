@@ -727,24 +727,69 @@ export async function clearLocalFinancialCache(): Promise<void> {
 }
 
 // ─── Staff ────────────────────────────────────────────────────────────────────
+// Cloud-first, mirroring the pattern used by transactions/loans/budgets/etc.:
+// save upserts to Supabase (and removes rows deleted locally), load prefers
+// Supabase and falls back to the local cache when offline/no owner yet.
 export async function saveStaff(staff: StaffMember[]): Promise<void> {
     await AsyncStorage.setItem(KEYS.staff, JSON.stringify(staff));
+    const ownerId = await getWorkspaceOwnerId();
+    if (!ownerId) return;
+    try {
+        await syncStaffToSupabase(staff, ownerId);
+        const { data: remote } = await supabase.from('staff').select('id').eq('user_id', ownerId);
+        if (remote) {
+            const localIds = new Set(staff.map(s => s.id));
+            const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
+            if (toDelete.length > 0) await supabase.from('staff').delete().in('id', toDelete);
+        }
+    } catch (e) { logSyncError('staff', 'sync', e); }
 }
 export async function loadStaff(): Promise<StaffMember[]> {
+    const ownerId = await getWorkspaceOwnerId();
+    if (ownerId) {
+        try {
+            const remote = await loadStaffFromSupabase(ownerId);
+            if (remote.length > 0) {
+                await AsyncStorage.setItem(KEYS.staff, JSON.stringify(remote));
+                return remote;
+            }
+        } catch (e) { logSyncError('staff', 'load', e); }
+    }
     try {
         const raw = await AsyncStorage.getItem(KEYS.staff);
-        return raw ? JSON.parse(raw) : [];
+        return safeParse<StaffMember[]>(raw) ?? [];
     } catch { return []; }
 }
 
 // ─── Payroll Runs ─────────────────────────────────────────────────────────────
 export async function savePayrollRuns(runs: PayrollRun[]): Promise<void> {
     await AsyncStorage.setItem(KEYS.payrollRuns, JSON.stringify(runs));
+    const ownerId = await getWorkspaceOwnerId();
+    if (!ownerId) return;
+    try {
+        await syncPayrollRunsToSupabase(runs, ownerId);
+        const { data: remote } = await supabase.from('payroll_runs').select('id').eq('user_id', ownerId);
+        if (remote) {
+            const localIds = new Set(runs.map(r => r.id));
+            const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
+            if (toDelete.length > 0) await supabase.from('payroll_runs').delete().in('id', toDelete);
+        }
+    } catch (e) { logSyncError('payroll_runs', 'sync', e); }
 }
 export async function loadPayrollRuns(): Promise<PayrollRun[]> {
+    const ownerId = await getWorkspaceOwnerId();
+    if (ownerId) {
+        try {
+            const remote = await loadPayrollRunsFromSupabase(ownerId);
+            if (remote.length > 0) {
+                await AsyncStorage.setItem(KEYS.payrollRuns, JSON.stringify(remote));
+                return remote;
+            }
+        } catch (e) { logSyncError('payroll_runs', 'load', e); }
+    }
     try {
         const raw = await AsyncStorage.getItem(KEYS.payrollRuns);
-        return raw ? JSON.parse(raw) : [];
+        return safeParse<PayrollRun[]>(raw) ?? [];
     } catch { return []; }
 }
 

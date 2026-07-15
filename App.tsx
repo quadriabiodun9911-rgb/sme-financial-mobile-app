@@ -22,6 +22,7 @@ import CFOScreen from './src/screens/CFOScreen';
 import BudgetScreen from './src/screens/BudgetScreen';
 import AnalysisScreen from './src/screens/AnalysisScreen';
 import TwoFactorSetupScreen from './src/screens/TwoFactorSetupScreen';
+import TwoFactorVerifyScreen from './src/screens/TwoFactorVerifyScreen';
 import PaymentLinkScreen from './src/screens/PaymentLinkScreen';
 import ConnectBankScreen from './src/screens/ConnectBankScreen';
 import FinancialHealthScreen from './src/screens/FinancialHealthScreen';
@@ -97,6 +98,7 @@ function NavigatorContent() {
             {currentScreen === 'budget'       && <BudgetScreen />}
             {currentScreen === 'analysis'     && <AnalysisScreen />}
             {currentScreen === '2fa'          && <TwoFactorSetupScreen />}
+            {currentScreen === 'two-factor-verify' && <TwoFactorVerifyScreen />}
             {currentScreen === 'payment-link' && <PaymentLinkScreen />}
             {currentScreen === 'connect-bank'     && <ConnectBankScreen />}
             {currentScreen === 'financial-health' && <FinancialHealthScreen />}

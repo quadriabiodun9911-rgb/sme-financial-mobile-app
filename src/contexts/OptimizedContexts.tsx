@@ -32,6 +32,7 @@ import {
 } from '../utils/storage';
 import { TeamMember } from '../types';
 import { supabase } from '../utils/supabase';
+import { getTwoFactorStatus, verifyTwoFactorLogin } from '../utils/twoFactorAuth';
 import CryptoJS from 'crypto-js';
 
 const PIN_SALT = 'Q360_SME_2025';
@@ -529,6 +530,9 @@ interface AuthContextValue {
   navigate: (screen: string, params?: any) => void;
   navParams: any;
   login: (pin: string) => Promise<boolean>;
+  pendingTwoFactorProfile: { email: string; businessName: string; phone?: string } | null;
+  completeTwoFactorLogin: (code: string, method?: 'totp' | 'sms') => Promise<boolean>;
+  cancelTwoFactorLogin: () => void;
   logout: () => Promise<void>;
   updateProfile: (patch: Partial<Pick<User, 'phone' | 'businessName'>>) => void;
   changePin: (currentPin: string, newPin: string) => Promise<{ ok: boolean; lockedUntil?: number; cloudSynced?: boolean }>;
@@ -563,6 +567,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isFirstLaunch, setIsFirstLaunch] = useState(false);
   const [isLockedOut, setIsLockedOut] = useState(false);
   const [lockoutUntil, setLockoutUntil] = useState<number | null>(null);
+  // Holds the profile of a user who passed their PIN but still needs to
+  // verify a 2FA code before `user` is actually set — real enforcement:
+  // 2FA config was previously saved to Supabase but never checked at login.
+  const [pendingTwoFactorProfile, setPendingTwoFactorProfile] = useState<{ email: string; businessName: string; phone?: string } | null>(null);
 
   // Destructive resets clear storage, then reload so every provider re-hydrates
   // from the now-empty (or restored) state. Web-only reload; safe no-op elsewhere.
@@ -631,11 +639,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsLockedOut(false); setLockoutUntil(null);
         const profile = await loadProfile();
         if (!profile) return false;
-        // Best-effort cloud session — never block a successful local PIN match.
-        supabase.auth.signInWithPassword({ email: profile.email, password: hashPin(pin) }).catch(() => {});
+        // Establish the cloud session BEFORE checking 2FA status — the check
+        // reads from Supabase keyed on the authenticated session, so if this
+        // fails/is skipped the status would incorrectly read as 'disabled'
+        // (fail-open). Awaited here specifically so 2FA can't be bypassed by
+        // a slow/dropped cloud sign-in.
+        await supabase.auth.signInWithPassword({ email: profile.email, password: hashPin(pin) }).catch(() => {});
+        const twoFactorStatus = await getTwoFactorStatus().catch(() => 'disabled' as const);
+        if (twoFactorStatus === 'enabled') {
+          // PIN was correct, but don't grant access yet — hold the profile
+          // and route to the code-entry screen instead of the dashboard.
+          setPendingTwoFactorProfile({ email: profile.email, businessName: profile.businessName, phone: profile.phone });
+          setCurrentScreenState('two-factor-verify');
+          return true;
+        }
         setUser({ email: profile.email, businessName: profile.businessName, phone: profile.phone, role: 'Administrator' });
         setCurrentScreenState('dashboard');
         return true;
+      },
+      pendingTwoFactorProfile,
+      completeTwoFactorLogin: async (code: string, method: 'totp' | 'sms' = 'totp'): Promise<boolean> => {
+        const ok = await verifyTwoFactorLogin(code, method).catch(() => false);
+        if (!ok || !pendingTwoFactorProfile) return false;
+        setUser({ email: pendingTwoFactorProfile.email, businessName: pendingTwoFactorProfile.businessName, phone: pendingTwoFactorProfile.phone, role: 'Administrator' });
+        setPendingTwoFactorProfile(null);
+        setCurrentScreenState('dashboard');
+        return true;
+      },
+      cancelTwoFactorLogin: () => {
+        setPendingTwoFactorProfile(null);
+        setCurrentScreenState('login');
       },
       logout: async () => {
         setIsLoading(true);
@@ -768,7 +801,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setTeamMembers(members);
       },
     }),
-    [user, isLoading, currentScreen, navParams, isDemoMode, teamMembers, isFirstLaunch, isLockedOut, lockoutUntil]
+    [user, isLoading, currentScreen, navParams, isDemoMode, teamMembers, isFirstLaunch, isLockedOut, lockoutUntil, pendingTwoFactorProfile]
   );
 
   return (
@@ -921,6 +954,9 @@ export function useApp() {
     navigate: auth.navigate,
     login: auth.login,
     logout: auth.logout,
+    pendingTwoFactorProfile: auth.pendingTwoFactorProfile,
+    completeTwoFactorLogin: auth.completeTwoFactorLogin,
+    cancelTwoFactorLogin: auth.cancelTwoFactorLogin,
 
     // Finance state
     transactions,
