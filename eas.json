@@ -1,74 +1,51 @@
 {
-    "cli": {
-        "version": ">= 5.9.0",
-        "appVersionSource": "local"
+  "cli": {
+    "version": ">= 7.0.0",
+    "promptToConfigurePushNotifications": false,
+    "telemetry": true
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "channel": "development"
     },
-    "build": {
-        "development": {
-            "developmentClient": true,
-            "distribution": "internal",
-            "ios": {
-                "simulator": true
-            },
-            "android": {
-                "buildType": "apk",
-                "gradleCommand": ":app:assembleDebug"
-            },
-            "env": {
-                "APP_ENV": "development"
-            }
-        },
-        "preview": {
-            "developmentClient": false,
-            "distribution": "internal",
-            "channel": "preview",
-            "ios": {
-                "simulator": false,
-                "enterpriseProvisioning": "adhoc"
-            },
-            "android": {
-                "buildType": "apk"
-            },
-            "env": {
-                "APP_ENV": "preview",
-                "EXPO_PUBLIC_SUPABASE_URL": "https://xfiqezxifsfwkwlbaxbj.supabase.co",
-                "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhmaXFlenhpZnNmd2t3bGJheGJqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5Njk3NTcsImV4cCI6MjA5NjU0NTc1N30.IFLvZ7xSDZECsJyj3NlVioGKImlp7-UATH-bV3-RtWs",
-                "EXPO_PUBLIC_PNGME_SDK_TOKEN_TEST": "4bf2b058f457a9d0bd42ac116989432fa8bfe32e99f98dab16b133d788a46ca92610d26a42a99045c8794c59801a48f9",
-                "EXPO_PUBLIC_PNGME_SDK_TOKEN_PROD": "",
-                "EXPO_PUBLIC_POSTHOG_KEY": "phc_pFhpUVaDw5PD4NoTwqgL7EWANxbsYdavkHWFcCrVnkzE"
-            }
-        },
-        "production": {
-            "channel": "production",
-            "autoIncrement": true,
-            "ios": {
-                "buildConfiguration": "Release"
-            },
-            "android": {
-                "buildType": "app-bundle"
-            },
-            "env": {
-                "APP_ENV": "production",
-                "EXPO_PUBLIC_SUPABASE_URL": "https://xfiqezxifsfwkwlbaxbj.supabase.co",
-                "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhmaXFlenhpZnNmd2t3bGJheGJqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5Njk3NTcsImV4cCI6MjA5NjU0NTc1N30.IFLvZ7xSDZECsJyj3NlVioGKImlp7-UATH-bV3-RtWs",
-                "EXPO_PUBLIC_PNGME_SDK_TOKEN_TEST": "",
-                "EXPO_PUBLIC_PNGME_SDK_TOKEN_PROD": "d482afe4d63a99150a1be2b724c742a7c9ecbcf48cf3395875077cd0051556ab53aa80d7454a8361a8b52eff31cc4a12",
-                "EXPO_PUBLIC_POSTHOG_KEY": "phc_pFhpUVaDw5PD4NoTwqgL7EWANxbsYdavkHWFcCrVnkzE"
-            }
-        }
+    "preview": {
+      "distribution": "internal",
+      "channel": "preview",
+      "android": {
+        "buildType": "apk"
+      }
     },
-    "submit": {
-        "production": {
-            "android": {
-                "serviceAccountKeyPath": "./google-service-account.json",
-                "track": "internal",
-                "releaseStatus": "draft"
-            },
-            "ios": {
-                "appleId": "your-apple-id@email.com",
-                "ascAppId": "your-app-store-connect-app-id",
-                "appleTeamId": "your-apple-team-id"
-            }
-        }
+    "production": {
+      "distribution": "store",
+      "channel": "production",
+      "autoIncrement": true,
+      "ios": {
+        "resourceClass": "large"
+      },
+      "android": {
+        "buildType": "app-bundle"
+      }
     }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "ascAppId": "CONFIGURE_IN_APPLE_CONNECT",
+        "appleTeamId": "CONFIGURE_IN_APPLE_CONNECT",
+        "appleId": "CONFIGURE_BEFORE_SUBMIT",
+        "appleIdPassword": "@appleidpassword",
+        "ascProvider": "OPTIONAL"
+      },
+      "android": {
+        "serviceAccountKeyPath": "./google-play-key.json",
+        "track": "internal"
+      }
+    }
+  },
+  "resourceClass": {
+    "ios": "large",
+    "android": "default"
+  }
 }
