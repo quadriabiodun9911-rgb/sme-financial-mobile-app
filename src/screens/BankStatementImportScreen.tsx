@@ -8,22 +8,29 @@ import {
   TouchableOpacity,
   Alert,
   Modal,
+  Picker,
 } from 'react-native';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
-import { parseCSVBankStatement, ParsedStatement } from '../utils/bankStatementParser';
-import { generateActionPlan } from '../utils/actionRecommendationEngine';
-import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
+import {
+  parseCSVWithMapping,
+  autoDetectColumns,
+  ColumnMapping,
+  ParsedBankStatement,
+} from '../utils/flexibleBankStatementParser';
 import { useApp } from '../contexts/AppContext';
 
 export default function BankStatementImportScreen() {
   const { transactions: existingTransactions, invoices, finance, settings, setCurrentScreen, addTransaction } = useApp();
-  const [step, setStep] = useState<'upload' | 'review' | 'complete'>('upload');
-  const [parsed, setParsed] = useState<ParsedStatement | null>(null);
+  const [step, setStep] = useState<'upload' | 'mapping' | 'review' | 'complete'>('upload');
+  const [parsed, setParsed] = useState<ParsedBankStatement | null>(null);
   const [csvContent, setCsvContent] = useState('');
+  const [csvRows, setCsvRows] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [importedCount, setImportedCount] = useState(0);
+  const [columnMapping, setColumnMapping] = useState<ColumnMapping | null>(null);
+  const [columnOptions, setColumnOptions] = useState<string[]>([]);
 
   const handleSampleCSV = () => {
     const sample = `Date,Description,Amount,Type
@@ -53,11 +60,42 @@ export default function BankStatementImportScreen() {
 
     try {
       setLoading(true);
-      const result = parseCSVBankStatement(csvContent);
+      const rows = csvContent.split('\n').filter(line => line.trim());
+      setCsvRows(rows);
+
+      // Auto-detect columns
+      const detected = autoDetectColumns(rows);
+      if (detected) {
+        setColumnMapping(detected);
+      } else {
+        // If auto-detection fails, show mapping UI
+        if (rows.length > 0) {
+          const headerRow = rows[0].split(',').map(h => h.trim());
+          setColumnOptions(headerRow);
+        }
+      }
+
+      setStep('mapping');
+    } catch (error) {
+      Alert.alert('Parse Error', `Failed to parse CSV: ${error}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConfirmMapping = () => {
+    if (!columnMapping) {
+      Alert.alert('Error', 'Please select column mappings');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const result = parseCSVWithMapping(csvContent, columnMapping);
       setParsed(result);
       setStep('review');
     } catch (error) {
-      Alert.alert('Parse Error', `Failed to parse CSV: ${error}`);
+      Alert.alert('Parse Error', `Failed to parse CSV with mapping: ${error}`);
     } finally {
       setLoading(false);
     }
@@ -190,6 +228,139 @@ export default function BankStatementImportScreen() {
               • Tactics auto-add to Action Tracker for execution{'\n'}
               • Edit tactics anytime to match your business
             </Text>
+          </View>
+        </ScrollView>
+        <FooterNav />
+      </SafeAreaView>
+    );
+  }
+
+  if (step === 'mapping' && csvRows.length > 0) {
+    const headerRow = csvRows[0].split(',').map(h => h.trim());
+
+    return (
+      <SafeAreaView style={styles.safe}>
+        <Header />
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.pad}>
+          <Text style={styles.title}>🗂️ Map Columns</Text>
+          <Text style={styles.subtitle}>
+            Tell us which columns contain date, description, and amount
+          </Text>
+
+          {/* CSV Preview */}
+          <View style={styles.previewBox}>
+            <Text style={styles.previewTitle}>CSV Preview:</Text>
+            {csvRows.slice(0, 5).map((row, idx) => (
+              <Text
+                key={idx}
+                style={[
+                  styles.previewText,
+                  idx === 0 && { fontWeight: '700', color: Colors.primary },
+                ]}
+              >
+                {row}
+              </Text>
+            ))}
+          </View>
+
+          {/* Column Mapping UI */}
+          <View style={styles.mappingContainer}>
+            <Text style={styles.mappingLabel}>📅 Date Column</Text>
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={columnMapping?.dateColumn ?? 0}
+                onValueChange={(value) => {
+                  setColumnMapping(prev => ({
+                    ...prev!,
+                    dateColumn: value as number,
+                  }));
+                }}
+                style={styles.picker}
+              >
+                {headerRow.map((header, idx) => (
+                  <Picker.Item key={idx} label={header} value={idx} />
+                ))}
+              </Picker>
+            </View>
+
+            <Text style={styles.mappingLabel}>📝 Description Column</Text>
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={columnMapping?.descriptionColumn ?? 1}
+                onValueChange={(value) => {
+                  setColumnMapping(prev => ({
+                    ...prev!,
+                    descriptionColumn: value as number,
+                  }));
+                }}
+                style={styles.picker}
+              >
+                {headerRow.map((header, idx) => (
+                  <Picker.Item key={idx} label={header} value={idx} />
+                ))}
+              </Picker>
+            </View>
+
+            <Text style={styles.mappingLabel}>💰 Amount Column</Text>
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={columnMapping?.amountColumn ?? 2}
+                onValueChange={(value) => {
+                  setColumnMapping(prev => ({
+                    ...prev!,
+                    amountColumn: value as number,
+                  }));
+                }}
+                style={styles.picker}
+              >
+                {headerRow.map((header, idx) => (
+                  <Picker.Item key={idx} label={header} value={idx} />
+                ))}
+              </Picker>
+            </View>
+
+            <Text style={styles.mappingLabel}>🏷️ Type Column (Optional)</Text>
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={columnMapping?.typeColumn ?? -1}
+                onValueChange={(value) => {
+                  setColumnMapping(prev => ({
+                    ...prev!,
+                    typeColumn: value === -1 ? undefined : (value as number),
+                  }));
+                }}
+                style={styles.picker}
+              >
+                <Picker.Item label="Auto-detect" value={-1} />
+                {headerRow.map((header, idx) => (
+                  <Picker.Item key={idx} label={header} value={idx} />
+                ))}
+              </Picker>
+            </View>
+          </View>
+
+          <View style={styles.infoCard}>
+            <Text style={styles.infoTitle}>💡 About Column Mapping:</Text>
+            <Text style={styles.infoText}>
+              • Type column is optional - we'll auto-detect income vs expense from descriptions{'\n'}
+              • We'll remember this mapping for future imports from the same bank
+            </Text>
+          </View>
+
+          {/* Action Buttons */}
+          <View style={styles.buttonContainer}>
+            <TouchableOpacity style={[styles.button, styles.secondaryButton]} onPress={() => setStep('upload')}>
+              <Text style={[styles.buttonText, styles.secondaryButtonText]}>← Back</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.button, styles.primaryButton, loading && styles.buttonDisabled]}
+              onPress={handleConfirmMapping}
+              disabled={loading}
+            >
+              <Text style={styles.buttonText}>
+                {loading ? '⏳ Parsing...' : '✓ Confirm Mapping'}
+              </Text>
+            </TouchableOpacity>
           </View>
         </ScrollView>
         <FooterNav />
@@ -504,6 +675,19 @@ const styles = StyleSheet.create({
 
   buttonContainer: { flexDirection: 'row', gap: 10 },
   button: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
+
+  // Mapping screen
+  mappingContainer: { marginBottom: 16 },
+  mappingLabel: { fontSize: 12, fontWeight: '700', color: Colors.textPrimary, marginTop: 12, marginBottom: 8 },
+  pickerContainer: {
+    backgroundColor: Colors.surface,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  picker: { height: 50, color: Colors.textPrimary },
 
   // Complete screen
   completeContainer: { alignItems: 'center', paddingVertical: 40 },
