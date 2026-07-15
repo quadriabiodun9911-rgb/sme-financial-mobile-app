@@ -11,6 +11,7 @@ import { t } from '../utils/i18n';
 import { Asset, AssetCategory } from '../types';
 import { computeAssetCurrentValue, computeAssetAnnualDepreciation } from '../utils/finance';
 import { analyzeAcquisition } from '../utils/assetAcquisitionEngine';
+import AssetProductivityAnalysis from '../components/AssetProductivityAnalysis';
 import { monthlyPayment } from '../utils/loanMath';
 import DateInput from '../components/DateInput';
 
@@ -193,6 +194,12 @@ export default function AssetsScreen() {
                     <Text style={s.summaryValue}>{currency}{totalActiveValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
                     <Text style={s.summaryMeta}>{assets.filter(a => a.status === 'active').length} active · {assets.filter(a => a.status === 'disposed').length} disposed</Text>
                 </View>
+
+                {/* Asset productivity: are these assets actually earning their
+                    keep — ROA, turnover, efficiency — not just their book value. */}
+                {assets.filter(a => a.status === 'active').length > 0 && (
+                    <AssetProductivityAnalysis finance={finance} assets={assets} currency={currency} />
+                )}
 
                 {/* Replacement alerts */}
                 {assets.filter(a => a.status === 'active' && computeAssetCurrentValue(a) <= a.purchaseCost * 0.2 && a.purchaseCost > 0).map(a => (

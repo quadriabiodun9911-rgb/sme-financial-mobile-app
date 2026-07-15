@@ -21,6 +21,7 @@ import FooterNav from '../components/FooterNav';
 import { Loan, LoanStatus } from '../types';
 import DateInput from '../components/DateInput';
 import MerchantFinancingSection from './MerchantFinancingSection';
+import { computeDebtOptimiser } from '../utils/finance';
 
 // Original Loans Screen helpers
 function monthlyPayment(principal: number, annualRate: number, termMonths: number): number {
@@ -159,6 +160,11 @@ export default function LoansScreen() {
     const totalMonthly = activeLoans.reduce((s, l) => s + monthlyPayment(l.principal, l.interestRate, l.termMonths), 0);
     const overdueLoans = activeLoans.filter(isOverdue);
 
+    // Multi-loan payoff strategy (avalanche vs snowball) — only meaningful
+    // with 2+ active loans; a single loan has no ordering decision to make.
+    const debtOpt = useMemo(() => computeDebtOptimiser(loans), [loans]);
+    const showDebtStrategy = activeLoans.length >= 2;
+
     return (
         <SafeAreaView style={s.safe}>
             <Header />
@@ -195,6 +201,34 @@ export default function LoansScreen() {
                         <SummaryCard label="Monthly Repayment" value={`${currency}${totalMonthly.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} color={Colors.warning} />
                         <SummaryCard label="Active Loans" value={String(activeLoans.length)} color={Colors.textPrimary} />
                     </View>
+
+                    {/* Debt Payoff Strategy — which loan to attack first and why,
+                        with real interest saved, not just a flat list of loans. */}
+                    {showDebtStrategy && (
+                        <View style={s.strategyCard}>
+                            <Text style={s.strategyTitle}>🎯 Debt Payoff Strategy</Text>
+                            <Text style={s.strategyRecommendation}>{debtOpt.recommendation}</Text>
+
+                            <View style={s.strategyMethodRow}>
+                                <View style={s.strategyMethod}>
+                                    <Text style={s.strategyMethodLabel}>⚡ Avalanche (lowest total interest)</Text>
+                                    {debtOpt.avalanche.order.map((name, i) => (
+                                        <Text key={i} style={s.strategyOrderItem}>{i + 1}. {name}</Text>
+                                    ))}
+                                    <Text style={[s.strategySaved, { color: Colors.income }]}>
+                                        Saves {currency}{Math.abs(debtOpt.avalanche.totalInterestSaved).toLocaleString(undefined, { maximumFractionDigits: 0 })} in interest
+                                    </Text>
+                                </View>
+                                <View style={s.strategyMethod}>
+                                    <Text style={s.strategyMethodLabel}>❄️ Snowball (fastest wins)</Text>
+                                    {debtOpt.snowball.order.map((name, i) => (
+                                        <Text key={i} style={s.strategyOrderItem}>{i + 1}. {name}</Text>
+                                    ))}
+                                    <Text style={s.strategyOrderItem}>Clears smallest balance first for momentum</Text>
+                                </View>
+                            </View>
+                        </View>
+                    )}
 
                     {/* Loan Eligibility Tool */}
                     <TouchableOpacity onPress={() => navigate('loan-eligibility')} style={s.featureCard}>
@@ -549,6 +583,14 @@ const s = StyleSheet.create({
     },
 
     summaryRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
+    strategyCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 14, borderLeftWidth: 3, borderLeftColor: Colors.primary },
+    strategyTitle: { fontSize: 13, fontWeight: '800', color: Colors.textPrimary, marginBottom: 6 },
+    strategyRecommendation: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17, marginBottom: 12 },
+    strategyMethodRow: { flexDirection: 'row', gap: 10 },
+    strategyMethod: { flex: 1, backgroundColor: Colors.bg, borderRadius: 10, padding: 10 },
+    strategyMethodLabel: { fontSize: 11, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 },
+    strategyOrderItem: { fontSize: 11, color: Colors.textSecondary, marginBottom: 3 },
+    strategySaved: { fontSize: 11, fontWeight: '800', marginTop: 6 },
     summaryCard: { flex: 1, backgroundColor: Colors.surface, borderRadius: 10, padding: 12, alignItems: 'center' },
     summaryLabel: { fontSize: 10, color: Colors.textMuted, marginBottom: 3, textAlign: 'center' },
     summaryValue: { fontSize: 14, fontWeight: '700' },

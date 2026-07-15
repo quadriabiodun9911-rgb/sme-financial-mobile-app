@@ -5,6 +5,7 @@
 
 import { FinancialMetrics } from './financialDiagnosisEngine';
 import { ActionTactic } from './actionRecommendationEngine';
+import { FinancialGoal as SavedGoal, GoalType } from '../types';
 
 export interface FinancialGoal {
   id: string;
@@ -279,4 +280,34 @@ export function formatGoalBridge(bridge: GoalBridge, currency: string = '₦'): 
   }
 
   return lines.join('\n');
+}
+
+// ── Shared adapter: saved Goals-screen goal -> Goal Bridge engine goal ──
+// Used by both GoalsScreen (inline feasibility preview) and GoalBridgeScreen
+// (full roadmap), so both screens agree on the same mapping.
+const GOAL_TYPE_TO_BRIDGE: Record<GoalType, FinancialGoal['type']> = {
+  revenue_growth: 'revenue',
+  margin_improvement: 'margin',
+  cost_reduction: 'profit',
+  cash_reserve: 'cash',
+  reduce_overdue_ar: 'cash',
+  custom: 'profit',
+};
+
+export function mapSavedGoalToBridge(g: SavedGoal): FinancialGoal {
+  // Months remaining until the deadline (at least 1).
+  const msPerMonth = 30 * 24 * 60 * 60 * 1000;
+  const deadlineMs = new Date(g.deadline).getTime();
+  const monthsLeft = isNaN(deadlineMs)
+    ? 12
+    : Math.max(1, Math.round((deadlineMs - new Date().getTime()) / msPerMonth));
+
+  return {
+    id: g.id,
+    type: GOAL_TYPE_TO_BRIDGE[g.type] ?? 'profit',
+    currentValue: g.currentValue ?? g.baselineValue ?? 0,
+    targetValue: g.targetValue,
+    timelineMonths: monthsLeft,
+    description: g.title,
+  };
 }

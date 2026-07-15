@@ -4,38 +4,9 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
-import { calculateGoalBridge, FinancialGoal } from '../utils/goalBridgeEngine';
+import { calculateGoalBridge, mapSavedGoalToBridge, FinancialGoal } from '../utils/goalBridgeEngine';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan } from '../utils/actionRecommendationEngine';
-import { FinancialGoal as SavedGoal, GoalType } from '../types';
-
-// Map a saved Goals-screen goal into the shape the Goal Bridge engine expects.
-const GOAL_TYPE_TO_BRIDGE: Record<GoalType, FinancialGoal['type']> = {
-  revenue_growth: 'revenue',
-  margin_improvement: 'margin',
-  cost_reduction: 'profit',
-  cash_reserve: 'cash',
-  reduce_overdue_ar: 'cash',
-  custom: 'profit',
-};
-
-function mapSavedGoalToBridge(g: SavedGoal): FinancialGoal {
-  // Months remaining until the deadline (at least 1).
-  const msPerMonth = 30 * 24 * 60 * 60 * 1000;
-  const deadlineMs = new Date(g.deadline).getTime();
-  const monthsLeft = isNaN(deadlineMs)
-    ? 12
-    : Math.max(1, Math.round((deadlineMs - new Date().getTime()) / msPerMonth));
-
-  return {
-    id: g.id,
-    type: GOAL_TYPE_TO_BRIDGE[g.type] ?? 'profit',
-    currentValue: g.currentValue ?? g.baselineValue ?? 0,
-    targetValue: g.targetValue,
-    timelineMonths: monthsLeft,
-    description: g.title,
-  };
-}
 
 export default function GoalBridgeScreen() {
   const { transactions, invoices, finance, settings, goals, navParams, setCurrentScreen } = useApp();

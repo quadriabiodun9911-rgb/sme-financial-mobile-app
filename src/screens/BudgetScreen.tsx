@@ -9,6 +9,8 @@ import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { computeBudgetVsActual } from '../utils/finance';
 import { totalMonthlyLoanBurden } from '../utils/loanMath';
+import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
+import { generateExpenseReductionActions } from '../utils/actionRecommendationEngine';
 import { Budget } from '../types';
 
 const EXPENSE_CATEGORIES = [
@@ -18,7 +20,7 @@ const EXPENSE_CATEGORIES = [
 ];
 
 export default function BudgetScreen() {
-    const { transactions, budgets, addBudget, updateBudget, deleteBudget, settings, navigate, finance, loans } = useApp();
+    const { transactions, budgets, addBudget, updateBudget, deleteBudget, settings, navigate, finance, loans, invoices } = useApp();
     const { currency } = settings;
 
     const now = new Date();
@@ -71,6 +73,16 @@ export default function BudgetScreen() {
     const overRevenue = totalCommitments > monthlyRevenue;
     const overSafeCap = totalCommitments > safeCap && !overRevenue;
     const pastSuggestion = pastAvgByCat[customCat.trim() || category];
+
+    // Concrete reduction tactics for the categories actually driving spend —
+    // reuses the same diagnosis + action engine as the AI Advisor, so budget
+    // guidance is specific ("negotiate X vendor, target 15% cut") instead of
+    // a generic "you're over budget" flag.
+    const expenseTactics = useMemo(() => {
+        if (transactions.length < 5) return [];
+        const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, finance.expense || 1, settings.currency);
+        return generateExpenseReductionActions(diagnosis, diagnosis.metrics, settings.currency).slice(0, 3);
+    }, [transactions, invoices, finance.cashBalance, finance.expense, settings.currency]);
 
     function openAdd() {
         setEditingId(null);
@@ -212,6 +224,26 @@ export default function BudgetScreen() {
                                         : `✓ Healthy plan: keeps ${currency}${projectedProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })} profit (${monthlyRevenue > 0 ? ((projectedProfit / monthlyRevenue) * 100).toFixed(0) : 0}% margin). Recommended max spend: ${currency}${safeCap.toLocaleString(undefined, { maximumFractionDigits: 0 })}.`}
                             </Text>
                         </View>
+                    </View>
+                )}
+
+                {/* Concrete reduction tactics for your biggest expense categories */}
+                {expenseTactics.length > 0 && (
+                    <View style={s.strategyCard}>
+                        <Text style={s.strategyTitle}>✂️ Cost Reduction Tactics</Text>
+                        {expenseTactics.map((tac) => (
+                            <View key={tac.id} style={s.tacticRow}>
+                                <Text style={s.tacticTitle}>{tac.title}</Text>
+                                <Text style={s.tacticRationale}>{tac.rationale}</Text>
+                                <View style={s.tacticMetaRow}>
+                                    <Text style={[s.tacticMeta, { color: Colors.income, fontWeight: '700' }]}>
+                                        Save ~{currency}{Math.round(tac.expectedImpact).toLocaleString()}
+                                    </Text>
+                                    <Text style={s.tacticMeta}>⏱ {tac.timeframe}</Text>
+                                    <Text style={s.tacticMeta}>✓ {(tac.successProbability * 100).toFixed(0)}% likely</Text>
+                                </View>
+                            </View>
+                        ))}
                     </View>
                 )}
 
@@ -378,6 +410,12 @@ const s = StyleSheet.create({
 
     suggestChip:     { backgroundColor: Colors.primary + '15', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 10, marginTop: 8, marginBottom: 4 },
     suggestChipText: { fontSize: 11, color: Colors.primary, fontWeight: '600' },
+
+    tacticRow: { paddingVertical: 10, borderTopWidth: 1, borderTopColor: Colors.border },
+    tacticTitle: { fontSize: 12, fontWeight: '700', color: Colors.textPrimary, marginBottom: 3 },
+    tacticRationale: { fontSize: 11, color: Colors.textSecondary, lineHeight: 16, marginBottom: 6 },
+    tacticMetaRow: { flexDirection: 'row', gap: 12 },
+    tacticMeta: { fontSize: 10, color: Colors.textMuted, fontWeight: '600' },
 
     emptyState:    { alignItems: 'center', paddingVertical: 40 },
     emptyTitle:    { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 8 },

@@ -10,6 +10,9 @@ import FooterNav from '../components/FooterNav';
 import DateInput from '../components/DateInput';
 import { GoalType, FinancialGoal, Transaction } from '../types';
 import { generateStrategy, goalDefaults } from '../utils/goals';
+import { calculateGoalBridge, mapSavedGoalToBridge } from '../utils/goalBridgeEngine';
+import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
+import { generateActionPlan } from '../utils/actionRecommendationEngine';
 
 const GOAL_TYPES: { type: GoalType; label: string; icon: string; description: string }[] = [
     { type: 'revenue_growth', label: 'Increase Revenue', icon: '📈', description: 'Grow total income to a target amount' },
@@ -37,7 +40,7 @@ const STATUS_LABELS: Record<FinancialGoal['status'], string> = {
 const PRIORITY_COLORS = { high: Colors.expense, medium: Colors.warning, low: Colors.textMuted };
 
 export default function GoalsScreen() {
-    const { goals, addGoal, deleteGoal, updateGoal, finance, transactions, settings, navParams, navigate } = useApp();
+    const { goals, addGoal, deleteGoal, updateGoal, finance, transactions, invoices, settings, navParams, navigate } = useApp();
     const { currency } = settings;
 
     const [addModalOpen, setAddModalOpen] = useState(false);
@@ -55,6 +58,27 @@ export default function GoalsScreen() {
     });
 
     const PCT_TYPES: GoalType[] = ['revenue_growth', 'cost_reduction', 'margin_improvement'];
+
+    // Feasibility per goal — reuses the same root-cause diagnosis + tactics
+    // engine as Goal Bridge, so every goal card shows at a glance whether it's
+    // realistic (EASY/MEDIUM/DIFFICULT) and what monthly improvement it needs,
+    // instead of only revealing that after tapping into a separate screen.
+    const feasibilityByGoalId = useMemo(() => {
+        if (transactions.length < 5 || goals.length === 0) return {};
+        const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, finance.expense || 1, settings.currency);
+        const tactics = generateActionPlan(diagnosis, diagnosis.metrics, settings.currency);
+        const allTactics = [...tactics.immediateActions, ...tactics.shortTermActions, ...tactics.strategicActions];
+        const map: Record<string, { feasibility: string; requiredMonthlyImprovement: number; successProbability: number }> = {};
+        for (const g of goals) {
+            const bridge = calculateGoalBridge(mapSavedGoalToBridge(g), diagnosis.metrics, allTactics, settings.currency);
+            map[g.id] = {
+                feasibility: bridge.feasibility,
+                requiredMonthlyImprovement: bridge.requiredMonthlyImprovement,
+                successProbability: bridge.successProbability,
+            };
+        }
+        return map;
+    }, [transactions, invoices, finance.cashBalance, finance.expense, goals, settings.currency]);
 
     const strategyGoal = useMemo(
         () => goals.find(g => g.id === strategyGoalId) ?? null,
@@ -198,6 +222,7 @@ export default function GoalsScreen() {
                                     goal={goal}
                                     currency={currency}
                                     daysRemaining={daysRemaining(goal.deadline)}
+                                    feasibility={feasibilityByGoalId[goal.id]}
                                     onStrategy={() => setStrategyGoalId(goal.id)}
                                     onBridge={() => navigate('goal-bridge', { goalId: goal.id })}
                                     onEdit={() => openEditModal(goal)}
@@ -433,10 +458,11 @@ function DailyActionsSection({ goal, transactions, currency }: { goal: Financial
     );
 }
 
-function GoalCard({ goal, currency, daysRemaining, onStrategy, onBridge, onEdit, onDelete }: {
+function GoalCard({ goal, currency, daysRemaining, feasibility, onStrategy, onBridge, onEdit, onDelete }: {
     goal: FinancialGoal;
     currency: string;
     daysRemaining: string;
+    feasibility?: { feasibility: string; requiredMonthlyImprovement: number; successProbability: number };
     onStrategy: () => void;
     onBridge: () => void;
     onEdit: () => void;
@@ -447,6 +473,7 @@ function GoalCard({ goal, currency, daysRemaining, onStrategy, onBridge, onEdit,
     const unit = goal.unit === '%' ? '%' : currency;
 
     const isAchieved = goal.status === 'achieved';
+    const feasColor = feasibility?.feasibility === 'easy' ? Colors.income : feasibility?.feasibility === 'medium' ? Colors.warning : Colors.expense;
     return (
         <View style={[cardStyles.card, { borderTopColor: statusColor }, isAchieved && cardStyles.achievedCard]}>
             <View style={cardStyles.header}>
@@ -460,6 +487,17 @@ function GoalCard({ goal, currency, daysRemaining, onStrategy, onBridge, onEdit,
             </View>
 
             {goal.description ? <Text style={cardStyles.desc}>{goal.description}</Text> : null}
+
+            {/* Feasibility preview — how realistic is this goal, and what does
+                it actually take, without needing to open Goal Bridge first. */}
+            {!isAchieved && feasibility && (
+                <View style={[cardStyles.feasRow, { borderColor: feasColor + '55', backgroundColor: feasColor + '12' }]}>
+                    <Text style={[cardStyles.feasBadge, { color: feasColor }]}>{feasibility.feasibility.toUpperCase()}</Text>
+                    <Text style={cardStyles.feasText}>
+                        Needs {currency}{Math.round(Math.abs(feasibility.requiredMonthlyImprovement)).toLocaleString()}/mo · {(feasibility.successProbability * 100).toFixed(0)}% likely
+                    </Text>
+                </View>
+            )}
 
             {/* Progress bar + key numbers */}
             {(isNaN(goal.progress) || goal.progress <= 0) ? (
@@ -537,6 +575,9 @@ const cardStyles = StyleSheet.create({
     titleRow: { flexDirection: 'row', flex: 1, alignItems: 'flex-start', marginRight: 8 },
     trophy: { fontSize: 14 },
     title: { fontSize: 15, fontWeight: 'bold', color: Colors.textPrimary, flex: 1 },
+    feasRow: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 10 },
+    feasBadge: { fontSize: 10, fontWeight: '800' },
+    feasText: { fontSize: 11, color: Colors.textSecondary, flex: 1 },
     bigNumbers: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 12, backgroundColor: Colors.bg, borderRadius: 10, padding: 10 },
     bigNum: { alignItems: 'center' },
     bigNumVal: { fontSize: 16, fontWeight: 'bold', color: Colors.textPrimary },
