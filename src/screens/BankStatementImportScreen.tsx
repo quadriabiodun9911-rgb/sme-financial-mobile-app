@@ -9,6 +9,7 @@ import {
   Alert,
   Modal,
   FlatList,
+  TextInput,
 } from 'react-native';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
@@ -56,6 +57,8 @@ export default function BankStatementImportScreen() {
   const [skipMapping, setSkipMapping] = useState(false);
   const [savedProfiles, setSavedProfiles] = useState<BankProfile[]>([]);
   const [showProfiles, setShowProfiles] = useState(false);
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [bankNameInput, setBankNameInput] = useState('');
 
   // Load profiles when screen mounts or on upload step
   useEffect(() => {
@@ -204,52 +207,32 @@ export default function BankStatementImportScreen() {
 
       setImportedCount(addedCount);
 
-      // If this was a new format (not a saved profile), offer to save it
+      // If this was a new format (not a saved profile), offer to save it via a
+      // cross-platform modal (Alert.prompt is iOS-only and fails on web/Android).
       if (!matchedProfile && !skipMapping) {
-        Alert.alert(
-          'Save Bank Format?',
-          'Would you like to save this column mapping for future imports?',
-          [
-            {
-              text: 'Not Now',
-              onPress: () => setStep('complete'),
-              style: 'cancel',
-            },
-            {
-              text: 'Save Format',
-              onPress: async () => {
-                Alert.prompt(
-                  'Save Bank Format',
-                  'Enter bank name (e.g., GTBank, UBA, Access Bank):',
-                  [
-                    { text: 'Cancel', onPress: () => setStep('complete') },
-                    {
-                      text: 'Save',
-                      onPress: async (bankName) => {
-                        if (bankName && bankName.trim()) {
-                          try {
-                            const headerRow = csvRows[0].split(',').map(h => h.trim());
-                            await saveBankProfile(bankName.trim(), columnMapping, headerRow);
-                            Alert.alert('Success', `Saved "${bankName}" format for future imports`);
-                          } catch (error) {
-                            console.error('Error saving profile:', error);
-                          }
-                        }
-                        setStep('complete');
-                      },
-                    },
-                  ]
-                );
-              },
-            },
-          ]
-        );
+        setBankNameInput('');
+        setShowSaveModal(true);
       } else {
         setStep('complete');
       }
     } catch (error) {
       Alert.alert('Error', `Failed to import transactions: ${error}`);
     }
+  };
+
+  const handleSaveFormat = async () => {
+    const name = bankNameInput.trim();
+    if (name && columnMapping && csvRows.length > 0) {
+      try {
+        const headerRow = csvRows[0].split(',').map(h => h.trim());
+        await saveBankProfile(name, columnMapping, headerRow);
+        Alert.alert('Success', `Saved "${name}" format for future imports`);
+      } catch (error) {
+        console.error('Error saving profile:', error);
+      }
+    }
+    setShowSaveModal(false);
+    setStep('complete');
   };
 
   const extractVendorCustomer = (description: string): string => {
@@ -294,25 +277,21 @@ export default function BankStatementImportScreen() {
             <Text style={styles.sampleButtonText}>📋 Load Sample CSV</Text>
           </TouchableOpacity>
 
-          {/* CSV Input */}
+          {/* CSV Input — real cross-platform text field (works on web/Android/iOS) */}
           <Text style={styles.inputLabel}>Paste CSV Content:</Text>
           <View style={styles.textInputContainer}>
-            <Text
+            <TextInput
               style={styles.textInput}
-              onPress={() => {
-                Alert.prompt('Enter CSV Data', 'Paste your bank statement CSV:', [
-                  { text: 'Cancel', onPress: () => {} },
-                  {
-                    text: 'OK',
-                    onPress: (text) => {
-                      if (text) setCsvContent(text);
-                    },
-                  },
-                ]);
-              }}
-            >
-              {csvContent || 'Tap to enter CSV data...'}
-            </Text>
+              value={csvContent}
+              onChangeText={setCsvContent}
+              placeholder={'Paste your bank statement CSV here...\nDate,Description,Amount,Type'}
+              placeholderTextColor={Colors.textMuted}
+              multiline
+              numberOfLines={8}
+              textAlignVertical="top"
+              autoCorrect={false}
+              autoCapitalize="none"
+            />
           </View>
 
           {csvContent && (
@@ -710,6 +689,42 @@ export default function BankStatementImportScreen() {
             </TouchableOpacity>
           </View>
         </ScrollView>
+
+        {/* Save Bank Format Modal (cross-platform replacement for Alert.prompt) */}
+        <Modal visible={showSaveModal} transparent animationType="fade" onRequestClose={() => handleSaveFormat()}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { paddingBottom: 20 }]}>
+              <Text style={styles.modalTitle}>💾 Save Bank Format?</Text>
+              <Text style={[styles.infoText, { marginBottom: 12 }]}>
+                Name this bank so we can auto-recognize its format next time (optional).
+              </Text>
+              <TextInput
+                style={styles.input}
+                value={bankNameInput}
+                onChangeText={setBankNameInput}
+                placeholder="e.g., GTBank, UBA, Access Bank"
+                placeholderTextColor={Colors.textMuted}
+                autoFocus
+                autoCapitalize="words"
+              />
+              <View style={[styles.buttonContainer, { marginTop: 16 }]}>
+                <TouchableOpacity
+                  style={[styles.button, styles.secondaryButton]}
+                  onPress={() => { setShowSaveModal(false); setStep('complete'); }}
+                >
+                  <Text style={[styles.buttonText, styles.secondaryButtonText]}>Not Now</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.button, styles.primaryButton, { marginBottom: 0 }]}
+                  onPress={handleSaveFormat}
+                >
+                  <Text style={styles.buttonText}>Save Format</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
         <FooterNav />
       </SafeAreaView>
     );
@@ -879,7 +894,17 @@ const styles = StyleSheet.create({
     minHeight: 120,
     marginBottom: 12,
   },
-  textInput: { fontSize: 11, color: Colors.textSecondary, lineHeight: 17 },
+  textInput: { fontSize: 11, color: Colors.textSecondary, lineHeight: 17, minHeight: 100, padding: 0 },
+  input: {
+    backgroundColor: Colors.surface,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: Colors.textPrimary,
+  },
 
   previewBox: {
     backgroundColor: Colors.bg,
