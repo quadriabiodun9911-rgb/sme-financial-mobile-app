@@ -1,6 +1,7 @@
 import React, { Component, ReactNode } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView } from 'react-native';
 import { Colors } from '../theme/colors';
+import { BUILD_STAMP } from '../utils/buildInfo';
 
 interface Props { children: ReactNode }
 interface State { error: Error | null; stack: string }
@@ -35,6 +36,7 @@ export default class ErrorBoundary extends Component<Props, State> {
                     <Text style={s.icon}>⚠️</Text>
                     <Text style={s.title}>Something went wrong</Text>
                     <Text style={s.message}>{error.message}</Text>
+                    <Text style={s.buildStamp}>build {BUILD_STAMP}</Text>
                     {!!stack && (
                         <ScrollView style={s.stackBox} contentContainerStyle={{ padding: 10 }}>
                             <Text style={s.stackText}>{stack}</Text>
@@ -54,7 +56,8 @@ const s = StyleSheet.create({
     container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
     icon:      { fontSize: 48, marginBottom: 16 },
     title:     { fontSize: 20, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 10, textAlign: 'center' },
-    message:   { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 20, marginBottom: 16 },
+    message:   { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 20, marginBottom: 8 },
+    buildStamp:{ fontSize: 10, color: Colors.textMuted, opacity: 0.6, marginBottom: 16, fontFamily: 'monospace' },
     stackBox:  { maxHeight: 140, alignSelf: 'stretch', backgroundColor: Colors.surface, borderRadius: 8, marginBottom: 20 },
     stackText: { fontSize: 10, color: Colors.textMuted, fontFamily: 'monospace' },
     btn:       { backgroundColor: Colors.primary, paddingVertical: 12, paddingHorizontal: 32, borderRadius: 8 },
