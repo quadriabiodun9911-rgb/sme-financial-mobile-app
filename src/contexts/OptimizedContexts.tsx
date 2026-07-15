@@ -24,12 +24,21 @@ import {
   loadStaff, saveStaff,
   loadPayrollRuns, savePayrollRuns,
   loadCashPockets, saveCashPockets,
-  saveProfile, savePin, loadPin,
+  saveProfile, loadProfile, savePin, loadPin,
   clearAllData, exportAllData, importAllData,
-  inviteTeamMember, removeTeamMember, loadTeamMembers,
+  inviteTeamMember, removeTeamMember, loadTeamMembers, joinTeamWithCode,
+  setWorkspaceOwner, clearWorkspaceOwner,
 } from '../utils/storage';
 import { TeamMember } from '../types';
+import { supabase } from '../utils/supabase';
 import CryptoJS from 'crypto-js';
+
+const PIN_SALT = 'Q360_SME_2025';
+function hashPin(pin: string): string {
+  return CryptoJS.SHA256(pin + PIN_SALT).toString(CryptoJS.enc.Hex) + '_Q360';
+}
+const LOCKOUT_KEY = '@quad360/lockoutUntil';
+const ATTEMPTS_KEY = '@quad360/loginAttempts';
 
 // Simple monotonic id generator for records created client-side.
 let _idCounter = 0;
@@ -499,7 +508,7 @@ interface AuthContextValue {
   setCurrentScreen: (screen: string) => void;
   navigate: (screen: string, params?: any) => void;
   navParams: any;
-  login: (email: string, password: string) => Promise<void>;
+  login: (pin: string) => Promise<boolean>;
   logout: () => Promise<void>;
   updateProfile: (patch: Partial<Pick<User, 'phone' | 'businessName'>>) => void;
   changePin: (currentPin: string, newPin: string) => Promise<{ ok: boolean }>;
@@ -514,6 +523,12 @@ interface AuthContextValue {
   inviteMember: (email: string, role: 'accountant' | 'staff') => Promise<string>;
   removeMember: (id: string) => Promise<void>;
   refreshTeam: () => Promise<void>;
+  isFirstLaunch: boolean;
+  isLockedOut: boolean;
+  lockoutUntil: number | null;
+  setupAccount: (email: string, businessName: string, pin: string, loadDemo: boolean, phone?: string) => Promise<void>;
+  recoverAccount: (email: string, pin: string) => Promise<void>;
+  joinTeam: (email: string, pin: string, inviteCode: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -525,19 +540,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [navParams, setNavParams] = useState<any>(null);
   const [isDemoMode, setIsDemoMode] = useState(false);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [isFirstLaunch, setIsFirstLaunch] = useState(false);
+  const [isLockedOut, setIsLockedOut] = useState(false);
+  const [lockoutUntil, setLockoutUntil] = useState<number | null>(null);
 
   // Destructive resets clear storage, then reload so every provider re-hydrates
   // from the now-empty (or restored) state. Web-only reload; safe no-op elsewhere.
   const reloadApp = () => { if (typeof window !== 'undefined' && window.location) window.location.reload(); };
 
-  // Initialize auth state on mount
+  // Initialize auth state on mount: restore a saved profile as the logged-in
+  // user, or flag first launch so LoginScreen shows account setup, not login.
   useEffect(() => {
     (async () => {
       try {
-        const savedUser = await AsyncStorage.getItem('@quad360/profile');
-        if (savedUser) {
-          setUser(JSON.parse(savedUser));
+        const [profile, lockoutRaw] = await Promise.all([
+          loadProfile(),
+          AsyncStorage.getItem(LOCKOUT_KEY),
+        ]);
+        if (profile) {
+          setUser({ email: profile.email, businessName: profile.businessName, phone: profile.phone, role: 'Administrator' });
           setCurrentScreenState('dashboard');
+        } else {
+          setIsFirstLaunch(true);
+        }
+        const lockout = lockoutRaw ? parseInt(lockoutRaw, 10) : null;
+        if (lockout && Date.now() < lockout) {
+          setIsLockedOut(true);
+          setLockoutUntil(lockout);
         }
       } catch (e) {
         console.error('[Auth] Failed to restore session:', e);
@@ -555,30 +584,101 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       navParams,
       setCurrentScreen: (screen: string) => { setNavParams(null); setCurrentScreenState(screen); },
       navigate: (screen: string, params?: any) => { setNavParams(params ?? null); setCurrentScreenState(screen); },
-      login: async (email, password) => {
-        setIsLoading(true);
-        try {
-          // API call
-          const response = await fetch('/api/login', {
-            method: 'POST',
-            body: JSON.stringify({ email, password }),
-          });
-          const userData = await response.json();
-          setUser(userData);
-          setCurrentScreenState('dashboard');
-        } finally {
-          setIsLoading(false);
+      isFirstLaunch,
+      isLockedOut,
+      lockoutUntil,
+      // PIN login: verify against the securely-stored hash, with lockout
+      // after 5 failed attempts for 15 minutes.
+      login: async (pin: string): Promise<boolean> => {
+        if (isLockedOut && lockoutUntil && Date.now() < lockoutUntil) return false;
+        if (isLockedOut && lockoutUntil && Date.now() >= lockoutUntil) {
+          setIsLockedOut(false); setLockoutUntil(null);
+          await AsyncStorage.multiRemove([LOCKOUT_KEY, ATTEMPTS_KEY]).catch(() => {});
         }
+        const savedPin = await loadPin();
+        if (hashPin(pin) !== savedPin) {
+          const attemptsRaw = await AsyncStorage.getItem(ATTEMPTS_KEY);
+          const attempts = (attemptsRaw ? parseInt(attemptsRaw, 10) : 0) + 1;
+          await AsyncStorage.setItem(ATTEMPTS_KEY, String(attempts)).catch(() => {});
+          if (attempts >= 5) {
+            const until = Date.now() + 15 * 60 * 1000;
+            setIsLockedOut(true); setLockoutUntil(until);
+            await AsyncStorage.setItem(LOCKOUT_KEY, String(until)).catch(() => {});
+          }
+          return false;
+        }
+        await AsyncStorage.multiRemove([LOCKOUT_KEY, ATTEMPTS_KEY]).catch(() => {});
+        setIsLockedOut(false); setLockoutUntil(null);
+        const profile = await loadProfile();
+        if (!profile) return false;
+        // Best-effort cloud session — never block a successful local PIN match.
+        supabase.auth.signInWithPassword({ email: profile.email, password: hashPin(pin) }).catch(() => {});
+        setUser({ email: profile.email, businessName: profile.businessName, phone: profile.phone, role: 'Administrator' });
+        setCurrentScreenState('dashboard');
+        return true;
       },
       logout: async () => {
         setIsLoading(true);
         try {
-          await fetch('/api/logout', { method: 'POST' });
+          await supabase.auth.signOut().catch(() => {});
+          await clearWorkspaceOwner().catch(() => {});
           setUser(null);
           setCurrentScreenState('login');
         } finally {
           setIsLoading(false);
         }
+      },
+      setupAccount: async (email, businessName, pin, _loadDemo, phone) => {
+        // Supabase auth is best-effort — never block local account creation.
+        try {
+          const { error: signUpError } = await supabase.auth.signUp({ email, password: hashPin(pin) });
+          if (signUpError) {
+            const msg = signUpError.message.toLowerCase();
+            if (msg.includes('already registered') || msg.includes('already been registered') || msg.includes('user already exists') || msg.includes('email address is already')) {
+              throw new Error('User already registered');
+            }
+          } else {
+            await supabase.auth.signInWithPassword({ email, password: hashPin(pin) }).catch(() => {});
+          }
+        } catch (e: any) {
+          if ((e?.message ?? '').includes('already registered')) throw e;
+        }
+        await clearWorkspaceOwner().catch(() => {});
+        await savePin(pin);
+        await saveProfile({ email, businessName, phone });
+        setIsFirstLaunch(false);
+        setUser({ email, businessName, role: 'Administrator', phone });
+        setCurrentScreenState('dashboard');
+      },
+      recoverAccount: async (email, pin) => {
+        // Called after a successful Supabase sign-in — pull this user's profile
+        // (or create a local one) so their data (synced by email/session) loads.
+        await savePin(pin).catch(() => {});
+        let profile = await loadProfile();
+        if (!profile || profile.email !== email) {
+          profile = { email, businessName: profile?.businessName ?? 'My Business' };
+          await saveProfile(profile);
+        }
+        setIsFirstLaunch(false);
+        setUser({ email: profile.email, businessName: profile.businessName, phone: profile.phone, role: 'Administrator' });
+        setCurrentScreenState('dashboard');
+      },
+      joinTeam: async (email, pin, inviteCode) => {
+        const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({ email, password: hashPin(pin) });
+        let authUserId = signUpData?.user?.id;
+        if (signUpErr) {
+          const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({ email, password: hashPin(pin) });
+          if (signInErr) throw new Error(signInErr.message);
+          authUserId = signInData.user?.id;
+        }
+        if (!authUserId) throw new Error('Could not authenticate.');
+        const { ownerId, role } = await joinTeamWithCode(authUserId, inviteCode);
+        await setWorkspaceOwner(ownerId);
+        await savePin(pin);
+        await saveProfile({ email, businessName: 'Team Member' });
+        setIsFirstLaunch(false);
+        setUser({ email, businessName: 'Team Member', role: role === 'accountant' ? 'Accountant' : 'Staff' });
+        setCurrentScreenState('dashboard');
       },
 
       updateProfile: (patch) => {
@@ -625,7 +725,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setTeamMembers(members);
       },
     }),
-    [user, isLoading, currentScreen, navParams, isDemoMode, teamMembers]
+    [user, isLoading, currentScreen, navParams, isDemoMode, teamMembers, isFirstLaunch, isLockedOut, lockoutUntil]
   );
 
   return (
@@ -856,17 +956,17 @@ export function useApp() {
     userRole: 'owner' as const,
     inviteMember: auth.inviteMember || (async () => ''),
     removeMember: auth.removeMember || (() => Promise.resolve()),
-    joinTeam: () => Promise.resolve(),
+    joinTeam: auth.joinTeam,
     refreshTeam: auth.refreshTeam || (() => Promise.resolve()),
 
     // Other missing properties
     navParams: auth.navParams ?? {},
-    isFirstLaunch: false,
+    isFirstLaunch: auth.isFirstLaunch,
     pendingSyncCount: 0,
-    lockoutUntil: null,
-    isLockedOut: false,
+    lockoutUntil: auth.lockoutUntil,
+    isLockedOut: auth.isLockedOut,
     applyForMerchantFinancing: () => Promise.resolve(),
-    setupAccount: () => Promise.resolve(),
+    setupAccount: auth.setupAccount,
     updateProfile: auth.updateProfile || (() => {}),
     updateInventoryItem: finance?.updateInventoryItem || (() => {}),
     addInventoryItem: finance?.addInventoryItem || (() => {}),
@@ -879,7 +979,7 @@ export function useApp() {
     resetApp: auth.resetApp || (() => Promise.resolve()),
     resetBusinessData: auth.resetBusinessData || (() => Promise.resolve()),
     deleteAccount: auth.deleteAccount || (() => Promise.resolve()),
-    recoverAccount: () => Promise.resolve(),
+    recoverAccount: auth.recoverAccount,
     importData: async (json) => { await importAllData(json); if (typeof window !== 'undefined' && window.location) window.location.reload(); },
     exportData: () => exportAllData(transactions, (settings?.settings as any), goalsArray),
     enterDemo: auth.enterDemo || (() => {}),
