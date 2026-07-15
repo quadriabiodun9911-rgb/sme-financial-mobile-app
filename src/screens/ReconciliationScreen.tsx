@@ -125,6 +125,17 @@ export default function ReconciliationScreen() {
             }));
 
             if (parsed.length === 0) { Alert.alert('No valid rows found'); return; }
+
+            // How many pasted rows already match a recorded app transaction.
+            // We do NOT drop these — reconciliation needs them to show as "Matched" —
+            // but we tell the user so overlap with the Dashboard import is visible.
+            const alreadyRecorded = parsed.filter(p =>
+                isDuplicateTransaction(
+                    { date: p.date, description: p.description, amount: p.amount, type: p.type === 'credit' ? 'income' : 'expense' },
+                    transactions as any
+                )
+            ).length;
+
             let addedCount = 0;
             setBankTxs(prev => {
                 const existingIds = new Set(prev.map(b => `${b.date}-${b.amount}-${b.description}`));
@@ -134,7 +145,10 @@ export default function ReconciliationScreen() {
             });
             setCsvText('');
             setTab('matched');
-            Alert.alert('Imported', `${parsed.length} rows parsed, ${addedCount} new bank transactions added.`);
+            const recordedNote = alreadyRecorded > 0
+                ? `\n\n${alreadyRecorded} of these are already in your recorded transactions and will appear under "Matched".`
+                : '';
+            Alert.alert('Imported', `${parsed.length} rows parsed, ${addedCount} new bank transactions added.${recordedNote}`);
         } catch {
             Alert.alert('Parse Error', 'Could not parse the CSV. Check format.');
         }
@@ -262,15 +276,24 @@ export default function ReconciliationScreen() {
                         {bankTxs.length > 0 && (
                             <View style={[styles.card, { marginTop: 16 }]}>
                                 <Text style={styles.cardTitle}>{bankTxs.length} Bank Transactions Loaded</Text>
-                                {bankTxs.slice(0, 5).map(b => (
-                                    <View key={b.id} style={styles.miniRow}>
-                                        <Text style={styles.miniDate}>{b.date}</Text>
-                                        <Text style={styles.miniDesc} numberOfLines={1}>{b.description}</Text>
-                                        <Text style={[styles.miniAmt, { color: b.type === 'credit' ? Colors.income : Colors.expense }]}>
-                                            {b.type === 'credit' ? '+' : '-'}{fmt(b.amount)}
-                                        </Text>
-                                    </View>
-                                ))}
+                                {bankTxs.slice(0, 5).map(b => {
+                                    const recorded = isDuplicateTransaction(
+                                        { date: b.date, description: b.description, amount: b.amount, type: b.type === 'credit' ? 'income' : 'expense' },
+                                        transactions as any
+                                    );
+                                    return (
+                                        <View key={b.id} style={styles.miniRow}>
+                                            <Text style={styles.miniDate}>{b.date}</Text>
+                                            <Text style={styles.miniDesc} numberOfLines={1}>
+                                                {b.description}{recorded ? ' ✓' : ''}
+                                            </Text>
+                                            {recorded && <Text style={styles.recordedTag}>recorded</Text>}
+                                            <Text style={[styles.miniAmt, { color: b.type === 'credit' ? Colors.income : Colors.expense }]}>
+                                                {b.type === 'credit' ? '+' : '-'}{fmt(b.amount)}
+                                            </Text>
+                                        </View>
+                                    );
+                                })}
                                 {bankTxs.length > 5 && <Text style={styles.moreNote}>+{bankTxs.length - 5} more… switch to Matched/Unmatched tabs</Text>}
                             </View>
                         )}
@@ -450,6 +473,7 @@ const styles = StyleSheet.create({
     miniDate: { fontSize: 11, color: Colors.textMuted, width: 72 },
     miniDesc: { flex: 1, fontSize: 12, color: Colors.textSecondary },
     miniAmt:  { fontSize: 12, fontWeight: '700', minWidth: 70, textAlign: 'right' },
+    recordedTag: { fontSize: 9, fontWeight: '700', color: Colors.income, backgroundColor: Colors.income + '22', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' },
     moreNote: { fontSize: 11, color: Colors.textMuted, marginTop: 8, textAlign: 'center' },
 
     empty: { alignItems: 'center', paddingVertical: 48 },
