@@ -431,6 +431,24 @@ export default function DashboardScreen() {
                   </View>
                 </View>
 
+                {/* SECTION 4C: Bank Statement Import */}
+                <TouchableOpacity
+                  style={styles.importCard}
+                  onPress={() => setCurrentScreen('bank-statement-import')}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.importCardContent}>
+                    <Text style={styles.importCardEmoji}>📥</Text>
+                    <View style={styles.importCardText}>
+                      <Text style={styles.importCardTitle}>Import Bank Statement</Text>
+                      <Text style={styles.importCardSubtitle}>
+                        Upload CSV → Auto-generate tactics & insights
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.importCardArrow}>→</Text>
+                </TouchableOpacity>
+
                 {/* SECTION 5: Financing Status */}
                 {!isDemoMode && user && (
                     <View style={styles.operationsSection}>
@@ -1205,6 +1223,46 @@ const styles = StyleSheet.create({
       fontSize: 9,
       color: Colors.textMuted,
       textAlign: 'center',
+    },
+
+    importCard: {
+      backgroundColor: Colors.warning + '15',
+      borderRadius: 14,
+      padding: 14,
+      marginBottom: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderWidth: 1.5,
+      borderColor: Colors.warning,
+      gap: 12,
+    },
+    importCardContent: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    importCardEmoji: {
+      fontSize: 32,
+    },
+    importCardText: {
+      flex: 1,
+    },
+    importCardTitle: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: Colors.warning,
+      marginBottom: 2,
+    },
+    importCardSubtitle: {
+      fontSize: 10,
+      color: Colors.textSecondary,
+      lineHeight: 14,
+    },
+    importCardArrow: {
+      fontSize: 16,
+      color: Colors.warning,
+      fontWeight: '700',
     },
 
     fab:     { position: 'absolute', right: 20, bottom: 80, width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.income, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 8 },

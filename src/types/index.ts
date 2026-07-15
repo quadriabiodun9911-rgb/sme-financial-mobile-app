@@ -26,7 +26,8 @@ export type Screen =
     | 'tax-planning'
     | 'credit-worthiness'
     | 'loan-eligibility'
-    | 'financial-coach';
+    | 'financial-coach'
+    | 'bank-statement-import';
 
 export interface Budget {
     id: string;

@@ -44,6 +44,7 @@ import UnderstandBusinessScreen from './src/screens/UnderstandBusinessScreen';
 import FinancialAssessmentScreen from './src/screens/FinancialAssessmentScreen';
 import ActionTrackerScreen from './src/screens/ActionTrackerScreen';
 import GoalBridgeScreen from './src/screens/GoalBridgeScreen';
+import BankStatementImportScreen from './src/screens/BankStatementImportScreen';
 
 function NavigatorContent() {
     const { user, isLoading, currentScreen, setCurrentScreen } = useAuth();
@@ -118,6 +119,7 @@ function NavigatorContent() {
             {currentScreen === 'financial-assessment' && <FinancialAssessmentScreen />}
             {currentScreen === 'action-tracker' && <ActionTrackerScreen />}
             {currentScreen === 'goal-bridge' && <GoalBridgeScreen />}
+            {currentScreen === 'bank-statement-import' && <BankStatementImportScreen />}
         </View>
     );
 }
