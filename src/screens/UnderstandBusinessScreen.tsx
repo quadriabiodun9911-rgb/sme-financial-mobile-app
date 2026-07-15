@@ -1,12 +1,51 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
+import DailyReportModal from '../components/DailyReportModal';
+import MonthlyReview from '../components/MonthlyReview';
+import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
+import { generateActionPlan } from '../utils/actionRecommendationEngine';
+
+const SEVERITY_COLOR: Record<string, string> = { critical: '#ef4444', warning: '#f59e0b', info: '#3b82f6' };
+const DIFFICULTY_LABEL: Record<string, string> = { easy: 'Easy', medium: 'Moderate', hard: 'Hard' };
 
 export default function UnderstandBusinessScreen() {
-  const { transactions, invoices, finance, settings } = useApp();
+  const { transactions, invoices, finance, settings, goals } = useApp();
+  const [showDailyReport, setShowDailyReport] = useState(false);
+  const [showMonthlyReview, setShowMonthlyReview] = useState(false);
+
+  // ── Real diagnosis + action engines (root-cause analysis + prioritized,
+  //    impact-scored tactics) — replaces the previous fixed-threshold rules
+  //    with the same machinery already used by Goal Bridge, so the AI
+  //    Advisor gives sophisticated, actionable, ranked guidance instead of
+  //    generic one-off observations. ──
+  const avgMonthlyExpense = useMemo(() => {
+    const months = new Set(transactions.filter(t => t.type === 'expense').map(t => (t.date || '').slice(0, 7)).filter(Boolean));
+    return months.size > 0 ? finance.expense / months.size : finance.expense;
+  }, [transactions, finance.expense]);
+
+  const diagnosis = useMemo(
+    () => performFinancialDiagnosis(transactions, invoices, finance.cashBalance, avgMonthlyExpense || 1, settings.currency),
+    [transactions, invoices, finance.cashBalance, avgMonthlyExpense, settings.currency]
+  );
+
+  const actionPlan = useMemo(
+    () => generateActionPlan(diagnosis, diagnosis.metrics, settings.currency),
+    [diagnosis, settings.currency]
+  );
+
+  // Data-sufficiency guard: a diagnosis from 1-2 transactions is noise, not
+  // insight — don't present it with false confidence.
+  const hasEnoughData = transactions.length >= 5;
+
+  const topTactics = [
+    ...actionPlan.immediateActions,
+    ...actionPlan.shortTermActions,
+    ...actionPlan.strategicActions,
+  ].slice(0, 4);
 
   const businessInsights = useMemo(() => {
     const now = new Date();
@@ -152,71 +191,6 @@ export default function UnderstandBusinessScreen() {
     return `${settings.currency}${amount.toFixed(0)}`;
   };
 
-  const generateAIInsights = () => {
-    const insights = [];
-
-    if (businessInsights.revenueGrowth > 20) {
-      insights.push({
-        emoji: '🚀',
-        title: 'Strong Growth Momentum',
-        text: `Revenue up ${businessInsights.revenueGrowth.toFixed(0)}% this month. Maintain this momentum with strategic marketing.`,
-        type: 'positive',
-      });
-    } else if (businessInsights.revenueGrowth < -10) {
-      insights.push({
-        emoji: '⚠️',
-        title: 'Revenue Decline Alert',
-        text: `Revenue down ${Math.abs(businessInsights.revenueGrowth).toFixed(0)}% this month. Review sales & pricing strategy.`,
-        type: 'warning',
-      });
-    }
-
-    if (businessInsights.overdueInvoices > 0) {
-      insights.push({
-        emoji: '💬',
-        title: 'Follow Up Customers',
-        text: `${businessInsights.overdueInvoices} invoice(s) overdue. ${formatCurrency(businessInsights.totalOutstanding)} at stake.`,
-        type: 'urgent',
-      });
-    }
-
-    if (monthlyAnalysis.profitMargin > 50) {
-      insights.push({
-        emoji: '💎',
-        title: 'Excellent Profitability',
-        text: `${monthlyAnalysis.profitMargin.toFixed(0)}% profit margin this month. Premium positioning working well.`,
-        type: 'positive',
-      });
-    } else if (monthlyAnalysis.profitMargin < 10 && monthlyAnalysis.monthlyRevenue > 0) {
-      insights.push({
-        emoji: '📉',
-        title: 'Low Margin Alert',
-        text: `Only ${monthlyAnalysis.profitMargin.toFixed(0)}% profit margin. Review costs or increase pricing.`,
-        type: 'warning',
-      });
-    }
-
-    if (finance.cashBalance < finance.expense) {
-      insights.push({
-        emoji: '🚨',
-        title: 'Cash Crisis Risk',
-        text: `Low cash position. You need ${formatCurrency(finance.expense - finance.cashBalance)} more to stay afloat.`,
-        type: 'critical',
-      });
-    }
-
-    if (businessInsights.topCategory) {
-      insights.push({
-        emoji: '⭐',
-        title: 'Top Revenue Driver',
-        text: `${businessInsights.topCategory[0]} is your strongest category. Focus marketing here.`,
-        type: 'positive',
-      });
-    }
-
-    return insights;
-  };
-
   return (
     <SafeAreaView style={styles.safe}>
       <Header />
@@ -230,7 +204,7 @@ export default function UnderstandBusinessScreen() {
         <View style={styles.sectionBox}>
           <Text style={styles.sectionTitle}>📊 AI ADVISOR</Text>
 
-          <TouchableOpacity style={styles.reportCard}>
+          <TouchableOpacity style={styles.reportCard} onPress={() => setShowDailyReport(true)}>
             <Text style={styles.reportEmoji}>📈</Text>
             <View style={styles.reportContent}>
               <Text style={styles.reportTitle}>Today's Report</Text>
@@ -239,7 +213,7 @@ export default function UnderstandBusinessScreen() {
             <Text style={styles.reportArrow}>›</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.reportCard}>
+          <TouchableOpacity style={styles.reportCard} onPress={() => setShowMonthlyReview(true)}>
             <Text style={styles.reportEmoji}>📋</Text>
             <View style={styles.reportContent}>
               <Text style={styles.reportTitle}>Monthly Review</Text>
@@ -249,20 +223,96 @@ export default function UnderstandBusinessScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* AI Insights */}
-        <View style={styles.sectionBox}>
-          <Text style={styles.sectionTitle}>💡 AI Insights</Text>
-
-          {generateAIInsights().map((insight, idx) => (
-            <View key={idx} style={styles.insightCard}>
-              <Text style={styles.insightEmoji}>{insight.emoji}</Text>
-              <View style={styles.insightContent}>
-                <Text style={styles.insightTitle}>{insight.title}</Text>
-                <Text style={styles.insightText}>{insight.text}</Text>
+        {!hasEnoughData ? (
+          <View style={styles.sectionBox}>
+            <Text style={styles.sectionTitle}>💡 AI Insights</Text>
+            <Text style={styles.insightText}>
+              Add a few more transactions (at least 5) so the advisor has enough history to diagnose your business reliably — early insights from very little data can be misleading.
+            </Text>
+          </View>
+        ) : (
+          <>
+            {/* Business Health Score — from the same root-cause engine that
+                powers Goal Bridge, not a separate shallow calculation. */}
+            <View style={styles.sectionBox}>
+              <Text style={styles.sectionTitle}>🩺 Business Health</Text>
+              <View style={styles.healthRow}>
+                <Text style={[styles.healthScore, { color: diagnosis.healthStatus === 'healthy' ? '#10b981' : diagnosis.healthStatus === 'warning' ? '#f59e0b' : '#ef4444' }]}>
+                  {diagnosis.overallHealth}
+                </Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.healthStatus}>{diagnosis.healthStatus.toUpperCase()}</Text>
+                  <Text style={styles.healthSub}>
+                    {diagnosis.diagnoses.filter(d => d.severity === 'critical').length} critical · {diagnosis.diagnoses.filter(d => d.severity === 'warning').length} warning issue(s) found
+                  </Text>
+                </View>
               </View>
             </View>
-          ))}
-        </View>
+
+            {/* Root Cause Diagnosis — ranked by severity, each with WHY it's
+                happening and the financial impact, not just "revenue is down". */}
+            <View style={styles.sectionBox}>
+              <Text style={styles.sectionTitle}>🔍 Root Cause Diagnosis</Text>
+              {diagnosis.diagnoses.length === 0 ? (
+                <Text style={styles.insightText}>No significant issues detected — your finances look healthy against industry benchmarks.</Text>
+              ) : diagnosis.diagnoses.slice(0, 5).map((d, idx) => (
+                <View key={idx} style={[styles.diagCard, { borderLeftColor: SEVERITY_COLOR[d.severity] }]}>
+                  <View style={styles.diagHeader}>
+                    <Text style={styles.diagProblem}>{d.problem}</Text>
+                    <View style={[styles.severityBadge, { backgroundColor: SEVERITY_COLOR[d.severity] + '22', borderColor: SEVERITY_COLOR[d.severity] }]}>
+                      <Text style={[styles.severityText, { color: SEVERITY_COLOR[d.severity] }]}>{d.severity.toUpperCase()}</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.diagLabel}>Why this is happening:</Text>
+                  <Text style={styles.diagText}>{d.rootCause}</Text>
+                  <Text style={styles.diagLabel}>Impact:</Text>
+                  <Text style={styles.diagText}>{d.impact}</Text>
+                  {d.financialImpact !== 0 && (
+                    <Text style={styles.diagImpact}>
+                      {settings.currency}{Math.abs(d.financialImpact).toLocaleString(undefined, { maximumFractionDigits: 0 })} {d.financialImpact > 0 ? 'opportunity' : 'at risk'}
+                    </Text>
+                  )}
+                  <Text style={styles.diagLabel}>Opportunity:</Text>
+                  <Text style={styles.diagOpportunity}>{d.opportunity}</Text>
+                </View>
+              ))}
+            </View>
+
+            {/* Prioritized Tactics — concrete, sequenced actions with success
+                probability and expected impact, not vague advice. */}
+            {topTactics.length > 0 && (
+              <View style={styles.sectionBox}>
+                <Text style={styles.sectionTitle}>🎯 Recommended Actions</Text>
+                {topTactics.map((tac) => (
+                  <View key={tac.id} style={styles.tacticCard}>
+                    <View style={styles.diagHeader}>
+                      <Text style={styles.diagProblem}>{tac.title}</Text>
+                      <View style={[styles.severityBadge, { backgroundColor: Colors.primary + '22', borderColor: Colors.primary }]}>
+                        <Text style={[styles.severityText, { color: Colors.primary }]}>P{tac.priority}</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.diagText}>{tac.rationale}</Text>
+                    <View style={styles.tacticMetaRow}>
+                      <Text style={styles.tacticMeta}>⏱ {tac.timeframe}</Text>
+                      <Text style={styles.tacticMeta}>⚙ {DIFFICULTY_LABEL[tac.difficulty]}</Text>
+                      <Text style={styles.tacticMeta}>✓ {(tac.successProbability * 100).toFixed(0)}% likely</Text>
+                      <Text style={[styles.tacticMeta, { color: '#10b981', fontWeight: '700' }]}>
+                        +{settings.currency}{Math.round(tac.expectedImpact).toLocaleString()}
+                      </Text>
+                    </View>
+                    {tac.steps.length > 0 && (
+                      <View style={{ marginTop: 6 }}>
+                        {tac.steps.slice(0, 3).map((step, i) => (
+                          <Text key={i} style={styles.diagText}>• {step}</Text>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                ))}
+              </View>
+            )}
+          </>
+        )}
 
         {/* Weekly Analysis */}
         <View style={styles.sectionBox}>
@@ -443,6 +493,17 @@ export default function UnderstandBusinessScreen() {
         </View>
       </ScrollView>
 
+      <DailyReportModal
+        visible={showDailyReport}
+        onClose={() => setShowDailyReport(false)}
+        transactions={transactions}
+        goals={goals}
+        finance={finance}
+        settings={settings}
+        currency={settings.currency}
+      />
+      <MonthlyReview visible={showMonthlyReview} onClose={() => setShowMonthlyReview(false)} />
+
       <FooterNav />
     </SafeAreaView>
   );
@@ -487,4 +548,23 @@ const styles = StyleSheet.create({
   reportTitle: { fontSize: 12, fontWeight: '600', color: Colors.textPrimary, marginBottom: 2 },
   reportSubtext: { fontSize: 10, color: Colors.textMuted },
   reportArrow: { fontSize: 16, color: Colors.primary },
+
+  healthRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  healthScore: { fontSize: 40, fontWeight: '800' },
+  healthStatus: { fontSize: 13, fontWeight: '800', color: Colors.textPrimary, letterSpacing: 0.5 },
+  healthSub: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
+
+  diagCard: { backgroundColor: Colors.surface, borderRadius: 10, padding: 12, marginBottom: 10, borderLeftWidth: 3 },
+  diagHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6, gap: 8 },
+  diagProblem: { flex: 1, fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
+  severityBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1 },
+  severityText: { fontSize: 9, fontWeight: '800' },
+  diagLabel: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, marginTop: 6, marginBottom: 2, textTransform: 'uppercase' },
+  diagText: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
+  diagImpact: { fontSize: 13, fontWeight: '800', color: '#ef4444', marginTop: 4 },
+  diagOpportunity: { fontSize: 12, color: '#10b981', lineHeight: 17, fontWeight: '600' },
+
+  tacticCard: { backgroundColor: Colors.surface, borderRadius: 10, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: Colors.border },
+  tacticMetaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 8 },
+  tacticMeta: { fontSize: 10, color: Colors.textMuted, fontWeight: '600' },
 });
