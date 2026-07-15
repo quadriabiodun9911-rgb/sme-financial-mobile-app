@@ -9,7 +9,7 @@
  */
 
 import React, { createContext, useContext, useState, useMemo, useEffect, ReactNode } from 'react';
-import { User, Invoice, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, StaffMember, PayrollRun, UserRole } from '../types';
+import { User, Invoice, InvoiceStatus, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, StaffMember, PayrollRun, PayrollItem, CashPocket, UserRole } from '../types';
 import { computeFinance } from '../utils/finance';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -21,7 +21,13 @@ import {
   loadGoals, saveGoals,
   loadInvoices, saveInvoices,
   loadSettings, saveSettings,
+  loadStaff, saveStaff,
+  loadPayrollRuns, savePayrollRuns,
 } from '../utils/storage';
+
+// Simple monotonic id generator for records created client-side.
+let _idCounter = 0;
+const genId = () => `id-${Date.now()}-${_idCounter++}`;
 
 // ============================================================================
 // 1. FINANCE CONTEXT - Transactions, Assets, Loans, Budgets
@@ -52,6 +58,18 @@ interface FinanceContextValue {
   addInventoryItem: (item: InventoryItem) => void;
   updateInventoryItem: (id: string, item: Partial<InventoryItem>) => void;
   deleteInventoryItem: (id: string) => void;
+
+  staff: StaffMember[];
+  payrollRuns: PayrollRun[];
+  cashPockets: CashPocket[];
+  addStaff: (s: Omit<StaffMember, 'id' | 'createdAt'>) => void;
+  updateStaff: (id: string, patch: Partial<StaffMember>) => void;
+  deleteStaff: (id: string) => void;
+  runPayroll: (period: string, items: PayrollItem[], deductionRate?: number) => void;
+  deletePayrollRun: (id: string) => void;
+  addCashPocket: (name: string, amount: number) => void;
+  updateCashPocket: (id: string, amount: number) => void;
+  deleteCashPocket: (id: string) => void;
 }
 
 const FinanceContext = createContext<FinanceContextValue | undefined>(undefined);
@@ -62,6 +80,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [loans, setLoans] = useState<Loan[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [payrollRuns, setPayrollRuns] = useState<PayrollRun[]>([]);
+  const [cashPockets, setCashPockets] = useState<CashPocket[]>([]);
   const [hydrated, setHydrated] = useState(false);
   // Re-hydrate when the signed-in user changes: on first mount there is no
   // workspace owner yet (loads local), then after login we re-pull from Supabase.
@@ -79,6 +100,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         if (l) setLoans(l.map((x) => ({ ...x, payments: x.payments ?? [] })));
         if (b) setBudgets(b);
         if (inv) setInventory(inv);
+        const [st, pr, cp] = await Promise.all([
+          loadStaff(), loadPayrollRuns(), AsyncStorage.getItem('@quad360/cashPockets'),
+        ]);
+        if (st) setStaff(st);
+        if (pr) setPayrollRuns(pr);
+        if (cp) setCashPockets(JSON.parse(cp));
       } catch (e) {
         console.error('[Finance] hydrate failed:', e);
       } finally {
@@ -94,6 +121,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { if (hydrated) saveLoans(loans).catch(() => {}); }, [loans, hydrated]);
   useEffect(() => { if (hydrated) saveBudgets(budgets).catch(() => {}); }, [budgets, hydrated]);
   useEffect(() => { if (hydrated) saveInventory(inventory).catch(() => {}); }, [inventory, hydrated]);
+  useEffect(() => { if (hydrated) saveStaff(staff).catch(() => {}); }, [staff, hydrated]);
+  useEffect(() => { if (hydrated) savePayrollRuns(payrollRuns).catch(() => {}); }, [payrollRuns, hydrated]);
+  useEffect(() => { if (hydrated) AsyncStorage.setItem('@quad360/cashPockets', JSON.stringify(cashPockets)).catch(() => {}); }, [cashPockets, hydrated]);
 
   // Computed finance - memoized with specific dependency
   const finance = useMemo(() => {
@@ -165,8 +195,38 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       deleteInventoryItem: (id) => setInventory((prev) =>
         prev.filter((i) => i.id !== id)
       ),
+
+      staff,
+      payrollRuns,
+      cashPockets,
+      addStaff: (s) => setStaff((prev) => [...prev, { ...s, id: genId(), createdAt: new Date().toISOString() } as StaffMember]),
+      updateStaff: (id, patch) => setStaff((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x))),
+      deleteStaff: (id) => setStaff((prev) => prev.filter((x) => x.id !== id)),
+      runPayroll: (period, items) => {
+        const totalGross = items.reduce((s, i) => s + i.grossSalary, 0);
+        const totalDeductions = items.reduce((s, i) => s + i.deductions, 0);
+        const totalNet = totalGross - totalDeductions;
+        const [py, pm] = period.split('-').map(Number);
+        const periodEndDate = new Date(py, pm, 0).toISOString().split('T')[0];
+        const now = new Date().toISOString();
+        const txId = genId();
+        // Record the net payroll as a Salaries expense so it flows into finance.
+        setTransactions((prev) => [...prev, {
+          id: txId, date: periodEndDate, description: `Payroll — ${period}`,
+          type: 'expense', category: 'Salaries', amount: totalNet, status: 'paid',
+        } as Transaction]);
+        const run: PayrollRun = {
+          id: genId(), period, runDate: now, items, totalGross, totalDeductions,
+          totalNet, status: 'paid', transactionId: txId, createdAt: now,
+        };
+        setPayrollRuns((prev) => [...prev, run]);
+      },
+      deletePayrollRun: (id) => setPayrollRuns((prev) => prev.filter((r) => r.id !== id)),
+      addCashPocket: (name, amount) => setCashPockets((prev) => [...prev, { id: genId(), name, amount, updatedAt: new Date().toISOString() }]),
+      updateCashPocket: (id, amount) => setCashPockets((prev) => prev.map((p) => (p.id === id ? { ...p, amount, updatedAt: new Date().toISOString() } : p))),
+      deleteCashPocket: (id) => setCashPockets((prev) => prev.filter((p) => p.id !== id)),
     }),
-    [transactions, assets, loans, budgets, inventory, finance]
+    [transactions, assets, loans, budgets, inventory, staff, payrollRuns, cashPockets, finance]
   );
 
   return (
@@ -250,6 +310,7 @@ interface InvoiceContextValue {
   addInvoice: (invoice: Invoice) => void;
   updateInvoice: (id: string, invoice: Partial<Invoice>) => void;
   deleteInvoice: (id: string) => void;
+  markInvoiceStatus: (id: string, status: InvoiceStatus) => void;
 }
 
 const InvoiceContext = createContext<InvoiceContextValue | undefined>(undefined);
@@ -273,6 +334,7 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
     () => ({
       invoices,
       addInvoice: (invoice) => setInvoices((prev) => [...prev, invoice]),
+      markInvoiceStatus: (id, status) => setInvoices((prev) => prev.map((inv) => (inv.id === id ? { ...inv, status } : inv))),
       updateInvoice: (id, invoice) => setInvoices((prev) =>
         prev.map((i) => (i.id === id ? { ...i, ...invoice } : i))
       ),
@@ -644,7 +706,7 @@ export function useApp() {
     // Placeholder properties (for screens that reference them)
     isDemoMode: false,
     exitDemo: () => Promise.resolve(),
-    cashPockets: [],
+    cashPockets: finance?.cashPockets ?? [],
     financing: {
       isQualified: false,
       qualification: undefined,
@@ -657,13 +719,13 @@ export function useApp() {
     },
 
     // Payroll & Staff (should be in separate context, but added here for compatibility)
-    staff: [],
-    payrollRuns: [],
-    addStaff: () => Promise.resolve(),
-    updateStaff: () => Promise.resolve(),
-    deleteStaff: () => Promise.resolve(),
-    runPayroll: () => Promise.resolve(),
-    deletePayrollRun: () => Promise.resolve(),
+    staff: finance?.staff ?? [],
+    payrollRuns: finance?.payrollRuns ?? [],
+    addStaff: finance?.addStaff || (() => {}),
+    updateStaff: finance?.updateStaff || (() => {}),
+    deleteStaff: finance?.deleteStaff || (() => {}),
+    runPayroll: finance?.runPayroll || (() => {}),
+    deletePayrollRun: finance?.deletePayrollRun || (() => {}),
     teamMembers: [],
     userRole: 'owner' as const,
     inviteMember: () => Promise.resolve(),
@@ -683,9 +745,9 @@ export function useApp() {
     updateInventoryItem: finance?.updateInventoryItem || (() => {}),
     addInventoryItem: finance?.addInventoryItem || (() => {}),
     deleteInventoryItem: finance?.deleteInventoryItem || (() => {}),
-    updateCashPocket: () => Promise.resolve(),
-    addCashPocket: () => Promise.resolve(),
-    deleteCashPocket: () => Promise.resolve(),
+    updateCashPocket: finance?.updateCashPocket || (() => {}),
+    addCashPocket: finance?.addCashPocket || (() => {}),
+    deleteCashPocket: finance?.deleteCashPocket || (() => {}),
     changePin: () => Promise.resolve(),
     clearData: () => Promise.resolve(),
     resetApp: () => Promise.resolve(),
@@ -695,7 +757,7 @@ export function useApp() {
     importData: () => Promise.resolve(),
     exportData: () => Promise.resolve(),
     enterDemo: () => Promise.resolve(),
-    markInvoiceStatus: () => Promise.resolve(),
+    markInvoiceStatus: invoices?.markInvoiceStatus || (() => {}),
     disposeAsset: finance?.disposeAsset || (() => {}),
   };
 }
