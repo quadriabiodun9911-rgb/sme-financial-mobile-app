@@ -77,11 +77,14 @@ export function computeEnhancedPnL(transactions: Transaction[], assets: Asset[])
 
     const grossProfit = revenue - cogs;
     const grossMargin = revenue > 0 ? (grossProfit / revenue) * 100 : 0;
-    const ebit = grossProfit - sga;
-    const ebitMargin = revenue > 0 ? (ebit / revenue) * 100 : 0;
 
     const depreciation = assets.filter(a => a.status === 'active').reduce((s, a) => s + computeAssetAnnualDepreciation(a), 0);
-    const ebitda = ebit + depreciation;
+    // EBITDA excludes depreciation by definition; EBIT (and net profit) must
+    // actually deduct it, otherwise EBITDA double-counts a charge that was
+    // never subtracted in the first place.
+    const ebitda = grossProfit - sga;
+    const ebit = ebitda - depreciation;
+    const ebitMargin = revenue > 0 ? (ebit / revenue) * 100 : 0;
     const netMargin = revenue > 0 ? (ebit / revenue) * 100 : 0;
 
     const sort = (m: Map<string, number>) => Array.from(m.entries()).sort((a, b) => b[1] - a[1]).map(([category, amount]) => ({ category, amount }));
