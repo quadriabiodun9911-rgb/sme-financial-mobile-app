@@ -12,6 +12,16 @@ import React, { createContext, useContext, useState, useMemo, useEffect, ReactNo
 import { User, Invoice, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, StaffMember, PayrollRun, UserRole } from '../types';
 import { computeFinance } from '../utils/finance';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  loadTransactions, saveTransactions,
+  loadAssets, saveAssets,
+  loadLoans, saveLoans,
+  loadBudgets, saveBudgets,
+  loadInventory, saveInventory,
+  loadGoals, saveGoals,
+  loadInvoices, saveInvoices,
+  loadSettings, saveSettings,
+} from '../utils/storage';
 
 // ============================================================================
 // 1. FINANCE CONTEXT - Transactions, Assets, Loans, Budgets
@@ -52,6 +62,34 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [loans, setLoans] = useState<Loan[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [hydrated, setHydrated] = useState(false);
+
+  // Load persisted finance data on mount.
+  useEffect(() => {
+    (async () => {
+      try {
+        const [t, a, l, b, inv] = await Promise.all([
+          loadTransactions(), loadAssets(), loadLoans(), loadBudgets(), loadInventory(),
+        ]);
+        if (t) setTransactions(t);
+        if (a) setAssets(a);
+        if (l) setLoans(l.map((x) => ({ ...x, payments: x.payments ?? [] })));
+        if (b) setBudgets(b);
+        if (inv) setInventory(inv);
+      } catch (e) {
+        console.error('[Finance] hydrate failed:', e);
+      } finally {
+        setHydrated(true);
+      }
+    })();
+  }, []);
+
+  // Persist on change (only after the initial load, so we don't clobber storage).
+  useEffect(() => { if (hydrated) saveTransactions(transactions).catch(() => {}); }, [transactions, hydrated]);
+  useEffect(() => { if (hydrated) saveAssets(assets).catch(() => {}); }, [assets, hydrated]);
+  useEffect(() => { if (hydrated) saveLoans(loans).catch(() => {}); }, [loans, hydrated]);
+  useEffect(() => { if (hydrated) saveBudgets(budgets).catch(() => {}); }, [budgets, hydrated]);
+  useEffect(() => { if (hydrated) saveInventory(inventory).catch(() => {}); }, [inventory, hydrated]);
 
   // Computed finance - memoized with specific dependency
   const finance = useMemo(() => {
@@ -157,6 +195,16 @@ const GoalContext = createContext<GoalContextValue | undefined>(undefined);
 
 export function GoalProvider({ children }: { children: ReactNode }) {
   const [goals, setGoals] = useState<FinancialGoal[]>([]);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try { const g = await loadGoals(); if (g) setGoals(g); }
+      catch (e) { console.error('[Goals] hydrate failed:', e); }
+      finally { setHydrated(true); }
+    })();
+  }, []);
+  useEffect(() => { if (hydrated) saveGoals(goals).catch(() => {}); }, [goals, hydrated]);
 
   const value: GoalContextValue = useMemo(
     () => ({
@@ -202,6 +250,16 @@ const InvoiceContext = createContext<InvoiceContextValue | undefined>(undefined)
 
 export function InvoiceProvider({ children }: { children: ReactNode }) {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try { const i = await loadInvoices(); if (i) setInvoices(i); }
+      catch (e) { console.error('[Invoices] hydrate failed:', e); }
+      finally { setHydrated(true); }
+    })();
+  }, []);
+  useEffect(() => { if (hydrated) saveInvoices(invoices).catch(() => {}); }, [invoices, hydrated]);
 
   const value: InvoiceContextValue = useMemo(
     () => ({
@@ -259,6 +317,16 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     defaultTaxRate: '0.2',
   });
   const [language, setLanguage] = useState('en');
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try { const s = await loadSettings(); if (s) setSettings((prev) => ({ ...prev, ...s })); }
+      catch (e) { console.error('[Settings] hydrate failed:', e); }
+      finally { setHydrated(true); }
+    })();
+  }, []);
+  useEffect(() => { if (hydrated) saveSettings(settings).catch(() => {}); }, [settings, hydrated]);
 
   const value: SettingsContextValue = useMemo(
     () => ({
