@@ -268,7 +268,8 @@ interface AuthContextValue {
   isLoading: boolean;
   currentScreen: string;
   setCurrentScreen: (screen: string) => void;
-  navigate: (screen: string) => void;
+  navigate: (screen: string, params?: any) => void;
+  navParams: any;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -279,6 +280,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [currentScreen, setCurrentScreenState] = useState('login');
+  const [navParams, setNavParams] = useState<any>(null);
 
   // Initialize auth state on mount
   useEffect(() => {
@@ -302,8 +304,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       isLoading,
       currentScreen,
-      setCurrentScreen: setCurrentScreenState,
-      navigate: (screen) => setCurrentScreenState(screen),
+      navParams,
+      setCurrentScreen: (screen: string) => { setNavParams(null); setCurrentScreenState(screen); },
+      navigate: (screen: string, params?: any) => { setNavParams(params ?? null); setCurrentScreenState(screen); },
       login: async (email, password) => {
         setIsLoading(true);
         try {
@@ -330,7 +333,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       },
     }),
-    [user, isLoading, currentScreen]
+    [user, isLoading, currentScreen, navParams]
   );
 
   return (
@@ -564,7 +567,7 @@ export function useApp() {
     refreshTeam: () => Promise.resolve(),
 
     // Other missing properties
-    navParams: {},
+    navParams: auth.navParams ?? {},
     isFirstLaunch: false,
     pendingSyncCount: 0,
     lockoutUntil: null,

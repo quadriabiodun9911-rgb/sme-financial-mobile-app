@@ -213,6 +213,7 @@ export interface NavParams {
     reportSection?: 'statements' | 'operations' | 'planning' | 'analysis';
     reportTab?: string;
     goalType?: GoalType;
+    goalId?: string;           // pass a saved goal into Goal Bridge
     // Payment link pre-fill from invoice
     amount?: number;
     description?: string;

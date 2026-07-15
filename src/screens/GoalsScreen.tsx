@@ -37,7 +37,7 @@ const STATUS_LABELS: Record<FinancialGoal['status'], string> = {
 const PRIORITY_COLORS = { high: Colors.expense, medium: Colors.warning, low: Colors.textMuted };
 
 export default function GoalsScreen() {
-    const { goals, addGoal, deleteGoal, updateGoal, finance, transactions, settings, navParams } = useApp();
+    const { goals, addGoal, deleteGoal, updateGoal, finance, transactions, settings, navParams, navigate } = useApp();
     const { currency } = settings;
 
     const [addModalOpen, setAddModalOpen] = useState(false);
@@ -199,6 +199,7 @@ export default function GoalsScreen() {
                                     currency={currency}
                                     daysRemaining={daysRemaining(goal.deadline)}
                                     onStrategy={() => setStrategyGoalId(goal.id)}
+                                    onBridge={() => navigate('goal-bridge', { goalId: goal.id })}
                                     onEdit={() => openEditModal(goal)}
                                     onDelete={() => handleDelete(goal.id, goal.title)}
                                 />
@@ -214,6 +215,7 @@ export default function GoalsScreen() {
                                             currency={currency}
                                             daysRemaining={daysRemaining(goal.deadline)}
                                             onStrategy={() => setStrategyGoalId(goal.id)}
+                                            onBridge={() => navigate('goal-bridge', { goalId: goal.id })}
                                             onEdit={() => openEditModal(goal)}
                                             onDelete={() => handleDelete(goal.id, goal.title)}
                                         />
@@ -431,11 +433,12 @@ function DailyActionsSection({ goal, transactions, currency }: { goal: Financial
     );
 }
 
-function GoalCard({ goal, currency, daysRemaining, onStrategy, onEdit, onDelete }: {
+function GoalCard({ goal, currency, daysRemaining, onStrategy, onBridge, onEdit, onDelete }: {
     goal: FinancialGoal;
     currency: string;
     daysRemaining: string;
     onStrategy: () => void;
+    onBridge: () => void;
     onEdit: () => void;
     onDelete: () => void;
 }) {
@@ -508,6 +511,9 @@ function GoalCard({ goal, currency, daysRemaining, onStrategy, onEdit, onDelete 
             <View style={cardStyles.actions}>
                 <TouchableOpacity style={cardStyles.strategyBtn} onPress={onStrategy}>
                     <Text style={cardStyles.strategyBtnText}>View Strategy →</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={onBridge} style={{ marginLeft: 12 }}>
+                    <Text style={[cardStyles.deleteText, { color: Colors.primary }]}>🌉 Bridge</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={onEdit} style={{ marginLeft: 12 }}>
                     <Text style={[cardStyles.deleteText, { color: Colors.primary }]}>Edit</Text>

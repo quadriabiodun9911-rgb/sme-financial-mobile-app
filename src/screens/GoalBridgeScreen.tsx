@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity, TextInput, Modal } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -7,14 +7,53 @@ import FooterNav from '../components/FooterNav';
 import { calculateGoalBridge, FinancialGoal } from '../utils/goalBridgeEngine';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan } from '../utils/actionRecommendationEngine';
+import { FinancialGoal as SavedGoal, GoalType } from '../types';
+
+// Map a saved Goals-screen goal into the shape the Goal Bridge engine expects.
+const GOAL_TYPE_TO_BRIDGE: Record<GoalType, FinancialGoal['type']> = {
+  revenue_growth: 'revenue',
+  margin_improvement: 'margin',
+  cost_reduction: 'profit',
+  cash_reserve: 'cash',
+  reduce_overdue_ar: 'cash',
+  custom: 'profit',
+};
+
+function mapSavedGoalToBridge(g: SavedGoal): FinancialGoal {
+  // Months remaining until the deadline (at least 1).
+  const msPerMonth = 30 * 24 * 60 * 60 * 1000;
+  const deadlineMs = new Date(g.deadline).getTime();
+  const monthsLeft = isNaN(deadlineMs)
+    ? 12
+    : Math.max(1, Math.round((deadlineMs - new Date().getTime()) / msPerMonth));
+
+  return {
+    id: g.id,
+    type: GOAL_TYPE_TO_BRIDGE[g.type] ?? 'profit',
+    currentValue: g.currentValue ?? g.baselineValue ?? 0,
+    targetValue: g.targetValue,
+    timelineMonths: monthsLeft,
+    description: g.title,
+  };
+}
 
 export default function GoalBridgeScreen() {
-  const { transactions, invoices, finance, settings } = useApp();
+  const { transactions, invoices, finance, settings, goals, navParams } = useApp();
+
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [goalType, setGoalType] = useState<'profit' | 'revenue' | 'cash' | 'margin' | 'runway'>('profit');
   const [targetValue, setTargetValue] = useState('1000000');
   const [timelineMonths, setTimelineMonths] = useState('12');
   const [selectedGoal, setSelectedGoal] = useState<FinancialGoal | null>(null);
+
+  // If we arrived here from the Goals screen with a specific goal, load it.
+  useEffect(() => {
+    if (navParams?.goalId) {
+      const saved = goals.find(g => g.id === navParams.goalId);
+      if (saved) setSelectedGoal(mapSavedGoalToBridge(saved));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navParams?.goalId, goals]);
 
   const diagnosis = useMemo(() => {
     return performFinancialDiagnosis(
@@ -209,6 +248,30 @@ export default function GoalBridgeScreen() {
             </View>
 
             <ScrollView style={styles.modalScroll}>
+              {goals.length > 0 && (
+                <>
+                  <Text style={styles.inputLabel}>Use a Saved Goal</Text>
+                  <View style={styles.savedGoalList}>
+                    {goals.map(g => (
+                      <TouchableOpacity
+                        key={g.id}
+                        style={styles.savedGoalItem}
+                        onPress={() => {
+                          setSelectedGoal(mapSavedGoalToBridge(g));
+                          setShowGoalModal(false);
+                        }}
+                      >
+                        <Text style={styles.savedGoalTitle}>🎯 {g.title}</Text>
+                        <Text style={styles.savedGoalMeta}>
+                          Target {settings.currency}{Math.round(g.targetValue).toLocaleString()} · {g.status.replace('_', ' ')}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <Text style={styles.savedGoalDivider}>— or set a new one below —</Text>
+                </>
+              )}
+
               <Text style={styles.inputLabel}>Goal Type</Text>
               <View style={styles.goalTypeButtons}>
                 {(['profit', 'revenue', 'cash', 'margin', 'runway'] as const).map(type => (
@@ -330,6 +393,11 @@ const styles = StyleSheet.create({
   modalScroll: { padding: 16 },
 
   inputLabel: { fontSize: 12, fontWeight: '700', color: Colors.textMuted, marginBottom: 8, textTransform: 'uppercase' },
+  savedGoalList: { gap: 8, marginBottom: 12 },
+  savedGoalItem: { backgroundColor: Colors.bg, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: Colors.border },
+  savedGoalTitle: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: 3 },
+  savedGoalMeta: { fontSize: 11, color: Colors.textMuted },
+  savedGoalDivider: { fontSize: 11, color: Colors.textMuted, textAlign: 'center', marginVertical: 12, fontStyle: 'italic' },
   goalTypeButtons: { flexDirection: 'row', gap: 8, marginBottom: 16, flexWrap: 'wrap' },
   goalTypeButton: { flex: 1, minWidth: '48%', backgroundColor: Colors.bg, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 12, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
   goalTypeButtonActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
