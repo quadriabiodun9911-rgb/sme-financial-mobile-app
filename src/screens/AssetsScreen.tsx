@@ -11,6 +11,7 @@ import { t } from '../utils/i18n';
 import { Asset, AssetCategory } from '../types';
 import { computeAssetCurrentValue, computeAssetAnnualDepreciation } from '../utils/finance';
 import { analyzeAcquisition } from '../utils/assetAcquisitionEngine';
+import { monthlyPayment } from '../utils/loanMath';
 import DateInput from '../components/DateInput';
 
 const CATEGORIES: AssetCategory[] = ['equipment', 'vehicle', 'furniture', 'property', 'intangible', 'other'];
@@ -27,12 +28,14 @@ function categoryLabel(cat: AssetCategory, lang: Parameters<typeof t>[0]): strin
 type FilterTab = 'active' | 'disposed' | 'all';
 
 export default function AssetsScreen() {
-    const { assets, addAsset, updateAsset, deleteAsset, disposeAsset, settings, language, setCurrentScreen, navigate, finance } = useApp();
+    const { assets, addAsset, updateAsset, deleteAsset, disposeAsset, settings, language, setCurrentScreen, navigate, finance, addLoan, addTransaction } = useApp();
     const { currency } = settings;
 
     // Financing terms for the acquisition strategy comparison
     const [acqTerm, setAcqTerm] = useState('24');
     const [acqRate, setAcqRate] = useState('20');
+    // Chosen acquisition method — drives what records get created on save
+    const [acqMethod, setAcqMethod] = useState<'cash' | 'credit' | 'lease'>('cash');
 
     const [filter, setFilter] = useState<FilterTab>('active');
     const [showForm, setShowForm] = useState(false);
@@ -56,6 +59,7 @@ export default function AssetsScreen() {
         setName(''); setCategory('equipment'); setDesc('');
         setPDate(new Date().toISOString().split('T')[0]);
         setPCost(''); setLife('5'); setResidual('0');
+        setAcqMethod('cash'); setAcqTerm('24'); setAcqRate('20');
         setEditingId(null);
     };
 
@@ -87,6 +91,37 @@ export default function AssetsScreen() {
             updateAsset(editingId, payload);
         } else {
             addAsset(payload);
+
+            // Wire the chosen acquisition method into the rest of the app.
+            const startDate = payload.purchaseDate;
+            const term = parseInt(acqTerm) || 24;
+            const rate = parseFloat(acqRate) || 0;
+            if (acqMethod === 'credit') {
+                // Owned asset financed by a loan — create the matching loan record.
+                addLoan({
+                    lenderName: `Financing: ${payload.name}`,
+                    purpose: 'asset',
+                    principal: cost,
+                    interestRate: rate,
+                    termMonths: term,
+                    startDate,
+                    status: 'active',
+                    payments: [],
+                } as any);
+                Alert.alert('Recorded', `Asset added and a loan (${currency}${Math.round(monthlyPayment(cost, rate, term)).toLocaleString()}/mo for ${term} months) was created under Loans.`);
+            } else if (acqMethod === 'lease') {
+                // Leased — record the first monthly lease payment as an expense.
+                const leaseMonthly = monthlyPayment(cost, rate + 6, term);
+                addTransaction({
+                    date: startDate,
+                    description: `Lease payment: ${payload.name}`,
+                    type: 'expense',
+                    category: 'Lease/Rental',
+                    amount: Math.round(leaseMonthly),
+                    status: 'paid',
+                } as any);
+                Alert.alert('Recorded', `Asset added and a lease expense (${currency}${Math.round(leaseMonthly).toLocaleString()}/mo) was logged. Add each month's payment under Transactions as it recurs.`);
+            }
         }
         setShowForm(false);
         resetForm();
@@ -263,12 +298,19 @@ export default function AssetsScreen() {
                                             </View>
                                         </View>
 
+                                        <Text style={s.acqHint}>Tap a method to record the asset that way when you save:</Text>
                                         {analysis.options.map(opt => {
                                             const isRec = opt.method === analysis.recommended;
+                                            const isSelected = opt.method === acqMethod;
                                             return (
-                                                <View key={opt.method} style={[s.acqOption, isRec && { borderColor: recColor, borderWidth: 1.5 }]}>
+                                                <TouchableOpacity
+                                                    key={opt.method}
+                                                    activeOpacity={0.8}
+                                                    onPress={() => setAcqMethod(opt.method)}
+                                                    style={[s.acqOption, isSelected && { borderColor: recColor, borderWidth: 2, backgroundColor: recColor + '10' }]}
+                                                >
                                                     <View style={s.acqOptHeader}>
-                                                        <Text style={s.acqOptLabel}>{opt.label}{isRec ? '  ⭐ Recommended' : ''}</Text>
+                                                        <Text style={s.acqOptLabel}>{isSelected ? '● ' : '○ '}{opt.label}{isRec ? '  ⭐' : ''}</Text>
                                                         <Text style={s.acqOptOwns}>{opt.ownsAsset ? 'You own it' : 'Rented'}</Text>
                                                     </View>
                                                     <Text style={s.acqLine}>Upfront cash: <Text style={s.acqVal}>{currency}{Math.round(opt.upfront).toLocaleString()}</Text>{opt.monthly > 0 ? <Text> · Monthly: <Text style={s.acqVal}>{currency}{Math.round(opt.monthly).toLocaleString()}</Text> × {opt.termMonths}</Text> : null}</Text>
@@ -290,7 +332,7 @@ export default function AssetsScreen() {
                                                                 : `⚠ ${currency}${Math.round(opt.monthly).toLocaleString()}/mo exceeds current monthly profit`}
                                                         </Text>
                                                     )}
-                                                </View>
+                                                </TouchableOpacity>
                                             );
                                         })}
 
@@ -500,6 +542,7 @@ const s = StyleSheet.create({
     acqCard:     { backgroundColor: Colors.primary + '0D', borderRadius: 12, padding: 12, marginTop: 16, borderLeftWidth: 3, borderLeftColor: Colors.primary },
     acqTitle:    { fontSize: 13, fontWeight: '800', color: Colors.text, marginBottom: 10 },
     acqTermRow:  { flexDirection: 'row', marginBottom: 8 },
+    acqHint:     { fontSize: 10, color: Colors.muted, fontStyle: 'italic', marginBottom: 2 },
     acqOption:   { backgroundColor: Colors.card, borderRadius: 10, padding: 10, marginTop: 8, borderWidth: 1, borderColor: Colors.border },
     acqOptHeader:{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
     acqOptLabel: { fontSize: 12, fontWeight: '800', color: Colors.text },

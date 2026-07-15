@@ -34,9 +34,14 @@ interface FinanceContextValue {
   addLoan: (loan: Loan) => void;
   updateLoan: (id: string, loan: Partial<Loan>) => void;
   deleteLoan: (id: string) => void;
+  addLoanPayment: (loanId: string, payment: { amount: number; date: string; note?: string }) => void;
   addBudget: (budget: Budget) => void;
   updateBudget: (id: string, budget: Partial<Budget>) => void;
   deleteBudget: (id: string) => void;
+  disposeAsset: (id: string, disposalDate: string, disposalValue: number) => void;
+  addInventoryItem: (item: InventoryItem) => void;
+  updateInventoryItem: (id: string, item: Partial<InventoryItem>) => void;
+  deleteInventoryItem: (id: string) => void;
 }
 
 const FinanceContext = createContext<FinanceContextValue | undefined>(undefined);
@@ -90,12 +95,33 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       deleteLoan: (id) => setLoans((prev) =>
         prev.filter((l) => l.id !== id)
       ),
+      addLoanPayment: (loanId, payment) => setLoans((prev) =>
+        prev.map((l) => {
+          if (l.id !== loanId) return l;
+          const prevPays = l.payments ?? [];
+          const newPay = { ...payment, id: `pay-${loanId}-${prevPays.length}-${Date.now()}` };
+          const payments = [...prevPays, newPay];
+          const totalPaid = payments.reduce((s, p) => s + p.amount, 0);
+          const status: Loan['status'] = totalPaid >= l.principal ? 'paid_off' : l.status;
+          return { ...l, payments, status };
+        })
+      ),
       addBudget: (budget) => setBudgets((prev) => [...prev, budget]),
       updateBudget: (id, budget) => setBudgets((prev) =>
         prev.map((b) => (b.id === id ? { ...b, ...budget } : b))
       ),
       deleteBudget: (id) => setBudgets((prev) =>
         prev.filter((b) => b.id !== id)
+      ),
+      disposeAsset: (id, disposalDate, disposalValue) => setAssets((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, status: 'disposed', disposalDate, disposalValue } as Asset : a))
+      ),
+      addInventoryItem: (item) => setInventory((prev) => [...prev, item]),
+      updateInventoryItem: (id, item) => setInventory((prev) =>
+        prev.map((i) => (i.id === id ? { ...i, ...item } : i))
+      ),
+      deleteInventoryItem: (id) => setInventory((prev) =>
+        prev.filter((i) => i.id !== id)
       ),
     }),
     [transactions, assets, loans, budgets, inventory, finance]
@@ -503,6 +529,7 @@ export function useApp() {
     addLoan: finance?.addLoan || (() => {}),
     updateLoan: finance?.updateLoan || (() => {}),
     deleteLoan: finance?.deleteLoan || (() => {}),
+    addLoanPayment: finance?.addLoanPayment || (() => {}),
     addBudget: finance?.addBudget || (() => {}),
     updateBudget: finance?.updateBudget || (() => {}),
     deleteBudget: finance?.deleteBudget || (() => {}),
@@ -575,9 +602,9 @@ export function useApp() {
     applyForMerchantFinancing: () => Promise.resolve(),
     setupAccount: () => Promise.resolve(),
     updateProfile: () => Promise.resolve(),
-    updateInventoryItem: () => Promise.resolve(),
-    addInventoryItem: () => Promise.resolve(),
-    deleteInventoryItem: () => Promise.resolve(),
+    updateInventoryItem: finance?.updateInventoryItem || (() => {}),
+    addInventoryItem: finance?.addInventoryItem || (() => {}),
+    deleteInventoryItem: finance?.deleteInventoryItem || (() => {}),
     updateCashPocket: () => Promise.resolve(),
     addCashPocket: () => Promise.resolve(),
     deleteCashPocket: () => Promise.resolve(),
@@ -591,7 +618,6 @@ export function useApp() {
     exportData: () => Promise.resolve(),
     enterDemo: () => Promise.resolve(),
     markInvoiceStatus: () => Promise.resolve(),
-    disposeAsset: () => Promise.resolve(),
-    addLoanPayment: () => Promise.resolve(),
+    disposeAsset: finance?.disposeAsset || (() => {}),
   };
 }
