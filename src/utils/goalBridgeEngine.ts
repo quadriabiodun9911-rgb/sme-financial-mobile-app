@@ -50,9 +50,18 @@ export function calculateGoalBridge(
   availableTactics: ActionTactic[],
   currency: string = '₦'
 ): GoalBridge {
-  const gap = goal.targetValue - metrics.totalRevenue;
-  const gapPercentage = (gap / metrics.totalRevenue) * 100;
-  const requiredMonthlyImprovement = gap / goal.timelineMonths;
+  // Measure the gap against THIS goal's own current value, not revenue.
+  // Works for every goal type & unit: currency amounts (revenue, cash, cost)
+  // and percentage-point metrics (margin). Reduction goals (cost/AR) have a
+  // target below current, so we use the absolute distance.
+  const current = goal.currentValue;
+  const rawGap = goal.targetValue - current; // signed: >0 grow toward target, <0 reduce
+  const gap = Math.abs(rawGap);
+  // Percentage of the gap relative to where we are today (falls back to target
+  // if current is ~0), so margin (%) and currency goals are both meaningful.
+  const base = Math.abs(current) > 0.0001 ? Math.abs(current) : (Math.abs(goal.targetValue) || 1);
+  const gapPercentage = (gap / base) * 100;
+  const requiredMonthlyImprovement = gap / Math.max(1, goal.timelineMonths);
 
   // Determine feasibility
   let feasibility: 'easy' | 'medium' | 'difficult' = 'difficult';

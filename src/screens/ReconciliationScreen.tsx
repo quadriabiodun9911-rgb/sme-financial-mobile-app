@@ -10,6 +10,7 @@ import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { Transaction } from '../types';
 import { autoDetectColumns, parseCSVWithMapping } from '../utils/flexibleBankStatementParser';
+import { isDuplicateTransaction } from '../utils/transactionDedup';
 
 // Bank transaction as imported from a statement or manual entry
 interface BankTx {
@@ -156,6 +157,15 @@ export default function ReconciliationScreen() {
     };
 
     const importUnmatchedBankTx = (b: BankTx) => {
+        const txType: 'income' | 'expense' = b.type === 'credit' ? 'income' : 'expense';
+
+        // Shared duplicate guard — don't re-add a transaction that already exists
+        // (e.g. the same statement was already imported via the Dashboard flow).
+        if (isDuplicateTransaction({ date: b.date, description: b.description, amount: b.amount, type: txType }, transactions as any)) {
+            Alert.alert('Already Recorded', `"${b.description}" (${fmt(b.amount)}) already exists in your transactions, so it was not added again.`);
+            return;
+        }
+
         Alert.alert('Import as Transaction', `Add "${b.description}" (${fmt(b.amount)}) to your app transactions?`, [
             { text: 'Cancel', style: 'cancel' },
             {
@@ -164,7 +174,7 @@ export default function ReconciliationScreen() {
                     addTransaction({
                         date: b.date,
                         description: b.description,
-                        type: b.type === 'credit' ? 'income' : 'expense',
+                        type: txType,
                         category: b.type === 'credit' ? 'Sales' : 'Operating Expense',
                         amount: b.amount,
                         status: 'paid',

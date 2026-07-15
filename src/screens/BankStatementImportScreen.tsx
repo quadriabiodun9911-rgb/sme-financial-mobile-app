@@ -29,6 +29,7 @@ import {
   formatProfileInfo,
 } from '../utils/bankProfileManager';
 import { useApp } from '../contexts/AppContext';
+import { isDuplicateTransaction } from '../utils/transactionDedup';
 
 // Load saved profiles on mount
 const loadProfiles = async (callback: (profiles: BankProfile[]) => void) => {
@@ -185,14 +186,8 @@ export default function BankStatementImportScreen() {
       // Add all parsed transactions to the app
       let addedCount = 0;
       parsed.transactions.forEach((transaction) => {
-        // Check if transaction doesn't already exist (avoid duplicates)
-        const exists = existingTransactions.some(
-          (t) =>
-            t.date === transaction.date &&
-            t.description === transaction.description &&
-            t.amount === transaction.amount &&
-            t.type === transaction.type
-        );
+        // Shared duplicate guard — same rule used by the Reconciliation screen
+        const exists = isDuplicateTransaction(transaction, existingTransactions as any);
 
         if (!exists) {
           addTransaction({
