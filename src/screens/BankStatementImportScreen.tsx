@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,12 @@ import {
   ColumnMapping,
   ParsedBankStatement,
 } from '../utils/flexibleBankStatementParser';
+import {
+  findMatchingProfile,
+  saveBankProfile,
+  BankProfile,
+  createHeaderSignature,
+} from '../utils/bankProfileManager';
 import { useApp } from '../contexts/AppContext';
 
 export default function BankStatementImportScreen() {
@@ -32,6 +38,8 @@ export default function BankStatementImportScreen() {
   const [columnMapping, setColumnMapping] = useState<ColumnMapping | null>(null);
   const [columnOptions, setColumnOptions] = useState<string[]>([]);
   const [showColumnSelector, setShowColumnSelector] = useState<string | null>(null);
+  const [matchedProfile, setMatchedProfile] = useState<BankProfile | null>(null);
+  const [skipMapping, setSkipMapping] = useState(false);
 
   const handleSampleCSV = () => {
     const sample = `Date,Description,Amount,Type
@@ -53,7 +61,7 @@ export default function BankStatementImportScreen() {
     );
   };
 
-  const handleParse = () => {
+  const handleParse = async () => {
     if (!csvContent.trim()) {
       Alert.alert('Error', 'Please enter CSV data or click "Load Sample"');
       return;
@@ -64,25 +72,37 @@ export default function BankStatementImportScreen() {
       const rows = csvContent.split('\n').filter(line => line.trim());
       setCsvRows(rows);
 
-      // Auto-detect columns
-      const detected = autoDetectColumns(rows);
-      if (detected) {
-        setColumnMapping(detected);
+      if (rows.length === 0) {
+        Alert.alert('Error', 'CSV appears to be empty');
+        return;
+      }
+
+      const headerRow = rows[0].split(',').map(h => h.trim());
+      setColumnOptions(headerRow);
+
+      // Check if this matches a saved bank profile
+      const matched = await findMatchingProfile(headerRow);
+      if (matched) {
+        setMatchedProfile(matched);
+        setColumnMapping(matched.columnMapping);
+        // Show option to use saved format
+        setStep('mapping');
       } else {
-        // If auto-detection fails, use default mapping (0, 1, 2)
-        setColumnMapping({
-          dateColumn: 0,
-          descriptionColumn: 1,
-          amountColumn: 2,
-        });
+        // Auto-detect columns for new format
+        const detected = autoDetectColumns(rows);
+        if (detected) {
+          setColumnMapping(detected);
+        } else {
+          // If auto-detection fails, use default mapping (0, 1, 2)
+          setColumnMapping({
+            dateColumn: 0,
+            descriptionColumn: 1,
+            amountColumn: 2,
+          });
+        }
+        setMatchedProfile(null);
+        setStep('mapping');
       }
-
-      if (rows.length > 0) {
-        const headerRow = rows[0].split(',').map(h => h.trim());
-        setColumnOptions(headerRow);
-      }
-
-      setStep('mapping');
     } catch (error) {
       Alert.alert('Parse Error', `Failed to parse CSV: ${error}`);
     } finally {
@@ -100,6 +120,12 @@ export default function BankStatementImportScreen() {
       setLoading(true);
       const result = parseCSVWithMapping(csvContent, columnMapping);
       setParsed(result);
+
+      // If using saved profile, mark it
+      if (matchedProfile) {
+        setSkipMapping(true);
+      }
+
       setStep('review');
     } catch (error) {
       Alert.alert('Parse Error', `Failed to parse CSV with mapping: ${error}`);
@@ -108,8 +134,8 @@ export default function BankStatementImportScreen() {
     }
   };
 
-  const handleImportAndCreateTactics = () => {
-    if (!parsed) return;
+  const handleImportAndCreateTactics = async () => {
+    if (!parsed || !columnMapping || csvRows.length === 0) return;
 
     try {
       // Add all parsed transactions to the app
@@ -138,7 +164,50 @@ export default function BankStatementImportScreen() {
       });
 
       setImportedCount(addedCount);
-      setStep('complete');
+
+      // If this was a new format (not a saved profile), offer to save it
+      if (!matchedProfile && !skipMapping) {
+        Alert.alert(
+          'Save Bank Format?',
+          'Would you like to save this column mapping for future imports?',
+          [
+            {
+              text: 'Not Now',
+              onPress: () => setStep('complete'),
+              style: 'cancel',
+            },
+            {
+              text: 'Save Format',
+              onPress: async () => {
+                Alert.prompt(
+                  'Save Bank Format',
+                  'Enter bank name (e.g., GTBank, UBA, Access Bank):',
+                  [
+                    { text: 'Cancel', onPress: () => setStep('complete') },
+                    {
+                      text: 'Save',
+                      onPress: async (bankName) => {
+                        if (bankName && bankName.trim()) {
+                          try {
+                            const headerRow = csvRows[0].split(',').map(h => h.trim());
+                            await saveBankProfile(bankName.trim(), columnMapping, headerRow);
+                            Alert.alert('Success', `Saved "${bankName}" format for future imports`);
+                          } catch (error) {
+                            console.error('Error saving profile:', error);
+                          }
+                        }
+                        setStep('complete');
+                      },
+                    },
+                  ]
+                );
+              },
+            },
+          ]
+        );
+      } else {
+        setStep('complete');
+      }
     } catch (error) {
       Alert.alert('Error', `Failed to import transactions: ${error}`);
     }
@@ -249,26 +318,97 @@ export default function BankStatementImportScreen() {
       <SafeAreaView style={styles.safe}>
         <Header />
         <ScrollView style={styles.scroll} contentContainerStyle={styles.pad}>
-          <Text style={styles.title}>🗂️ Map Columns</Text>
-          <Text style={styles.subtitle}>
-            Tell us which columns contain date, description, and amount
-          </Text>
-
-          {/* CSV Preview */}
-          <View style={styles.previewBox}>
-            <Text style={styles.previewTitle}>CSV Preview:</Text>
-            {csvRows.slice(0, 5).map((row, idx) => (
-              <Text
-                key={idx}
-                style={[
-                  styles.previewText,
-                  idx === 0 && { fontWeight: '700', color: Colors.primary },
-                ]}
-              >
-                {row}
+          {matchedProfile ? (
+            <>
+              <Text style={styles.title}>🏦 Recognized Bank Format</Text>
+              <Text style={styles.subtitle}>
+                We found your {matchedProfile.bankName} format
               </Text>
-            ))}
-          </View>
+
+              {/* Matched Profile Card */}
+              <View style={styles.matchedProfileCard}>
+                <View style={styles.matchedProfileHeader}>
+                  <Text style={styles.matchedProfileBank}>🏦 {matchedProfile.bankName}</Text>
+                  <Text style={styles.matchedProfileUsage}>
+                    Used {matchedProfile.importCount} {matchedProfile.importCount === 1 ? 'time' : 'times'}
+                  </Text>
+                </View>
+
+                <Text style={styles.matchedProfileLabel}>Column Mapping:</Text>
+                <View style={styles.matchedProfileMapping}>
+                  <Text style={styles.matchedProfileMappingItem}>
+                    📅 Date: {headerRow[columnMapping?.dateColumn ?? 0] || 'Column A'}
+                  </Text>
+                  <Text style={styles.matchedProfileMappingItem}>
+                    📝 Description: {headerRow[columnMapping?.descriptionColumn ?? 1] || 'Column B'}
+                  </Text>
+                  <Text style={styles.matchedProfileMappingItem}>
+                    💰 Amount: {headerRow[columnMapping?.amountColumn ?? 2] || 'Column C'}
+                  </Text>
+                  {columnMapping?.typeColumn !== undefined && (
+                    <Text style={styles.matchedProfileMappingItem}>
+                      🏷️ Type: {headerRow[columnMapping.typeColumn] || 'Column D'}
+                    </Text>
+                  )}
+                </View>
+              </View>
+
+              {/* CSV Preview */}
+              <View style={styles.previewBox}>
+                <Text style={styles.previewTitle}>CSV Preview:</Text>
+                {csvRows.slice(0, 5).map((row, idx) => (
+                  <Text
+                    key={idx}
+                    style={[
+                      styles.previewText,
+                      idx === 0 && { fontWeight: '700', color: Colors.primary },
+                    ]}
+                  >
+                    {row}
+                  </Text>
+                ))}
+              </View>
+
+              <View style={styles.buttonContainer}>
+                <TouchableOpacity style={[styles.button, styles.secondaryButton]} onPress={() => {
+                  setMatchedProfile(null);
+                  setStep('mapping');
+                }}>
+                  <Text style={[styles.buttonText, styles.secondaryButtonText]}>Change</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.button, styles.primaryButton, loading && styles.buttonDisabled]}
+                  onPress={handleConfirmMapping}
+                  disabled={loading}
+                >
+                  <Text style={styles.buttonText}>
+                    {loading ? '⏳ Processing...' : '✓ Use Format'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          ) : (
+            <>
+              <Text style={styles.title}>🗂️ Map Columns</Text>
+              <Text style={styles.subtitle}>
+                Tell us which columns contain date, description, and amount
+              </Text>
+
+              {/* CSV Preview */}
+              <View style={styles.previewBox}>
+                <Text style={styles.previewTitle}>CSV Preview:</Text>
+                {csvRows.slice(0, 5).map((row, idx) => (
+                  <Text
+                    key={idx}
+                    style={[
+                      styles.previewText,
+                      idx === 0 && { fontWeight: '700', color: Colors.primary },
+                    ]}
+                  >
+                    {row}
+                  </Text>
+                ))}
+              </View>
 
           {/* Column Mapping UI */}
           <View style={styles.mappingContainer}>
@@ -403,6 +543,8 @@ export default function BankStatementImportScreen() {
               </Text>
             </TouchableOpacity>
           </View>
+            </>
+          )}
         </ScrollView>
         <FooterNav />
       </SafeAreaView>
@@ -734,6 +876,27 @@ const styles = StyleSheet.create({
   },
   columnSelectorText: { fontSize: 13, color: Colors.textPrimary, flex: 1 },
   columnSelectorArrow: { fontSize: 12, color: Colors.textMuted, marginLeft: 10 },
+
+  // Matched profile
+  matchedProfileCard: {
+    backgroundColor: Colors.primary + '15',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: Colors.primary,
+  },
+  matchedProfileHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  matchedProfileBank: { fontSize: 16, fontWeight: '700', color: Colors.primary },
+  matchedProfileUsage: { fontSize: 11, color: Colors.textMuted },
+  matchedProfileLabel: { fontSize: 12, fontWeight: '700', color: Colors.textPrimary, marginBottom: 8 },
+  matchedProfileMapping: { backgroundColor: Colors.bg, borderRadius: 8, padding: 12 },
+  matchedProfileMappingItem: { fontSize: 11, color: Colors.textSecondary, marginBottom: 6, lineHeight: 17 },
 
   // Modal
   modalOverlay: {
