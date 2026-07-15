@@ -199,8 +199,8 @@ export default function FinancialHealthScreen() {
                             </>
                         ) : (
                             <Text style={styles.noDataText}>
-                                {data.errors.length > 0
-                                    ? 'Income data unavailable — ' + data.errors[0]
+                                {(data.errors ?? []).length > 0
+                                    ? 'Income data unavailable — ' + (data.errors ?? [])[0]
                                     : 'No income data yet. Connect your bank SMS first.'}
                             </Text>
                         )}
@@ -218,10 +218,10 @@ export default function FinancialHealthScreen() {
                     </View>
 
                     {/* Partial errors */}
-                    {data.errors.length > 0 && (
+                    {(data.errors ?? []).length > 0 && (
                         <View style={styles.errorCard}>
                             <Text style={styles.errorTitle}>⚠️ Some data unavailable</Text>
-                            {data.errors.map((e, i) => (
+                            {(data.errors ?? []).map((e, i) => (
                                 <Text key={i} style={styles.errorText}>• {e}</Text>
                             ))}
                             <Text style={styles.errorHint}>

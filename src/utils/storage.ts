@@ -699,13 +699,31 @@ export async function importAllData(json: string): Promise<AppBackup> {
 }
 
 // Clears local storage only — Supabase data is preserved so user can sign back in and recover.
+// Wipes every locally-cached key. Used on logout/account switch so a new
+// identity on the same device never inherits the previous user's cached data
+// (transactions/staff/payroll had no per-user namespacing, so a stale cache
+// could otherwise leak into the next session — see clearLocalCache below for
+// the logout-specific variant that also preserves nothing).
 export async function clearAllData(): Promise<void> {
     await AsyncStorage.multiRemove([
         KEYS.transactions, KEYS.settings, KEYS.goals, KEYS.invoices,
         KEYS.assets, KEYS.loans, KEYS.pin, KEYS.profile, KEYS.language,
-        KEYS.workspaceOwner, '@quad360/inventory', '@quad360/budgets',
+        KEYS.workspaceOwner, KEYS.staff, KEYS.payrollRuns,
+        '@quad360/inventory', '@quad360/budgets', CASH_POCKETS_KEY,
     ]);
     await clearAllSecureData();
+}
+
+// Clears the local cache of financial/business data (everything except the
+// device-level PIN/profile) — called whenever the signed-in identity changes
+// (logout, or setup/recover/join running without a prior explicit logout),
+// so a different account never renders or re-uploads a previous user's data.
+export async function clearLocalFinancialCache(): Promise<void> {
+    await AsyncStorage.multiRemove([
+        KEYS.transactions, KEYS.settings, KEYS.goals, KEYS.invoices,
+        KEYS.assets, KEYS.loans, KEYS.staff, KEYS.payrollRuns,
+        '@quad360/inventory', '@quad360/budgets', CASH_POCKETS_KEY,
+    ]);
 }
 
 // ─── Staff ────────────────────────────────────────────────────────────────────

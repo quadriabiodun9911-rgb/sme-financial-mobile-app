@@ -3,6 +3,7 @@ import {
     SafeAreaView, ScrollView, View, Text, TouchableOpacity, StyleSheet, Animated, Dimensions,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
+import { monthlyPayment as calcMonthlyPayment } from '../utils/loanMath';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
@@ -18,7 +19,10 @@ export default function CreditWorthinessScreen() {
         // 1. Payment History (30% weight)
         const totalDuePayments = loans.reduce((sum, l) => {
             const paid = (l.payments ?? []).reduce((s: number, p: any) => s + (p.amount || 0), 0);
-            const monthlyPayment = (l.principal * (l.interestRate / 100 / 12)) / (1 - Math.pow(1 + (l.interestRate / 100 / 12), -l.termMonths));
+            // Shared, 0%-interest-safe amortization calc (the inline formula
+            // here divided by zero — Infinity/NaN denominator — for any
+            // interest-free loan, e.g. Trade Credit).
+            const monthlyPayment = calcMonthlyPayment(l.principal, l.interestRate, l.termMonths);
             const expectedPayments = Math.floor((new Date().getTime() - new Date(l.startDate).getTime()) / (1000 * 60 * 60 * 24 * 30)) * monthlyPayment;
             return sum + Math.max(0, expectedPayments - paid);
         }, 0);

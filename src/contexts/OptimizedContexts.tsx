@@ -24,6 +24,7 @@ import {
   loadStaff, saveStaff,
   loadPayrollRuns, savePayrollRuns,
   loadCashPockets, saveCashPockets,
+  clearLocalFinancialCache,
   saveProfile, loadProfile, savePin, loadPin,
   clearAllData, exportAllData, importAllData,
   inviteTeamMember, removeTeamMember, loadTeamMembers, joinTeamWithCode,
@@ -105,6 +106,15 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const syncUserId = authForSync?.user?.email;
 
   useEffect(() => {
+    // Reset FIRST, synchronously, before any async work: clears any previous
+    // identity's data out of memory immediately (so it can't render even
+    // briefly for a new user) and drops hydrated to false so the save-effects
+    // below stay disarmed until this identity's own data has finished loading
+    // — closes the cross-account leak where a stale/global local cache could
+    // otherwise be re-saved into the newly-signed-in user's cloud account.
+    setHydrated(false);
+    setTransactions([]); setAssets([]); setLoans([]); setBudgets([]); setInventory([]);
+    setStaff([]); setPayrollRuns([]); setCashPockets([]);
     (async () => {
       try {
         const [t, a, l, b, inv] = await Promise.all([
@@ -335,6 +345,8 @@ export function GoalProvider({ children }: { children: ReactNode }) {
   const syncUserId = useContext(AuthContext)?.user?.email;
 
   useEffect(() => {
+    setHydrated(false);
+    setGoals([]); // clear the previous identity's goals before loading the new one
     (async () => {
       try { const g = await loadGoals(); if (g) setGoals(g); }
       catch (e) { console.error('[Goals] hydrate failed:', e); }
@@ -393,6 +405,8 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
   const syncUserId = useContext(AuthContext)?.user?.email;
 
   useEffect(() => {
+    setHydrated(false);
+    setInvoices([]); // clear the previous identity's invoices before loading the new one
     (async () => {
       try { const i = await loadInvoices(); if (i) setInvoices(i); }
       catch (e) { console.error('[Invoices] hydrate failed:', e); }
@@ -445,24 +459,30 @@ interface SettingsContextValue {
 
 const SettingsContext = createContext<SettingsContextValue | undefined>(undefined);
 
+const DEFAULT_SETTINGS: BusinessSettings = {
+  businessType: 'both',
+  currency: '₦',
+  currencyCode: 'NGN',
+  minReserve: '0',
+  targetMargin: '20',
+  openingAssets: '0',
+  openingLiabilities: '0',
+  openingLoans: '0',
+  openingOtherAssets: '0',
+  defaultTaxRate: '0.2',
+};
+
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<BusinessSettings>({
-    businessType: 'both',
-    currency: '₦',
-    currencyCode: 'NGN',
-    minReserve: '0',
-    targetMargin: '20',
-    openingAssets: '0',
-    openingLiabilities: '0',
-    openingLoans: '0',
-    openingOtherAssets: '0',
-    defaultTaxRate: '0.2',
+    ...DEFAULT_SETTINGS,
   });
   const [language, setLanguage] = useState('en');
   const [hydrated, setHydrated] = useState(false);
   const syncUserId = useContext(AuthContext)?.user?.email;
 
   useEffect(() => {
+    setHydrated(false);
+    setSettings(DEFAULT_SETTINGS); // clear the previous identity's settings before loading the new one
     (async () => {
       try { const s = await loadSettings(); if (s) setSettings((prev) => ({ ...prev, ...s })); }
       catch (e) { console.error('[Settings] hydrate failed:', e); }
@@ -511,7 +531,7 @@ interface AuthContextValue {
   login: (pin: string) => Promise<boolean>;
   logout: () => Promise<void>;
   updateProfile: (patch: Partial<Pick<User, 'phone' | 'businessName'>>) => void;
-  changePin: (currentPin: string, newPin: string) => Promise<{ ok: boolean }>;
+  changePin: (currentPin: string, newPin: string) => Promise<{ ok: boolean; lockedUntil?: number; cloudSynced?: boolean }>;
   isDemoMode: boolean;
   enterDemo: (businessId: string) => void;
   exitDemo: () => void;
@@ -622,6 +642,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           await supabase.auth.signOut().catch(() => {});
           await clearWorkspaceOwner().catch(() => {});
+          // Wipe the locally-cached financial data so it can't leak into
+          // whichever account signs in next on this device — several local
+          // caches (staff/payroll) have no per-user namespacing.
+          await clearLocalFinancialCache().catch(() => {});
           setUser(null);
           setCurrentScreenState('login');
         } finally {
@@ -644,6 +668,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if ((e?.message ?? '').includes('already registered')) throw e;
         }
         await clearWorkspaceOwner().catch(() => {});
+        // A brand-new account must never inherit a previous identity's cached
+        // data on this device (in case logout wasn't called, e.g. app was
+        // force-closed) — same leak this closes on the logout path.
+        await clearLocalFinancialCache().catch(() => {});
         await savePin(pin);
         await saveProfile({ email, businessName, phone });
         setIsFirstLaunch(false);
@@ -653,6 +681,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       recoverAccount: async (email, pin) => {
         // Called after a successful Supabase sign-in — pull this user's profile
         // (or create a local one) so their data (synced by email/session) loads.
+        // Clear stale local cache first: Supabase is authoritative here, and the
+        // FinanceProvider/GoalProvider/etc. hydrate effects will immediately
+        // re-pull this user's real data from the cloud once `user` changes.
+        await clearLocalFinancialCache().catch(() => {});
         await savePin(pin).catch(() => {});
         let profile = await loadProfile();
         if (!profile || profile.email !== email) {
@@ -674,6 +706,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!authUserId) throw new Error('Could not authenticate.');
         const { ownerId, role } = await joinTeamWithCode(authUserId, inviteCode);
         await setWorkspaceOwner(ownerId);
+        // Joining a team on this device must not carry over any previous
+        // identity's locally-cached data.
+        await clearLocalFinancialCache().catch(() => {});
         await savePin(pin);
         await saveProfile({ email, businessName: 'Team Member' });
         setIsFirstLaunch(false);
@@ -699,7 +734,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // If a PIN exists, verify the current one before changing.
           if (stored && stored !== hash(currentPin)) return { ok: false };
           await savePin(newPin);
-          return { ok: true };
+          // Best-effort cloud sync: keeps the PIN usable via Supabase auth on
+          // other devices too — report back whether it actually succeeded so
+          // the UI can tell the user if they'll need "Forgot PIN?" elsewhere.
+          let cloudSynced = false;
+          if (user?.email) {
+            const { error } = await supabase.auth.updateUser({ password: hashPin(newPin) });
+            cloudSynced = !error;
+          }
+          return { ok: true, cloudSynced };
         } catch { return { ok: false }; }
       },
       isDemoMode,
@@ -953,7 +996,10 @@ export function useApp() {
     runPayroll: finance?.runPayroll || (() => {}),
     deletePayrollRun: finance?.deletePayrollRun || (() => {}),
     teamMembers: auth.teamMembers ?? [],
-    userRole: 'owner' as const,
+    // Derived from the signed-in user's role, not hardcoded — was always
+    // 'owner' regardless of who was actually logged in, silently disabling
+    // every permission check gated on userRole (e.g. payment-key edits).
+    userRole: (auth.user?.role === 'Accountant' ? 'accountant' : auth.user?.role === 'Staff' ? 'staff' : 'owner') as UserRole,
     inviteMember: auth.inviteMember || (async () => ''),
     removeMember: auth.removeMember || (() => Promise.resolve()),
     joinTeam: auth.joinTeam,

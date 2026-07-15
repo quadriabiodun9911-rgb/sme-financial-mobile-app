@@ -79,7 +79,7 @@ export default function GrowMoneyScreen() {
           <View style={styles.valuationCard}>
             <Text style={styles.valuationLabel}>Estimated Business Worth</Text>
             <Text style={styles.valuationValue}>{formatCurrency(businessValue)}</Text>
-            <Text style={styles.valuationSubtext}>Based on revenue multiple × {(businessValue / (finance.income * 12)).toFixed(1)}x</Text>
+            <Text style={styles.valuationSubtext}>Based on revenue multiple × {(businessValue / (finance.income * 12 || 1)).toFixed(1)}x</Text>
 
             <View style={styles.valuationBreakdown}>
               <View style={styles.breakdownItem}>
@@ -88,7 +88,7 @@ export default function GrowMoneyScreen() {
               </View>
               <View style={styles.breakdownItem}>
                 <Text style={styles.breakdownLabel}>Multiple</Text>
-                <Text style={styles.breakdownValue}>{(businessValue / (finance.income * 12)).toFixed(1)}x</Text>
+                <Text style={styles.breakdownValue}>{(businessValue / (finance.income * 12 || 1)).toFixed(1)}x</Text>
               </View>
               <View style={styles.breakdownItem}>
                 <Text style={styles.breakdownLabel}>Valuation</Text>

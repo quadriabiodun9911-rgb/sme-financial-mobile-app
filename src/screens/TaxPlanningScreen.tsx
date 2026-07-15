@@ -9,7 +9,7 @@ import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 
 export default function TaxPlanningScreen() {
-    const { transactions, settings, navigate, finance } = useApp();
+    const { transactions, settings, navigate, finance, user } = useApp();
     const { currency } = settings;
     const [showDeductionModal, setShowDeductionModal] = useState(false);
     const [selectedQuarter, setSelectedQuarter] = useState<1 | 2 | 3 | 4>(1);
@@ -33,7 +33,7 @@ export default function TaxPlanningScreen() {
                 .filter(tx => {
                     const txYear = parseInt(tx.date.split('-')[0], 10);
                     const txMonth = parseInt(tx.date.split('-')[1], 10);
-                    return txYear === currentYear && quarter.months.includes(txMonth) && tx.category !== 'Expense';
+                    return txYear === currentYear && quarter.months.includes(txMonth) && tx.type === 'income';
                 })
                 .reduce((sum, tx) => sum + tx.amount, 0);
 
@@ -41,7 +41,7 @@ export default function TaxPlanningScreen() {
                 .filter(tx => {
                     const txYear = parseInt(tx.date.split('-')[0], 10);
                     const txMonth = parseInt(tx.date.split('-')[1], 10);
-                    return txYear === currentYear && quarter.months.includes(txMonth) && tx.category === 'Expense';
+                    return txYear === currentYear && quarter.months.includes(txMonth) && tx.type === 'expense';
                 })
                 .reduce((sum, tx) => sum + tx.amount, 0);
 
@@ -107,7 +107,7 @@ export default function TaxPlanningScreen() {
             const report = `
 TAX PLANNING REPORT
 Generated: ${new Date().toLocaleDateString()}
-Business: ${settings.businessName}
+Business: ${user?.businessName ?? 'My Business'}
 
 ANNUAL SUMMARY
 ==============
