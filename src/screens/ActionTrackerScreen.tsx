@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity, Alert } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
@@ -205,7 +205,13 @@ export default function ActionTrackerScreen() {
                       </View>
                     )}
 
-                    <TouchableOpacity style={styles.startButton}>
+                    <TouchableOpacity
+                      style={styles.startButton}
+                      onPress={() => {
+                        const steps = action.steps.map((s, i) => `${i + 1}. ${s}`).join('\n');
+                        Alert.alert(action.title, steps || 'No steps listed for this action.');
+                      }}
+                    >
                       <Text style={styles.startButtonText}>▶ Start This Action</Text>
                     </TouchableOpacity>
                   </View>

@@ -66,6 +66,7 @@ export default function BorrowMoneyScreen() {
       rate: 12,
       tenure: 12,
       emoji: '🏦',
+      requiredScore: 60,
       ready: creditScore >= 60,
     },
     {
@@ -74,6 +75,7 @@ export default function BorrowMoneyScreen() {
       rate: 14,
       tenure: 12,
       emoji: '🏛️',
+      requiredScore: 50,
       ready: creditScore >= 50,
     },
     {
@@ -82,6 +84,7 @@ export default function BorrowMoneyScreen() {
       rate: 10,
       tenure: 6,
       emoji: '📱',
+      requiredScore: 70,
       ready: creditScore >= 70,
     },
     {
@@ -90,6 +93,7 @@ export default function BorrowMoneyScreen() {
       rate: 8,
       tenure: 3,
       emoji: '⚡',
+      requiredScore: 65,
       ready: creditScore >= 65,
     },
   ];
@@ -203,7 +207,7 @@ export default function BorrowMoneyScreen() {
                 <View style={styles.lenderInfo}>
                   <Text style={styles.lenderName}>{lender.name}</Text>
                   {lender.ready && <Text style={styles.lenderReady}>✅ You Qualify</Text>}
-                  {!lender.ready && <Text style={styles.lenderNotReady}>❌ Need Score {60 + Math.random() * 20}</Text>}
+                  {!lender.ready && <Text style={styles.lenderNotReady}>❌ Need Score {lender.requiredScore}</Text>}
                 </View>
               </View>
 
