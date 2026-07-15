@@ -6,6 +6,13 @@ import { savePinSecurely, loadPinSecurely, clearPinSecurely, clearAllSecureData 
 import { enqueue } from './syncQueue';
 import { getEncryptionKey, encryptGoal, decryptGoal, encryptLoan, decryptLoan, encryptBudget, decryptBudget } from './encryption';
 
+// Corrupt/partial storage must never crash a loader — parse defensively.
+function safeParse<T>(raw: string | null): T | null {
+    if (!raw) return null;
+    try { return JSON.parse(raw) as T; } catch { return null; }
+}
+
+
 const KEYS = {
     transactions:   '@quad360/transactions',
     settings:       '@quad360/settings',
@@ -115,7 +122,7 @@ export async function loadTransactions(): Promise<Transaction[] | null> {
         }
     }
     const raw = await AsyncStorage.getItem(KEYS.transactions);
-    return raw ? (JSON.parse(raw) as Transaction[]) : null;
+    return safeParse<Transaction[]>(raw);
 }
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
@@ -155,7 +162,7 @@ export async function loadSettings(): Promise<BusinessSettings | null> {
         }
     }
     const raw = await AsyncStorage.getItem(KEYS.settings);
-    return raw ? (JSON.parse(raw) as BusinessSettings) : null;
+    return safeParse<BusinessSettings>(raw);
 }
 
 // ─── Goals ────────────────────────────────────────────────────────────────────
@@ -222,7 +229,7 @@ export async function loadGoals(): Promise<FinancialGoal[] | null> {
         }
     }
     const raw = await AsyncStorage.getItem(KEYS.goals);
-    return raw ? (JSON.parse(raw) as FinancialGoal[]) : null;
+    return safeParse<FinancialGoal[]>(raw);
 }
 
 // ─── Invoices ─────────────────────────────────────────────────────────────────
@@ -277,7 +284,7 @@ export async function loadInvoices(): Promise<Invoice[] | null> {
         }
     }
     const raw = await AsyncStorage.getItem(KEYS.invoices);
-    return raw ? (JSON.parse(raw) as Invoice[]) : null;
+    return safeParse<Invoice[]>(raw);
 }
 
 // ─── Assets ───────────────────────────────────────────────────────────────────
@@ -332,7 +339,7 @@ export async function loadAssets(): Promise<Asset[] | null> {
         }
     }
     const raw = await AsyncStorage.getItem(KEYS.assets);
-    return raw ? (JSON.parse(raw) as Asset[]) : null;
+    return safeParse<Asset[]>(raw);
 }
 
 // ─── Loans ────────────────────────────────────────────────────────────────────
@@ -378,7 +385,7 @@ export async function loadLoans(): Promise<Loan[] | null> {
         } catch (e) { logSyncError('loans', 'load', e); }
     }
     const raw = await AsyncStorage.getItem(KEYS.loans);
-    return raw ? (JSON.parse(raw) as Loan[]) : null;
+    return safeParse<Loan[]>(raw);
 }
 
 // ─── Budgets ──────────────────────────────────────────────────────────────────
@@ -424,7 +431,7 @@ export async function loadBudgets(): Promise<Budget[] | null> {
         } catch (e) { logSyncError('budgets', 'load', e); }
     }
     const raw = await AsyncStorage.getItem('@quad360/budgets');
-    return raw ? (JSON.parse(raw) as Budget[]) : null;
+    return safeParse<Budget[]>(raw);
 }
 
 const CASH_POCKETS_KEY = '@quad360/cashPockets';
@@ -466,7 +473,7 @@ export async function loadCashPockets(): Promise<CashPocket[] | null> {
         } catch (e) { logSyncError('cash_pockets', 'load', e); }
     }
     const raw = await AsyncStorage.getItem(CASH_POCKETS_KEY);
-    return raw ? (JSON.parse(raw) as CashPocket[]) : null;
+    return safeParse<CashPocket[]>(raw);
 }
 
 // ─── Team Members ─────────────────────────────────────────────────────────────
@@ -613,7 +620,7 @@ export async function loadInventory(): Promise<InventoryItem[] | null> {
         }
     }
     const raw = await AsyncStorage.getItem('@quad360/inventory');
-    return raw ? JSON.parse(raw) as InventoryItem[] : null;
+    return safeParse<InventoryItem[]>(raw);
 }
 
 // ─── Language (per-device, not synced) ───────────────────────────────────────
@@ -656,7 +663,7 @@ export async function saveProfile(p: StoredProfile): Promise<void> {
 
 export async function loadProfile(): Promise<StoredProfile | null> {
     const raw = await AsyncStorage.getItem(KEYS.profile);
-    return raw ? (JSON.parse(raw) as StoredProfile) : null;
+    return safeParse<StoredProfile>(raw);
 }
 
 // ─── Full data export / import / clear ───────────────────────────────────────

@@ -235,7 +235,13 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         };
         setPayrollRuns((prev) => [...prev, run]);
       },
-      deletePayrollRun: (id) => setPayrollRuns((prev) => prev.filter((r) => r.id !== id)),
+      deletePayrollRun: (id) => {
+        // Remove the linked Salaries expense transaction too, so deleting a
+        // payroll run doesn't leave an orphan expense understating profit.
+        const run = payrollRuns.find((r) => r.id === id);
+        if (run?.transactionId) setTransactions((txs) => txs.filter((t) => t.id !== run.transactionId));
+        setPayrollRuns((prev) => prev.filter((r) => r.id !== id));
+      },
       addCashPocket: (name, amount) => setCashPockets((prev) => [...prev, { id: genId(), name, amount, updatedAt: new Date().toISOString() }]),
       updateCashPocket: (id, amount) => setCashPockets((prev) => prev.map((p) => (p.id === id ? { ...p, amount, updatedAt: new Date().toISOString() } : p))),
       deleteCashPocket: (id) => setCashPockets((prev) => prev.filter((p) => p.id !== id)),
