@@ -350,7 +350,8 @@ export class ForecastEngine {
     }
 
     // Bonus for strong positive outlook
-    if (baseCase.months[baseCase.months.length - 1].closingBalance > this.input.currentCash * 1.5) {
+    const scoreMonths = baseCase.months ?? [];
+    if (scoreMonths.length > 0 && scoreMonths[scoreMonths.length - 1].closingBalance > this.input.currentCash * 1.5) {
       score += 10;
     }
 
@@ -393,8 +394,10 @@ export class ForecastEngine {
     }
 
     // Expense optimization
+    const recMonths = baseCase.months ?? [];
+    if (recMonths.length === 0) return recommendations;
     const avgExpenses =
-      baseCase.months.reduce((sum, m) => sum + m.projectedExpenses, 0) / baseCase.months.length;
+      recMonths.reduce((sum, m) => sum + m.projectedExpenses, 0) / recMonths.length;
     if (avgExpenses > this.input.currentRevenue * 0.8) {
       recommendations.push({
         id: `rec-${id++}`,
@@ -408,13 +411,13 @@ export class ForecastEngine {
 
     // Seasonal opportunity
     const q1Avg =
-      baseCase.months
+      recMonths
         .slice(0, 3)
-        .reduce((sum, m) => sum + m.projectedIncome, 0) / Math.min(3, baseCase.months.length);
+        .reduce((sum, m) => sum + m.projectedIncome, 0) / Math.min(3, recMonths.length);
     const q3Avg =
-      baseCase.months
+      recMonths
         .slice(6, 9)
-        .reduce((sum, m) => sum + m.projectedIncome, 0) / Math.min(3, baseCase.months.length);
+        .reduce((sum, m) => sum + m.projectedIncome, 0) / Math.min(3, recMonths.length);
 
     if (q3Avg > q1Avg * 1.3) {
       recommendations.push({
@@ -485,7 +488,7 @@ export const detectForecastAlerts = (
 
   // Negative forecast alert
   if (forecast.baseCase.runsOutOfCash) {
-    const monthsUntilCrisis = forecast.baseCase.months.findIndex(m => m.closingBalance < 0);
+    const monthsUntilCrisis = (forecast.baseCase.months ?? []).findIndex(m => m.closingBalance < 0);
     const daysUntilCrisis = monthsUntilCrisis * 30;
 
     if (daysUntilCrisis < thresholds.negativeForcastDays) {

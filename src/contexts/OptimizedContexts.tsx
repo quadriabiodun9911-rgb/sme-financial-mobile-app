@@ -141,7 +141,14 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       openingOtherAssets: '0',
     };
     const totalAssetsValue = assets.reduce((sum, a) => sum + (a.purchaseCost || 0), 0);
-    return computeFinance(transactions, settingsSubset, totalAssetsValue, assets);
+    try {
+      return computeFinance(transactions, settingsSubset, totalAssetsValue, assets);
+    } catch (e) {
+      // Never let a bad record white-screen the whole app — fall back to an
+      // empty computation so screens still render.
+      console.error('[Finance] compute failed, using empty result:', e);
+      return computeFinance([], settingsSubset, 0, []);
+    }
   }, [transactions, assets]); // Only re-compute if these change
 
   const value: FinanceContextValue = useMemo(

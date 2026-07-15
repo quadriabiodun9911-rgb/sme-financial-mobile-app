@@ -1,23 +1,32 @@
 import React, { Component, ReactNode } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView } from 'react-native';
 import { Colors } from '../theme/colors';
 
 interface Props { children: ReactNode }
-interface State { error: Error | null }
+interface State { error: Error | null; stack: string }
 
 export default class ErrorBoundary extends Component<Props, State> {
-    state: State = { error: null };
+    state: State = { error: null, stack: '' };
 
-    static getDerivedStateFromError(error: Error): State {
+    static getDerivedStateFromError(error: Error): Partial<State> {
         return { error };
     }
 
     componentDidCatch(error: Error, info: React.ErrorInfo) {
         console.error('[ErrorBoundary]', error, info.componentStack);
+        // Keep the top of the component stack so the crashing screen is visible
+        // in the UI (helps diagnose from a screenshot, not just the console).
+        const top = (info.componentStack || '')
+            .split('\n')
+            .map(l => l.trim())
+            .filter(Boolean)
+            .slice(0, 6)
+            .join('\n');
+        this.setState({ stack: top });
     }
 
     render() {
-        const { error } = this.state;
+        const { error, stack } = this.state;
         if (!error) return this.props.children;
 
         return (
@@ -26,7 +35,12 @@ export default class ErrorBoundary extends Component<Props, State> {
                     <Text style={s.icon}>⚠️</Text>
                     <Text style={s.title}>Something went wrong</Text>
                     <Text style={s.message}>{error.message}</Text>
-                    <TouchableOpacity style={s.btn} onPress={() => this.setState({ error: null })}>
+                    {!!stack && (
+                        <ScrollView style={s.stackBox} contentContainerStyle={{ padding: 10 }}>
+                            <Text style={s.stackText}>{stack}</Text>
+                        </ScrollView>
+                    )}
+                    <TouchableOpacity style={s.btn} onPress={() => this.setState({ error: null, stack: '' })}>
                         <Text style={s.btnText}>Try Again</Text>
                     </TouchableOpacity>
                 </View>
@@ -40,7 +54,9 @@ const s = StyleSheet.create({
     container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
     icon:      { fontSize: 48, marginBottom: 16 },
     title:     { fontSize: 20, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 10, textAlign: 'center' },
-    message:   { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 20, marginBottom: 28 },
+    message:   { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 20, marginBottom: 16 },
+    stackBox:  { maxHeight: 140, alignSelf: 'stretch', backgroundColor: Colors.surface, borderRadius: 8, marginBottom: 20 },
+    stackText: { fontSize: 10, color: Colors.textMuted, fontFamily: 'monospace' },
     btn:       { backgroundColor: Colors.primary, paddingVertical: 12, paddingHorizontal: 32, borderRadius: 8 },
     btnText:   { color: Colors.textPrimary, fontWeight: 'bold', fontSize: 14 },
 });

@@ -182,8 +182,8 @@ export class AlertEngine {
 
     // Calculate average monthly expense
     const avgMonthlyExpense =
-      this.forecast.baseCase.months.reduce((sum, m) => sum + m.projectedExpenses, 0) /
-      this.forecast.baseCase.months.length;
+      (this.forecast.baseCase.months ?? []).reduce((sum, m) => sum + m.projectedExpenses, 0) /
+      (this.forecast.baseCase.months ?? []).length;
 
     const largeExpenseThreshold = avgMonthlyExpense * this.thresholds.largeExpenseAmount;
 
@@ -233,8 +233,8 @@ export class AlertEngine {
     if (!this.forecast?.baseCase) return 0;
 
     const avgDailyExpense =
-      this.forecast.baseCase.months.reduce((sum, m) => sum + m.projectedExpenses, 0) /
-      (this.forecast.baseCase.months.length * 30);
+      (this.forecast.baseCase.months ?? []).reduce((sum, m) => sum + m.projectedExpenses, 0) /
+      ((this.forecast.baseCase.months ?? []).length * 30);
 
     if (avgDailyExpense <= 0) return 365; // Infinite runway if no expenses
 
