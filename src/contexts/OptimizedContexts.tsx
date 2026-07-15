@@ -23,6 +23,7 @@ import {
   loadSettings, saveSettings,
   loadStaff, saveStaff,
   loadPayrollRuns, savePayrollRuns,
+  loadCashPockets, saveCashPockets,
 } from '../utils/storage';
 
 // Simple monotonic id generator for records created client-side.
@@ -101,11 +102,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         if (b) setBudgets(b);
         if (inv) setInventory(inv);
         const [st, pr, cp] = await Promise.all([
-          loadStaff(), loadPayrollRuns(), AsyncStorage.getItem('@quad360/cashPockets'),
+          loadStaff(), loadPayrollRuns(), loadCashPockets(),
         ]);
         if (st) setStaff(st);
         if (pr) setPayrollRuns(pr);
-        if (cp) setCashPockets(JSON.parse(cp));
+        if (cp) setCashPockets(cp);
       } catch (e) {
         console.error('[Finance] hydrate failed:', e);
       } finally {
@@ -123,7 +124,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { if (hydrated) saveInventory(inventory).catch(() => {}); }, [inventory, hydrated]);
   useEffect(() => { if (hydrated) saveStaff(staff).catch(() => {}); }, [staff, hydrated]);
   useEffect(() => { if (hydrated) savePayrollRuns(payrollRuns).catch(() => {}); }, [payrollRuns, hydrated]);
-  useEffect(() => { if (hydrated) AsyncStorage.setItem('@quad360/cashPockets', JSON.stringify(cashPockets)).catch(() => {}); }, [cashPockets, hydrated]);
+  useEffect(() => { if (hydrated) saveCashPockets(cashPockets).catch(() => {}); }, [cashPockets, hydrated]);
 
   // Computed finance - memoized with specific dependency
   const finance = useMemo(() => {

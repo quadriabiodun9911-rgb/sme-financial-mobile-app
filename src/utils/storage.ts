@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CryptoJS from 'crypto-js';
-import { Transaction, BusinessSettings, FinancialGoal, Invoice, TeamMember, Language, Asset, InventoryItem, Loan, Budget, StaffMember, PayrollRun, FinancingContextData } from '../types';
+import { Transaction, BusinessSettings, FinancialGoal, Invoice, TeamMember, Language, Asset, InventoryItem, Loan, Budget, StaffMember, PayrollRun, FinancingContextData, CashPocket } from '../types';
 import { supabase } from './supabase';
 import { savePinSecurely, loadPinSecurely, clearPinSecurely, clearAllSecureData } from './secureStorage';
 import { enqueue } from './syncQueue';
@@ -425,6 +425,48 @@ export async function loadBudgets(): Promise<Budget[] | null> {
     }
     const raw = await AsyncStorage.getItem('@quad360/budgets');
     return raw ? (JSON.parse(raw) as Budget[]) : null;
+}
+
+const CASH_POCKETS_KEY = '@quad360/cashPockets';
+
+export async function saveCashPockets(pockets: CashPocket[]): Promise<void> {
+    await AsyncStorage.setItem(CASH_POCKETS_KEY, JSON.stringify(pockets));
+    const ownerId = await getWorkspaceOwnerId();
+    if (!ownerId) return;
+    try {
+        if (pockets.length > 0) {
+            const rows = pockets.map(p => ({
+                id: p.id,
+                user_id: ownerId,
+                data: p,
+                updated_at: new Date().toISOString(),
+            }));
+            const { error } = await supabase.from('cash_pockets').upsert(rows, { onConflict: 'id' });
+            if (error) logSyncError('cash_pockets', 'upsert', error);
+        }
+        const { data: remote } = await supabase.from('cash_pockets').select('id').eq('user_id', ownerId);
+        if (remote) {
+            const localIds = new Set(pockets.map(p => p.id));
+            const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
+            if (toDelete.length > 0) await supabase.from('cash_pockets').delete().in('id', toDelete);
+        }
+    } catch (e) { logSyncError('cash_pockets', 'sync', e); }
+}
+
+export async function loadCashPockets(): Promise<CashPocket[] | null> {
+    const ownerId = await getWorkspaceOwnerId();
+    if (ownerId) {
+        try {
+            const { data, error } = await supabase.from('cash_pockets').select('data').eq('user_id', ownerId);
+            if (!error && data && data.length > 0) {
+                const pockets = data.map(r => r.data as CashPocket);
+                await AsyncStorage.setItem(CASH_POCKETS_KEY, JSON.stringify(pockets));
+                return pockets;
+            }
+        } catch (e) { logSyncError('cash_pockets', 'load', e); }
+    }
+    const raw = await AsyncStorage.getItem(CASH_POCKETS_KEY);
+    return raw ? (JSON.parse(raw) as CashPocket[]) : null;
 }
 
 // ─── Team Members ─────────────────────────────────────────────────────────────
