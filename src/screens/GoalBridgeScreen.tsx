@@ -69,14 +69,16 @@ export default function GoalBridgeScreen() {
     return generateActionPlan(diagnosis, diagnosis.metrics, settings.currency);
   }, [diagnosis, settings.currency]);
 
-  // Sample goal if none selected
-  const exampleGoal: FinancialGoal = selectedGoal || {
+  // Prefer an explicitly selected goal; otherwise fall back to the user's first
+  // saved goal so the bridge reflects real goals, not just a placeholder.
+  const firstSavedGoal = goals.length > 0 ? mapSavedGoalToBridge(goals[0]) : null;
+  const exampleGoal: FinancialGoal = selectedGoal || firstSavedGoal || {
     id: 'goal-profit',
     type: 'profit',
     currentValue: finance.profit,
     targetValue: parseInt(targetValue || '1000000') || 1000000,
     timelineMonths: parseInt(timelineMonths || '12') || 12,
-    description: `Reach ₦${(parseInt(targetValue || '0') || 0).toLocaleString()} monthly profit`,
+    description: `Reach ${settings.currency}${(parseInt(targetValue || '0') || 0).toLocaleString()} monthly profit`,
   };
 
   const bridge = useMemo(() => {

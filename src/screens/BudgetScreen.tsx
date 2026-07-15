@@ -166,8 +166,10 @@ export default function BudgetScreen() {
                     )}
                 </View>
 
-                {/* Budget Strategy — revenue, cash, and profit impact of the plan */}
-                {budgets.length > 0 && (
+                {/* Budget Strategy — revenue, cash, and profit impact of the plan.
+                    Show whenever there's something meaningful to assess: a budget,
+                    an active loan (so its repayment burden is visible), or revenue. */}
+                {(budgets.length > 0 || loanBurden > 0 || monthlyRevenue > 0) && (
                     <View style={s.strategyCard}>
                         <Text style={s.strategyTitle}>📊 Budget Strategy</Text>
                         <View style={s.strategyRow}>

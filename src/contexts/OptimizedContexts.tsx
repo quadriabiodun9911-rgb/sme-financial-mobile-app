@@ -112,6 +112,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         if (st) setStaff(st);
         if (pr) setPayrollRuns(pr);
         if (cp) setCashPockets(cp);
+        console.log(`[Finance] hydrated (user=${syncUserId ?? 'none'}): ${t?.length ?? 0} tx, ${l?.length ?? 0} loans, ${b?.length ?? 0} budgets, ${a?.length ?? 0} assets`);
       } catch (e) {
         console.error('[Finance] hydrate failed:', e);
       } finally {
@@ -125,7 +126,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { if (hydrated) saveTransactions(transactions).catch(() => {}); }, [transactions, hydrated]);
   useEffect(() => { if (hydrated) saveAssets(assets).catch(() => {}); }, [assets, hydrated]);
   useEffect(() => { if (hydrated) saveLoans(loans).catch(() => {}); }, [loans, hydrated]);
-  useEffect(() => { if (hydrated) saveBudgets(budgets).catch(() => {}); }, [budgets, hydrated]);
+  useEffect(() => { if (hydrated) { console.log(`[Finance] saving ${budgets.length} budgets`); saveBudgets(budgets).catch((e) => console.error('[Finance] saveBudgets failed:', e)); } }, [budgets, hydrated]);
   useEffect(() => { if (hydrated) saveInventory(inventory).catch(() => {}); }, [inventory, hydrated]);
   useEffect(() => { if (hydrated) saveStaff(staff).catch(() => {}); }, [staff, hydrated]);
   useEffect(() => { if (hydrated) savePayrollRuns(payrollRuns).catch(() => {}); }, [payrollRuns, hydrated]);
