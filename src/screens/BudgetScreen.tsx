@@ -8,6 +8,7 @@ import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { computeBudgetVsActual } from '../utils/finance';
+import { totalMonthlyLoanBurden } from '../utils/loanMath';
 import { Budget } from '../types';
 
 const EXPENSE_CATEGORIES = [
@@ -17,7 +18,7 @@ const EXPENSE_CATEGORIES = [
 ];
 
 export default function BudgetScreen() {
-    const { transactions, budgets, addBudget, updateBudget, deleteBudget, settings, navigate, finance } = useApp();
+    const { transactions, budgets, addBudget, updateBudget, deleteBudget, settings, navigate, finance, loans } = useApp();
     const { currency } = settings;
 
     const now = new Date();
@@ -57,13 +58,18 @@ export default function BudgetScreen() {
     // Budget strategy: how the planned spend sits against revenue, cash & profit.
     const monthlyRevenue = finance?.income ?? 0;
     const cashBalance = finance?.cashBalance ?? 0;
-    // Projected profit if you spend your full budget this month.
-    const projectedProfit = monthlyRevenue - totalBudgeted;
-    // A safe cap: keep planned spend within revenue (never plan a loss). For a
-    // healthy ~20% margin, aim to keep total budget under 80% of revenue.
+    // Active loan repayments are a real monthly cash commitment on top of the
+    // budget, so the plan must account for them.
+    const loanBurden = totalMonthlyLoanBurden(loans ?? []);
+    // Total monthly cash commitments = planned spend + loan repayments.
+    const totalCommitments = totalBudgeted + loanBurden;
+    // Projected profit if you spend your full budget and cover loan repayments.
+    const projectedProfit = monthlyRevenue - totalCommitments;
+    // A safe cap: keep total commitments within revenue (never plan a loss). For
+    // a healthy ~20% margin, aim to keep them under 80% of revenue.
     const safeCap = monthlyRevenue * 0.8;
-    const overRevenue = totalBudgeted > monthlyRevenue;
-    const overSafeCap = totalBudgeted > safeCap && !overRevenue;
+    const overRevenue = totalCommitments > monthlyRevenue;
+    const overSafeCap = totalCommitments > safeCap && !overRevenue;
     const pastSuggestion = pastAvgByCat[customCat.trim() || category];
 
     function openAdd() {
@@ -176,8 +182,20 @@ export default function BudgetScreen() {
                             <Text style={s.strategyLabel}>Total planned spend</Text>
                             <Text style={s.strategyVal}>{currency}{totalBudgeted.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
                         </View>
+                        {loanBurden > 0 && (
+                            <>
+                                <View style={s.strategyRow}>
+                                    <Text style={s.strategyLabel}>+ Loan repayments (monthly)</Text>
+                                    <Text style={[s.strategyVal, { color: Colors.expense }]}>{currency}{loanBurden.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                                </View>
+                                <View style={s.strategyRow}>
+                                    <Text style={[s.strategyLabel, { fontWeight: '700', color: Colors.textPrimary }]}>= Total monthly commitments</Text>
+                                    <Text style={[s.strategyVal, { fontWeight: '700' }]}>{currency}{totalCommitments.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                                </View>
+                            </>
+                        )}
                         <View style={[s.strategyRow, { borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 8, marginTop: 4 }]}>
-                            <Text style={[s.strategyLabel, { fontWeight: '700', color: Colors.textPrimary }]}>Projected profit if fully spent</Text>
+                            <Text style={[s.strategyLabel, { fontWeight: '700', color: Colors.textPrimary }]}>Projected profit after spend{loanBurden > 0 ? ' & loans' : ''}</Text>
                             <Text style={[s.strategyVal, { color: projectedProfit >= 0 ? Colors.income : Colors.expense, fontWeight: '800' }]}>
                                 {currency}{projectedProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                             </Text>
@@ -186,9 +204,9 @@ export default function BudgetScreen() {
                         <View style={[s.strategyVerdict, { backgroundColor: (overRevenue ? Colors.expense : overSafeCap ? Colors.warning : Colors.income) + '18', borderColor: overRevenue ? Colors.expense : overSafeCap ? Colors.warning : Colors.income }]}>
                             <Text style={[s.strategyVerdictText, { color: overRevenue ? Colors.expense : overSafeCap ? Colors.warning : Colors.income }]}>
                                 {overRevenue
-                                    ? `⚠ Your planned spend (${currency}${totalBudgeted.toLocaleString(undefined, { maximumFractionDigits: 0 })}) exceeds monthly revenue — this plans a ${currency}${Math.abs(projectedProfit).toLocaleString(undefined, { maximumFractionDigits: 0 })} loss and will draw down cash. Cut about ${currency}${(totalBudgeted - safeCap).toLocaleString(undefined, { maximumFractionDigits: 0 })} to protect profit.`
+                                    ? `⚠ Your monthly commitments (${currency}${totalCommitments.toLocaleString(undefined, { maximumFractionDigits: 0 })}${loanBurden > 0 ? ', incl. loan repayments' : ''}) exceed monthly revenue — this plans a ${currency}${Math.abs(projectedProfit).toLocaleString(undefined, { maximumFractionDigits: 0 })} loss and will draw down cash. Cut about ${currency}${(totalCommitments - safeCap).toLocaleString(undefined, { maximumFractionDigits: 0 })} to protect profit.`
                                     : overSafeCap
-                                        ? `⚠ Spend is within revenue but above the safe cap (${currency}${safeCap.toLocaleString(undefined, { maximumFractionDigits: 0 })}, 80% of revenue). Leaves a thin ${currency}${projectedProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })} profit buffer.`
+                                        ? `⚠ Commitments are within revenue but above the safe cap (${currency}${safeCap.toLocaleString(undefined, { maximumFractionDigits: 0 })}, 80% of revenue). Leaves a thin ${currency}${projectedProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })} profit buffer.`
                                         : `✓ Healthy plan: keeps ${currency}${projectedProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })} profit (${monthlyRevenue > 0 ? ((projectedProfit / monthlyRevenue) * 100).toFixed(0) : 0}% margin). Recommended max spend: ${currency}${safeCap.toLocaleString(undefined, { maximumFractionDigits: 0 })}.`}
                             </Text>
                         </View>

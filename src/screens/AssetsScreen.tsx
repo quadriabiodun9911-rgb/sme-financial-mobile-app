@@ -10,6 +10,7 @@ import FooterNav from '../components/FooterNav';
 import { t } from '../utils/i18n';
 import { Asset, AssetCategory } from '../types';
 import { computeAssetCurrentValue, computeAssetAnnualDepreciation } from '../utils/finance';
+import { analyzeAcquisition } from '../utils/assetAcquisitionEngine';
 import DateInput from '../components/DateInput';
 
 const CATEGORIES: AssetCategory[] = ['equipment', 'vehicle', 'furniture', 'property', 'intangible', 'other'];
@@ -26,8 +27,12 @@ function categoryLabel(cat: AssetCategory, lang: Parameters<typeof t>[0]): strin
 type FilterTab = 'active' | 'disposed' | 'all';
 
 export default function AssetsScreen() {
-    const { assets, addAsset, updateAsset, deleteAsset, disposeAsset, settings, language, setCurrentScreen, navigate } = useApp();
+    const { assets, addAsset, updateAsset, deleteAsset, disposeAsset, settings, language, setCurrentScreen, navigate, finance } = useApp();
     const { currency } = settings;
+
+    // Financing terms for the acquisition strategy comparison
+    const [acqTerm, setAcqTerm] = useState('24');
+    const [acqRate, setAcqRate] = useState('20');
 
     const [filter, setFilter] = useState<FilterTab>('active');
     const [showForm, setShowForm] = useState(false);
@@ -228,6 +233,74 @@ export default function AssetsScreen() {
                             <Label text={`${t(language, 'residualValue')} (${currency})`} />
                             <TextInput style={s.input} value={residualValue} onChangeText={setResidual} placeholderTextColor={Colors.muted} keyboardType="decimal-pad" placeholder="0" />
 
+                            {/* Acquisition Strategy: cash vs credit vs lease */}
+                            {(() => {
+                                const cost = parseFloat(purchaseCost);
+                                if (isNaN(cost) || cost <= 0) return null;
+                                const analysis = analyzeAcquisition({
+                                    cost,
+                                    usefulLifeYears: parseFloat(usefulLife) || 5,
+                                    residualValue: parseFloat(residualValue) || 0,
+                                    termMonths: parseInt(acqTerm) || 24,
+                                    aprPercent: parseFloat(acqRate) || 0,
+                                    cashBalance: finance?.cashBalance ?? 0,
+                                    monthlyProfit: finance?.profit ?? 0,
+                                    minReserve: parseFloat(settings.minReserve || '0') || 0,
+                                });
+                                const recColor = Colors.primary;
+                                return (
+                                    <View style={s.acqCard}>
+                                        <Text style={s.acqTitle}>💡 How should you acquire this?</Text>
+                                        <View style={s.acqTermRow}>
+                                            <View style={{ flex: 1 }}>
+                                                <Label text="Finance term (months)" />
+                                                <TextInput style={s.input} value={acqTerm} onChangeText={setAcqTerm} keyboardType="number-pad" placeholder="24" placeholderTextColor={Colors.muted} />
+                                            </View>
+                                            <View style={{ width: 12 }} />
+                                            <View style={{ flex: 1 }}>
+                                                <Label text="Interest rate (% APR)" />
+                                                <TextInput style={s.input} value={acqRate} onChangeText={setAcqRate} keyboardType="decimal-pad" placeholder="20" placeholderTextColor={Colors.muted} />
+                                            </View>
+                                        </View>
+
+                                        {analysis.options.map(opt => {
+                                            const isRec = opt.method === analysis.recommended;
+                                            return (
+                                                <View key={opt.method} style={[s.acqOption, isRec && { borderColor: recColor, borderWidth: 1.5 }]}>
+                                                    <View style={s.acqOptHeader}>
+                                                        <Text style={s.acqOptLabel}>{opt.label}{isRec ? '  ⭐ Recommended' : ''}</Text>
+                                                        <Text style={s.acqOptOwns}>{opt.ownsAsset ? 'You own it' : 'Rented'}</Text>
+                                                    </View>
+                                                    <Text style={s.acqLine}>Upfront cash: <Text style={s.acqVal}>{currency}{Math.round(opt.upfront).toLocaleString()}</Text>{opt.monthly > 0 ? <Text> · Monthly: <Text style={s.acqVal}>{currency}{Math.round(opt.monthly).toLocaleString()}</Text> × {opt.termMonths}</Text> : null}</Text>
+                                                    <Text style={s.acqLine}>Total paid: <Text style={s.acqVal}>{currency}{Math.round(opt.totalCashPaid).toLocaleString()}</Text>{opt.extraVsCash > 0 ? <Text style={{ color: Colors.expense }}>  (+{currency}{Math.round(opt.extraVsCash).toLocaleString()} vs cash)</Text> : null}</Text>
+                                                    <Text style={s.acqLine}>Monthly profit impact: <Text style={[s.acqVal, { color: Colors.expense }]}>-{currency}{Math.round(opt.monthlyProfitImpact).toLocaleString()}</Text></Text>
+                                                    {opt.method === 'cash' && (
+                                                        <Text style={[s.acqFlag, { color: opt.keepsReserve ? Colors.income : Colors.expense }]}>
+                                                            {opt.affordableNow
+                                                                ? (opt.keepsReserve
+                                                                    ? `✓ Cash after: ${currency}${Math.round(opt.cashAfterUpfront).toLocaleString()} (reserve kept)`
+                                                                    : `⚠ Cash after: ${currency}${Math.round(opt.cashAfterUpfront).toLocaleString()} — below your minimum reserve`)
+                                                                : `⚠ Not enough cash (short by ${currency}${Math.round(cost - (finance?.cashBalance ?? 0)).toLocaleString()})`}
+                                                        </Text>
+                                                    )}
+                                                    {opt.method !== 'cash' && (
+                                                        <Text style={[s.acqFlag, { color: opt.serviceable ? Colors.income : Colors.expense }]}>
+                                                            {opt.serviceable
+                                                                ? `✓ ${currency}${Math.round(opt.monthly).toLocaleString()}/mo is covered by profit`
+                                                                : `⚠ ${currency}${Math.round(opt.monthly).toLocaleString()}/mo exceeds current monthly profit`}
+                                                        </Text>
+                                                    )}
+                                                </View>
+                                            );
+                                        })}
+
+                                        <View style={[s.acqVerdict, { borderColor: recColor }]}>
+                                            <Text style={[s.acqVerdictText, { color: recColor }]}>{analysis.rationale}</Text>
+                                        </View>
+                                    </View>
+                                );
+                            })()}
+
                             <View style={s.btnRow}>
                                 <TouchableOpacity style={[s.btn, s.btnSecondary]} onPress={() => { setShowForm(false); resetForm(); }}>
                                     <Text style={s.btnSecText}>{t(language, 'cancel')}</Text>
@@ -423,6 +496,19 @@ const s = StyleSheet.create({
     chipTextActive: { color: Colors.primary, fontWeight: '600' },
 
     btnRow: { flexDirection: 'row', gap: 10, marginTop: 20, marginBottom: 10 },
+
+    acqCard:     { backgroundColor: Colors.primary + '0D', borderRadius: 12, padding: 12, marginTop: 16, borderLeftWidth: 3, borderLeftColor: Colors.primary },
+    acqTitle:    { fontSize: 13, fontWeight: '800', color: Colors.text, marginBottom: 10 },
+    acqTermRow:  { flexDirection: 'row', marginBottom: 8 },
+    acqOption:   { backgroundColor: Colors.card, borderRadius: 10, padding: 10, marginTop: 8, borderWidth: 1, borderColor: Colors.border },
+    acqOptHeader:{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+    acqOptLabel: { fontSize: 12, fontWeight: '800', color: Colors.text },
+    acqOptOwns:  { fontSize: 10, color: Colors.muted, fontWeight: '600' },
+    acqLine:     { fontSize: 11, color: Colors.textSecondary, marginBottom: 3, lineHeight: 16 },
+    acqVal:      { fontWeight: '700', color: Colors.text },
+    acqFlag:     { fontSize: 11, fontWeight: '700', marginTop: 4 },
+    acqVerdict:  { borderRadius: 8, borderWidth: 1, padding: 10, marginTop: 12, backgroundColor: Colors.primary + '12' },
+    acqVerdictText: { fontSize: 11, fontWeight: '600', lineHeight: 16 },
     btn:        { flex: 1, backgroundColor: Colors.primary, paddingVertical: 13, borderRadius: 8, alignItems: 'center' },
     btnSecondary: { backgroundColor: 'transparent', borderWidth: 1, borderColor: Colors.border },
     btnText:    { color: Colors.textPrimary, fontWeight: 'bold', fontSize: 14 },
