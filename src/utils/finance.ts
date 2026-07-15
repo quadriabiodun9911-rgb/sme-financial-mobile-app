@@ -632,7 +632,7 @@ export interface FinancialRatios {
 }
 
 export function computeFinancialRatios(finance: FinanceData, loans: Loan[]): FinancialRatios {
-    const totalDebt = loans.filter(l => l.status === 'active').reduce((s, l) => s + l.principal - l.payments.reduce((ps, p) => ps + p.amount, 0), 0);
+    const totalDebt = loans.filter(l => l.status === 'active').reduce((s, l) => s + l.principal - (l.payments ?? []).reduce((ps, p) => ps + p.amount, 0), 0);
     const currentRatio = finance.liabilities > 0 ? finance.assets / finance.liabilities : finance.assets > 0 ? 999 : 0;
     const debtToEquity = finance.equity > 0 ? totalDebt / finance.equity : totalDebt > 0 ? 999 : 0;
     const returnOnAssets = finance.assets > 0 ? (finance.profit / finance.assets) * 100 : 0;
@@ -898,7 +898,7 @@ export function computeDebtOptimiser(loans: Loan[]): DebtOptimizerResult {
         };
     }
 
-    const getBalance = (l: Loan) => Math.max(0, l.principal - l.payments.reduce((s, p) => s + p.amount, 0));
+    const getBalance = (l: Loan) => Math.max(0, l.principal - (l.payments ?? []).reduce((s, p) => s + p.amount, 0));
     const getTotalInterest = (l: Loan) => {
         const bal = getBalance(l);
         const mp = loanMonthlyPayment(bal, l.interestRate, l.termMonths);
@@ -1023,7 +1023,7 @@ export function generateBalanceSheetCSV(finance: FinanceData, assets: Asset[], l
     rows.push('Item,Amount');
     const activeLoans = loans.filter(l => l.status === 'active');
     for (const l of activeLoans) {
-        const balance = Math.max(0, l.principal - l.payments.reduce((s, p) => s + p.amount, 0));
+        const balance = Math.max(0, l.principal - (l.payments ?? []).reduce((s, p) => s + p.amount, 0));
         rows.push(`Loan - ${l.lenderName},${balance.toFixed(2)}`);
     }
     rows.push(`Total Liabilities,${finance.liabilities.toFixed(2)}`);

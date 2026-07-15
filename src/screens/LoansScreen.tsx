@@ -449,18 +449,18 @@ function LoanCard({ loan, currency, expanded, onToggle, onEdit, onDelete, onAddP
                         </View>
                     )}
 
-                    {loan.payments.length > 0 && (
+                    {(loan.payments ?? []).length > 0 && (
                         <View style={s.paymentHistory}>
                             <Text style={s.paymentHistoryTitle}>Payment History</Text>
-                            {[...loan.payments].reverse().slice(0, 5).map(p => (
+                            {[...(loan.payments ?? [])].reverse().slice(0, 5).map(p => (
                                 <View key={p.id} style={s.paymentRow}>
                                     <Text style={s.paymentDate}>{p.date}</Text>
                                     <Text style={s.paymentNote}>{p.note || 'Payment'}</Text>
                                     <Text style={[s.paymentAmt, { color: Colors.income }]}>+{currency}{p.amount.toLocaleString()}</Text>
                                 </View>
                             ))}
-                            {loan.payments.length > 5 && (
-                                <Text style={s.morePayments}>+{loan.payments.length - 5} more payments</Text>
+                            {(loan.payments ?? []).length > 5 && (
+                                <Text style={s.morePayments}>+{(loan.payments ?? []).length - 5} more payments</Text>
                             )}
                         </View>
                     )}

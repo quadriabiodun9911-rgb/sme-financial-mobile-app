@@ -1014,7 +1014,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
         setLoans(prev => prev.map(l => {
             if (l.id !== loanId) return l;
-            const payments = [...l.payments, newPayment];
+            const payments = [...(l.payments ?? []), newPayment];
             const totalPaid = payments.reduce((s, p) => s + p.amount, 0);
             const status: Loan['status'] = totalPaid >= l.principal ? 'paid_off' : l.status;
             return { ...l, payments, status };

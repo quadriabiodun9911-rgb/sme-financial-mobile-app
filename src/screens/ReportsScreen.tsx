@@ -708,7 +708,7 @@ function BalanceSheetTab({ finance, wcMetrics, assets, settings, updateSettings,
     const liveLoansBalance = loanRegister
         .filter(l => l.status === 'active')
         .reduce((sum, l) => {
-            const paid = l.payments.reduce((s: number, p: any) => s + (p.amount || 0), 0);
+            const paid = (l.payments ?? []).reduce((s: number, p: any) => s + (p.amount || 0), 0);
             return sum + Math.max(0, (l.principal || 0) - paid);
         }, 0);
 

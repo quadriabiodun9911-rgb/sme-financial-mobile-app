@@ -83,7 +83,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       deleteAsset: (id) => setAssets((prev) =>
         prev.filter((a) => a.id !== id)
       ),
-      addLoan: (loan) => setLoans((prev) => [...prev, loan]),
+      addLoan: (loan) => setLoans((prev) => [...prev, { ...loan, payments: loan.payments ?? [] }]),
       updateLoan: (id, loan) => setLoans((prev) =>
         prev.map((l) => (l.id === id ? { ...l, ...loan } : l))
       ),
