@@ -42,18 +42,5 @@
         }
       ]
     }
-  ],
-  "env": {
-    "EXPO_PUBLIC_SUPABASE_URL": "@quad360_supabase_url",
-    "EXPO_PUBLIC_SUPABASE_ANON_KEY": "@quad360_supabase_key",
-    "EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY": "@quad360_paystack_key",
-    "EXPO_PUBLIC_KORAPAY_PUBLIC_KEY": "@quad360_korapay_key"
-  },
-  "regions": ["iad1"],
-  "functions": {
-    "api/**/*.ts": {
-      "memory": 1024,
-      "maxDuration": 60
-    }
-  }
+  ]
 }
