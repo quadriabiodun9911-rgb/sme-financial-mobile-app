@@ -1,5 +1,5 @@
 {
-  "buildCommand": "expo export --platform web",
+  "buildCommand": "expo export --platform web --source-maps",
   "outputDirectory": "dist",
   "rewrites": [
     {

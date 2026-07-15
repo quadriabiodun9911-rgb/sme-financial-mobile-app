@@ -8,7 +8,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "build:web": "expo export --platform web",
+    "build:web": "expo export --platform web --source-maps",
     "ts:check": "tsc",
     "test": "jest",
     "test:watch": "jest --watch"
