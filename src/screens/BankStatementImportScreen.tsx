@@ -383,7 +383,8 @@ export default function BankStatementImportScreen() {
           <View style={styles.warningBox}>
             <Text style={styles.warningTitle}>💡 Tips:</Text>
             <Text style={styles.warningText}>
-              • Your bank statement is NOT stored - it's only used to analyze patterns{'\n'}
+              • Extracted transactions are saved to your records (Reports, Transactions & Invoices){'\n'}
+              • The raw statement file itself is not kept — only the transactions you import{'\n'}
               • We identify revenue trends, expense concentration, and cash gaps{'\n'}
               • App remembers your bank formats for faster imports next time{'\n'}
               • Tactics auto-add to Action Tracker for execution

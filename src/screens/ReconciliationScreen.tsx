@@ -9,6 +9,7 @@ import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { Transaction } from '../types';
+import { autoDetectColumns, parseCSVWithMapping } from '../utils/flexibleBankStatementParser';
 
 // Bank transaction as imported from a statement or manual entry
 interface BankTx {
@@ -98,35 +99,30 @@ export default function ReconciliationScreen() {
     const parseCSV = () => {
         if (!csvText.trim()) { Alert.alert('Paste your CSV first'); return; }
         try {
-            const lines = csvText.trim().split('\n');
-            const header = lines[0].toLowerCase().split(',').map(h => h.trim());
-            const dateIdx = header.indexOf('date');
-            const descIdx = header.findIndex(h => h.includes('desc') || h.includes('narr') || h.includes('ref'));
-            const amtIdx = header.findIndex(h => h.includes('amount') || h.includes('amt') || h.includes('debit') || h.includes('credit'));
-            const typeIdx = header.findIndex(h => h === 'type' || h === 'cr/dr' || h === 'dc');
-
-            if (dateIdx === -1 || amtIdx === -1) {
-                Alert.alert('CSV Error', 'CSV must have at least "date" and "amount" columns');
+            const rows = csvText.trim().split('\n').filter(l => l.trim());
+            if (rows.length < 2) {
+                Alert.alert('CSV Error', 'Need a header row and at least one data row.');
                 return;
             }
 
-            const parsed: BankTx[] = [];
-            for (let i = 1; i < lines.length; i++) {
-                const cols = lines[i].split(',').map(c => c.trim().replace(/"/g, ''));
-                if (cols.length < 2) continue;
-                const amount = parseFloat(cols[amtIdx]?.replace(/[^0-9.]/g, '') || '0');
-                if (!amount) continue;
-                const type: 'credit' | 'debit' = typeIdx >= 0
-                    ? (cols[typeIdx]?.toLowerCase().startsWith('c') ? 'credit' : 'debit')
-                    : 'credit';
-                parsed.push({
-                    id: `bank-${Date.now()}-${i}`,
-                    date: normalizeDate(cols[dateIdx] || new Date().toISOString().split('T')[0]),
-                    description: descIdx >= 0 ? (cols[descIdx] || 'Bank Transaction') : 'Bank Transaction',
-                    amount,
-                    type,
-                });
+            // Use the shared flexible parser so Reconciliation understands the same
+            // bank formats as the Dashboard import (auto-detects columns, credit/debit
+            // variants, multiple date formats, etc.)
+            const mapping = autoDetectColumns(rows);
+            if (!mapping) {
+                Alert.alert('CSV Error', 'Could not detect columns. Ensure the file has date, description, and amount columns.');
+                return;
             }
+
+            const result = parseCSVWithMapping(csvText, mapping);
+            const parsed: BankTx[] = result.transactions.map((t, i) => ({
+                id: `bank-${Date.now()}-${i}`,
+                date: normalizeDate(t.date),
+                description: t.description || 'Bank Transaction',
+                amount: t.amount,
+                type: t.type === 'income' ? 'credit' : 'debit',
+            }));
+
             if (parsed.length === 0) { Alert.alert('No valid rows found'); return; }
             let addedCount = 0;
             setBankTxs(prev => {
@@ -228,7 +224,7 @@ export default function ReconciliationScreen() {
                     <>
                         <View style={styles.card}>
                             <Text style={styles.cardTitle}>Paste Bank Statement CSV</Text>
-                            <Text style={styles.cardSubtitle}>Export from your bank and paste here. Needs columns: date, description/narration, amount, type (credit/debit)</Text>
+                            <Text style={styles.cardSubtitle}>Export from your bank and paste here. Columns are auto-detected — works with most bank formats (date, description/narration, amount or separate credit/debit columns).</Text>
                             <TextInput
                                 style={styles.csvInput}
                                 value={csvText}
