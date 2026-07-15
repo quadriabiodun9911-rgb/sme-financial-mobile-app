@@ -25,7 +25,7 @@ export default function MerchantFinancingSection() {
 
     const hasApplied = financing?.applicationStatus !== null;
     const isApproved = financing?.applicationStatus === 'approved' || financing?.applicationStatus === 'funded';
-    const hasActiveLoan = financing?.activeLoan !== null;
+    const hasActiveLoan = financing?.activeLoan != null;
 
     // Show loading state if user data not loaded yet
     if (!user) {

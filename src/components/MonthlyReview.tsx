@@ -23,8 +23,8 @@ export default function MonthlyReview({ visible, onClose }: Props) {
     const lastMonthName = lastMonthDate.toLocaleString('default', { month: 'long' });
 
     const review = useMemo(() => {
-        const thisTxs = transactions.filter(t => t.date.startsWith(thisMonth));
-        const lastTxs = transactions.filter(t => t.date.startsWith(lastMonth));
+        const thisTxs = transactions.filter(t => (t.date ?? '').startsWith(thisMonth));
+        const lastTxs = transactions.filter(t => (t.date ?? '').startsWith(lastMonth));
 
         const sum = (txs: typeof transactions, type: 'income' | 'expense') =>
             txs.filter(t => t.type === type).reduce((s, t) => s + (Number(t.amount) || 0), 0);

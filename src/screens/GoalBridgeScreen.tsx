@@ -38,7 +38,7 @@ function mapSavedGoalToBridge(g: SavedGoal): FinancialGoal {
 }
 
 export default function GoalBridgeScreen() {
-  const { transactions, invoices, finance, settings, goals, navParams } = useApp();
+  const { transactions, invoices, finance, settings, goals, navParams, setCurrentScreen } = useApp();
 
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [goalType, setGoalType] = useState<'profit' | 'revenue' | 'cash' | 'margin' | 'runway'>('profit');
@@ -92,13 +92,22 @@ export default function GoalBridgeScreen() {
   };
 
   const handleCreateGoal = () => {
+    // Map each goal type to the matching finance metric (was defaulting margin
+    // and runway to cashBalance — a currency figure — which broke the gap math).
+    const currentByType: Record<typeof goalType, number> = {
+      profit: finance.profit,
+      revenue: finance.income,
+      cash: finance.cashBalance,
+      margin: finance.margin,
+      runway: finance.runway,
+    };
     setSelectedGoal({
       id: `goal-${Date.now()}`,
       type: goalType,
-      currentValue: finance[goalType === 'profit' ? 'profit' : goalType === 'revenue' ? 'income' : 'cashBalance'],
+      currentValue: currentByType[goalType] ?? 0,
       targetValue: parseInt(targetValue || '1000000') || 1000000,
       timelineMonths: parseInt(timelineMonths || '12') || 12,
-      description: `Reach ₦${(parseInt(targetValue || '0') || 0).toLocaleString()} ${goalType}`,
+      description: `Reach ${settings.currency}${(parseInt(targetValue || '0') || 0).toLocaleString()} ${goalType}`,
     });
     setShowGoalModal(false);
   };
@@ -232,8 +241,8 @@ export default function GoalBridgeScreen() {
           ))}
         </View>
 
-        {/* Call to Action */}
-        <TouchableOpacity style={styles.ctaButton}>
+        {/* Call to Action — take the user to the Action Tracker to execute tactics */}
+        <TouchableOpacity style={styles.ctaButton} onPress={() => setCurrentScreen('action-tracker')}>
           <Text style={styles.ctaButtonText}>Start Executing This Plan →</Text>
         </TouchableOpacity>
       </ScrollView>

@@ -183,7 +183,7 @@ export default function InvoicesScreen() {
 
         const today = new Date().toISOString().split('T')[0];
         const payload = {
-            invoiceNumber: editId ? invoices.find(i => i.id === editId)!.invoiceNumber : nextInvoiceNumber(),
+            invoiceNumber: editId ? (invoices.find(i => i.id === editId)?.invoiceNumber ?? nextInvoiceNumber()) : nextInvoiceNumber(),
             clientName: clientName.trim(),
             clientEmail: clientEmail.trim(),
             clientAddress: clientAddress.trim(),
@@ -325,7 +325,7 @@ export default function InvoicesScreen() {
                                 <Text style={styles.client}>{inv.clientName}</Text>
                                 <View style={styles.cardBottom}>
                                     <Text style={styles.dueText}>Due {inv.dueDate}</Text>
-                                    <Text style={styles.amount}>{currency}{inv.total.toLocaleString()}</Text>
+                                    <Text style={styles.amount}>{currency}{(inv.total ?? 0).toLocaleString()}</Text>
                                 </View>
                                 <View style={styles.actions}>
                                     <ActionBtn label="Edit"   onPress={() => openEdit(inv)} color={Colors.primary} />
@@ -502,11 +502,11 @@ export default function InvoicesScreen() {
                                 {whatsappAvailable && viewInv.status !== 'paid' && (
                                     <>
                                         <TouchableOpacity style={[styles.draftBtn, { marginTop: 8, backgroundColor: '#25D366' }]}
-                                            onPress={() => sendInvoiceReminderViaWhatsApp(viewInv, settings.businessName || 'Business')}>
+                                            onPress={() => sendInvoiceReminderViaWhatsApp(viewInv, user?.businessName || 'Business')}>
                                             <Text style={styles.draftBtnText}>💬 Send Reminder via WhatsApp</Text>
                                         </TouchableOpacity>
                                         <TouchableOpacity style={[styles.draftBtn, { marginTop: 8, backgroundColor: '#128C7E' }]}
-                                            onPress={() => sendPaymentRequestViaWhatsApp(viewInv, settings.businessName || 'Business', currency)}>
+                                            onPress={() => sendPaymentRequestViaWhatsApp(viewInv, user?.businessName || 'Business', currency)}>
                                             <Text style={styles.draftBtnText}>💳 Request Payment via WhatsApp</Text>
                                         </TouchableOpacity>
                                     </>

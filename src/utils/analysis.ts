@@ -320,7 +320,9 @@ export function modelNewLoan(
     const newMonthlyExp = newExpense / 12;
     const newCashRunway = newMonthlyExp > 0 ? Math.floor(finance.cashBalance / (newMonthlyExp / 30)) : 999;
 
-    const dscr = annualPayment > 0 ? finance.income / annualPayment : 999;
+    // DSCR = Net Operating Income / annual debt service (not gross revenue).
+    const netOperatingIncome = finance.income - finance.expense;
+    const dscr = annualPayment > 0 ? netOperatingIncome / annualPayment : 999;
 
     return {
         label: `Loan ${currency}${principal.toLocaleString()} @ ${annualRatePercent}%`,

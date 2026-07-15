@@ -148,8 +148,9 @@ export default function ReportsScreen() {
     const visibleSections = SECTIONS;
 
     const handleSectionChange = (s: SectionKey) => {
-        setSection(s);
-        setActiveTab(SECTION_TABS[s][0].key);
+        const tabs = SECTION_TABS[s] ?? SECTION_TABS.statements;
+        setSection(SECTION_TABS[s] ? s : 'statements');
+        setActiveTab(tabs[0].key);
     };
 
     const exportPnL = async () => {
@@ -202,8 +203,8 @@ export default function ReportsScreen() {
                     {/* ── CUSTOMERS Section ───────────────────────────────── */}
                     <Text style={styles.reportGroupHeader}>👥 CUSTOMERS</Text>
                     {[
-                        { icon: '💰', label: 'Who Owes Me', sub: 'Unpaid invoices and overdue payments', section: 'operations' as SectionKey, tab: 'aging' as SubTab },
-                        { icon: '📄', label: 'Invoices', sub: 'View all sent invoices and collection status', section: 'operations' as SectionKey, tab: 'aging' as SubTab },
+                        { icon: '💰', label: 'Who Owes Me', sub: 'Unpaid invoices and overdue payments', section: 'customers' as SectionKey, tab: 'aging' as SubTab },
+                        { icon: '📄', label: 'Invoices', sub: 'View all sent invoices and collection status', section: 'customers' as SectionKey, tab: 'aging' as SubTab },
                     ].map(item => (
                         <TouchableOpacity
                             key={item.tab + item.label}
@@ -227,7 +228,7 @@ export default function ReportsScreen() {
                     <Text style={styles.reportGroupHeader}>⚙️ BUSINESS</Text>
                     {[
                         { icon: '📈', label: 'Growth', sub: 'Revenue and profit trend over the past months', section: 'growth' as SectionKey, tab: 'growth' as SubTab },
-                        { icon: '🏥', label: 'Business Health', sub: 'Strengths, weaknesses, risks and opportunities', section: 'analysis' as SectionKey, tab: 'swot' as SubTab },
+                        { icon: '🏥', label: 'Business Health', sub: 'Strengths, weaknesses, risks and opportunities', section: 'health' as SectionKey, tab: 'swot' as SubTab },
                         { icon: '💎', label: 'Business Worth', sub: 'What your business is worth over time', section: 'statements' as SectionKey, tab: 'balancesheet' as SubTab },
                     ].map(item => (
                         <TouchableOpacity

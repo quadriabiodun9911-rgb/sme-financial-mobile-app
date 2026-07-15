@@ -179,8 +179,9 @@ function generateMilestones(
 
   for (let month = stepSize; month <= timeline; month += stepSize) {
     const progressPercentage = month / timeline;
-    const gap = Math.max(0, goal.targetValue - goal.currentValue);
-    const targetValue = goal.currentValue + gap * progressPercentage;
+    // Signed gap so reduction goals (target < current) progress downward too,
+    // instead of flat-lining at the current value.
+    const targetValue = goal.currentValue + (goal.targetValue - goal.currentValue) * progressPercentage;
 
     // Find which tactics are active at this month
     const activeTactics = tacticAllocations
