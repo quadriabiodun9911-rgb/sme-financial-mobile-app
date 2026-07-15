@@ -17,7 +17,7 @@ const EXPENSE_CATEGORIES = [
 ];
 
 export default function BudgetScreen() {
-    const { transactions, budgets, addBudget, updateBudget, deleteBudget, settings, navigate } = useApp();
+    const { transactions, budgets, addBudget, updateBudget, deleteBudget, settings, navigate, finance } = useApp();
     const { currency } = settings;
 
     const now = new Date();
@@ -37,6 +37,34 @@ export default function BudgetScreen() {
     const totalActual   = bva.reduce((s, b) => s + b.actual, 0);
     const totalVariance = totalBudgeted - totalActual;
     const overCount     = bva.filter(b => b.status === 'over').length;
+
+    // Average monthly spend per category from past transactions — used to suggest
+    // a realistic budget instead of guessing.
+    const pastAvgByCat = useMemo(() => {
+        const acc: Record<string, { total: number; months: Set<string> }> = {};
+        transactions.filter(t => t.type === 'expense').forEach(t => {
+            const cat = (t.category || 'Other');
+            const month = (t.date || '').slice(0, 7);
+            if (!acc[cat]) acc[cat] = { total: 0, months: new Set() };
+            acc[cat].total += t.amount;
+            if (month) acc[cat].months.add(month);
+        });
+        const avg: Record<string, number> = {};
+        Object.entries(acc).forEach(([cat, v]) => { avg[cat] = v.total / Math.max(1, v.months.size); });
+        return avg;
+    }, [transactions]);
+
+    // Budget strategy: how the planned spend sits against revenue, cash & profit.
+    const monthlyRevenue = finance?.income ?? 0;
+    const cashBalance = finance?.cashBalance ?? 0;
+    // Projected profit if you spend your full budget this month.
+    const projectedProfit = monthlyRevenue - totalBudgeted;
+    // A safe cap: keep planned spend within revenue (never plan a loss). For a
+    // healthy ~20% margin, aim to keep total budget under 80% of revenue.
+    const safeCap = monthlyRevenue * 0.8;
+    const overRevenue = totalBudgeted > monthlyRevenue;
+    const overSafeCap = totalBudgeted > safeCap && !overRevenue;
+    const pastSuggestion = pastAvgByCat[customCat.trim() || category];
 
     function openAdd() {
         setEditingId(null);
@@ -131,6 +159,41 @@ export default function BudgetScreen() {
                         <Text style={s.overAlert}>⚠ {overCount} categor{overCount > 1 ? 'ies' : 'y'} over budget</Text>
                     )}
                 </View>
+
+                {/* Budget Strategy — revenue, cash, and profit impact of the plan */}
+                {budgets.length > 0 && (
+                    <View style={s.strategyCard}>
+                        <Text style={s.strategyTitle}>📊 Budget Strategy</Text>
+                        <View style={s.strategyRow}>
+                            <Text style={s.strategyLabel}>Monthly revenue</Text>
+                            <Text style={s.strategyVal}>{currency}{monthlyRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                        </View>
+                        <View style={s.strategyRow}>
+                            <Text style={s.strategyLabel}>Cash balance</Text>
+                            <Text style={[s.strategyVal, { color: cashBalance < 0 ? Colors.expense : Colors.textPrimary }]}>{currency}{cashBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                        </View>
+                        <View style={s.strategyRow}>
+                            <Text style={s.strategyLabel}>Total planned spend</Text>
+                            <Text style={s.strategyVal}>{currency}{totalBudgeted.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                        </View>
+                        <View style={[s.strategyRow, { borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 8, marginTop: 4 }]}>
+                            <Text style={[s.strategyLabel, { fontWeight: '700', color: Colors.textPrimary }]}>Projected profit if fully spent</Text>
+                            <Text style={[s.strategyVal, { color: projectedProfit >= 0 ? Colors.income : Colors.expense, fontWeight: '800' }]}>
+                                {currency}{projectedProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            </Text>
+                        </View>
+
+                        <View style={[s.strategyVerdict, { backgroundColor: (overRevenue ? Colors.expense : overSafeCap ? Colors.warning : Colors.income) + '18', borderColor: overRevenue ? Colors.expense : overSafeCap ? Colors.warning : Colors.income }]}>
+                            <Text style={[s.strategyVerdictText, { color: overRevenue ? Colors.expense : overSafeCap ? Colors.warning : Colors.income }]}>
+                                {overRevenue
+                                    ? `⚠ Your planned spend (${currency}${totalBudgeted.toLocaleString(undefined, { maximumFractionDigits: 0 })}) exceeds monthly revenue — this plans a ${currency}${Math.abs(projectedProfit).toLocaleString(undefined, { maximumFractionDigits: 0 })} loss and will draw down cash. Cut about ${currency}${(totalBudgeted - safeCap).toLocaleString(undefined, { maximumFractionDigits: 0 })} to protect profit.`
+                                    : overSafeCap
+                                        ? `⚠ Spend is within revenue but above the safe cap (${currency}${safeCap.toLocaleString(undefined, { maximumFractionDigits: 0 })}, 80% of revenue). Leaves a thin ${currency}${projectedProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })} profit buffer.`
+                                        : `✓ Healthy plan: keeps ${currency}${projectedProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })} profit (${monthlyRevenue > 0 ? ((projectedProfit / monthlyRevenue) * 100).toFixed(0) : 0}% margin). Recommended max spend: ${currency}${safeCap.toLocaleString(undefined, { maximumFractionDigits: 0 })}.`}
+                            </Text>
+                        </View>
+                    </View>
+                )}
 
                 {/* Budget vs actual table */}
                 {budgets.length === 0 ? (
@@ -233,6 +296,18 @@ export default function BudgetScreen() {
                         onChangeText={setAmount}
                     />
 
+                    {/* Suggest a budget from this category's past average spend */}
+                    {pastSuggestion > 0 && (
+                        <TouchableOpacity
+                            style={s.suggestChip}
+                            onPress={() => setAmount(String(Math.round(pastSuggestion)))}
+                        >
+                            <Text style={s.suggestChipText}>
+                                💡 You spent ~{currency}{Math.round(pastSuggestion).toLocaleString()}/mo here on average — tap to use
+                            </Text>
+                        </TouchableOpacity>
+                    )}
+
                     <TouchableOpacity style={s.saveBtn} onPress={handleSave}>
                         <Text style={s.saveBtnText}>{editingId ? 'Save Changes' : 'Add Budget'}</Text>
                     </TouchableOpacity>
@@ -272,6 +347,17 @@ const s = StyleSheet.create({
     summaryVal:    { fontSize: 18, fontWeight: 'bold' },
     summaryDivider:{ width: 1, backgroundColor: Colors.border, alignSelf: 'stretch', marginHorizontal: 8 },
     overAlert:     { marginTop: 10, fontSize: 13, color: Colors.expense, fontWeight: '600', textAlign: 'center' },
+
+    strategyCard:  { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 16, borderLeftWidth: 3, borderLeftColor: Colors.primary },
+    strategyTitle: { fontSize: 13, fontWeight: '800', color: Colors.textPrimary, marginBottom: 10 },
+    strategyRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 3 },
+    strategyLabel: { fontSize: 12, color: Colors.textSecondary },
+    strategyVal:   { fontSize: 12, fontWeight: '700', color: Colors.textPrimary },
+    strategyVerdict:     { marginTop: 12, borderRadius: 8, borderWidth: 1, padding: 10 },
+    strategyVerdictText: { fontSize: 11, fontWeight: '600', lineHeight: 16 },
+
+    suggestChip:     { backgroundColor: Colors.primary + '15', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 10, marginTop: 8, marginBottom: 4 },
+    suggestChipText: { fontSize: 11, color: Colors.primary, fontWeight: '600' },
 
     emptyState:    { alignItems: 'center', paddingVertical: 40 },
     emptyTitle:    { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 8 },

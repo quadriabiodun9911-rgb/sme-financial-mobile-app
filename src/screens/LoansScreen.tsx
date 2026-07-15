@@ -67,7 +67,7 @@ function isOverdue(loan: Loan): boolean {
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────
 
 export default function LoansScreen() {
-    const { loans, addLoan, updateLoan, deleteLoan, addLoanPayment, settings, navigate } = useApp();
+    const { loans, addLoan, updateLoan, deleteLoan, addLoanPayment, settings, navigate, finance } = useApp();
     const { currency } = settings;
 
     // Feature flag for merchant financing
@@ -285,14 +285,51 @@ export default function LoansScreen() {
                             <DateInput value={startDate} onChange={setStart} />
 
                             {/* Live preview */}
-                            {principal && rate && term && !isNaN(parseFloat(principal)) && !isNaN(parseFloat(rate)) && !isNaN(parseInt(term)) && (
-                                <View style={s.previewBox}>
-                                    <Text style={s.previewTitle}>Repayment Preview</Text>
-                                    <Text style={s.previewLine}>Monthly payment: <Text style={s.previewVal}>{currency}{monthlyPayment(parseFloat(principal), parseFloat(rate), parseInt(term)).toFixed(2)}</Text></Text>
-                                    <Text style={s.previewLine}>Total interest: <Text style={[s.previewVal, { color: Colors.expense }]}>{currency}{totalInterest(parseFloat(principal), parseFloat(rate), parseInt(term)).toFixed(2)}</Text></Text>
-                                    <Text style={s.previewLine}>Total repayable: <Text style={s.previewVal}>{currency}{(parseFloat(principal) + totalInterest(parseFloat(principal), parseFloat(rate), parseInt(term))).toFixed(2)}</Text></Text>
-                                </View>
-                            )}
+                            {principal && rate && term && !isNaN(parseFloat(principal)) && !isNaN(parseFloat(rate)) && !isNaN(parseInt(term)) && (() => {
+                                const mPay = monthlyPayment(parseFloat(principal), parseFloat(rate), parseInt(term));
+                                const monthlyProfit = finance?.profit ?? 0;
+                                const profitAfter = monthlyProfit - mPay;
+                                // Share of current monthly profit consumed by the repayment
+                                const profitShare = monthlyProfit > 0 ? (mPay / monthlyProfit) * 100 : (mPay > 0 ? Infinity : 0);
+                                const affordable = profitAfter >= 0;
+                                const tight = affordable && profitShare > 40; // heavy but survivable
+                                return (
+                                    <View style={s.previewBox}>
+                                        <Text style={s.previewTitle}>Repayment Preview</Text>
+                                        <Text style={s.previewLine}>Monthly payment: <Text style={s.previewVal}>{currency}{mPay.toFixed(2)}</Text></Text>
+                                        <Text style={s.previewLine}>Total interest: <Text style={[s.previewVal, { color: Colors.expense }]}>{currency}{totalInterest(parseFloat(principal), parseFloat(rate), parseInt(term)).toFixed(2)}</Text></Text>
+                                        <Text style={s.previewLine}>Total repayable: <Text style={s.previewVal}>{currency}{(parseFloat(principal) + totalInterest(parseFloat(principal), parseFloat(rate), parseInt(term))).toFixed(2)}</Text></Text>
+
+                                        {/* Effect on profit */}
+                                        <View style={s.impactDivider} />
+                                        <Text style={s.previewTitle}>Effect on Monthly Profit</Text>
+                                        <Text style={s.previewLine}>Current monthly profit: <Text style={s.previewVal}>{currency}{monthlyProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text></Text>
+                                        <Text style={s.previewLine}>
+                                            Profit after repayment:{' '}
+                                            <Text style={[s.previewVal, { color: affordable ? Colors.income : Colors.expense }]}>
+                                                {currency}{profitAfter.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                            </Text>
+                                        </Text>
+                                        <Text style={s.previewLine}>
+                                            Repayment uses{' '}
+                                            <Text style={[s.previewVal, { color: tight || !affordable ? Colors.expense : Colors.textPrimary }]}>
+                                                {isFinite(profitShare) ? `${profitShare.toFixed(0)}%` : 'more than 100%'}
+                                            </Text>{' '}of current profit
+                                        </Text>
+
+                                        {/* Verdict */}
+                                        <View style={[s.verdictBox, { backgroundColor: (!affordable ? Colors.expense : tight ? Colors.warning : Colors.income) + '18', borderColor: (!affordable ? Colors.expense : tight ? Colors.warning : Colors.income) }]}>
+                                            <Text style={[s.verdictText, { color: !affordable ? Colors.expense : tight ? Colors.warning : Colors.income }]}>
+                                                {!affordable
+                                                    ? `⚠ This repayment (${currency}${mPay.toFixed(0)}/mo) exceeds your current monthly profit — it would push you into a monthly loss. Consider a longer term or smaller amount.`
+                                                    : tight
+                                                        ? `⚠ Manageable but heavy: it consumes ${profitShare.toFixed(0)}% of monthly profit, leaving little buffer. A longer term lowers the monthly payment.`
+                                                        : `✓ Affordable: leaves ${currency}${profitAfter.toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo in profit after repayment.`}
+                                            </Text>
+                                        </View>
+                                    </View>
+                                );
+                            })()}
 
                             <View style={s.btnRow}>
                                 <TouchableOpacity style={[s.btn, s.btnSec]} onPress={() => { setShowForm(false); resetForm(); }}>
@@ -573,6 +610,9 @@ const s = StyleSheet.create({
     previewTitle: { fontSize: 12, fontWeight: '700', color: Colors.primary, marginBottom: 6 },
     previewLine: { fontSize: 12, color: Colors.textSecondary, marginBottom: 3 },
     previewVal: { fontWeight: '700', color: Colors.textPrimary },
+    impactDivider: { height: 1, backgroundColor: Colors.border, marginVertical: 10 },
+    verdictBox: { borderRadius: 8, borderWidth: 1, padding: 10, marginTop: 10 },
+    verdictText: { fontSize: 11, fontWeight: '600', lineHeight: 16 },
 
     btnRow: { flexDirection: 'row', gap: 10, marginTop: 20, marginBottom: 10 },
     btn: { flex: 1, backgroundColor: Colors.primary, paddingVertical: 13, borderRadius: 8, alignItems: 'center' },
