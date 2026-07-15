@@ -24,8 +24,21 @@ import {
   saveBankProfile,
   BankProfile,
   createHeaderSignature,
+  loadBankProfiles,
+  deleteBankProfile,
+  formatProfileInfo,
 } from '../utils/bankProfileManager';
 import { useApp } from '../contexts/AppContext';
+
+// Load saved profiles on mount
+const loadProfiles = async (callback: (profiles: BankProfile[]) => void) => {
+  try {
+    const profiles = await loadBankProfiles();
+    callback(profiles);
+  } catch (error) {
+    console.error('Error loading profiles:', error);
+  }
+};
 
 export default function BankStatementImportScreen() {
   const { transactions: existingTransactions, invoices, finance, settings, setCurrentScreen, addTransaction } = useApp();
@@ -40,6 +53,37 @@ export default function BankStatementImportScreen() {
   const [showColumnSelector, setShowColumnSelector] = useState<string | null>(null);
   const [matchedProfile, setMatchedProfile] = useState<BankProfile | null>(null);
   const [skipMapping, setSkipMapping] = useState(false);
+  const [savedProfiles, setSavedProfiles] = useState<BankProfile[]>([]);
+  const [showProfiles, setShowProfiles] = useState(false);
+
+  // Load profiles when screen mounts or on upload step
+  useEffect(() => {
+    if (step === 'upload') {
+      loadProfiles(setSavedProfiles);
+    }
+  }, [step]);
+
+  const handleDeleteProfile = async (profileId: string) => {
+    Alert.alert(
+      'Delete Profile',
+      'Are you sure you want to delete this saved bank format?',
+      [
+        { text: 'Cancel', onPress: () => {} },
+        {
+          text: 'Delete',
+          onPress: async () => {
+            try {
+              await deleteBankProfile(profileId);
+              loadProfiles(setSavedProfiles);
+            } catch (error) {
+              Alert.alert('Error', 'Failed to delete profile');
+            }
+          },
+          style: 'destructive',
+        },
+      ]
+    );
+  };
 
   const handleSampleCSV = () => {
     const sample = `Date,Description,Amount,Type
@@ -295,14 +339,54 @@ export default function BankStatementImportScreen() {
             <Text style={styles.buttonText}>{loading ? '⏳ Parsing...' : '🔍 Analyze Statement'}</Text>
           </TouchableOpacity>
 
+          {/* Saved Bank Formats */}
+          {savedProfiles.length > 0 && (
+            <View style={styles.savedProfilesSection}>
+              <TouchableOpacity
+                style={styles.savedProfilesHeader}
+                onPress={() => setShowProfiles(!showProfiles)}
+              >
+                <Text style={styles.savedProfilesTitle}>
+                  💾 Saved Bank Formats ({savedProfiles.length})
+                </Text>
+                <Text style={styles.savedProfilesArrow}>
+                  {showProfiles ? '▲' : '▼'}
+                </Text>
+              </TouchableOpacity>
+
+              {showProfiles && (
+                <View style={styles.savedProfilesList}>
+                  {savedProfiles.map((profile) => {
+                    const info = formatProfileInfo(profile);
+                    return (
+                      <View key={profile.id} style={styles.profileItem}>
+                        <View style={styles.profileInfo}>
+                          <Text style={styles.profileName}>🏦 {info.displayName}</Text>
+                          <Text style={styles.profileMeta}>{info.lastUsed}</Text>
+                          <Text style={styles.profileUsage}>{info.usageCount}</Text>
+                        </View>
+                        <TouchableOpacity
+                          style={styles.profileDeleteButton}
+                          onPress={() => handleDeleteProfile(profile.id)}
+                        >
+                          <Text style={styles.profileDeleteText}>Delete</Text>
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+          )}
+
           {/* Info */}
           <View style={styles.warningBox}>
             <Text style={styles.warningTitle}>💡 Tips:</Text>
             <Text style={styles.warningText}>
               • Your bank statement is NOT stored - it's only used to analyze patterns{'\n'}
               • We identify revenue trends, expense concentration, and cash gaps{'\n'}
-              • Tactics auto-add to Action Tracker for execution{'\n'}
-              • Edit tactics anytime to match your business
+              • App remembers your bank formats for faster imports next time{'\n'}
+              • Tactics auto-add to Action Tracker for execution
             </Text>
           </View>
         </ScrollView>
@@ -828,6 +912,47 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   secondaryButtonText: { color: Colors.textPrimary },
+
+  // Saved profiles
+  savedProfilesSection: {
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    marginBottom: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  savedProfilesHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  savedProfilesTitle: { fontSize: 12, fontWeight: '700', color: Colors.textPrimary },
+  savedProfilesArrow: { fontSize: 12, color: Colors.textMuted },
+  savedProfilesList: { borderTopWidth: 1, borderTopColor: Colors.border, paddingHorizontal: 14 },
+  profileItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  profileInfo: { flex: 1 },
+  profileName: { fontSize: 12, fontWeight: '600', color: Colors.textPrimary, marginBottom: 4 },
+  profileMeta: { fontSize: 10, color: Colors.textMuted, marginBottom: 2 },
+  profileUsage: { fontSize: 9, color: Colors.textMuted, fontStyle: 'italic' },
+  profileDeleteButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: Colors.expense + '20',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: Colors.expense,
+  },
+  profileDeleteText: { fontSize: 10, fontWeight: '600', color: Colors.expense },
 
   warningBox: {
     backgroundColor: Colors.warning + '10',
