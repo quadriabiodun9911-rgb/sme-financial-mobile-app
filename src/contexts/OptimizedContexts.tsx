@@ -63,8 +63,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [hydrated, setHydrated] = useState(false);
+  // Re-hydrate when the signed-in user changes: on first mount there is no
+  // workspace owner yet (loads local), then after login we re-pull from Supabase.
+  const authForSync = useContext(AuthContext);
+  const syncUserId = authForSync?.user?.email;
 
-  // Load persisted finance data on mount.
   useEffect(() => {
     (async () => {
       try {
@@ -82,7 +85,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         setHydrated(true);
       }
     })();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [syncUserId]);
 
   // Persist on change (only after the initial load, so we don't clobber storage).
   useEffect(() => { if (hydrated) saveTransactions(transactions).catch(() => {}); }, [transactions, hydrated]);
@@ -196,6 +200,7 @@ const GoalContext = createContext<GoalContextValue | undefined>(undefined);
 export function GoalProvider({ children }: { children: ReactNode }) {
   const [goals, setGoals] = useState<FinancialGoal[]>([]);
   const [hydrated, setHydrated] = useState(false);
+  const syncUserId = useContext(AuthContext)?.user?.email;
 
   useEffect(() => {
     (async () => {
@@ -203,7 +208,8 @@ export function GoalProvider({ children }: { children: ReactNode }) {
       catch (e) { console.error('[Goals] hydrate failed:', e); }
       finally { setHydrated(true); }
     })();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [syncUserId]);
   useEffect(() => { if (hydrated) saveGoals(goals).catch(() => {}); }, [goals, hydrated]);
 
   const value: GoalContextValue = useMemo(
@@ -251,6 +257,7 @@ const InvoiceContext = createContext<InvoiceContextValue | undefined>(undefined)
 export function InvoiceProvider({ children }: { children: ReactNode }) {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [hydrated, setHydrated] = useState(false);
+  const syncUserId = useContext(AuthContext)?.user?.email;
 
   useEffect(() => {
     (async () => {
@@ -258,7 +265,8 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
       catch (e) { console.error('[Invoices] hydrate failed:', e); }
       finally { setHydrated(true); }
     })();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [syncUserId]);
   useEffect(() => { if (hydrated) saveInvoices(invoices).catch(() => {}); }, [invoices, hydrated]);
 
   const value: InvoiceContextValue = useMemo(
@@ -318,6 +326,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   });
   const [language, setLanguage] = useState('en');
   const [hydrated, setHydrated] = useState(false);
+  const syncUserId = useContext(AuthContext)?.user?.email;
 
   useEffect(() => {
     (async () => {
@@ -325,7 +334,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       catch (e) { console.error('[Settings] hydrate failed:', e); }
       finally { setHydrated(true); }
     })();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [syncUserId]);
   useEffect(() => { if (hydrated) saveSettings(settings).catch(() => {}); }, [settings, hydrated]);
 
   const value: SettingsContextValue = useMemo(
