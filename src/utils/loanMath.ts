@@ -19,9 +19,12 @@ export function totalInterest(principal: number, annualRate: number, termMonths:
 }
 
 /**
- * Total monthly repayment burden across a set of active loans. Each loan's
- * remaining balance (principal minus payments made) is re-amortized over its
- * remaining term so the figure reflects what is actually still owed per month.
+ * Total monthly repayment burden across a set of active loans. Each active
+ * loan's scheduled monthly payment (computed once at origination from its
+ * original principal and term) is constant for the life of a standard
+ * amortizing loan, so it doesn't change as the balance is paid down —
+ * `payments` isn't a factor here, only used to detect an early payoff via
+ * loan.status flipping to non-'active'.
  */
 export function totalMonthlyLoanBurden(
   loans: Array<{ principal: number; interestRate: number; termMonths: number; status?: string; payments?: Array<{ amount: number }> }>

@@ -223,7 +223,19 @@ export function computeFinance(
     const profit = income - expense;
     const depreciationAdjustedProfit = profit - depreciationCharge;
     const margin = income > 0 ? (depreciationAdjustedProfit / income) * 100 : 0;
-    const cashBalance = profit; // cash is not reduced by non-cash depreciation
+
+    // Cash balance must be cash-basis: pending/overdue invoices are not cash
+    // in hand yet. (profit/income/expense above stay accrual-basis for P&L —
+    // only cashBalance, and everything derived from it, uses paid-only.)
+    // Transactions with no status set are assumed paid (the default status
+    // used across entry points), so this doesn't understate normal usage.
+    const paidIncome = transactions
+        .filter(t => t.type === 'income' && (t.status ?? 'paid') === 'paid')
+        .reduce((sum, t) => sum + t.amount, 0);
+    const paidExpense = transactions
+        .filter(t => t.type === 'expense' && (t.status ?? 'paid') === 'paid')
+        .reduce((sum, t) => sum + t.amount, 0);
+    const cashBalance = paidIncome - paidExpense; // not reduced by non-cash depreciation
 
     const openingAssets = parseFloat(settings.openingAssets) || 0;
     const openingLiabilities = parseFloat(settings.openingLiabilities) || 0;
