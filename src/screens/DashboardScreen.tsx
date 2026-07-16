@@ -434,7 +434,7 @@ export default function DashboardScreen() {
                 {/* SECTION 4C: Bank Statement Import */}
                 <TouchableOpacity
                   style={styles.importCard}
-                  onPress={() => setCurrentScreen('bank-statement-import')}
+                  onPress={() => setCurrentScreen('import-transactions')}
                   activeOpacity={0.7}
                 >
                   <View style={styles.importCardContent}>
@@ -442,7 +442,7 @@ export default function DashboardScreen() {
                     <View style={styles.importCardText}>
                       <Text style={styles.importCardTitle}>Import Bank Statement</Text>
                       <Text style={styles.importCardSubtitle}>
-                        Upload CSV → Auto-generate tactics & insights
+                        Upload CSV, Excel or PDF → Auto-categorised transactions
                       </Text>
                     </View>
                   </View>

@@ -113,8 +113,25 @@ export function calculateFinancialMetrics(
   const unpaidInvoices = invoices.filter(i => i.status !== 'paid');
   const accountsReceivable = unpaidInvoices.reduce((sum, i) => sum + i.total, 0);
 
-  // Days Outstanding (based on unpaid invoices)
-  const daysOutstanding = unpaidInvoices.length > 0 ? 30 : 0; // Simplified
+  // Accounts Payable: unpaid/overdue expense transactions (bills owed to suppliers)
+  const unpaidExpenses = transactions.filter(
+    t => t.type === 'expense' && (t.status === 'pending' || t.status === 'overdue')
+  );
+  const accountsPayable = unpaidExpenses.reduce((sum, t) => sum + t.amount, 0);
+
+  // Days Sales Outstanding: average age (in days) of unpaid invoices, weighted
+  // by amount, measured from each invoice's issue date to today.
+  const daysOutstanding = unpaidInvoices.length > 0
+    ? Math.round(
+        unpaidInvoices.reduce((sum, i) => {
+          const ageDays = Math.max(
+            0,
+            (now.getTime() - new Date(i.issueDate).getTime()) / 86400000
+          );
+          return sum + ageDays * i.total;
+        }, 0) / Math.max(1, accountsReceivable)
+      )
+    : 0;
 
   // Recurring revenue percentage
   const recurringTransactions = transactions.filter(t => t.isRecurring);
@@ -134,7 +151,7 @@ export function calculateFinancialMetrics(
     cashBalance,
     runwayDays,
     accountsReceivable,
-    accountsPayable: 0, // Would need additional data
+    accountsPayable,
     daysOutstanding,
     expensesByCategory,
     revenueRecurringPct,
