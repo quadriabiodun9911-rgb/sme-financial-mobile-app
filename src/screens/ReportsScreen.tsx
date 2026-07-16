@@ -766,24 +766,24 @@ function BalanceSheetTab({ finance, wcMetrics, assets, settings, updateSettings,
                 </View>
 
                 <SectionHeader label="WHAT YOU OWN (ASSETS)" />
-                <StatRow label="Cash on Hand"                       value={`${currency}${finance.cashBalance.toLocaleString()}`}              color={Colors.income} />
-                <StatRow label="  Money Owed to You by Customers"   value={`${currency}${wcMetrics.accountsReceivable.toLocaleString()}`}     color={Colors.income} indent />
+                <StatRow label="Cash on Hand"                       value={`${currency}${Math.round(finance.cashBalance).toLocaleString()}`}              color={Colors.income} />
+                <StatRow label="  Money Owed to You by Customers"   value={`${currency}${Math.round(wcMetrics.accountsReceivable).toLocaleString()}`}     color={Colors.income} indent />
                 {inventoryValue > 0 && <StatRow label="  Stock / Inventory Value" value={`${currency}${Math.round(inventoryValue).toLocaleString()}`} color={Colors.asset} indent />}
-                <StatRow label="Short-Term Assets Total"            value={`${currency}${currentAssets.toLocaleString()}`}                   color={Colors.asset} bold />
-                <StatRow label="  Equipment & Property (Asset Register)" value={`${currency}${registeredAssetValue.toLocaleString()}`}       color={Colors.asset} indent />
-                <StatRow label="  Equipment & Property (Manual Entry)"   value={`${currency}${manualAssets.toLocaleString()}`}               color={Colors.asset} indent />
-                <StatRow label="  Other Assets You Own"             value={`${currency}${otherAssets.toLocaleString()}`}                     color={Colors.asset} indent />
-                <StatRow label="Everything You Own"                 value={`${currency}${(isNaN(totalAssets) ? 0 : totalAssets).toLocaleString()}`}   color={Colors.asset} bold />
+                <StatRow label="Short-Term Assets Total"            value={`${currency}${Math.round(currentAssets).toLocaleString()}`}                   color={Colors.asset} bold />
+                <StatRow label="  Equipment & Property (Asset Register)" value={`${currency}${Math.round(registeredAssetValue).toLocaleString()}`}       color={Colors.asset} indent />
+                <StatRow label="  Equipment & Property (Manual Entry)"   value={`${currency}${Math.round(manualAssets).toLocaleString()}`}               color={Colors.asset} indent />
+                <StatRow label="  Other Assets You Own"             value={`${currency}${Math.round(otherAssets).toLocaleString()}`}                     color={Colors.asset} indent />
+                <StatRow label="Everything You Own"                 value={`${currency}${Math.round(isNaN(totalAssets) ? 0 : totalAssets).toLocaleString()}`}   color={Colors.asset} bold />
 
                 <SectionHeader label="WHAT YOU OWE (DEBTS)" />
-                <StatRow label="  Bills Owed to Suppliers"          value={`${currency}${apBal.toLocaleString()}`}                          color={Colors.liability} indent />
-                <StatRow label={`  Bank Loans & Other Debt${loanRegister.length > 0 ? ' (from Loan Register)' : ''}`} value={`${currency}${loansBalance.toLocaleString()}`} color={Colors.liability} indent />
-                <StatRow label="  Other Amounts Owed"               value={`${currency}${manualLiab.toLocaleString()}`}                     color={Colors.liability} indent />
-                <StatRow label="Everything You Owe"                 value={`${currency}${totalLiab.toLocaleString()}`}                      color={Colors.liability} bold />
+                <StatRow label="  Bills Owed to Suppliers"          value={`${currency}${Math.round(apBal).toLocaleString()}`}                          color={Colors.liability} indent />
+                <StatRow label={`  Bank Loans & Other Debt${loanRegister.length > 0 ? ' (from Loan Register)' : ''}`} value={`${currency}${Math.round(loansBalance).toLocaleString()}`} color={Colors.liability} indent />
+                <StatRow label="  Other Amounts Owed"               value={`${currency}${Math.round(manualLiab).toLocaleString()}`}                     color={Colors.liability} indent />
+                <StatRow label="Everything You Owe"                 value={`${currency}${Math.round(totalLiab).toLocaleString()}`}                      color={Colors.liability} bold />
 
                 <SectionHeader label="YOUR BUSINESS VALUE" />
-                <StatRow label="Net Worth (Assets − Debts)"         value={`${currency}${(isNaN(equity) ? 0 : equity).toLocaleString()}`}  color={(isNaN(equity) ? 0 : equity) >= 0 ? Colors.equity : Colors.expense} bold />
-                <StatRow label="Day-to-Day Cash Buffer"             value={`${currency}${wcMetrics.netWorkingCapital.toLocaleString()}`}     color={wcMetrics.netWorkingCapital >= 0 ? Colors.income : Colors.expense} />
+                <StatRow label="Net Worth (Assets − Debts)"         value={`${currency}${Math.round(isNaN(equity) ? 0 : equity).toLocaleString()}`}  color={(isNaN(equity) ? 0 : equity) >= 0 ? Colors.equity : Colors.expense} bold />
+                <StatRow label="Day-to-Day Cash Buffer"             value={`${currency}${Math.round(wcMetrics.netWorkingCapital).toLocaleString()}`}     color={wcMetrics.netWorkingCapital >= 0 ? Colors.income : Colors.expense} />
 
                 <TouchableOpacity style={bsStyles.editBtn} onPress={() => setEditing(e => !e)}>
                     <Text style={bsStyles.editBtnText}>{editing ? 'Cancel' : 'Edit Manual Values'}</Text>

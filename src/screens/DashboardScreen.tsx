@@ -602,7 +602,7 @@ export default function DashboardScreen() {
                     </TouchableOpacity>
                 )}
                 {overdueCount > 0 && (
-                    <TouchableOpacity style={styles.alertBanner} onPress={() => navigate('reports', { reportSection: 'operations', reportTab: 'aging' })}>
+                    <TouchableOpacity style={styles.alertBanner} onPress={() => navigate('reports', { reportSection: 'customers', reportTab: 'aging' })}>
                         <Text style={styles.alertText}>⚠ {overdueCount} overdue transaction{overdueCount > 1 ? 's' : ''} — tap to review →</Text>
                     </TouchableOpacity>
                 )}

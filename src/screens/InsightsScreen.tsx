@@ -170,7 +170,7 @@ export default function InsightsScreen() {
                     {overdueCount > 0 && (
                         <TouchableOpacity
                             style={styles.alertBanner}
-                            onPress={() => navigate('reports', { reportSection: 'operations', reportTab: 'aging' })}
+                            onPress={() => navigate('reports', { reportSection: 'customers', reportTab: 'aging' })}
                         >
                             <Text style={styles.alertText}>
                                 ⚠ {overdueCount} overdue transaction{overdueCount > 1 ? 's' : ''} — tap to view AR/AP Aging
@@ -259,7 +259,7 @@ export default function InsightsScreen() {
                             {/* Link to full SWOT */}
                             <TouchableOpacity
                                 style={styles.fullSwotBtn}
-                                onPress={() => navigate('reports', { reportSection: 'analysis', reportTab: 'swot' })}
+                                onPress={() => navigate('reports', { reportSection: 'health', reportTab: 'swot' })}
                             >
                                 <Text style={styles.fullSwotText}>View full SWOT Analysis in Reports →</Text>
                             </TouchableOpacity>
@@ -292,7 +292,7 @@ export default function InsightsScreen() {
                         <Row label="Tax Collected" value={`${currency}${finance.totalTaxCollected.toLocaleString()}`} valueStyle={styles.yellow} />
                         <Row label="Tax Paid" value={`${currency}${finance.totalTaxPaid.toLocaleString()}`} valueStyle={styles.yellow} />
                         <Row label="Net Tax Position" value={`${finance.netTaxPosition >= 0 ? '+' : ''}${currency}${finance.netTaxPosition.toLocaleString()}`} valueStyle={finance.netTaxPosition >= 0 ? styles.green : styles.red} />
-                        <TouchableOpacity onPress={() => navigate('reports', { reportSection: 'operations', reportTab: 'tax' })}>
+                        <TouchableOpacity onPress={() => navigate('reports', { reportSection: 'tax', reportTab: 'tax' })}>
                             <Text style={styles.linkText}>View full Tax Summary →</Text>
                         </TouchableOpacity>
                     </View>
