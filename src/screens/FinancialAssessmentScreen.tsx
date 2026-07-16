@@ -6,6 +6,7 @@ import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan } from '../utils/actionRecommendationEngine';
+import SwotAnalysis from '../components/SwotAnalysis';
 
 export default function FinancialAssessmentScreen() {
   const { transactions, invoices, finance, settings, setCurrentScreen } = useApp();
@@ -107,6 +108,15 @@ export default function FinancialAssessmentScreen() {
               <Text style={styles.metricSubtext}>MoM change</Text>
             </View>
           </View>
+        </View>
+
+        {/* SWOT — same underlying data as Reports > Business Health, shown
+            here so a full picture (health, SWOT, root causes, actions)
+            comes together in one flow right after a statement import
+            instead of being scattered across separate screens. */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>🧭 SWOT Analysis</Text>
+          <SwotAnalysis />
         </View>
 
         {/* Diagnoses */}
@@ -246,6 +256,12 @@ export default function FinancialAssessmentScreen() {
           >
             <Text style={styles.actionPlanButtonText}>View Full Action Plan →</Text>
           </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.budgetButton}
+            onPress={() => setCurrentScreen('budget')}
+          >
+            <Text style={styles.budgetButtonText}>📊  Turn this into a budget →</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
       <FooterNav />
@@ -345,4 +361,6 @@ const styles = StyleSheet.create({
   impactValue: { fontSize: 16, fontWeight: '800', color: Colors.income },
   actionPlanButton: { backgroundColor: Colors.primary, borderRadius: 8, paddingVertical: 12, alignItems: 'center', marginTop: 8 },
   actionPlanButtonText: { fontSize: 13, fontWeight: '700', color: '#fff' },
+  budgetButton: { backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingVertical: 12, alignItems: 'center', marginTop: 8 },
+  budgetButtonText: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
 });

@@ -682,8 +682,11 @@ export default function ImportTransactionsScreen() {
                         {duplicatesSkipped} row{duplicatesSkipped > 1 ? 's' : ''} already existed and {duplicatesSkipped > 1 ? 'were' : 'was'} skipped to avoid duplicate transactions.
                     </Text>
                 )}
-                <TouchableOpacity style={[styles.primaryBtn, { marginTop: 32, width: 220 }]} onPress={() => navigate('transactions')}>
-                    <Text style={styles.primaryBtnText}>View Transactions</Text>
+                <TouchableOpacity style={[styles.primaryBtn, { marginTop: 32, width: 280 }]} onPress={() => navigate('financial-assessment')}>
+                    <Text style={styles.primaryBtnText}>See My Business Health & SWOT →</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.ghostBtn, { marginTop: 12 }]} onPress={() => navigate('transactions')}>
+                    <Text style={styles.ghostBtnText}>View Transactions</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.ghostBtn} onPress={() => { setStep('upload'); setRows([]); setError(''); setSkippedNote(''); setOpeningBalance(undefined); setClosingBalance(undefined); setDuplicatesSkipped(0); }}>
                     <Text style={styles.ghostBtnText}>Import another file</Text>
