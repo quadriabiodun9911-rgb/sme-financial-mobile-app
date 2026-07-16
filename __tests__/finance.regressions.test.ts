@@ -3,8 +3,8 @@
 // in hand), and (2) EBITDA double-counted depreciation because EBIT never
 // actually deducted it before EBITDA added it back.
 
-import { computeFinance, computeEnhancedPnL } from '../src/utils/finance';
-import { Transaction, Asset } from '../src/types';
+import { computeFinance, computeEnhancedPnL, computeCashFlowForecast } from '../src/utils/finance';
+import { Transaction, Asset, Budget } from '../src/types';
 
 const makeTx = (overrides: Partial<Transaction>): Transaction => ({
     id: 'test',
@@ -97,5 +97,32 @@ describe('computeEnhancedPnL — EBITDA does not double-count depreciation', () 
         const r = computeEnhancedPnL(txs, []);
         expect(r.depreciation).toBe(0);
         expect(r.ebitda).toBe(r.ebit);
+    });
+});
+
+// Budget/Forecast cross-linking: a committed monthly budget that exceeds
+// recent recurring-expense history should raise the forecast's near-term
+// outflow, so a budgeting decision is immediately visible in the cash
+// forecast instead of the two screens contradicting each other.
+describe('computeCashFlowForecast — budget awareness', () => {
+    const currentPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+
+    it('is unaffected when no budgets are passed (default empty array — backward compatible)', () => {
+        const weeks = computeCashFlowForecast([], [], []);
+        expect(weeks.every(w => w.usedBudget === false)).toBe(true);
+    });
+
+    it('raises outflow for current-month weeks when the budget exceeds recurring-expense history', () => {
+        const budgets: Budget[] = [{ id: 'b1', category: 'Marketing', monthlyAmount: 43000, period: currentPeriod }];
+        const withoutBudget = computeCashFlowForecast([], [], []);
+        const withBudget = computeCashFlowForecast([], [], [], budgets);
+        expect(withBudget[0].projectedOutflow).toBeGreaterThan(withoutBudget[0].projectedOutflow);
+        expect(withBudget[0].usedBudget).toBe(true);
+    });
+
+    it('does not apply a budget from a different period', () => {
+        const budgets: Budget[] = [{ id: 'b1', category: 'Marketing', monthlyAmount: 43000, period: '2020-01' }];
+        const weeks = computeCashFlowForecast([], [], [], budgets);
+        expect(weeks.every(w => w.usedBudget === false)).toBe(true);
     });
 });

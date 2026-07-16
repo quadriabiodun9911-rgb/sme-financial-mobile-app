@@ -11,6 +11,7 @@ import { computeBudgetVsActual } from '../utils/finance';
 import { totalMonthlyLoanBurden } from '../utils/loanMath';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateExpenseReductionActions } from '../utils/actionRecommendationEngine';
+import { generateAutoBudget, AutoBudgetSuggestion } from '../utils/budgetEngine';
 import { Budget } from '../types';
 
 const EXPENSE_CATEGORIES = [
@@ -33,6 +34,8 @@ export default function BudgetScreen() {
     const [amount,      setAmount]      = useState('');
     const [customCat,   setCustomCat]   = useState('');
     const [showCatPick, setShowCatPick] = useState(false);
+    const [showAutoGen, setShowAutoGen] = useState(false);
+    const [excludedCats, setExcludedCats] = useState<Set<string>>(new Set());
 
     const bva = useMemo(() => computeBudgetVsActual(transactions, budgets, currentMonth), [transactions, budgets, currentMonth]);
 
@@ -84,6 +87,33 @@ export default function BudgetScreen() {
         return generateExpenseReductionActions(diagnosis, diagnosis.metrics, settings.currency).slice(0, 3);
     }, [transactions, invoices, finance.cashBalance, finance.expense, settings.currency]);
 
+    // Auto-generated budget: sized against forward-looking revenue (via
+    // computeRevenueForecast inside generateAutoBudget), scaled down if
+    // trailing spend would exceed a safe share of that projection, so it's
+    // an actual affordable plan and not just relabeled spending history.
+    const autoBudget = useMemo(
+        () => generateAutoBudget(transactions, finance, loans ?? []),
+        [transactions, finance, loans]
+    );
+
+    function openAutoGen() {
+        setExcludedCats(new Set());
+        setShowAutoGen(true);
+    }
+
+    function applyAutoBudget() {
+        const toApply = autoBudget.suggestions.filter(s => !excludedCats.has(s.category));
+        toApply.forEach((s: AutoBudgetSuggestion) => {
+            const existing = budgets.find(b => b.category.toLowerCase() === s.category.toLowerCase());
+            if (existing) {
+                updateBudget(existing.id, { monthlyAmount: s.monthlyAmount, period: currentMonth });
+            } else {
+                addBudget({ id: '', category: s.category, monthlyAmount: s.monthlyAmount, period: currentMonth });
+            }
+        });
+        setShowAutoGen(false);
+    }
+
     function openAdd() {
         setEditingId(null);
         setCategory('');
@@ -114,7 +144,7 @@ export default function BudgetScreen() {
                 Alert.alert('Duplicate', `A budget for "${cat}" already exists. Edit the existing one.`);
                 return;
             }
-            addBudget({ category: cat, monthlyAmount: amt, period: currentMonth });
+            addBudget({ id: '', category: cat, monthlyAmount: amt, period: currentMonth });
         }
         setShowForm(false);
     }
@@ -146,6 +176,11 @@ export default function BudgetScreen() {
                     <Text style={s.backBtn}>← Dashboard</Text>
                 </TouchableOpacity>
                 <Text style={s.screenTitle}>Budget</Text>
+                {transactions.length >= 5 && (
+                    <TouchableOpacity style={s.autoBtn} onPress={openAutoGen}>
+                        <Text style={s.autoBtnText}>🤖 Auto</Text>
+                    </TouchableOpacity>
+                )}
                 <TouchableOpacity style={s.addBtn} onPress={openAdd}>
                     <Text style={s.addBtnText}>+ Add</Text>
                 </TouchableOpacity>
@@ -224,6 +259,12 @@ export default function BudgetScreen() {
                                         : `✓ Healthy plan: keeps ${currency}${projectedProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })} profit (${monthlyRevenue > 0 ? ((projectedProfit / monthlyRevenue) * 100).toFixed(0) : 0}% margin). Recommended max spend: ${currency}${safeCap.toLocaleString(undefined, { maximumFractionDigits: 0 })}.`}
                             </Text>
                         </View>
+
+                        {budgets.length > 0 && (
+                            <TouchableOpacity style={s.forecastLink} onPress={() => navigate('cashflow')}>
+                                <Text style={s.forecastLinkText}>See how this budget affects your 13-week cash forecast →</Text>
+                            </TouchableOpacity>
+                        )}
                     </View>
                 )}
 
@@ -251,9 +292,18 @@ export default function BudgetScreen() {
                 {budgets.length === 0 ? (
                     <View style={s.emptyState}>
                         <Text style={s.emptyTitle}>No budgets yet</Text>
-                        <Text style={s.emptySub}>Tap "+ Add" to set monthly spending targets per category</Text>
-                        <TouchableOpacity style={s.emptyBtn} onPress={openAdd}>
-                            <Text style={s.emptyBtnText}>Add Your First Budget</Text>
+                        <Text style={s.emptySub}>
+                            {transactions.length >= 5
+                                ? 'Auto-generate a budget from your spending history, or add one manually'
+                                : 'Tap "+ Add" to set monthly spending targets per category'}
+                        </Text>
+                        {transactions.length >= 5 && (
+                            <TouchableOpacity style={s.emptyBtn} onPress={openAutoGen}>
+                                <Text style={s.emptyBtnText}>🤖 Auto-Generate Budget</Text>
+                            </TouchableOpacity>
+                        )}
+                        <TouchableOpacity style={[s.emptyBtn, transactions.length >= 5 && s.emptyBtnSecondary]} onPress={openAdd}>
+                            <Text style={[s.emptyBtnText, transactions.length >= 5 && s.emptyBtnTextSecondary]}>Add Manually</Text>
                         </TouchableOpacity>
                     </View>
                 ) : (
@@ -375,6 +425,72 @@ export default function BudgetScreen() {
                 </View>
             </Modal>
 
+            {/* Auto-generate review modal */}
+            <Modal visible={showAutoGen} transparent animationType="slide" onRequestClose={() => setShowAutoGen(false)}>
+                <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setShowAutoGen(false)} />
+                <View style={s.sheet}>
+                    <View style={s.sheetHandle} />
+                    <Text style={s.sheetTitle}>🤖 Auto-Generated Budget</Text>
+                    <Text style={s.autoGenSub}>
+                        Based on your last 3 months of spending, sized against{' '}
+                        {currency}{Math.round(autoBudget.projectedRevenue).toLocaleString()} projected revenue next month
+                        {autoBudget.loanBurden > 0 ? ` (after ${currency}${Math.round(autoBudget.loanBurden).toLocaleString()}/mo loan repayments)` : ''}.
+                    </Text>
+
+                    {autoBudget.scaled && (
+                        <View style={s.autoGenScaledNote}>
+                            <Text style={s.autoGenScaledNoteText}>
+                                ⚠ Your recent spending ({currency}{Math.round(autoBudget.totalRaw).toLocaleString()}/mo) is above what your
+                                projected revenue can safely support — every category below has been scaled down to fit within
+                                {' '}{currency}{Math.round(autoBudget.safeCap).toLocaleString()}/mo.
+                            </Text>
+                        </View>
+                    )}
+
+                    <ScrollView style={s.autoGenList} nestedScrollEnabled>
+                        {autoBudget.suggestions.map(sug => {
+                            const excluded = excludedCats.has(sug.category);
+                            return (
+                                <TouchableOpacity
+                                    key={sug.category}
+                                    style={[s.autoGenRow, excluded && s.autoGenRowExcluded]}
+                                    onPress={() => setExcludedCats(prev => {
+                                        const next = new Set(prev);
+                                        if (next.has(sug.category)) next.delete(sug.category); else next.add(sug.category);
+                                        return next;
+                                    })}
+                                >
+                                    <Text style={[s.autoGenCheck, excluded && s.autoGenCheckOff]}>{excluded ? '☐' : '☑'}</Text>
+                                    <Text style={[s.autoGenCat, excluded && s.autoGenTextExcluded]} numberOfLines={1}>{sug.category}</Text>
+                                    <View style={{ alignItems: 'flex-end' }}>
+                                        <Text style={[s.autoGenAmt, excluded && s.autoGenTextExcluded]}>
+                                            {currency}{sug.monthlyAmount.toLocaleString()}
+                                        </Text>
+                                        {sug.monthlyAmount !== sug.rawAverage && (
+                                            <Text style={s.autoGenRaw}>was {currency}{sug.rawAverage.toLocaleString()}</Text>
+                                        )}
+                                    </View>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </ScrollView>
+
+                    <View style={s.autoGenTotalRow}>
+                        <Text style={s.autoGenTotalLabel}>Total budget</Text>
+                        <Text style={s.autoGenTotalVal}>
+                            {currency}{autoBudget.suggestions.filter(s2 => !excludedCats.has(s2.category)).reduce((sum, s2) => sum + s2.monthlyAmount, 0).toLocaleString()}
+                        </Text>
+                    </View>
+
+                    <TouchableOpacity style={s.saveBtn} onPress={applyAutoBudget}>
+                        <Text style={s.saveBtnText}>Apply Budget</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={s.deleteBtn} onPress={() => setShowAutoGen(false)}>
+                        <Text style={[s.deleteBtnText, { color: Colors.textMuted }]}>Cancel</Text>
+                    </TouchableOpacity>
+                </View>
+            </Modal>
+
             <FooterNav />
         </SafeAreaView>
     );
@@ -390,6 +506,8 @@ const s = StyleSheet.create({
     screenTitle:  { flex: 1, fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary },
     addBtn:       { backgroundColor: Colors.primary, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7 },
     addBtnText:   { color: '#fff', fontSize: 13, fontWeight: '700' },
+    autoBtn:      { backgroundColor: Colors.primary + '18', borderWidth: 1, borderColor: Colors.primary, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
+    autoBtnText:  { color: Colors.primary, fontSize: 13, fontWeight: '700' },
 
     summaryCard:   { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 16 },
     summaryMonth:  { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: 12 },
@@ -407,6 +525,8 @@ const s = StyleSheet.create({
     strategyVal:   { fontSize: 12, fontWeight: '700', color: Colors.textPrimary },
     strategyVerdict:     { marginTop: 12, borderRadius: 8, borderWidth: 1, padding: 10 },
     strategyVerdictText: { fontSize: 11, fontWeight: '600', lineHeight: 16 },
+    forecastLink:        { marginTop: 10, paddingVertical: 8 },
+    forecastLinkText:    { fontSize: 12, color: Colors.primary, fontWeight: '700', textAlign: 'center' },
 
     suggestChip:     { backgroundColor: Colors.primary + '15', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 10, marginTop: 8, marginBottom: 4 },
     suggestChipText: { fontSize: 11, color: Colors.primary, fontWeight: '600' },
@@ -420,8 +540,26 @@ const s = StyleSheet.create({
     emptyState:    { alignItems: 'center', paddingVertical: 40 },
     emptyTitle:    { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 8 },
     emptySub:      { fontSize: 13, color: Colors.textMuted, textAlign: 'center', marginBottom: 20, lineHeight: 20 },
-    emptyBtn:      { backgroundColor: Colors.primary, borderRadius: 10, paddingHorizontal: 24, paddingVertical: 12 },
+    emptyBtn:      { backgroundColor: Colors.primary, borderRadius: 10, paddingHorizontal: 24, paddingVertical: 12, marginBottom: 10 },
     emptyBtnText:  { color: '#fff', fontWeight: '700', fontSize: 14 },
+    emptyBtnSecondary:     { backgroundColor: 'transparent', borderWidth: 1, borderColor: Colors.border },
+    emptyBtnTextSecondary: { color: Colors.textSecondary },
+
+    autoGenSub:        { fontSize: 12, color: Colors.textSecondary, lineHeight: 18, marginBottom: 12 },
+    autoGenScaledNote: { backgroundColor: Colors.warning + '18', borderWidth: 1, borderColor: Colors.warning, borderRadius: 8, padding: 10, marginBottom: 12 },
+    autoGenScaledNoteText: { fontSize: 11, color: Colors.warning, fontWeight: '600', lineHeight: 16 },
+    autoGenList:       { maxHeight: 320, marginBottom: 12 },
+    autoGenRow:        { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border, gap: 10 },
+    autoGenRowExcluded:{ opacity: 0.45 },
+    autoGenCheck:      { fontSize: 16, color: Colors.primary },
+    autoGenCheckOff:   { color: Colors.textMuted },
+    autoGenCat:        { flex: 1, fontSize: 13, fontWeight: '600', color: Colors.textPrimary },
+    autoGenAmt:        { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
+    autoGenRaw:        { fontSize: 10, color: Colors.textMuted },
+    autoGenTextExcluded: { color: Colors.textMuted },
+    autoGenTotalRow:   { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderTopWidth: 1, borderTopColor: Colors.border, marginBottom: 12 },
+    autoGenTotalLabel: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
+    autoGenTotalVal:   { fontSize: 15, fontWeight: '800', color: Colors.primary },
 
     tableHeader:   { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border, paddingLeft: 20 },
     th:            { flex: 1, fontSize: 10, color: Colors.textMuted, fontWeight: '700', textAlign: 'right' },

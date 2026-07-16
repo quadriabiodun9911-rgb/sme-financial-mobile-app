@@ -13,7 +13,7 @@ import { computeCashFlowForecast } from '../utils/finance';
 type Tab = 'forecast' | 'runway' | 'ar';
 
 export default function CashFlowScreen() {
-    const { transactions, loans, invoices, finance, settings, setCurrentScreen } = useApp();
+    const { transactions, loans, invoices, budgets, finance, settings, setCurrentScreen } = useApp();
     const [tab, setTab] = useState<Tab>('forecast');
     const sym = settings.currency || '₦';
 
@@ -27,7 +27,8 @@ export default function CashFlowScreen() {
     };
 
     // 90-day weekly cash flow forecast
-    const weeks = useMemo(() => computeCashFlowForecast(transactions, loans, invoices), [transactions, loans, invoices]);
+    const weeks = useMemo(() => computeCashFlowForecast(transactions, loans, invoices, budgets), [transactions, loans, invoices, budgets]);
+    const usesBudget = weeks.some(w => w.usedBudget);
 
     // Cash runway
     const { runwayDays, dailyBurn, cashBalance } = useMemo(() => {
@@ -170,9 +171,15 @@ export default function CashFlowScreen() {
 
                         <View style={styles.noteBox}>
                             <Text style={styles.noteText}>
-                                💡 Inflows are based on pending invoice due dates. Outflows use your recurring expenses and active loan payments. Add more transactions to improve accuracy.
+                                💡 Inflows are based on pending invoice due dates. Outflows use your recurring expenses, active loan payments{usesBudget ? ', and this month\'s committed budget' : ''}. Add more transactions to improve accuracy.
                             </Text>
                         </View>
+
+                        <TouchableOpacity style={[styles.actionBtn, { marginTop: 4 }]} onPress={() => setCurrentScreen('budget')}>
+                            <Text style={styles.actionBtnText}>
+                                {usesBudget ? 'This forecast reflects your budget — Review it →' : 'Set a budget to sharpen this forecast →'}
+                            </Text>
+                        </TouchableOpacity>
                     </>
                 )}
 

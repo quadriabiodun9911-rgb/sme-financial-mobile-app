@@ -792,9 +792,22 @@ export interface CashFlowForecastWeek {
     netCash: number;
     cumulativeCash: number;
     alert: boolean;
+    usedBudget: boolean; // true if this week's outflow reflects a committed budget rather than just historical recurring spend
 }
 
-export function computeCashFlowForecast(transactions: Transaction[], loans: Loan[], invoices: Invoice[]): CashFlowForecastWeek[] {
+// budgets is optional and defaults to [] so existing callers are unaffected.
+// When the business has committed to a monthly budget that's higher than
+// its recent recurring-expense average, the forecast should reflect what
+// was actually planned/approved for the current month — not understate
+// outflow just because spending hasn't caught up to the plan yet. This is
+// what ties the Budget and Cash Flow Forecast screens together: a decision
+// made on one immediately shows up in the other.
+export function computeCashFlowForecast(
+    transactions: Transaction[],
+    loans: Loan[],
+    invoices: Invoice[],
+    budgets: Budget[] = [],
+): CashFlowForecastWeek[] {
     const today = new Date();
     const result: CashFlowForecastWeek[] = [];
 
@@ -807,6 +820,13 @@ export function computeCashFlowForecast(transactions: Transaction[], loans: Loan
     // Monthly loan payments
     const monthlyLoanCost = loans.filter(l => l.status === 'active').reduce((s, l) => s + loanMonthlyPayment(l.principal, l.interestRate, l.termMonths), 0);
     const weeklyLoanCost = monthlyLoanCost / 4.33;
+
+    // Committed monthly budget (current period only) — only applies to
+    // weeks that actually fall within this calendar month, since a budget
+    // is a plan for "this month," not an indefinite recurring commitment.
+    const currentPeriod = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+    const monthlyBudgetTotal = budgets.filter(b => b.period === currentPeriod).reduce((s, b) => s + b.monthlyAmount, 0);
+    const weeklyBudgetOutflow = monthlyBudgetTotal / 4.33;
 
     // Map invoice due dates to weeks
     const invoiceMap = new Map<string, number>();
@@ -825,7 +845,12 @@ export function computeCashFlowForecast(transactions: Transaction[], loans: Loan
         const weekEnd   = new Date(today); weekEnd.setDate(today.getDate() + (w + 1) * 7 - 1);
         const weekKey = `W${w + 1}`;
         const inflow  = invoiceMap.get(weekKey) ?? 0;
-        const outflow = weeklyExpenseBase + weeklyLoanCost;
+        // A committed budget only speaks for weeks that actually fall in the
+        // period it was set for; use whichever base is higher, since the
+        // budget represents a floor on planned spend, not a cap on real spend.
+        const weekInCurrentPeriod = `${weekStart.getFullYear()}-${String(weekStart.getMonth() + 1).padStart(2, '0')}` === currentPeriod;
+        const usedBudget = weekInCurrentPeriod && weeklyBudgetOutflow > weeklyExpenseBase;
+        const outflow = (usedBudget ? weeklyBudgetOutflow : weeklyExpenseBase) + weeklyLoanCost;
         const net = inflow - outflow;
         cumulative += net;
         result.push({
@@ -835,6 +860,7 @@ export function computeCashFlowForecast(transactions: Transaction[], loans: Loan
             netCash: Math.round(net),
             cumulativeCash: Math.round(cumulative),
             alert: cumulative < 0,
+            usedBudget,
         });
     }
     return result;

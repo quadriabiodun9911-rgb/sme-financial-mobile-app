@@ -182,12 +182,12 @@ function PulseTab() {
 
 // ── Tab: Forecast ─────────────────────────────────────────────────────────────
 function ForecastTab() {
-    const { transactions, loans, invoices, settings } = useApp();
+    const { transactions, loans, invoices, budgets, settings } = useApp();
     const { currency } = settings;
     const [forecastMonths, setForecastMonths] = useState<3 | 6 | 12>(3);
 
     const forecast  = useMemo(() => computeRevenueForecast(transactions, forecastMonths), [transactions, forecastMonths]);
-    const cashFlow  = useMemo(() => computeCashFlowForecast(transactions, loans, invoices), [transactions, loans, invoices]);
+    const cashFlow  = useMemo(() => computeCashFlowForecast(transactions, loans, invoices, budgets), [transactions, loans, invoices, budgets]);
     const maxVal    = Math.max(...forecast.map(f => f.bestCase), 1);
 
     return (
