@@ -527,12 +527,12 @@ function GoalCard({ goal, currency, daysRemaining, feasibility, onStrategy, onBr
             )}
             <View style={cardStyles.bigNumbers}>
                 <View style={cardStyles.bigNum}>
-                    <Text style={cardStyles.bigNumVal}>{unit}{goal.currentValue.toLocaleString()}</Text>
+                    <Text style={cardStyles.bigNumVal}>{unit}{(goal.currentValue ?? 0).toLocaleString()}</Text>
                     <Text style={cardStyles.bigNumLabel}>Current</Text>
                 </View>
                 <Text style={cardStyles.bigNumArrow}>→</Text>
                 <View style={cardStyles.bigNum}>
-                    <Text style={[cardStyles.bigNumVal, { color: statusColor }]}>{unit}{goal.targetValue.toLocaleString()}</Text>
+                    <Text style={[cardStyles.bigNumVal, { color: statusColor }]}>{unit}{(goal.targetValue ?? 0).toLocaleString()}</Text>
                     <Text style={cardStyles.bigNumLabel}>Target</Text>
                 </View>
             </View>
@@ -541,15 +541,15 @@ function GoalCard({ goal, currency, daysRemaining, feasibility, onStrategy, onBr
             <View style={cardStyles.metricsRow}>
                 <View style={cardStyles.metric}>
                     <Text style={cardStyles.metricLabel}>Current</Text>
-                    <Text style={cardStyles.metricValue}>{unit}{goal.currentValue.toLocaleString()}</Text>
+                    <Text style={cardStyles.metricValue}>{unit}{(goal.currentValue ?? 0).toLocaleString()}</Text>
                 </View>
                 <View style={cardStyles.metric}>
                     <Text style={cardStyles.metricLabel}>Baseline</Text>
-                    <Text style={cardStyles.metricValue}>{unit}{goal.baselineValue.toLocaleString()}</Text>
+                    <Text style={cardStyles.metricValue}>{unit}{(goal.baselineValue ?? 0).toLocaleString()}</Text>
                 </View>
                 <View style={cardStyles.metric}>
                     <Text style={cardStyles.metricLabel}>Target</Text>
-                    <Text style={[cardStyles.metricValue, { color: statusColor }]}>{unit}{goal.targetValue.toLocaleString()}</Text>
+                    <Text style={[cardStyles.metricValue, { color: statusColor }]}>{unit}{(goal.targetValue ?? 0).toLocaleString()}</Text>
                 </View>
                 <View style={cardStyles.metric}>
                     <Text style={cardStyles.metricLabel}>Deadline</Text>
