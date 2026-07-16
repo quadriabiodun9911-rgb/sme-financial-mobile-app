@@ -10,6 +10,7 @@ import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { computeCashFlowForecast } from '../utils/finance';
 import NextStepLink from '../components/NextStepLink';
+import { suggestSolution } from '../utils/impactChain';
 
 type Tab = 'forecast' | 'runway' | 'ar';
 
@@ -131,6 +132,17 @@ export default function CashFlowScreen() {
                                 </Text>
                             </View>
                         )}
+
+                        {alertWeeks > 0 && (() => {
+                            const solution = suggestSolution('budget');
+                            return (
+                                <View style={styles.solutionBanner}>
+                                    <Text style={styles.solutionTitle}>💡 {solution.title}</Text>
+                                    <Text style={styles.solutionDetail}>{solution.detail}</Text>
+                                    <NextStepLink text="See the full profit → cash picture" onPress={() => setCurrentScreen('clarity')} />
+                                </View>
+                            );
+                        })()}
 
                         <Text style={styles.sectionTitle}>Weekly Cash Flow — Next 13 Weeks</Text>
                         {weeks.map((w, i) => {
@@ -314,6 +326,10 @@ const styles = StyleSheet.create({
     alertBanner: { flexDirection: 'row', backgroundColor: 'rgba(239,68,68,0.08)', borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)', borderRadius: 10, padding: 12, gap: 8, marginBottom: 16, alignItems: 'flex-start' },
     alertIcon:   { fontSize: 16 },
     alertText:   { flex: 1, fontSize: 13, color: Colors.muted, lineHeight: 18 },
+
+    solutionBanner: { backgroundColor: Colors.card, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, padding: 12, marginBottom: 16 },
+    solutionTitle:  { fontSize: 13, fontWeight: '700', color: Colors.text, marginBottom: 4 },
+    solutionDetail: { fontSize: 12, color: Colors.muted, lineHeight: 17 },
 
     sectionTitle: { fontSize: 14, fontWeight: '700', color: Colors.text, marginBottom: 10, marginTop: 8 },
 

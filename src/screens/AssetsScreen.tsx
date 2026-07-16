@@ -15,6 +15,8 @@ import AssetProductivityAnalysis from '../components/AssetProductivityAnalysis';
 import { monthlyPayment } from '../utils/loanMath';
 import DateInput from '../components/DateInput';
 import NextStepLink from '../components/NextStepLink';
+import ProfitCashImpactCard from '../components/ProfitCashImpactCard';
+import { computeProfitCashImpact } from '../utils/impactChain';
 
 const CATEGORIES: AssetCategory[] = ['equipment', 'vehicle', 'furniture', 'property', 'intangible', 'other'];
 
@@ -355,6 +357,19 @@ export default function AssetsScreen() {
                                         <View style={[s.acqVerdict, { borderColor: recColor }]}>
                                             <Text style={[s.acqVerdictText, { color: recColor }]}>{analysis.rationale}</Text>
                                         </View>
+
+                                        {(() => {
+                                            const selected = analysis.options.find(o => o.method === acqMethod);
+                                            if (!selected) return null;
+                                            return (
+                                                <ProfitCashImpactCard
+                                                    impact={computeProfitCashImpact(finance?.profit ?? 0, (finance?.cashBalance ?? 0) - selected.upfront, -selected.monthlyProfitImpact)}
+                                                    source="asset"
+                                                    currency={currency}
+                                                    onSeeFullPicture={() => navigate('clarity')}
+                                                />
+                                            );
+                                        })()}
                                     </View>
                                 );
                             })()}

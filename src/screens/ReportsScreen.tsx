@@ -93,7 +93,7 @@ const PERIODS: { key: ReportPeriod; label: string }[] = [
 ];
 
 export default function ReportsScreen() {
-    const { finance: allFinance, settings, updateSettings, transactions, assets, loans: loansList, navParams, inventory, invoices } = useApp();
+    const { finance: allFinance, settings, updateSettings, transactions, assets, loans: loansList, navParams, inventory, invoices, setCurrentScreen } = useApp();
     const { currency, minReserve, targetMargin } = settings;
 
     const [showLanding, setShowLanding] = useState(false);
@@ -534,6 +534,7 @@ export default function ReportsScreen() {
                                 currentRevenue={allFinance.income}
                                 currentMargin={allFinance.margin}
                                 currency={currency}
+                                onSeeFullPicture={() => setCurrentScreen('clarity')}
                             />
                             <NextStepLink
                                 text="After adjusting prices, see the effect on your Balance Sheet"

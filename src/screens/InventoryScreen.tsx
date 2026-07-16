@@ -10,6 +10,7 @@ import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import NextStepLink from '../components/NextStepLink';
+import { suggestSolution } from '../utils/impactChain';
 import { InventoryItem } from '../types';
 
 type InventoryTab = 'stock' | 'analytics';
@@ -520,6 +521,35 @@ export default function InventoryScreen() {
                             onChangeText={v => setForm(f => ({ ...f, lowStockThreshold: v }))}
                         />
 
+                        {/* Margin preview — same "harmful gets a fix" pattern as the
+                            rest of the app, applied to what this item actually earns. */}
+                        {(() => {
+                            const cost = parseFloat(form.costPrice);
+                            const sell = parseFloat(form.sellingPrice);
+                            if (isNaN(cost) || isNaN(sell) || sell <= 0) return null;
+                            const margin = ((sell - cost) / sell) * 100;
+                            const severity = margin < 0 ? 'harmful' : margin < 10 ? 'caution' : 'none';
+                            const color = severity === 'harmful' ? Colors.expense : severity === 'caution' ? Colors.warning : Colors.income;
+                            return (
+                                <View style={[styles.marginPreview, { borderColor: color }]}>
+                                    <Text style={styles.marginPreviewLabel}>Margin on this item</Text>
+                                    <Text style={[styles.marginPreviewVal, { color }]}>{margin.toFixed(1)}%</Text>
+                                    {severity !== 'none' && (
+                                        <>
+                                            <Text style={[styles.marginPreviewNote, { color }]}>
+                                                {severity === 'harmful'
+                                                    ? '⚠ Selling below cost — every sale loses money.'
+                                                    : '⚠ Thin margin — barely covers overhead.'}
+                                            </Text>
+                                            <Text style={styles.marginPreviewSolution}>
+                                                💡 {suggestSolution('pricing').title} — {suggestSolution('pricing').detail}
+                                            </Text>
+                                        </>
+                                    )}
+                                </View>
+                            );
+                        })()}
+
                         <TouchableOpacity style={styles.submitBtn} onPress={submitForm}>
                             <Text style={styles.submitBtnText}>{editingId ? 'Save Changes' : 'Add Item'}</Text>
                         </TouchableOpacity>
@@ -664,6 +694,11 @@ const styles = StyleSheet.create({
     },
     submitBtn:     { backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginTop: 4 },
     submitBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
+    marginPreview:      { borderWidth: 1, borderRadius: 10, padding: 12, marginBottom: 12 },
+    marginPreviewLabel: { fontSize: 11, color: Colors.textMuted, marginBottom: 3 },
+    marginPreviewVal:   { fontSize: 18, fontWeight: '800', marginBottom: 4 },
+    marginPreviewNote:  { fontSize: 12, fontWeight: '600', lineHeight: 17, marginBottom: 6 },
+    marginPreviewSolution: { fontSize: 11, color: Colors.textSecondary, lineHeight: 16 },
     cancelBtn:     { paddingVertical: 12, borderRadius: 10, alignItems: 'center', marginTop: 8 },
     cancelBtnText: { color: Colors.textMuted, fontSize: 14 },
 });

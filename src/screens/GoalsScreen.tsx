@@ -14,6 +14,19 @@ import NextStepLink from '../components/NextStepLink';
 import { calculateGoalBridge, mapSavedGoalToBridge } from '../utils/goalBridgeEngine';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan } from '../utils/actionRecommendationEngine';
+import { suggestSolution, ImpactSource } from '../utils/impactChain';
+
+// Maps each goal type to the closest matching solution category — a
+// revenue/margin goal is fundamentally a pricing/growth problem, a cost or
+// cash-reserve goal is a budget problem.
+const GOAL_TYPE_SOLUTION: Record<GoalType, ImpactSource> = {
+    revenue_growth: 'pricing',
+    margin_improvement: 'pricing',
+    cost_reduction: 'budget',
+    cash_reserve: 'budget',
+    reduce_overdue_ar: 'expense',
+    custom: 'expense',
+};
 
 const GOAL_TYPES: { type: GoalType; label: string; icon: string; description: string }[] = [
     { type: 'revenue_growth', label: 'Increase Revenue', icon: '📈', description: 'Grow total income to a target amount' },
@@ -231,6 +244,7 @@ export default function GoalsScreen() {
                                     onDelete={() => handleDelete(goal.id, goal.title)}
                                     onExecute={() => setCurrentScreen('action-tracker')}
                                     onCollect={() => navigate('transactions', { filter: 'collect' })}
+                                    onSeeFullPicture={() => setCurrentScreen('clarity')}
                                 />
                             ))}
                             {/* Achieved goals */}
@@ -462,7 +476,7 @@ function DailyActionsSection({ goal, transactions, currency }: { goal: Financial
     );
 }
 
-function GoalCard({ goal, currency, daysRemaining, feasibility, onStrategy, onBridge, onEdit, onDelete, onExecute, onCollect }: {
+function GoalCard({ goal, currency, daysRemaining, feasibility, onStrategy, onBridge, onEdit, onDelete, onExecute, onCollect, onSeeFullPicture }: {
     goal: FinancialGoal;
     currency: string;
     daysRemaining: string;
@@ -473,6 +487,7 @@ function GoalCard({ goal, currency, daysRemaining, feasibility, onStrategy, onBr
     onDelete: () => void;
     onExecute?: () => void;
     onCollect?: () => void;
+    onSeeFullPicture?: () => void;
 }) {
     const statusColor = STATUS_COLORS[goal.status];
     const isReduction = goal.type === 'cost_reduction' || goal.type === 'reduce_overdue_ar';
@@ -505,8 +520,13 @@ function GoalCard({ goal, currency, daysRemaining, feasibility, onStrategy, onBr
                 </View>
             )}
 
-            {!isAchieved && feasibility?.feasibility === 'difficult' && onExecute && (
-                <NextStepLink text="This needs real work — see your action plan" onPress={onExecute} />
+            {!isAchieved && feasibility?.feasibility === 'difficult' && (
+                <View style={cardStyles.solutionBox}>
+                    <Text style={cardStyles.solutionTitle}>💡 {suggestSolution(GOAL_TYPE_SOLUTION[goal.type]).title}</Text>
+                    <Text style={cardStyles.solutionDetail}>{suggestSolution(GOAL_TYPE_SOLUTION[goal.type]).detail}</Text>
+                    {onExecute && <NextStepLink text="See your action plan" onPress={onExecute} />}
+                    {onSeeFullPicture && <NextStepLink text="See the full profit → cash picture" onPress={onSeeFullPicture} />}
+                </View>
             )}
             {!isAchieved && goal.type === 'reduce_overdue_ar' && (goal.status === 'off_track' || goal.status === 'at_risk') && onCollect && (
                 <NextStepLink text="Review overdue collections" onPress={onCollect} />
@@ -591,6 +611,9 @@ const cardStyles = StyleSheet.create({
     feasRow: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 10 },
     feasBadge: { fontSize: 10, fontWeight: '800' },
     feasText: { fontSize: 11, color: Colors.textSecondary, flex: 1 },
+    solutionBox:    { backgroundColor: Colors.primary + '10', borderRadius: 8, padding: 10, marginBottom: 10 },
+    solutionTitle:  { fontSize: 12, fontWeight: '700', color: Colors.textPrimary, marginBottom: 3 },
+    solutionDetail: { fontSize: 11, color: Colors.textSecondary, lineHeight: 16, marginBottom: 4 },
     bigNumbers: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 12, backgroundColor: Colors.bg, borderRadius: 10, padding: 10 },
     bigNum: { alignItems: 'center' },
     bigNumVal: { fontSize: 16, fontWeight: 'bold', color: Colors.textPrimary },

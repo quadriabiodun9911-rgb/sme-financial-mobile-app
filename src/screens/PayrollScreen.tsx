@@ -10,6 +10,8 @@ import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { StaffMember, PayrollItem } from '../types';
 import NextStepLink from '../components/NextStepLink';
+import ProfitCashImpactCard from '../components/ProfitCashImpactCard';
+import { computeProfitCashImpact } from '../utils/impactChain';
 
 type Tab = 'staff' | 'run' | 'history';
 
@@ -20,7 +22,7 @@ const EMPTY_STAFF: Omit<StaffMember, 'id' | 'createdAt'> = {
 };
 
 export default function PayrollScreen() {
-    const { staff, addStaff, updateStaff, deleteStaff, payrollRuns, runPayroll, deletePayrollRun, settings, setCurrentScreen } = useApp();
+    const { staff, addStaff, updateStaff, deleteStaff, payrollRuns, runPayroll, deletePayrollRun, settings, setCurrentScreen, finance } = useApp();
     const [tab, setTab] = useState<Tab>('staff');
     const [staffModal, setStaffModal] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -202,6 +204,13 @@ export default function PayrollScreen() {
                                         }, 0))}
                                     </Text>
                                 </View>
+
+                                <ProfitCashImpactCard
+                                    impact={computeProfitCashImpact(finance?.profit ?? 0, finance?.cashBalance ?? 0, -totalMonthlyPayroll)}
+                                    source="payroll"
+                                    currency={sym}
+                                    onSeeFullPicture={() => setCurrentScreen('clarity')}
+                                />
                             </View>
                         )}
 

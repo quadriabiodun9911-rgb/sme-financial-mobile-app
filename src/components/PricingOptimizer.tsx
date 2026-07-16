@@ -1,14 +1,17 @@
 import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity } from 'react-native';
 import { Colors } from '../theme/colors';
+import { suggestSolution } from '../utils/impactChain';
+import NextStepLink from './NextStepLink';
 
 interface Props {
     currentRevenue: number;
     currentMargin: number;
     currency: string;
+    onSeeFullPicture?: () => void;
 }
 
-export default function PricingOptimizer({ currentRevenue, currentMargin, currency }: Props) {
+export default function PricingOptimizer({ currentRevenue, currentMargin, currency, onSeeFullPicture }: Props) {
     const [priceIncrease, setPriceIncrease] = useState('10');
     const [volumeLoss, setVolumeLoss] = useState('5');
     const [costReduction, setCostReduction] = useState('0');
@@ -207,6 +210,42 @@ export default function PricingOptimizer({ currentRevenue, currentMargin, curren
                     }
                     highlighted={scenarios.combined.profit === bestScenario.profit}
                 />
+
+                {/* Effect on Profit -> Cash Balance for the best scenario — the
+                    same "harmful effect gets a concrete fix" pattern used
+                    everywhere else in the app. Profit gain here is a real
+                    increase in most cases (these are improvement scenarios),
+                    but a large volume-loss assumption can flip it negative. */}
+                {(() => {
+                    const severity = bestScenario.gain < 0
+                        ? 'harmful'
+                        : bestScenario.profit > 0 && bestScenario.gain / bestScenario.profit < 0.02
+                            ? 'caution'
+                            : 'none';
+                    const color = severity === 'harmful' ? Colors.expense : severity === 'caution' ? Colors.warning : Colors.income;
+                    const solution = severity !== 'none' ? suggestSolution('pricing') : null;
+                    return (
+                        <View style={[styles.impactCard, { borderColor: color }]}>
+                            <Text style={styles.impactTitle}>Effect of "{bestScenario.name}" on Profit</Text>
+                            <Text style={[styles.impactVerdict, { color }]}>
+                                {severity === 'harmful'
+                                    ? `⚠ This assumption set actually loses ${currency}${Math.abs(bestScenario.gain).toLocaleString(undefined, { maximumFractionDigits: 0 })} — the volume-loss estimate may be eating the gain.`
+                                    : severity === 'caution'
+                                        ? '⚠ The gain here is small — worth testing a bigger move or a different lever.'
+                                        : `✓ Projected to add ${currency}${Math.round(bestScenario.gain).toLocaleString()} in profit.`}
+                            </Text>
+                            {solution && (
+                                <View style={styles.solutionBox}>
+                                    <Text style={styles.solutionTitle}>💡 {solution.title}</Text>
+                                    <Text style={styles.solutionDetail}>{solution.detail}</Text>
+                                </View>
+                            )}
+                            {onSeeFullPicture && (
+                                <NextStepLink text="See the full profit → cash picture" onPress={onSeeFullPicture} />
+                            )}
+                        </View>
+                    );
+                })()}
             </View>
 
             {/* Pricing Insights */}
@@ -503,6 +542,12 @@ const styles = StyleSheet.create({
         fontStyle: 'italic',
         lineHeight: 18,
     },
+    impactCard:   { backgroundColor: Colors.surface, borderRadius: 10, borderWidth: 1, padding: 14, marginTop: 4 },
+    impactTitle:  { fontSize: 12, fontWeight: '800', color: Colors.textPrimary, marginBottom: 8 },
+    impactVerdict:{ fontSize: 12, fontWeight: '600', lineHeight: 17 },
+    solutionBox:    { marginTop: 10, backgroundColor: Colors.primary + '10', borderRadius: 8, padding: 10 },
+    solutionTitle:  { fontSize: 12, fontWeight: '700', color: Colors.textPrimary, marginBottom: 3 },
+    solutionDetail: { fontSize: 11, color: Colors.textSecondary, lineHeight: 16 },
     insightCard: {
         backgroundColor: Colors.surface,
         borderRadius: 10,
