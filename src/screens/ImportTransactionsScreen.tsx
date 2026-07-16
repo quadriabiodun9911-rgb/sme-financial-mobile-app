@@ -32,9 +32,16 @@ interface ParsedRow {
 
 const DATE_ALIASES   = ['date', 'trans. date', 'transaction date', 'value date', 'txn date', 'trans date', 'posting date'];
 const DESC_ALIASES   = ['description', 'narration', 'details', 'remarks', 'transaction details', 'particulars', 'transaction description'];
-const DEBIT_ALIASES  = ['debit', 'dr', 'withdrawals', 'debit amount', 'amount dr', 'withdrawal', 'debit (ngn)', 'dr amount'];
-const CREDIT_ALIASES = ['credit', 'cr', 'deposits', 'credit amount', 'amount cr', 'deposit', 'credit (ngn)', 'cr amount'];
-const AMOUNT_ALIASES = ['amount', 'transaction amount', 'value'];
+const DEBIT_ALIASES  = [
+    'debit', 'dr', 'withdrawals', 'withdrawal', 'debit amount', 'amount dr', 'debit (ngn)', 'dr amount',
+    'money out', 'paid out', 'outflow', 'debit(₦)', 'debit naira',
+];
+const CREDIT_ALIASES = [
+    'credit', 'cr', 'deposits', 'deposit', 'credit amount', 'amount cr', 'credit (ngn)', 'cr amount',
+    'money in', 'paid in', 'inflow', 'credit(₦)', 'credit naira',
+];
+const AMOUNT_ALIASES  = ['amount', 'transaction amount', 'value'];
+const BALANCE_ALIASES = ['balance', 'running balance', 'closing balance', 'available balance', 'ledger balance', 'balance (ngn)'];
 
 // ─── Keyword → sub-category map ──────────────────────────────────────────────
 
@@ -185,7 +192,10 @@ function classifyByDescription(desc: string, direction: 'income' | 'expense'): {
 
 // ─── CSV/Excel parser ─────────────────────────────────────────────────────────
 
-function parseRows(raw: Record<string, string>[]): { rows: ParsedRow[]; error?: string; summaryRowsSkipped?: number } {
+function parseRows(raw: Record<string, string>[]): {
+    rows: ParsedRow[]; error?: string; summaryRowsSkipped?: number;
+    openingBalance?: number; closingBalance?: number;
+} {
     if (!raw.length) return { rows: [], error: 'File is empty or has no data rows.' };
 
     const headers = Object.keys(raw[0]);
@@ -195,20 +205,39 @@ function parseRows(raw: Record<string, string>[]): { rows: ParsedRow[]; error?: 
     const debitCol  = findCol(headers, DEBIT_ALIASES);
     const creditCol = findCol(headers, CREDIT_ALIASES);
     const amtCol    = findCol(headers, AMOUNT_ALIASES);
+    const balCol    = findCol(headers, BALANCE_ALIASES);
 
     if (!dateCol)  return { rows: [], error: `Could not find a date column. Headers found: ${headers.join(', ')}` };
     if (!descCol)  return { rows: [], error: `Could not find a description/narration column. Headers found: ${headers.join(', ')}` };
 
-    const hasSplitAmounts = debitCol && creditCol;
-    const hasSingleAmount = !hasSplitAmounts && amtCol;
+    const hasSplitAmounts = !!(debitCol && creditCol);
+    const hasSingleAmount = !hasSplitAmounts && !!amtCol;
+    // Some statements only ever print a running balance, no separate
+    // amount/debit/credit column (common in crude PDF-table exports) — the
+    // amount and direction can still be recovered from how the balance
+    // moves between consecutive rows.
+    const hasBalanceOnly  = !hasSplitAmounts && !hasSingleAmount && !!balCol;
 
-    if (!hasSplitAmounts && !hasSingleAmount) {
+    if (!hasSplitAmounts && !hasSingleAmount && !hasBalanceOnly) {
         return { rows: [], error: `Could not find amount columns. Headers found: ${headers.join(', ')}` };
     }
+
+    // Extract the balance figure from a value column, or — if there's no
+    // dedicated balance column — the last number-looking field in the raw
+    // row (banks usually print the running balance last).
+    const extractBalance = (r: Record<string, string>): number | null => {
+        const raw = balCol ? r[balCol] : Object.values(r).slice().reverse().find(v => /\d/.test(v || ''));
+        if (!raw) return null;
+        const n = parseFloat(String(raw).replace(/[₦$€£,\s]/g, ''));
+        return isNaN(n) ? null : n;
+    };
 
     const rows: ParsedRow[] = [];
     let i = 0;
     let summaryRowsSkipped = 0;
+    let openingBalance: number | undefined;
+    let closingBalance: number | undefined;
+    let prevBalance: number | null = null;
 
     for (const r of raw) {
         const dateRaw  = r[dateCol!]  || '';
@@ -217,20 +246,57 @@ function parseRows(raw: Record<string, string>[]): { rows: ParsedRow[]; error?: 
         // Skip blank rows
         if (!dateRaw.trim() && !descRaw.trim()) continue;
 
-        // Skip running-balance/summary lines — not real transactions.
-        if (isSummaryRow(descRaw)) { summaryRowsSkipped++; continue; }
+        // Opening/closing balance lines aren't transactions — they're the
+        // running total the bank prints at the top/bottom of the
+        // statement. Capture their actual value (so the business's
+        // start-of-month and end-of-month position isn't lost) instead of
+        // just discarding the line.
+        if (isSummaryRow(descRaw)) {
+            summaryRowsSkipped++;
+            const bal = extractBalance(r);
+            if (bal !== null) {
+                const d = normalise(descRaw);
+                if (openingBalance === undefined && /open|brought forward|beginning/.test(d)) {
+                    openingBalance = bal;
+                    prevBalance = bal;
+                } else {
+                    closingBalance = bal; // last matching summary line wins
+                }
+            }
+            continue;
+        }
 
         let debit = 0, credit = 0;
 
         if (hasSplitAmounts) {
             debit  = parseAmount(r[debitCol!]  || '');
             credit = parseAmount(r[creditCol!] || '');
-        } else {
+            // Also track the running balance alongside explicit
+            // debit/credit columns when a Balance column is present, so
+            // the closing position is still known even with no explicit
+            // "Closing Balance" summary line in the file.
+            if (balCol) { const b = extractBalance(r); if (b !== null) prevBalance = b; }
+        } else if (hasSingleAmount) {
             const amt = parseAmount(r[amtCol!] || '');
             // Negative = debit (money out), positive = credit (money in)
             const rawAmt = parseFloat((r[amtCol!] || '').replace(/[₦$€£,\s]/g, ''));
             if (rawAmt < 0) debit = amt;
             else credit = amt;
+            if (balCol) { const b = extractBalance(r); if (b !== null) prevBalance = b; }
+        } else {
+            // Balance-delta fallback: how much the running balance moved
+            // tells us both the amount and whether it was money in or out.
+            const bal = extractBalance(r);
+            if (bal === null) continue;
+            if (prevBalance === null) {
+                // No opening balance to anchor the very first row against —
+                // can't tell direction yet, just seed the baseline and move on.
+                prevBalance = bal;
+                continue;
+            }
+            const delta = bal - prevBalance;
+            if (delta >= 0) credit = delta; else debit = Math.abs(delta);
+            prevBalance = bal;
         }
 
         const amount    = credit > 0 ? credit : debit;
@@ -250,7 +316,11 @@ function parseRows(raw: Record<string, string>[]): { rows: ParsedRow[]; error?: 
         });
     }
 
-    return { rows, summaryRowsSkipped };
+    // If no explicit "Closing Balance" line was found, the last row's
+    // running balance (when available) is the closing position.
+    if (closingBalance === undefined && prevBalance !== null) closingBalance = prevBalance;
+
+    return { rows, summaryRowsSkipped, openingBalance, closingBalance };
 }
 
 // ─── Category options shown in the picker ────────────────────────────────────
@@ -292,6 +362,8 @@ export default function ImportTransactionsScreen() {
     const [error,      setError]      = useState('');
     const [pickerRow,  setPickerRow]  = useState<string | null>(null);
     const [skippedNote, setSkippedNote] = useState('');
+    const [openingBalance, setOpeningBalance] = useState<number | undefined>(undefined);
+    const [closingBalance, setClosingBalance] = useState<number | undefined>(undefined);
     const [imported,   setImported]   = useState(0);
 
     // Web fallback: hidden <input type="file"> for iOS Safari
@@ -375,12 +447,14 @@ export default function ImportTransactionsScreen() {
                 rawRows = parsed.data;
             }
 
-            const { rows: parsed, error: parseError, summaryRowsSkipped } = parseRows(rawRows);
+            const { rows: parsed, error: parseError, summaryRowsSkipped, openingBalance: ob, closingBalance: cb } = parseRows(rawRows);
             if (parseError) { setError(parseError); return; }
             setRows(parsed);
+            setOpeningBalance(ob);
+            setClosingBalance(cb);
             setSkippedNote(
                 summaryRowsSkipped
-                    ? `${summaryRowsSkipped} balance/summary line${summaryRowsSkipped > 1 ? 's' : ''} (e.g. Opening/Closing Balance) were left out automatically — they're not transactions.`
+                    ? `${summaryRowsSkipped} balance line${summaryRowsSkipped > 1 ? 's' : ''} (Opening/Closing Balance) were excluded as transactions — see the balance summary above.`
                     : ''
             );
             setStep('preview');
@@ -596,7 +670,7 @@ export default function ImportTransactionsScreen() {
                 <TouchableOpacity style={[styles.primaryBtn, { marginTop: 32, width: 220 }]} onPress={() => navigate('transactions')}>
                     <Text style={styles.primaryBtnText}>View Transactions</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.ghostBtn} onPress={() => { setStep('upload'); setRows([]); setError(''); setSkippedNote(''); }}>
+                <TouchableOpacity style={styles.ghostBtn} onPress={() => { setStep('upload'); setRows([]); setError(''); setSkippedNote(''); setOpeningBalance(undefined); setClosingBalance(undefined); }}>
                     <Text style={styles.ghostBtnText}>Import another file</Text>
                 </TouchableOpacity>
             </View>
@@ -645,6 +719,27 @@ export default function ImportTransactionsScreen() {
                     <Text style={styles.summaryLabel}>Flagged</Text>
                 </View>
             </View>
+
+            {/* Opening/Closing balance — captured from the statement's own
+                summary lines (or the running balance column), not lost when
+                those lines are excluded from the transaction list. */}
+            {(openingBalance !== undefined || closingBalance !== undefined) && (
+                <View style={styles.balanceStrip}>
+                    <View style={styles.summaryItem}>
+                        <Text style={styles.summaryVal}>
+                            {openingBalance !== undefined ? fmt(openingBalance) : '—'}
+                        </Text>
+                        <Text style={styles.summaryLabel}>Started with</Text>
+                    </View>
+                    <Text style={styles.balanceArrow}>→</Text>
+                    <View style={styles.summaryItem}>
+                        <Text style={styles.summaryVal}>
+                            {closingBalance !== undefined ? fmt(closingBalance) : '—'}
+                        </Text>
+                        <Text style={styles.summaryLabel}>Ended with</Text>
+                    </View>
+                </View>
+            )}
 
             {/* Transaction rows */}
             <FlatList
@@ -754,6 +849,8 @@ const styles = StyleSheet.create({
     summaryItem:  { flex: 1, alignItems: 'center', paddingVertical: 10 },
     summaryVal:   { fontSize: 13, fontWeight: '800', color: Colors.primary },
     summaryLabel: { fontSize: 10, color: Colors.textMuted, marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.4 },
+    balanceStrip: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border, paddingHorizontal: 8 },
+    balanceArrow: { fontSize: 16, color: Colors.textMuted },
 
     // Transaction rows
     txRow:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', backgroundColor: Colors.surface, borderRadius: 12, padding: 12, marginBottom: 8 },
