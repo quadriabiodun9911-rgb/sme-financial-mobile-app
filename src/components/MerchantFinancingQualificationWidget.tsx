@@ -87,7 +87,7 @@ export default function MerchantFinancingQualificationWidget({
             <View style={s.header}>
                 <Text style={s.icon}>🎯</Text>
                 <View style={{ flex: 1 }}>
-                    <Text style={s.title}>Financing Qualification</Text>
+                    <Text style={s.title}>Merchant Financing Qualification</Text>
                     <Text style={s.progressText}>
                         {completedRequirements}/{totalRequirements} requirements met
                     </Text>

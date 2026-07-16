@@ -71,13 +71,15 @@ function isOverdue(loan: Loan): boolean {
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────
 
 export default function LoansScreen() {
-    const { loans, addLoan, updateLoan, deleteLoan, addLoanPayment, settings, navigate, finance } = useApp();
+    const { loans, addLoan, updateLoan, deleteLoan, addLoanPayment, settings, navigate, finance, navParams } = useApp();
     const { currency } = settings;
 
     // Feature flag for merchant financing
     const enableFinancing = process.env.EXPO_PUBLIC_ENABLE_FINANCING !== 'false';
 
-    const [activeTab, setActiveTab] = useState<'existing' | 'financing'>('existing');
+    const [activeTab, setActiveTab] = useState<'existing' | 'financing'>(
+        navParams?.tab === 'financing' ? 'financing' : 'existing'
+    );
     const [showForm, setShowForm] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [showPayment, setShowPayment] = useState<string | null>(null);

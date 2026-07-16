@@ -173,6 +173,10 @@ export default function BorrowMoneyScreen() {
               </Text>
             </View>
           </View>
+          <NextStepLink
+            text="See detailed bank-loan qualification & requirements"
+            onPress={() => setCurrentScreen('funding-qualification')}
+          />
         </View>
 
         {/* Funding Needs */}
