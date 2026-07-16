@@ -47,6 +47,40 @@ export default function BudgetScreen() {
     const totalVariance = totalBudgeted - totalActual;
     const overCount     = bva.filter(b => b.status === 'over').length;
 
+    // Active loan repayments are a real monthly cash commitment on top of the
+    // budget, so the plan must account for them.
+    const loanBurden = totalMonthlyLoanBurden(loans ?? []);
+
+    // Loan repayments are a real monthly commitment (addLoanPayment posts a
+    // "Loan Repayment" expense transaction), but they never had a budget
+    // category — meaning they never showed up anywhere in this table or the
+    // month summary, only as a separate line in the Budget Strategy card
+    // below. This synthesizes a "Loan Repayments" row so they're visible
+    // and tracked side by side with every other category, unless the user
+    // has already manually budgeted a loan-related category themselves.
+    const hasManualLoanBudget = budgets.some(b => b.category.toLowerCase().includes('loan'));
+    const loanActualThisMonth = transactions
+        .filter(t => t.type === 'expense' && t.category === 'Loan Repayment' && (t.date || '').startsWith(currentMonth))
+        .reduce((s, t) => s + t.amount, 0);
+    const displayBva = useMemo(() => {
+        if (hasManualLoanBudget || loanBurden <= 0) return bva;
+        const variance = loanBurden - loanActualThisMonth;
+        const variancePct = loanBurden > 0 ? (variance / loanBurden) * 100 : 0;
+        const loanRow = {
+            category: 'Loan Repayments',
+            budgeted: loanBurden,
+            actual: loanActualThisMonth,
+            variance,
+            variancePct,
+            status: (Math.abs(variancePct) <= 5 ? 'on_track' : variance < 0 ? 'over' : 'under') as 'on_track' | 'over' | 'under',
+        };
+        return [loanRow, ...bva];
+    }, [bva, hasManualLoanBudget, loanBurden, loanActualThisMonth]);
+    const displayTotalBudgeted = totalBudgeted + (hasManualLoanBudget || loanBurden <= 0 ? 0 : loanBurden);
+    const displayTotalActual   = displayBva.reduce((s, b) => s + b.actual, 0);
+    const displayTotalVariance = displayTotalBudgeted - displayTotalActual;
+    const displayOverCount     = displayBva.filter(b => b.status === 'over').length;
+
     // Average monthly spend per category from past transactions — used to suggest
     // a realistic budget instead of guessing.
     const pastAvgByCat = useMemo(() => {
@@ -66,9 +100,6 @@ export default function BudgetScreen() {
     // Budget strategy: how the planned spend sits against revenue, cash & profit.
     const monthlyRevenue = finance?.income ?? 0;
     const cashBalance = finance?.cashBalance ?? 0;
-    // Active loan repayments are a real monthly cash commitment on top of the
-    // budget, so the plan must account for them.
-    const loanBurden = totalMonthlyLoanBurden(loans ?? []);
     // Total monthly cash commitments = planned spend + loan repayments.
     const totalCommitments = totalBudgeted + loanBurden;
     // Projected profit if you spend your full budget and cover loan repayments.
@@ -196,23 +227,26 @@ export default function BudgetScreen() {
                     <View style={s.summaryRow}>
                         <View style={s.summaryBox}>
                             <Text style={s.summaryLabel}>Budgeted</Text>
-                            <Text style={[s.summaryVal, { color: Colors.primary }]}>{currency}{totalBudgeted.toLocaleString()}</Text>
+                            <Text style={[s.summaryVal, { color: Colors.primary }]}>{currency}{displayTotalBudgeted.toLocaleString()}</Text>
                         </View>
                         <View style={s.summaryDivider} />
                         <View style={s.summaryBox}>
                             <Text style={s.summaryLabel}>Actual</Text>
-                            <Text style={[s.summaryVal, { color: Colors.expense }]}>{currency}{totalActual.toLocaleString()}</Text>
+                            <Text style={[s.summaryVal, { color: Colors.expense }]}>{currency}{displayTotalActual.toLocaleString()}</Text>
                         </View>
                         <View style={s.summaryDivider} />
                         <View style={s.summaryBox}>
                             <Text style={s.summaryLabel}>Variance</Text>
-                            <Text style={[s.summaryVal, { color: totalVariance >= 0 ? Colors.income : Colors.expense }]}>
-                                {totalVariance >= 0 ? '+' : ''}{currency}{totalVariance.toLocaleString()}
+                            <Text style={[s.summaryVal, { color: displayTotalVariance >= 0 ? Colors.income : Colors.expense }]}>
+                                {displayTotalVariance >= 0 ? '+' : ''}{currency}{displayTotalVariance.toLocaleString()}
                             </Text>
                         </View>
                     </View>
-                    {overCount > 0 && (
-                        <Text style={s.overAlert}>⚠ {overCount} categor{overCount > 1 ? 'ies' : 'y'} over budget</Text>
+                    {!hasManualLoanBudget && loanBurden > 0 && (
+                        <Text style={s.loanIncludedNote}>Includes {currency}{Math.round(loanBurden).toLocaleString()}/mo in loan repayments</Text>
+                    )}
+                    {displayOverCount > 0 && (
+                        <Text style={s.overAlert}>⚠ {displayOverCount} categor{displayOverCount > 1 ? 'ies' : 'y'} over budget</Text>
                     )}
                 </View>
 
@@ -299,7 +333,7 @@ export default function BudgetScreen() {
                 )}
 
                 {/* Budget vs actual table */}
-                {budgets.length === 0 ? (
+                {budgets.length === 0 && displayBva.length === 0 ? (
                     <View style={s.emptyState}>
                         <Text style={s.emptyTitle}>No budgets yet</Text>
                         <Text style={s.emptySub}>
@@ -326,7 +360,7 @@ export default function BudgetScreen() {
                             <Text style={s.th}>Var %</Text>
                         </View>
 
-                        {bva.map((row, i) => {
+                        {displayBva.map((row, i) => {
                             const budget = budgets.find(b => b.category === row.category);
                             return (
                                 <TouchableOpacity key={i} style={[s.tableRow, row.status === 'over' && s.overRow]} onPress={() => budget && openEdit(budget)}>
@@ -343,7 +377,7 @@ export default function BudgetScreen() {
 
                         {/* Show budgets with no transactions */}
                         {budgets
-                            .filter(b => !bva.find(r => r.category === b.category))
+                            .filter(b => !displayBva.find(r => r.category === b.category))
                             .map((b, i) => (
                                 <TouchableOpacity key={`no-tx-${i}`} style={s.tableRow} onPress={() => openEdit(b)}>
                                     <View style={[s.statusDot, { backgroundColor: Colors.textMuted }]} />
@@ -360,7 +394,7 @@ export default function BudgetScreen() {
                 {/* Over-budget callout — every overspend is a real, ongoing hit to
                     profit and cash, so it gets the same effect+solution treatment
                     as every other harmful decision in the app. */}
-                {bva.filter(r => r.status === 'over').map((r, i) => {
+                {displayBva.filter(r => r.status === 'over').map((r, i) => {
                     const overage = r.actual - r.budgeted;
                     return (
                         <View key={i} style={s.overCard}>
@@ -538,6 +572,7 @@ const s = StyleSheet.create({
     summaryVal:    { fontSize: 18, fontWeight: 'bold' },
     summaryDivider:{ width: 1, backgroundColor: Colors.border, alignSelf: 'stretch', marginHorizontal: 8 },
     overAlert:     { marginTop: 10, fontSize: 13, color: Colors.expense, fontWeight: '600', textAlign: 'center' },
+    loanIncludedNote: { marginTop: 8, fontSize: 11, color: Colors.textMuted, textAlign: 'center' },
 
     strategyCard:  { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 16, borderLeftWidth: 3, borderLeftColor: Colors.primary },
     strategyTitle: { fontSize: 13, fontWeight: '800', color: Colors.textPrimary, marginBottom: 10 },
