@@ -245,7 +245,7 @@ export default function GoalBridgeScreen() {
                       >
                         <Text style={styles.savedGoalTitle}>🎯 {g.title}</Text>
                         <Text style={styles.savedGoalMeta}>
-                          Target {settings.currency}{Math.round(g.targetValue).toLocaleString()} · {g.status.replace('_', ' ')}
+                          Target {settings.currency}{Math.round(g.targetValue || 0).toLocaleString()} · {(g.status || 'on_track').replace('_', ' ')}
                         </Text>
                       </TouchableOpacity>
                     ))}

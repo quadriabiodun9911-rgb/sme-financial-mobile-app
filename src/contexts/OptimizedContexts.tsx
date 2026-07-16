@@ -350,7 +350,27 @@ export function GoalProvider({ children }: { children: ReactNode }) {
     setHydrated(false);
     setGoals([]); // clear the previous identity's goals before loading the new one
     (async () => {
-      try { const g = await loadGoals(); if (g) setGoals(g); }
+      try {
+        const g = await loadGoals();
+        if (g) {
+          // Drop goals corrupted by a historical addGoal(type, {...}) bug that
+          // spread a string instead of an object (title/targetValue/etc. lost,
+          // only a generated id survived) — unrecoverable, so filter them out
+          // rather than let every screen guard against missing fields forever.
+          const valid = g.filter((goal) =>
+            typeof goal?.title === 'string' &&
+            typeof goal?.targetValue === 'number' &&
+            typeof goal?.deadline === 'string' &&
+            typeof goal?.type === 'string'
+          ).map((goal) => ({
+            ...goal,
+            status: goal.status || 'on_track',
+            progress: typeof goal.progress === 'number' ? goal.progress : 0,
+            createdAt: goal.createdAt || new Date().toISOString(),
+          }));
+          setGoals(valid);
+        }
+      }
       catch (e) { console.error('[Goals] hydrate failed:', e); }
       finally { setHydrated(true); }
     })();
