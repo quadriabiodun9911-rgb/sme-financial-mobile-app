@@ -86,6 +86,12 @@ export default function ClarityScreen() {
             <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
                 <Text style={s.title}>🧭 Financial Clarity</Text>
                 <Text style={s.subtitle}>Where your business stands, and what to do next — in plain terms.</Text>
+                {/* Import was previously only shown as a one-time onboarding
+                    nudge (hidden once an account has enough transactions for
+                    a full diagnosis), so there was no way back to it once
+                    that threshold passed — even though people naturally want
+                    to import a newer statement every month, not just once. */}
+                <NextStepLink text="Import a bank statement" onPress={() => setCurrentScreen('import-transactions')} />
 
                 {/* ── Case 1: full diagnosis ─────────────────────────────── */}
                 {hasEnoughData && diagnosis && (
