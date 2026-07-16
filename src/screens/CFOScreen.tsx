@@ -118,7 +118,7 @@ function PulseTab() {
                 <View style={s.metricsRow}>
                     <View style={s.metricBox}>
                         <Text style={s.metricLabel}>Income</Text>
-                        <Text style={[s.metricVal, { color: Colors.income }]}>{currency}{summary.thisWeekIncome.toLocaleString()}</Text>
+                        <Text style={[s.metricVal, { color: Colors.income }]}>{currency}{Math.round(summary.thisWeekIncome).toLocaleString()}</Text>
                         <Text style={[s.metricSub, { color: summary.weeklyChange >= 0 ? Colors.income : Colors.expense }]}>
                             {summary.weeklyChange >= 0 ? '▲' : '▼'} {Math.abs(summary.weeklyChange).toFixed(1)}%
                         </Text>
@@ -126,8 +126,8 @@ function PulseTab() {
                     <View style={s.metricDivider} />
                     <View style={s.metricBox}>
                         <Text style={s.metricLabel}>Spending</Text>
-                        <Text style={[s.metricVal, { color: Colors.expense }]}>{currency}{summary.thisWeekExpense.toLocaleString()}</Text>
-                        <Text style={s.metricSub}>Last: {currency}{summary.lastWeekExpense.toLocaleString()}</Text>
+                        <Text style={[s.metricVal, { color: Colors.expense }]}>{currency}{Math.round(summary.thisWeekExpense).toLocaleString()}</Text>
+                        <Text style={s.metricSub}>Last: {currency}{Math.round(summary.lastWeekExpense).toLocaleString()}</Text>
                     </View>
                     <View style={s.metricDivider} />
                     <View style={s.metricBox}>

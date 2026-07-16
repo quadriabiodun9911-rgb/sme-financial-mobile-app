@@ -411,6 +411,7 @@ export default function TransactionsScreen() {
                 <View style={styles.recurringSection}>
                     <RecurringTransactionManager
                         recurringTransactions={transactions.filter(t => t.isRecurring) as any[]}
+                        currency={currency}
                         onEdit={openEdit}
                         onDelete={tx => {
                             Alert.alert('Delete', 'Remove this recurring transaction?', [

@@ -290,6 +290,7 @@ export interface Invoice {
     invoiceNumber: string;
     clientName: string;
     clientEmail: string;
+    clientPhone?: string;
     clientAddress: string;
     issueDate: string;
     dueDate: string;

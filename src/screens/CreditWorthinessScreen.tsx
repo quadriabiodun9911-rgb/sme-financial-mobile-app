@@ -51,9 +51,13 @@ export default function CreditWorthinessScreen() {
 
         factors.push({
             name: 'Credit Utilization',
+            // Score is risk-adjusted (100 = using none of your available
+            // credit, 0 = maxed out or over) — NOT the raw utilization %,
+            // so the description spells out the actual % to avoid reading
+            // a low/0 score as "0% used" (which would sound good, not bad).
             score: utilizationScore,
             weight: 0.25,
-            description: 'Debt vs available credit',
+            description: `Using ${Math.min(999, Math.round(creditUtilization))}% of available credit`,
             status: utilizationScore >= 80 ? 'Excellent' : utilizationScore >= 60 ? 'Good' : 'High Risk',
             tips: [
                 'Keep debt below 30% of available credit',

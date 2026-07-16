@@ -5,11 +5,12 @@ import { ForecastAlert } from '../types/forecast';
 
 interface Props {
   alerts: ForecastAlert[];
+  currency?: string;
   onAlertPress?: (alert: ForecastAlert) => void;
   onDismiss?: (alertId: string) => void;
 }
 
-export default function AlertsWidget({ alerts, onAlertPress, onDismiss }: Props) {
+export default function AlertsWidget({ alerts, currency = '₦', onAlertPress, onDismiss }: Props) {
   const [showModal, setShowModal] = useState(false);
   const [selectedAlert, setSelectedAlert] = useState<ForecastAlert | null>(null);
 
@@ -133,7 +134,7 @@ export default function AlertsWidget({ alerts, onAlertPress, onDismiss }: Props)
 
                       {alert.amount !== undefined && (
                         <Text style={styles.alertAmount}>
-                          Amount: ₦{alert.amount.toLocaleString()}
+                          Amount: {currency}{Math.round(alert.amount).toLocaleString()}
                         </Text>
                       )}
 
@@ -201,7 +202,7 @@ export default function AlertsWidget({ alerts, onAlertPress, onDismiss }: Props)
                   <View style={styles.detailField}>
                     <Text style={styles.detailLabel}>Amount</Text>
                     <Text style={styles.detailValue}>
-                      ₦{selectedAlert.amount.toLocaleString()}
+                      {currency}{Math.round(selectedAlert.amount).toLocaleString()}
                     </Text>
                   </View>
                 )}

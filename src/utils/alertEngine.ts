@@ -27,6 +27,7 @@ export class AlertEngine {
   private forecast?: CashFlowForecast;
   private thresholds: AlertThresholds;
   private dismissedAlerts: Set<string>;
+  private currency: string;
 
   constructor(
     currentCash: number,
@@ -34,7 +35,8 @@ export class AlertEngine {
     invoices: Invoice[],
     forecast?: CashFlowForecast,
     thresholds?: Partial<AlertThresholds>,
-    dismissedAlertIds?: string[]
+    dismissedAlertIds?: string[],
+    currency?: string
   ) {
     this.currentCash = currentCash;
     this.transactions = transactions;
@@ -42,6 +44,7 @@ export class AlertEngine {
     this.forecast = forecast;
     this.thresholds = { ...DEFAULT_THRESHOLDS, ...thresholds };
     this.dismissedAlerts = new Set(dismissedAlertIds || []);
+    this.currency = currency || '₦';
   }
 
   /**
@@ -265,12 +268,12 @@ export class AlertEngine {
    */
   private formatCurrency(amount: number): string {
     if (Math.abs(amount) >= 1000000) {
-      return `₦${(amount / 1000000).toFixed(1)}M`;
+      return `${this.currency}${(amount / 1000000).toFixed(1)}M`;
     }
     if (Math.abs(amount) >= 1000) {
-      return `₦${(amount / 1000).toFixed(0)}K`;
+      return `${this.currency}${(amount / 1000).toFixed(0)}K`;
     }
-    return `₦${amount.toFixed(0)}`;
+    return `${this.currency}${amount.toFixed(0)}`;
   }
 }
 
@@ -283,7 +286,8 @@ export const detectAlerts = (
   invoices: Invoice[],
   forecast?: CashFlowForecast,
   thresholds?: Partial<AlertThresholds>,
-  dismissedAlertIds?: string[]
+  dismissedAlertIds?: string[],
+  currency?: string
 ): ForecastAlert[] => {
   const engine = new AlertEngine(
     currentCash,
@@ -291,7 +295,8 @@ export const detectAlerts = (
     invoices,
     forecast,
     thresholds,
-    dismissedAlertIds
+    dismissedAlertIds,
+    currency
   );
   return engine.detectAllAlerts();
 };
@@ -303,9 +308,10 @@ export const detectCriticalAlerts = (
   currentCash: number,
   transactions: Transaction[],
   invoices: Invoice[],
-  forecast?: CashFlowForecast
+  forecast?: CashFlowForecast,
+  currency?: string
 ): ForecastAlert[] => {
-  const engine = new AlertEngine(currentCash, transactions, invoices, forecast);
+  const engine = new AlertEngine(currentCash, transactions, invoices, forecast, undefined, undefined, currency);
   return engine.detectAllAlerts().filter(a => a.priority === 'high');
 };
 

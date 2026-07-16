@@ -25,16 +25,18 @@ export const isWhatsAppInstalled = async (): Promise<boolean> => {
 // ─── Send invoice reminder via WhatsApp ────────────────────────────────────
 export const sendInvoiceReminderViaWhatsApp = async (
   invoice: Invoice,
-  businessName: string
+  businessName: string,
+  currency: string,
+  customerPhone: string
 ) => {
   try {
-    if (!invoice.vendorCustomer) {
+    if (!customerPhone) {
       Alert.alert('Missing Info', 'Customer phone number not found. Add it to continue.');
       return;
     }
 
-    const message = buildInvoiceMessage(invoice, businessName);
-    openWhatsAppWithMessage(invoice.vendorCustomer, message);
+    const message = buildInvoiceMessage(invoice, businessName, currency);
+    openWhatsAppWithMessage(customerPhone, message);
   } catch (error) {
     Alert.alert('Error', 'Failed to open WhatsApp. Make sure it\'s installed.');
   }
@@ -44,16 +46,17 @@ export const sendInvoiceReminderViaWhatsApp = async (
 export const sendPaymentRequestViaWhatsApp = async (
   invoice: Invoice,
   businessName: string,
-  currency: string
+  currency: string,
+  customerPhone: string
 ) => {
   try {
-    if (!invoice.vendorCustomer) {
+    if (!customerPhone) {
       Alert.alert('Missing Info', 'Customer phone number not found.');
       return;
     }
 
     const message = buildPaymentRequestMessage(invoice, businessName, currency);
-    openWhatsAppWithMessage(invoice.vendorCustomer, message);
+    openWhatsAppWithMessage(customerPhone, message);
   } catch (error) {
     Alert.alert('Error', 'Failed to send payment request.');
   }
@@ -88,7 +91,7 @@ export const sendGoalAchievementNotification = async (
   currency: string
 ) => {
   try {
-    const message = `🎉 Milestone Achieved!\n\nYou've completed your goal: "${goalTitle}" (₦${targetValue.toLocaleString()})\n\nGreat work! Keep pushing forward with Quad360 📊`;
+    const message = `🎉 Milestone Achieved!\n\nYou've completed your goal: "${goalTitle}" (${currency}${targetValue.toLocaleString()})\n\nGreat work! Keep pushing forward with Quad360 📊`;
     openWhatsAppWithMessage(recipientPhone, message);
   } catch (error) {
     console.error('Error sending goal notification:', error);
@@ -181,11 +184,11 @@ export const formatPhoneToE164 = (phone: string, countryCode: string = '234'): s
 };
 
 // ─── Helper: Build invoice message ─────────────────────────────────────────
-const buildInvoiceMessage = (invoice: Invoice, businessName: string): string => {
+const buildInvoiceMessage = (invoice: Invoice, businessName: string, currency: string): string => {
   const dueDate = new Date(invoice.dueDate || new Date()).toLocaleDateString();
   const status = invoice.status === 'overdue' ? '⚠️ OVERDUE' : '📋 DUE';
 
-  return `Invoice from ${businessName}\n\n${status}\nInvoice #${invoice.id}\nAmount: ₦${invoice.amount?.toLocaleString()}\nDue Date: ${dueDate}\n\nPlease mark as paid once you've completed payment.`;
+  return `Invoice from ${businessName}\n\n${status}\nInvoice #${invoice.invoiceNumber}\nAmount: ${currency}${invoice.total?.toLocaleString()}\nDue Date: ${dueDate}\n\nPlease mark as paid once you've completed payment.`;
 };
 
 // ─── Helper: Build payment request message ────────────────────────────────
@@ -196,7 +199,7 @@ const buildPaymentRequestMessage = (
 ): string => {
   const dueDate = new Date(invoice.dueDate || new Date()).toLocaleDateString();
 
-  return `💳 Payment Request\n\nFrom: ${businessName}\nInvoice #${invoice.id}\nAmount Due: ${currency}${invoice.amount?.toLocaleString()}\nDue: ${dueDate}\n\nReply PAID when complete or PENDING if delayed.`;
+  return `💳 Payment Request\n\nFrom: ${businessName}\nInvoice #${invoice.invoiceNumber}\nAmount Due: ${currency}${invoice.total?.toLocaleString()}\nDue: ${dueDate}\n\nReply PAID when complete or PENDING if delayed.`;
 };
 
 // ─── Helper: Build report message ──────────────────────────────────────────

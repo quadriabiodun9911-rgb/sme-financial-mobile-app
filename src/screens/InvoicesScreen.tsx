@@ -123,6 +123,7 @@ export default function InvoicesScreen() {
     // Form state
     const [clientName, setClientName]       = useState('');
     const [clientEmail, setClientEmail]     = useState('');
+    const [clientPhone, setClientPhone]     = useState('');
     const [clientAddress, setClientAddress] = useState('');
     const [dueDate, setDueDate]             = useState('');
     const [issueDate, setIssueDate]         = useState('');
@@ -146,7 +147,7 @@ export default function InvoicesScreen() {
     }, []);
 
     const resetForm = () => {
-        setClientName(''); setClientEmail(''); setClientAddress('');
+        setClientName(''); setClientEmail(''); setClientPhone(''); setClientAddress('');
         setDueDate(''); setIssueDate(''); setNotes('');
         setLineItems([{ ...EMPTY_LINE }]);
         setEditId(null);
@@ -157,6 +158,7 @@ export default function InvoicesScreen() {
     const openEdit = (inv: Invoice) => {
         setClientName(inv.clientName ?? '');
         setClientEmail(inv.clientEmail ?? '');
+        setClientPhone(inv.clientPhone ?? '');
         setClientAddress(inv.clientAddress ?? '');
         setDueDate(inv.dueDate ?? '');
         setIssueDate(inv.issueDate ?? '');
@@ -187,6 +189,7 @@ export default function InvoicesScreen() {
             invoiceNumber: editId ? (invoices.find(i => i.id === editId)?.invoiceNumber ?? nextInvoiceNumber()) : nextInvoiceNumber(),
             clientName: clientName.trim(),
             clientEmail: clientEmail.trim(),
+            clientPhone: clientPhone.trim(),
             clientAddress: clientAddress.trim(),
             issueDate: issueDate || today,
             dueDate,
@@ -388,6 +391,8 @@ export default function InvoicesScreen() {
                                 <FInput value={clientName} onChangeText={setClientName} placeholder="Acme Corp" />
                                 <FLabel>Client Email</FLabel>
                                 <FInput value={clientEmail} onChangeText={setClientEmail} placeholder="billing@acme.com" keyboard="email-address" />
+                                <FLabel>Client Phone (for WhatsApp reminders)</FLabel>
+                                <FInput value={clientPhone} onChangeText={setClientPhone} placeholder="+44 7700 900000" keyboard="phone-pad" />
                                 <FLabel>Client Address</FLabel>
                                 <FInput value={clientAddress} onChangeText={setClientAddress} placeholder="123 Main St, City" />
                             </Section>
@@ -516,11 +521,11 @@ export default function InvoicesScreen() {
                                 {whatsappAvailable && viewInv.status !== 'paid' && (
                                     <>
                                         <TouchableOpacity style={[styles.draftBtn, { marginTop: 8, backgroundColor: '#25D366' }]}
-                                            onPress={() => sendInvoiceReminderViaWhatsApp(viewInv, user?.businessName || 'Business')}>
+                                            onPress={() => sendInvoiceReminderViaWhatsApp(viewInv, user?.businessName || 'Business', currency, viewInv.clientPhone || '')}>
                                             <Text style={styles.draftBtnText}>💬 Send Reminder via WhatsApp</Text>
                                         </TouchableOpacity>
                                         <TouchableOpacity style={[styles.draftBtn, { marginTop: 8, backgroundColor: '#128C7E' }]}
-                                            onPress={() => sendPaymentRequestViaWhatsApp(viewInv, user?.businessName || 'Business', currency)}>
+                                            onPress={() => sendPaymentRequestViaWhatsApp(viewInv, user?.businessName || 'Business', currency, viewInv.clientPhone || '')}>
                                             <Text style={styles.draftBtnText}>💳 Request Payment via WhatsApp</Text>
                                         </TouchableOpacity>
                                     </>

@@ -13,6 +13,7 @@ interface RecurringTransaction extends Transaction {
 
 interface Props {
   recurringTransactions: RecurringTransaction[];
+  currency?: string;
   onEdit?: (transaction: RecurringTransaction) => void;
   onDelete?: (id: string) => void;
   onToggle?: (id: string, enabled: boolean) => void;
@@ -20,6 +21,7 @@ interface Props {
 
 export default function RecurringTransactionManager({
   recurringTransactions,
+  currency = '₦',
   onEdit,
   onDelete,
   onToggle,
@@ -97,7 +99,7 @@ export default function RecurringTransactionManager({
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Amount</Text>
                 <Text style={[styles.detailValue, { color: item.type === 'income' ? '#10b981' : '#ef4444' }]}>
-                  {item.type === 'income' ? '+' : '-'}₦{item.amount.toLocaleString()}
+                  {item.type === 'income' ? '+' : '-'}{currency}{Math.round(item.amount).toLocaleString()}
                 </Text>
               </View>
               <View style={styles.detailRow}>
