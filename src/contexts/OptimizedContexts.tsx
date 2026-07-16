@@ -8,7 +8,8 @@
  * After: Transaction change → only FinanceContext consumers re-render
  */
 
-import React, { createContext, useContext, useState, useMemo, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useMemo, useEffect, useRef, useCallback, ReactNode } from 'react';
+import { Platform } from 'react-native';
 import { User, Invoice, InvoiceStatus, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, StaffMember, PayrollRun, PayrollItem, CashPocket, UserRole } from '../types';
 import { computeFinance, computeAssetCurrentValue } from '../utils/finance';
 import { sanitizeStoredGoals } from '../utils/goals';
@@ -533,6 +534,7 @@ interface AuthContextValue {
   currentScreen: string;
   setCurrentScreen: (screen: string) => void;
   navigate: (screen: string, params?: any) => void;
+  goBack: () => boolean;
   navParams: any;
   login: (pin: string) => Promise<boolean>;
   pendingTwoFactorProfile: { email: string; businessName: string; phone?: string; createdAt?: string } | null;
@@ -577,6 +579,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // 2FA config was previously saved to Supabase but never checked at login.
   const [pendingTwoFactorProfile, setPendingTwoFactorProfile] = useState<{ email: string; businessName: string; phone?: string; createdAt?: string } | null>(null);
 
+  // In-app back stack: navigate()/setCurrentScreen() previously just
+  // overwrote currentScreen with no history of where the user came from,
+  // so the browser's back button (and Android hardware back) had nothing
+  // real to step back through and fell straight out to the dashboard
+  // instead of the actual previous screen. This ref is the real back
+  // stack; on web it's kept in lockstep with browser history via
+  // pushState/popstate so the native back button/gesture uses it too.
+  const backStackRef = useRef<{ screen: string; params: any }[]>([]);
+
+  const popToPrevious = useCallback(() => {
+    const prev = backStackRef.current.pop();
+    if (!prev) return false;
+    setNavParams(prev.params ?? null);
+    setCurrentScreenState(prev.screen);
+    return true;
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const onPopState = () => { popToPrevious(); };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [popToPrevious]);
+
   // Destructive resets clear storage, then reload so every provider re-hydrates
   // from the now-empty (or restored) state. Web-only reload; safe no-op elsewhere.
   const reloadApp = () => { if (typeof window !== 'undefined' && window.location) window.location.reload(); };
@@ -615,8 +641,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isLoading,
       currentScreen,
       navParams,
-      setCurrentScreen: (screen: string) => { setNavParams(null); setCurrentScreenState(screen); },
-      navigate: (screen: string, params?: any) => { setNavParams(params ?? null); setCurrentScreenState(screen); },
+      setCurrentScreen: (screen: string) => {
+        backStackRef.current.push({ screen: currentScreen, params: navParams });
+        if (Platform.OS === 'web' && typeof window !== 'undefined') window.history.pushState({}, '');
+        setNavParams(null);
+        setCurrentScreenState(screen);
+      },
+      navigate: (screen: string, params?: any) => {
+        backStackRef.current.push({ screen: currentScreen, params: navParams });
+        if (Platform.OS === 'web' && typeof window !== 'undefined') window.history.pushState({}, '');
+        setNavParams(params ?? null);
+        setCurrentScreenState(screen);
+      },
+      goBack: () => {
+        if (Platform.OS === 'web' && typeof window !== 'undefined') {
+          if (backStackRef.current.length === 0) return false;
+          window.history.back(); // triggers the popstate listener, which pops backStackRef
+          return true;
+        }
+        return popToPrevious();
+      },
       isFirstLaunch,
       isLockedOut,
       lockoutUntil,
@@ -992,6 +1036,7 @@ export function useApp() {
     currentScreen: auth.currentScreen,
     setCurrentScreen: auth.setCurrentScreen,
     navigate: auth.navigate,
+    goBack: auth.goBack,
     login: auth.login,
     logout: auth.logout,
     pendingTwoFactorProfile: auth.pendingTwoFactorProfile,

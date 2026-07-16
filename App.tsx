@@ -51,7 +51,7 @@ import OnboardingChoiceScreen from './src/screens/OnboardingChoiceScreen';
 import ClarityScreen from './src/screens/ClarityScreen';
 
 function NavigatorContent() {
-    const { user, isLoading, currentScreen, setCurrentScreen } = useAuth();
+    const { user, isLoading, currentScreen, setCurrentScreen, goBack } = useAuth();
 
     useEffect(() => {
         if (!isLoading && currentScreen !== 'login') {
@@ -73,11 +73,14 @@ function NavigatorContent() {
                 ]);
                 return true;
             }
-            setCurrentScreen('dashboard');
+            // Step back to wherever the user actually came from, not
+            // straight to the dashboard, mirroring real back-button
+            // behavior instead of collapsing the whole navigation stack.
+            if (!goBack()) setCurrentScreen('dashboard');
             return true;
         });
         return () => handler.remove();
-    }, [currentScreen, setCurrentScreen]);
+    }, [currentScreen, setCurrentScreen, goBack]);
 
     if (isLoading) {
         return (
