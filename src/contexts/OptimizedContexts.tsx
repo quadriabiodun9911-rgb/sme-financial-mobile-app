@@ -1026,10 +1026,43 @@ export function useApp() {
     deleteGoal: goals?.deleteGoal || (() => {}),
 
     // Invoices state
+    //
+    // Invoices never posted any transaction at all — not on creation, not
+    // even once marked paid — so a business running its revenue through
+    // Invoices instead of manual entries saw £0 income anywhere else in the
+    // app (Transactions, cash balance, health score, budget revenue figure)
+    // regardless of how much was actually invoiced or collected. Each
+    // non-draft invoice now keeps a linked income transaction (matched by
+    // `reference` = invoiceNumber) whose status tracks the invoice's own
+    // status — pending while sent, overdue if it lapses, paid once
+    // collected — the same "real action, real transaction" convention
+    // already used for loan repayments and asset disposals.
     invoices: invoicesArray,
-    addInvoice: invoices?.addInvoice || (() => {}),
+    addInvoice: (invoice) => {
+      invoices?.addInvoice(invoice);
+      if (invoice.status !== 'draft' && finance?.addTransaction) {
+        finance.addTransaction({
+          date: invoice.issueDate,
+          description: `Invoice ${invoice.invoiceNumber}: ${invoice.clientName}`,
+          type: 'income',
+          category: 'Sales',
+          amount: invoice.total,
+          status: invoice.status === 'paid' ? 'paid' : invoice.status === 'overdue' ? 'overdue' : 'pending',
+          reference: invoice.invoiceNumber,
+          vendorCustomer: invoice.clientName,
+          dueDate: invoice.dueDate,
+        } as any);
+      }
+    },
     updateInvoice: invoices?.updateInvoice || (() => {}),
-    deleteInvoice: invoices?.deleteInvoice || (() => {}),
+    deleteInvoice: (id) => {
+      const inv = invoicesArray.find((i) => i.id === id);
+      if (inv && finance?.deleteTransaction) {
+        const linked = transactions.find((t) => t.reference === inv.invoiceNumber && t.type === 'income');
+        if (linked) finance.deleteTransaction(linked.id);
+      }
+      invoices?.deleteInvoice(id);
+    },
 
     // Settings state
     settings: settings?.settings || {
@@ -1105,7 +1138,31 @@ export function useApp() {
     importData: async (json) => { await importAllData(json); if (typeof window !== 'undefined' && window.location) window.location.reload(); },
     exportData: () => exportAllData(transactions, (settings?.settings as any), goalsArray),
     enterDemo: auth.enterDemo || (() => {}),
-    markInvoiceStatus: invoices?.markInvoiceStatus || (() => {}),
+    markInvoiceStatus: (id, status) => {
+      invoices?.markInvoiceStatus(id, status);
+      const inv = invoicesArray.find((i) => i.id === id);
+      if (!inv) return;
+      const txStatus = status === 'paid' ? 'paid' : status === 'overdue' ? 'overdue' : status === 'sent' ? 'pending' : null;
+      if (!txStatus) return; // draft has no linked transaction to update
+      const linked = transactions.find((t) => t.reference === inv.invoiceNumber && t.type === 'income');
+      if (linked && finance?.updateTransaction) {
+        finance.updateTransaction(linked.id, { status: txStatus });
+      } else if (!linked && finance?.addTransaction) {
+        // Invoice predates transaction-linking, or was created as a draft —
+        // back-fill the link now instead of leaving this collection invisible.
+        finance.addTransaction({
+          date: new Date().toISOString().split('T')[0],
+          description: `Invoice ${inv.invoiceNumber}: ${inv.clientName}`,
+          type: 'income',
+          category: 'Sales',
+          amount: inv.total,
+          status: txStatus,
+          reference: inv.invoiceNumber,
+          vendorCustomer: inv.clientName,
+          dueDate: inv.dueDate,
+        } as any);
+      }
+    },
     disposeAsset: finance?.disposeAsset || (() => {}),
   };
 }
