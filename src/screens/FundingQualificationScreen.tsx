@@ -4,9 +4,10 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
+import NextStepLink from '../components/NextStepLink';
 
 export default function FundingQualificationScreen() {
-  const { transactions, finance, user, settings } = useApp();
+  const { transactions, finance, user, settings, setCurrentScreen } = useApp();
 
   const qualificationMetrics = useMemo(() => {
     const daysActive = user?.daysActive || 0;
@@ -79,6 +80,11 @@ export default function FundingQualificationScreen() {
             <Text style={styles.statusText}>
               You are {100 - qualificationMetrics.overall}% away from becoming loan ready.
             </Text>
+            {status.status === 'Funding Ready' ? (
+              <NextStepLink text="Compare loan options now" onPress={() => setCurrentScreen('loan-eligibility')} />
+            ) : (
+              <NextStepLink text="See what's holding your score back" onPress={() => setCurrentScreen('cfo')} />
+            )}
           </View>
         </View>
 

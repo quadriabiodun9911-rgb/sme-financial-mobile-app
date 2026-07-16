@@ -6,6 +6,7 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
+import NextStepLink from '../components/NextStepLink';
 
 export default function LoanEligibilityScreen() {
     const { user, finance, navigate, financing, applyForMerchantFinancing, settings } = useApp();
@@ -181,6 +182,7 @@ export default function LoanEligibilityScreen() {
                         }}
                         onApply={() => handleApplyLoan(loan.id)}
                         currency={currency}
+                        onImprove={() => navigate('financial-coach')}
                     />
                 ))}
 
@@ -214,7 +216,7 @@ export default function LoanEligibilityScreen() {
     );
 }
 
-function LoanCard({ loan, onPress, onApply, currency }: any) {
+function LoanCard({ loan, onPress, onApply, currency, onImprove }: any) {
     const statusColor = loan.eligible ? Colors.income : Colors.warning;
     const statusBg = loan.eligible ? Colors.income + '15' : Colors.warning + '15';
 
@@ -259,6 +261,9 @@ function LoanCard({ loan, onPress, onApply, currency }: any) {
                         </Text>
                     </View>
                 ))}
+                {!loan.eligible && loan.requirements.some((r: any) => !r.met && /health|credit/i.test(r.label)) && (
+                    <NextStepLink text="Improve your score first" onPress={onImprove} />
+                )}
             </View>
 
             <TouchableOpacity

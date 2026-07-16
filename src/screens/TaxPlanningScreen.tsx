@@ -7,6 +7,7 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
+import NextStepLink from '../components/NextStepLink';
 
 export default function TaxPlanningScreen() {
     const { transactions, settings, navigate, finance, user } = useApp();
@@ -207,6 +208,9 @@ NOTES
                             color={Colors.warning}
                         />
                     </View>
+                    {annualData.avgQuarterlyTax > finance.cashBalance && (
+                        <NextStepLink text="Check if your cash can cover this quarter's tax" onPress={() => navigate('cashflow')} />
+                    )}
                 </View>
 
                 {/* Quarterly Breakdown */}

@@ -198,6 +198,17 @@ export default function ProtectMoneyScreen() {
             </View>
             <Text style={styles.actionArrow}>›</Text>
           </TouchableOpacity>
+
+          {runwayDays <= 30 && (
+            <TouchableOpacity style={styles.actionButton} onPress={() => navigate('borrow-money')}>
+              <Text style={styles.actionEmoji}>🏦</Text>
+              <View style={styles.actionContent}>
+                <Text style={styles.actionTitle}>Explore Funding Options</Text>
+                <Text style={styles.actionSubtext}>Critical runway — consider external financing</Text>
+              </View>
+              <Text style={styles.actionArrow}>›</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </ScrollView>
 

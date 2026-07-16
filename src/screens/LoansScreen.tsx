@@ -22,6 +22,7 @@ import { Loan, LoanStatus } from '../types';
 import DateInput from '../components/DateInput';
 import MerchantFinancingSection from './MerchantFinancingSection';
 import { computeDebtOptimiser } from '../utils/finance';
+import NextStepLink from '../components/NextStepLink';
 
 // Original Loans Screen helpers
 function monthlyPayment(principal: number, annualRate: number, termMonths: number): number {
@@ -246,6 +247,7 @@ export default function LoansScreen() {
                             <Text style={s.alertText}>
                                 ⚠️ {overdueLoans.length} loan payment{overdueLoans.length > 1 ? 's are' : ' is'} overdue
                             </Text>
+                            <NextStepLink text="See how this affects your credit score" onPress={() => navigate('credit-worthiness')} />
                         </View>
                     )}
 
@@ -361,6 +363,9 @@ export default function LoansScreen() {
                                                         : `✓ Affordable: leaves ${currency}${profitAfter.toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo in profit after repayment.`}
                                             </Text>
                                         </View>
+                                        {(!affordable || tight) && (
+                                            <NextStepLink text="See the full effect on your cash forecast before committing" onPress={() => navigate('cashflow')} />
+                                        )}
                                     </View>
                                 );
                             })()}

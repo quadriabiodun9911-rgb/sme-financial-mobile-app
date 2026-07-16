@@ -5,6 +5,7 @@ import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import LowDataNotice from '../components/LowDataNotice';
+import NextStepLink from '../components/NextStepLink';
 
 export default function GrowMoneyScreen() {
   const { transactions, finance, navigate, settings } = useApp();
@@ -121,6 +122,7 @@ export default function GrowMoneyScreen() {
               <View style={styles.oppContent}>
                 <Text style={styles.oppTitle}>Improve Profitability</Text>
                 <Text style={styles.oppText}>Profit down {Math.abs(metrics.profitGrowth).toFixed(0)}%. Review pricing and costs.</Text>
+                <NextStepLink text="See pricing & cost-cutting opportunities" onPress={() => navigate('cfo', { tab: 'growth' })} />
               </View>
             </View>
           )}
@@ -131,6 +133,7 @@ export default function GrowMoneyScreen() {
               <View style={styles.oppContent}>
                 <Text style={styles.oppTitle}>Ready for Expansion</Text>
                 <Text style={styles.oppText}>Your business value supports expansion or acquisition.</Text>
+                <NextStepLink text="Check funding options" onPress={() => navigate('borrow-money')} />
               </View>
             </View>
           )}

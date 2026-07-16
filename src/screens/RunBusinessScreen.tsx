@@ -4,6 +4,7 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
+import NextStepLink from '../components/NextStepLink';
 
 export default function RunBusinessScreen() {
   const { transactions, invoices, finance, navigate, settings } = useApp();
@@ -298,6 +299,7 @@ export default function RunBusinessScreen() {
               <View style={styles.improvementContent}>
                 <Text style={styles.improvementTitle}>Review Labor Costs</Text>
                 <Text style={styles.improvementText}>Explore automation or optimize team structure</Text>
+                <NextStepLink text="Review staff and salaries" onPress={() => navigate('payroll')} />
               </View>
             </View>
           )}

@@ -10,6 +10,7 @@ import FooterNav from '../components/FooterNav';
 import DateInput from '../components/DateInput';
 import { GoalType, FinancialGoal, Transaction } from '../types';
 import { generateStrategy, goalDefaults, buildNewGoal } from '../utils/goals';
+import NextStepLink from '../components/NextStepLink';
 import { calculateGoalBridge, mapSavedGoalToBridge } from '../utils/goalBridgeEngine';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan } from '../utils/actionRecommendationEngine';
@@ -40,7 +41,7 @@ const STATUS_LABELS: Record<FinancialGoal['status'], string> = {
 const PRIORITY_COLORS = { high: Colors.expense, medium: Colors.warning, low: Colors.textMuted };
 
 export default function GoalsScreen() {
-    const { goals, addGoal, deleteGoal, updateGoal, finance, transactions, invoices, settings, navParams, navigate } = useApp();
+    const { goals, addGoal, deleteGoal, updateGoal, finance, transactions, invoices, settings, navParams, navigate, setCurrentScreen } = useApp();
     const { currency } = settings;
 
     const [addModalOpen, setAddModalOpen] = useState(false);
@@ -228,6 +229,8 @@ export default function GoalsScreen() {
                                     onBridge={() => navigate('goal-bridge', { goalId: goal.id })}
                                     onEdit={() => openEditModal(goal)}
                                     onDelete={() => handleDelete(goal.id, goal.title)}
+                                    onExecute={() => setCurrentScreen('action-tracker')}
+                                    onCollect={() => navigate('transactions', { filter: 'collect' })}
                                 />
                             ))}
                             {/* Achieved goals */}
@@ -459,7 +462,7 @@ function DailyActionsSection({ goal, transactions, currency }: { goal: Financial
     );
 }
 
-function GoalCard({ goal, currency, daysRemaining, feasibility, onStrategy, onBridge, onEdit, onDelete }: {
+function GoalCard({ goal, currency, daysRemaining, feasibility, onStrategy, onBridge, onEdit, onDelete, onExecute, onCollect }: {
     goal: FinancialGoal;
     currency: string;
     daysRemaining: string;
@@ -468,6 +471,8 @@ function GoalCard({ goal, currency, daysRemaining, feasibility, onStrategy, onBr
     onBridge: () => void;
     onEdit: () => void;
     onDelete: () => void;
+    onExecute?: () => void;
+    onCollect?: () => void;
 }) {
     const statusColor = STATUS_COLORS[goal.status];
     const isReduction = goal.type === 'cost_reduction' || goal.type === 'reduce_overdue_ar';
@@ -498,6 +503,13 @@ function GoalCard({ goal, currency, daysRemaining, feasibility, onStrategy, onBr
                         Needs {currency}{Math.round(Math.abs(feasibility.requiredMonthlyImprovement)).toLocaleString()}/mo · {(feasibility.successProbability * 100).toFixed(0)}% likely
                     </Text>
                 </View>
+            )}
+
+            {!isAchieved && feasibility?.feasibility === 'difficult' && onExecute && (
+                <NextStepLink text="This needs real work — see your action plan" onPress={onExecute} />
+            )}
+            {!isAchieved && goal.type === 'reduce_overdue_ar' && (goal.status === 'off_track' || goal.status === 'at_risk') && onCollect && (
+                <NextStepLink text="Review overdue collections" onPress={onCollect} />
             )}
 
             {/* Progress bar + key numbers */}

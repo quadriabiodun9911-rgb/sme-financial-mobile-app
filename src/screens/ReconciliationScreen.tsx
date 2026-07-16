@@ -82,7 +82,7 @@ const SAMPLE_CSV = `date,description,amount,type
 2024-01-20,TRANSFER FROM CLIENT,75000,credit`;
 
 export default function ReconciliationScreen() {
-    const { transactions, addTransaction, settings } = useApp();
+    const { transactions, addTransaction, settings, setCurrentScreen } = useApp();
     const [tab, setTab] = useState<Tab>('import');
     const [bankTxs, setBankTxs] = useState<BankTx[]>([]);
     const [csvText, setCsvText] = useState('');
@@ -382,7 +382,14 @@ export default function ReconciliationScreen() {
                                         </View>
                                         <TouchableOpacity
                                             style={[styles.importBtn, { backgroundColor: Colors.warning + '22' }]}
-                                            onPress={() => Alert.alert('App-only Transaction', `"${a.description}" exists in your app but not in the bank statement.\n\nPossible reasons:\n• Cash payment not via bank\n• Pending bank clearance\n• Entry error — check Transactions screen`)}
+                                            onPress={() => Alert.alert(
+                                                'App-only Transaction',
+                                                `"${a.description}" exists in your app but not in the bank statement.\n\nPossible reasons:\n• Cash payment not via bank\n• Pending bank clearance\n• Entry error — check Transactions screen`,
+                                                [
+                                                    { text: 'OK', style: 'cancel' },
+                                                    { text: 'Review in Transactions →', onPress: () => setCurrentScreen('transactions') },
+                                                ]
+                                            )}
                                             activeOpacity={0.7}
                                         >
                                             <Text style={[styles.importBtnText, { color: Colors.warning }]}>Review</Text>

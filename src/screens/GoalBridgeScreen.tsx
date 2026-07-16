@@ -7,6 +7,7 @@ import FooterNav from '../components/FooterNav';
 import { calculateGoalBridge, mapSavedGoalToBridge, FinancialGoal } from '../utils/goalBridgeEngine';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan } from '../utils/actionRecommendationEngine';
+import NextStepLink from '../components/NextStepLink';
 
 export default function GoalBridgeScreen() {
   const { transactions, invoices, finance, settings, goals, navParams, setCurrentScreen } = useApp();
@@ -171,6 +172,10 @@ export default function GoalBridgeScreen() {
               <Text style={styles.probabilityPercent}>{(bridge.successProbability * 100).toFixed(0)}%</Text>
             </View>
           </View>
+
+          {bridge.feasibility === 'difficult' && (
+            <NextStepLink text="This target may be unrealistic — adjust it in Goals" onPress={() => setCurrentScreen('goals')} />
+          )}
         </View>
 
         {/* Tactics Roadmap */}

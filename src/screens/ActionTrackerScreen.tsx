@@ -7,9 +7,10 @@ import FooterNav from '../components/FooterNav';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan } from '../utils/actionRecommendationEngine';
 import { initiateTacticTracking, updateTacticProgress } from '../utils/outcomeTrackingEngine';
+import NextStepLink from '../components/NextStepLink';
 
 export default function ActionTrackerScreen() {
-  const { transactions, invoices, finance, settings } = useApp();
+  const { transactions, invoices, finance, settings, setCurrentScreen } = useApp();
   const [activeTab, setActiveTab] = useState<'immediate' | 'shortterm' | 'strategic'>('immediate');
   const [expandedActionId, setExpandedActionId] = useState<string | null>(null);
 
@@ -248,6 +249,7 @@ export default function ActionTrackerScreen() {
               </Text>
             </View>
           </View>
+          <NextStepLink text="See these numbers projected forward" onPress={() => setCurrentScreen('cashflow')} />
         </View>
       </ScrollView>
       <FooterNav />

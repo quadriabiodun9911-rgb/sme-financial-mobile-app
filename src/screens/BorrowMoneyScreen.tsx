@@ -5,9 +5,10 @@ import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import LowDataNotice from '../components/LowDataNotice';
+import NextStepLink from '../components/NextStepLink';
 
 export default function BorrowMoneyScreen() {
-  const { transactions, invoices, finance, settings } = useApp();
+  const { transactions, invoices, finance, settings, setCurrentScreen } = useApp();
 
   const creditScore = useMemo(() => {
     const profitMargin = finance.income > 0 ? (finance.profit / finance.income) * 100 : 0;
@@ -134,6 +135,9 @@ export default function BorrowMoneyScreen() {
               ]}
             />
           </View>
+          {creditScore < 60 && (
+            <NextStepLink text="See what's dragging your score down" onPress={() => setCurrentScreen('credit-worthiness')} />
+          )}
         </View>
 
         {/* Readiness Breakdown */}

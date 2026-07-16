@@ -8,6 +8,7 @@ import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import LowDataNotice from '../components/LowDataNotice';
+import NextStepLink from '../components/NextStepLink';
 
 export default function CreditWorthinessScreen() {
     const { user, finance, transactions, loans, navigate, settings } = useApp();
@@ -245,6 +246,9 @@ export default function CreditWorthinessScreen() {
                     <LenderCheckpoint label="Revenue Level" status={(user?.avgMonthlyRevenue || 0) >= 200000} description={`${currency}200k+ monthly revenue`} />
                     <LenderCheckpoint label="Business Age" status={(user?.daysActive || 0) >= 90} description="90+ days operating history" />
                     <LenderCheckpoint label="Debt Ratio" status={creditFactors[1]?.score >= 70} description="Debt < 30% of available credit" />
+                    {!(finance.runway && finance.runway >= 90) && (
+                        <NextStepLink text="Improve your cash runway" onPress={() => navigate('protect-money')} />
+                    )}
                 </View>
 
                 {/* Tips Box */}

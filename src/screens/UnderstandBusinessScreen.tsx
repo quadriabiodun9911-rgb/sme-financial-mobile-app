@@ -8,12 +8,13 @@ import DailyReportModal from '../components/DailyReportModal';
 import MonthlyReview from '../components/MonthlyReview';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan } from '../utils/actionRecommendationEngine';
+import NextStepLink from '../components/NextStepLink';
 
 const SEVERITY_COLOR: Record<string, string> = { critical: '#ef4444', warning: '#f59e0b', info: '#3b82f6' };
 const DIFFICULTY_LABEL: Record<string, string> = { easy: 'Easy', medium: 'Moderate', hard: 'Hard' };
 
 export default function UnderstandBusinessScreen() {
-  const { transactions, invoices, finance, settings, goals } = useApp();
+  const { transactions, invoices, finance, settings, goals, setCurrentScreen } = useApp();
   const [showDailyReport, setShowDailyReport] = useState(false);
   const [showMonthlyReview, setShowMonthlyReview] = useState(false);
 
@@ -309,6 +310,7 @@ export default function UnderstandBusinessScreen() {
                     )}
                   </View>
                 ))}
+                <NextStepLink text="Execute this plan in Action Tracker" onPress={() => setCurrentScreen('action-tracker')} />
               </View>
             )}
           </>

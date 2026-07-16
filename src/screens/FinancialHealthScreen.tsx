@@ -6,6 +6,7 @@ import {
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { Config } from '../config';
+import NextStepLink from '../components/NextStepLink';
 
 interface HealthData {
     income:    any | null;
@@ -215,6 +216,9 @@ export default function FinancialHealthScreen() {
                         <DataRow label="Mobile Money Active" value={mobileMoneyActive ? '✓ Yes' : '✗ No'} />
                         <DataRow label="Active Loan" value={loanFlag ? '⚠️ Yes' : '✓ No'} />
                         <DataRow label="Last Updated" value={new Date(data.fetchedAt).toLocaleString()} />
+                        {loanFlag && (
+                            <NextStepLink text="Make sure this loan is recorded in your app" onPress={() => navigate('loans')} />
+                        )}
                     </View>
 
                     {/* Partial errors */}

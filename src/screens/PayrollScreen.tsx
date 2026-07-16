@@ -9,6 +9,7 @@ import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { StaffMember, PayrollItem } from '../types';
+import NextStepLink from '../components/NextStepLink';
 
 type Tab = 'staff' | 'run' | 'history';
 
@@ -19,7 +20,7 @@ const EMPTY_STAFF: Omit<StaffMember, 'id' | 'createdAt'> = {
 };
 
 export default function PayrollScreen() {
-    const { staff, addStaff, updateStaff, deleteStaff, payrollRuns, runPayroll, deletePayrollRun, settings } = useApp();
+    const { staff, addStaff, updateStaff, deleteStaff, payrollRuns, runPayroll, deletePayrollRun, settings, setCurrentScreen } = useApp();
     const [tab, setTab] = useState<Tab>('staff');
     const [staffModal, setStaffModal] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -214,6 +215,9 @@ export default function PayrollScreen() {
                 {/* ── History Tab ───────────────────────────────────────── */}
                 {tab === 'history' && (
                     <>
+                        {payrollRuns.length > 0 && (
+                            <NextStepLink text="See the effect of payroll on your cash forecast" onPress={() => setCurrentScreen('cashflow')} />
+                        )}
                         {payrollRuns.length === 0 && (
                             <View style={styles.empty}>
                                 <Text style={styles.emptyIcon}>📋</Text>

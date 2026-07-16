@@ -6,6 +6,7 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
+import NextStepLink from '../components/NextStepLink';
 
 export default function FinancialHealthCoachScreen() {
     const { user, finance, transactions, settings, navigate } = useApp();
@@ -220,7 +221,7 @@ export default function FinancialHealthCoachScreen() {
                         <Text style={s.emptyText}>🎉 Great job! No critical recommendations at this time.</Text>
                     ) : (
                         recommendations.map((rec, idx) => (
-                            <RecommendationCard key={idx} rec={rec} />
+                            <RecommendationCard key={idx} rec={rec} navigate={navigate} />
                         ))
                     )}
                 </View>
@@ -291,8 +292,16 @@ function MetricItem({ label, value }: { label: string; value: string }) {
     );
 }
 
-function RecommendationCard({ rec }: { rec: any }) {
+// Maps a recommendation's category to the screen that actually lets you act
+// on it, so "advice" becomes a one-tap next step instead of text to remember.
+const CATEGORY_SCREEN: Record<string, string> = {
+    'Cash Flow': 'protect-money',
+    'Tax Planning': 'tax-planning',
+};
+
+function RecommendationCard({ rec, navigate }: { rec: any; navigate: (screen: string, params?: any) => void }) {
     const priorityColor = rec.priority === 'high' ? Colors.expense : rec.priority === 'medium' ? Colors.warning : Colors.income;
+    const targetScreen = CATEGORY_SCREEN[rec.category];
 
     return (
         <View style={[s.recCard, { borderLeftColor: priorityColor, borderLeftWidth: 4 }]}>
@@ -315,6 +324,9 @@ function RecommendationCard({ rec }: { rec: any }) {
                 <Text style={s.recImpactLabel}>💡 Impact:</Text>
                 <Text style={s.recImpactText}>{rec.impact}</Text>
             </View>
+            {targetScreen && (
+                <NextStepLink text={`Act on this in ${rec.category}`} onPress={() => navigate(targetScreen)} />
+            )}
         </View>
     );
 }

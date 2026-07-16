@@ -14,6 +14,7 @@ import { analyzeAcquisition } from '../utils/assetAcquisitionEngine';
 import AssetProductivityAnalysis from '../components/AssetProductivityAnalysis';
 import { monthlyPayment } from '../utils/loanMath';
 import DateInput from '../components/DateInput';
+import NextStepLink from '../components/NextStepLink';
 
 const CATEGORIES: AssetCategory[] = ['equipment', 'vehicle', 'furniture', 'property', 'intangible', 'other'];
 
@@ -109,7 +110,14 @@ export default function AssetsScreen() {
                     status: 'active',
                     payments: [],
                 } as any);
-                Alert.alert('Recorded', `Asset added and a loan (${currency}${Math.round(monthlyPayment(cost, rate, term)).toLocaleString()}/mo for ${term} months) was created under Loans.`);
+                Alert.alert(
+                    'Recorded',
+                    `Asset added and a loan (${currency}${Math.round(monthlyPayment(cost, rate, term)).toLocaleString()}/mo for ${term} months) was created under Loans.`,
+                    [
+                        { text: 'OK', style: 'cancel' },
+                        { text: 'View in Loans →', onPress: () => setCurrentScreen('loans') },
+                    ]
+                );
             } else if (acqMethod === 'lease') {
                 // Leased — record the first monthly lease payment as an expense.
                 const leaseMonthly = monthlyPayment(cost, rate + 6, term);
@@ -207,6 +215,7 @@ export default function AssetsScreen() {
                         <Text style={s.replaceAlertText}>
                             🔔 <Text style={{ fontWeight: '700' }}>{a.name}</Text> is nearly fully depreciated ({Math.round((computeAssetCurrentValue(a) / a.purchaseCost) * 100)}% remaining value) — plan for replacement.
                         </Text>
+                        <NextStepLink text="Set a replacement-fund goal" onPress={() => navigate('goals')} />
                     </View>
                 ))}
 

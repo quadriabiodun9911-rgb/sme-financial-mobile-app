@@ -11,6 +11,7 @@ import DateInput from '../components/DateInput';
 import { Transaction, TransactionStatus, RecurringFrequency } from '../types';
 import { transactionsToCSV } from '../utils/finance';
 import RecurringTransactionManager from '../components/RecurringTransactionManager';
+import NextStepLink from '../components/NextStepLink';
 
 type FilterType   = 'all' | 'income' | 'expense' | 'collect';
 type StatusFilter = 'all' | 'paid' | 'pending' | 'overdue';
@@ -117,13 +118,13 @@ function formatDateHeader(iso: string): string {
 }
 
 export default function TransactionsScreen() {
-    const { transactions, addTransaction, deleteTransaction, updateTransaction, settings } = useApp();
+    const { transactions, addTransaction, deleteTransaction, updateTransaction, settings, setCurrentScreen, navParams } = useApp();
     const { currency, defaultTaxRate } = settings;
 
     const [modalOpen, setModalOpen]   = useState(false);
     const [editingId, setEditingId]   = useState<string | null>(null);
     const [search, setSearch]         = useState('');
-    const [typeFilter, setTypeFilter] = useState<FilterType>('all');
+    const [typeFilter, setTypeFilter] = useState<FilterType>(navParams?.filter === 'collect' ? 'collect' : 'all');
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
     const [page, setPage]             = useState(1);
     const PAGE_SIZE = 50;
@@ -369,14 +370,28 @@ export default function TransactionsScreen() {
 
             {/* ── Category breakdown chart ─────────────────────────────── */}
             {filtered.length > 0 && (
-                <CategoryChart
-                    incomeMap={categoryBreakdown.incomeMap}
-                    expenseMap={categoryBreakdown.expenseMap}
-                    totalIncome={categoryBreakdown.totalIncome}
-                    totalExpense={categoryBreakdown.totalExpense}
-                    currency={currency}
-                    typeFilter={typeFilter}
-                />
+                <>
+                    <CategoryChart
+                        incomeMap={categoryBreakdown.incomeMap}
+                        expenseMap={categoryBreakdown.expenseMap}
+                        totalIncome={categoryBreakdown.totalIncome}
+                        totalExpense={categoryBreakdown.totalExpense}
+                        currency={currency}
+                        typeFilter={typeFilter}
+                    />
+                    {(() => {
+                        const { expenseMap, totalExpense } = categoryBreakdown;
+                        if (totalExpense <= 0 || expenseMap.size === 0) return null;
+                        const [topCategory, topAmount] = [...expenseMap.entries()].sort((a, b) => b[1] - a[1])[0];
+                        if (topAmount / totalExpense <= 0.4) return null;
+                        return (
+                            <NextStepLink
+                                text={`"${topCategory}" is over 40% of your spending — set a budget limit for it`}
+                                onPress={() => setCurrentScreen('budget')}
+                            />
+                        );
+                    })()}
+                </>
             )}
 
             {/* ── Recurring Transactions Section ──────────────────────── */}

@@ -11,6 +11,7 @@ import { Invoice, InvoiceLineItem, InvoiceStatus } from '../types';
 import { generateId } from '../utils/uuid';
 import DateInput from '../components/DateInput';
 import { sendInvoiceReminderViaWhatsApp, sendPaymentRequestViaWhatsApp, isWhatsAppInstalled } from '../utils/whatsappIntegration';
+import NextStepLink from '../components/NextStepLink';
 
 const STATUS_COLOR: Record<InvoiceStatus, string> = {
     draft:   Colors.textMuted,
@@ -282,6 +283,19 @@ export default function InvoicesScreen() {
                         <SummaryCard label="Paid" value={String(summary.paid)} color={Colors.income} />
                         <SummaryCard label="Overdue" value={String(summary.overdue)} color={Colors.expense} />
                     </View>
+
+                    {summary.overdue > 0 && (
+                        <NextStepLink
+                            text={`${summary.overdue} invoice${summary.overdue > 1 ? 's' : ''} overdue — review collections in Transactions`}
+                            onPress={() => navigate('transactions', { filter: 'collect' })}
+                        />
+                    )}
+                    {summary.paid > 0 && (
+                        <NextStepLink
+                            text="See how paid invoices affect your cash forecast"
+                            onPress={() => navigate('cashflow')}
+                        />
+                    )}
 
                     {/* Filter tabs */}
                     <View style={styles.filterRow}>

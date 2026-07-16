@@ -7,6 +7,7 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
+import NextStepLink from '../components/NextStepLink';
 import {
     computeWeeklyCFOSummary,
     computeRiskScore,
@@ -254,7 +255,7 @@ function ForecastTab() {
 
 // ── Tab: Finance (was Ratios) ─────────────────────────────────────────────────
 function FinanceTab() {
-    const { finance, loans, transactions, settings } = useApp();
+    const { finance, loans, transactions, settings, navigate } = useApp();
     const { currency } = settings;
     const ratios = useMemo(() => computeFinancialRatios(finance, loans), [finance, loans]);
     const dscr   = useMemo(() => computeDSCR(transactions, loans), [transactions, loans]);
@@ -348,6 +349,9 @@ function FinanceTab() {
                     <Text style={s.dscrLabel}>Annual Debt Payments</Text>
                     <Text style={[s.dscrVal, { color: Colors.expense }]}>{currency}{Math.round(dscr.totalDebtService).toLocaleString()}</Text>
                 </View>
+                {dscr.status !== 'healthy' && (
+                    <NextStepLink text="Review your loans and payoff strategy" onPress={() => navigate('loans')} />
+                )}
             </View>
 
             {/* Break-even calculator */}
@@ -381,7 +385,7 @@ function FinanceTab() {
 
 // ── Tab: Risk ─────────────────────────────────────────────────────────────────
 function RiskTab() {
-    const { transactions, loans, finance } = useApp();
+    const { transactions, loans, finance, navigate } = useApp();
     const concentration = useMemo(() => computeCustomerConcentration(transactions), [transactions]);
     const seasonal      = useMemo(() => computeSeasonalRisk(transactions), [transactions]);
     const risk          = useMemo(() => computeRiskScore(finance, loans, transactions), [finance, loans, transactions]);
@@ -443,6 +447,9 @@ function RiskTab() {
                             </View>
                         </View>
                     ))
+                )}
+                {concentration.some(c => c.risk === 'high') && (
+                    <NextStepLink text="Review this customer's invoices" onPress={() => navigate('invoices')} />
                 )}
             </View>
 
@@ -607,8 +614,10 @@ function GrowthTab() {
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
 export default function CFOScreen() {
-    const { navigate, transactions, setCurrentScreen } = useApp();
-    const [activeTab, setActiveTab] = useState<Tab>('pulse');
+    const { navigate, transactions, setCurrentScreen, navParams } = useApp();
+    const [activeTab, setActiveTab] = useState<Tab>(
+        (['pulse', 'forecast', 'finance', 'risk', 'growth'] as Tab[]).includes(navParams?.tab) ? navParams.tab : 'pulse'
+    );
 
     const TABS: { key: Tab; label: string; icon: string }[] = [
         { key: 'pulse',    label: 'Pulse',    icon: '❤️' },
