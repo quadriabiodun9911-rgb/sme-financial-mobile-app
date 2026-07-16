@@ -1,18 +1,53 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity, Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
-import { generateActionPlan } from '../utils/actionRecommendationEngine';
-import { initiateTacticTracking, updateTacticProgress } from '../utils/outcomeTrackingEngine';
+import { generateActionPlan, ActionTactic } from '../utils/actionRecommendationEngine';
+import { initiateTacticTracking, updateTacticProgress, TacticExecution } from '../utils/outcomeTrackingEngine';
 import NextStepLink from '../components/NextStepLink';
+
+const EXECUTIONS_KEY = 'quad360_tactic_executions_v1';
 
 export default function ActionTrackerScreen() {
   const { transactions, invoices, finance, settings, setCurrentScreen } = useApp();
   const [activeTab, setActiveTab] = useState<'immediate' | 'shortterm' | 'strategic'>('immediate');
   const [expandedActionId, setExpandedActionId] = useState<string | null>(null);
+
+  // Actually tracks progress — before this, "Start This Action" just showed
+  // an alert and remembered nothing: initiateTacticTracking/
+  // updateTacticProgress were imported but never called anywhere, so the
+  // Action Tracker never tracked a single action. Now persisted locally so
+  // status (planned/in-progress/completed) survives an app reload.
+  const [executions, setExecutions] = useState<Record<string, TacticExecution>>({});
+  const [executionsLoaded, setExecutionsLoaded] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem(EXECUTIONS_KEY)
+      .then(raw => { if (raw) setExecutions(JSON.parse(raw)); })
+      .catch(() => {})
+      .finally(() => setExecutionsLoaded(true));
+  }, []);
+
+  useEffect(() => {
+    if (!executionsLoaded) return;
+    AsyncStorage.setItem(EXECUTIONS_KEY, JSON.stringify(executions)).catch(() => {});
+  }, [executions, executionsLoaded]);
+
+  const startTracking = (action: ActionTactic) => {
+    const today = new Date().toISOString().split('T')[0];
+    setExecutions(prev => ({ ...prev, [action.id]: initiateTacticTracking(action, today) }));
+  };
+
+  const advanceTracking = (action: ActionTactic, pct: number) => {
+    setExecutions(prev => {
+      const existing = prev[action.id] ?? initiateTacticTracking(action, new Date().toISOString().split('T')[0]);
+      return { ...prev, [action.id]: updateTacticProgress(existing, `${pct}%`, pct) };
+    });
+  };
 
   const diagnosis = useMemo(() => {
     return performFinancialDiagnosis(
@@ -27,6 +62,18 @@ export default function ActionTrackerScreen() {
   const actionPlan = useMemo(() => {
     return generateActionPlan(diagnosis, diagnosis.metrics, settings.currency);
   }, [diagnosis, settings.currency]);
+
+  // Land on whichever tab actually has actions instead of always defaulting
+  // to "Immediate" — a warning-but-not-critical account often has zero
+  // immediate/crisis actions, so the default view was an empty page even
+  // though This Month and Quarter had real actions waiting.
+  const hasAutoSelected = React.useRef(false);
+  useEffect(() => {
+    if (hasAutoSelected.current) return;
+    if (actionPlan.immediateActions.length > 0) { hasAutoSelected.current = true; return; }
+    if (actionPlan.shortTermActions.length > 0) { setActiveTab('shortterm'); hasAutoSelected.current = true; }
+    else if (actionPlan.strategicActions.length > 0) { setActiveTab('strategic'); hasAutoSelected.current = true; }
+  }, [actionPlan]);
 
   const getPriorityColor = (priority: number) => {
     if (priority >= 8) return Colors.expense;
@@ -47,6 +94,9 @@ export default function ActionTrackerScreen() {
   };
 
   const currentTabData = tabData[activeTab];
+  const executionList = Object.values(executions);
+  const inProgressCount = executionList.filter(e => e.status === 'in-progress').length;
+  const completedCount = executionList.filter(e => e.status === 'completed').length;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -59,11 +109,16 @@ export default function ActionTrackerScreen() {
         {/* Total Impact Banner */}
         <View style={styles.impactBanner}>
           <Text style={styles.impactBannerText}>
-            💰 {actionPlan.immediateActions.length + actionPlan.shortTermActions.length} high-impact actions ready to execute
+            💰 {actionPlan.immediateActions.length + actionPlan.shortTermActions.length + actionPlan.strategicActions.length} tactics identified across this week, this month, and this quarter
           </Text>
           <Text style={styles.impactBannerValue}>
             +{settings.currency}{Math.round(actionPlan.estimatedTotalImpact).toLocaleString()} potential
           </Text>
+          {(inProgressCount > 0 || completedCount > 0) && (
+            <Text style={styles.impactBannerTracked}>
+              {completedCount > 0 ? `✅ ${completedCount} completed` : ''}{completedCount > 0 && inProgressCount > 0 ? ' · ' : ''}{inProgressCount > 0 ? `🔵 ${inProgressCount} in progress` : ''}
+            </Text>
+          )}
         </View>
 
         {/* Tab Navigation */}
@@ -133,6 +188,13 @@ export default function ActionTrackerScreen() {
                           </Text>
                         </View>
                         <Text style={styles.timeframeText}>{action.timelineWeeks} weeks</Text>
+                        {executions[action.id] && (
+                          <View style={[styles.statusBadge, { backgroundColor: (executions[action.id].status === 'completed' ? Colors.income : Colors.primary) + '22' }]}>
+                            <Text style={[styles.statusBadgeText, { color: executions[action.id].status === 'completed' ? Colors.income : Colors.primary }]}>
+                              {executions[action.id].status === 'completed' ? `✅ Completed` : `🔵 ${executions[action.id].progressPercentage}% in progress`}
+                            </Text>
+                          </View>
+                        )}
                       </View>
                     </View>
                   </View>
@@ -206,15 +268,31 @@ export default function ActionTrackerScreen() {
                       </View>
                     )}
 
-                    <TouchableOpacity
-                      style={styles.startButton}
-                      onPress={() => {
-                        const steps = action.steps.map((s, i) => `${i + 1}. ${s}`).join('\n');
-                        Alert.alert(action.title, steps || 'No steps listed for this action.');
-                      }}
-                    >
-                      <Text style={styles.startButtonText}>▶ Start This Action</Text>
-                    </TouchableOpacity>
+                    {!executions[action.id] ? (
+                      <TouchableOpacity
+                        style={styles.startButton}
+                        onPress={() => {
+                          startTracking(action);
+                          const steps = action.steps.map((s, i) => `${i + 1}. ${s}`).join('\n');
+                          Alert.alert(action.title, steps || 'No steps listed for this action.');
+                        }}
+                      >
+                        <Text style={styles.startButtonText}>▶ Start This Action</Text>
+                      </TouchableOpacity>
+                    ) : executions[action.id].status !== 'completed' ? (
+                      <View style={styles.trackRow}>
+                        <TouchableOpacity style={styles.trackBtn} onPress={() => advanceTracking(action, 50)}>
+                          <Text style={styles.trackBtnText}>Halfway There</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[styles.trackBtn, styles.trackBtnComplete]} onPress={() => advanceTracking(action, 100)}>
+                          <Text style={[styles.trackBtnText, { color: '#fff' }]}>✓ Mark Complete</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <View style={styles.completedBanner}>
+                        <Text style={styles.completedBannerText}>✅ Completed — nice work.</Text>
+                      </View>
+                    )}
                   </View>
                 )}
               </TouchableOpacity>
@@ -274,6 +352,7 @@ const styles = StyleSheet.create({
   },
   impactBannerText: { fontSize: 12, color: Colors.textSecondary, marginBottom: 4 },
   impactBannerValue: { fontSize: 18, fontWeight: '800', color: Colors.primary },
+  impactBannerTracked: { fontSize: 11, color: Colors.textSecondary, marginTop: 6, fontWeight: '600' },
 
   tabContainer: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   tab: { flex: 1, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: Colors.surface, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
@@ -312,6 +391,14 @@ const styles = StyleSheet.create({
   blockerText: { fontSize: 11, color: Colors.expense, marginVertical: 3 },
   startButton: { backgroundColor: Colors.income, borderRadius: 10, paddingVertical: 12, alignItems: 'center', marginTop: 4 },
   startButtonText: { fontSize: 13, fontWeight: '700', color: '#fff' },
+  statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  statusBadgeText: { fontSize: 10, fontWeight: '700' },
+  trackRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
+  trackBtn: { flex: 1, borderRadius: 10, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: Colors.primary },
+  trackBtnComplete: { backgroundColor: Colors.income, borderColor: Colors.income },
+  trackBtnText: { fontSize: 12, fontWeight: '700', color: Colors.primary },
+  completedBanner: { backgroundColor: Colors.income + '18', borderRadius: 10, paddingVertical: 12, alignItems: 'center', marginTop: 4 },
+  completedBannerText: { fontSize: 13, fontWeight: '700', color: Colors.income },
 
   emptyState: { alignItems: 'center', paddingVertical: 40 },
   emptyStateText: { fontSize: 14, fontWeight: '700', color: Colors.textMuted },
