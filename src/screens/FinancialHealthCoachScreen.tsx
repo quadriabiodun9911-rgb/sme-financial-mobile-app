@@ -195,7 +195,10 @@ export default function FinancialHealthCoachScreen() {
                             {Math.round(user?.financialHealthScore || 0)}
                         </Text>
                         <Text style={s.healthStatus}>
-                            {(user?.financialHealthScore || 0) >= 80 ? 'Excellent' : (user?.financialHealthScore || 0) >= 60 ? 'Good' : 'Fair'}
+                            {(user?.financialHealthScore || 0) >= 80 ? 'Excellent'
+                                : (user?.financialHealthScore || 0) >= 70 ? 'Good'
+                                : (user?.financialHealthScore || 0) >= 40 ? 'Needs Attention'
+                                : 'Critical'}
                         </Text>
                     </View>
 

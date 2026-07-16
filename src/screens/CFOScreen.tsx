@@ -350,7 +350,7 @@ function FinanceTab() {
                     <Text style={[s.dscrVal, { color: Colors.expense }]}>{currency}{Math.round(dscr.totalDebtService).toLocaleString()}</Text>
                 </View>
                 {dscr.status !== 'healthy' && (
-                    <NextStepLink text="Review your loans and payoff strategy" onPress={() => navigate('loans')} />
+                    <NextStepLink text="Review your loan repayment strategy" onPress={() => navigate('cfo', { tab: 'growth' })} />
                 )}
             </View>
 
