@@ -431,24 +431,6 @@ export default function DashboardScreen() {
                   </View>
                 </View>
 
-                {/* SECTION 4C: Bank Statement Import */}
-                <TouchableOpacity
-                  style={styles.importCard}
-                  onPress={() => setCurrentScreen('import-transactions')}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.importCardContent}>
-                    <Text style={styles.importCardEmoji}>📥</Text>
-                    <View style={styles.importCardText}>
-                      <Text style={styles.importCardTitle}>Import Bank Statement</Text>
-                      <Text style={styles.importCardSubtitle}>
-                        Upload CSV, Excel or PDF → Auto-categorised transactions
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={styles.importCardArrow}>→</Text>
-                </TouchableOpacity>
-
                 {/* SECTION 5: Financing Status */}
                 {!isDemoMode && user && (
                     <View style={styles.operationsSection}>
