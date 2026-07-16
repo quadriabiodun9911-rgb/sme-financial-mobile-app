@@ -25,9 +25,6 @@ import AnalysisScreen from './src/screens/AnalysisScreen';
 import TwoFactorSetupScreen from './src/screens/TwoFactorSetupScreen';
 import TwoFactorVerifyScreen from './src/screens/TwoFactorVerifyScreen';
 import PaymentLinkScreen from './src/screens/PaymentLinkScreen';
-import ConnectBankScreen from './src/screens/ConnectBankScreen';
-import FinancialHealthScreen from './src/screens/FinancialHealthScreen';
-import BankAggregatorScreen from './src/screens/BankAggregatorScreen';
 import ImportTransactionsScreen from './src/screens/ImportTransactionsScreen';
 import CashFlowScreen from './src/screens/CashFlowScreen';
 import PayrollScreen from './src/screens/PayrollScreen';
@@ -35,18 +32,10 @@ import ReconciliationScreen from './src/screens/ReconciliationScreen';
 import TaxPlanningScreen from './src/screens/TaxPlanningScreen';
 import CreditWorthinessScreen from './src/screens/CreditWorthinessScreen';
 import LoanEligibilityScreen from './src/screens/LoanEligibilityScreen';
-import FinancialHealthCoachScreen from './src/screens/FinancialHealthCoachScreen';
-import MakeMoneyScreen from './src/screens/MakeMoneyScreen';
-import ProtectMoneyScreen from './src/screens/ProtectMoneyScreen';
-import GrowMoneyScreen from './src/screens/GrowMoneyScreen';
-import BorrowMoneyScreen from './src/screens/BorrowMoneyScreen';
 import FundingQualificationScreen from './src/screens/FundingQualificationScreen';
-import RunBusinessScreen from './src/screens/RunBusinessScreen';
-import UnderstandBusinessScreen from './src/screens/UnderstandBusinessScreen';
 import FinancialAssessmentScreen from './src/screens/FinancialAssessmentScreen';
 import ActionTrackerScreen from './src/screens/ActionTrackerScreen';
 import GoalBridgeScreen from './src/screens/GoalBridgeScreen';
-import BankStatementImportScreen from './src/screens/BankStatementImportScreen';
 import OnboardingChoiceScreen from './src/screens/OnboardingChoiceScreen';
 import ClarityScreen from './src/screens/ClarityScreen';
 import TrendsScreen from './src/screens/TrendsScreen';
@@ -111,9 +100,6 @@ function NavigatorContent() {
             {currentScreen === '2fa'          && <TwoFactorSetupScreen />}
             {currentScreen === 'two-factor-verify' && <TwoFactorVerifyScreen />}
             {currentScreen === 'payment-link' && <PaymentLinkScreen />}
-            {currentScreen === 'connect-bank'     && <ConnectBankScreen />}
-            {currentScreen === 'financial-health' && <FinancialHealthScreen />}
-            {currentScreen === 'bank-aggregator'       && <BankAggregatorScreen />}
             {currentScreen === 'import-transactions'  && <ImportTransactionsScreen />}
             {currentScreen === 'cashflow'       && <CashFlowScreen />}
             {currentScreen === 'payroll'        && <PayrollScreen />}
@@ -121,18 +107,10 @@ function NavigatorContent() {
             {currentScreen === 'tax-planning'   && <TaxPlanningScreen />}
             {currentScreen === 'credit-worthiness' && <CreditWorthinessScreen />}
             {currentScreen === 'loan-eligibility'  && <LoanEligibilityScreen />}
-            {currentScreen === 'financial-coach'   && <FinancialHealthCoachScreen />}
-            {currentScreen === 'make-money'    && <MakeMoneyScreen />}
-            {currentScreen === 'protect-money' && <ProtectMoneyScreen />}
-            {currentScreen === 'grow-money'    && <GrowMoneyScreen />}
-            {currentScreen === 'borrow-money'  && <BorrowMoneyScreen />}
             {currentScreen === 'funding-qualification' && <FundingQualificationScreen />}
-            {currentScreen === 'run-business'  && <RunBusinessScreen />}
-            {currentScreen === 'understand-business' && <UnderstandBusinessScreen />}
             {currentScreen === 'financial-assessment' && <FinancialAssessmentScreen />}
             {currentScreen === 'action-tracker' && <ActionTrackerScreen />}
             {currentScreen === 'goal-bridge' && <GoalBridgeScreen />}
-            {currentScreen === 'bank-statement-import' && <BankStatementImportScreen />}
             {currentScreen === 'onboarding-choice' && <OnboardingChoiceScreen />}
             {currentScreen === 'clarity'            && <ClarityScreen />}
             {currentScreen === 'trends'              && <TrendsScreen />}

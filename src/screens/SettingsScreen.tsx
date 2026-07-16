@@ -537,37 +537,16 @@ export default function SettingsScreen() {
                     {/* Bank & Mobile Money */}
                     <CollapsibleSection title="Bank & Mobile Money" defaultOpen={false}>
                         <Text style={styles.hint}>
-                            Connect your bank to auto-import transactions, or upload a bank statement manually.
+                            Upload a bank statement to import your transactions.
                         </Text>
 
-                        <TouchableOpacity style={styles.dataBtn} onPress={() => setCurrentScreen('bank-aggregator')}>
-                            <Text style={styles.dataBtnText}>🌍  Connect Bank (Auto-import transactions)</Text>
+                        {/* Auto-connect (Bank Aggregator / Connect Bank) removed from
+                            navigation — that flow's real "connect" action is disabled
+                            pending beta, so surfacing it here just offered a button
+                            that doesn't do anything yet. */}
+                        <TouchableOpacity style={styles.dataBtn} onPress={() => setCurrentScreen('import-transactions')}>
+                            <Text style={styles.dataBtnText}>📂  Import Bank Statement (CSV / Excel / PDF) ✓</Text>
                         </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={[styles.dataBtn, { marginTop: 8 }]}
-                            onPress={() => {
-                                if (Platform.OS !== 'android') {
-                                    Alert.alert(
-                                        '📱 Android App Required',
-                                        'SMS-based mobile money tracking reads your bank alert messages and only works on the Android app.\n\nUse "Import Bank Statement" below to manually upload transactions instead.',
-                                        [{ text: 'OK' }]
-                                    );
-                                    return;
-                                }
-                                setCurrentScreen('connect-bank');
-                            }}
-                        >
-                            <Text style={styles.dataBtnText}>📱  Mobile Money / SMS (Android)</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity style={[styles.dataBtn, { marginTop: 8 }]} onPress={() => setCurrentScreen('import-transactions')}>
-                            <Text style={styles.dataBtnText}>📂  Import Bank Statement (CSV / Excel) ✓</Text>
-                        </TouchableOpacity>
-
-                        <Text style={[styles.hint, { marginTop: 10 }]}>
-                            ✓ CSV/Excel import works on all devices. Bank auto-connect requires an internet connection to our sync server.
-                        </Text>
                     </CollapsibleSection>
 
                     {/* 📊 ANALYTICS */}

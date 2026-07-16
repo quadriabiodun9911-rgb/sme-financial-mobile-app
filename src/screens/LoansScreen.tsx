@@ -245,6 +245,18 @@ export default function LoansScreen() {
                         <Text style={s.featureArrow}>→</Text>
                     </TouchableOpacity>
 
+                    {/* Bank Loan Funding Qualification — moved here from the
+                        now-removed Borrow Money pillar screen, its only
+                        entry point. */}
+                    <TouchableOpacity onPress={() => navigate('funding-qualification')} style={s.featureCard}>
+                        <Text style={s.featureIcon}>🏦</Text>
+                        <View style={s.featureContent}>
+                            <Text style={s.featureTitle}>Bank Loan Qualification</Text>
+                            <Text style={s.featureDesc}>Check your readiness for a larger bank loan</Text>
+                        </View>
+                        <Text style={s.featureArrow}>→</Text>
+                    </TouchableOpacity>
+
                     {/* Overdue alert */}
                     {overdueLoans.length > 0 && (
                         <View style={s.alertBanner}>

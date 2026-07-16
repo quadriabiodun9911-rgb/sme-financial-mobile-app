@@ -182,7 +182,7 @@ export default function LoanEligibilityScreen() {
                         }}
                         onApply={() => handleApplyLoan(loan.id)}
                         currency={currency}
-                        onImprove={() => navigate('financial-coach')}
+                        onImprove={() => navigate('financial-assessment')}
                     />
                 ))}
 

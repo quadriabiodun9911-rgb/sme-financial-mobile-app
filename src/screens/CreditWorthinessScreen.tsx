@@ -251,7 +251,7 @@ export default function CreditWorthinessScreen() {
                     <LenderCheckpoint label="Business Age" status={(user?.daysActive || 0) >= 90} description="90+ days operating history" />
                     <LenderCheckpoint label="Debt Ratio" status={creditFactors[1]?.score >= 70} description="Debt < 30% of available credit" />
                     {!(finance.runway && finance.runway >= 90) && (
-                        <NextStepLink text="Improve your cash runway" onPress={() => navigate('protect-money')} />
+                        <NextStepLink text="Improve your cash runway" onPress={() => navigate('cashflow')} />
                     )}
                 </View>
 

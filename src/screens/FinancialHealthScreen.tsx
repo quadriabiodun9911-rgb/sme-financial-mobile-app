@@ -264,7 +264,7 @@ export default function FinancialHealthScreen() {
                 </View>
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={() => navigate('financial-coach')} style={styles.featureCardContainer}>
+            <TouchableOpacity onPress={() => navigate('financial-assessment')} style={styles.featureCardContainer}>
                 <View style={styles.featureCard}>
                     <Text style={styles.featureIcon}>🎯</Text>
                     <View style={styles.featureContent}>

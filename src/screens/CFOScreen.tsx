@@ -659,11 +659,14 @@ export default function CFOScreen() {
                 </View>
             )}
 
-            {/* Financial Health card — always visible */}
-            <TouchableOpacity style={s.healthCard} onPress={() => navigate('financial-health' as any)}>
+            {/* Financial Health card — always visible. Was pointing at the
+                Pngme bank-connection health screen, a feature that isn't
+                live yet (its connect button is disabled, "Available after
+                beta") — redirected to Clarity, the real, working health view. */}
+            <TouchableOpacity style={s.healthCard} onPress={() => navigate('clarity')}>
                 <View style={{ flex: 1 }}>
                     <Text style={s.healthTitle}>📊 Financial Health Score</Text>
-                    <Text style={s.healthSub}>Income estimate · Credit signals · Powered by Pngme</Text>
+                    <Text style={s.healthSub}>Full diagnosis, SWOT & action plan</Text>
                 </View>
                 <Text style={s.healthArrow}>→</Text>
             </TouchableOpacity>
