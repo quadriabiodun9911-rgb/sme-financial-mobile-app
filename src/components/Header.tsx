@@ -1,13 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
+import GlobalSearch from './GlobalSearch';
 
 export default function Header() {
     const { user, logout, setCurrentScreen, goBack, currentScreen } = useApp();
     const showBack = currentScreen !== 'dashboard' && currentScreen !== 'login';
     const { width } = useWindowDimensions();
     const isNarrow = width < 480;
+    const [showSearch, setShowSearch] = useState(false);
 
     return (
         <View style={styles.header}>
@@ -23,7 +25,7 @@ export default function Header() {
                 </TouchableOpacity>
             </View>
             <View style={styles.right}>
-                <TouchableOpacity style={styles.settingsBtn} onPress={() => setCurrentScreen('dashboard')}>
+                <TouchableOpacity style={styles.settingsBtn} onPress={() => setShowSearch(true)}>
                     <Text style={styles.settingsIcon}>🔍</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.settingsBtn} onPress={() => setCurrentScreen('settings')}>
@@ -39,6 +41,7 @@ export default function Header() {
                     <Text style={styles.signOutText}>{isNarrow ? 'Out' : 'Sign Out'}</Text>
                 </TouchableOpacity>
             </View>
+            <GlobalSearch visible={showSearch} onClose={() => setShowSearch(false)} />
         </View>
     );
 }
