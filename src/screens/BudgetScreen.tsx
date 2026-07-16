@@ -461,11 +461,16 @@ export default function BudgetScreen() {
                             <Text style={[s.th, { flex: 2 }]}>Category</Text>
                             <Text style={s.th}>Budget</Text>
                             <Text style={s.th}>Actual</Text>
-                            <Text style={s.th}>Var %</Text>
+                            <Text style={s.th}>vs Budget</Text>
                         </View>
 
                         {displayBva.map((row, i) => {
                             const budget = budgets.find(b => b.category === row.category);
+                            // Show the % over/under from the spender's point of view
+                            // (spent more than planned = positive/red "over"), not the
+                            // raw budget-remaining variance, which showed confusing
+                            // signs like "-100%" for a category that was 100% overspent.
+                            const overUnderPct = -row.variancePct;
                             return (
                                 <TouchableOpacity key={i} style={[s.tableRow, row.status === 'over' && s.overRow]} onPress={() => budget && openEdit(budget)}>
                                     <View style={[s.statusDot, { backgroundColor: statusColor(row.status) }]} />
@@ -473,7 +478,7 @@ export default function BudgetScreen() {
                                     <Text style={[s.td, { color: Colors.textSecondary }]}>{currency}{row.budgeted.toLocaleString()}</Text>
                                     <Text style={[s.td, { color: row.status === 'over' ? Colors.expense : Colors.textSecondary }]}>{currency}{row.actual.toLocaleString()}</Text>
                                     <Text style={[s.td, { color: statusColor(row.status), fontWeight: '700' }]}>
-                                        {row.variancePct >= 0 ? '+' : ''}{row.variancePct.toFixed(0)}%
+                                        {overUnderPct >= 0 ? '+' : ''}{overUnderPct.toFixed(0)}% {row.status === 'over' ? 'over' : row.status === 'under' ? 'under' : ''}
                                     </Text>
                                 </TouchableOpacity>
                             );
@@ -495,9 +500,12 @@ export default function BudgetScreen() {
                     </>
                 )}
 
-                {/* Over-budget callout — every overspend is a real, ongoing hit to
-                    profit and cash, so it gets the same effect+solution treatment
-                    as every other harmful decision in the app. */}
+                {/* Over-budget callout — kept short: the full profit/cash effect
+                    of the budget as a whole is already shown once above in
+                    Budget Strategy, so repeating that same full card per
+                    category just duplicated the same numbers over and over.
+                    Each callout here only adds what's specific to it: how
+                    much this one category overspent, and by how much. */}
                 {displayBva.filter(r => r.status === 'over').map((r, i) => {
                     const overage = r.actual - r.budgeted;
                     return (
@@ -505,14 +513,8 @@ export default function BudgetScreen() {
                             <Text style={s.overCardTitle}>Over Budget: {r.category}</Text>
                             <Text style={s.overCardText}>
                                 Spent {currency}{r.actual.toLocaleString()} vs {currency}{r.budgeted.toLocaleString()} budget
-                                {' '}({Math.abs(r.variancePct).toFixed(0)}% over)
+                                {' '}({Math.abs(r.variancePct).toFixed(0)}% over) — {currency}{Math.round(overage).toLocaleString()} extra coming out of profit.
                             </Text>
-                            <ProfitCashImpactCard
-                                impact={computeProfitCashImpact(monthlyRevenue - totalCommitments, cashBalance, -overage)}
-                                source="budget"
-                                currency={currency}
-                                onSeeFullPicture={() => navigate('clarity')}
-                            />
                         </View>
                     );
                 })}
