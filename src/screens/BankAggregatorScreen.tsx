@@ -37,7 +37,7 @@ interface ConnectionState {
 }
 
 export default function BankAggregatorScreen() {
-    const { navigate, user, settings, addTransaction, transactions } = useApp();
+    const { navigate, goBack, user, settings, addTransaction, transactions } = useApp();
 
     const [connection, setConnection]     = useState<ConnectionState | null>(null);
     const [loading, setLoading]           = useState(false);
@@ -325,7 +325,7 @@ export default function BankAggregatorScreen() {
     return (
         <ScrollView style={styles.container} contentContainerStyle={styles.content}>
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigate('settings')}>
+                <TouchableOpacity onPress={() => { if (!goBack()) navigate('settings'); }}>
                     <Text style={styles.backBtn}>← Back</Text>
                 </TouchableOpacity>
                 <View>

@@ -28,7 +28,7 @@ const STORAGE_KEY_LAST_SYNC = 'pngme_last_sync';
 type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'error';
 
 export default function ConnectBankScreen() {
-    const { navigate, user, settings, addTransaction } = useApp() as any;
+    const { navigate, goBack, user, settings, addTransaction } = useApp() as any;
 
     const [status, setStatus]       = useState<ConnectionStatus>('idle');
     const [syncedCount, setSyncedCount] = useState(0);
@@ -154,7 +154,7 @@ export default function ConnectBankScreen() {
         <ScrollView style={styles.container} contentContainerStyle={styles.content}>
             {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigate('settings')}>
+                <TouchableOpacity onPress={() => { if (!goBack()) navigate('settings'); }}>
                     <Text style={styles.backBtn}>← Back</Text>
                 </TouchableOpacity>
                 <View>

@@ -48,7 +48,7 @@ function DataRow({ label, value }: { label: string; value: string }) {
 }
 
 export default function FinancialHealthScreen() {
-    const { navigate, user, settings } = useApp();
+    const { navigate, goBack, user, settings } = useApp();
 
     const [loading, setLoading]   = useState(false);
     const [data, setData]         = useState<HealthData | null>(null);
@@ -108,7 +108,7 @@ export default function FinancialHealthScreen() {
         <ScrollView style={styles.container} contentContainerStyle={styles.content}>
             {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigate('cfo')}>
+                <TouchableOpacity onPress={() => { if (!goBack()) navigate('cfo'); }}>
                     <Text style={styles.backBtn}>← Back</Text>
                 </TouchableOpacity>
                 <View>

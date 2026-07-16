@@ -8,7 +8,7 @@ import { Colors } from '../theme/colors';
 import { apiFetch } from '../utils/api';
 
 export default function PaymentLinkScreen() {
-    const { settings, user, navigate, navParams, addTransaction, markInvoiceStatus } = useApp() as any;
+    const { settings, user, navigate, goBack, navParams, addTransaction, markInvoiceStatus } = useApp() as any;
     const params = (navParams ?? {}) as {
         amount?: number; description?: string;
         customerName?: string; customerEmail?: string;
@@ -239,7 +239,7 @@ export default function PaymentLinkScreen() {
         <ScrollView style={styles.container} contentContainerStyle={styles.content}>
             {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigate('settings')}>
+                <TouchableOpacity onPress={() => { if (!goBack()) navigate('settings'); }}>
                     <Text style={styles.backBtn}>← Back</Text>
                 </TouchableOpacity>
                 <View>

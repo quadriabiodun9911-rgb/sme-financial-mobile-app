@@ -255,7 +255,7 @@ const CATEGORY_OPTIONS: { label: string; category: TxCategory; subCategory: stri
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function ImportTransactionsScreen() {
-    const { navigate, addTransaction, settings } = useApp();
+    const { navigate, goBack, addTransaction, settings } = useApp();
     const currency = (settings as any).currency || '₦';
 
     const [step,       setStep]       = useState<'upload' | 'preview' | 'done'>('upload');
@@ -479,7 +479,7 @@ export default function ImportTransactionsScreen() {
         return (
             <ScrollView style={styles.container} contentContainerStyle={styles.content}>
                 <View style={styles.header}>
-                    <TouchableOpacity onPress={() => navigate('settings')}>
+                    <TouchableOpacity onPress={() => { if (!goBack()) navigate('settings'); }}>
                         <Text style={styles.backBtn}>← Back</Text>
                     </TouchableOpacity>
                     <Text style={styles.title}>Import Bank Statement</Text>
