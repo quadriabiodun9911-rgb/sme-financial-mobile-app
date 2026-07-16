@@ -80,9 +80,12 @@ export default function FinancialAssessmentScreen() {
           </Text>
         </View>
 
-        {/* Key Metrics */}
+        {/* Key Metrics — reframed as evidence for the diagnosis below rather
+            than a standalone headline restating Dashboard's Profit/Cash
+            numbers; margin/runway/growth are derived figures Dashboard
+            doesn't show, not a repeat of it. */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📊 Financial Metrics</Text>
+          <Text style={styles.sectionTitle}>📊 What's Driving This Diagnosis</Text>
           <View style={styles.metricsGrid}>
             <View style={styles.metricBox}>
               <Text style={styles.metricLabel}>Revenue</Text>

@@ -102,41 +102,24 @@ export default function ClarityScreen() {
                             <Text style={[s.healthStatus, { color: healthColor }]}>{healthLabel}</Text>
                         </View>
 
-                        {/* Every decision chain in the app ends here: does it grow profit,
-                            and does that flow through to cash you can actually use. This
-                            is the app's central answer, not just one more metric card. */}
-                        <View style={s.pathwayCard}>
-                            <Text style={s.pathwayTitle}>💰 Profit → Cash Balance</Text>
-                            <View style={s.pathwayRow}>
-                                <View style={s.pathwayBox}>
-                                    <Text style={s.pathwayLabel}>Profit</Text>
-                                    <Text style={[s.pathwayVal, { color: finance.profit >= 0 ? Colors.income : Colors.expense }]}>
-                                        {currency}{Math.round(finance.profit).toLocaleString()}
-                                    </Text>
-                                </View>
-                                <Text style={s.pathwayArrow}>→</Text>
-                                <View style={s.pathwayBox}>
-                                    <Text style={s.pathwayLabel}>Cash Balance</Text>
-                                    <Text style={[s.pathwayVal, { color: finance.cashBalance >= 0 ? Colors.income : Colors.expense }]}>
-                                        {currency}{Math.round(finance.cashBalance).toLocaleString()}
-                                    </Text>
-                                </View>
+                        {/* Dropped the Profit -> Cash Balance number pair that used to
+                            headline this card — it was the exact same two figures the
+                            Dashboard already leads with, just with an arrow between
+                            them. What's actually unique to Clarity is the recommended
+                            lever, so that's what stays front and center here. */}
+                        {topActions[0] && (
+                            <View style={s.pathwayCard}>
+                                <Text style={s.pathwayTitle}>💡 Your Biggest Lever Right Now</Text>
+                                <Text style={s.pathwayLeverTitle}>{topActions[0].title}</Text>
+                                <Text style={s.pathwayLeverImpact}>
+                                    ~{currency}{Math.round(topActions[0].expectedImpact).toLocaleString()} potential impact
+                                </Text>
+                                <Text style={s.pathwayNote}>
+                                    Every decision either grows profit — which builds cash you can rely on — or it
+                                    doesn't. That's what every "next step" link in this app is measuring.
+                                </Text>
                             </View>
-                            <Text style={s.pathwayNote}>
-                                Growing your business comes down to this: every decision either grows profit — which
-                                builds cash you can rely on — or it doesn't. That's what every "next step" link in
-                                this app is measuring.
-                            </Text>
-                            {topActions[0] && (
-                                <View style={s.pathwayLeverBox}>
-                                    <Text style={s.pathwayLeverLabel}>Your biggest lever right now</Text>
-                                    <Text style={s.pathwayLeverTitle}>{topActions[0].title}</Text>
-                                    <Text style={s.pathwayLeverImpact}>
-                                        ~{currency}{Math.round(topActions[0].expectedImpact).toLocaleString()} potential impact
-                                    </Text>
-                                </View>
-                            )}
-                        </View>
+                        )}
 
                         {criticalProblems.length === 0 && otherProblems.length === 0 && (
                             <View style={s.goodCard}>

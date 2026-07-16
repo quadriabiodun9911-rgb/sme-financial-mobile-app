@@ -109,21 +109,8 @@ const SOURCE_LABELS = {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function InsightsScreen() {
-    const { finance, settings, transactions, loans, setCurrentScreen, navigate } = useApp();
+    const { finance, settings, transactions, setCurrentScreen, navigate } = useApp();
     const { currency, targetMargin, minReserve } = settings;
-
-    // finance.liabilities is only Settings' manual "opening liabilities"
-    // figure — it never includes the live Loan Register (same root cause
-    // fixed in Reports > Loans & Debt and Debt Analysis), so this screen's
-    // "Money You Owe" line understated real liabilities for any account
-    // with active loans.
-    const liveLoanBalance = useMemo(() => (loans ?? [])
-        .filter(l => l.status === 'active')
-        .reduce((sum, l) => {
-            const paid = (l.payments ?? []).reduce((s, p) => s + (p.amount || 0), 0);
-            return sum + Math.max(0, (l.principal || 0) - paid);
-        }, 0), [loans]);
-    const totalLiabilities = (isNaN(finance.liabilities) ? 0 : finance.liabilities) + liveLoanBalance;
 
     const [swotExpanded, setSwotExpanded] = useState(true);
     const [expandedAction, setExpandedAction] = useState<number | null>(null);
@@ -287,13 +274,14 @@ export default function InsightsScreen() {
                         <Row label="Difference" value={`${marginDiff >= 0 ? '+' : ''}${marginDiff.toFixed(2)}%`} valueStyle={marginDiff >= 0 ? styles.green : styles.red} />
                     </View>
 
-                    {/* ── Cash Position ────────────────────────────────────── */}
+                    {/* ── Cash Reserve Check ───────────────────────────────── — the
+                        raw income/expense/cash-balance figures this card used to
+                        headline were an exact repeat of Dashboard's numbers.
+                        What's actually unique here is the reserve threshold check
+                        against your Settings target, so that's all that's left. */}
                     <View style={styles.card}>
-                        <Text style={styles.cardTitle}>Cash Position</Text>
-                        <Row label="Total Income" value={`${currency}${finance.income.toLocaleString()}`} valueStyle={styles.green} />
-                        <Row label="Total Expenses" value={`${currency}${finance.expense.toLocaleString()}`} valueStyle={styles.red} />
-                        <Row label="Money in Your Account" value={`${currency}${finance.cashBalance.toLocaleString()}`} valueStyle={finance.cashBalance >= 0 ? styles.green : styles.red} />
-                        <Row label="Min. Reserve" value={`${currency}${minReserve}`} valueStyle={styles.normal} />
+                        <Text style={styles.cardTitle}>Cash Reserve Check</Text>
+                        <Row label="Min. Reserve Target" value={`${currency}${minReserve}`} valueStyle={styles.normal} />
                         <View style={[styles.badge, reserveOk ? styles.badgeGreen : styles.badgeRed]}>
                             <Text style={styles.badgeText}>{reserveOk ? 'Reserve threshold met' : 'Below minimum reserve'}</Text>
                         </View>
@@ -310,14 +298,16 @@ export default function InsightsScreen() {
                         </TouchableOpacity>
                     </View>
 
-                    {/* ── Balance Sheet ─────────────────────────────────────── */}
-                    <View style={styles.card}>
-                        <Text style={styles.cardTitle}>What You Own & Owe</Text>
-                        <Row label="Things You Own (Assets)" value={`${currency}${(isNaN(finance.assets) ? 0 : finance.assets).toLocaleString()}`} valueStyle={styles.blue} />
-                        <Row label="Money You Owe (Liabilities)" value={`${currency}${totalLiabilities.toLocaleString()}`} valueStyle={styles.orange} />
-                        <Row label="Your Business Worth" value={`${currency}${(isNaN(finance.equity) ? 0 : finance.equity).toLocaleString()}`} valueStyle={styles.purple} />
-                        <Text style={styles.note}>Update opening balances in Settings for a complete balance sheet.</Text>
-                    </View>
+                    {/* ── Balance Sheet ─────────────────────────────────────── — was a
+                        full repeat of Reports > What I Own & Owe with no new
+                        framing; that's the balance sheet's actual home, so this is
+                        now just a link to it instead of a third copy of the numbers. */}
+                    <TouchableOpacity
+                        style={styles.fullSwotBtn}
+                        onPress={() => navigate('reports', { reportSection: 'statements', reportTab: 'balancesheet' })}
+                    >
+                        <Text style={styles.fullSwotText}>See full balance sheet (assets, liabilities, equity) →</Text>
+                    </TouchableOpacity>
 
                     {/* ── Top Expenses ─────────────────────────────────────── */}
                     <View style={styles.card}>
