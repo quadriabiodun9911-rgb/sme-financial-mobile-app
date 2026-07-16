@@ -91,7 +91,7 @@ export default function ClarityScreen() {
                     a full diagnosis), so there was no way back to it once
                     that threshold passed — even though people naturally want
                     to import a newer statement every month, not just once. */}
-                <NextStepLink text="Import a bank statement" onPress={() => setCurrentScreen('import-transactions')} />
+                <NextStepLink text="📥 Import a bank statement" emphasis="button" onPress={() => setCurrentScreen('import-transactions')} />
 
                 {/* ── Case 1: full diagnosis ─────────────────────────────── */}
                 {hasEnoughData && diagnosis && (
