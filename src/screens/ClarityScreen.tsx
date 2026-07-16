@@ -7,6 +7,8 @@ import FooterNav from '../components/FooterNav';
 import NextStepLink from '../components/NextStepLink';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan, ActionTactic } from '../utils/actionRecommendationEngine';
+import { buildStructuralSnapshot } from '../utils/structuralSnapshot';
+import { suggestSolution } from '../utils/impactChain';
 
 const MIN_TRANSACTIONS_FOR_DIAGNOSIS = 5;
 
@@ -16,11 +18,19 @@ const MIN_TRANSACTIONS_FOR_DIAGNOSIS = 5;
 // because that supporting detail is spread across a dozen similarly-named
 // screens with no one place that just answers the question plainly.
 export default function ClarityScreen() {
-    const { transactions, invoices, finance, settings, goals, inventory, setCurrentScreen } = useApp();
+    const { transactions, invoices, finance, settings, goals, inventory, budgets, loans, assets, staff, setCurrentScreen, navigate } = useApp();
     const { currency } = settings;
 
     const hasEnoughData = transactions.length >= MIN_TRANSACTIONS_FOR_DIAGNOSIS;
     const hasGoals = goals.length > 0;
+
+    // When there's no transaction history to diagnose, build a picture from
+    // whatever structural data does exist — goals, budgets, loans, assets,
+    // unpaid invoices, stock — rather than leaving the user with nothing.
+    const snapshot = useMemo(() => {
+        if (hasEnoughData) return null;
+        return buildStructuralSnapshot(budgets, loans, assets, invoices, inventory, staff, goals);
+    }, [hasEnoughData, budgets, loans, assets, invoices, inventory, staff, goals]);
 
     const diagnosis = useMemo(() => {
         if (!hasEnoughData) return null;
@@ -187,29 +197,80 @@ export default function ClarityScreen() {
                     </>
                 )}
 
-                {/* ── Case 2: not enough transactions, but has goals ─────── */}
-                {!hasEnoughData && hasGoals && (
+                {/* ── Case 2: not enough transactions — synthesize from goals,
+                    budgets, loans, assets, invoices, inventory instead of
+                    showing nothing. ────────────────────────────────────── */}
+                {!hasEnoughData && (hasGoals || snapshot?.hasData) && (
                     <>
                         <View style={[s.healthCard, { borderColor: Colors.primary }]}>
-                            <Text style={s.healthLabel}>Starting Point: Your Goals</Text>
+                            <Text style={s.healthLabel}>Estimated Starting Position</Text>
                             <Text style={s.healthSub}>
                                 You haven't logged enough transactions yet for a full diagnosis ({transactions.length}/{MIN_TRANSACTIONS_FOR_DIAGNOSIS}).
-                                Your goals are the plan — log your day-to-day income and expenses to track real progress toward them.
+                                This is built from your goals, budget, loans, assets, invoices and stock instead —
+                                upload a statement or keep logging transactions to unlock the real thing.
                             </Text>
                         </View>
 
-                        <View style={s.section}>
-                            <Text style={s.sectionTitle}>🎯 Your Goals So Far</Text>
-                            {goalProgress.map(({ goal, progress }) => (
-                                <View key={goal.id} style={s.goalRow}>
-                                    <Text style={s.goalTitle}>{goal.title}</Text>
-                                    <View style={s.goalBarTrack}>
-                                        <View style={[s.goalBarFill, { width: `${Math.min(Math.max(progress, 0), 100)}%` as any }]} />
+                        {snapshot?.hasData && (
+                            <View style={s.pathwayCard}>
+                                <Text style={s.pathwayTitle}>💰 Estimated Profit → Cash Balance</Text>
+                                {snapshot.estimatedMonthlyRevenue !== null ? (
+                                    <View style={s.pathwayRow}>
+                                        <View style={s.pathwayBox}>
+                                            <Text style={s.pathwayLabel}>Est. Monthly Profit</Text>
+                                            <Text style={[s.pathwayVal, { color: (snapshot.estimatedMonthlyProfit ?? 0) >= 0 ? Colors.income : Colors.expense }]}>
+                                                {currency}{Math.round(snapshot.estimatedMonthlyProfit ?? 0).toLocaleString()}
+                                            </Text>
+                                        </View>
+                                        <Text style={s.pathwayArrow}>→</Text>
+                                        <View style={s.pathwayBox}>
+                                            <Text style={s.pathwayLabel}>Cash Balance</Text>
+                                            <Text style={[s.pathwayVal, { color: finance.cashBalance >= 0 ? Colors.income : Colors.expense }]}>
+                                                {currency}{Math.round(finance.cashBalance).toLocaleString()}
+                                            </Text>
+                                        </View>
                                     </View>
-                                    <Text style={s.goalPct}>{progress.toFixed(0)}%</Text>
+                                ) : (
+                                    <Text style={s.pathwayNote}>
+                                        No revenue target set yet, so a profit estimate isn't possible — set a revenue
+                                        growth goal to see one here, based on what you're aiming for.
+                                    </Text>
+                                )}
+
+                                <View style={s.snapshotGrid}>
+                                    <SnapshotStat label="Committed monthly costs" value={snapshot.committedMonthlyCosts} currency={currency} color={Colors.expense} />
+                                    <SnapshotStat label="Outstanding receivables" value={snapshot.outstandingReceivables} currency={currency} color={Colors.warning} />
+                                    <SnapshotStat label="Stock on hand (cost)" value={snapshot.inventoryStockValue} currency={currency} color={Colors.textPrimary} />
+                                    <SnapshotStat label="Active asset value" value={snapshot.activeAssetValue} currency={currency} color={Colors.textPrimary} />
                                 </View>
-                            ))}
-                        </View>
+
+                                {snapshot.committedMonthlyCosts > 0 && finance.cashBalance < snapshot.committedMonthlyCosts && (
+                                    <View style={s.solutionBox}>
+                                        <Text style={s.solutionTitle}>⚠ {suggestSolution('budget').title}</Text>
+                                        <Text style={s.solutionDetail}>
+                                            Your committed monthly costs ({currency}{Math.round(snapshot.committedMonthlyCosts).toLocaleString()}) already
+                                            exceed your recorded cash balance. {suggestSolution('budget').detail}
+                                        </Text>
+                                        <NextStepLink text="Review your budget" onPress={() => navigate('budget')} />
+                                    </View>
+                                )}
+                            </View>
+                        )}
+
+                        {hasGoals && (
+                            <View style={s.section}>
+                                <Text style={s.sectionTitle}>🎯 Your Goals So Far</Text>
+                                {goalProgress.map(({ goal, progress }) => (
+                                    <View key={goal.id} style={s.goalRow}>
+                                        <Text style={s.goalTitle}>{goal.title}</Text>
+                                        <View style={s.goalBarTrack}>
+                                            <View style={[s.goalBarFill, { width: `${Math.min(Math.max(progress, 0), 100)}%` as any }]} />
+                                        </View>
+                                        <Text style={s.goalPct}>{progress.toFixed(0)}%</Text>
+                                    </View>
+                                ))}
+                            </View>
+                        )}
 
                         <TouchableOpacity style={s.primaryBtn} onPress={() => setCurrentScreen('import-transactions')}>
                             <Text style={s.primaryBtnText}>📄 Upload a Bank Statement</Text>
@@ -219,7 +280,7 @@ export default function ClarityScreen() {
                 )}
 
                 {/* ── Case 3: nothing yet ─────────────────────────────────── */}
-                {!hasEnoughData && !hasGoals && (
+                {!hasEnoughData && !hasGoals && !snapshot?.hasData && (
                     <View style={s.emptyState}>
                         <Text style={s.emptyIcon}>🧭</Text>
                         <Text style={s.emptyTitle}>Let's find out where you stand</Text>
@@ -237,6 +298,15 @@ export default function ClarityScreen() {
             </ScrollView>
             <FooterNav />
         </SafeAreaView>
+    );
+}
+
+function SnapshotStat({ label, value, currency, color }: { label: string; value: number; currency: string; color: string }) {
+    return (
+        <View style={s.snapshotStat}>
+            <Text style={s.snapshotLabel}>{label}</Text>
+            <Text style={[s.snapshotVal, { color }]}>{currency}{Math.round(value).toLocaleString()}</Text>
+        </View>
     );
 }
 
@@ -269,6 +339,15 @@ const s = StyleSheet.create({
     pathwayLeverLabel: { fontSize: 10, color: Colors.textMuted, fontWeight: '600', marginBottom: 3 },
     pathwayLeverTitle: { fontSize: 12, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },
     pathwayLeverImpact:{ fontSize: 11, color: Colors.income, fontWeight: '700' },
+
+    snapshotGrid:  { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4, marginBottom: 4 },
+    snapshotStat:  { flexBasis: '47%', backgroundColor: Colors.bg, borderRadius: 8, padding: 10 },
+    snapshotLabel: { fontSize: 10, color: Colors.textMuted, marginBottom: 3 },
+    snapshotVal:   { fontSize: 14, fontWeight: '700' },
+
+    solutionBox:    { backgroundColor: Colors.warning + '12', borderRadius: 8, padding: 10, marginTop: 10 },
+    solutionTitle:  { fontSize: 12, fontWeight: '700', color: Colors.warning, marginBottom: 3 },
+    solutionDetail: { fontSize: 11, color: Colors.textSecondary, lineHeight: 16, marginBottom: 4 },
 
     section:      { marginBottom: 20 },
     sectionTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: 10 },

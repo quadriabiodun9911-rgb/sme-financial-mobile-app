@@ -357,16 +357,27 @@ export default function BudgetScreen() {
                     </>
                 )}
 
-                {/* Over-budget callout */}
-                {bva.filter(r => r.status === 'over').map((r, i) => (
-                    <View key={i} style={s.overCard}>
-                        <Text style={s.overCardTitle}>Over Budget: {r.category}</Text>
-                        <Text style={s.overCardText}>
-                            Spent {currency}{r.actual.toLocaleString()} vs {currency}{r.budgeted.toLocaleString()} budget
-                            {' '}({Math.abs(r.variancePct).toFixed(0)}% over)
-                        </Text>
-                    </View>
-                ))}
+                {/* Over-budget callout — every overspend is a real, ongoing hit to
+                    profit and cash, so it gets the same effect+solution treatment
+                    as every other harmful decision in the app. */}
+                {bva.filter(r => r.status === 'over').map((r, i) => {
+                    const overage = r.actual - r.budgeted;
+                    return (
+                        <View key={i} style={s.overCard}>
+                            <Text style={s.overCardTitle}>Over Budget: {r.category}</Text>
+                            <Text style={s.overCardText}>
+                                Spent {currency}{r.actual.toLocaleString()} vs {currency}{r.budgeted.toLocaleString()} budget
+                                {' '}({Math.abs(r.variancePct).toFixed(0)}% over)
+                            </Text>
+                            <ProfitCashImpactCard
+                                impact={computeProfitCashImpact(monthlyRevenue - totalCommitments, cashBalance, -overage)}
+                                source="budget"
+                                currency={currency}
+                                onSeeFullPicture={() => navigate('clarity')}
+                            />
+                        </View>
+                    );
+                })}
             </ScrollView>
 
             {/* Add/Edit modal */}
