@@ -147,6 +147,24 @@ function parseDate(raw: string): string {
     return isNaN(fallback.getTime()) ? toDateString(new Date()) : toDateString(fallback);
 }
 
+// Rows like "Opening Balance" / "Closing Balance" aren't money moving in or
+// out — they're a running total the bank prints at the top/bottom of a
+// statement. They have no sensible income/expense/cost category because
+// they're not a transaction at all, which is exactly why a user staring at
+// "Tap to categorise" on one of these can never find the right answer —
+// there isn't one. Drop them before they ever reach the review list.
+const SUMMARY_ROW_KEYWORDS = [
+    'opening balance', 'closing balance', 'balance b/f', 'balance c/f',
+    'balance brought forward', 'balance carried forward', 'available balance',
+    'ledger balance', 'statement balance', 'beginning balance', 'ending balance',
+    'total debit', 'total credit', 'total withdrawals', 'total deposits',
+];
+
+function isSummaryRow(desc: string): boolean {
+    const d = normalise(desc);
+    return SUMMARY_ROW_KEYWORDS.some(k => d.includes(k));
+}
+
 function classifyByDescription(desc: string, direction: 'income' | 'expense'): { category: TxCategory; subCategory: string; flagged: boolean } {
     const d = normalise(desc);
 
@@ -167,7 +185,7 @@ function classifyByDescription(desc: string, direction: 'income' | 'expense'): {
 
 // ─── CSV/Excel parser ─────────────────────────────────────────────────────────
 
-function parseRows(raw: Record<string, string>[]): { rows: ParsedRow[]; error?: string } {
+function parseRows(raw: Record<string, string>[]): { rows: ParsedRow[]; error?: string; summaryRowsSkipped?: number } {
     if (!raw.length) return { rows: [], error: 'File is empty or has no data rows.' };
 
     const headers = Object.keys(raw[0]);
@@ -190,6 +208,7 @@ function parseRows(raw: Record<string, string>[]): { rows: ParsedRow[]; error?: 
 
     const rows: ParsedRow[] = [];
     let i = 0;
+    let summaryRowsSkipped = 0;
 
     for (const r of raw) {
         const dateRaw  = r[dateCol!]  || '';
@@ -197,6 +216,9 @@ function parseRows(raw: Record<string, string>[]): { rows: ParsedRow[]; error?: 
 
         // Skip blank rows
         if (!dateRaw.trim() && !descRaw.trim()) continue;
+
+        // Skip running-balance/summary lines — not real transactions.
+        if (isSummaryRow(descRaw)) { summaryRowsSkipped++; continue; }
 
         let debit = 0, credit = 0;
 
@@ -228,7 +250,7 @@ function parseRows(raw: Record<string, string>[]): { rows: ParsedRow[]; error?: 
         });
     }
 
-    return { rows };
+    return { rows, summaryRowsSkipped };
 }
 
 // ─── Category options shown in the picker ────────────────────────────────────
@@ -250,6 +272,12 @@ const CATEGORY_OPTIONS: { label: string; category: TxCategory; subCategory: stri
     { label: '💳 Loan Repayment',    category: 'expense',  subCategory: 'Loan Repayment' },
     { label: '📱 Other Expense',     category: 'expense',  subCategory: 'Other Expense' },
     { label: '🏢 Asset Purchase',    category: 'asset',    subCategory: 'Asset Purchase' },
+    // A deliberate escape hatch: forcing a guess out of someone who genuinely
+    // doesn't know what a line item was leads to bad data (wrong category
+    // silently treated as certain). This imports it safely as Uncategorized
+    // instead of blocking the whole import or teaching the auto-categoriser
+    // a wrong pattern — it can be fixed later from the Transactions screen.
+    { label: '🤷 Not sure — skip for now', category: 'unknown', subCategory: 'Uncategorized' },
 ];
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -263,6 +291,7 @@ export default function ImportTransactionsScreen() {
     const [rows,       setRows]       = useState<ParsedRow[]>([]);
     const [error,      setError]      = useState('');
     const [pickerRow,  setPickerRow]  = useState<string | null>(null);
+    const [skippedNote, setSkippedNote] = useState('');
     const [imported,   setImported]   = useState(0);
 
     // Web fallback: hidden <input type="file"> for iOS Safari
@@ -346,9 +375,14 @@ export default function ImportTransactionsScreen() {
                 rawRows = parsed.data;
             }
 
-            const { rows: parsed, error: parseError } = parseRows(rawRows);
+            const { rows: parsed, error: parseError, summaryRowsSkipped } = parseRows(rawRows);
             if (parseError) { setError(parseError); return; }
             setRows(parsed);
+            setSkippedNote(
+                summaryRowsSkipped
+                    ? `${summaryRowsSkipped} balance/summary line${summaryRowsSkipped > 1 ? 's' : ''} (e.g. Opening/Closing Balance) were left out automatically — they're not transactions.`
+                    : ''
+            );
             setStep('preview');
         } catch (e: any) {
             setError(e?.message || 'Failed to read file. Make sure it is a CSV, TXT, Excel, or PDF file.');
@@ -418,9 +452,13 @@ export default function ImportTransactionsScreen() {
     const applyCategory = (rowId: string, opt: typeof CATEGORY_OPTIONS[number]) => {
         setRows(prev => prev.map(r => {
             if (r.id !== rowId) return r;
-            // Learn for future imports
-            const key = normalise(r.description).split(' ').slice(0, 4).join(' ');
-            learnedRules.set(key, { category: opt.category, subCategory: opt.subCategory });
+            // Learn for future imports — except "Not sure", which is an
+            // honest non-answer and must not get memorized as if it were
+            // the correct category for similar transactions later.
+            if (opt.category !== 'unknown') {
+                const key = normalise(r.description).split(' ').slice(0, 4).join(' ');
+                learnedRules.set(key, { category: opt.category, subCategory: opt.subCategory });
+            }
             return { ...r, category: opt.category, subCategory: opt.subCategory, flagged: false };
         }));
         persistLearnedRules();
@@ -454,6 +492,7 @@ export default function ImportTransactionsScreen() {
                 transactionCategory: r.category === 'cost'   ? 'cost'
                                    : r.category === 'asset'  ? 'purchase'
                                    : r.category === 'income' ? 'sale'
+                                   : r.type === 'income'     ? 'sale'
                                    : 'expense',
                 reference:           `IMPORT-${Date.now()}-${idx}`,
             });
@@ -557,7 +596,7 @@ export default function ImportTransactionsScreen() {
                 <TouchableOpacity style={[styles.primaryBtn, { marginTop: 32, width: 220 }]} onPress={() => navigate('transactions')}>
                     <Text style={styles.primaryBtnText}>View Transactions</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.ghostBtn} onPress={() => { setStep('upload'); setRows([]); setError(''); }}>
+                <TouchableOpacity style={styles.ghostBtn} onPress={() => { setStep('upload'); setRows([]); setError(''); setSkippedNote(''); }}>
                     <Text style={styles.ghostBtnText}>Import another file</Text>
                 </TouchableOpacity>
             </View>
@@ -578,6 +617,9 @@ export default function ImportTransactionsScreen() {
                     <Text style={styles.previewTitle}>{rows.length} transactions found</Text>
                     {flaggedRows.length > 0 && (
                         <Text style={styles.flaggedNote}>⚠️  {flaggedRows.length} need a category — tap to fix</Text>
+                    )}
+                    {!!skippedNote && (
+                        <Text style={styles.skippedNote}>ℹ️  {skippedNote}</Text>
                     )}
                 </View>
             </View>
@@ -705,6 +747,7 @@ const styles = StyleSheet.create({
     previewHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border },
     previewTitle:  { fontSize: 15, fontWeight: '800', color: Colors.textPrimary },
     flaggedNote:   { fontSize: 12, color: '#f59e0b', marginTop: 2 },
+    skippedNote:   { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
 
     // Summary strip
     summaryStrip: { flexDirection: 'row', backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border },

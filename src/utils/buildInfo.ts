@@ -7,4 +7,4 @@
  * cache, or otherwise). Bump BUILD_STAMP any time this file is touched as
  * part of a fix, so the next crash report is self-diagnosing.
  */
-export const BUILD_STAMP = '2026-07-16T19:00Z-fix-hardcoded-back-buttons-to-use-goBack';
+export const BUILD_STAMP = '2026-07-16T19:30Z-simplify-import-categorisation-skip-balance-rows';
