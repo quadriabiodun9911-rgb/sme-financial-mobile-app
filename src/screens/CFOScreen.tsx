@@ -55,7 +55,7 @@ function MiniBar({ pct, color }: { pct: number; color: string }) {
 }
 
 // ── Tab: Pulse (was Overview) ─────────────────────────────────────────────────
-function PulseTab() {
+function PulseTab({ onOpenRisk }: { onOpenRisk: () => void }) {
     const { transactions, goals, loans, finance, settings } = useApp();
     const { currency } = settings;
     const summary = useMemo(() => computeWeeklyCFOSummary(transactions, goals, loans, finance), [transactions, goals, loans, finance]);
@@ -91,20 +91,20 @@ function PulseTab() {
 
     return (
         <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
-            {/* Business health card */}
-            <View style={[s.card, { borderLeftWidth: 4, borderLeftColor: health.color }]}>
-                <Text style={s.cardTitle}>Business Health</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-                    <Text style={{ fontSize: 40 }}>{health.emoji}</Text>
-                    <View style={{ marginLeft: 12 }}>
-                        <Text style={[s.healthLabel, { color: health.color }]}>{health.label}</Text>
-                        <Text style={s.healthScore}>{risk.score}/100 score</Text>
-                    </View>
+            {/* Debt/risk snapshot — was a full duplicate of the Risk tab
+                below (same computeRiskScore, same score, same "Business
+                Health" name colliding with the actual Financial Health
+                Score card above, which uses a different, canonical
+                engine). Condensed to a one-line teaser pointing at the
+                Risk tab, which already shows this in full. */}
+            <TouchableOpacity style={[s.card, { borderLeftWidth: 4, borderLeftColor: health.color, flexDirection: 'row', alignItems: 'center' }]} onPress={onOpenRisk}>
+                <Text style={{ fontSize: 32, marginRight: 12 }}>{health.emoji}</Text>
+                <View style={{ flex: 1 }}>
+                    <Text style={s.cardTitle}>Debt & Risk: {health.label} ({risk.score}/100)</Text>
+                    {briefing[0] && <Text style={s.briefingLine}>{briefing[0]}</Text>}
                 </View>
-                {briefing.map((line, i) => (
-                    <Text key={i} style={s.briefingLine}>• {line}</Text>
-                ))}
-            </View>
+                <Text style={{ fontSize: 18, color: Colors.primary }}>→</Text>
+            </TouchableOpacity>
 
             {/* Today's focus */}
             <View style={[s.card, { backgroundColor: Colors.primary + '15', borderColor: Colors.primary + '40', borderWidth: 1 }]}>
@@ -140,23 +140,6 @@ function PulseTab() {
                 </View>
             </View>
 
-            {/* Score pillars */}
-            <View style={s.card}>
-                <Text style={s.cardTitle}>What's Driving Your Score</Text>
-                {risk.factors.map(f => (
-                    <View key={f.name} style={{ marginBottom: 10 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 3 }}>
-                            <Text style={[s.pillarDot, { color: statusColor(f.status) }]}>●</Text>
-                            <Text style={s.pillarName}>{f.name}</Text>
-                            <Text style={[s.pillarScore, { color: statusColor(f.status) }]}>{f.score}/100</Text>
-                        </View>
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                            <View style={{ width: 16 }} />
-                            <MiniBar pct={f.score} color={statusColor(f.status)} />
-                        </View>
-                    </View>
-                ))}
-            </View>
 
             {/* Risks */}
             {summary.topRisks.length > 0 && (
@@ -685,7 +668,7 @@ export default function CFOScreen() {
                             </TouchableOpacity>
                         ))}
                     </ScrollView>
-                    {activeTab === 'pulse'    && <PulseTab />}
+                    {activeTab === 'pulse'    && <PulseTab onOpenRisk={() => setActiveTab('risk')} />}
                     {activeTab === 'forecast' && <ForecastTab />}
                     {activeTab === 'finance'  && <FinanceTab />}
                     {activeTab === 'risk'     && <RiskTab />}

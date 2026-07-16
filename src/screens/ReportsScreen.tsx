@@ -10,8 +10,6 @@ import FooterNav from '../components/FooterNav';
 import InfoTip from '../components/InfoTip';
 import AgingReport from '../components/AgingReport';
 import TaxSummary from '../components/TaxSummary';
-import SwotAnalysis from '../components/SwotAnalysis';
-import FinancialHealthAssessment from '../components/FinancialHealthAssessment';
 import BudgetForecast from '../components/BudgetForecast';
 import CashManagement from '../components/CashManagement';
 import DebtAnalysis from '../components/DebtAnalysis';
@@ -497,25 +495,29 @@ export default function ReportsScreen() {
                         />
                     )}
 
-                    {/* ── HEALTH SCORE ─────────────────────────────────── */}
-                    {activeTab === 'health' && (
-                        <FinancialHealthAssessment
-                            finance={allFinance}
-                            transactions={transactions}
-                            invoices={invoices}
-                            assets={assets}
-                            currency={currency}
-                            minReserve={minReserve}
-                            targetMargin={targetMargin}
-                        />
-                    )}
-
-                    {/* ── SWOT ─────────────────────────────────────────── */}
-                    {activeTab === 'swot' && (
-                        <>
-                            <SwotAnalysis />
+                    {/* ── HEALTH SCORE + SWOT ──────────────────────────────
+                        Both used to fully re-render here — the same score
+                        (performFinancialDiagnosis) and the same <SwotAnalysis/>
+                        component Financial Assessment already shows, reachable
+                        from the Business Advisor's top card. Two full copies of
+                        identical content in two different places just makes the
+                        numbers feel untrustworthy when they're compared side by
+                        side, even though they're actually always in sync. One
+                        real page now, linked from here instead of duplicated. */}
+                    {(activeTab === 'health' || activeTab === 'swot') && (
+                        <View style={styles.redirectCard}>
+                            <Text style={styles.redirectTitle}>💪 Business Health & SWOT</Text>
+                            <Text style={styles.redirectText}>
+                                Your full health score, SWOT analysis, root-cause diagnosis and recommended actions
+                                live on one page now, not split across Reports and the Business Advisor.
+                            </Text>
+                            <NextStepLink
+                                emphasis="button"
+                                text="Open Business Health & SWOT"
+                                onPress={() => setCurrentScreen('financial-assessment')}
+                            />
                             <NextStepLink text="See how this looks across multiple years" onPress={() => setCurrentScreen('trends')} />
-                        </>
+                        </View>
                     )}
 
                     {/* ── GROWTH METRICS ───────────────────────────────── */}
@@ -984,6 +986,10 @@ const styles = StyleSheet.create({
     safe:   { flex: 1, backgroundColor: Colors.bg },
     scroll: { flex: 1 },
     pad:    { padding: 16 },
+
+    redirectCard:  { backgroundColor: Colors.surface, borderRadius: 14, padding: 20 },
+    redirectTitle: { fontSize: 16, fontWeight: '800', color: Colors.textPrimary, marginBottom: 8 },
+    redirectText:  { fontSize: 13, color: Colors.textSecondary, lineHeight: 19, marginBottom: 4 },
 
     landingScroll: { flex: 1 },
     landingPad:    { padding: 16, paddingBottom: 40 },
