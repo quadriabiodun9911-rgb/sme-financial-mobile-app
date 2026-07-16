@@ -5,6 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider } from './src/contexts/ThemeContext';
 import { AuthProvider, SettingsProvider, FinanceProvider, GoalProvider, InvoiceProvider, useAuth } from './src/contexts/OptimizedContexts';
 import { trackScreenViewed } from './src/utils/analytics';
+import { initSentry, setSentryUser } from './src/utils/sentry';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import LoginScreen from './src/screens/LoginScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
@@ -55,6 +56,10 @@ function NavigatorContent() {
             trackScreenViewed(currentScreen);
         }
     }, [currentScreen, isLoading]);
+
+    useEffect(() => {
+        setSentryUser(user?.email ?? null);
+    }, [user?.email]);
 
     useEffect(() => {
         if (Platform.OS !== 'android') return;
@@ -145,6 +150,8 @@ function OtaUpdater() {
     }, []);
     return null;
 }
+
+initSentry();
 
 export default function App() {
     return (

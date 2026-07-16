@@ -2,6 +2,7 @@ import React, { Component, ReactNode } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView } from 'react-native';
 import { Colors } from '../theme/colors';
 import { BUILD_STAMP } from '../utils/buildInfo';
+import { captureCrash } from '../utils/sentry';
 
 interface Props { children: ReactNode }
 interface State { error: Error | null; stack: string }
@@ -15,6 +16,7 @@ export default class ErrorBoundary extends Component<Props, State> {
 
     componentDidCatch(error: Error, info: React.ErrorInfo) {
         console.error('[ErrorBoundary]', error, info.componentStack);
+        captureCrash(error, info.componentStack || undefined);
         // Keep the top of the component stack so the crashing screen is visible
         // in the UI (helps diagnose from a screenshot, not just the console).
         const top = (info.componentStack || '')
