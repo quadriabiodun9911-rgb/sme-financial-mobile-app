@@ -4,6 +4,7 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
+import LowDataNotice from '../components/LowDataNotice';
 
 export default function BorrowMoneyScreen() {
   const { transactions, invoices, finance, settings } = useApp();
@@ -106,6 +107,8 @@ export default function BorrowMoneyScreen() {
           <Text style={styles.title}>🏦 BORROW MONEY</Text>
           <Text style={styles.subtitle}>Lending & Funding Readiness</Text>
         </View>
+
+        <LowDataNotice transactionCount={transactions.length} label="your credit score and lending readiness" />
 
         {/* Credit Score */}
         <View style={styles.creditScoreCard}>

@@ -7,6 +7,7 @@ import { monthlyPayment as calcMonthlyPayment } from '../utils/loanMath';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
+import LowDataNotice from '../components/LowDataNotice';
 
 export default function CreditWorthinessScreen() {
     const { user, finance, transactions, loans, navigate, settings } = useApp();
@@ -141,6 +142,8 @@ export default function CreditWorthinessScreen() {
 
                 <Text style={s.title}>💳 Credit-Worthiness</Text>
                 <Text style={s.subtitle}>Track factors that lenders evaluate</Text>
+
+                <LowDataNotice transactionCount={transactions.length} label="your credit-worthiness score" />
 
                 {/* Overall Score Card */}
                 <View style={[s.scoreCard, { borderTopColor: creditRating.color, borderTopWidth: 4 }]}>

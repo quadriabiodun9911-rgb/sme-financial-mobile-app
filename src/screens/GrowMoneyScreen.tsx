@@ -4,6 +4,7 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
+import LowDataNotice from '../components/LowDataNotice';
 
 export default function GrowMoneyScreen() {
   const { transactions, finance, navigate, settings } = useApp();
@@ -44,6 +45,8 @@ export default function GrowMoneyScreen() {
           <Text style={styles.title}>📈 GROW MONEY</Text>
           <Text style={styles.subtitle}>Growth Analytics & Valuation</Text>
         </View>
+
+        <LowDataNotice transactionCount={transactions.length} label="growth and valuation figures" />
 
         {/* Growth Metrics */}
         <View style={styles.metricsGrid}>

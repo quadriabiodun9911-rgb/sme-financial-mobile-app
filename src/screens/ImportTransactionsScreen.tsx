@@ -1,10 +1,11 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
     View, Text, TouchableOpacity, ScrollView, StyleSheet,
     Alert, ActivityIndicator, FlatList, Modal, Platform,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Papa from 'papaparse';
 import ExcelJS from 'exceljs';
 import { useApp } from '../contexts/AppContext';
@@ -59,8 +60,28 @@ const CATEGORY_RULES: { keywords: string[]; category: TxCategory; subCategory: s
     { keywords: ['refund', 'reversal'],                                                             category: 'income',   subCategory: 'Refund' },
 ];
 
-// ─── Learned rules (in-memory, session only) ─────────────────────────────────
+// ─── Learned rules ────────────────────────────────────────────────────────────
+// Persisted to AsyncStorage so a category correction made in one import
+// session still applies to future statement uploads, not just this one.
+const LEARNED_RULES_KEY = 'quad360_learned_category_rules_v1';
 const learnedRules: Map<string, { category: TxCategory; subCategory: string }> = new Map();
+let learnedRulesLoaded = false;
+
+async function loadLearnedRules(): Promise<void> {
+    if (learnedRulesLoaded) return;
+    learnedRulesLoaded = true;
+    try {
+        const raw = await AsyncStorage.getItem(LEARNED_RULES_KEY);
+        if (raw) {
+            const entries: [string, { category: TxCategory; subCategory: string }][] = JSON.parse(raw);
+            entries.forEach(([k, v]) => learnedRules.set(k, v));
+        }
+    } catch { /* ignore corrupt/missing cache */ }
+}
+
+function persistLearnedRules(): void {
+    AsyncStorage.setItem(LEARNED_RULES_KEY, JSON.stringify(Array.from(learnedRules.entries()))).catch(() => {});
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -247,10 +268,13 @@ export default function ImportTransactionsScreen() {
     // Web fallback: hidden <input type="file"> for iOS Safari
     const webInputRef = useRef<any>(null);
 
+    useEffect(() => { loadLearnedRules(); }, []);
+
     const processFile = useCallback(async (uri: string, name: string) => {
         setLoading(true);
         setError('');
         try {
+            await loadLearnedRules();
             const isExcel = /\.(xlsx|xls)$/i.test(name);
             const isPdf   = /\.pdf$/i.test(name);
             let rawRows: Record<string, string>[] = [];
@@ -381,6 +405,7 @@ export default function ImportTransactionsScreen() {
             learnedRules.set(key, { category: opt.category, subCategory: opt.subCategory });
             return { ...r, category: opt.category, subCategory: opt.subCategory, flagged: false };
         }));
+        persistLearnedRules();
         setPickerRow(null);
     };
 
