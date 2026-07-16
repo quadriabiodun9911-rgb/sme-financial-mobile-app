@@ -473,6 +473,7 @@ export default function ReportsScreen() {
                         <EnhancedDebtManagement
                             finance={allFinance}
                             currency={currency}
+                            loans={loansList}
                         />
                     )}
 

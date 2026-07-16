@@ -1,15 +1,29 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
-import { FinanceData } from '../types';
+import { FinanceData, Loan } from '../types';
 
 interface Props {
     finance: FinanceData;
     currency: string;
+    loans?: Loan[];
 }
 
-export default function EnhancedDebtManagement({ finance, currency }: Props) {
-    const liabilities = finance.liabilities;
+export default function EnhancedDebtManagement({ finance, currency, loans = [] }: Props) {
+    // finance.liabilities only ever reflects Settings' manual "opening
+    // liabilities" figure — computeFinance never folds in the live Loan
+    // Register (each screen is expected to add that itself, per its own
+    // comment), and this component never did. That's why this page showed
+    // £0 total debt / a 100 health score with two active loans totalling
+    // £598,500 sitting in the Loan Register. Mirrors the same live-balance
+    // calculation ReportsScreen's own Balance Sheet tab already uses.
+    const liveLoanBalance = loans
+        .filter(l => l.status === 'active')
+        .reduce((sum, l) => {
+            const paid = (l.payments ?? []).reduce((s, p) => s + (p.amount || 0), 0);
+            return sum + Math.max(0, (l.principal || 0) - paid);
+        }, 0);
+    const liabilities = finance.liabilities + liveLoanBalance;
     const assets = finance.assets;
     const equity = finance.equity;
     const profit = finance.profit;
