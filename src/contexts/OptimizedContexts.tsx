@@ -11,6 +11,7 @@
 import React, { createContext, useContext, useState, useMemo, useEffect, ReactNode } from 'react';
 import { User, Invoice, InvoiceStatus, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, StaffMember, PayrollRun, PayrollItem, CashPocket, UserRole } from '../types';
 import { computeFinance, computeAssetCurrentValue } from '../utils/finance';
+import { sanitizeStoredGoals } from '../utils/goals';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   loadTransactions, saveTransactions,
@@ -352,24 +353,7 @@ export function GoalProvider({ children }: { children: ReactNode }) {
     (async () => {
       try {
         const g = await loadGoals();
-        if (g) {
-          // Drop goals corrupted by a historical addGoal(type, {...}) bug that
-          // spread a string instead of an object (title/targetValue/etc. lost,
-          // only a generated id survived) — unrecoverable, so filter them out
-          // rather than let every screen guard against missing fields forever.
-          const valid = g.filter((goal) =>
-            typeof goal?.title === 'string' &&
-            typeof goal?.targetValue === 'number' &&
-            typeof goal?.deadline === 'string' &&
-            typeof goal?.type === 'string'
-          ).map((goal) => ({
-            ...goal,
-            status: goal.status || 'on_track',
-            progress: typeof goal.progress === 'number' ? goal.progress : 0,
-            createdAt: goal.createdAt || new Date().toISOString(),
-          }));
-          setGoals(valid);
-        }
+        if (g) setGoals(sanitizeStoredGoals(g));
       }
       catch (e) { console.error('[Goals] hydrate failed:', e); }
       finally { setHydrated(true); }

@@ -280,6 +280,70 @@ export function generateStrategy(
     return { goalId: goal.id, actions, generatedAt: new Date().toISOString() };
 }
 
+// ─── New goal construction ─────────────────────────────────────────────────────
+
+export interface NewGoalInput {
+    type: GoalType;
+    title: string;
+    description: string;
+    targetValue: number;
+    deadline: string;
+    percentTarget?: number;
+}
+
+// Builds a complete, valid FinancialGoal from a creation-form input. Exists so
+// there is exactly one place that assembles a new goal — a screen previously
+// called addGoal(type, {...}) with two arguments instead of passing a single
+// complete object, which silently corrupted every goal created through the
+// UI (see GoalsScreen regression tests). Centralising construction here means
+// that class of bug can't recur independently on another screen.
+export function buildNewGoal(
+    input: NewGoalInput,
+    finance: FinanceData,
+    settings: BusinessSettings,
+    transactions: Transaction[] = [],
+): FinancialGoal {
+    const defaults = goalDefaults(input.type, finance, settings, transactions);
+    const baselineValue = defaults.baselineValue ?? 0;
+    const unit = defaults.unit ?? settings.currency;
+    return {
+        id: '',
+        type: input.type,
+        title: input.title,
+        description: input.description,
+        targetValue: input.targetValue,
+        unit,
+        baselineValue,
+        currentValue: baselineValue,
+        deadline: input.deadline,
+        createdAt: new Date().toISOString(),
+        status: 'on_track',
+        progress: 0,
+        percentTarget: input.percentTarget,
+    };
+}
+
+// Filters out goals corrupted by the historical addGoal(type, {...}) bug
+// (see buildNewGoal above) — records missing title/targetValue/deadline/type
+// are unrecoverable garbage, not partial data, so they're dropped rather than
+// guarded against forever at every render site. Goals that are fixable
+// (missing only status/progress/createdAt) are backfilled instead of dropped.
+export function sanitizeStoredGoals(goals: FinancialGoal[]): FinancialGoal[] {
+    return goals
+        .filter((goal) =>
+            typeof goal?.title === 'string' &&
+            typeof goal?.targetValue === 'number' &&
+            typeof goal?.deadline === 'string' &&
+            typeof goal?.type === 'string'
+        )
+        .map((goal) => ({
+            ...goal,
+            status: goal.status || 'on_track',
+            progress: typeof goal.progress === 'number' ? goal.progress : 0,
+            createdAt: goal.createdAt || new Date().toISOString(),
+        }));
+}
+
 // ─── Goal template defaults ───────────────────────────────────────────────────
 
 export function goalDefaults(

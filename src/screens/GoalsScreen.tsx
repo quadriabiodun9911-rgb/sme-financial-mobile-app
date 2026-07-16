@@ -9,7 +9,7 @@ import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import DateInput from '../components/DateInput';
 import { GoalType, FinancialGoal, Transaction } from '../types';
-import { generateStrategy, goalDefaults } from '../utils/goals';
+import { generateStrategy, goalDefaults, buildNewGoal } from '../utils/goals';
 import { calculateGoalBridge, mapSavedGoalToBridge } from '../utils/goalBridgeEngine';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan } from '../utils/actionRecommendationEngine';
@@ -146,24 +146,14 @@ export default function GoalsScreen() {
         if (isNaN(tv)) { Alert.alert('Please enter an amount', 'Type in the target amount, e.g. 50000'); return; }
 
         const pct = parseFloat(form.percentTarget);
-        const defaults = goalDefaults(selectedType, finance, settings, transactions);
-        const baselineValue = defaults.baselineValue ?? 0;
-        const unit = defaults.unit ?? settings.currency;
-        addGoal({
-            id: '',
+        addGoal(buildNewGoal({
             type: selectedType,
             title: form.title.trim(),
             description: form.description.trim(),
             targetValue: tv,
-            unit,
-            baselineValue,
-            currentValue: baselineValue,
             deadline: form.deadline,
-            createdAt: new Date().toISOString(),
-            status: 'on_track',
-            progress: 0,
             percentTarget: isNaN(pct) ? undefined : pct,
-        });
+        }, finance, settings, transactions));
         setAddModalOpen(false);
         setSelectedType(null);
     };

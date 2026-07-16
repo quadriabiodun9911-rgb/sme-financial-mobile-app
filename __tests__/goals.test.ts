@@ -1,4 +1,4 @@
-import { computeGoalProgress, computeGoalStatus, refreshGoal, generateStrategy, goalDefaults } from '../src/utils/goals';
+import { computeGoalProgress, computeGoalStatus, refreshGoal, generateStrategy, goalDefaults, buildNewGoal, sanitizeStoredGoals } from '../src/utils/goals';
 import { FinancialGoal, FinanceData, Transaction } from '../src/types';
 
 const makeFinance = (overrides: Partial<FinanceData> = {}): FinanceData => ({
@@ -164,5 +164,121 @@ describe('generateStrategy', () => {
         const strategy = generateStrategy(goal, makeFinance({ cashBalance: 2000 }), txs, settings);
         const hasARAction = strategy.actions.some(a => a.detail.toLowerCase().includes('overdue') || a.detail.toLowerCase().includes('receivable'));
         expect(hasARAction).toBe(true);
+    });
+});
+
+// ─── buildNewGoal ─────────────────────────────────────────────────────────────
+//
+// Regression coverage for a real production bug: the goal-creation screen
+// used to call addGoal(type, {...}) — two arguments — against a single-
+// argument addGoal(goal). JS silently drops the extra argument, so `goal`
+// inside addGoal became the raw type STRING, and spreading a string
+// ({...goal}) produces an object of indexed characters with none of the
+// real fields (no title, no progress, nothing but a generated id). Every
+// goal created through the UI was corrupted this way, and every screen that
+// later rendered goal.progress.toFixed(0) or goal.status.replace(...)
+// crashed on real user accounts while a fresh account never hit it.
+//
+// buildNewGoal is the single place that now assembles a new goal, called
+// with ONE argument. These tests assert the object it returns is complete
+// and well-typed, so that specific bug class cannot silently reappear.
+
+describe('buildNewGoal', () => {
+    const finance = makeFinance();
+
+    it('returns a complete FinancialGoal with every required field populated', () => {
+        const goal = buildNewGoal(
+            { type: 'revenue_growth', title: 'Grow Revenue', description: 'Reach 120k', targetValue: 120000, deadline: '2027-01-01' },
+            finance,
+            settings,
+            []
+        );
+        expect(typeof goal.title).toBe('string');
+        expect(goal.title).toBe('Grow Revenue');
+        expect(typeof goal.targetValue).toBe('number');
+        expect(goal.targetValue).toBe(120000);
+        expect(typeof goal.progress).toBe('number');
+        expect(goal.progress).toBe(0);
+        expect(typeof goal.status).toBe('string');
+        expect(goal.status).toBe('on_track');
+        expect(typeof goal.deadline).toBe('string');
+        expect(goal.deadline).toBe('2027-01-01');
+        expect(typeof goal.createdAt).toBe('string');
+        expect(typeof goal.baselineValue).toBe('number');
+        expect(typeof goal.currentValue).toBe('number');
+        expect(typeof goal.unit).toBe('string');
+    });
+
+    it('seeds baselineValue and currentValue from the live finance data for the chosen goal type', () => {
+        const goal = buildNewGoal(
+            { type: 'revenue_growth', title: 'Grow Revenue', description: '', targetValue: 150000, deadline: '2027-01-01' },
+            finance,
+            settings,
+            []
+        );
+        expect(goal.baselineValue).toBe(finance.income);
+        expect(goal.currentValue).toBe(finance.income);
+    });
+
+    it('is never accidentally passed as a second argument — the resulting object has no numeric-string keys from a spread type string', () => {
+        const goal = buildNewGoal(
+            { type: 'cost_reduction', title: 'Cut Costs', description: '', targetValue: 40000, deadline: '2027-01-01' },
+            finance,
+            settings,
+            []
+        ) as any;
+        // The historical bug produced objects like {0:'c',1:'o',2:'s',...,id:'...'}.
+        // A correctly-built goal must not have single-character-indexed keys.
+        expect(goal['0']).toBeUndefined();
+        expect(goal['1']).toBeUndefined();
+    });
+
+    it('carries an optional percentTarget through when provided', () => {
+        const goal = buildNewGoal(
+            { type: 'revenue_growth', title: 'Grow', description: '', targetValue: 120000, deadline: '2027-01-01', percentTarget: 20 },
+            finance,
+            settings,
+            []
+        );
+        expect(goal.percentTarget).toBe(20);
+    });
+});
+
+// ─── sanitizeStoredGoals ────────────────────────────────────────────────────
+//
+// Real corrupted records this bug produced looked exactly like a spread
+// string: {"0":"r","1":"e","2":"v",...,"id":"id-123"} — no title, no
+// targetValue, no deadline, no type. These tests use that exact shape.
+
+describe('sanitizeStoredGoals', () => {
+    const corruptedGoal = { '0': 'r', '1': 'e', '2': 'v', id: 'id-corrupt-1' } as unknown as ReturnType<typeof makeGoal>;
+
+    it('drops goals corrupted by the string-spread bug (no title/targetValue/deadline/type)', () => {
+        const cleaned = sanitizeStoredGoals([corruptedGoal]);
+        expect(cleaned).toHaveLength(0);
+    });
+
+    it('keeps a well-formed goal untouched aside from backfilling', () => {
+        const goal = makeGoal();
+        const cleaned = sanitizeStoredGoals([goal]);
+        expect(cleaned).toHaveLength(1);
+        expect(cleaned[0].title).toBe(goal.title);
+        expect(cleaned[0].progress).toBe(goal.progress);
+    });
+
+    it('backfills status/progress/createdAt on an otherwise-valid goal missing them', () => {
+        const partial = { ...makeGoal(), status: undefined, progress: undefined, createdAt: undefined } as any;
+        const cleaned = sanitizeStoredGoals([partial]);
+        expect(cleaned).toHaveLength(1);
+        expect(cleaned[0].status).toBe('on_track');
+        expect(cleaned[0].progress).toBe(0);
+        expect(typeof cleaned[0].createdAt).toBe('string');
+    });
+
+    it('filters a mixed list, keeping only the valid entries', () => {
+        const good = makeGoal({ id: 'good-1' });
+        const cleaned = sanitizeStoredGoals([corruptedGoal, good]);
+        expect(cleaned).toHaveLength(1);
+        expect(cleaned[0].id).toBe('good-1');
     });
 });
