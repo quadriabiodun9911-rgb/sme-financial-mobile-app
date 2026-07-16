@@ -4,7 +4,7 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 
 export default function Header() {
-    const { user, logout, setCurrentScreen, currentScreen } = useApp();
+    const { user, logout, setCurrentScreen, goBack, currentScreen } = useApp();
     const showBack = currentScreen !== 'dashboard' && currentScreen !== 'login';
     const { width } = useWindowDimensions();
     const isNarrow = width < 480;
@@ -13,7 +13,7 @@ export default function Header() {
         <View style={styles.header}>
             <View style={styles.left}>
                 {showBack && (
-                    <TouchableOpacity style={styles.backBtn} onPress={() => setCurrentScreen('dashboard')}>
+                    <TouchableOpacity style={styles.backBtn} onPress={() => { if (!goBack()) setCurrentScreen('dashboard'); }}>
                         <Text style={styles.backText}>← Back</Text>
                     </TouchableOpacity>
                 )}

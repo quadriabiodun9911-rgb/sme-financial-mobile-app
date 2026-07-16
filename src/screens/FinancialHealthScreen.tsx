@@ -108,7 +108,7 @@ export default function FinancialHealthScreen() {
         <ScrollView style={styles.container} contentContainerStyle={styles.content}>
             {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => { if (!goBack()) navigate('cfo'); }}>
+                <TouchableOpacity onPress={() => { if (!goBack()) navigate('dashboard'); }}>
                     <Text style={styles.backBtn}>← Back</Text>
                 </TouchableOpacity>
                 <View>
