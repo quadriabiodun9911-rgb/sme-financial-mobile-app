@@ -235,7 +235,7 @@ export default function FundingQualificationScreen() {
           <Text style={styles.sectionTitle}>🏅 Achievements</Text>
 
           <AchievementItem earned title="First 30 Days" progress={qualificationMetrics.daysActive >= 30 ? 100 : (qualificationMetrics.daysActive / 30) * 100} />
-          <AchievementItem earned={qualificationMetrics.totalRecordedRevenue >= 1000000} title="First ₦1 Million Revenue" progress={Math.min((qualificationMetrics.totalRecordedRevenue / 1000000) * 100, 100)} />
+          <AchievementItem earned={qualificationMetrics.totalRecordedRevenue >= 1000000} title={`First ${settings.currency}1 Million Revenue`} progress={Math.min((qualificationMetrics.totalRecordedRevenue / 1000000) * 100, 100)} />
           <AchievementItem earned={qualificationMetrics.daysActive >= 90} title="90 Consecutive Active Days" progress={Math.min((qualificationMetrics.daysActive / 90) * 100, 100)} />
           <AchievementItem earned={qualificationMetrics.daysActive >= 180} title="Six Months Profit History" progress={Math.min((qualificationMetrics.daysActive / 180) * 100, 100)} />
           <AchievementItem earned={qualificationMetrics.overall >= 80} title="Funding Ready" progress={qualificationMetrics.overall} />

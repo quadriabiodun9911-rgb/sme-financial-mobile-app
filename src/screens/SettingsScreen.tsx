@@ -444,7 +444,7 @@ export default function SettingsScreen() {
                                 keyboardType="numeric" placeholder="5000" placeholderTextColor={Colors.muted} />
 
                             <FieldLabel>How much of each sale should be profit? (%)</FieldLabel>
-                            <Text style={styles.hint}>Example: if you charge ₦1,000 and your costs are ₦400, your profit is 60%.</Text>
+                            <Text style={styles.hint}>Example: if you charge {form.currency}1,000 and your costs are {form.currency}400, your profit is 60%.</Text>
                             <TextInput style={styles.input} value={form.targetMargin}
                                 onChangeText={v => setForm((f: typeof form) => ({ ...f, targetMargin: v }))}
                                 keyboardType="numeric" placeholder="65" placeholderTextColor={Colors.muted} />
