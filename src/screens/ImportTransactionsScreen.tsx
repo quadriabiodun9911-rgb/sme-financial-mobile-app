@@ -11,6 +11,7 @@ import ExcelJS from 'exceljs';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { parsePdfStatement } from '../utils/pdfParser';
+import { filterNewTransactions } from '../utils/transactionDedup';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -353,7 +354,7 @@ const CATEGORY_OPTIONS: { label: string; category: TxCategory; subCategory: stri
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function ImportTransactionsScreen() {
-    const { navigate, goBack, addTransaction, settings } = useApp();
+    const { navigate, goBack, addTransaction, transactions, settings } = useApp();
     const currency = (settings as any).currency || '₦';
 
     const [step,       setStep]       = useState<'upload' | 'preview' | 'done'>('upload');
@@ -364,6 +365,7 @@ export default function ImportTransactionsScreen() {
     const [skippedNote, setSkippedNote] = useState('');
     const [openingBalance, setOpeningBalance] = useState<number | undefined>(undefined);
     const [closingBalance, setClosingBalance] = useState<number | undefined>(undefined);
+    const [duplicatesSkipped, setDuplicatesSkipped] = useState(0);
     const [imported,   setImported]   = useState(0);
 
     // Web fallback: hidden <input type="file"> for iOS Safari
@@ -543,7 +545,7 @@ export default function ImportTransactionsScreen() {
     const handleImport = () => {
         const flagged = rows.filter(r => r.flagged);
         if (flagged.length > 0) {
-            const title = `${flagged.length} transaction${flagged.length > 1 ? 's' : ''} need a category`;
+            const title = `${flagged.length} transaction${flagged.length > 1 ? 's' : ''} ${flagged.length > 1 ? 'need' : 'needs'} a category`;
             const message = 'Please assign a category to all flagged rows (marked ⚠️) before importing.';
             // Alert.alert doesn't render on Expo web, so this guard was
             // silently no-opping there — the button looked "dead" because
@@ -556,7 +558,14 @@ export default function ImportTransactionsScreen() {
             return;
         }
 
-        rows.forEach((r, idx) => {
+        // Same guard used by Reconciliation and the other bank-statement
+        // import paths — without it, re-uploading the same (or an
+        // overlapping) statement would silently double every transaction
+        // in it, with no warning.
+        const newRows = filterNewTransactions(rows, transactions as any);
+        const duplicateCount = rows.length - newRows.length;
+
+        newRows.forEach((r, idx) => {
             addTransaction({
                 date:                r.date,
                 description:         r.description,
@@ -572,7 +581,8 @@ export default function ImportTransactionsScreen() {
             });
         });
 
-        setImported(rows.length);
+        setImported(newRows.length);
+        setDuplicatesSkipped(duplicateCount);
         setStep('done');
     };
 
@@ -651,7 +661,7 @@ export default function ImportTransactionsScreen() {
                 >
                     {loading
                         ? <ActivityIndicator color="#fff" />
-                        : <Text style={styles.primaryBtnText}>📁  Choose file (CSV, Excel or PDF)</Text>
+                        : <Text style={styles.primaryBtnText}>📁  Choose file (CSV, TXT, Excel or PDF)</Text>
                     }
                 </TouchableOpacity>
             </ScrollView>
@@ -665,12 +675,17 @@ export default function ImportTransactionsScreen() {
         return (
             <View style={[styles.container, styles.centred]}>
                 <Text style={styles.doneIcon}>✅</Text>
-                <Text style={styles.doneTitle}>{imported} transactions imported</Text>
+                <Text style={styles.doneTitle}>{imported} transaction{imported !== 1 ? 's' : ''} imported</Text>
                 <Text style={styles.doneSub}>Your dashboard and reports have been updated.</Text>
+                {duplicatesSkipped > 0 && (
+                    <Text style={styles.doneSkippedNote}>
+                        {duplicatesSkipped} row{duplicatesSkipped > 1 ? 's' : ''} already existed and {duplicatesSkipped > 1 ? 'were' : 'was'} skipped to avoid duplicate transactions.
+                    </Text>
+                )}
                 <TouchableOpacity style={[styles.primaryBtn, { marginTop: 32, width: 220 }]} onPress={() => navigate('transactions')}>
                     <Text style={styles.primaryBtnText}>View Transactions</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.ghostBtn} onPress={() => { setStep('upload'); setRows([]); setError(''); setSkippedNote(''); setOpeningBalance(undefined); setClosingBalance(undefined); }}>
+                <TouchableOpacity style={styles.ghostBtn} onPress={() => { setStep('upload'); setRows([]); setError(''); setSkippedNote(''); setOpeningBalance(undefined); setClosingBalance(undefined); setDuplicatesSkipped(0); }}>
                     <Text style={styles.ghostBtnText}>Import another file</Text>
                 </TouchableOpacity>
             </View>
@@ -880,4 +895,5 @@ const styles = StyleSheet.create({
     doneIcon:  { fontSize: 64, marginBottom: 16 },
     doneTitle: { fontSize: 22, fontWeight: '800', color: Colors.textPrimary, textAlign: 'center' },
     doneSub:   { fontSize: 14, color: Colors.textSecondary, textAlign: 'center', marginTop: 8 },
+    doneSkippedNote: { fontSize: 12, color: Colors.textMuted, textAlign: 'center', marginTop: 10, paddingHorizontal: 20 },
 });
