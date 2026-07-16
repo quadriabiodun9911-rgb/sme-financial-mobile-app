@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text,
     TouchableOpacity, StyleSheet, TextInput, Modal, Alert, Platform,
@@ -116,11 +116,17 @@ export default function BudgetScreen() {
     // the profit/cash effect and solution update live, before committing
     // anything — rather than editing one category at a time and having to
     // mentally recompute the total effect themselves.
+    const scrollRef = useRef<ScrollView>(null);
     const openAdjustMode = () => {
         const seed: Record<string, string> = {};
         budgets.forEach(b => { seed[b.id] = String(b.monthlyAmount); });
         setAdjustedAmounts(seed);
         setAdjustMode(true);
+        // The adjust panel lives inside the Budget Strategy card near the
+        // top of the scroll — jump there so triggering it from the sticky
+        // header (reachable from anywhere on the page) doesn't leave users
+        // staring at whatever section they'd scrolled down to.
+        scrollRef.current?.scrollTo({ y: 0, animated: true });
     };
     const cancelAdjustMode = () => { setAdjustMode(false); setAdjustedAmounts({}); };
     const applyAdjustments = () => {
@@ -241,6 +247,16 @@ export default function BudgetScreen() {
                     <Text style={s.backBtn}>← Dashboard</Text>
                 </TouchableOpacity>
                 <Text style={s.screenTitle}>Budget</Text>
+                {budgets.length > 0 && (
+                    <TouchableOpacity
+                        style={[s.autoBtn, adjustMode && { backgroundColor: Colors.primary }]}
+                        onPress={() => (adjustMode ? cancelAdjustMode() : openAdjustMode())}
+                    >
+                        <Text style={[s.autoBtnText, adjustMode && { color: '#fff' }]}>
+                            {adjustMode ? '✕ Cancel Adjust' : '🎚 Adjust'}
+                        </Text>
+                    </TouchableOpacity>
+                )}
                 {transactions.length >= 5 && (
                     <TouchableOpacity style={s.autoBtn} onPress={openAutoGen}>
                         <Text style={s.autoBtnText}>🤖 Auto</Text>
@@ -251,7 +267,7 @@ export default function BudgetScreen() {
                 </TouchableOpacity>
             </View>
 
-            <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
+            <ScrollView ref={scrollRef} style={s.scroll} contentContainerStyle={s.pad}>
                 {/* Month summary */}
                 <View style={s.summaryCard}>
                     <Text style={s.summaryMonth}>{monthLabel}</Text>
