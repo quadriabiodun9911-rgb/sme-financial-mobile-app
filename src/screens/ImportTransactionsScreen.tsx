@@ -431,10 +431,16 @@ export default function ImportTransactionsScreen() {
     const handleImport = () => {
         const flagged = rows.filter(r => r.flagged);
         if (flagged.length > 0) {
-            Alert.alert(
-                `${flagged.length} transaction${flagged.length > 1 ? 's' : ''} need a category`,
-                'Please assign a category to all flagged rows (marked ⚠️) before importing.',
-            );
+            const title = `${flagged.length} transaction${flagged.length > 1 ? 's' : ''} need a category`;
+            const message = 'Please assign a category to all flagged rows (marked ⚠️) before importing.';
+            // Alert.alert doesn't render on Expo web, so this guard was
+            // silently no-opping there — the button looked "dead" because
+            // nothing visibly happened when rows were still flagged.
+            if (Platform.OS === 'web') {
+                window.alert(`${title}\n\n${message}`);
+            } else {
+                Alert.alert(title, message);
+            }
             return;
         }
 
