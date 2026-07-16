@@ -7,4 +7,4 @@
  * cache, or otherwise). Bump BUILD_STAMP any time this file is touched as
  * part of a fix, so the next crash report is self-diagnosing.
  */
-export const BUILD_STAMP = '2026-07-15T23:49Z-cachefix';
+export const BUILD_STAMP = '2026-07-16T00:30Z-goalcrashfix';

@@ -146,11 +146,22 @@ export default function GoalsScreen() {
         if (isNaN(tv)) { Alert.alert('Please enter an amount', 'Type in the target amount, e.g. 50000'); return; }
 
         const pct = parseFloat(form.percentTarget);
-        addGoal(selectedType, {
+        const defaults = goalDefaults(selectedType, finance, settings, transactions);
+        const baselineValue = defaults.baselineValue ?? 0;
+        const unit = defaults.unit ?? settings.currency;
+        addGoal({
+            id: '',
+            type: selectedType,
             title: form.title.trim(),
             description: form.description.trim(),
             targetValue: tv,
+            unit,
+            baselineValue,
+            currentValue: baselineValue,
             deadline: form.deadline,
+            createdAt: new Date().toISOString(),
+            status: 'on_track',
+            progress: 0,
             percentTarget: isNaN(pct) ? undefined : pct,
         });
         setAddModalOpen(false);
@@ -504,14 +515,14 @@ function GoalCard({ goal, currency, daysRemaining, feasibility, onStrategy, onBr
                 <Text style={[cardStyles.progressPct, { color: Colors.textMuted, width: 'auto', marginBottom: 12, fontSize: 12 }]}>Not started yet</Text>
             ) : goal.progress > 100 ? (
                 <Text style={[cardStyles.progressPct, { color: Colors.income, width: 'auto', marginBottom: 12, fontSize: 13, fontWeight: 'bold' }]}>
-                    🎉 Goal achieved! {goal.progress.toFixed(0)}%
+                    🎉 Goal achieved! {(goal.progress ?? 0).toFixed(0)}%
                 </Text>
             ) : (
                 <View style={cardStyles.progressSection}>
                     <View style={cardStyles.progressTrack}>
                         <View style={[cardStyles.progressFill, { width: `${Math.min(goal.progress, 100)}%` as any, backgroundColor: statusColor }]} />
                     </View>
-                    <Text style={[cardStyles.progressPct, { color: statusColor }]}>{goal.progress.toFixed(0)}%</Text>
+                    <Text style={[cardStyles.progressPct, { color: statusColor }]}>{(goal.progress ?? 0).toFixed(0)}%</Text>
                 </View>
             )}
             <View style={cardStyles.bigNumbers}>

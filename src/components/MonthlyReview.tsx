@@ -206,11 +206,11 @@ export default function MonthlyReview({ visible, onClose }: Props) {
                                     </View>
                                     <View style={styles.goalBarTrack}>
                                         <View style={[styles.goalBarFill, {
-                                            width: `${Math.min(g.progress, 100)}%` as any,
+                                            width: `${Math.min(g.progress ?? 0, 100)}%` as any,
                                             backgroundColor: g.status === 'on_track' ? Colors.income : Colors.warning
                                         }]} />
                                     </View>
-                                    <Text style={styles.goalPct}>{g.progress.toFixed(0)}%</Text>
+                                    <Text style={styles.goalPct}>{(g.progress ?? 0).toFixed(0)}%</Text>
                                 </View>
                             ))}
                             <TouchableOpacity style={styles.viewAllLink} onPress={() => navigate('goals')}>
