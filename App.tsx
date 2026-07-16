@@ -49,6 +49,7 @@ import GoalBridgeScreen from './src/screens/GoalBridgeScreen';
 import BankStatementImportScreen from './src/screens/BankStatementImportScreen';
 import OnboardingChoiceScreen from './src/screens/OnboardingChoiceScreen';
 import ClarityScreen from './src/screens/ClarityScreen';
+import TrendsScreen from './src/screens/TrendsScreen';
 
 function NavigatorContent() {
     const { user, isLoading, currentScreen, setCurrentScreen, goBack } = useAuth();
@@ -134,6 +135,7 @@ function NavigatorContent() {
             {currentScreen === 'bank-statement-import' && <BankStatementImportScreen />}
             {currentScreen === 'onboarding-choice' && <OnboardingChoiceScreen />}
             {currentScreen === 'clarity'            && <ClarityScreen />}
+            {currentScreen === 'trends'              && <TrendsScreen />}
         </View>
     );
 }

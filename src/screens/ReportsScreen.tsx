@@ -501,7 +501,12 @@ export default function ReportsScreen() {
                     )}
 
                     {/* ── SWOT ─────────────────────────────────────────── */}
-                    {activeTab === 'swot' && <SwotAnalysis />}
+                    {activeTab === 'swot' && (
+                        <>
+                            <SwotAnalysis />
+                            <NextStepLink text="See how this looks across multiple years" onPress={() => setCurrentScreen('trends')} />
+                        </>
+                    )}
 
                     {/* ── GROWTH METRICS ───────────────────────────────── */}
                     {activeTab === 'growth' && (

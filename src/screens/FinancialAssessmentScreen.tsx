@@ -7,6 +7,7 @@ import FooterNav from '../components/FooterNav';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan } from '../utils/actionRecommendationEngine';
 import SwotAnalysis from '../components/SwotAnalysis';
+import NextStepLink from '../components/NextStepLink';
 
 export default function FinancialAssessmentScreen() {
   const { transactions, invoices, finance, settings, setCurrentScreen } = useApp();
@@ -50,6 +51,10 @@ export default function FinancialAssessmentScreen() {
         {/* Title */}
         <Text style={styles.title}>🔍 Financial Assessment</Text>
         <Text style={styles.subtitle}>AI-powered diagnosis & recommendations</Text>
+        {/* This whole screen is a current-month snapshot by design — make
+            that explicit and point to the real multi-year view so results
+            here aren't mistaken for a full history. */}
+        <NextStepLink text="This is a current snapshot — see your multi-year trend" onPress={() => setCurrentScreen('trends')} />
 
         {/* Overall Health Score */}
         <View style={[styles.healthCard, { borderLeftColor: getHealthColor(diagnosis.overallHealth) }]}>
