@@ -13,6 +13,7 @@ import { Platform } from 'react-native';
 import { User, Invoice, InvoiceStatus, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, StaffMember, PayrollRun, PayrollItem, CashPocket, UserRole } from '../types';
 import { computeFinance, computeAssetCurrentValue } from '../utils/finance';
 import { sanitizeStoredGoals } from '../utils/goals';
+import { DEMO_BUSINESSES } from '../utils/demoData';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   loadTransactions, saveTransactions,
@@ -108,6 +109,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   // workspace owner yet (loads local), then after login we re-pull from Supabase.
   const authForSync = useContext(AuthContext);
   const syncUserId = authForSync?.user?.email;
+  const isDemoMode = authForSync?.isDemoMode ?? false;
+  const demoBusinessId = authForSync?.demoBusinessId ?? null;
 
   useEffect(() => {
     // Reset FIRST, synchronously, before any async work: clears any previous
@@ -119,6 +122,23 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setHydrated(false);
     setTransactions([]); setAssets([]); setLoans([]); setBudgets([]); setInventory([]);
     setStaff([]); setPayrollRuns([]); setCashPockets([]);
+
+    // Demo mode: load straight from the bundled sample data, never from
+    // AsyncStorage/Supabase — "Try Demo" previously did nothing at all
+    // because no provider had this branch, so tapping a demo business just
+    // silently left every context empty.
+    if (isDemoMode) {
+      const biz = DEMO_BUSINESSES.find((b) => b.id === demoBusinessId);
+      if (biz) {
+        setTransactions(biz.transactions);
+        setAssets(biz.assets);
+        setLoans(biz.loans.map((x) => ({ ...x, payments: x.payments ?? [] })));
+        setInventory(biz.inventory);
+      }
+      setHydrated(true);
+      return;
+    }
+
     (async () => {
       try {
         const [t, a, l, b, inv] = await Promise.all([
@@ -143,17 +163,18 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [syncUserId]);
+  }, [syncUserId, isDemoMode, demoBusinessId]);
 
-  // Persist on change (only after the initial load, so we don't clobber storage).
-  useEffect(() => { if (hydrated) saveTransactions(transactions).catch(() => {}); }, [transactions, hydrated]);
-  useEffect(() => { if (hydrated) saveAssets(assets).catch(() => {}); }, [assets, hydrated]);
-  useEffect(() => { if (hydrated) saveLoans(loans).catch(() => {}); }, [loans, hydrated]);
-  useEffect(() => { if (hydrated) { console.log(`[Finance] saving ${budgets.length} budgets`); saveBudgets(budgets).catch((e) => console.error('[Finance] saveBudgets failed:', e)); } }, [budgets, hydrated]);
-  useEffect(() => { if (hydrated) saveInventory(inventory).catch(() => {}); }, [inventory, hydrated]);
-  useEffect(() => { if (hydrated) saveStaff(staff).catch(() => {}); }, [staff, hydrated]);
-  useEffect(() => { if (hydrated) savePayrollRuns(payrollRuns).catch(() => {}); }, [payrollRuns, hydrated]);
-  useEffect(() => { if (hydrated) saveCashPockets(cashPockets).catch(() => {}); }, [cashPockets, hydrated]);
+  // Persist on change (only after the initial load, and never in demo mode
+  // — "Nothing will be saved" is a promise made on the demo picker screen).
+  useEffect(() => { if (hydrated && !isDemoMode) saveTransactions(transactions).catch(() => {}); }, [transactions, hydrated, isDemoMode]);
+  useEffect(() => { if (hydrated && !isDemoMode) saveAssets(assets).catch(() => {}); }, [assets, hydrated, isDemoMode]);
+  useEffect(() => { if (hydrated && !isDemoMode) saveLoans(loans).catch(() => {}); }, [loans, hydrated, isDemoMode]);
+  useEffect(() => { if (hydrated && !isDemoMode) { console.log(`[Finance] saving ${budgets.length} budgets`); saveBudgets(budgets).catch((e) => console.error('[Finance] saveBudgets failed:', e)); } }, [budgets, hydrated, isDemoMode]);
+  useEffect(() => { if (hydrated && !isDemoMode) saveInventory(inventory).catch(() => {}); }, [inventory, hydrated, isDemoMode]);
+  useEffect(() => { if (hydrated && !isDemoMode) saveStaff(staff).catch(() => {}); }, [staff, hydrated, isDemoMode]);
+  useEffect(() => { if (hydrated && !isDemoMode) savePayrollRuns(payrollRuns).catch(() => {}); }, [payrollRuns, hydrated, isDemoMode]);
+  useEffect(() => { if (hydrated && !isDemoMode) saveCashPockets(cashPockets).catch(() => {}); }, [cashPockets, hydrated, isDemoMode]);
 
   // Computed finance - memoized with specific dependency
   const finance = useMemo(() => {
@@ -346,11 +367,16 @@ const GoalContext = createContext<GoalContextValue | undefined>(undefined);
 export function GoalProvider({ children }: { children: ReactNode }) {
   const [goals, setGoals] = useState<FinancialGoal[]>([]);
   const [hydrated, setHydrated] = useState(false);
-  const syncUserId = useContext(AuthContext)?.user?.email;
+  const authCtx = useContext(AuthContext);
+  const syncUserId = authCtx?.user?.email;
+  const isDemoMode = authCtx?.isDemoMode ?? false;
 
   useEffect(() => {
     setHydrated(false);
     setGoals([]); // clear the previous identity's goals before loading the new one
+
+    if (isDemoMode) { setHydrated(true); return; } // demo businesses carry no sample goals
+
     (async () => {
       try {
         const g = await loadGoals();
@@ -360,8 +386,8 @@ export function GoalProvider({ children }: { children: ReactNode }) {
       finally { setHydrated(true); }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [syncUserId]);
-  useEffect(() => { if (hydrated) saveGoals(goals).catch(() => {}); }, [goals, hydrated]);
+  }, [syncUserId, isDemoMode]);
+  useEffect(() => { if (hydrated && !isDemoMode) saveGoals(goals).catch(() => {}); }, [goals, hydrated, isDemoMode]);
 
   const value: GoalContextValue = useMemo(
     () => ({
@@ -409,19 +435,30 @@ const InvoiceContext = createContext<InvoiceContextValue | undefined>(undefined)
 export function InvoiceProvider({ children }: { children: ReactNode }) {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [hydrated, setHydrated] = useState(false);
-  const syncUserId = useContext(AuthContext)?.user?.email;
+  const authCtx = useContext(AuthContext);
+  const syncUserId = authCtx?.user?.email;
+  const isDemoMode = authCtx?.isDemoMode ?? false;
+  const demoBusinessId = authCtx?.demoBusinessId ?? null;
 
   useEffect(() => {
     setHydrated(false);
     setInvoices([]); // clear the previous identity's invoices before loading the new one
+
+    if (isDemoMode) {
+      const biz = DEMO_BUSINESSES.find((b) => b.id === demoBusinessId);
+      if (biz) setInvoices(biz.invoices);
+      setHydrated(true);
+      return;
+    }
+
     (async () => {
       try { const i = await loadInvoices(); if (i) setInvoices(i); }
       catch (e) { console.error('[Invoices] hydrate failed:', e); }
       finally { setHydrated(true); }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [syncUserId]);
-  useEffect(() => { if (hydrated) saveInvoices(invoices).catch(() => {}); }, [invoices, hydrated]);
+  }, [syncUserId, isDemoMode, demoBusinessId]);
+  useEffect(() => { if (hydrated && !isDemoMode) saveInvoices(invoices).catch(() => {}); }, [invoices, hydrated, isDemoMode]);
 
   const value: InvoiceContextValue = useMemo(
     () => ({
@@ -485,19 +522,30 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   });
   const [language, setLanguage] = useState('en');
   const [hydrated, setHydrated] = useState(false);
-  const syncUserId = useContext(AuthContext)?.user?.email;
+  const authCtx = useContext(AuthContext);
+  const syncUserId = authCtx?.user?.email;
+  const isDemoMode = authCtx?.isDemoMode ?? false;
+  const demoBusinessId = authCtx?.demoBusinessId ?? null;
 
   useEffect(() => {
     setHydrated(false);
     setSettings(DEFAULT_SETTINGS); // clear the previous identity's settings before loading the new one
+
+    if (isDemoMode) {
+      const biz = DEMO_BUSINESSES.find((b) => b.id === demoBusinessId);
+      if (biz) setSettings((prev) => ({ ...prev, currency: biz.currency }));
+      setHydrated(true);
+      return;
+    }
+
     (async () => {
       try { const s = await loadSettings(); if (s) setSettings((prev) => ({ ...prev, ...s })); }
       catch (e) { console.error('[Settings] hydrate failed:', e); }
       finally { setHydrated(true); }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [syncUserId]);
-  useEffect(() => { if (hydrated) saveSettings(settings).catch(() => {}); }, [settings, hydrated]);
+  }, [syncUserId, isDemoMode, demoBusinessId]);
+  useEffect(() => { if (hydrated && !isDemoMode) saveSettings(settings).catch(() => {}); }, [settings, hydrated, isDemoMode]);
 
   const value: SettingsContextValue = useMemo(
     () => ({
@@ -544,6 +592,7 @@ interface AuthContextValue {
   updateProfile: (patch: Partial<Pick<User, 'phone' | 'businessName'>>) => void;
   changePin: (currentPin: string, newPin: string) => Promise<{ ok: boolean; lockedUntil?: number; cloudSynced?: boolean }>;
   isDemoMode: boolean;
+  demoBusinessId: string | null;
   enterDemo: (businessId: string) => void;
   exitDemo: () => void;
   clearData: () => Promise<void>;
@@ -570,6 +619,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentScreen, setCurrentScreenState] = useState('login');
   const [navParams, setNavParams] = useState<any>(null);
   const [isDemoMode, setIsDemoMode] = useState(false);
+  const [demoBusinessId, setDemoBusinessId] = useState<string | null>(null);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [isFirstLaunch, setIsFirstLaunch] = useState(false);
   const [isLockedOut, setIsLockedOut] = useState(false);
@@ -839,8 +889,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch { return { ok: false }; }
       },
       isDemoMode,
-      enterDemo: () => setIsDemoMode(true),
-      exitDemo: () => setIsDemoMode(false),
+      demoBusinessId,
+      // Was a stub: only ever flipped isDemoMode, never set a user, never
+      // switched off the login screen, and no data provider had any code
+      // path that loaded demo data at all - tapping any "Try Demo" card
+      // silently did nothing. Now sets a synthetic demo user (so screens
+      // gated on `user` render) and navigates to the dashboard; the actual
+      // sample transactions/loans/invoices are loaded by each data
+      // provider below, keyed off demoBusinessId.
+      enterDemo: (businessId: string) => {
+        const biz = DEMO_BUSINESSES.find((b) => b.id === businessId);
+        if (!biz) return;
+        setUser({
+          email: `demo-${biz.id}@quad360.demo`,
+          businessName: biz.businessName,
+          role: 'Administrator',
+          createdAt: new Date(Date.now() - 120 * 86400000).toISOString(),
+        });
+        setDemoBusinessId(businessId);
+        setIsDemoMode(true);
+        setCurrentScreenState('dashboard');
+      },
+      exitDemo: () => {
+        setIsDemoMode(false);
+        setDemoBusinessId(null);
+        setUser(null);
+        setCurrentScreenState('login');
+      },
       clearData: async () => { await clearAllData(); reloadApp(); },
       resetBusinessData: async () => { await clearAllData(); reloadApp(); },
       resetApp: async () => { await clearAllData(); setUser(null); reloadApp(); },
@@ -861,7 +936,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setTeamMembers(members);
       },
     }),
-    [user, isLoading, currentScreen, navParams, isDemoMode, teamMembers, isFirstLaunch, isLockedOut, lockoutUntil, pendingTwoFactorProfile]
+    [user, isLoading, currentScreen, navParams, isDemoMode, demoBusinessId, teamMembers, isFirstLaunch, isLockedOut, lockoutUntil, pendingTwoFactorProfile]
   );
 
   return (

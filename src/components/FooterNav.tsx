@@ -206,7 +206,7 @@ export default function FooterNav() {
                         <View style={styles.gridCard}>
                             {visibleAnalytics.map(item => (
                                 <TouchableOpacity
-                                    key={item.screen}
+                                    key={item.label}
                                     style={styles.gridItem}
                                     onPress={() => goTo(item.screen)}
                                     activeOpacity={0.75}
@@ -224,7 +224,7 @@ export default function FooterNav() {
                         <View style={styles.gridCard}>
                             {visibleFinance.map(item => (
                                 <TouchableOpacity
-                                    key={item.screen}
+                                    key={item.label}
                                     style={styles.gridItem}
                                     onPress={() => goTo(item.screen)}
                                     activeOpacity={0.75}
@@ -242,7 +242,7 @@ export default function FooterNav() {
                         <View style={styles.listCard}>
                             {visibleOperations.map((item, i, arr) => (
                                 <TouchableOpacity
-                                    key={item.screen}
+                                    key={item.label}
                                     style={[styles.listRow, i < arr.length - 1 && styles.listRowBorder]}
                                     onPress={() => goTo(item.screen)}
                                     activeOpacity={0.75}
@@ -264,7 +264,7 @@ export default function FooterNav() {
                         <View style={styles.listCard}>
                             {visibleAccount.map((item, i, arr) => (
                                 <TouchableOpacity
-                                    key={item.screen}
+                                    key={item.label}
                                     style={[styles.listRow, i < arr.length - 1 && styles.listRowBorder]}
                                     onPress={() => goTo(item.screen)}
                                     activeOpacity={0.75}
