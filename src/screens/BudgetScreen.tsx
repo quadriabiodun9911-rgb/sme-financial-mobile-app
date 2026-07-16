@@ -39,6 +39,8 @@ export default function BudgetScreen() {
     const [showCatPick, setShowCatPick] = useState(false);
     const [showAutoGen, setShowAutoGen] = useState(false);
     const [excludedCats, setExcludedCats] = useState<Set<string>>(new Set());
+    const [adjustMode, setAdjustMode] = useState(false);
+    const [adjustedAmounts, setAdjustedAmounts] = useState<Record<string, string>>({});
 
     const bva = useMemo(() => computeBudgetVsActual(transactions, budgets, currentMonth), [transactions, budgets, currentMonth]);
 
@@ -109,6 +111,35 @@ export default function BudgetScreen() {
     const safeCap = monthlyRevenue * 0.8;
     const overRevenue = totalCommitments > monthlyRevenue;
     const overSafeCap = totalCommitments > safeCap && !overRevenue;
+
+    // Adjust & Simulate: lets a user drag category amounts around and watch
+    // the profit/cash effect and solution update live, before committing
+    // anything — rather than editing one category at a time and having to
+    // mentally recompute the total effect themselves.
+    const openAdjustMode = () => {
+        const seed: Record<string, string> = {};
+        budgets.forEach(b => { seed[b.id] = String(b.monthlyAmount); });
+        setAdjustedAmounts(seed);
+        setAdjustMode(true);
+    };
+    const cancelAdjustMode = () => { setAdjustMode(false); setAdjustedAmounts({}); };
+    const applyAdjustments = () => {
+        budgets.forEach(b => {
+            const newAmt = parseFloat(adjustedAmounts[b.id]);
+            if (!isNaN(newAmt) && newAmt >= 0 && newAmt !== b.monthlyAmount) {
+                updateBudget(b.id, { monthlyAmount: newAmt });
+            }
+        });
+        setAdjustMode(false);
+        setAdjustedAmounts({});
+    };
+    const adjustedTotalBudgeted = adjustMode
+        ? budgets.reduce((s, b) => s + (parseFloat(adjustedAmounts[b.id]) || 0), 0)
+        : totalBudgeted;
+    const adjustedTotalCommitments = adjustedTotalBudgeted + loanBurden;
+    const adjustedProjectedProfit = monthlyRevenue - adjustedTotalCommitments;
+    const adjustedOverRevenue = adjustedTotalCommitments > monthlyRevenue;
+    const adjustedOverSafeCap = adjustedTotalCommitments > safeCap && !adjustedOverRevenue;
     const pastSuggestion = pastAvgByCat[customCat.trim() || category];
 
     // Concrete reduction tactics for the categories actually driving spend —
@@ -253,9 +284,23 @@ export default function BudgetScreen() {
                 {/* Budget Strategy — revenue, cash, and profit impact of the plan.
                     Show whenever there's something meaningful to assess: a budget,
                     an active loan (so its repayment burden is visible), or revenue. */}
-                {(budgets.length > 0 || loanBurden > 0 || monthlyRevenue > 0) && (
+                {(budgets.length > 0 || loanBurden > 0 || monthlyRevenue > 0) && (() => {
+                    const dCommitments = adjustMode ? adjustedTotalCommitments : totalCommitments;
+                    const dProfit      = adjustMode ? adjustedProjectedProfit  : projectedProfit;
+                    const dOverRevenue = adjustMode ? adjustedOverRevenue      : overRevenue;
+                    const dOverSafeCap = adjustMode ? adjustedOverSafeCap      : overSafeCap;
+                    const dBudgeted    = adjustMode ? adjustedTotalBudgeted    : totalBudgeted;
+                    return (
                     <View style={s.strategyCard}>
-                        <Text style={s.strategyTitle}>📊 Budget Strategy</Text>
+                        <View style={s.strategyHeaderRow}>
+                            <Text style={s.strategyTitle}>📊 Budget Strategy</Text>
+                            {budgets.length > 0 && !adjustMode && (
+                                <TouchableOpacity onPress={openAdjustMode}>
+                                    <Text style={s.adjustToggle}>🎚 Adjust & Simulate</Text>
+                                </TouchableOpacity>
+                            )}
+                        </View>
+
                         <View style={s.strategyRow}>
                             <Text style={s.strategyLabel}>Monthly revenue</Text>
                             <Text style={s.strategyVal}>{currency}{monthlyRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
@@ -264,10 +309,31 @@ export default function BudgetScreen() {
                             <Text style={s.strategyLabel}>Cash balance</Text>
                             <Text style={[s.strategyVal, { color: cashBalance < 0 ? Colors.expense : Colors.textPrimary }]}>{currency}{cashBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
                         </View>
-                        <View style={s.strategyRow}>
-                            <Text style={s.strategyLabel}>Total planned spend</Text>
-                            <Text style={s.strategyVal}>{currency}{totalBudgeted.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
-                        </View>
+
+                        {adjustMode ? (
+                            <View style={s.adjustList}>
+                                {budgets.map(b => (
+                                    <View key={b.id} style={s.adjustRow}>
+                                        <Text style={s.adjustCat} numberOfLines={1}>{b.category}</Text>
+                                        <View style={s.adjustInputWrap}>
+                                            <Text style={s.adjustCurrency}>{currency}</Text>
+                                            <TextInput
+                                                style={s.adjustInput}
+                                                value={adjustedAmounts[b.id] ?? String(b.monthlyAmount)}
+                                                onChangeText={v => setAdjustedAmounts(prev => ({ ...prev, [b.id]: v }))}
+                                                keyboardType="decimal-pad"
+                                            />
+                                        </View>
+                                    </View>
+                                ))}
+                            </View>
+                        ) : (
+                            <View style={s.strategyRow}>
+                                <Text style={s.strategyLabel}>Total planned spend</Text>
+                                <Text style={s.strategyVal}>{currency}{dBudgeted.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                            </View>
+                        )}
+
                         {loanBurden > 0 && (
                             <>
                                 <View style={s.strategyRow}>
@@ -276,41 +342,62 @@ export default function BudgetScreen() {
                                 </View>
                                 <View style={s.strategyRow}>
                                     <Text style={[s.strategyLabel, { fontWeight: '700', color: Colors.textPrimary }]}>= Total monthly commitments</Text>
-                                    <Text style={[s.strategyVal, { fontWeight: '700' }]}>{currency}{totalCommitments.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                                    <Text style={[s.strategyVal, { fontWeight: '700' }]}>{currency}{dCommitments.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
                                 </View>
                             </>
                         )}
                         <View style={[s.strategyRow, { borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 8, marginTop: 4 }]}>
                             <Text style={[s.strategyLabel, { fontWeight: '700', color: Colors.textPrimary }]}>Projected profit after spend{loanBurden > 0 ? ' & loans' : ''}</Text>
-                            <Text style={[s.strategyVal, { color: projectedProfit >= 0 ? Colors.income : Colors.expense, fontWeight: '800' }]}>
-                                {currency}{projectedProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            <Text style={[s.strategyVal, { color: dProfit >= 0 ? Colors.income : Colors.expense, fontWeight: '800' }]}>
+                                {currency}{dProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                             </Text>
                         </View>
 
-                        <View style={[s.strategyVerdict, { backgroundColor: (overRevenue ? Colors.expense : overSafeCap ? Colors.warning : Colors.income) + '18', borderColor: overRevenue ? Colors.expense : overSafeCap ? Colors.warning : Colors.income }]}>
-                            <Text style={[s.strategyVerdictText, { color: overRevenue ? Colors.expense : overSafeCap ? Colors.warning : Colors.income }]}>
-                                {overRevenue
-                                    ? `⚠ Your monthly commitments (${currency}${totalCommitments.toLocaleString(undefined, { maximumFractionDigits: 0 })}${loanBurden > 0 ? ', incl. loan repayments' : ''}) exceed monthly revenue — this plans a ${currency}${Math.abs(projectedProfit).toLocaleString(undefined, { maximumFractionDigits: 0 })} loss and will draw down cash. Cut about ${currency}${(totalCommitments - safeCap).toLocaleString(undefined, { maximumFractionDigits: 0 })} to protect profit.`
-                                    : overSafeCap
-                                        ? `⚠ Commitments are within revenue but above the safe cap (${currency}${safeCap.toLocaleString(undefined, { maximumFractionDigits: 0 })}, 80% of revenue). Leaves a thin ${currency}${projectedProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })} profit buffer.`
-                                        : `✓ Healthy plan: keeps ${currency}${projectedProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })} profit (${monthlyRevenue > 0 ? ((projectedProfit / monthlyRevenue) * 100).toFixed(0) : 0}% margin). Recommended max spend: ${currency}${safeCap.toLocaleString(undefined, { maximumFractionDigits: 0 })}.`}
+                        <View style={[s.strategyVerdict, { backgroundColor: (dOverRevenue ? Colors.expense : dOverSafeCap ? Colors.warning : Colors.income) + '18', borderColor: dOverRevenue ? Colors.expense : dOverSafeCap ? Colors.warning : Colors.income }]}>
+                            <Text style={[s.strategyVerdictText, { color: dOverRevenue ? Colors.expense : dOverSafeCap ? Colors.warning : Colors.income }]}>
+                                {dOverRevenue
+                                    ? `⚠ Your monthly commitments (${currency}${dCommitments.toLocaleString(undefined, { maximumFractionDigits: 0 })}${loanBurden > 0 ? ', incl. loan repayments' : ''}) exceed monthly revenue — this plans a ${currency}${Math.abs(dProfit).toLocaleString(undefined, { maximumFractionDigits: 0 })} loss and will draw down cash. Cut about ${currency}${(dCommitments - safeCap).toLocaleString(undefined, { maximumFractionDigits: 0 })} to protect profit.`
+                                    : dOverSafeCap
+                                        ? `⚠ Commitments are within revenue but above the safe cap (${currency}${safeCap.toLocaleString(undefined, { maximumFractionDigits: 0 })}, 80% of revenue). Leaves a thin ${currency}${dProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })} profit buffer.`
+                                        : `✓ Healthy plan: keeps ${currency}${dProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })} profit (${monthlyRevenue > 0 ? ((dProfit / monthlyRevenue) * 100).toFixed(0) : 0}% margin). Recommended max spend: ${currency}${safeCap.toLocaleString(undefined, { maximumFractionDigits: 0 })}.`}
                             </Text>
                         </View>
 
-                        {budgets.length > 0 && (
-                            <NextStepLink text="See how this budget affects your 13-week cash forecast" onPress={() => navigate('cashflow')} />
-                        )}
-
-                        {budgets.length > 0 && (
-                            <ProfitCashImpactCard
-                                impact={computeProfitCashImpact(monthlyRevenue, cashBalance, -totalCommitments)}
-                                source="budget"
-                                currency={currency}
-                                onSeeFullPicture={() => navigate('clarity')}
-                            />
+                        {adjustMode ? (
+                            <>
+                                <ProfitCashImpactCard
+                                    impact={computeProfitCashImpact(monthlyRevenue, cashBalance, -dCommitments)}
+                                    source="budget"
+                                    currency={currency}
+                                    onSeeFullPicture={() => navigate('clarity')}
+                                />
+                                <View style={s.adjustBtnRow}>
+                                    <TouchableOpacity style={s.adjustCancelBtn} onPress={cancelAdjustMode}>
+                                        <Text style={s.adjustCancelText}>Cancel</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity style={s.adjustApplyBtn} onPress={applyAdjustments}>
+                                        <Text style={s.adjustApplyText}>Apply Changes</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </>
+                        ) : (
+                            <>
+                                {budgets.length > 0 && (
+                                    <NextStepLink text="See how this budget affects your 13-week cash forecast" onPress={() => navigate('cashflow')} />
+                                )}
+                                {budgets.length > 0 && (
+                                    <ProfitCashImpactCard
+                                        impact={computeProfitCashImpact(monthlyRevenue, cashBalance, -totalCommitments)}
+                                        source="budget"
+                                        currency={currency}
+                                        onSeeFullPicture={() => navigate('clarity')}
+                                    />
+                                )}
+                            </>
                         )}
                     </View>
-                )}
+                    );
+                })()}
 
                 {/* Concrete reduction tactics for your biggest expense categories */}
                 {expenseTactics.length > 0 && (
@@ -575,7 +662,22 @@ const s = StyleSheet.create({
     loanIncludedNote: { marginTop: 8, fontSize: 11, color: Colors.textMuted, textAlign: 'center' },
 
     strategyCard:  { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 16, borderLeftWidth: 3, borderLeftColor: Colors.primary },
-    strategyTitle: { fontSize: 13, fontWeight: '800', color: Colors.textPrimary, marginBottom: 10 },
+    strategyHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+    strategyTitle: { fontSize: 13, fontWeight: '800', color: Colors.textPrimary },
+    adjustToggle:  { fontSize: 12, color: Colors.primary, fontWeight: '700' },
+
+    adjustList:    { marginVertical: 6, gap: 6 },
+    adjustRow:     { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    adjustCat:     { flex: 1, fontSize: 12, color: Colors.textSecondary },
+    adjustInputWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.bg, borderRadius: 6, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 8 },
+    adjustCurrency:  { fontSize: 12, color: Colors.textMuted, marginRight: 2 },
+    adjustInput:     { width: 90, fontSize: 12, color: Colors.textPrimary, paddingVertical: 6, textAlign: 'right' },
+
+    adjustBtnRow:   { flexDirection: 'row', gap: 10, marginTop: 12 },
+    adjustCancelBtn:{ flex: 1, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, paddingVertical: 12, alignItems: 'center' },
+    adjustCancelText:{ color: Colors.textSecondary, fontWeight: '700', fontSize: 13 },
+    adjustApplyBtn: { flex: 1, backgroundColor: Colors.primary, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
+    adjustApplyText:{ color: '#fff', fontWeight: '700', fontSize: 13 },
     strategyRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 3 },
     strategyLabel: { fontSize: 12, color: Colors.textSecondary },
     strategyVal:   { fontSize: 12, fontWeight: '700', color: Colors.textPrimary },
