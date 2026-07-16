@@ -6,7 +6,7 @@ import { Colors } from '../theme/colors';
 import { Transaction } from '../types';
 
 export default function AgingReport() {
-    const { transactions, settings, updateTransaction } = useApp();
+    const { transactions, settings, updateTransaction, invoices, markInvoiceStatus } = useApp();
     const { currency } = settings;
     const [activeTab, setActiveTab] = useState<'ar' | 'ap'>('ar');
 
@@ -17,7 +17,18 @@ export default function AgingReport() {
     const totalOutstanding = buckets.reduce((s, b) => s + b.total, 0);
     const hasAny = buckets.some(b => b.transactions.length > 0);
 
-    const markPaid = (id: string) => updateTransaction(id, { status: 'paid' });
+    // If this transaction is linked to an invoice (via reference =
+    // invoiceNumber), mark the invoice paid too — otherwise this button
+    // would silently desync the two: the transaction shows paid here while
+    // the Invoices screen keeps showing it as outstanding forever.
+    const markPaid = (tx: Transaction) => {
+        const linkedInvoice = tx.reference ? invoices.find(i => i.invoiceNumber === tx.reference) : undefined;
+        if (linkedInvoice) {
+            markInvoiceStatus(linkedInvoice.id, 'paid');
+        } else {
+            updateTransaction(tx.id, { status: 'paid' });
+        }
+    };
 
     return (
         <View style={styles.container}>
@@ -97,7 +108,7 @@ export default function AgingReport() {
                                     <Text style={[styles.txAmount, { color: activeTab === 'ar' ? Colors.income : Colors.expense }]}>
                                         {currency}{tx.amount.toLocaleString()}
                                     </Text>
-                                    <TouchableOpacity style={styles.markPaidBtn} onPress={() => markPaid(tx.id)}>
+                                    <TouchableOpacity style={styles.markPaidBtn} onPress={() => markPaid(tx)}>
                                         <Text style={styles.markPaidText}>Mark Paid</Text>
                                     </TouchableOpacity>
                                 </View>

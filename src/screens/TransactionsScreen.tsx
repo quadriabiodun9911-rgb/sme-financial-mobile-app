@@ -118,7 +118,7 @@ function formatDateHeader(iso: string): string {
 }
 
 export default function TransactionsScreen() {
-    const { transactions, addTransaction, deleteTransaction, updateTransaction, settings, setCurrentScreen, navParams } = useApp();
+    const { transactions, addTransaction, deleteTransaction, updateTransaction, settings, setCurrentScreen, navParams, invoices, markInvoiceStatus } = useApp();
     const { currency, defaultTaxRate } = settings;
 
     const [modalOpen, setModalOpen]   = useState(false);
@@ -246,7 +246,19 @@ export default function TransactionsScreen() {
         ]);
     };
 
-    const handleMarkPaid = (id: string) => updateTransaction(id, { status: 'paid' });
+    // If this transaction is linked to an invoice (reference = invoiceNumber),
+    // mark the invoice paid too — otherwise this button silently desyncs the
+    // two: the transaction shows paid here while Invoices keeps showing it
+    // as outstanding forever.
+    const handleMarkPaid = (id: string) => {
+        const tx = transactions.find(t => t.id === id);
+        const linkedInvoice = tx?.reference ? invoices.find(i => i.invoiceNumber === tx.reference) : undefined;
+        if (linkedInvoice) {
+            markInvoiceStatus(linkedInvoice.id, 'paid');
+        } else {
+            updateTransaction(id, { status: 'paid' });
+        }
+    };
 
     const handleExportCSV = async () => {
         const csv = transactionsToCSV(filtered);
