@@ -385,6 +385,7 @@ export default function BudgetScreen() {
                                 {budgets.length > 0 && (
                                     <NextStepLink text="See how this budget affects your 13-week cash forecast" onPress={() => navigate('cashflow')} />
                                 )}
+                                <NextStepLink text="Model revenue/cost growth scenarios instead" onPress={() => navigate('reports', { reportSection: 'planning', reportTab: 'budget' })} />
                                 {budgets.length > 0 && (
                                     <ProfitCashImpactCard
                                         impact={computeProfitCashImpact(monthlyRevenue, cashBalance, -totalCommitments)}

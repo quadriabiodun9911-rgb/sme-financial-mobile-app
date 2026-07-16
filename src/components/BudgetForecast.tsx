@@ -3,12 +3,14 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Colors } from '../theme/colors';
 import { FinanceData, Transaction } from '../types';
 import { computeMonthlyTrend } from '../utils/finance';
+import NextStepLink from './NextStepLink';
 
 interface Props {
     finance: FinanceData;
     transactions: Transaction[];
     currency: string;
     targetMargin: string;
+    onSeeBudget?: () => void;
 }
 
 type Horizon = 3 | 6 | 12;
@@ -22,7 +24,7 @@ const SCENARIO_CONFIG: Record<ScenarioKey, { label: string; incomeGrowth: number
 
 function pct(n: number) { return `${n >= 0 ? '+' : ''}${(n * 100).toFixed(0)}%`; }
 
-export default function BudgetForecast({ finance, transactions, currency, targetMargin }: Props) {
+export default function BudgetForecast({ finance, transactions, currency, targetMargin, onSeeBudget }: Props) {
     const [horizon, setHorizon]         = useState<Horizon>(6);
     const [activeScenario, setScenario] = useState<ScenarioKey>('base');
     const [customIncome, setCustomIncome] = useState(0);   // delta multiplier: -0.3 to +0.5
@@ -66,8 +68,16 @@ export default function BudgetForecast({ finance, transactions, currency, target
 
     return (
         <View>
+            <Text style={s.intro}>
+                Projects revenue and costs forward under different growth assumptions — separate from your
+                category-by-category spending plan on the Budget screen.
+            </Text>
+            {onSeeBudget && (
+                <NextStepLink text="Go to your actual Budget (spending by category)" onPress={onSeeBudget} />
+            )}
+
             {/* Horizon */}
-            <View style={s.row}>
+            <View style={[s.row, { marginTop: 14 }]}>
                 <Text style={s.rowLabel}>Forecast horizon:</Text>
                 {([3, 6, 12] as Horizon[]).map(h => (
                     <TouchableOpacity key={h} style={[s.chip, horizon === h && s.chipActive]} onPress={() => setHorizon(h)}>
@@ -215,6 +225,7 @@ function LDot({ color, label }: { color: string; label: string }) {
 }
 
 const s = StyleSheet.create({
+    intro:    { fontSize: 12, color: Colors.textMuted, lineHeight: 17 },
     row:      { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
     rowLabel: { fontSize: 12, color: Colors.textMuted },
     chip:         { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 12, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },

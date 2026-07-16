@@ -37,7 +37,7 @@ const SECTIONS: { key: SectionKey; label: string; icon: string; desc: string }[]
     { key: 'statements', label: '📊 Financial Statements', icon: '📊', desc: 'Balance Sheet, P&L, Inventory, Cash Flow' },
     { key: 'customers',  label: '💰 Customers & Collections', icon: '💰', desc: 'Who Owes Me - Unpaid Invoices' },
     { key: 'tax',        label: '🏛️ Tax & Compliance', icon: '🏛️', desc: 'Tax Summary and Obligations' },
-    { key: 'planning',   label: '📈 Planning & Forecasts', icon: '📈', desc: 'Budget, Cash Timeline, Loans & Debt' },
+    { key: 'planning',   label: '📈 Planning & Forecasts', icon: '📈', desc: 'Growth Scenarios, Cash Timeline, Loans & Debt' },
     { key: 'growth',     label: '🚀 Growth Analytics', icon: '🚀', desc: 'Growth Trends, Best Customers & Products' },
     { key: 'health',     label: '💪 Business Health', icon: '💪', desc: 'Business Score, SWOT Analysis' },
 ];
@@ -64,7 +64,7 @@ const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
         { key: 'tax', label: 'Tax Summary' },
     ],
     planning: [
-        { key: 'budget',   label: 'Budget' },
+        { key: 'budget',   label: 'Growth Scenarios' },
         { key: 'cashflow', label: 'Cash Timeline' },
         { key: 'cashmgmt', label: 'Cash Safety' },
         { key: 'debt',     label: 'Loans & Debt' },
@@ -446,6 +446,7 @@ export default function ReportsScreen() {
                             transactions={transactions}
                             currency={currency}
                             targetMargin={targetMargin}
+                            onSeeBudget={() => setCurrentScreen('budget')}
                         />
                     )}
 
