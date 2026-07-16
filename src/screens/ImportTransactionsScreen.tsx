@@ -321,9 +321,25 @@ export default function ImportTransactionsScreen() {
                 });
             } else {
                 const text = await readText(uri);
+                // .txt exports vary by bank — comma, tab, pipe, or semicolon
+                // delimited are all common. Papa.parse's own auto-detect only
+                // kicks in when delimiter is omitted, but is unreliable on
+                // single-line headers, so sniff it ourselves from the first
+                // line first and only fall back to Papa's guess.
+                const firstLine = text.split(/\r?\n/, 1)[0] || '';
+                const delimiterCounts: Record<string, number> = {
+                    ',': (firstLine.match(/,/g) || []).length,
+                    '\t': (firstLine.match(/\t/g) || []).length,
+                    '|': (firstLine.match(/\|/g) || []).length,
+                    ';': (firstLine.match(/;/g) || []).length,
+                };
+                const detectedDelimiter = Object.entries(delimiterCounts).sort((a, b) => b[1] - a[1])[0];
+                const delimiter = detectedDelimiter && detectedDelimiter[1] > 0 ? detectedDelimiter[0] : undefined;
+
                 const parsed = Papa.parse<Record<string, string>>(text, {
                     header:          true,
                     skipEmptyLines:  true,
+                    delimiter,
                     transformHeader: h => h.trim(),
                     transform:       v => v.trim(),
                 });
@@ -335,7 +351,7 @@ export default function ImportTransactionsScreen() {
             setRows(parsed);
             setStep('preview');
         } catch (e: any) {
-            setError(e?.message || 'Failed to read file. Make sure it is a CSV, Excel, or PDF file.');
+            setError(e?.message || 'Failed to read file. Make sure it is a CSV, TXT, Excel, or PDF file.');
         } finally {
             setLoading(false);
         }
@@ -350,7 +366,7 @@ export default function ImportTransactionsScreen() {
             if (typeof document !== 'undefined') {
                 const input = document.createElement('input');
                 input.type = 'file';
-                input.accept = '.csv,.xlsx,.xls,.pdf,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/pdf';
+                input.accept = '.csv,.txt,.xlsx,.xls,.pdf,text/csv,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/pdf';
                 input.onchange = async (e: any) => {
                     const file: File = e.target?.files?.[0];
                     if (!file) return;
@@ -372,10 +388,12 @@ export default function ImportTransactionsScreen() {
                 type: [
                     'text/csv',
                     'text/comma-separated-values',
+                    'text/plain',
                     'application/vnd.ms-excel',
                     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                     'application/pdf',
                     'public.comma-separated-values-text', // iOS UTI for CSV
+                    'public.plain-text',                  // iOS UTI for TXT
                     'com.microsoft.excel.xls',            // iOS UTI for xls
                     'org.openxmlformats.spreadsheetml.sheet', // iOS UTI for xlsx
                     'com.adobe.pdf',                      // iOS UTI for PDF
@@ -482,6 +500,7 @@ export default function ImportTransactionsScreen() {
                 <View style={styles.card}>
                     <Text style={styles.cardTitle}>Supported formats</Text>
                     <Text style={styles.supportedText}>✅  CSV  (.csv)</Text>
+                    <Text style={styles.supportedText}>✅  Text  (.txt — comma, tab, pipe, or semicolon delimited)</Text>
                     <Text style={styles.supportedText}>✅  Excel  (.xlsx  ·  .xls)</Text>
                     <Text style={styles.supportedText}>✅  PDF bank statements  (.pdf)</Text>
                     <Text style={styles.supportedText}>✅  Works with all Nigerian banks</Text>
