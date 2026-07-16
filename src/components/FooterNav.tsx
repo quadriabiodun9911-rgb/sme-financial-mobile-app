@@ -39,6 +39,7 @@ const ACCOUNT_ITEMS: { label: string; icon: string; screen: Screen; color: strin
 // ─── Footer tabs ─────────────────────────────────────────────────────────────
 const TABS: { label: string; screen: Screen; icon: string }[] = [
     { label: 'Home',      screen: 'dashboard',    icon: '🏠' },
+    { label: 'Clarity',   screen: 'clarity',      icon: '🧭' },
     { label: 'Sales',     screen: 'transactions', icon: '📋' },
     { label: 'Invoices',  screen: 'invoices',     icon: '🧾' },
     { label: 'Reports',   screen: 'reports',      icon: '📊' },

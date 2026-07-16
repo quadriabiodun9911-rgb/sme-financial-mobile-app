@@ -716,7 +716,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await saveProfile({ email, businessName, phone, createdAt: new Date().toISOString() });
         setIsFirstLaunch(false);
         setUser({ email, businessName, role: 'Administrator', phone, createdAt: new Date().toISOString() });
-        setCurrentScreenState('dashboard');
+        // First-run choice — upload a statement or set a goal — rather than
+        // dropping a brand-new user straight onto an empty Dashboard where
+        // that decision is easy to never make.
+        setCurrentScreenState('onboarding-choice');
       },
       recoverAccount: async (email, pin) => {
         // Called after a successful Supabase sign-in — pull this user's profile

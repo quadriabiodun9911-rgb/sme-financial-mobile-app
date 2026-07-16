@@ -7,6 +7,7 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
+import InfoTip from '../components/InfoTip';
 import AgingReport from '../components/AgingReport';
 import TaxSummary from '../components/TaxSummary';
 import SwotAnalysis from '../components/SwotAnalysis';
@@ -389,12 +390,12 @@ export default function ReportsScreen() {
                                 <StatRow label="Total Revenue (Money In)"             value={`${currency}${enhPnL.revenue.toLocaleString()}`}                                           color={Colors.income} />
                                 <StatRow label="  Cost of Goods Sold"                 value={`-${currency}${enhPnL.cogs.toLocaleString()}`}                                          color={Colors.expense} indent />
                                 <StatRow label="Gross Profit"                         value={`${currency}${enhPnL.grossProfit.toLocaleString()}`}                                  color={enhPnL.grossProfit >= 0 ? Colors.income : Colors.expense} bold />
-                                <StatRow label="  Gross Margin %"                     value={`${(isNaN(enhPnL.grossMargin) ? 0 : enhPnL.grossMargin).toFixed(1)}%`}               color={Colors.textMuted} indent />
+                                <StatRow label="  Gross Margin %"                     value={`${(isNaN(enhPnL.grossMargin) ? 0 : enhPnL.grossMargin).toFixed(1)}%`}               color={Colors.textMuted} indent info="Gross Margin" />
                                 <StatRow label="  Running Costs (rent, salaries, admin)" value={`-${currency}${enhPnL.sgaExpenses.toLocaleString()}`}                              color={Colors.expense} indent />
                                 <StatRow label="Operating Profit"                     value={`${enhPnL.ebit >= 0 ? '+' : ''}${currency}${enhPnL.ebit.toLocaleString()}`}           color={enhPnL.ebit >= 0 ? Colors.income : Colors.expense} bold />
-                                <StatRow label="  Operating Margin %"                 value={`${(isNaN(enhPnL.ebitMargin) ? 0 : enhPnL.ebitMargin).toFixed(1)}%`}                 color={Colors.textMuted} indent />
+                                <StatRow label="  Operating Margin %"                 value={`${(isNaN(enhPnL.ebitMargin) ? 0 : enhPnL.ebitMargin).toFixed(1)}%`}                 color={Colors.textMuted} indent info="Operating Margin" />
                                 <StatRow label="  Equipment Depreciation (non-cash)"  value={`+${currency}${enhPnL.depreciation.toLocaleString()}`}                               color={Colors.textMuted} indent />
-                                <StatRow label="Cash Profit"                          value={`${enhPnL.ebitda >= 0 ? '+' : ''}${currency}${enhPnL.ebitda.toLocaleString()}`}      color={enhPnL.ebitda >= 0 ? Colors.income : Colors.expense} bold />
+                                <StatRow label="Cash Profit"                          value={`${enhPnL.ebitda >= 0 ? '+' : ''}${currency}${enhPnL.ebitda.toLocaleString()}`}      color={enhPnL.ebitda >= 0 ? Colors.income : Colors.expense} bold info="Cash Profit" />
                                 <StatRow label="Net Profit (Bottom Line)"             value={`${enhPnL.netProfit >= 0 ? '+' : ''}${currency}${enhPnL.netProfit.toLocaleString()}`} color={enhPnL.netProfit >= 0 ? Colors.income : Colors.expense} bold />
                                 <StatRow label="Net Profit %"                         value={`${(isNaN(enhPnL.netMargin) ? 0 : enhPnL.netMargin).toFixed(1)}%`}                   color={enhPnL.netMargin >= parseFloat(targetMargin) ? Colors.income : Colors.expense} />
                                 <StatRow label="Your Profit Target"                   value={`${targetMargin}%`}                                                                    color={Colors.textMuted} />
@@ -883,10 +884,13 @@ function CompItem({ label, curr, prev, chg, currency, positiveIsGood }: {
     );
 }
 
-function StatRow({ label, value, color, bold, indent }: { label: string; value: string; color: string; bold?: boolean; indent?: boolean }) {
+function StatRow({ label, value, color, bold, indent, info }: { label: string; value: string; color: string; bold?: boolean; indent?: boolean; info?: string }) {
     return (
         <View style={rowStyles.row}>
-            <Text style={[rowStyles.label, bold && rowStyles.labelBold, indent && rowStyles.labelIndent]}>{label}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                <Text style={[rowStyles.label, bold && rowStyles.labelBold, indent && rowStyles.labelIndent]}>{label}</Text>
+                {info && <InfoTip term={info} />}
+            </View>
             <Text style={[rowStyles.value, { color }, bold && rowStyles.valueBold]}>{value}</Text>
         </View>
     );

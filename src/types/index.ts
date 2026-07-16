@@ -28,7 +28,9 @@ export type Screen =
     | 'credit-worthiness'
     | 'loan-eligibility'
     | 'financial-coach'
-    | 'bank-statement-import';
+    | 'bank-statement-import'
+    | 'onboarding-choice'
+    | 'clarity';
 
 export interface Budget {
     id: string;
