@@ -63,8 +63,19 @@ export function calculateFinancialMetrics(
   monthlyExpenseAverage: number
 ): FinancialMetrics {
   const now = new Date();
-  const thisMonth = now.toISOString().slice(0, 7);
-  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  // "This month" means the most recent month the business actually has
+  // transaction data for, not necessarily the real-world calendar month.
+  // A bank statement import (or any historical data entry) almost never
+  // lands in the literal current month, so pinning this to `now` made
+  // every downstream calculation - revenue, profit margin, runway,
+  // expenses by category, and therefore the whole health score, SWOT,
+  // and diagnosis - blind to imported data whenever it wasn't dated
+  // this calendar month. Falls back to the real current month only when
+  // there's no transaction history at all yet.
+  const dataMonths = Array.from(new Set(transactions.map(t => (t.date || '').slice(0, 7)))).filter(Boolean).sort();
+  const thisMonth = dataMonths.length > 0 ? dataMonths[dataMonths.length - 1] : now.toISOString().slice(0, 7);
+  const [thisMonthYear, thisMonthNum] = thisMonth.split('-').map(Number);
+  const lastMonth = new Date(thisMonthYear, thisMonthNum - 2, 1)
     .toISOString()
     .slice(0, 7);
 
@@ -103,10 +114,19 @@ export function calculateFinancialMetrics(
   const monthOverMonthGrowth =
     lastMonthRevenue > 0 ? ((thisMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100 : 0;
 
-  // Runway calculation
+  // Runway calculation — every caller of performFinancialDiagnosis passes
+  // `finance.expense`, which is an ALL-TIME cumulative total, not a
+  // monthly figure, as `monthlyExpenseAverage` (one caller divides it by
+  // active-months first, most don't). Dividing cash by a lifetime total
+  // produced wildly understated runway for any account with more than a
+  // month of history. Prefer the actual latest-month expense figure
+  // computed above; only fall back to the caller-supplied average when
+  // there's no expense data in that month to go on (e.g. a brand-new
+  // account with just a starting cash balance).
+  const effectiveMonthlyExpense = thisMonthExpenses > 0 ? thisMonthExpenses : monthlyExpenseAverage;
   const runwayDays =
-    monthlyExpenseAverage > 0
-      ? Math.floor(cashBalance / (monthlyExpenseAverage / 30))
+    effectiveMonthlyExpense > 0
+      ? Math.floor(cashBalance / (effectiveMonthlyExpense / 30))
       : null;
 
   // Accounts Receivable
