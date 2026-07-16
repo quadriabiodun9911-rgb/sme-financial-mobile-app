@@ -15,12 +15,15 @@ import {
     modelPriceIncrease,
     modelCostCut,
     modelNewProduct,
+    modelCombinedScenario,
     ScenarioResult,
+    CombinedScenarioResult,
+    CombinedLever,
 } from '../utils/analysis';
 import { ReportPeriod } from '../utils/finance';
 
 type Tab = 'diagnosis' | 'scenarios';
-type ScenarioType = 'hire' | 'revenue' | 'loan' | 'price' | 'cost' | 'product';
+type ScenarioType = 'hire' | 'revenue' | 'loan' | 'price' | 'cost' | 'product' | 'combine';
 
 function fmtRunway(days: number): string {
     if (days >= 999) return 'Very healthy';
@@ -170,8 +173,100 @@ function ProductForm({ onRun, currency }: { onRun: (r: ScenarioResult) => void; 
     );
 }
 
+// Lets multiple levers be combined into one scenario — e.g. "raise prices
+// 20% AND cut salary costs" — instead of only ever modelling one change at a
+// time. Each lever is a checkbox that reveals its own inputs; only enabled
+// levers with valid values are included when the scenario runs.
+function CombineForm({ onRun, currency }: { onRun: (r: CombinedScenarioResult) => void; currency: string }) {
+    const { finance } = useApp();
+
+    const [revenueOn, setRevenueOn] = useState(false);
+    const [revenuePct, setRevenuePct] = useState('');
+
+    const [costOn, setCostOn] = useState(false);
+    const [costLabel, setCostLabel] = useState('');
+    const [costDelta, setCostDelta] = useState('');
+
+    const [loanOn, setLoanOn] = useState(false);
+    const [loanPrincipal, setLoanPrincipal] = useState('');
+    const [loanRate, setLoanRate] = useState('');
+    const [loanTerm, setLoanTerm] = useState('');
+
+    const revenueValid = revenueOn && revenuePct !== '' && !isNaN(parseFloat(revenuePct));
+    const costValid = costOn && costLabel.trim() !== '' && costDelta !== '' && !isNaN(parseFloat(costDelta));
+    const loanValid = loanOn && loanPrincipal && loanRate && loanTerm;
+    const anyValid = revenueValid || costValid || loanValid;
+
+    const runCombined = () => {
+        const levers: CombinedLever[] = [];
+        if (revenueValid) {
+            const pct = parseFloat(revenuePct);
+            levers.push({ type: 'revenue', label: `Revenue/Price ${pct >= 0 ? '+' : ''}${pct}%`, revenuePct: pct });
+        }
+        if (costValid) {
+            const delta = parseFloat(costDelta);
+            levers.push({ type: 'cost', label: `${delta >= 0 ? '+' : ''}${currency}${Math.abs(delta).toLocaleString()} ${costLabel.trim()}`, costDelta: delta });
+        }
+        if (loanValid) {
+            levers.push({
+                type: 'loan',
+                label: `Loan ${currency}${parseFloat(loanPrincipal).toLocaleString()} @ ${loanRate}%`,
+                loanPrincipal: parseFloat(loanPrincipal),
+                loanRatePercent: parseFloat(loanRate),
+                loanTermMonths: parseInt(loanTerm) || 1,
+            });
+        }
+        onRun(modelCombinedScenario(finance, levers, currency));
+    };
+
+    return (
+        <View>
+            <Text style={s.combineHint}>Turn on any combination of levers below and run them together.</Text>
+
+            {/* Revenue / price lever */}
+            <TouchableOpacity style={s.leverToggle} onPress={() => setRevenueOn(v => !v)}>
+                <Text style={s.leverCheck}>{revenueOn ? '☑' : '☐'}</Text>
+                <Text style={s.leverLabel}>📈 Change Revenue / Prices (%)</Text>
+            </TouchableOpacity>
+            {revenueOn && (
+                <TextInput style={s.input} placeholder="e.g. 20 for +20%, -10 for -10%" placeholderTextColor={Colors.textMuted} keyboardType="numeric" value={revenuePct} onChangeText={setRevenuePct} />
+            )}
+
+            {/* Cost lever (covers salary cuts, new hires, any cost change) */}
+            <TouchableOpacity style={s.leverToggle} onPress={() => setCostOn(v => !v)}>
+                <Text style={s.leverCheck}>{costOn ? '☑' : '☐'}</Text>
+                <Text style={s.leverLabel}>✂️ Change a Cost (e.g. salary)</Text>
+            </TouchableOpacity>
+            {costOn && (
+                <>
+                    <TextInput style={s.input} placeholder="What cost? e.g. Salaries" placeholderTextColor={Colors.textMuted} value={costLabel} onChangeText={setCostLabel} />
+                    <TextInput style={s.input} placeholder={`Annual ${currency} change — negative to reduce, e.g. -6000`} placeholderTextColor={Colors.textMuted} keyboardType="numeric" value={costDelta} onChangeText={setCostDelta} />
+                </>
+            )}
+
+            {/* Loan lever */}
+            <TouchableOpacity style={s.leverToggle} onPress={() => setLoanOn(v => !v)}>
+                <Text style={s.leverCheck}>{loanOn ? '☑' : '☐'}</Text>
+                <Text style={s.leverLabel}>🏦 Take a Loan</Text>
+            </TouchableOpacity>
+            {loanOn && (
+                <>
+                    <TextInput style={s.input} placeholder={`Loan amount (${currency})`} placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={loanPrincipal} onChangeText={setLoanPrincipal} />
+                    <TextInput style={s.input} placeholder="Annual interest rate (%)" placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={loanRate} onChangeText={setLoanRate} />
+                    <TextInput style={s.input} placeholder="Term (months)" placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={loanTerm} onChangeText={setLoanTerm} />
+                </>
+            )}
+
+            <TouchableOpacity style={[s.runBtn, !anyValid && s.runBtnDisabled]} disabled={!anyValid} onPress={runCombined}>
+                <Text style={s.runBtnText}>Run Combined Scenario →</Text>
+            </TouchableOpacity>
+        </View>
+    );
+}
+
 // ─── Scenario result card ──────────────────────────────────────────────────────
-function ScenarioResultCard({ result, currency }: { result: ScenarioResult; currency: string }) {
+function ScenarioResultCard({ result, currency }: { result: ScenarioResult | CombinedScenarioResult; currency: string }) {
+    const breakdown = (result as CombinedScenarioResult).breakdown;
     const good = result.profitImpact >= 0;
     const recommend = result.newProfit >= 0 && result.profitImpact >= 0;
     return (
@@ -187,6 +282,21 @@ function ScenarioResultCard({ result, currency }: { result: ScenarioResult; curr
             </View>
 
             <Text style={s.resultLabel}>{result.label}</Text>
+
+            {/* Per-lever breakdown — only present for combined scenarios */}
+            {breakdown && breakdown.length > 0 && (
+                <View style={s.breakdownBox}>
+                    <Text style={s.breakdownHeader}>How each factor contributed</Text>
+                    {breakdown.map((b, i) => (
+                        <View key={i} style={s.breakdownRow}>
+                            <Text style={s.breakdownLabel} numberOfLines={1}>{b.label}</Text>
+                            <Text style={[s.breakdownVal, { color: b.profitImpact >= 0 ? Colors.income : Colors.expense }]}>
+                                {b.profitImpact >= 0 ? '+' : ''}{currency}{Math.round(b.profitImpact).toLocaleString()}
+                            </Text>
+                        </View>
+                    ))}
+                </View>
+            )}
 
             {/* Impact summary */}
             <View style={s.impactRow}>
@@ -262,8 +372,8 @@ export default function AnalysisScreen() {
 
     const [tab, setTab]             = useState<Tab>('diagnosis');
     const [period, setPeriod]       = useState<ReportPeriod>('month');
-    const [scenarioType, setScenarioType] = useState<ScenarioType>('hire');
-    const [scenarioResults, setScenarioResults] = useState<Partial<Record<ScenarioType, ScenarioResult>>>({});
+    const [scenarioType, setScenarioType] = useState<ScenarioType>('combine');
+    const [scenarioResults, setScenarioResults] = useState<Partial<Record<ScenarioType, ScenarioResult | CombinedScenarioResult>>>({});
 
     const analysis = useMemo(() => analyseRootCause(transactions, period, settings), [transactions, period, settings]);
 
@@ -281,6 +391,7 @@ export default function AnalysisScreen() {
     ];
 
     const SCENARIOS: { key: ScenarioType; label: string; icon: string }[] = [
+        { key: 'combine', label: 'Combine Factors',  icon: '🎛️' },
         { key: 'hire',    label: 'Hire Staff',       icon: '👤' },
         { key: 'revenue', label: 'Revenue Change',   icon: '📈' },
         { key: 'loan',    label: 'Take a Loan',      icon: '🏦' },
@@ -446,6 +557,7 @@ export default function AnalysisScreen() {
 
                         {/* Form */}
                         <View style={s.formCard}>
+                            {scenarioType === 'combine' && <CombineForm currency={currency} onRun={r => setScenarioResults(p => ({ ...p, combine: r }))} />}
                             {scenarioType === 'hire'    && <HireForm    currency={currency} onRun={r => setScenarioResults(p => ({ ...p, hire: r }))} />}
                             {scenarioType === 'revenue' && <RevenueForm currency={currency} onRun={r => setScenarioResults(p => ({ ...p, revenue: r }))} />}
                             {scenarioType === 'loan'    && <LoanForm    currency={currency} onRun={r => setScenarioResults(p => ({ ...p, loan: r }))} />}
@@ -560,4 +672,15 @@ const s = StyleSheet.create({
     riskItem:      { fontSize: 12, color: Colors.textSecondary, lineHeight: 20, marginBottom: 4 },
     oppHeader:     { fontSize: 12, fontWeight: '700', color: Colors.income, marginBottom: 6 },
     oppItem:       { fontSize: 12, color: Colors.textSecondary, lineHeight: 20, marginBottom: 4 },
+
+    combineHint:   { fontSize: 12, color: Colors.textMuted, marginBottom: 12, lineHeight: 18 },
+    leverToggle:   { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, marginTop: 6 },
+    leverCheck:    { fontSize: 16, color: Colors.primary },
+    leverLabel:    { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
+
+    breakdownBox:    { backgroundColor: Colors.bg, borderRadius: 10, padding: 12, marginBottom: 14 },
+    breakdownHeader: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
+    breakdownRow:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 },
+    breakdownLabel:  { flex: 1, fontSize: 12, color: Colors.textSecondary, marginRight: 8 },
+    breakdownVal:    { fontSize: 12, fontWeight: '700' },
 });

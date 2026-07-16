@@ -429,6 +429,88 @@ export function modelNewProduct(
     };
 }
 
+// ─── Combined scenario modelling ───────────────────────────────────────────────
+// Every model*() function above answers "what if I do ONE thing" against the
+// same base finance. A real decision is rarely just one lever — "raise
+// prices AND cut salaries" is the normal shape of a plan. This applies
+// several levers to the SAME working finance state in sequence (so a price
+// change and a cost cut compound correctly) and returns one consolidated
+// result, plus a breakdown of what each individual lever contributed.
+export type CombinedLeverType = 'revenue' | 'cost' | 'loan';
+
+export interface CombinedLever {
+    type: CombinedLeverType;
+    label: string;
+    revenuePct?: number;     // 'revenue': % change applied to income (positive = price/revenue increase, negative = decrease)
+    costDelta?: number;      // 'cost': annual expense delta (positive = new/increased cost, negative = a cut/reduction)
+    loanPrincipal?: number;  // 'loan'
+    loanRatePercent?: number;
+    loanTermMonths?: number;
+}
+
+export interface CombinedScenarioResult extends ScenarioResult {
+    breakdown: { label: string; profitImpact: number }[];
+}
+
+export function modelCombinedScenario(
+    finance: FinanceData,
+    levers: CombinedLever[],
+    currency: string,
+): CombinedScenarioResult {
+    let income = finance.income;
+    let expense = finance.expense;
+    const breakdown: { label: string; profitImpact: number }[] = [];
+
+    for (const lever of levers) {
+        const profitBefore = income - expense;
+        if (lever.type === 'revenue' && lever.revenuePct) {
+            income = income * (1 + lever.revenuePct / 100);
+        } else if (lever.type === 'cost' && lever.costDelta) {
+            expense = Math.max(0, expense + lever.costDelta);
+        } else if (lever.type === 'loan' && lever.loanPrincipal) {
+            const monthlyRate = (lever.loanRatePercent || 0) / 100 / 12;
+            const term = lever.loanTermMonths || 1;
+            const monthlyPayment = monthlyRate > 0
+                ? (lever.loanPrincipal * monthlyRate * Math.pow(1 + monthlyRate, term)) / (Math.pow(1 + monthlyRate, term) - 1)
+                : lever.loanPrincipal / term;
+            expense += monthlyPayment * 12;
+        }
+        breakdown.push({ label: lever.label, profitImpact: (income - expense) - profitBefore });
+    }
+
+    const newProfit = income - expense;
+    const newMargin = income > 0 ? (newProfit / income) * 100 : 0;
+    const baseCash = finance.expense > 0 ? Math.floor(finance.cashBalance / (finance.expense / 30)) : 999;
+    const newMonthlyExp = expense / 12;
+    const newCashRunway = newMonthlyExp > 0 ? Math.floor(finance.cashBalance / (newMonthlyExp / 30)) : 999;
+    const profitImpact = newProfit - finance.profit;
+    const good = profitImpact >= 0;
+
+    return {
+        label: levers.length > 0 ? levers.map(l => l.label).join(' + ') : 'Combined scenario',
+        baseProfit: finance.profit,
+        newProfit,
+        profitImpact,
+        baseMargin: finance.margin,
+        newMargin,
+        baseCashRunway: baseCash,
+        newCashRunway: Math.max(0, newCashRunway),
+        breakEvenRevenue: expense,
+        verdict: good
+            ? `Combined, these changes add ${currency}${Math.round(profitImpact).toLocaleString()} to profit — margin moves from ${finance.margin.toFixed(1)}% to ${newMargin.toFixed(1)}%.`
+            : `Combined, these changes cut profit by ${currency}${Math.round(Math.abs(profitImpact)).toLocaleString()} — margin moves from ${finance.margin.toFixed(1)}% to ${newMargin.toFixed(1)}%.`,
+        risks: [
+            newProfit < 0 ? `This combination pushes you into a ${currency}${Math.round(Math.abs(newProfit)).toLocaleString()} loss.` : `Cash runway moves from ${baseCash} to ${Math.max(0, newCashRunway)} days.`,
+            `Each lever assumes the others don't change customer or staff behaviour — a big price rise combined with a pay cut can compound retention risk on both sides.`,
+        ],
+        opportunities: [
+            good ? `Redirect the extra ${currency}${Math.round(profitImpact).toLocaleString()}/yr into cash reserve or growth.` : `Try a smaller version of the harshest lever below and re-run.`,
+            `The breakdown below shows which single change is doing the most work — that's usually the one worth doing carefully, not the one worth cutting first.`,
+        ],
+        breakdown,
+    };
+}
+
 export function modelCostCut(
     finance: FinanceData,
     categoryName: string,
