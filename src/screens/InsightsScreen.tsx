@@ -109,8 +109,21 @@ const SOURCE_LABELS = {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function InsightsScreen() {
-    const { finance, settings, transactions, setCurrentScreen, navigate } = useApp();
+    const { finance, settings, transactions, loans, setCurrentScreen, navigate } = useApp();
     const { currency, targetMargin, minReserve } = settings;
+
+    // finance.liabilities is only Settings' manual "opening liabilities"
+    // figure — it never includes the live Loan Register (same root cause
+    // fixed in Reports > Loans & Debt and Debt Analysis), so this screen's
+    // "Money You Owe" line understated real liabilities for any account
+    // with active loans.
+    const liveLoanBalance = useMemo(() => (loans ?? [])
+        .filter(l => l.status === 'active')
+        .reduce((sum, l) => {
+            const paid = (l.payments ?? []).reduce((s, p) => s + (p.amount || 0), 0);
+            return sum + Math.max(0, (l.principal || 0) - paid);
+        }, 0), [loans]);
+    const totalLiabilities = (isNaN(finance.liabilities) ? 0 : finance.liabilities) + liveLoanBalance;
 
     const [swotExpanded, setSwotExpanded] = useState(true);
     const [expandedAction, setExpandedAction] = useState<number | null>(null);
@@ -301,7 +314,7 @@ export default function InsightsScreen() {
                     <View style={styles.card}>
                         <Text style={styles.cardTitle}>What You Own & Owe</Text>
                         <Row label="Things You Own (Assets)" value={`${currency}${(isNaN(finance.assets) ? 0 : finance.assets).toLocaleString()}`} valueStyle={styles.blue} />
-                        <Row label="Money You Owe (Liabilities)" value={`${currency}${(isNaN(finance.liabilities) ? 0 : finance.liabilities).toLocaleString()}`} valueStyle={styles.orange} />
+                        <Row label="Money You Owe (Liabilities)" value={`${currency}${totalLiabilities.toLocaleString()}`} valueStyle={styles.orange} />
                         <Row label="Your Business Worth" value={`${currency}${(isNaN(finance.equity) ? 0 : finance.equity).toLocaleString()}`} valueStyle={styles.purple} />
                         <Text style={styles.note}>Update opening balances in Settings for a complete balance sheet.</Text>
                     </View>

@@ -471,11 +471,21 @@ export default function ReportsScreen() {
 
                     {/* ── DEBT MANAGEMENT ──────────────────────────────── */}
                     {activeTab === 'debt' && (
-                        <EnhancedDebtManagement
-                            finance={allFinance}
-                            currency={currency}
-                            loans={loansList}
-                        />
+                        <>
+                            <EnhancedDebtManagement
+                                finance={allFinance}
+                                currency={currency}
+                                loans={loansList}
+                            />
+                            {/* Solvency/leverage ratios (debt-to-assets, debt-to-
+                                equity, ROA, ROE) — was imported but never actually
+                                rendered anywhere in the app. */}
+                            <DebtAnalysis
+                                finance={allFinance}
+                                currency={currency}
+                                loans={loansList}
+                            />
+                        </>
                     )}
 
                     {/* ── ASSET PRODUCTIVITY ───────────────────────────── */}

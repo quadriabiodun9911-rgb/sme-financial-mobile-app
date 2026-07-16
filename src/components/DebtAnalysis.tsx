@@ -1,11 +1,12 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
-import { FinanceData } from '../types';
+import { FinanceData, Loan } from '../types';
 
 interface Props {
     finance: FinanceData;
     currency: string;
+    loans?: Loan[];
 }
 
 function healthColor(score: 'strong' | 'stable' | 'concerning') {
@@ -18,8 +19,20 @@ function healthScore(val: number, thresholds: [number, number]): 'strong' | 'sta
     return 'concerning';
 }
 
-export default function DebtAnalysis({ finance, currency }: Props) {
-    const liabilities = finance.liabilities;
+export default function DebtAnalysis({ finance, currency, loans = [] }: Props) {
+    // finance.liabilities only ever reflects Settings' manual "opening
+    // liabilities" figure — computeFinance never folds in the live Loan
+    // Register — same root cause fixed in EnhancedDebtManagement.tsx
+    // (Reports > Loans & Debt). This component had the identical gap: an
+    // account with real active loans could show "No recorded liabilities"
+    // here and 0% debt-to-assets, understating leverage risk entirely.
+    const liveLoanBalance = loans
+        .filter(l => l.status === 'active')
+        .reduce((sum, l) => {
+            const paid = (l.payments ?? []).reduce((s, p) => s + (p.amount || 0), 0);
+            return sum + Math.max(0, (l.principal || 0) - paid);
+        }, 0);
+    const liabilities = finance.liabilities + liveLoanBalance;
     const assets      = finance.assets;
     const equity      = finance.equity;
     const profit      = finance.profit;
