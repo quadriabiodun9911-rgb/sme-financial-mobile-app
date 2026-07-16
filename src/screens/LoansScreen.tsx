@@ -23,6 +23,8 @@ import DateInput from '../components/DateInput';
 import MerchantFinancingSection from './MerchantFinancingSection';
 import { computeDebtOptimiser } from '../utils/finance';
 import NextStepLink from '../components/NextStepLink';
+import ProfitCashImpactCard from '../components/ProfitCashImpactCard';
+import { computeProfitCashImpact } from '../utils/impactChain';
 
 // Original Loans Screen helpers
 function monthlyPayment(principal: number, annualRate: number, termMonths: number): number {
@@ -366,6 +368,13 @@ export default function LoansScreen() {
                                         {(!affordable || tight) && (
                                             <NextStepLink text="See the full effect on your cash forecast before committing" onPress={() => navigate('cashflow')} />
                                         )}
+
+                                        <ProfitCashImpactCard
+                                            impact={computeProfitCashImpact(monthlyProfit, finance?.cashBalance ?? 0, -mPay)}
+                                            source="loan"
+                                            currency={currency}
+                                            onSeeFullPicture={() => navigate('clarity')}
+                                        />
                                     </View>
                                 );
                             })()}

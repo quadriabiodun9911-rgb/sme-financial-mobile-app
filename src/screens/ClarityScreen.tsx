@@ -86,6 +86,42 @@ export default function ClarityScreen() {
                             <Text style={[s.healthStatus, { color: healthColor }]}>{healthLabel}</Text>
                         </View>
 
+                        {/* Every decision chain in the app ends here: does it grow profit,
+                            and does that flow through to cash you can actually use. This
+                            is the app's central answer, not just one more metric card. */}
+                        <View style={s.pathwayCard}>
+                            <Text style={s.pathwayTitle}>💰 Profit → Cash Balance</Text>
+                            <View style={s.pathwayRow}>
+                                <View style={s.pathwayBox}>
+                                    <Text style={s.pathwayLabel}>Profit</Text>
+                                    <Text style={[s.pathwayVal, { color: finance.profit >= 0 ? Colors.income : Colors.expense }]}>
+                                        {currency}{Math.round(finance.profit).toLocaleString()}
+                                    </Text>
+                                </View>
+                                <Text style={s.pathwayArrow}>→</Text>
+                                <View style={s.pathwayBox}>
+                                    <Text style={s.pathwayLabel}>Cash Balance</Text>
+                                    <Text style={[s.pathwayVal, { color: finance.cashBalance >= 0 ? Colors.income : Colors.expense }]}>
+                                        {currency}{Math.round(finance.cashBalance).toLocaleString()}
+                                    </Text>
+                                </View>
+                            </View>
+                            <Text style={s.pathwayNote}>
+                                Growing your business comes down to this: every decision either grows profit — which
+                                builds cash you can rely on — or it doesn't. That's what every "next step" link in
+                                this app is measuring.
+                            </Text>
+                            {topActions[0] && (
+                                <View style={s.pathwayLeverBox}>
+                                    <Text style={s.pathwayLeverLabel}>Your biggest lever right now</Text>
+                                    <Text style={s.pathwayLeverTitle}>{topActions[0].title}</Text>
+                                    <Text style={s.pathwayLeverImpact}>
+                                        ~{currency}{Math.round(topActions[0].expectedImpact).toLocaleString()} potential impact
+                                    </Text>
+                                </View>
+                            )}
+                        </View>
+
                         {criticalProblems.length === 0 && otherProblems.length === 0 && (
                             <View style={s.goodCard}>
                                 <Text style={s.goodText}>✓ No major issues found right now. Keep doing what's working, and check back as your numbers change.</Text>
@@ -220,6 +256,19 @@ const s = StyleSheet.create({
 
     goodCard: { backgroundColor: Colors.income + '15', borderWidth: 1, borderColor: Colors.income, borderRadius: 12, padding: 14, marginBottom: 18 },
     goodText: { fontSize: 13, color: Colors.textPrimary, lineHeight: 19 },
+
+    pathwayCard:  { backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.primary, padding: 16, marginBottom: 18 },
+    pathwayTitle: { fontSize: 13, fontWeight: '800', color: Colors.textPrimary, marginBottom: 12 },
+    pathwayRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 12 },
+    pathwayBox:   { alignItems: 'center' },
+    pathwayLabel: { fontSize: 11, color: Colors.textMuted, marginBottom: 4 },
+    pathwayVal:   { fontSize: 20, fontWeight: '800' },
+    pathwayArrow: { fontSize: 18, color: Colors.primary },
+    pathwayNote:  { fontSize: 11, color: Colors.textSecondary, lineHeight: 16, marginBottom: 10 },
+    pathwayLeverBox:   { backgroundColor: Colors.primary + '12', borderRadius: 8, padding: 10 },
+    pathwayLeverLabel: { fontSize: 10, color: Colors.textMuted, fontWeight: '600', marginBottom: 3 },
+    pathwayLeverTitle: { fontSize: 12, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },
+    pathwayLeverImpact:{ fontSize: 11, color: Colors.income, fontWeight: '700' },
 
     section:      { marginBottom: 20 },
     sectionTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: 10 },

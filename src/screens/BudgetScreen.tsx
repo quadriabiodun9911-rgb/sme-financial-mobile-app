@@ -13,6 +13,8 @@ import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateExpenseReductionActions } from '../utils/actionRecommendationEngine';
 import { generateAutoBudget, AutoBudgetSuggestion } from '../utils/budgetEngine';
 import NextStepLink from '../components/NextStepLink';
+import ProfitCashImpactCard from '../components/ProfitCashImpactCard';
+import { computeProfitCashImpact } from '../utils/impactChain';
 import { Budget } from '../types';
 
 const EXPENSE_CATEGORIES = [
@@ -263,6 +265,15 @@ export default function BudgetScreen() {
 
                         {budgets.length > 0 && (
                             <NextStepLink text="See how this budget affects your 13-week cash forecast" onPress={() => navigate('cashflow')} />
+                        )}
+
+                        {budgets.length > 0 && (
+                            <ProfitCashImpactCard
+                                impact={computeProfitCashImpact(monthlyRevenue, cashBalance, -totalCommitments)}
+                                source="budget"
+                                currency={currency}
+                                onSeeFullPicture={() => navigate('clarity')}
+                            />
                         )}
                     </View>
                 )}
