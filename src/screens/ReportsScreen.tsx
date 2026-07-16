@@ -491,6 +491,7 @@ export default function ReportsScreen() {
                         <FinancialHealthAssessment
                             finance={allFinance}
                             transactions={transactions}
+                            invoices={invoices}
                             assets={assets}
                             currency={currency}
                             minReserve={minReserve}
