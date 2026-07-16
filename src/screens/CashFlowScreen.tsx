@@ -9,6 +9,7 @@ import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { computeCashFlowForecast } from '../utils/finance';
+import NextStepLink from '../components/NextStepLink';
 
 type Tab = 'forecast' | 'runway' | 'ar';
 
@@ -175,11 +176,11 @@ export default function CashFlowScreen() {
                             </Text>
                         </View>
 
-                        <TouchableOpacity style={[styles.actionBtn, { marginTop: 4 }]} onPress={() => setCurrentScreen('budget')}>
-                            <Text style={styles.actionBtnText}>
-                                {usesBudget ? 'This forecast reflects your budget — Review it →' : 'Set a budget to sharpen this forecast →'}
-                            </Text>
-                        </TouchableOpacity>
+                        <NextStepLink
+                            emphasis="button"
+                            text={usesBudget ? 'This forecast reflects your budget — Review it' : 'Set a budget to sharpen this forecast'}
+                            onPress={() => setCurrentScreen('budget')}
+                        />
                     </>
                 )}
 

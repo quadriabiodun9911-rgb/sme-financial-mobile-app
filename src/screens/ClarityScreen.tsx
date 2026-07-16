@@ -4,9 +4,9 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
+import NextStepLink from '../components/NextStepLink';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan, ActionTactic } from '../utils/actionRecommendationEngine';
-import { calculateGoalBridge, mapSavedGoalToBridge } from '../utils/goalBridgeEngine';
 
 const MIN_TRANSACTIONS_FOR_DIAGNOSIS = 5;
 
@@ -16,7 +16,7 @@ const MIN_TRANSACTIONS_FOR_DIAGNOSIS = 5;
 // because that supporting detail is spread across a dozen similarly-named
 // screens with no one place that just answers the question plainly.
 export default function ClarityScreen() {
-    const { transactions, invoices, finance, settings, goals, setCurrentScreen } = useApp();
+    const { transactions, invoices, finance, settings, goals, inventory, setCurrentScreen } = useApp();
     const { currency } = settings;
 
     const hasEnoughData = transactions.length >= MIN_TRANSACTIONS_FOR_DIAGNOSIS;
@@ -63,6 +63,13 @@ export default function ClarityScreen() {
     const criticalProblems = diagnosis?.diagnoses.filter(d => d.severity === 'critical') ?? [];
     const otherProblems = diagnosis?.diagnoses.filter(d => d.severity !== 'critical') ?? [];
 
+    // A low-margin problem is the entry point to a concrete next-step chain:
+    // check what's priced too low in Inventory → adjust it via the Pricing
+    // Optimizer → see the effect on the Balance Sheet. Only worth suggesting
+    // if the business actually tracks priced inventory items.
+    const isLowMarginProblem = (problem: string) => problem.toLowerCase().includes('profit margin');
+    const showInventoryNudge = inventory.length > 0;
+
     return (
         <SafeAreaView style={s.safe}>
             <Header />
@@ -93,6 +100,9 @@ export default function ClarityScreen() {
                                         <Text style={s.problemTitle}>{d.problem}</Text>
                                         <Text style={s.problemImpact}>{d.impact}</Text>
                                         <Text style={s.problemOpportunity}>💡 {d.opportunity}</Text>
+                                        {isLowMarginProblem(d.problem) && showInventoryNudge && (
+                                            <NextStepLink text="Check your inventory pricing" onPress={() => setCurrentScreen('inventory')} />
+                                        )}
                                     </View>
                                 ))}
                             </View>
@@ -106,6 +116,9 @@ export default function ClarityScreen() {
                                         <Text style={s.problemTitle}>{d.problem}</Text>
                                         <Text style={s.problemImpact}>{d.impact}</Text>
                                         <Text style={s.problemOpportunity}>💡 {d.opportunity}</Text>
+                                        {isLowMarginProblem(d.problem) && showInventoryNudge && (
+                                            <NextStepLink text="Check your inventory pricing" onPress={() => setCurrentScreen('inventory')} />
+                                        )}
                                     </View>
                                 ))}
                             </View>

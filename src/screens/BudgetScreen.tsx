@@ -12,6 +12,7 @@ import { totalMonthlyLoanBurden } from '../utils/loanMath';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateExpenseReductionActions } from '../utils/actionRecommendationEngine';
 import { generateAutoBudget, AutoBudgetSuggestion } from '../utils/budgetEngine';
+import NextStepLink from '../components/NextStepLink';
 import { Budget } from '../types';
 
 const EXPENSE_CATEGORIES = [
@@ -261,9 +262,7 @@ export default function BudgetScreen() {
                         </View>
 
                         {budgets.length > 0 && (
-                            <TouchableOpacity style={s.forecastLink} onPress={() => navigate('cashflow')}>
-                                <Text style={s.forecastLinkText}>See how this budget affects your 13-week cash forecast →</Text>
-                            </TouchableOpacity>
+                            <NextStepLink text="See how this budget affects your 13-week cash forecast" onPress={() => navigate('cashflow')} />
                         )}
                     </View>
                 )}

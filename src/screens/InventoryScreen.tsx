@@ -9,6 +9,7 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
+import NextStepLink from '../components/NextStepLink';
 import { InventoryItem } from '../types';
 
 type InventoryTab = 'stock' | 'analytics';
@@ -416,6 +417,10 @@ export default function InventoryScreen() {
                                         </View>
                                     </View>
                                 ))}
+                                <NextStepLink
+                                    text="See pricing strategies to fix this"
+                                    onPress={() => navigate('reports', { reportSection: 'growth', reportTab: 'pricing' })}
+                                />
                             </View>
                         )}
 

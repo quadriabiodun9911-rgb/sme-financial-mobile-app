@@ -21,6 +21,7 @@ import CustomerProfitability from '../components/CustomerProfitability';
 import ProductPerformance from '../components/ProductPerformance';
 import GrowthMetrics from '../components/GrowthMetrics';
 import PricingOptimizer from '../components/PricingOptimizer';
+import NextStepLink from '../components/NextStepLink';
 import CashFlowStatement from '../components/CashFlowStatement';
 import AccrualCashFlow from '../components/AccrualCashFlow';
 import { filterByPeriod, filterByDateRange, getPreviousPeriodRange, computeFinance, computeAssetCurrentValue, computeMonthlyTrend, computeEnhancedPnL, computeWorkingCapitalMetrics, classifyBusinessSize, sizeLabel, transactionsToCSV, ReportPeriod, MonthlyPoint, DateRange } from '../utils/finance';
@@ -528,11 +529,17 @@ export default function ReportsScreen() {
 
                     {/* ── PRICING OPTIMIZER ────────────────────────────── */}
                     {activeTab === 'pricing' && (
-                        <PricingOptimizer
-                            currentRevenue={allFinance.income}
-                            currentMargin={allFinance.margin}
-                            currency={currency}
-                        />
+                        <>
+                            <PricingOptimizer
+                                currentRevenue={allFinance.income}
+                                currentMargin={allFinance.margin}
+                                currency={currency}
+                            />
+                            <NextStepLink
+                                text="After adjusting prices, see the effect on your Balance Sheet"
+                                onPress={() => { setSection('statements'); setActiveTab('balancesheet'); }}
+                            />
+                        </>
                     )}
 
                 </View>

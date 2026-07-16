@@ -5,9 +5,10 @@ import { Colors } from '../theme/colors';
 import { analyzeRevenue, analyzeSalesFunnel } from '../utils/revenueAnalytics';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
+import NextStepLink from '../components/NextStepLink';
 
 export default function MakeMoneyScreen() {
-  const { transactions, invoices, finance, setCurrentScreen, settings } = useApp();
+  const { transactions, invoices, finance, setCurrentScreen, settings, inventory } = useApp();
 
   const now = new Date();
   const thisMonth = now.toISOString().slice(0, 7);
@@ -207,6 +208,9 @@ export default function MakeMoneyScreen() {
               <View style={styles.insightContent}>
                 <Text style={styles.insightTitle}>Revenue Down</Text>
                 <Text style={styles.insightText}>Revenue declined {Math.abs(metrics.monthOverMonthGrowth).toFixed(0)}%. Review marketing & pricing.</Text>
+                {inventory.length > 0 && (
+                  <NextStepLink text="Check your inventory pricing" onPress={() => setCurrentScreen('inventory')} />
+                )}
               </View>
             </View>
           )}
