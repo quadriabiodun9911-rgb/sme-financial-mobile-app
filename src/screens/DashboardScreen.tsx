@@ -442,7 +442,7 @@ export default function DashboardScreen() {
                         currency={settings.currency || '₦'}
                         isQualified={financing.isQualified || false}
                         hasActiveLoan={financing.activeLoan !== undefined && financing.activeLoan !== null}
-                        onPress={() => setCurrentScreen('loans')}
+                        onPress={() => setCurrentScreen('funding-qualification')}
                       />
                     </View>
                 )}

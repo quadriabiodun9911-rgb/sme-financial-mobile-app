@@ -43,7 +43,7 @@ export default function MerchantFinancingQualificationWidget({
     // Determine next milestone
     const nextMilestone = useMemo(() => {
         const milestones = [
-            { value: daysRemaining, label: 'days until Account Age qualified', type: 'days', daysRemaining },
+            { value: daysRemaining, label: `${daysRemaining} days until Account Age qualified`, type: 'days', daysRemaining },
             { value: revenueRemaining, label: `${currency}${revenueRemaining.toLocaleString()} more revenue needed`, type: 'revenue', amount: revenueRemaining },
             { value: scoreRemaining, label: `${scoreRemaining} points to Financial Health qualification`, type: 'score', points: scoreRemaining },
         ].filter(m => m.value > 0);
