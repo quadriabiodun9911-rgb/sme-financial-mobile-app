@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { getTopCategories } from '../utils/finance';
+import TaxComparisonTable from './TaxComparisonTable';
 
 export default function TaxSummary() {
     const { finance, transactions, settings, navigate } = useApp();
@@ -33,6 +34,12 @@ export default function TaxSummary() {
 
     return (
         <View>
+            {/* Same Monthly/Quarterly/Yearly comparison format as Balance
+                Sheet and P&L — tax collected/paid per transaction is a
+                fixed historical fact, so this is a genuine trend, not a
+                repeated current-only figure. */}
+            <TaxComparisonTable transactions={transactions} currency={currency} />
+
             {/* Overview */}
             <View style={styles.card}>
                 <Text style={styles.cardTitle}>Tax Overview</Text>
