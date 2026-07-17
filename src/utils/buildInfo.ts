@@ -7,4 +7,4 @@
  * cache, or otherwise). Bump BUILD_STAMP any time this file is touched as
  * part of a fix, so the next crash report is self-diagnosing.
  */
-export const BUILD_STAMP = '2026-07-17T05:15Z-period-comparison-above-fold-on-balance-sheet';
+export const BUILD_STAMP = '2026-07-17T05:45Z-fix-blank-screen-on-missing-supabase-env-vars';
