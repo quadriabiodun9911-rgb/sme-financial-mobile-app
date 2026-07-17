@@ -10,6 +10,7 @@ import FooterNav from '../components/FooterNav';
 import InfoTip from '../components/InfoTip';
 import AgingReport from '../components/AgingReport';
 import PeriodComparisonTable from '../components/PeriodComparisonTable';
+import BalanceSheetComparisonTable from '../components/BalanceSheetComparisonTable';
 import TaxSummary from '../components/TaxSummary';
 import BudgetForecast from '../components/BudgetForecast';
 import CashManagement from '../components/CashManagement';
@@ -375,8 +376,11 @@ export default function ReportsScreen() {
                         <View>
                             {/* Clicking Monthly/Quarterly/Yearly above should show the Jan-Dec
                                 breakdown right away, not after scrolling past the whole balance
-                                sheet card — so this comes first, not last. */}
-                            <PeriodComparisonTable transactions={transactions} currency={currency} />
+                                sheet card — so this comes first, not last. Balance sheet figures
+                                (assets/debts) are shown here, not the Revenue/Expenses/Profit
+                                table that belongs on P&L — see BalanceSheetComparisonTable for
+                                why AR/AP/inventory aren't part of the trend. */}
+                            <BalanceSheetComparisonTable transactions={transactions} assets={assets} loans={loansList} currency={currency} />
                             <BalanceSheetTab
                                 finance={finance}
                                 wcMetrics={wcMetrics}
