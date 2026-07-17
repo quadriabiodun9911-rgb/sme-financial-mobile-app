@@ -1,4 +1,4 @@
-import { computeMonthlyTrend, computeQuarterlyTrend, computeYearlyTrend, analyzeTrend } from '../src/utils/trendAnalysis';
+import { computeMonthlyTrend, computeQuarterlyTrend, computeYearlyTrend, computeDailyTrend, computeWeeklyTrend, analyzeTrend } from '../src/utils/trendAnalysis';
 import { Transaction } from '../src/types';
 
 const makeTx = (overrides: Partial<Transaction>): Transaction => ({
@@ -10,6 +10,55 @@ const makeTx = (overrides: Partial<Transaction>): Transaction => ({
     amount: 1000,
     status: 'paid',
     ...overrides,
+});
+
+describe('computeDailyTrend', () => {
+    it('returns an empty array for no transactions', () => {
+        expect(computeDailyTrend([])).toEqual([]);
+    });
+
+    it('groups transactions into per-day revenue/expense buckets', () => {
+        const txs = [
+            makeTx({ type: 'income', amount: 500, date: '2024-03-01' }),
+            makeTx({ type: 'income', amount: 200, date: '2024-03-01' }),
+            makeTx({ type: 'expense', amount: 100, date: '2024-03-01' }),
+            makeTx({ type: 'income', amount: 300, date: '2024-03-02' }),
+        ];
+        const trend = computeDailyTrend(txs);
+        expect(trend).toHaveLength(2);
+        expect(trend[0]).toMatchObject({ date: '2024-03-01', revenue: 700, expense: 100, profit: 600 });
+        expect(trend[1]).toMatchObject({ date: '2024-03-02', revenue: 300, expense: 0, profit: 300 });
+    });
+});
+
+describe('computeWeeklyTrend', () => {
+    it('returns an empty array for no daily data', () => {
+        expect(computeWeeklyTrend([])).toEqual([]);
+    });
+
+    it('groups days falling in the same Mon-Sun week together', () => {
+        // Mon 2024-03-04 .. Sun 2024-03-10 is one ISO week.
+        const daily = computeDailyTrend([
+            makeTx({ type: 'income', amount: 1000, date: '2024-03-04' }),
+            makeTx({ type: 'income', amount: 500, date: '2024-03-06' }),
+            makeTx({ type: 'income', amount: 800, date: '2024-03-11' }), // next week
+        ]);
+        const weekly = computeWeeklyTrend(daily);
+        expect(weekly).toHaveLength(2);
+        expect(weekly[0]).toMatchObject({ revenue: 1500, daysWithData: 2 });
+        expect(weekly[1]).toMatchObject({ revenue: 800, daysWithData: 1 });
+    });
+
+    it('sorts weeks chronologically across a year boundary', () => {
+        const daily = computeDailyTrend([
+            makeTx({ type: 'income', amount: 100, date: '2024-12-30' }),
+            makeTx({ type: 'income', amount: 200, date: '2025-01-06' }),
+        ]);
+        const weekly = computeWeeklyTrend(daily);
+        expect(weekly).toHaveLength(2);
+        expect(weekly[0].revenue).toBe(100);
+        expect(weekly[1].revenue).toBe(200);
+    });
 });
 
 describe('computeMonthlyTrend', () => {

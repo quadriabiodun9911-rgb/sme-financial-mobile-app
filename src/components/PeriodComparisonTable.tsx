@@ -2,32 +2,56 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { Transaction } from '../types';
-import { computeMonthlyTrend, computeQuarterlyTrend, computeYearlyTrend } from '../utils/trendAnalysis';
+import { computeDailyTrend, computeWeeklyTrend, computeMonthlyTrend, computeQuarterlyTrend, computeYearlyTrend } from '../utils/trendAnalysis';
 
 interface Props {
     transactions: Transaction[];
     currency: string;
+    // Screens that only care about short-term pace (Transactions, Inventory)
+    // can skip straight to Daily/Weekly instead of defaulting to Monthly.
+    defaultGrouping?: Grouping;
 }
 
-type Grouping = 'monthly' | 'quarterly' | 'yearly';
+export type Grouping = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
+
+const GROUPINGS: { key: Grouping; label: string }[] = [
+    { key: 'daily', label: 'Daily' },
+    { key: 'weekly', label: 'Weekly' },
+    { key: 'monthly', label: 'Monthly' },
+    { key: 'quarterly', label: 'Quarterly' },
+    { key: 'yearly', label: 'Yearly' },
+];
 
 const MONTH_LABEL = (m: string) => {
     const [y, mo] = m.split('-');
     return new Date(Number(y), Number(mo) - 1, 1).toLocaleString('default', { month: 'short' }) + ` '${y.slice(2)}`;
 };
 
+const DAY_LABEL = (d: string) => {
+    const [y, mo, day] = d.split('-').map(Number);
+    return new Date(y, mo - 1, day).toLocaleString('default', { month: 'short', day: 'numeric' });
+};
+
 // Every row is a real financial-statement line, not a made-up metric —
 // Revenue, Expenses, Profit and Margin are exactly what a Jan-Dec
 // comparison is for: spotting a bad month or a seasonal pattern that a
 // single "This Month" snapshot can never show on its own.
-export default function PeriodComparisonTable({ transactions, currency }: Props) {
-    const [grouping, setGrouping] = useState<Grouping>('monthly');
+export default function PeriodComparisonTable({ transactions, currency, defaultGrouping = 'monthly' }: Props) {
+    const [grouping, setGrouping] = useState<Grouping>(defaultGrouping);
 
+    const daily = useMemo(() => computeDailyTrend(transactions), [transactions]);
+    const weekly = useMemo(() => computeWeeklyTrend(daily), [daily]);
     const monthly = useMemo(() => computeMonthlyTrend(transactions), [transactions]);
     const quarterly = useMemo(() => computeQuarterlyTrend(monthly), [monthly]);
     const yearly = useMemo(() => computeYearlyTrend(monthly), [monthly]);
 
     const columns = useMemo(() => {
+        if (grouping === 'daily') {
+            return daily.map(d => ({ key: d.date, label: DAY_LABEL(d.date), revenue: d.revenue, expense: d.expense, profit: d.profit, margin: d.profitMargin }));
+        }
+        if (grouping === 'weekly') {
+            return weekly.map(w => ({ key: w.week, label: w.label, revenue: w.revenue, expense: w.expense, profit: w.profit, margin: w.profitMargin }));
+        }
         if (grouping === 'monthly') {
             return monthly.map(m => ({ key: m.month, label: MONTH_LABEL(m.month), revenue: m.revenue, expense: m.expense, profit: m.profit, margin: m.profitMargin }));
         }
@@ -35,9 +59,9 @@ export default function PeriodComparisonTable({ transactions, currency }: Props)
             return quarterly.map(q => ({ key: q.quarter, label: q.label, revenue: q.revenue, expense: q.expense, profit: q.profit, margin: q.profitMargin }));
         }
         return yearly.map(y => ({ key: y.year, label: y.year, revenue: y.revenue, expense: y.expense, profit: y.profit, margin: y.profitMargin }));
-    }, [grouping, monthly, quarterly, yearly]);
+    }, [grouping, daily, weekly, monthly, quarterly, yearly]);
 
-    const fmt = (n: number) => `${currency}${Math.round(n).toLocaleString()}`;
+    const fmt = (n: number) => `${n < 0 ? '-' : ''}${currency}${Math.round(Math.abs(n)).toLocaleString()}`;
 
     if (columns.length === 0) {
         return (
@@ -51,11 +75,9 @@ export default function PeriodComparisonTable({ transactions, currency }: Props)
         <View style={s.card}>
             <Text style={s.title}>Period Comparison</Text>
             <View style={s.toggleRow}>
-                {(['monthly', 'quarterly', 'yearly'] as Grouping[]).map(g => (
-                    <TouchableOpacity key={g} style={[s.toggleBtn, grouping === g && s.toggleBtnActive]} onPress={() => setGrouping(g)}>
-                        <Text style={[s.toggleText, grouping === g && s.toggleTextActive]}>
-                            {g === 'monthly' ? 'Monthly' : g === 'quarterly' ? 'Quarterly' : 'Yearly'}
-                        </Text>
+                {GROUPINGS.map(g => (
+                    <TouchableOpacity key={g.key} style={[s.toggleBtn, grouping === g.key && s.toggleBtnActive]} onPress={() => setGrouping(g.key)}>
+                        <Text style={[s.toggleText, grouping === g.key && s.toggleTextActive]}>{g.label}</Text>
                     </TouchableOpacity>
                 ))}
             </View>
@@ -105,7 +127,7 @@ export default function PeriodComparisonTable({ transactions, currency }: Props)
                     </View>
                 </View>
             </ScrollView>
-            <Text style={s.hint}>Scroll sideways to see every {grouping === 'monthly' ? 'month' : grouping === 'quarterly' ? 'quarter' : 'year'} you have data for.</Text>
+            <Text style={s.hint}>Scroll sideways to see every {grouping === 'daily' ? 'day' : grouping === 'weekly' ? 'week' : grouping === 'monthly' ? 'month' : grouping === 'quarterly' ? 'quarter' : 'year'} you have data for.</Text>
         </View>
     );
 }
@@ -113,18 +135,18 @@ export default function PeriodComparisonTable({ transactions, currency }: Props)
 const s = StyleSheet.create({
     card: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14 },
     title: { fontSize: 15, fontWeight: '800', color: Colors.textPrimary, marginBottom: 10 },
-    toggleRow: { flexDirection: 'row', backgroundColor: Colors.bg, borderRadius: 9, padding: 3, marginBottom: 14, alignSelf: 'flex-start' },
-    toggleBtn: { paddingVertical: 6, paddingHorizontal: 14, borderRadius: 7 },
+    toggleRow: { flexDirection: 'row', flexWrap: 'wrap', backgroundColor: Colors.bg, borderRadius: 9, padding: 3, marginBottom: 14, alignSelf: 'flex-start', gap: 2 },
+    toggleBtn: { paddingVertical: 6, paddingHorizontal: 11, borderRadius: 7 },
     toggleBtnActive: { backgroundColor: Colors.primary },
     toggleText: { fontSize: 11.5, fontWeight: '700', color: Colors.textMuted },
     toggleTextActive: { color: '#fff' },
 
     row: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: Colors.border },
-    cell: { width: 92, paddingVertical: 10, paddingHorizontal: 6, alignItems: 'flex-end', justifyContent: 'center' },
+    cell: { width: 98, paddingVertical: 10, paddingHorizontal: 6, alignItems: 'flex-end', justifyContent: 'center' },
     rowLabelCell: { width: 84, alignItems: 'flex-start' },
     rowLabelHeader: { fontSize: 10 },
     rowLabel: { fontSize: 12.5, color: Colors.textSecondary },
-    colHeader: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase' },
+    colHeader: { fontSize: 10.5, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', textAlign: 'right' },
     val: { fontSize: 12.5, color: Colors.textPrimary, fontVariant: ['tabular-nums'] },
     valMuted: { fontSize: 12.5, color: Colors.textMuted, fontVariant: ['tabular-nums'] },
 

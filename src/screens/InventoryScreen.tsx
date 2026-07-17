@@ -10,6 +10,7 @@ import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import NextStepLink from '../components/NextStepLink';
+import PeriodComparisonTable from '../components/PeriodComparisonTable';
 import { suggestSolution } from '../utils/impactChain';
 import { InventoryItem } from '../types';
 
@@ -36,7 +37,7 @@ const EMPTY_FORM: FormState = {
 };
 
 export default function InventoryScreen() {
-    const { inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem, settings, navigate, addTransaction } = useApp();
+    const { inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem, settings, navigate, addTransaction, transactions } = useApp();
     const { currency } = settings;
 
     const [activeTab, setActiveTab] = useState<InventoryTab>('stock');
@@ -442,6 +443,11 @@ export default function InventoryScreen() {
                                 <Text style={[styles.healthNote, { color: Colors.income }]}>All stock levels healthy</Text>
                             )}
                         </View>
+
+                        {/* Daily / weekly sales pace — how fast stock is actually moving */}
+                        {transactions.length > 0 && (
+                            <PeriodComparisonTable transactions={transactions} currency={currency} defaultGrouping="daily" />
+                        )}
 
                         {/* Use in Reports button */}
                         <TouchableOpacity

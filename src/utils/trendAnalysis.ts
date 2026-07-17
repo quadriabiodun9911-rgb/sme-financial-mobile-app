@@ -28,6 +28,24 @@ export interface YearlyTrendPoint {
     monthsWithData: number;
 }
 
+export interface DailyTrendPoint {
+    date: string;         // 'YYYY-MM-DD'
+    revenue: number;
+    expense: number;
+    profit: number;
+    profitMargin: number;
+}
+
+export interface WeeklyTrendPoint {
+    week: string;         // 'YYYY-Www' (ISO week)
+    label: string;        // 'Wk of 14 Jul'
+    revenue: number;
+    expense: number;
+    profit: number;
+    profitMargin: number;
+    daysWithData: number;
+}
+
 export interface QuarterlyTrendPoint {
     quarter: string;      // 'YYYY-Q1'
     label: string;        // 'Q1 2025'
@@ -74,6 +92,80 @@ export function computeMonthlyTrend(transactions: Transaction[]): MonthlyTrendPo
                 profit,
                 profitMargin: b.revenue > 0 ? (profit / b.revenue) * 100 : 0,
                 transactionCount: b.count,
+            };
+        });
+}
+
+/** Group transactions into daily revenue/expense/profit buckets. */
+export function computeDailyTrend(transactions: Transaction[]): DailyTrendPoint[] {
+    const buckets = new Map<string, { revenue: number; expense: number }>();
+
+    for (const t of transactions) {
+        const date = (t.date || '').slice(0, 10);
+        if (!date || date.length !== 10) continue;
+        if (!buckets.has(date)) buckets.set(date, { revenue: 0, expense: 0 });
+        const b = buckets.get(date)!;
+        if (t.type === 'income') b.revenue += t.amount;
+        else b.expense += t.amount;
+    }
+
+    return Array.from(buckets.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, b]) => {
+            const profit = b.revenue - b.expense;
+            return {
+                date,
+                revenue: b.revenue,
+                expense: b.expense,
+                profit,
+                profitMargin: b.revenue > 0 ? (profit / b.revenue) * 100 : 0,
+            };
+        });
+}
+
+/** ISO week number + the Monday that starts it, for a 'YYYY-MM-DD' date. */
+function isoWeekOf(dateStr: string): { key: string; mondayLabel: string } {
+    const d = new Date(dateStr + 'T00:00:00');
+    // Shift to the Thursday of this week so the ISO week/year never
+    // disagree with the calendar year the date visually belongs to.
+    const thursday = new Date(d);
+    thursday.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
+    const isoYear = thursday.getFullYear();
+    const jan1 = new Date(isoYear, 0, 1);
+    const week = Math.ceil(((thursday.getTime() - jan1.getTime()) / 86400000 + 1) / 7);
+
+    const monday = new Date(d);
+    monday.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    const mondayLabel = monday.toLocaleString('default', { month: 'short', day: 'numeric' });
+
+    return { key: `${isoYear}-W${String(week).padStart(2, '0')}`, mondayLabel };
+}
+
+/** Roll daily points up into ISO weeks (Monday-start). */
+export function computeWeeklyTrend(daily: DailyTrendPoint[]): WeeklyTrendPoint[] {
+    const buckets = new Map<string, { label: string; revenue: number; expense: number; days: number }>();
+
+    for (const d of daily) {
+        const { key, mondayLabel } = isoWeekOf(d.date);
+        if (!buckets.has(key)) buckets.set(key, { label: `Wk of ${mondayLabel}`, revenue: 0, expense: 0, days: 0 });
+        const b = buckets.get(key)!;
+        b.revenue += d.revenue;
+        b.expense += d.expense;
+        b.days += 1;
+    }
+
+    return Array.from(buckets.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([week, b]) => {
+            const profit = b.revenue - b.expense;
+            return {
+                week,
+                label: b.label,
+                revenue: b.revenue,
+                expense: b.expense,
+                profit,
+                profitMargin: b.revenue > 0 ? (profit / b.revenue) * 100 : 0,
+                daysWithData: b.days,
             };
         });
 }

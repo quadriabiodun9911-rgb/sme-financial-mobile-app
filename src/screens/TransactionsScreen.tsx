@@ -12,6 +12,7 @@ import { Transaction, TransactionStatus, RecurringFrequency } from '../types';
 import { transactionsToCSV } from '../utils/finance';
 import RecurringTransactionManager from '../components/RecurringTransactionManager';
 import NextStepLink from '../components/NextStepLink';
+import PeriodComparisonTable from '../components/PeriodComparisonTable';
 
 type FilterType   = 'all' | 'income' | 'expense' | 'collect';
 type StatusFilter = 'all' | 'paid' | 'pending' | 'overdue';
@@ -404,6 +405,11 @@ export default function TransactionsScreen() {
                         );
                     })()}
                 </>
+            )}
+
+            {/* ── Daily / weekly pace ──────────────────────────────────── */}
+            {typeFilter === 'all' && transactions.length > 0 && (
+                <PeriodComparisonTable transactions={transactions} currency={currency} defaultGrouping="weekly" />
             )}
 
             {/* ── Recurring Transactions Section ──────────────────────── */}
