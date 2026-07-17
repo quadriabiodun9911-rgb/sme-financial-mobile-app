@@ -316,7 +316,7 @@ export default function SettingsScreen() {
                     </CollapsibleSection>
 
                     {/* ⚙️ OPERATIONS */}
-                    <SectionHeader title="⚙️ OPERATIONS" />
+                    <SectionHeader title="⚙️ ACCOUNT & BUSINESS" />
 
                     {/* Business Setup */}
                     <CollapsibleSection title="Business Setup" defaultOpen={true}>
@@ -472,7 +472,7 @@ export default function SettingsScreen() {
                     </CollapsibleSection>
 
                     {/* 💰 FINANCE */}
-                    <SectionHeader title="💰 FINANCE" />
+                    <SectionHeader title="💰 FINANCIAL SETUP" />
 
                     {/* Profit Goals & Tax */}
                     <CollapsibleSection title="Profit Goals & Tax" defaultOpen={false}>
@@ -590,7 +590,7 @@ export default function SettingsScreen() {
                     </CollapsibleSection>
 
                     {/* 📊 ANALYTICS */}
-                    <SectionHeader title="📊 ANALYTICS" />
+                    <SectionHeader title="📤 DATA & EXPORT" />
 
                     {/* Data & Backup */}
                     <CollapsibleSection title="Data & Backup" defaultOpen={false}>
