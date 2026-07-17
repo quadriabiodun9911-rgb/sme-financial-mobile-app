@@ -11,6 +11,8 @@ import InfoTip from '../components/InfoTip';
 import AgingReport from '../components/AgingReport';
 import PeriodComparisonTable from '../components/PeriodComparisonTable';
 import BalanceSheetComparisonTable from '../components/BalanceSheetComparisonTable';
+import CashFlowComparisonTable from '../components/CashFlowComparisonTable';
+import StockSalesComparisonTable from '../components/StockSalesComparisonTable';
 import TaxSummary from '../components/TaxSummary';
 import BudgetForecast from '../components/BudgetForecast';
 import CashManagement from '../components/CashManagement';
@@ -449,17 +451,23 @@ export default function ReportsScreen() {
 
                     {/* ── INVENTORY ────────────────────────────────────── */}
                     {activeTab === 'inventory' && (
-                        <InventoryReportTab inventory={inventory} finance={allFinance} transactions={transactions} currency={currency} />
+                        <View>
+                            <StockSalesComparisonTable transactions={transactions} currency={currency} />
+                            <InventoryReportTab inventory={inventory} finance={allFinance} transactions={transactions} currency={currency} />
+                        </View>
                     )}
 
                     {/* ── ACCRUAL ──────────────────────────────────────── */}
                     {activeTab === 'accrual' && (
-                        <AccrualCashFlow
-                            transactions={transactions}
-                            invoices={invoices}
-                            finance={allFinance}
-                            currency={currency}
-                        />
+                        <View>
+                            <CashFlowComparisonTable transactions={transactions} currency={currency} />
+                            <AccrualCashFlow
+                                transactions={transactions}
+                                invoices={invoices}
+                                finance={allFinance}
+                                currency={currency}
+                            />
+                        </View>
                     )}
 
                     {/* ── AGING ────────────────────────────────────────── */}
