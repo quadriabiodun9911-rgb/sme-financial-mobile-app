@@ -373,6 +373,10 @@ export default function ReportsScreen() {
                     {/* ── BALANCE SHEET ────────────────────────────────── */}
                     {activeTab === 'balancesheet' && (
                         <View>
+                            {/* Clicking Monthly/Quarterly/Yearly above should show the Jan-Dec
+                                breakdown right away, not after scrolling past the whole balance
+                                sheet card — so this comes first, not last. */}
+                            <PeriodComparisonTable transactions={transactions} currency={currency} />
                             <BalanceSheetTab
                                 finance={finance}
                                 wcMetrics={wcMetrics}
@@ -382,11 +386,6 @@ export default function ReportsScreen() {
                                 currency={currency}
                                 bizSize={bizSize}
                             />
-                            {/* "Cash on Hand" above is money-in minus money-out for whichever
-                                period is selected — this is that same number broken down
-                                period by period, so you can see how it built up over time
-                                rather than just the current total. */}
-                            <PeriodComparisonTable transactions={transactions} currency={currency} />
                         </View>
                     )}
 
