@@ -24,6 +24,11 @@
  * floor, not the true figure: anything that was outstanding in March and
  * has since been paid won't show up. Older periods are more likely to
  * undercount for this reason. Flagged in the UI, not hidden.
+ *
+ * Manually-entered "Other Assets" / "Other Amounts Owed" (Settings has no
+ * date field for these) are applied as the same flat value in every column
+ * — not a fabricated trend, just an honest "this is the only figure we
+ * have, and it has no date attached."
  */
 
 import { Transaction, Asset, Loan } from '../types';
@@ -33,10 +38,20 @@ export interface BalanceSheetTrendPoint {
     label: string;
     cashOnHand: number;
     accountsReceivable: number;
-    accountsPayable: number;
+    shortTermAssets: number; // cashOnHand + accountsReceivable
     equipmentValue: number;
+    otherAssets: number; // manually entered, no date — same value in every column
+    totalAssets: number; // shortTermAssets + equipmentValue + otherAssets
+    accountsPayable: number;
     loansOutstanding: number;
-    netPosition: number; // cashOnHand + accountsReceivable + equipmentValue - accountsPayable - loansOutstanding
+    otherLiabilities: number; // manually entered, no date — same value in every column
+    totalLiabilities: number; // accountsPayable + loansOutstanding + otherLiabilities
+    netWorth: number; // totalAssets - totalLiabilities
+}
+
+export interface ManualBalances {
+    otherAssets: number;
+    otherLiabilities: number;
 }
 
 export type BalancePeriodGrouping = 'monthly' | 'quarterly' | 'yearly';
@@ -105,22 +120,30 @@ function loansOutstandingAsOf(loans: Loan[], endDate: string): number {
     return total;
 }
 
-function buildPoints(periods: PeriodDef[], transactions: Transaction[], assets: Asset[], loans: Loan[]): BalanceSheetTrendPoint[] {
+function buildPoints(periods: PeriodDef[], transactions: Transaction[], assets: Asset[], loans: Loan[], manual: ManualBalances): BalanceSheetTrendPoint[] {
     return periods.map(p => {
         const cashOnHand = cashOnHandAsOf(transactions, p.endDate);
         const accountsReceivable = accountsReceivableAsOf(transactions, p.endDate);
         const accountsPayable = accountsPayableAsOf(transactions, p.endDate);
         const equipmentValue = equipmentValueAsOf(assets, p.endDate);
         const loansOutstanding = loansOutstandingAsOf(loans, p.endDate);
+        const shortTermAssets = cashOnHand + accountsReceivable;
+        const totalAssets = shortTermAssets + equipmentValue + manual.otherAssets;
+        const totalLiabilities = accountsPayable + loansOutstanding + manual.otherLiabilities;
         return {
             key: p.key,
             label: p.label,
             cashOnHand,
             accountsReceivable,
-            accountsPayable,
+            shortTermAssets,
             equipmentValue,
+            otherAssets: manual.otherAssets,
+            totalAssets,
+            accountsPayable,
             loansOutstanding,
-            netPosition: cashOnHand + accountsReceivable + equipmentValue - accountsPayable - loansOutstanding,
+            otherLiabilities: manual.otherLiabilities,
+            totalLiabilities,
+            netWorth: totalAssets - totalLiabilities,
         };
     });
 }
@@ -132,7 +155,8 @@ export function computeBalanceSheetTrend(
     months: string[], // sorted 'YYYY-MM' keys that have transaction data, e.g. from computeMonthlyTrend
     transactions: Transaction[],
     assets: Asset[],
-    loans: Loan[]
+    loans: Loan[],
+    manual: ManualBalances = { otherAssets: 0, otherLiabilities: 0 }
 ): BalanceSheetTrendPoint[] {
     if (months.length === 0) return [];
 
@@ -141,7 +165,7 @@ export function computeBalanceSheetTrend(
             const [y, mo] = m.split('-').map(Number);
             return { key: m, label: MONTH_SHORT(y, mo), endDate: monthEndDate(y, mo) };
         });
-        return buildPoints(periods, transactions, assets, loans);
+        return buildPoints(periods, transactions, assets, loans, manual);
     }
 
     if (grouping === 'quarterly') {
@@ -152,7 +176,7 @@ export function computeBalanceSheetTrend(
             const key = `${y}-Q${q}`;
             if (!seen.has(key)) seen.set(key, { key, label: `Q${q} ${y}`, endDate: monthEndDate(y, q * 3) });
         }
-        return buildPoints(Array.from(seen.values()).sort((a, b) => a.key.localeCompare(b.key)), transactions, assets, loans);
+        return buildPoints(Array.from(seen.values()).sort((a, b) => a.key.localeCompare(b.key)), transactions, assets, loans, manual);
     }
 
     // yearly
@@ -164,5 +188,5 @@ export function computeBalanceSheetTrend(
     }
     return Array.from(seen.values())
         .sort((a, b) => a.key.localeCompare(b.key))
-        .map(p => buildPoints([p], transactions, assets, loans)[0]);
+        .map(p => buildPoints([p], transactions, assets, loans, manual)[0]);
 }

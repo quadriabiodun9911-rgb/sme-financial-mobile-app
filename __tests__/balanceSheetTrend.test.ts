@@ -118,13 +118,23 @@ describe('computeBalanceSheetTrend', () => {
         expect(points[1]).toMatchObject({ key: '2025', cashOnHand: 100 });
     });
 
-    it('computes net position as cash + AR + equipment - AP - loans', () => {
+    it('computes net worth as total assets minus total liabilities', () => {
         const txs = [makeTx({ type: 'income', amount: 5000, date: '2024-01-05' })];
         const assets = [makeAsset({ purchaseDate: '2024-01-01', purchaseCost: 1000, residualValue: 1000, usefulLifeYears: 3 })]; // no depreciation yet at purchase instant
         const loans = [makeLoan({ startDate: '2024-01-01', principal: 2000 })];
         const points = computeBalanceSheetTrend('monthly', ['2024-01'], txs, assets, loans);
         const p = points[0];
-        expect(p.netPosition).toBeCloseTo(p.cashOnHand + p.accountsReceivable + p.equipmentValue - p.accountsPayable - p.loansOutstanding, 5);
+        expect(p.shortTermAssets).toBe(p.cashOnHand + p.accountsReceivable);
+        expect(p.totalAssets).toBe(p.shortTermAssets + p.equipmentValue + p.otherAssets);
+        expect(p.totalLiabilities).toBe(p.accountsPayable + p.loansOutstanding + p.otherLiabilities);
+        expect(p.netWorth).toBeCloseTo(p.totalAssets - p.totalLiabilities, 5);
+    });
+
+    it('applies manually-entered other assets/liabilities as a flat value in every column', () => {
+        const txs = [makeTx({ type: 'income', amount: 1000, date: '2024-01-05' })];
+        const points = computeBalanceSheetTrend('monthly', ['2024-01', '2024-02'], txs, [], [], { otherAssets: 500, otherLiabilities: 200 });
+        expect(points[0]).toMatchObject({ otherAssets: 500, otherLiabilities: 200 });
+        expect(points[1]).toMatchObject({ otherAssets: 500, otherLiabilities: 200 });
     });
 
     it('counts a currently-unpaid income transaction as accounts receivable from the period it was dated', () => {

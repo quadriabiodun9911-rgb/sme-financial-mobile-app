@@ -380,7 +380,16 @@ export default function ReportsScreen() {
                                 (assets/debts) are shown here, not the Revenue/Expenses/Profit
                                 table that belongs on P&L — see BalanceSheetComparisonTable for
                                 why AR/AP/inventory aren't part of the trend. */}
-                            <BalanceSheetComparisonTable transactions={transactions} assets={assets} loans={loansList} currency={currency} />
+                            <BalanceSheetComparisonTable
+                                transactions={transactions}
+                                assets={assets}
+                                loans={loansList}
+                                currency={currency}
+                                manualBalances={{
+                                    otherAssets: (parseFloat(settings.openingAssets) || 0) + (parseFloat(settings.openingOtherAssets) || 0),
+                                    otherLiabilities: parseFloat(settings.openingLiabilities) || 0,
+                                }}
+                            />
                             <BalanceSheetTab
                                 finance={finance}
                                 wcMetrics={wcMetrics}
