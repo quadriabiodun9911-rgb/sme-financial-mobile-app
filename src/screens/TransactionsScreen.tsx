@@ -12,7 +12,6 @@ import { Transaction, TransactionStatus, RecurringFrequency } from '../types';
 import { transactionsToCSV } from '../utils/finance';
 import RecurringTransactionManager from '../components/RecurringTransactionManager';
 import NextStepLink from '../components/NextStepLink';
-import PeriodComparisonTable from '../components/PeriodComparisonTable';
 
 type FilterType   = 'all' | 'income' | 'expense' | 'collect';
 type StatusFilter = 'all' | 'paid' | 'pending' | 'overdue';
@@ -119,7 +118,7 @@ function formatDateHeader(iso: string): string {
 }
 
 export default function TransactionsScreen() {
-    const { transactions, addTransaction, deleteTransaction, updateTransaction, settings, setCurrentScreen, navParams, invoices, markInvoiceStatus } = useApp();
+    const { transactions, addTransaction, deleteTransaction, updateTransaction, settings, setCurrentScreen, navParams, invoices, markInvoiceStatus, navigate } = useApp();
     const { currency, defaultTaxRate } = settings;
 
     const [modalOpen, setModalOpen]   = useState(false);
@@ -407,9 +406,14 @@ export default function TransactionsScreen() {
                 </>
             )}
 
-            {/* ── Daily / weekly pace ──────────────────────────────────── */}
+            {/* Daily/weekly/monthly pace already lives on Profit & Loss's
+                Period Comparison table — link there instead of showing the
+                same table twice. */}
             {typeFilter === 'all' && transactions.length > 0 && (
-                <PeriodComparisonTable transactions={transactions} currency={currency} defaultGrouping="weekly" />
+                <NextStepLink
+                    text="Compare daily, weekly and monthly performance"
+                    onPress={() => navigate('reports', { reportSection: 'statements', reportTab: 'pnl' })}
+                />
             )}
 
             {/* ── Recurring Transactions Section ──────────────────────── */}

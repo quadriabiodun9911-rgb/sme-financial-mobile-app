@@ -3,6 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-nati
 import { Colors } from '../theme/colors';
 import { Transaction } from '../types';
 import { computeDailyTrend, computeWeeklyTrend, computeMonthlyTrend, computeQuarterlyTrend, computeYearlyTrend, isoWeekKey } from '../utils/trendAnalysis';
+import { projectionFactor } from '../utils/periodProjection';
 
 interface Props {
     transactions: Transaction[];
@@ -78,6 +79,14 @@ export default function PeriodComparisonTable({ transactions, currency, defaultG
 
     const hasPartial = columns.some(c => c.partial);
 
+    // Run-rate estimate for the in-progress column — "17 days into a 31-day
+    // month at this pace" projected to the full period. Margin is left
+    // alone: since revenue and expense are scaled by the same factor, the
+    // projected margin is mathematically identical to the actual-so-far
+    // margin, so a separate estimate would just repeat the same number.
+    const factor = useMemo(() => projectionFactor(grouping), [grouping]);
+    const showEstimate = hasPartial && factor !== null;
+
     const fmt = (n: number) => `${n < 0 ? '-' : ''}${currency}${Math.round(Math.abs(n)).toLocaleString()}`;
 
     if (columns.length === 0) {
@@ -113,7 +122,12 @@ export default function PeriodComparisonTable({ transactions, currency, defaultG
                     <View style={s.row}>
                         <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabel}>Revenue</Text></View>
                         {columns.map(c => (
-                            <View key={c.key} style={s.cell}><Text style={[s.val, { color: Colors.income }]}>{fmt(c.revenue)}</Text></View>
+                            <View key={c.key} style={s.cell}>
+                                <Text style={[s.val, { color: Colors.income }]}>{fmt(c.revenue)}</Text>
+                                {c.partial && showEstimate && (
+                                    <Text style={s.estimate}>≈{fmt(c.revenue * factor!)}</Text>
+                                )}
+                            </View>
                         ))}
                     </View>
 
@@ -121,7 +135,12 @@ export default function PeriodComparisonTable({ transactions, currency, defaultG
                     <View style={s.row}>
                         <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabel}>Expenses</Text></View>
                         {columns.map(c => (
-                            <View key={c.key} style={s.cell}><Text style={[s.val, { color: Colors.expense }]}>{fmt(c.expense)}</Text></View>
+                            <View key={c.key} style={s.cell}>
+                                <Text style={[s.val, { color: Colors.expense }]}>{fmt(c.expense)}</Text>
+                                {c.partial && showEstimate && (
+                                    <Text style={s.estimate}>≈{fmt(c.expense * factor!)}</Text>
+                                )}
+                            </View>
                         ))}
                     </View>
 
@@ -131,6 +150,9 @@ export default function PeriodComparisonTable({ transactions, currency, defaultG
                         {columns.map(c => (
                             <View key={c.key} style={s.cell}>
                                 <Text style={[s.val, { fontWeight: '700', color: c.profit >= 0 ? Colors.income : Colors.expense }]}>{fmt(c.profit)}</Text>
+                                {c.partial && showEstimate && (
+                                    <Text style={s.estimate}>≈{fmt(c.profit * factor!)}</Text>
+                                )}
                             </View>
                         ))}
                     </View>
@@ -147,6 +169,9 @@ export default function PeriodComparisonTable({ transactions, currency, defaultG
             <Text style={s.hint}>Scroll sideways to see every {grouping === 'daily' ? 'day' : grouping === 'weekly' ? 'week' : grouping === 'monthly' ? 'month' : grouping === 'quarterly' ? 'quarter' : 'year'} you have data for.</Text>
             {hasPartial && (
                 <Text style={s.hint}>* still in progress — not a full {grouping === 'daily' ? 'day' : grouping === 'weekly' ? 'week' : grouping === 'monthly' ? 'month' : grouping === 'quarterly' ? 'quarter' : 'year'} yet, so it's not a fair comparison against earlier columns.</Text>
+            )}
+            {showEstimate && (
+                <Text style={s.hint}>≈ estimated full {grouping === 'weekly' ? 'week' : grouping === 'monthly' ? 'month' : grouping === 'quarterly' ? 'quarter' : 'year'} at the current daily pace — a projection, not an actual.</Text>
             )}
         </View>
     );
@@ -169,6 +194,7 @@ const s = StyleSheet.create({
     colHeader: { fontSize: 10.5, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', textAlign: 'right' },
     val: { fontSize: 12.5, color: Colors.textPrimary, fontVariant: ['tabular-nums'] },
     valMuted: { fontSize: 12.5, color: Colors.textMuted, fontVariant: ['tabular-nums'] },
+    estimate: { fontSize: 10.5, color: Colors.textMuted, fontStyle: 'italic', fontVariant: ['tabular-nums'], marginTop: 2 },
 
     empty: { backgroundColor: Colors.surface, borderRadius: 14, padding: 20 },
     emptyText: { fontSize: 13, color: Colors.textMuted, textAlign: 'center' },
