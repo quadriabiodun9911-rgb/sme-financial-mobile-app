@@ -361,7 +361,7 @@ function FinanceTab() {
                         <Text style={s.dscrHint}>Safety buffer = how far sales can fall before you lose money. Higher is safer.</Text>
                     </View>
                 )}
-                <NextStepLink text="Compare month, quarter and year performance" onPress={() => navigate('reports', { reportSection: 'statements', reportTab: 'periods' })} />
+                <NextStepLink text="Compare month, quarter and year performance" onPress={() => navigate('reports', { reportSection: 'statements', reportTab: 'pnl' })} />
             </View>
         </ScrollView>
     );
