@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { FinanceData, Loan } from '../types';
+import LoanROICalculator from './LoanROICalculator';
 
 interface Props {
     finance: FinanceData;
@@ -205,6 +206,11 @@ export default function EnhancedDebtManagement({ finance, currency, loans = [] }
                     <ActionStep num={5} title="Review & Adjust" desc="Quarterly review of debt metrics and progress" />
                 </View>
             </View>
+
+            {/* Borrowing Cost vs Return calculator — turns the Key Principle
+                below from an abstract rule into a number you can check
+                before actually taking a loan. */}
+            <LoanROICalculator currency={currency} />
 
             {/* Educational Tips */}
             <View style={styles.card}>

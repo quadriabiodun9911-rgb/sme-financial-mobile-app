@@ -19,6 +19,36 @@ function healthScore(val: number, thresholds: [number, number]): 'strong' | 'sta
     return 'concerning';
 }
 
+// What each score level actually means for day-to-day decisions — not just
+// the number, but what happens to the business at that level.
+const IMPACT: Record<string, Record<'strong' | 'stable' | 'concerning', string>> = {
+    debtToAssets: {
+        strong: 'Most of what you own is yours, not the bank\'s — lenders see you as low-risk, so new financing should be easy to get if you need it.',
+        stable: 'A meaningful share of your assets is debt-financed. Still manageable, but leaves less room to absorb a bad month or take on more debt.',
+        concerning: 'Most of your assets are financed by debt, not equity — a downturn could leave you owing more than you own, and lenders will see you as high-risk.',
+    },
+    debtToEquity: {
+        strong: 'Your own capital covers your debt several times over — you\'re financing growth with your own money, not the bank\'s.',
+        stable: 'Debt and equity are roughly balanced. Fine for now, but taking on more debt from here raises risk faster than it raises capacity.',
+        concerning: 'You owe more than the business is worth to you. This is the single biggest red flag lenders and investors look for — expect higher rates or rejected applications.',
+    },
+    equityRatio: {
+        strong: 'The business is mostly self-funded. You keep more of the upside, and a bad quarter is less likely to threaten survival.',
+        stable: 'A workable mix of your money and borrowed money. Keep an eye on it — it can tip toward risky if debt grows faster than equity.',
+        concerning: 'Borrowed money funds most of the business. Profits are increasingly going toward debt service instead of back into the business or to you.',
+    },
+    roa: {
+        strong: 'Every pound tied up in the business is working hard — a strong sign you could productively deploy more capital, borrowed or not.',
+        stable: 'Assets are generating a reasonable return, but there\'s room to get more out of what you already own before adding more.',
+        concerning: 'Assets aren\'t earning their keep. Adding more debt to buy more assets right now would likely just repeat the problem at a larger scale.',
+    },
+    roe: {
+        strong: 'Your own money is earning a strong return in this business — better than it would likely earn sitting elsewhere.',
+        stable: 'A reasonable return on your capital, though not spectacular. Worth comparing against what else you could do with that money.',
+        concerning: 'Your capital is earning little to nothing here. Before borrowing more, fix why the business isn\'t returning enough on what\'s already invested.',
+    },
+};
+
 export default function DebtAnalysis({ finance, currency, loans = [] }: Props) {
     // finance.liabilities only ever reflects Settings' manual "opening
     // liabilities" figure — computeFinance never folds in the live Loan
@@ -71,18 +101,22 @@ export default function DebtAnalysis({ finance, currency, loans = [] }: Props) {
                     value={`${debtToAssets.toFixed(1)}%`}
                     score={debtToAssetsScore}
                     desc="% of assets financed by debt. Below 30% is strong."
+                    impact={IMPACT.debtToAssets[debtToAssetsScore]}
                 />
                 <RatioRow
                     label="Debt-to-Equity"
                     value={debtToEquity === Infinity ? 'N/A' : debtToEquity.toFixed(2)}
                     score={debtToEquityScore}
                     desc="Leverage ratio. Below 0.5× is strong, above 1× is high."
+                    impact={IMPACT.debtToEquity[debtToEquityScore]}
                 />
                 <RatioRow
                     label="Equity Ratio"
                     value={`${equityRatio.toFixed(1)}%`}
                     score={healthScore(equityRatio, [70, 50])}
                     desc="% of assets financed by equity. Higher is safer."
+                    impact={IMPACT.equityRatio[healthScore(equityRatio, [70, 50])]}
+                    last
                 />
             </View>
 
@@ -95,12 +129,15 @@ export default function DebtAnalysis({ finance, currency, loans = [] }: Props) {
                     value={`${returnOnAssets.toFixed(1)}%`}
                     score={roaScore}
                     desc="Profit as % of assets. Above 10% is strong."
+                    impact={IMPACT.roa[roaScore]}
                 />
                 <RatioRow
                     label="Return on Equity (ROE)"
                     value={`${returnOnEquity.toFixed(1)}%`}
                     score={roeScore}
                     desc="Profit as % of owner equity. Above 15% is strong."
+                    impact={IMPACT.roe[roeScore]}
+                    last
                 />
             </View>
 
@@ -139,23 +176,32 @@ function SummaryCard({ label, value, color }: { label: string; value: string; co
     );
 }
 
-function RatioRow({ label, value, score, desc }: {
+function RatioRow({ label, value, score, desc, impact, last }: {
     label: string; value: string;
     score: 'strong' | 'stable' | 'concerning'; desc: string;
+    impact?: string; last?: boolean;
 }) {
     const color = healthColor(score);
     return (
-        <View style={ratioStyles.row}>
-            <View style={ratioStyles.left}>
-                <Text style={ratioStyles.label}>{label}</Text>
-                <Text style={ratioStyles.desc}>{desc}</Text>
-            </View>
-            <View style={ratioStyles.right}>
-                <Text style={[ratioStyles.value, { color }]}>{value}</Text>
-                <View style={[ratioStyles.badge, { backgroundColor: color + '22' }]}>
-                    <Text style={[ratioStyles.badgeText, { color }]}>{score}</Text>
+        <View style={[ratioStyles.row, last && { borderBottomWidth: 0, marginBottom: 0, paddingBottom: 0 }, { borderLeftColor: color }]}>
+            <View style={ratioStyles.headRow}>
+                <View style={ratioStyles.left}>
+                    <Text style={ratioStyles.label}>{label}</Text>
+                    <Text style={ratioStyles.desc}>{desc}</Text>
+                </View>
+                <View style={ratioStyles.right}>
+                    <Text style={[ratioStyles.value, { color }]}>{value}</Text>
+                    <View style={[ratioStyles.badge, { backgroundColor: color }]}>
+                        <Text style={ratioStyles.badgeText}>{score}</Text>
+                    </View>
                 </View>
             </View>
+            {impact && (
+                <Text style={ratioStyles.impact}>
+                    <Text style={{ fontWeight: '700', color }}>What this means: </Text>
+                    {impact}
+                </Text>
+            )}
         </View>
     );
 }
@@ -175,14 +221,16 @@ const summaryStyles = StyleSheet.create({
 });
 
 const ratioStyles = StyleSheet.create({
-    row:       { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    row:       { borderLeftWidth: 4, paddingLeft: 12, paddingVertical: 12, marginBottom: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    headRow:   { flexDirection: 'row', justifyContent: 'space-between' },
     left:      { flex: 1, marginRight: 12 },
-    label:     { fontSize: 13, fontWeight: '600', color: Colors.textPrimary, marginBottom: 4 },
-    desc:      { fontSize: 11, color: Colors.textMuted, lineHeight: 16 },
-    right:     { alignItems: 'flex-end', gap: 4 },
-    value:     { fontSize: 16, fontWeight: 'bold' },
-    badge:     { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-    badgeText: { fontSize: 10, fontWeight: 'bold', textTransform: 'capitalize' },
+    label:     { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginBottom: 4 },
+    desc:      { fontSize: 12, color: Colors.textMuted, lineHeight: 17 },
+    right:     { alignItems: 'flex-end', gap: 6 },
+    value:     { fontSize: 19, fontWeight: '800' },
+    badge:     { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8 },
+    badgeText: { fontSize: 11, fontWeight: '800', textTransform: 'uppercase', color: '#fff', letterSpacing: 0.3 },
+    impact:    { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18, marginTop: 10 },
 });
 
 const actionStyles = StyleSheet.create({
