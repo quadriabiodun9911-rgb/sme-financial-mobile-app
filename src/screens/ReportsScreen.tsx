@@ -727,42 +727,15 @@ function BalanceSheetTab({ finance, wcMetrics, assets, settings, updateSettings,
         setEditing(false);
     };
 
-    const registeredAssetValue = assets
-        .filter(a => a.status === 'active')
-        .reduce((sum, a) => {
-            const cost      = isNaN(a.purchaseCost)    ? 0 : (a.purchaseCost    || 0);
-            const residual  = isNaN(a.residualValue)   ? 0 : (a.residualValue   || 0);
-            const lifeYears = (!a.usefulLifeYears || a.usefulLifeYears <= 0) ? 1 : a.usefulLifeYears;
-            const purchaseMs = new Date(a.purchaseDate).getTime();
-            const yr = isNaN(purchaseMs) ? 0 : (Date.now() - purchaseMs) / (1000 * 60 * 60 * 24 * 365);
-            const dep = Math.min(yr * (cost - residual) / lifeYears, cost - residual);
-            const val = Math.max(residual, cost - dep);
-            return sum + (isNaN(val) ? 0 : val);
-        }, 0);
-
-    // Pull live outstanding loan balances and inventory from context
-    const { loans: loanRegister, inventory: inventoryItems } = useApp();
+    // Pull live outstanding loan balances from context — still needed for the
+    // "auto-filled from your Loan Register" hint text below.
+    const { loans: loanRegister } = useApp();
     const liveLoansBalance = loanRegister
         .filter(l => l.status === 'active')
         .reduce((sum, l) => {
             const paid = (l.payments ?? []).reduce((s: number, p: any) => s + (p.amount || 0), 0);
             return sum + Math.max(0, (l.principal || 0) - paid);
         }, 0);
-
-    const inventoryValue  = inventoryItems.reduce((sum: number, item: any) => sum + ((item.quantity || 0) * (item.costPrice || 0)), 0);
-    const manualAssets    = parseFloat(openingAssets) || 0;
-    const otherAssets     = parseFloat(openingOtherAssets) || 0;
-    const manualLiab      = parseFloat(openingLiabilities) || 0;
-    const manualLoans     = parseFloat(openingLoans) || 0;
-    // Live loans from Loan Register take priority; fall back to manual entry if no loans registered
-    const loansBalance    = loanRegister.length > 0 ? liveLoansBalance : manualLoans;
-    const cashBal         = isNaN(finance.cashBalance) ? 0 : finance.cashBalance;
-    const arBal           = isNaN(wcMetrics.accountsReceivable) ? 0 : wcMetrics.accountsReceivable;
-    const apBal           = isNaN(wcMetrics.accountsPayable) ? 0 : wcMetrics.accountsPayable;
-    const currentAssets   = cashBal + arBal + inventoryValue;
-    const totalAssets     = currentAssets + registeredAssetValue + manualAssets + otherAssets;
-    const totalLiab       = apBal + manualLiab + loansBalance;
-    const equity          = totalAssets - totalLiab;
 
     const InputRow = ({ label, hint, value, onChange }: { label: string; hint: string; value: string; onChange: (v: string) => void }) => (
         <View style={bsStyles.inputRow}>
@@ -791,26 +764,15 @@ function BalanceSheetTab({ finance, wcMetrics, assets, settings, updateSettings,
                     <Text style={styles.cardTitle}>Balance Sheet</Text>
                     <Text style={styles.sizeBadge}>{sizeLabel(bizSize)}</Text>
                 </View>
-
-                <SectionHeader label="WHAT YOU OWN (ASSETS)" />
-                <StatRow label="Cash on Hand"                       value={`${currency}${Math.round(finance.cashBalance).toLocaleString()}`}              color={Colors.income} />
-                <StatRow label="  Money Owed to You by Customers"   value={`${currency}${Math.round(wcMetrics.accountsReceivable).toLocaleString()}`}     color={Colors.income} indent />
-                {inventoryValue > 0 && <StatRow label="  Stock / Inventory Value" value={`${currency}${Math.round(inventoryValue).toLocaleString()}`} color={Colors.asset} indent />}
-                <StatRow label="Short-Term Assets Total"            value={`${currency}${Math.round(currentAssets).toLocaleString()}`}                   color={Colors.asset} bold />
-                <StatRow label="  Equipment & Property (Asset Register)" value={`${currency}${Math.round(registeredAssetValue).toLocaleString()}`}       color={Colors.asset} indent />
-                <StatRow label="  Equipment & Property (Manual Entry)"   value={`${currency}${Math.round(manualAssets).toLocaleString()}`}               color={Colors.asset} indent />
-                <StatRow label="  Other Assets You Own"             value={`${currency}${Math.round(otherAssets).toLocaleString()}`}                     color={Colors.asset} indent />
-                <StatRow label="Everything You Own"                 value={`${currency}${Math.round(isNaN(totalAssets) ? 0 : totalAssets).toLocaleString()}`}   color={Colors.asset} bold />
-
-                <SectionHeader label="WHAT YOU OWE (DEBTS)" />
-                <StatRow label="  Bills Owed to Suppliers"          value={`${currency}${Math.round(apBal).toLocaleString()}`}                          color={Colors.liability} indent />
-                <StatRow label={`  Bank Loans & Other Debt${loanRegister.length > 0 ? ' (from Loan Register)' : ''}`} value={`${currency}${Math.round(loansBalance).toLocaleString()}`} color={Colors.liability} indent />
-                <StatRow label="  Other Amounts Owed"               value={`${currency}${Math.round(manualLiab).toLocaleString()}`}                     color={Colors.liability} indent />
-                <StatRow label="Everything You Owe"                 value={`${currency}${Math.round(totalLiab).toLocaleString()}`}                      color={Colors.liability} bold />
-
-                <SectionHeader label="YOUR BUSINESS VALUE" />
-                <StatRow label="Net Worth (Assets − Debts)"         value={`${currency}${Math.round(isNaN(equity) ? 0 : equity).toLocaleString()}`}  color={(isNaN(equity) ? 0 : equity) >= 0 ? Colors.equity : Colors.expense} bold />
-                <StatRow label="Day-to-Day Cash Buffer"             value={`${currency}${Math.round(wcMetrics.netWorkingCapital).toLocaleString()}`}     color={wcMetrics.netWorkingCapital >= 0 ? Colors.income : Colors.expense} />
+                {/* The full Cash/AR/Equipment/Debts/Net Worth breakdown now lives
+                    in the Balance Sheet Over Time table above (its last column
+                    is today's figures) — this card just holds the manual-entry
+                    controls that feed that table, so the numbers aren't shown
+                    twice on the same screen. */}
+                <Text style={bsStyles.editNote}>
+                    See your full breakdown — Cash, Money Owed to You, Equipment, Debts, Net Worth — in the table above.
+                    Use this to enter values that aren't tracked as transactions or in the Asset/Loan Register.
+                </Text>
 
                 <TouchableOpacity style={bsStyles.editBtn} onPress={() => setEditing(e => !e)}>
                     <Text style={bsStyles.editBtnText}>{editing ? 'Cancel' : 'Edit Manual Values'}</Text>
