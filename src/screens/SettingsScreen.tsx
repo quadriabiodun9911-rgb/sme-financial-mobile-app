@@ -4,7 +4,7 @@ import {
     TouchableOpacity, StyleSheet, Alert, Modal, Share, Platform,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
-import { Colors } from '../theme/colors';
+import { Colors, ColorThemeMode, getColorThemeMode, setColorThemeMode } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { BusinessSettings } from '../types';
@@ -48,6 +48,8 @@ export default function SettingsScreen() {
 
     const [form, setForm]       = useState({ ...settings });
     const [phone, setPhone]     = useState(user?.phone || '');
+    const [colorTheme, setColorThemeState] = useState<ColorThemeMode>(getColorThemeMode());
+    const [applyingTheme, setApplyingTheme] = useState(false);
 
     // Sync payment keys from settings when they load from storage/Supabase
     useEffect(() => {
@@ -274,6 +276,44 @@ export default function SettingsScreen() {
             <ScrollView style={styles.scroll}>
                 <View style={styles.pad}>
                     <Text style={styles.title}>Settings</Text>
+
+                    {/* Appearance — switching palette requires every screen's
+                        stylesheet to rebuild against the new colors, which
+                        only happens on a fresh module evaluation, so this
+                        reloads the app the same way other global settings
+                        changes (reset/clear data) already do. */}
+                    <SectionHeader title="🎨 APPEARANCE" />
+                    <CollapsibleSection title="Color Theme" defaultOpen={true}>
+                        <Section title="Theme">
+                            <View style={styles.optRow}>
+                                <Opt
+                                    label="Dark"
+                                    active={colorTheme === 'dark'}
+                                    onPress={async () => {
+                                        if (colorTheme === 'dark' || applyingTheme) return;
+                                        setApplyingTheme(true);
+                                        setColorThemeState('dark');
+                                        await setColorThemeMode('dark');
+                                    }}
+                                />
+                                <Opt
+                                    label="Warm Paper"
+                                    active={colorTheme === 'warm-paper'}
+                                    onPress={async () => {
+                                        if (colorTheme === 'warm-paper' || applyingTheme) return;
+                                        setApplyingTheme(true);
+                                        setColorThemeState('warm-paper');
+                                        await setColorThemeMode('warm-paper');
+                                    }}
+                                />
+                            </View>
+                            {applyingTheme && (
+                                <Text style={{ fontSize: 12, color: Colors.textMuted, marginTop: 8 }}>
+                                    Applying theme — reloading…
+                                </Text>
+                            )}
+                        </Section>
+                    </CollapsibleSection>
 
                     {/* ⚙️ OPERATIONS */}
                     <SectionHeader title="⚙️ OPERATIONS" />
