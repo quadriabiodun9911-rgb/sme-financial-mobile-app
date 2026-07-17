@@ -365,15 +365,22 @@ export default function ReportsScreen() {
 
                     {/* ── BALANCE SHEET ────────────────────────────────── */}
                     {activeTab === 'balancesheet' && (
-                        <BalanceSheetTab
-                            finance={finance}
-                            wcMetrics={wcMetrics}
-                            assets={assets}
-                            settings={settings}
-                            updateSettings={updateSettings}
-                            currency={currency}
-                            bizSize={bizSize}
-                        />
+                        <View>
+                            <BalanceSheetTab
+                                finance={finance}
+                                wcMetrics={wcMetrics}
+                                assets={assets}
+                                settings={settings}
+                                updateSettings={updateSettings}
+                                currency={currency}
+                                bizSize={bizSize}
+                            />
+                            {/* "Cash on Hand" above is money-in minus money-out for whichever
+                                period is selected — this is that same number broken down
+                                period by period, so you can see how it built up over time
+                                rather than just the current total. */}
+                            <PeriodComparisonTable transactions={transactions} currency={currency} />
+                        </View>
                     )}
 
                     {/* ── P & L ────────────────────────────────────────── */}
