@@ -385,9 +385,9 @@ export default function AnalysisScreen() {
         : Colors.textMuted;
 
     const PERIODS: { key: ReportPeriod; label: string }[] = [
-        { key: 'month', label: 'Month' },
-        { key: 'quarter', label: 'Quarter' },
-        { key: 'year', label: 'Year' },
+        { key: 'month', label: 'Monthly' },
+        { key: 'quarter', label: 'Quarterly' },
+        { key: 'year', label: 'Yearly' },
     ];
 
     const SCENARIOS: { key: ScenarioType; label: string; icon: string }[] = [

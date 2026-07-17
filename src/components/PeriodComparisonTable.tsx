@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { Transaction } from '../types';
-import { computeDailyTrend, computeWeeklyTrend, computeMonthlyTrend, computeQuarterlyTrend, computeYearlyTrend } from '../utils/trendAnalysis';
+import { computeDailyTrend, computeWeeklyTrend, computeMonthlyTrend, computeQuarterlyTrend, computeYearlyTrend, isoWeekKey } from '../utils/trendAnalysis';
 
 interface Props {
     transactions: Transaction[];
@@ -45,21 +45,38 @@ export default function PeriodComparisonTable({ transactions, currency, defaultG
     const quarterly = useMemo(() => computeQuarterlyTrend(monthly), [monthly]);
     const yearly = useMemo(() => computeYearlyTrend(monthly), [monthly]);
 
+    // The most recent bucket is often still "in progress" (today, this week,
+    // this month/quarter/year) — flag it so a naturally-lower number doesn't
+    // read as a real decline against a fully-elapsed prior period.
+    const currentKeys = useMemo(() => {
+        const todayISO = new Date().toISOString().slice(0, 10);
+        const month = todayISO.slice(5, 7);
+        return {
+            daily: todayISO,
+            weekly: isoWeekKey(todayISO),
+            monthly: todayISO.slice(0, 7),
+            quarterly: `${todayISO.slice(0, 4)}-Q${Math.ceil(Number(month) / 3)}`,
+            yearly: todayISO.slice(0, 4),
+        };
+    }, []);
+
     const columns = useMemo(() => {
         if (grouping === 'daily') {
-            return daily.map(d => ({ key: d.date, label: DAY_LABEL(d.date), revenue: d.revenue, expense: d.expense, profit: d.profit, margin: d.profitMargin }));
+            return daily.map(d => ({ key: d.date, label: DAY_LABEL(d.date), revenue: d.revenue, expense: d.expense, profit: d.profit, margin: d.profitMargin, partial: d.date === currentKeys.daily }));
         }
         if (grouping === 'weekly') {
-            return weekly.map(w => ({ key: w.week, label: w.label, revenue: w.revenue, expense: w.expense, profit: w.profit, margin: w.profitMargin }));
+            return weekly.map(w => ({ key: w.week, label: w.label, revenue: w.revenue, expense: w.expense, profit: w.profit, margin: w.profitMargin, partial: w.week === currentKeys.weekly }));
         }
         if (grouping === 'monthly') {
-            return monthly.map(m => ({ key: m.month, label: MONTH_LABEL(m.month), revenue: m.revenue, expense: m.expense, profit: m.profit, margin: m.profitMargin }));
+            return monthly.map(m => ({ key: m.month, label: MONTH_LABEL(m.month), revenue: m.revenue, expense: m.expense, profit: m.profit, margin: m.profitMargin, partial: m.month === currentKeys.monthly }));
         }
         if (grouping === 'quarterly') {
-            return quarterly.map(q => ({ key: q.quarter, label: q.label, revenue: q.revenue, expense: q.expense, profit: q.profit, margin: q.profitMargin }));
+            return quarterly.map(q => ({ key: q.quarter, label: q.label, revenue: q.revenue, expense: q.expense, profit: q.profit, margin: q.profitMargin, partial: q.quarter === currentKeys.quarterly }));
         }
-        return yearly.map(y => ({ key: y.year, label: y.year, revenue: y.revenue, expense: y.expense, profit: y.profit, margin: y.profitMargin }));
-    }, [grouping, daily, weekly, monthly, quarterly, yearly]);
+        return yearly.map(y => ({ key: y.year, label: y.year, revenue: y.revenue, expense: y.expense, profit: y.profit, margin: y.profitMargin, partial: y.year === currentKeys.yearly }));
+    }, [grouping, daily, weekly, monthly, quarterly, yearly, currentKeys]);
+
+    const hasPartial = columns.some(c => c.partial);
 
     const fmt = (n: number) => `${n < 0 ? '-' : ''}${currency}${Math.round(Math.abs(n)).toLocaleString()}`;
 
@@ -88,7 +105,7 @@ export default function PeriodComparisonTable({ transactions, currency, defaultG
                     <View style={s.row}>
                         <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabelHeader}></Text></View>
                         {columns.map(c => (
-                            <View key={c.key} style={s.cell}><Text style={s.colHeader}>{c.label}</Text></View>
+                            <View key={c.key} style={s.cell}><Text style={s.colHeader}>{c.label}{c.partial ? ' *' : ''}</Text></View>
                         ))}
                     </View>
 
@@ -128,6 +145,9 @@ export default function PeriodComparisonTable({ transactions, currency, defaultG
                 </View>
             </ScrollView>
             <Text style={s.hint}>Scroll sideways to see every {grouping === 'daily' ? 'day' : grouping === 'weekly' ? 'week' : grouping === 'monthly' ? 'month' : grouping === 'quarterly' ? 'quarter' : 'year'} you have data for.</Text>
+            {hasPartial && (
+                <Text style={s.hint}>* still in progress — not a full {grouping === 'daily' ? 'day' : grouping === 'weekly' ? 'week' : grouping === 'monthly' ? 'month' : grouping === 'quarterly' ? 'quarter' : 'year'} yet, so it's not a fair comparison against earlier columns.</Text>
+            )}
         </View>
     );
 }

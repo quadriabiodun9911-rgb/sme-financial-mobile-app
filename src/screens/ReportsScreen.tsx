@@ -85,9 +85,9 @@ const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
 const PERIOD_AWARE: SubTab[] = ['balancesheet', 'pnl', 'aging', 'tax', 'inventory'];
 
 const PERIODS: { key: ReportPeriod; label: string }[] = [
-    { key: 'month',   label: 'This Month' },
-    { key: 'quarter', label: '3 Months' },
-    { key: 'year',    label: 'This Year' },
+    { key: 'month',   label: 'Monthly' },
+    { key: 'quarter', label: 'Quarterly' },
+    { key: 'year',    label: 'Yearly' },
     { key: 'all',     label: 'All Time' },
     { key: 'custom',  label: 'Custom' },
 ];

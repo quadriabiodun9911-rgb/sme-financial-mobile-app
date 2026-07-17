@@ -123,6 +123,11 @@ export function computeDailyTrend(transactions: Transaction[]): DailyTrendPoint[
         });
 }
 
+/** ISO week key ('YYYY-Www') for a 'YYYY-MM-DD' date — exposed so callers can tell whether a given week bucket is the one "in progress" right now. */
+export function isoWeekKey(dateStr: string): string {
+    return isoWeekOf(dateStr).key;
+}
+
 /** ISO week number + the Monday that starts it, for a 'YYYY-MM-DD' date. */
 function isoWeekOf(dateStr: string): { key: string; mondayLabel: string } {
     const d = new Date(dateStr + 'T00:00:00');
