@@ -1,4 +1,4 @@
-import { computeMonthlyTrend, computeYearlyTrend, analyzeTrend } from '../src/utils/trendAnalysis';
+import { computeMonthlyTrend, computeQuarterlyTrend, computeYearlyTrend, analyzeTrend } from '../src/utils/trendAnalysis';
 import { Transaction } from '../src/types';
 
 const makeTx = (overrides: Partial<Transaction>): Transaction => ({
@@ -48,6 +48,37 @@ describe('computeMonthlyTrend', () => {
     it('computes profit margin as 0 when revenue is 0', () => {
         const trend = computeMonthlyTrend([makeTx({ type: 'expense', amount: 500, date: '2024-01-01' })]);
         expect(trend[0].profitMargin).toBe(0);
+    });
+});
+
+describe('computeQuarterlyTrend', () => {
+    it('groups months into calendar quarters', () => {
+        const txs = [
+            makeTx({ type: 'income', amount: 1000, date: '2024-01-10' }), // Q1
+            makeTx({ type: 'income', amount: 2000, date: '2024-02-10' }), // Q1
+            makeTx({ type: 'income', amount: 3000, date: '2024-04-10' }), // Q2
+            makeTx({ type: 'income', amount: 4000, date: '2024-12-10' }), // Q4
+        ];
+        const quarterly = computeQuarterlyTrend(computeMonthlyTrend(txs));
+        expect(quarterly).toEqual([
+            expect.objectContaining({ quarter: '2024-Q1', label: 'Q1 2024', revenue: 3000, monthsWithData: 2 }),
+            expect.objectContaining({ quarter: '2024-Q2', label: 'Q2 2024', revenue: 3000, monthsWithData: 1 }),
+            expect.objectContaining({ quarter: '2024-Q4', label: 'Q4 2024', revenue: 4000, monthsWithData: 1 }),
+        ]);
+    });
+
+    it('sorts quarters chronologically across years', () => {
+        const txs = [
+            makeTx({ date: '2025-01-05' }),
+            makeTx({ date: '2024-10-05' }),
+            makeTx({ date: '2024-04-05' }),
+        ];
+        const quarterly = computeQuarterlyTrend(computeMonthlyTrend(txs));
+        expect(quarterly.map(q => q.quarter)).toEqual(['2024-Q2', '2024-Q4', '2025-Q1']);
+    });
+
+    it('returns an empty array for no data', () => {
+        expect(computeQuarterlyTrend([])).toEqual([]);
     });
 });
 

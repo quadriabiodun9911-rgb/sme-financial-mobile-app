@@ -28,6 +28,16 @@ export interface YearlyTrendPoint {
     monthsWithData: number;
 }
 
+export interface QuarterlyTrendPoint {
+    quarter: string;      // 'YYYY-Q1'
+    label: string;        // 'Q1 2025'
+    revenue: number;
+    expense: number;
+    profit: number;
+    profitMargin: number;
+    monthsWithData: number;
+}
+
 export interface TrendAnalysis {
     monthly: MonthlyTrendPoint[]; // chronological, one entry per month that has data
     yearly: YearlyTrendPoint[];   // chronological, one entry per year that has data
@@ -64,6 +74,38 @@ export function computeMonthlyTrend(transactions: Transaction[]): MonthlyTrendPo
                 profit,
                 profitMargin: b.revenue > 0 ? (profit / b.revenue) * 100 : 0,
                 transactionCount: b.count,
+            };
+        });
+}
+
+/** Roll monthly points up into calendar quarters. */
+export function computeQuarterlyTrend(monthly: MonthlyTrendPoint[]): QuarterlyTrendPoint[] {
+    const buckets = new Map<string, { year: string; q: number; revenue: number; expense: number; months: number }>();
+
+    for (const m of monthly) {
+        const year = m.month.slice(0, 4);
+        const monthNum = Number(m.month.slice(5, 7));
+        const q = Math.ceil(monthNum / 3);
+        const key = `${year}-Q${q}`;
+        if (!buckets.has(key)) buckets.set(key, { year, q, revenue: 0, expense: 0, months: 0 });
+        const b = buckets.get(key)!;
+        b.revenue += m.revenue;
+        b.expense += m.expense;
+        b.months += 1;
+    }
+
+    return Array.from(buckets.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, b]) => {
+            const profit = b.revenue - b.expense;
+            return {
+                quarter: key,
+                label: `Q${b.q} ${b.year}`,
+                revenue: b.revenue,
+                expense: b.expense,
+                profit,
+                profitMargin: b.revenue > 0 ? (profit / b.revenue) * 100 : 0,
+                monthsWithData: b.months,
             };
         });
 }

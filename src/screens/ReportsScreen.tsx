@@ -9,6 +9,7 @@ import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import InfoTip from '../components/InfoTip';
 import AgingReport from '../components/AgingReport';
+import PeriodComparisonTable from '../components/PeriodComparisonTable';
 import TaxSummary from '../components/TaxSummary';
 import BudgetForecast from '../components/BudgetForecast';
 import CashManagement from '../components/CashManagement';
@@ -41,7 +42,7 @@ const SECTIONS: { key: SectionKey; label: string; icon: string; desc: string }[]
 ];
 
 type SubTab =
-    | 'balancesheet' | 'pnl' | 'inventory' | 'accrual'
+    | 'balancesheet' | 'pnl' | 'inventory' | 'accrual' | 'periods'
     | 'aging'
     | 'tax'
     | 'budget' | 'cashflow' | 'cashmgmt' | 'debt' | 'assets'
@@ -54,6 +55,7 @@ const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
         { key: 'pnl',          label: 'Profit & Loss' },
         { key: 'inventory',    label: 'Stock' },
         { key: 'accrual',      label: 'Cash Flow' },
+        { key: 'periods',      label: 'Monthly / Quarterly / Yearly' },
     ],
     customers: [
         { key: 'aging', label: 'Who Owes Me' },
@@ -429,6 +431,11 @@ export default function ReportsScreen() {
                             finance={allFinance}
                             currency={currency}
                         />
+                    )}
+
+                    {/* ── PERIOD COMPARISON (Jan-Dec / quarterly / yearly) ── */}
+                    {activeTab === 'periods' && (
+                        <PeriodComparisonTable transactions={transactions} currency={currency} />
                     )}
 
                     {/* ── AGING ────────────────────────────────────────── */}
