@@ -24,6 +24,7 @@ type LeafRow = {
     get: (p: BalanceSheetTrendPoint) => number;
     color: (p: BalanceSheetTrendPoint) => string;
     showOnlyIfNonZero?: boolean;
+    bold?: boolean; // nested subtotal, e.g. "Short-Term Assets Total" — not collapsible, just emphasized
 };
 
 type GroupRow = {
@@ -41,9 +42,12 @@ const ASSET_ROWS: GroupRow = {
     color: () => Colors.asset,
     children: [
         { label: 'Cash on Hand', get: p => p.cashOnHand, color: p => p.cashOnHand >= 0 ? Colors.income : Colors.expense },
-        { label: 'Money Owed to You', get: p => p.accountsReceivable, color: () => Colors.income },
-        { label: 'Equipment Value', get: p => p.equipmentValue, color: () => Colors.asset },
-        { label: 'Other Assets', get: p => p.otherAssets, color: () => Colors.asset, showOnlyIfNonZero: true },
+        { label: 'Money Owed to You by Customers', get: p => p.accountsReceivable, color: () => Colors.income },
+        { label: 'Stock / Inventory Value', get: p => p.stockValue, color: () => Colors.asset, showOnlyIfNonZero: true },
+        { label: 'Short-Term Assets Total', get: p => p.shortTermAssets, color: () => Colors.asset, bold: true },
+        { label: 'Equipment & Property (Asset Register)', get: p => p.equipmentValue, color: () => Colors.asset },
+        { label: 'Equipment & Property (Manual Entry)', get: p => p.manualEquipment, color: () => Colors.asset, showOnlyIfNonZero: true },
+        { label: 'Other Assets You Own', get: p => p.otherAssets, color: () => Colors.asset, showOnlyIfNonZero: true },
     ],
 };
 
@@ -53,8 +57,8 @@ const LIABILITY_ROWS: GroupRow = {
     get: p => p.totalLiabilities,
     color: () => Colors.liability,
     children: [
-        { label: 'Bills You Owe', get: p => p.accountsPayable, color: () => Colors.liability },
-        { label: 'Loans Outstanding', get: p => p.loansOutstanding, color: () => Colors.liability },
+        { label: 'Bills Owed to Suppliers', get: p => p.accountsPayable, color: () => Colors.liability },
+        { label: 'Bank Loans & Other Debt', get: p => p.loansOutstanding, color: () => Colors.liability },
         { label: 'Other Amounts Owed', get: p => p.otherLiabilities, color: () => Colors.liability, showOnlyIfNonZero: true },
     ],
 };
@@ -150,13 +154,13 @@ export default function BalanceSheetComparisonTable({ transactions, assets, loan
                                 </TouchableOpacity>
 
                                 {isOpen && visibleChildren.map(child => (
-                                    <View key={child.label} style={s.row}>
+                                    <View key={child.label} style={[s.row, child.bold && s.rowShaded]}>
                                         <View style={[s.cell, s.rowLabelCell, s.rowLabelIndent]}>
-                                            <Text style={s.rowLabel}>{child.label}</Text>
+                                            <Text style={[s.rowLabel, child.bold && s.rowLabelBold]}>{child.label}</Text>
                                         </View>
                                         {points.map(p => (
                                             <View key={p.key} style={s.cell}>
-                                                <Text style={[s.val, { color: child.color(p) }]}>{fmt(child.get(p))}</Text>
+                                                <Text style={[s.val, child.bold && s.valBold, { color: child.color(p) }]}>{fmt(child.get(p))}</Text>
                                             </View>
                                         ))}
                                     </View>
@@ -165,11 +169,20 @@ export default function BalanceSheetComparisonTable({ transactions, assets, loan
                         );
                     })}
 
-                    <View style={[s.row, s.rowShaded, { borderBottomWidth: 0 }]}>
-                        <View style={[s.cell, s.rowLabelCell]}><Text style={[s.rowLabel, s.rowLabelBold]}>Net Worth</Text></View>
+                    <View style={[s.row, s.rowShaded]}>
+                        <View style={[s.cell, s.rowLabelCell]}><Text style={[s.rowLabel, s.rowLabelBold]}>Net Worth (Assets − Debts)</Text></View>
                         {points.map(p => (
                             <View key={p.key} style={s.cell}>
                                 <Text style={[s.val, s.valBold, { color: p.netWorth >= 0 ? Colors.income : Colors.expense }]}>{fmt(p.netWorth)}</Text>
+                            </View>
+                        ))}
+                    </View>
+
+                    <View style={[s.row, { borderBottomWidth: 0 }]}>
+                        <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabel}>Day-to-Day Cash Buffer</Text></View>
+                        {points.map(p => (
+                            <View key={p.key} style={s.cell}>
+                                <Text style={[s.val, { color: p.cashBuffer >= 0 ? Colors.income : Colors.expense }]}>{fmt(p.cashBuffer)}</Text>
                             </View>
                         ))}
                     </View>
@@ -177,7 +190,7 @@ export default function BalanceSheetComparisonTable({ transactions, assets, loan
             </ScrollView>
             <Text style={s.hint}>As of the end of each {grouping === 'monthly' ? 'month' : grouping === 'quarterly' ? 'quarter' : 'year'}. Tap a bold row to expand it.</Text>
             <Text style={s.hint}>Money Owed to You / Bills You Owe only count what's still unpaid today, so older columns can understate what was actually owed at the time.</Text>
-            <Text style={s.hint}>Doesn't include stock value — this app only tracks its current total, not a history of it.</Text>
+            <Text style={s.hint}>Stock value and manually-entered figures have no date attached, so they show today's total repeated in every column, not a real trend.</Text>
             {hasPartial && (
                 <Text style={s.hint}>* still in progress — figures are as of today, not a full {grouping === 'monthly' ? 'month' : grouping === 'quarterly' ? 'quarter' : 'year'}.</Text>
             )}
@@ -199,7 +212,7 @@ const s = StyleSheet.create({
     row: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: Colors.border },
     rowShaded: { backgroundColor: Colors.bg },
     cell: { width: 112, paddingVertical: 9, paddingHorizontal: 6, alignItems: 'flex-end', justifyContent: 'center' },
-    rowLabelCell: { width: 148, alignItems: 'flex-start' },
+    rowLabelCell: { width: 210, alignItems: 'flex-start' },
     rowLabelIndent: { paddingLeft: 16 },
     rowLabelHeader: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase' },
     rowLabel: { fontSize: 12.5, color: Colors.textSecondary },

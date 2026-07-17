@@ -379,14 +379,16 @@ export default function ReportsScreen() {
                                 sheet card — so this comes first, not last. Balance sheet figures
                                 (assets/debts) are shown here, not the Revenue/Expenses/Profit
                                 table that belongs on P&L — see BalanceSheetComparisonTable for
-                                why AR/AP/inventory aren't part of the trend. */}
+                                what's a real per-period trend vs. a flat current-only figure. */}
                             <BalanceSheetComparisonTable
                                 transactions={transactions}
                                 assets={assets}
                                 loans={loansList}
                                 currency={currency}
                                 manualBalances={{
-                                    otherAssets: (parseFloat(settings.openingAssets) || 0) + (parseFloat(settings.openingOtherAssets) || 0),
+                                    stockValue: inventory.reduce((sum, item) => sum + (item.quantity || 0) * (item.costPrice || 0), 0),
+                                    manualEquipment: parseFloat(settings.openingAssets) || 0,
+                                    otherAssets: parseFloat(settings.openingOtherAssets) || 0,
                                     otherLiabilities: parseFloat(settings.openingLiabilities) || 0,
                                 }}
                             />

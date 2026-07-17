@@ -12,10 +12,12 @@
  *   - equipment value (depreciation is a function of purchase date)
  *   - loan balances (each payment is individually dated)
  *
- * Stock/inventory value is NOT included: InventoryItem only stores a
- * current quantity, with no dated history of stock movements, so there is
- * no way to know what was on hand last month — showing today's figure for
- * every past period would just be a made-up number wearing a real label.
+ * Everything else this app tracks (stock/inventory value, manually-entered
+ * equipment, other assets, other liabilities) has no dated history at all —
+ * just a current total. Rather than leave those out, they're shown as the
+ * same flat value repeated in every column, clearly caveated in the UI:
+ * an honest "this is the only figure we have, and it has no date attached,"
+ * not a fabricated trend.
  *
  * Caveat on AR/AP: a transaction's "paid" status is a live flag, not a
  * dated event — the app doesn't record *when* something was marked paid.
@@ -24,11 +26,6 @@
  * floor, not the true figure: anything that was outstanding in March and
  * has since been paid won't show up. Older periods are more likely to
  * undercount for this reason. Flagged in the UI, not hidden.
- *
- * Manually-entered "Other Assets" / "Other Amounts Owed" (Settings has no
- * date field for these) are applied as the same flat value in every column
- * — not a fabricated trend, just an honest "this is the only figure we
- * have, and it has no date attached."
  */
 
 import { Transaction, Asset, Loan } from '../types';
@@ -38,18 +35,23 @@ export interface BalanceSheetTrendPoint {
     label: string;
     cashOnHand: number;
     accountsReceivable: number;
-    shortTermAssets: number; // cashOnHand + accountsReceivable
+    stockValue: number; // current-only, flat across every column — see module note
+    shortTermAssets: number; // cashOnHand + accountsReceivable + stockValue
     equipmentValue: number;
-    otherAssets: number; // manually entered, no date — same value in every column
-    totalAssets: number; // shortTermAssets + equipmentValue + otherAssets
+    manualEquipment: number; // current-only, flat
+    otherAssets: number; // current-only, flat
+    totalAssets: number; // shortTermAssets + equipmentValue + manualEquipment + otherAssets
     accountsPayable: number;
     loansOutstanding: number;
-    otherLiabilities: number; // manually entered, no date — same value in every column
+    otherLiabilities: number; // current-only, flat
     totalLiabilities: number; // accountsPayable + loansOutstanding + otherLiabilities
     netWorth: number; // totalAssets - totalLiabilities
+    cashBuffer: number; // accountsReceivable - accountsPayable ("day-to-day cash buffer")
 }
 
 export interface ManualBalances {
+    stockValue: number;
+    manualEquipment: number;
     otherAssets: number;
     otherLiabilities: number;
 }
@@ -120,6 +122,8 @@ function loansOutstandingAsOf(loans: Loan[], endDate: string): number {
     return total;
 }
 
+const EMPTY_MANUAL: ManualBalances = { stockValue: 0, manualEquipment: 0, otherAssets: 0, otherLiabilities: 0 };
+
 function buildPoints(periods: PeriodDef[], transactions: Transaction[], assets: Asset[], loans: Loan[], manual: ManualBalances): BalanceSheetTrendPoint[] {
     return periods.map(p => {
         const cashOnHand = cashOnHandAsOf(transactions, p.endDate);
@@ -127,16 +131,18 @@ function buildPoints(periods: PeriodDef[], transactions: Transaction[], assets: 
         const accountsPayable = accountsPayableAsOf(transactions, p.endDate);
         const equipmentValue = equipmentValueAsOf(assets, p.endDate);
         const loansOutstanding = loansOutstandingAsOf(loans, p.endDate);
-        const shortTermAssets = cashOnHand + accountsReceivable;
-        const totalAssets = shortTermAssets + equipmentValue + manual.otherAssets;
+        const shortTermAssets = cashOnHand + accountsReceivable + manual.stockValue;
+        const totalAssets = shortTermAssets + equipmentValue + manual.manualEquipment + manual.otherAssets;
         const totalLiabilities = accountsPayable + loansOutstanding + manual.otherLiabilities;
         return {
             key: p.key,
             label: p.label,
             cashOnHand,
             accountsReceivable,
+            stockValue: manual.stockValue,
             shortTermAssets,
             equipmentValue,
+            manualEquipment: manual.manualEquipment,
             otherAssets: manual.otherAssets,
             totalAssets,
             accountsPayable,
@@ -144,6 +150,7 @@ function buildPoints(periods: PeriodDef[], transactions: Transaction[], assets: 
             otherLiabilities: manual.otherLiabilities,
             totalLiabilities,
             netWorth: totalAssets - totalLiabilities,
+            cashBuffer: accountsReceivable - accountsPayable,
         };
     });
 }
@@ -156,7 +163,7 @@ export function computeBalanceSheetTrend(
     transactions: Transaction[],
     assets: Asset[],
     loans: Loan[],
-    manual: ManualBalances = { otherAssets: 0, otherLiabilities: 0 }
+    manual: ManualBalances = EMPTY_MANUAL
 ): BalanceSheetTrendPoint[] {
     if (months.length === 0) return [];
 

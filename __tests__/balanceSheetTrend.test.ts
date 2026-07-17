@@ -124,17 +124,27 @@ describe('computeBalanceSheetTrend', () => {
         const loans = [makeLoan({ startDate: '2024-01-01', principal: 2000 })];
         const points = computeBalanceSheetTrend('monthly', ['2024-01'], txs, assets, loans);
         const p = points[0];
-        expect(p.shortTermAssets).toBe(p.cashOnHand + p.accountsReceivable);
-        expect(p.totalAssets).toBe(p.shortTermAssets + p.equipmentValue + p.otherAssets);
+        expect(p.shortTermAssets).toBe(p.cashOnHand + p.accountsReceivable + p.stockValue);
+        expect(p.totalAssets).toBe(p.shortTermAssets + p.equipmentValue + p.manualEquipment + p.otherAssets);
         expect(p.totalLiabilities).toBe(p.accountsPayable + p.loansOutstanding + p.otherLiabilities);
         expect(p.netWorth).toBeCloseTo(p.totalAssets - p.totalLiabilities, 5);
     });
 
-    it('applies manually-entered other assets/liabilities as a flat value in every column', () => {
+    it('applies manually-entered / current-only balances as a flat value in every column', () => {
         const txs = [makeTx({ type: 'income', amount: 1000, date: '2024-01-05' })];
-        const points = computeBalanceSheetTrend('monthly', ['2024-01', '2024-02'], txs, [], [], { otherAssets: 500, otherLiabilities: 200 });
-        expect(points[0]).toMatchObject({ otherAssets: 500, otherLiabilities: 200 });
-        expect(points[1]).toMatchObject({ otherAssets: 500, otherLiabilities: 200 });
+        const manual = { stockValue: 300, manualEquipment: 400, otherAssets: 500, otherLiabilities: 200 };
+        const points = computeBalanceSheetTrend('monthly', ['2024-01', '2024-02'], txs, [], [], manual);
+        expect(points[0]).toMatchObject(manual);
+        expect(points[1]).toMatchObject(manual);
+    });
+
+    it('computes the day-to-day cash buffer as accounts receivable minus accounts payable', () => {
+        const txs = [
+            makeTx({ type: 'income', amount: 800, date: '2024-01-05', status: 'pending' }),
+            makeTx({ type: 'expense', amount: 300, date: '2024-01-06', status: 'overdue' }),
+        ];
+        const points = computeBalanceSheetTrend('monthly', ['2024-01'], txs, [], []);
+        expect(points[0].cashBuffer).toBe(500);
     });
 
     it('counts a currently-unpaid income transaction as accounts receivable from the period it was dated', () => {
