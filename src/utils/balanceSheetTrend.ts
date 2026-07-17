@@ -2,13 +2,28 @@
  * Balance sheet figures at past period-ends, not just today.
  *
  * Revenue/expenses/profit (trendAnalysis.ts) are flows that sum cleanly
- * within any date range. A balance sheet is different — it's a snapshot,
- * and this app doesn't store historical snapshots of accounts receivable,
- * accounts payable or inventory value. What CAN be honestly reconstructed
- * for a past date, from data that already carries real dates, is cash
- * (transactions have dates), equipment value (depreciation is a function of
- * purchase date), and loan balances (each payment has a date). Those three
- * are what this file computes — deliberately not a full balance sheet.
+ * within any date range. A balance sheet is different — it's a snapshot, and
+ * this app doesn't store historical snapshots of every balance sheet line.
+ * What CAN be honestly reconstructed for a past date, from data that already
+ * carries real dates, is:
+ *   - cash (every transaction has a date and a paid/pending status)
+ *   - accounts receivable/payable (same transactions, filtered to
+ *     income/expense entries still unpaid) — see the caveat below
+ *   - equipment value (depreciation is a function of purchase date)
+ *   - loan balances (each payment is individually dated)
+ *
+ * Stock/inventory value is NOT included: InventoryItem only stores a
+ * current quantity, with no dated history of stock movements, so there is
+ * no way to know what was on hand last month — showing today's figure for
+ * every past period would just be a made-up number wearing a real label.
+ *
+ * Caveat on AR/AP: a transaction's "paid" status is a live flag, not a
+ * dated event — the app doesn't record *when* something was marked paid.
+ * So "AR as of March" here means "income transactions dated by March that
+ * are STILL unpaid today" — accurate for anything still outstanding, but a
+ * floor, not the true figure: anything that was outstanding in March and
+ * has since been paid won't show up. Older periods are more likely to
+ * undercount for this reason. Flagged in the UI, not hidden.
  */
 
 import { Transaction, Asset, Loan } from '../types';
@@ -17,9 +32,11 @@ export interface BalanceSheetTrendPoint {
     key: string;
     label: string;
     cashOnHand: number;
+    accountsReceivable: number;
+    accountsPayable: number;
     equipmentValue: number;
     loansOutstanding: number;
-    netPosition: number; // cashOnHand + equipmentValue - loansOutstanding
+    netPosition: number; // cashOnHand + accountsReceivable + equipmentValue - accountsPayable - loansOutstanding
 }
 
 export type BalancePeriodGrouping = 'monthly' | 'quarterly' | 'yearly';
@@ -42,6 +59,21 @@ function cashOnHandAsOf(transactions: Transaction[], endDate: string): number {
         cash += t.type === 'income' ? t.amount : -t.amount;
     }
     return cash;
+}
+
+// Still-unpaid income/expense transactions dated by endDate — see the
+// module-level caveat: this is a floor on historical AR/AP, not the true
+// as-of-that-date figure, since paid status carries no date of its own.
+function accountsReceivableAsOf(transactions: Transaction[], endDate: string): number {
+    return transactions
+        .filter(t => t.type === 'income' && t.date && t.date <= endDate && (t.status === 'pending' || t.status === 'overdue'))
+        .reduce((sum, t) => sum + t.amount, 0);
+}
+
+function accountsPayableAsOf(transactions: Transaction[], endDate: string): number {
+    return transactions
+        .filter(t => t.type === 'expense' && t.date && t.date <= endDate && (t.status === 'pending' || t.status === 'overdue'))
+        .reduce((sum, t) => sum + t.amount, 0);
 }
 
 function equipmentValueAsOf(assets: Asset[], endDate: string): number {
@@ -76,15 +108,19 @@ function loansOutstandingAsOf(loans: Loan[], endDate: string): number {
 function buildPoints(periods: PeriodDef[], transactions: Transaction[], assets: Asset[], loans: Loan[]): BalanceSheetTrendPoint[] {
     return periods.map(p => {
         const cashOnHand = cashOnHandAsOf(transactions, p.endDate);
+        const accountsReceivable = accountsReceivableAsOf(transactions, p.endDate);
+        const accountsPayable = accountsPayableAsOf(transactions, p.endDate);
         const equipmentValue = equipmentValueAsOf(assets, p.endDate);
         const loansOutstanding = loansOutstandingAsOf(loans, p.endDate);
         return {
             key: p.key,
             label: p.label,
             cashOnHand,
+            accountsReceivable,
+            accountsPayable,
             equipmentValue,
             loansOutstanding,
-            netPosition: cashOnHand + equipmentValue - loansOutstanding,
+            netPosition: cashOnHand + accountsReceivable + equipmentValue - accountsPayable - loansOutstanding,
         };
     });
 }

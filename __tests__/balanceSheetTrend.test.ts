@@ -118,11 +118,31 @@ describe('computeBalanceSheetTrend', () => {
         expect(points[1]).toMatchObject({ key: '2025', cashOnHand: 100 });
     });
 
-    it('computes net position as cash plus equipment minus loans', () => {
+    it('computes net position as cash + AR + equipment - AP - loans', () => {
         const txs = [makeTx({ type: 'income', amount: 5000, date: '2024-01-05' })];
         const assets = [makeAsset({ purchaseDate: '2024-01-01', purchaseCost: 1000, residualValue: 1000, usefulLifeYears: 3 })]; // no depreciation yet at purchase instant
         const loans = [makeLoan({ startDate: '2024-01-01', principal: 2000 })];
         const points = computeBalanceSheetTrend('monthly', ['2024-01'], txs, assets, loans);
-        expect(points[0].netPosition).toBeCloseTo(points[0].cashOnHand + points[0].equipmentValue - points[0].loansOutstanding, 5);
+        const p = points[0];
+        expect(p.netPosition).toBeCloseTo(p.cashOnHand + p.accountsReceivable + p.equipmentValue - p.accountsPayable - p.loansOutstanding, 5);
+    });
+
+    it('counts a currently-unpaid income transaction as accounts receivable from the period it was dated', () => {
+        const txs = [
+            makeTx({ type: 'income', amount: 800, date: '2024-01-10', status: 'pending' }),
+            makeTx({ type: 'income', amount: 300, date: '2024-02-01', status: 'overdue' }),
+        ];
+        const points = computeBalanceSheetTrend('monthly', ['2024-01', '2024-02'], txs, [], []);
+        expect(points[0].accountsReceivable).toBe(800); // the Feb invoice hadn't happened yet
+        expect(points[1].accountsReceivable).toBe(1100); // both dated by end of Feb
+    });
+
+    it('counts a currently-unpaid expense transaction as accounts payable, and excludes paid ones', () => {
+        const txs = [
+            makeTx({ type: 'expense', amount: 400, date: '2024-01-10', status: 'overdue' }),
+            makeTx({ type: 'expense', amount: 900, date: '2024-01-15', status: 'paid' }),
+        ];
+        const points = computeBalanceSheetTrend('monthly', ['2024-01'], txs, [], []);
+        expect(points[0].accountsPayable).toBe(400);
     });
 });

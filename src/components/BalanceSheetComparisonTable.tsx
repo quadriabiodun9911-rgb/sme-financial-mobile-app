@@ -19,11 +19,10 @@ const GROUPINGS: { key: BalancePeriodGrouping; label: string }[] = [
 ];
 
 // Every row here is something we can honestly reconstruct for a past date —
-// cash (transactions are dated), equipment (depreciation is a function of
-// purchase date), loans (each payment is dated). Accounts receivable/payable
-// and inventory value are NOT included: this app only tracks their current
-// value, not a history of it, so faking a trend for them would be lying
-// with numbers.
+// see balanceSheetTrend.ts for exactly what each figure means and its
+// limits. Stock/inventory value is the one line left out entirely: this app
+// only tracks its current total, with no dated history of stock movements,
+// so a trend for it would just be today's number repeated under old dates.
 export default function BalanceSheetComparisonTable({ transactions, assets, loans, currency }: Props) {
     const [grouping, setGrouping] = useState<BalancePeriodGrouping>('monthly');
 
@@ -82,9 +81,23 @@ export default function BalanceSheetComparisonTable({ transactions, assets, loan
                     </View>
 
                     <View style={s.row}>
+                        <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabel}>Money Owed to You</Text></View>
+                        {points.map(p => (
+                            <View key={p.key} style={s.cell}><Text style={[s.val, { color: Colors.income }]}>{fmt(p.accountsReceivable)}</Text></View>
+                        ))}
+                    </View>
+
+                    <View style={s.row}>
                         <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabel}>Equipment Value</Text></View>
                         {points.map(p => (
                             <View key={p.key} style={s.cell}><Text style={[s.val, { color: Colors.asset }]}>{fmt(p.equipmentValue)}</Text></View>
+                        ))}
+                    </View>
+
+                    <View style={s.row}>
+                        <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabel}>Bills You Owe</Text></View>
+                        {points.map(p => (
+                            <View key={p.key} style={s.cell}><Text style={[s.val, { color: Colors.liability }]}>{fmt(p.accountsPayable)}</Text></View>
                         ))}
                     </View>
 
@@ -105,8 +118,9 @@ export default function BalanceSheetComparisonTable({ transactions, assets, loan
                     </View>
                 </View>
             </ScrollView>
-            <Text style={s.hint}>Cash + Equipment Value − Loans Outstanding, as of the end of each {grouping === 'monthly' ? 'month' : grouping === 'quarterly' ? 'quarter' : 'year'}.</Text>
-            <Text style={s.hint}>Doesn't include money owed to/by you or stock value — this app only tracks their current total, not a history of it.</Text>
+            <Text style={s.hint}>Cash + Money Owed to You + Equipment − Bills You Owe − Loans, as of the end of each {grouping === 'monthly' ? 'month' : grouping === 'quarterly' ? 'quarter' : 'year'}.</Text>
+            <Text style={s.hint}>Money Owed to You / Bills You Owe only count what's still unpaid today, so older columns can understate what was actually owed at the time.</Text>
+            <Text style={s.hint}>Doesn't include stock value — this app only tracks its current total, not a history of it.</Text>
             {hasPartial && (
                 <Text style={s.hint}>* still in progress — figures are as of today, not a full {grouping === 'monthly' ? 'month' : grouping === 'quarterly' ? 'quarter' : 'year'}.</Text>
             )}
@@ -125,7 +139,7 @@ const s = StyleSheet.create({
 
     row: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: Colors.border },
     cell: { width: 108, paddingVertical: 10, paddingHorizontal: 6, alignItems: 'flex-end', justifyContent: 'center' },
-    rowLabelCell: { width: 122, alignItems: 'flex-start' },
+    rowLabelCell: { width: 132, alignItems: 'flex-start' },
     rowLabelHeader: { fontSize: 10 },
     rowLabel: { fontSize: 12.5, color: Colors.textSecondary },
     colHeader: { fontSize: 10.5, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', textAlign: 'right' },
