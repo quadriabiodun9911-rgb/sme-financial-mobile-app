@@ -409,6 +409,12 @@ export default function ReportsScreen() {
                     {/* ── P & L ────────────────────────────────────────── */}
                     {activeTab === 'pnl' && (
                         <View>
+                            {/* Same reasoning as Balance Sheet: clicking Monthly/
+                                Quarterly/Yearly above should show the Jan-Dec
+                                breakdown right away, not after scrolling past the
+                                whole P&L card and chart. */}
+                            <PeriodComparisonTable transactions={transactions} currency={currency} />
+
                             <PeriodLabel period={period} />
                             <View style={styles.card}>
                                 <View style={styles.cardHeaderRow}>
@@ -444,8 +450,6 @@ export default function ReportsScreen() {
                             </View>
 
                             <MonthlyChart trend={trend} currency={currency} />
-
-                            <PeriodComparisonTable transactions={transactions} currency={currency} />
                         </View>
                     )}
 
