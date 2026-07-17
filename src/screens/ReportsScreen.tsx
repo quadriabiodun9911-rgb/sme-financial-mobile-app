@@ -30,7 +30,7 @@ import { InventoryItem } from '../types';
 import { generatePDF, sharePDF } from '../utils/pdfExport';
 
 // ─── Section groups ────────────────────────────────────────────────────────────
-type SectionKey = 'statements' | 'customers' | 'tax' | 'planning' | 'growth' | 'health';
+type SectionKey = 'statements' | 'customers' | 'tax' | 'planning' | 'growth';
 
 const SECTIONS: { key: SectionKey; label: string; icon: string; desc: string }[] = [
     { key: 'statements', label: '📊 Financial Statements', icon: '📊', desc: 'Balance Sheet, P&L, Inventory, Cash Flow' },
@@ -38,7 +38,6 @@ const SECTIONS: { key: SectionKey; label: string; icon: string; desc: string }[]
     { key: 'tax',        label: '🏛️ Tax & Compliance', icon: '🏛️', desc: 'Tax Summary and Obligations' },
     { key: 'planning',   label: '📈 Planning & Forecasts', icon: '📈', desc: 'Growth Scenarios, Cash Timeline, Loans & Debt' },
     { key: 'growth',     label: '🚀 Growth Analytics', icon: '🚀', desc: 'Growth Trends, Best Customers & Products' },
-    { key: 'health',     label: '💪 Business Health', icon: '💪', desc: 'Business Score, SWOT Analysis' },
 ];
 
 type SubTab =
@@ -46,8 +45,7 @@ type SubTab =
     | 'aging'
     | 'tax'
     | 'budget' | 'cashflow' | 'cashmgmt' | 'debt' | 'assets'
-    | 'growth' | 'customers' | 'products' | 'pricing'
-    | 'health' | 'swot';
+    | 'growth' | 'customers' | 'products' | 'pricing';
 
 const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
     statements: [
@@ -74,10 +72,6 @@ const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
         { key: 'customers', label: 'Best Customers' },
         { key: 'products',  label: 'Best Products' },
         { key: 'pricing',   label: 'Pricing Optimization' },
-    ],
-    health: [
-        { key: 'health', label: 'Business Score' },
-        { key: 'swot',   label: 'SWOT Analysis' },
     ],
 };
 
@@ -229,7 +223,6 @@ export default function ReportsScreen() {
                     <Text style={styles.reportGroupHeader}>⚙️ BUSINESS</Text>
                     {[
                         { icon: '📈', label: 'Growth', sub: 'Revenue and profit trend over the past months', section: 'growth' as SectionKey, tab: 'growth' as SubTab },
-                        { icon: '🏥', label: 'Business Health', sub: 'Strengths, weaknesses, risks and opportunities', section: 'health' as SectionKey, tab: 'swot' as SubTab },
                         { icon: '💎', label: 'Business Worth', sub: 'What your business is worth over time', section: 'statements' as SectionKey, tab: 'balancesheet' as SubTab },
                     ].map(item => (
                         <TouchableOpacity
@@ -249,6 +242,20 @@ export default function ReportsScreen() {
                             <Text style={styles.landingCardArrow}>›</Text>
                         </TouchableOpacity>
                     ))}
+                    {/* Business Health & SWOT lives on its own page now (not a
+                        Reports section) — this links straight there instead of
+                        redirecting through a dead-end tab. */}
+                    <TouchableOpacity
+                        style={styles.landingCard}
+                        onPress={() => setCurrentScreen('financial-assessment')}
+                    >
+                        <Text style={styles.landingCardIcon}>🏥</Text>
+                        <View style={styles.landingCardText}>
+                            <Text style={styles.landingCardLabel}>Business Health</Text>
+                            <Text style={styles.landingCardSub}>Strengths, weaknesses, risks and opportunities</Text>
+                        </View>
+                        <Text style={styles.landingCardArrow}>›</Text>
+                    </TouchableOpacity>
 
                     {/* ── TAX Section ────────────────────────────────────── */}
                     <Text style={styles.reportGroupHeader}>🧾 TAX</Text>
@@ -505,30 +512,6 @@ export default function ReportsScreen() {
                         />
                     )}
 
-                    {/* ── HEALTH SCORE + SWOT ──────────────────────────────
-                        Both used to fully re-render here — the same score
-                        (performFinancialDiagnosis) and the same <SwotAnalysis/>
-                        component Financial Assessment already shows, reachable
-                        from the Business Advisor's top card. Two full copies of
-                        identical content in two different places just makes the
-                        numbers feel untrustworthy when they're compared side by
-                        side, even though they're actually always in sync. One
-                        real page now, linked from here instead of duplicated. */}
-                    {(activeTab === 'health' || activeTab === 'swot') && (
-                        <View style={styles.redirectCard}>
-                            <Text style={styles.redirectTitle}>💪 Business Health & SWOT</Text>
-                            <Text style={styles.redirectText}>
-                                Your full health score, SWOT analysis, root-cause diagnosis and recommended actions
-                                live on one page now, not split across Reports and the Business Advisor.
-                            </Text>
-                            <NextStepLink
-                                emphasis="button"
-                                text="Open Business Health & SWOT"
-                                onPress={() => setCurrentScreen('financial-assessment')}
-                            />
-                            <NextStepLink text="See how this looks across multiple years" onPress={() => setCurrentScreen('trends')} />
-                        </View>
-                    )}
 
                     {/* ── GROWTH METRICS ───────────────────────────────── */}
                     {activeTab === 'growth' && (

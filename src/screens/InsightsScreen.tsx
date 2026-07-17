@@ -259,7 +259,7 @@ export default function InsightsScreen() {
                             {/* Link to full SWOT */}
                             <TouchableOpacity
                                 style={styles.fullSwotBtn}
-                                onPress={() => navigate('reports', { reportSection: 'health', reportTab: 'swot' })}
+                                onPress={() => setCurrentScreen('financial-assessment')}
                             >
                                 <Text style={styles.fullSwotText}>View full SWOT Analysis in Reports →</Text>
                             </TouchableOpacity>
