@@ -1,5 +1,5 @@
 import { computeWeeklySummary } from '../src/utils/weeklySummary';
-import { Transaction, Invoice, FinanceData } from '../src/types';
+import { Transaction, Invoice, FinanceData, Loan } from '../src/types';
 
 const makeTx = (overrides: Partial<Transaction>): Transaction => ({
     id: 'tx',
@@ -101,5 +101,45 @@ describe('computeWeeklySummary', () => {
         const summary = computeWeeklySummary(txs, [], baseFinance);
         expect(summary.profit).toBe(-400);
         expect(summary.problems.some(p => p.includes('loss'))).toBe(true);
+    });
+
+    it('always covers all four growth levers: cost, revenue, cash, debt', () => {
+        const summary = computeWeeklySummary([], [], baseFinance);
+        const levers = summary.topPriorities.map(p => p.lever).sort();
+        expect(levers).toEqual(['cash', 'cost', 'debt', 'revenue']);
+    });
+
+    it('ranks priorities by £ opportunity, biggest first', () => {
+        const summary = computeWeeklySummary([], [], baseFinance);
+        for (let i = 1; i < summary.topPriorities.length; i++) {
+            expect(summary.topPriorities[i - 1].impact).toBeGreaterThanOrEqual(summary.topPriorities[i].impact);
+        }
+    });
+
+    it('surfaces debt cost from active loans, ignoring paid-off ones', () => {
+        const loans: Loan[] = [
+            {
+                id: 'l1', lenderName: 'Bank A', purpose: 'Equipment', principal: 10000,
+                interestRate: 20, termMonths: 12, startDate: dateStr(60), status: 'active',
+                payments: [], createdAt: dateStr(60),
+            },
+            {
+                id: 'l2', lenderName: 'Bank B', purpose: 'Working Capital', principal: 5000,
+                interestRate: 10, termMonths: 12, startDate: dateStr(400), status: 'paid_off',
+                payments: [], createdAt: dateStr(400),
+            },
+        ];
+        const summary = computeWeeklySummary([], [], baseFinance, loans);
+        const debtPriority = summary.topPriorities.find(p => p.lever === 'debt')!;
+        expect(debtPriority.text).toContain('Bank A');
+        expect(debtPriority.text).not.toContain('Bank B');
+        expect(debtPriority.impact).toBeGreaterThan(0);
+    });
+
+    it('shows no-debt-cost text when there are no active loans', () => {
+        const summary = computeWeeklySummary([], [], baseFinance, []);
+        const debtPriority = summary.topPriorities.find(p => p.lever === 'debt')!;
+        expect(debtPriority.impact).toBe(0);
+        expect(debtPriority.text).toContain('No active loans');
     });
 });

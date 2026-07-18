@@ -7,12 +7,12 @@ import FooterNav from '../components/FooterNav';
 import { computeWeeklySummary } from '../utils/weeklySummary';
 
 export default function WeeklyDashboardScreen() {
-    const { transactions, invoices, finance, settings } = useApp();
+    const { transactions, invoices, finance, settings, loans } = useApp();
     const currency = settings.currency || '₦';
 
     const summary = useMemo(
-        () => computeWeeklySummary(transactions, invoices, finance),
-        [transactions, invoices, finance]
+        () => computeWeeklySummary(transactions, invoices, finance, loans),
+        [transactions, invoices, finance, loans]
     );
 
     const fmt = (n: number) => `${currency}${Math.round(n).toLocaleString()}`;
@@ -73,9 +73,20 @@ export default function WeeklyDashboardScreen() {
                     {summary.problems.map((p, i) => <BulletRow key={i} text={p} />)}
                 </Section>
 
-                {/* Top priorities */}
-                <Section title="🎯 Top Priorities" color={Colors.primary}>
-                    {summary.topPriorities.map((p, i) => <BulletRow key={i} text={p} num={i + 1} />)}
+                {/* Top priorities — the 4 levers that drive growth, ranked by £ opportunity */}
+                <Section title="🎯 Top Priorities for Growth" color={Colors.primary}>
+                    <Text style={s.sectionHint}>
+                        Ranked by which lever has the biggest impact on the business right now.
+                    </Text>
+                    {summary.topPriorities.map((p, i) => (
+                        <View key={p.lever} style={s.priorityCard}>
+                            <View style={s.priorityHeader}>
+                                <Text style={s.priorityRank}>{i + 1}</Text>
+                                <Text style={s.priorityLabel}>{p.label}</Text>
+                            </View>
+                            <Text style={s.priorityText}>{p.text}</Text>
+                        </View>
+                    ))}
                 </Section>
 
                 {/* Lessons */}
@@ -145,5 +156,19 @@ const s = StyleSheet.create({
     bulletRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
     bulletMark: { fontSize: 12, color: Colors.textMuted, width: 16 },
     bulletText: { flex: 1, fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
+    sectionHint: { fontSize: 11, color: Colors.textMuted, marginBottom: 12, marginTop: -4, fontStyle: 'italic' },
+    priorityCard: {
+        backgroundColor: Colors.bg,
+        borderRadius: 8,
+        padding: 10,
+        marginBottom: 8,
+    },
+    priorityHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
+    priorityRank: {
+        fontSize: 11, fontWeight: 'bold', color: '#fff', backgroundColor: Colors.primary,
+        width: 18, height: 18, borderRadius: 9, textAlign: 'center', lineHeight: 18,
+    },
+    priorityLabel: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary },
+    priorityText: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
     footnote: { fontSize: 10.5, color: Colors.textMuted, marginTop: 18, fontStyle: 'italic', lineHeight: 15 },
 });

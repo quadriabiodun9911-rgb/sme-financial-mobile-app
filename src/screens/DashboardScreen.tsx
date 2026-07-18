@@ -428,15 +428,10 @@ export default function DashboardScreen() {
                       <Text style={styles.engineTitle}>Goal<br/>Bridge</Text>
                       <Text style={styles.engineSubtext}>Connect to goals</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.engineCard}
-                      onPress={() => setCurrentScreen('weekly-dashboard')}
-                    >
-                      <Text style={styles.engineEmoji}>🗓️</Text>
-                      <Text style={styles.engineTitle}>Weekly<br/>Dashboard</Text>
-                      <Text style={styles.engineSubtext}>Wins, problems & priorities</Text>
-                    </TouchableOpacity>
                   </View>
+                  <TouchableOpacity style={[styles.btn, { marginTop: 10 }]} onPress={() => setCurrentScreen('weekly-dashboard')}>
+                    <Text style={styles.btnText}>🗓️ Weekly Dashboard — Wins, Problems & Priorities</Text>
+                  </TouchableOpacity>
                 </View>
 
                 {/* SECTION 5: Financing Status */}
