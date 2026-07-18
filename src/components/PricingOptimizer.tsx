@@ -3,18 +3,25 @@ import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity } from 
 import { Colors } from '../theme/colors';
 import { suggestSolution } from '../utils/impactChain';
 import NextStepLink from './NextStepLink';
+import { Invoice } from '../types';
 
 interface Props {
     currentRevenue: number;
     currentMargin: number;
     currency: string;
+    invoices?: Invoice[];
     onSeeFullPicture?: () => void;
 }
 
-export default function PricingOptimizer({ currentRevenue, currentMargin, currency, onSeeFullPicture }: Props) {
+export default function PricingOptimizer({ currentRevenue, currentMargin, currency, invoices = [], onSeeFullPicture }: Props) {
     const [priceIncrease, setPriceIncrease] = useState('10');
     const [volumeLoss, setVolumeLoss] = useState('5');
     const [costReduction, setCostReduction] = useState('0');
+
+    const customerCount = useMemo(
+        () => new Set(invoices.map(inv => inv.clientName || 'Unknown')).size,
+        [invoices]
+    );
 
     const scenarios = useMemo(() => {
         const priceInc = parseFloat(priceIncrease) || 0;
@@ -53,6 +60,7 @@ export default function PricingOptimizer({ currentRevenue, currentMargin, curren
                 profit: scenario1Profit,
                 profitGain: scenario1ProfitGain,
                 profitGainPct: baseProfit > 0 ? (scenario1ProfitGain / baseProfit) * 100 : 0,
+                customerFactor: 1 - volLoss / 100,
             },
             costReduction: {
                 revenue: currentRevenue,
@@ -60,6 +68,7 @@ export default function PricingOptimizer({ currentRevenue, currentMargin, curren
                 profit: scenario2Profit,
                 profitGain: scenario2ProfitGain,
                 profitGainPct: baseProfit > 0 ? (scenario2ProfitGain / baseProfit) * 100 : 0,
+                customerFactor: 1,
             },
             combined: {
                 revenue: scenario3Revenue,
@@ -67,6 +76,7 @@ export default function PricingOptimizer({ currentRevenue, currentMargin, curren
                 profit: scenario3Profit,
                 profitGain: scenario3ProfitGain,
                 profitGainPct: baseProfit > 0 ? (scenario3ProfitGain / baseProfit) * 100 : 0,
+                customerFactor: 1 - volLoss / 100,
             },
         };
     }, [currentRevenue, currentMargin, priceIncrease, volumeLoss, costReduction]);
@@ -106,7 +116,21 @@ export default function PricingOptimizer({ currentRevenue, currentMargin, curren
                             {currency}{((currentRevenue * currentMargin) / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                         </Text>
                     </View>
+                    {customerCount > 0 && (
+                        <>
+                            <View style={styles.divider} />
+                            <View style={styles.currentMetric}>
+                                <Text style={styles.currentLabel}>Profit Per Customer</Text>
+                                <Text style={[styles.currentValue, { color: Colors.income }]}>
+                                    {currency}{(((currentRevenue * currentMargin) / 100) / customerCount).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                </Text>
+                            </View>
+                        </>
+                    )}
                 </View>
+                {customerCount > 0 && (
+                    <Text style={styles.hint}>Based on {customerCount} customer{customerCount === 1 ? '' : 's'} billed to date</Text>
+                )}
             </View>
 
             {/* Pricing Strategy */}
@@ -168,6 +192,7 @@ export default function PricingOptimizer({ currentRevenue, currentMargin, curren
                     profit={scenarios.priceIncrease.profit}
                     profitGain={scenarios.priceIncrease.profitGain}
                     profitGainPct={scenarios.priceIncrease.profitGainPct}
+                    profitPerCustomer={customerCount > 0 ? scenarios.priceIncrease.profit / (customerCount * scenarios.priceIncrease.customerFactor) : undefined}
                     currency={currency}
                     recommendation={
                         scenarios.priceIncrease.profitGain > 0
@@ -185,6 +210,7 @@ export default function PricingOptimizer({ currentRevenue, currentMargin, curren
                     profit={scenarios.costReduction.profit}
                     profitGain={scenarios.costReduction.profitGain}
                     profitGainPct={scenarios.costReduction.profitGainPct}
+                    profitPerCustomer={customerCount > 0 ? scenarios.costReduction.profit / customerCount : undefined}
                     currency={currency}
                     recommendation={
                         scenarios.costReduction.profitGain > 0
@@ -202,6 +228,7 @@ export default function PricingOptimizer({ currentRevenue, currentMargin, curren
                     profit={scenarios.combined.profit}
                     profitGain={scenarios.combined.profitGain}
                     profitGainPct={scenarios.combined.profitGainPct}
+                    profitPerCustomer={customerCount > 0 ? scenarios.combined.profit / (customerCount * scenarios.combined.customerFactor) : undefined}
                     currency={currency}
                     recommendation={
                         scenarios.combined.profitGain > 0
@@ -329,6 +356,7 @@ interface ScenarioCardProps {
     profit: number;
     profitGain: number;
     profitGainPct: number;
+    profitPerCustomer?: number;
     currency: string;
     recommendation: string;
     highlighted?: boolean;
@@ -342,6 +370,7 @@ function ScenarioCard({
     profit,
     profitGain,
     profitGainPct,
+    profitPerCustomer,
     currency,
     recommendation,
     highlighted,
@@ -361,6 +390,9 @@ function ScenarioCard({
                     color={margin > 40 ? Colors.income : margin > 25 ? Colors.warning : Colors.expense}
                 />
                 <ScenarioMetric label="Profit" value={`${currency}${profit.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} color={Colors.income} />
+                {profitPerCustomer !== undefined && (
+                    <ScenarioMetric label="Profit / Customer" value={`${currency}${profitPerCustomer.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} color={Colors.income} />
+                )}
             </View>
 
             <View style={styles.gainBanner}>

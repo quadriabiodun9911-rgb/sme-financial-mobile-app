@@ -573,6 +573,7 @@ export default function ReportsScreen() {
                                 currentRevenue={allFinance.income}
                                 currentMargin={allFinance.margin}
                                 currency={currency}
+                                invoices={invoices}
                                 onSeeFullPicture={() => setCurrentScreen('clarity')}
                             />
                             <NextStepLink
