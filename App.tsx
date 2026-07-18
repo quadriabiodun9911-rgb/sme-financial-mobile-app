@@ -39,6 +39,7 @@ import GoalBridgeScreen from './src/screens/GoalBridgeScreen';
 import OnboardingChoiceScreen from './src/screens/OnboardingChoiceScreen';
 import ClarityScreen from './src/screens/ClarityScreen';
 import TrendsScreen from './src/screens/TrendsScreen';
+import WeeklyDashboardScreen from './src/screens/WeeklyDashboardScreen';
 
 function NavigatorContent() {
     const { user, isLoading, currentScreen, setCurrentScreen, goBack } = useAuth();
@@ -114,6 +115,7 @@ function NavigatorContent() {
             {currentScreen === 'onboarding-choice' && <OnboardingChoiceScreen />}
             {currentScreen === 'clarity'            && <ClarityScreen />}
             {currentScreen === 'trends'              && <TrendsScreen />}
+            {currentScreen === 'weekly-dashboard'    && <WeeklyDashboardScreen />}
         </View>
     );
 }

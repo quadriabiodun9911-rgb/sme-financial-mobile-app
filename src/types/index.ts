@@ -30,7 +30,8 @@ export type Screen =
     | 'financial-coach'
     | 'bank-statement-import'
     | 'onboarding-choice'
-    | 'clarity';
+    | 'clarity'
+    | 'weekly-dashboard';
 
 export interface Budget {
     id: string;
