@@ -393,9 +393,9 @@ export default function DashboardScreen() {
                       <Text style={styles.actionEmoji}>💸</Text>
                       <Text style={styles.actionLabel}>Record Expense</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionCard} onPress={() => setCurrentScreen('reports')}>
-                      <Text style={styles.actionEmoji}>📊</Text>
-                      <Text style={styles.actionLabel}>View Reports</Text>
+                    <TouchableOpacity style={styles.actionCard} onPress={() => setCurrentScreen('clarity')}>
+                      <Text style={styles.actionEmoji}>🏦</Text>
+                      <Text style={styles.actionLabel}>Import Bank Statement</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
