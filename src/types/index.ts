@@ -31,7 +31,12 @@ export type Screen =
     | 'bank-statement-import'
     | 'onboarding-choice'
     | 'clarity'
-    | 'weekly-dashboard';
+    | 'weekly-dashboard'
+    | 'action-tracker'
+    | 'financial-assessment'
+    | 'funding-qualification'
+    | 'goal-bridge'
+    | 'trends';
 
 export interface Budget {
     id: string;
@@ -214,7 +219,7 @@ export interface BusinessSettings {
 }
 
 export interface NavParams {
-    reportSection?: 'statements' | 'operations' | 'planning' | 'analysis';
+    reportSection?: 'statements' | 'customers' | 'tax' | 'planning' | 'growth';
     reportTab?: string;
     goalType?: GoalType;
     goalId?: string;           // pass a saved goal into Goal Bridge

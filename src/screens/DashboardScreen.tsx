@@ -1181,6 +1181,7 @@ const styles = StyleSheet.create({
 
     engineCardsGrid: {
       flexDirection: 'row',
+      flexWrap: 'wrap',
       gap: 10,
       justifyContent: 'space-between',
     },

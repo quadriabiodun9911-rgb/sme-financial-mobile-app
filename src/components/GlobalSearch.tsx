@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
+import { searchFeatures, FeatureEntry } from '../utils/featureIndex';
 
 interface Props {
     visible: boolean;
@@ -12,11 +13,13 @@ interface Props {
 }
 
 export default function GlobalSearch({ visible, onClose }: Props) {
-    const { transactions, invoices, assets, settings, setCurrentScreen } = useApp();
+    const { transactions, invoices, assets, settings, setCurrentScreen, navigate } = useApp();
     const [query, setQuery] = useState('');
     const currency = settings.currency;
 
     const q = query.toLowerCase().trim();
+
+    const features = useMemo(() => searchFeatures(query), [query]);
 
     const results = useMemo(() => {
         if (q.length < 2) return { transactions: [], invoices: [], assets: [] };
@@ -37,7 +40,13 @@ export default function GlobalSearch({ visible, onClose }: Props) {
         };
     }, [q, transactions, invoices, assets]);
 
-    const totalResults = results.transactions.length + results.invoices.length + results.assets.length;
+    const totalResults = features.length + results.transactions.length + results.invoices.length + results.assets.length;
+
+    const openFeature = (f: FeatureEntry) => {
+        handleClose();
+        if (f.navParams) navigate(f.screen, f.navParams);
+        else setCurrentScreen(f.screen);
+    };
 
     const handleClose = () => { setQuery(''); onClose(); };
 
@@ -64,7 +73,7 @@ export default function GlobalSearch({ visible, onClose }: Props) {
                     {q.length < 2 && (
                         <View style={styles.emptyHint}>
                             <Text style={styles.emptyHintText}>Type at least 2 characters to search</Text>
-                            <Text style={styles.emptyHintSub}>Searches transactions, invoices & assets</Text>
+                            <Text style={styles.emptyHintSub}>Searches features & reports, transactions, invoices & assets</Text>
                         </View>
                     )}
 
@@ -73,6 +82,22 @@ export default function GlobalSearch({ visible, onClose }: Props) {
                             <Text style={styles.emptyHintText}>No results for "{query}"</Text>
                             <Text style={styles.emptyHintSub}>Try a different word or check spelling</Text>
                         </View>
+                    )}
+
+                    {features.length > 0 && (
+                        <>
+                            <Text style={styles.sectionHeader}>Features & Reports</Text>
+                            {features.map(f => (
+                                <TouchableOpacity key={f.id} style={styles.resultRow} onPress={() => openFeature(f)}>
+                                    <Text style={styles.resultIcon}>{f.icon}</Text>
+                                    <View style={styles.resultInfo}>
+                                        <Text style={styles.resultTitle}>{f.label}</Text>
+                                        <Text style={styles.resultSub}>{f.description}</Text>
+                                    </View>
+                                    <Text style={styles.resultArrow}>›</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </>
                     )}
 
                     {results.transactions.length > 0 && (
@@ -146,6 +171,7 @@ const styles = StyleSheet.create({
     resultTitle: { fontSize: 14, fontWeight: '600', color: Colors.textPrimary, marginBottom: 2 },
     resultSub:   { fontSize: 11, color: Colors.textMuted },
     resultAmount:{ fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
+    resultArrow: { fontSize: 18, color: Colors.textMuted },
     emptyHint:   { padding: 40, alignItems: 'center' },
     emptyHintText: { fontSize: 16, fontWeight: '600', color: Colors.textPrimary, marginBottom: 6 },
     emptyHintSub:  { fontSize: 13, color: Colors.textMuted },
