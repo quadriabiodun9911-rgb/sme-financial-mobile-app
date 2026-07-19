@@ -37,6 +37,7 @@ import { TeamMember } from '../types';
 import { supabase } from '../utils/supabase';
 import { getTwoFactorStatus, verifyTwoFactorLogin } from '../utils/twoFactorAuth';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
+import { canViewFinancials as computeCanViewFinancials } from '../utils/rolePermissions';
 import CryptoJS from 'crypto-js';
 
 const PIN_SALT = 'Q360_SME_2025';
@@ -1104,6 +1105,8 @@ export function useApp() {
     ? { ...auth.user, daysActive, avgMonthlyRevenue, avgMonthlyProfit, totalRecordedRevenue, financialHealthScore }
     : auth.user;
 
+  const resolvedUserRole = (auth.user?.role === 'Accountant' ? 'accountant' : auth.user?.role === 'Staff' ? 'staff' : 'owner') as UserRole;
+
   return {
     // Auth state
     user: userWithMetrics,
@@ -1228,7 +1231,8 @@ export function useApp() {
     // Derived from the signed-in user's role, not hardcoded — was always
     // 'owner' regardless of who was actually logged in, silently disabling
     // every permission check gated on userRole (e.g. payment-key edits).
-    userRole: (auth.user?.role === 'Accountant' ? 'accountant' : auth.user?.role === 'Staff' ? 'staff' : 'owner') as UserRole,
+    userRole: resolvedUserRole,
+    canViewFinancials: computeCanViewFinancials(resolvedUserRole),
     inviteMember: auth.inviteMember || (async () => ''),
     removeMember: auth.removeMember || (() => Promise.resolve()),
     joinTeam: auth.joinTeam,

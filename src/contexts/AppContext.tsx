@@ -19,6 +19,7 @@ function useDebouncedEffect(fn: () => void, deps: React.DependencyList, delay = 
 }
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Transaction, FinanceData, User, BusinessSettings, Screen, FinancialGoal, GoalType, NavParams, Invoice, InvoiceStatus, TeamMember, UserRole, Language, Asset, InventoryItem, Loan, LoanPayment, Budget, CashPocket, StaffMember, PayrollRun, PayrollItem, MerchantFinancingApplication, FinancingContextData, LoanPurpose } from '../types';
+import { canViewFinancials as computeCanViewFinancials } from '../utils/rolePermissions';
 import { computeFinance, computeOneThingInsight, computeRecurringDates, computeAssetCurrentValue, computeAssetAnnualDepreciation } from '../utils/finance';
 import { generateId } from '../utils/uuid';
 import { auditEvents } from '../utils/auditLog';
@@ -70,6 +71,7 @@ interface AppContextValue {
     // Auth
     user: User | null;
     userRole: UserRole;
+    canViewFinancials: boolean; // false for 'staff' — see src/utils/rolePermissions.ts
     isFirstLaunch: boolean;
     setupAccount: (email: string, businessName: string, pin: string, loadDemo: boolean, phone?: string) => Promise<void>;
     recoverAccount: (email: string, pin: string) => Promise<void>;
@@ -569,6 +571,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // Role permission helpers
     const canWrite  = userRole === 'owner' || userRole === 'staff';
     const canManage = userRole === 'owner';
+    const canViewFinancials = computeCanViewFinancials(userRole);
 
     const denyWrite  = () => Alert.alert(t(language, 'permissionDenied'), t(language, 'staffPermission'));
     const denyManage = () => Alert.alert(t(language, 'permissionDenied'), t(language, 'accountantPermission'));
@@ -1148,8 +1151,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         });
     };
 
+    // canWrite (not canManage) — restocking and selling stock is a routine
+    // operational task staff need to do without the owner present, the same
+    // way addTransaction is canWrite. Previously this was canManage-gated,
+    // which silently blocked InventoryScreen's confirmSell() (it calls
+    // updateInventoryItem to decrement quantity) for any staff account —
+    // staff could record the sale's transaction but not actually sell the
+    // stock. Deleting an item outright stays owner-only below.
     const addInventoryItem = (item: Omit<InventoryItem, 'id' | 'createdAt' | 'updatedAt'>) => {
-        if (!canManage) { denyManage(); return; }
+        if (!canWrite) { denyWrite(); return; }
         const now = new Date().toISOString();
         const newItem: InventoryItem = { ...item, id: generateId(), createdAt: now, updatedAt: now };
         trackInventoryItemAdded();
@@ -1157,7 +1167,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
 
     const updateInventoryItem = (id: string, patch: Partial<InventoryItem>) => {
-        if (!canManage) { denyManage(); return; }
+        if (!canWrite) { denyWrite(); return; }
         setInventory(prev => prev.map(i => i.id === id ? { ...i, ...patch, updatedAt: new Date().toISOString() } : i));
     };
 
@@ -1374,7 +1384,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const contextValue = useMemo<AppContextValue>(() => ({
         currentScreen, setCurrentScreen,
         navParams, navigate,
-        user, userRole,
+        user, userRole, canViewFinancials,
         isFirstLaunch: !hasProfile && !isLoading,
         isDemoMode, enterDemo, exitDemo,
         setupAccount, recoverAccount, login, joinTeam, logout, changePin,

@@ -33,7 +33,7 @@ const INCOME_CATEGORIES = ['Sales', 'Service', 'Consulting', 'Rental', 'Interest
 const EXPENSE_CATEGORIES = ['Rent', 'Salaries', 'Utilities', 'Marketing', 'Supplies', 'Transport', 'Meals', 'Software', 'Tax', 'Other'];
 
 export default function DashboardScreen() {
-    const { finance, settings, goals, transactions, invoices, assets, loans, navigate, setCurrentScreen, language: rawLanguage, isLoading, addTransaction, isDemoMode, exitDemo, cashPockets, deleteGoal, updateGoal, budgets, inventory, user, financing } = useApp();
+    const { finance, settings, goals, transactions, invoices, assets, loans, navigate, setCurrentScreen, language: rawLanguage, isLoading, addTransaction, isDemoMode, exitDemo, cashPockets, deleteGoal, updateGoal, budgets, inventory, user, financing, canViewFinancials } = useApp();
     const language = rawLanguage as Language;
 
     const [fabOpen, setFabOpen]           = useState(false);
@@ -227,7 +227,7 @@ export default function DashboardScreen() {
     return (
         <SafeAreaView style={styles.safe}>
             <Header />
-            <StickyMetricsHeader finance={finance} currency={currency} isSticky={true} />
+            {canViewFinancials && <StickyMetricsHeader finance={finance} currency={currency} isSticky={true} />}
             <ScrollView style={styles.scroll} contentContainerStyle={styles.pad}>
 
                 <TouchableOpacity style={styles.searchTrigger} onPress={() => setShowSearch(true)}>
@@ -250,7 +250,11 @@ export default function DashboardScreen() {
                     ⚙️ OPERATIONS COMMAND CENTRE
                     ══════════════════════════════════════════════════════════════════ */}
 
-                {/* SECTION 1: VITAL SIGNS - Critical metrics at a glance */}
+                {/* SECTION 1: VITAL SIGNS - Critical metrics at a glance
+                    Cash balance and profit are exactly the financial
+                    performance a staff account shouldn't see — hidden for
+                    'staff', unchanged for 'owner'/'accountant'. */}
+                {canViewFinancials && (
                 <View style={styles.operationsSection}>
                   <Text style={styles.operationsSectionTitle}>💊 VITAL SIGNS</Text>
 
@@ -284,6 +288,7 @@ export default function DashboardScreen() {
                     </View>
                   </View>
                 </View>
+                )}
 
                 {/* SECTION 2: TODAY'S PRIORITIES - Action items */}
                 <View style={styles.operationsSection}>
@@ -349,6 +354,7 @@ export default function DashboardScreen() {
                 </View>
 
                 {/* SECTION 3: KEY METRICS - Monthly snapshot */}
+                {canViewFinancials && (
                 <View style={styles.operationsSection}>
                   <Text style={styles.operationsSectionTitle}>📊 MONTHLY SNAPSHOT</Text>
                   <View style={styles.metricsGrid}>
@@ -376,6 +382,7 @@ export default function DashboardScreen() {
                     </View>
                   </View>
                 </View>
+                )}
 
                 {/* SECTION 4: QUICK ACTIONS - One-tap operations */}
                 <View style={styles.operationsSection}>
@@ -393,14 +400,19 @@ export default function DashboardScreen() {
                       <Text style={styles.actionEmoji}>💸</Text>
                       <Text style={styles.actionLabel}>Record Expense</Text>
                     </TouchableOpacity>
+                    {canViewFinancials && (
                     <TouchableOpacity style={styles.actionCard} onPress={() => setCurrentScreen('clarity')}>
                       <Text style={styles.actionEmoji}>🏦</Text>
                       <Text style={styles.actionLabel}>Import Bank Statement</Text>
                     </TouchableOpacity>
+                    )}
                   </View>
                 </View>
 
-                {/* SECTION 4B: AI FINANCIAL ENGINE - Assessment & Action Planning */}
+                {/* SECTION 4B: AI FINANCIAL ENGINE - Assessment & Action Planning
+                    Every destination here (diagnosis, weekly priorities, goal
+                    tracking) is a financial-performance view — not shown to staff. */}
+                {canViewFinancials && (
                 <View style={styles.operationsSection}>
                   <Text style={styles.operationsSectionTitle}>🤖 AI Financial Engine</Text>
                   <View style={styles.engineCardsGrid}>
@@ -433,9 +445,10 @@ export default function DashboardScreen() {
                     <Text style={styles.btnText}>🗓️ Weekly Dashboard — Wins, Problems & Priorities</Text>
                   </TouchableOpacity>
                 </View>
+                )}
 
                 {/* SECTION 5: Financing Status */}
-                {!isDemoMode && user && (
+                {canViewFinancials && !isDemoMode && user && (
                     <View style={styles.operationsSection}>
                       <Text style={styles.operationsSectionTitle}>🎯 GROWTH TRACKER</Text>
                       <MerchantFinancingQualificationWidget
@@ -676,9 +689,11 @@ export default function DashboardScreen() {
                 )}
 
 
+                {canViewFinancials && (
                 <TouchableOpacity style={styles.btn} onPress={() => setCurrentScreen('reports')}>
                     <Text style={styles.btnText}>{t(language, 'viewDetailedReports')}</Text>
                 </TouchableOpacity>
+                )}
 
             </ScrollView>
 

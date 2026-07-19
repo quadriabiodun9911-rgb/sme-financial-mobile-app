@@ -41,9 +41,13 @@ import ClarityScreen from './src/screens/ClarityScreen';
 import TrendsScreen from './src/screens/TrendsScreen';
 import WeeklyDashboardScreen from './src/screens/WeeklyDashboardScreen';
 import TaxFilingReadinessScreen from './src/screens/TaxFilingReadinessScreen';
+import RestrictedAccessScreen from './src/screens/RestrictedAccessScreen';
+import { isScreenAllowedForRole } from './src/utils/rolePermissions';
+import { UserRole, Screen } from './src/types';
 
 function NavigatorContent() {
     const { user, isLoading, currentScreen, setCurrentScreen, goBack } = useAuth();
+    const userRole = (user?.role === 'Accountant' ? 'accountant' : user?.role === 'Staff' ? 'staff' : 'owner') as UserRole;
 
     useEffect(() => {
         if (!isLoading && currentScreen !== 'login') {
@@ -78,6 +82,19 @@ function NavigatorContent() {
         return (
             <View style={{ flex: 1, backgroundColor: '#0f172a', justifyContent: 'center', alignItems: 'center' }}>
                 <ActivityIndicator size="large" color="#3b82f6" />
+            </View>
+        );
+    }
+
+    // A staff account can be invited to run day-to-day operations while the
+    // owner isn't around, but shouldn't see the full financial picture
+    // (P&L, cash balance, bank details, loan terms). Checked here, once,
+    // rather than in each screen, so a new screen defaults to restricted
+    // instead of accidentally exposed — see rolePermissions.ts.
+    if (!isScreenAllowedForRole(currentScreen as Screen, userRole)) {
+        return (
+            <View style={{ flex: 1 }}>
+                <RestrictedAccessScreen />
             </View>
         );
     }

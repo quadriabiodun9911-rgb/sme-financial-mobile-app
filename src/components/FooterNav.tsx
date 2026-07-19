@@ -8,6 +8,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { Screen } from '../types';
+import { isScreenAllowedForRole } from '../utils/rolePermissions';
 
 // ─── Icon accent colours per section ────────────────────────────────────────
 const ANALYTICS_ITEMS: { label: string; icon: string; screen: Screen; color: string }[] = [
@@ -46,7 +47,7 @@ const TABS: { label: string; screen: Screen; icon: string }[] = [
 ];
 
 export default function FooterNav() {
-    const { currentScreen, setCurrentScreen, user, pendingSyncCount, transactions, goals, invoices, finance } = useApp();
+    const { currentScreen, setCurrentScreen, user, pendingSyncCount, transactions, goals, invoices, finance, userRole, canViewFinancials } = useApp();
     const [moreOpen, setMoreOpen] = useState(false);
 
     // Feature flags
@@ -76,27 +77,27 @@ export default function FooterNav() {
     const unpaidInv   = useMemo(() => invoices.filter(i => i.status === 'sent' || i.status === 'overdue').length, [invoices]);
     const profit      = finance?.profit ?? 0;
 
-    // Filter tabs and menu items based on feature flags
+    // Filter tabs and menu items based on feature flags AND role — a staff
+    // account only sees screens rolePermissions.ts allows it to open, so
+    // the nav itself doesn't advertise destinations it'll immediately
+    // bounce them out of via RestrictedAccessScreen.
     const visibleTabs = useMemo(() =>
         TABS.filter(tab => {
             if (tab.screen === 'reports' && !enableReports) return false;
-            return true;
+            return isScreenAllowedForRole(tab.screen, userRole);
         }),
-        [enableReports]
+        [enableReports, userRole]
     );
 
-    const visibleAnalytics = useMemo(() => ANALYTICS_ITEMS, []);
+    const visibleAnalytics = useMemo(() => ANALYTICS_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
 
-    const visibleFinance = useMemo(() => FINANCE_ITEMS, []);
+    const visibleFinance = useMemo(() => FINANCE_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
 
-    const visibleOperations = useMemo(() => OPERATIONS_ITEMS, []);
+    const visibleOperations = useMemo(() => OPERATIONS_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
 
     const visibleAccount = useMemo(() =>
-        ACCOUNT_ITEMS.filter(item => {
-            // Team feature is shown in Settings, so no need to filter here
-            return true;
-        }),
-        []
+        ACCOUNT_ITEMS.filter(item => isScreenAllowedForRole(item.screen, userRole)),
+        [userRole]
     );
 
     return (
@@ -192,6 +193,8 @@ export default function FooterNav() {
                                 <Text style={styles.statValue}>{unpaidInv}</Text>
                                 <Text style={styles.statLabel}>Unpaid Inv.</Text>
                             </TouchableOpacity>
+                            {canViewFinancials && (
+                            <>
                             <View style={styles.statDivider} />
                             <TouchableOpacity style={styles.statBox} onPress={() => goTo('dashboard')} activeOpacity={0.8}>
                                 <Text style={[styles.statValue, { color: profit >= 0 ? Colors.income : Colors.expense }]}>
@@ -199,6 +202,8 @@ export default function FooterNav() {
                                 </Text>
                                 <Text style={styles.statLabel}>Profit</Text>
                             </TouchableOpacity>
+                            </>
+                            )}
                         </View>
 
                         {/* ── Analytics ─────────────────────────────────── */}

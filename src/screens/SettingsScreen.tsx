@@ -405,7 +405,7 @@ export default function SettingsScreen() {
                         <CollapsibleSection title="Team" defaultOpen={false}>
                             <Section title="Team Management">
                                 <Text style={styles.hint}>
-                                    Invite team members to access your business data. Accountants can view and export. Staff can add transactions.
+                                    Invite team members to access your business data. Accountants see full financial reports and can export. Staff can log sales/expenses, send invoices, and manage inventory — full P&L, cash balance, and bank/loan details stay hidden from them.
                                 </Text>
                                 <TouchableOpacity style={styles.dataBtn} onPress={() => { setPendingCode(null); setInviteModal(true); }}>
                                     <Text style={styles.dataBtnText}>+ Invite Team Member</Text>
