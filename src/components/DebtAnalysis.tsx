@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { FinanceData, Loan } from '../types';
+import { computeLeverageRatios, scoreDebtToAssets, scoreDebtToEquity, scoreEquityRatio, scoreROA, scoreROE, RatioScore } from '../utils/debtRatios';
 
 interface Props {
     finance: FinanceData;
@@ -9,14 +10,8 @@ interface Props {
     loans?: Loan[];
 }
 
-function healthColor(score: 'strong' | 'stable' | 'concerning') {
+function healthColor(score: RatioScore) {
     return score === 'strong' ? Colors.income : score === 'stable' ? Colors.warning : Colors.expense;
-}
-
-function healthScore(val: number, thresholds: [number, number]): 'strong' | 'stable' | 'concerning' {
-    if (val >= thresholds[0]) return 'strong';
-    if (val >= thresholds[1]) return 'stable';
-    return 'concerning';
 }
 
 // What each score level actually means for day-to-day decisions — not just
@@ -50,38 +45,17 @@ const IMPACT: Record<string, Record<'strong' | 'stable' | 'concerning', string>>
 };
 
 export default function DebtAnalysis({ finance, currency, loans = [] }: Props) {
-    // finance.liabilities only ever reflects Settings' manual "opening
-    // liabilities" figure — computeFinance never folds in the live Loan
-    // Register — same root cause fixed in EnhancedDebtManagement.tsx
-    // (Reports > Loans & Debt). This component had the identical gap: an
-    // account with real active loans could show "No recorded liabilities"
-    // here and 0% debt-to-assets, understating leverage risk entirely.
-    const liveLoanBalance = loans
-        .filter(l => l.status === 'active')
-        .reduce((sum, l) => {
-            const paid = (l.payments ?? []).reduce((s, p) => s + (p.amount || 0), 0);
-            return sum + Math.max(0, (l.principal || 0) - paid);
-        }, 0);
-    const liabilities = finance.liabilities + liveLoanBalance;
-    const assets      = finance.assets;
-    const equity      = finance.equity;
-    const profit      = finance.profit;
+    // Leverage ratios (and the live loan balance they're built on) are
+    // computed once, in debtRatios.ts, and shared with EnhancedDebtManagement
+    // — both cards render on the same Reports > Loans & Debt tab, so a
+    // ratio here and there must always agree.
+    const { liabilities, assets, equity, debtToAssets, debtToEquity, equityRatio, returnOnAssets, returnOnEquity } =
+        computeLeverageRatios(finance, loans);
 
-    // Key ratios
-    const debtToAssets   = assets > 0 ? (liabilities / assets) * 100 : 0;
-    const debtToEquity   = equity > 0 ? liabilities / equity : liabilities > 0 ? Infinity : 0;
-    const equityRatio    = assets > 0 ? (equity / assets) * 100 : 100;
-    const returnOnAssets = assets > 0 ? (profit / assets) * 100 : 0;
-    const returnOnEquity = equity > 0 ? (profit / equity) * 100 : 0;
-
-    const debtToAssetsScore = healthScore(100 - debtToAssets, [70, 50]);
-    const debtToEquityScore: 'strong' | 'stable' | 'concerning' =
-        debtToEquity === Infinity ? 'concerning'
-        : debtToEquity <= 0.5 ? 'strong'
-        : debtToEquity <= 1   ? 'stable'
-        : 'concerning';
-    const roaScore = healthScore(returnOnAssets, [10, 5]);
-    const roeScore = healthScore(returnOnEquity, [15, 8]);
+    const debtToAssetsScore = scoreDebtToAssets(debtToAssets);
+    const debtToEquityScore = scoreDebtToEquity(debtToEquity);
+    const roaScore = scoreROA(returnOnAssets);
+    const roeScore = scoreROE(returnOnEquity);
 
     return (
         <View>
@@ -113,9 +87,9 @@ export default function DebtAnalysis({ finance, currency, loans = [] }: Props) {
                 <RatioRow
                     label="Equity Ratio"
                     value={`${equityRatio.toFixed(1)}%`}
-                    score={healthScore(equityRatio, [70, 50])}
+                    score={scoreEquityRatio(equityRatio)}
                     desc="% of assets financed by equity. Higher is safer."
-                    impact={IMPACT.equityRatio[healthScore(equityRatio, [70, 50])]}
+                    impact={IMPACT.equityRatio[scoreEquityRatio(equityRatio)]}
                     last
                 />
             </View>

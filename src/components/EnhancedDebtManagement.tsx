@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { FinanceData, Loan } from '../types';
+import { computeLeverageRatios, scoreDebtToAssets, scoreDebtToEquity } from '../utils/debtRatios';
 import LoanROICalculator from './LoanROICalculator';
 
 interface Props {
@@ -10,43 +11,31 @@ interface Props {
     loans?: Loan[];
 }
 
+const RATIO_COLOR = { strong: Colors.income, stable: Colors.warning, concerning: Colors.expense };
+
 export default function EnhancedDebtManagement({ finance, currency, loans = [] }: Props) {
-    // finance.liabilities only ever reflects Settings' manual "opening
-    // liabilities" figure — computeFinance never folds in the live Loan
-    // Register (each screen is expected to add that itself, per its own
-    // comment), and this component never did. That's why this page showed
-    // £0 total debt / a 100 health score with two active loans totalling
-    // £598,500 sitting in the Loan Register. Mirrors the same live-balance
-    // calculation ReportsScreen's own Balance Sheet tab already uses.
-    const liveLoanBalance = loans
-        .filter(l => l.status === 'active')
-        .reduce((sum, l) => {
-            const paid = (l.payments ?? []).reduce((s, p) => s + (p.amount || 0), 0);
-            return sum + Math.max(0, (l.principal || 0) - paid);
-        }, 0);
-    const liabilities = finance.liabilities + liveLoanBalance;
-    const assets = finance.assets;
-    const equity = finance.equity;
-    const profit = finance.profit;
+    // Leverage ratios (and the live loan balance they're built on) are
+    // computed once, in debtRatios.ts, and shared with DebtAnalysis — both
+    // cards render on the same Reports > Loans & Debt tab, so a ratio here
+    // and there must always agree.
+    const { liabilities, equity, debtToAssets, debtToEquity, profit } = computeLeverageRatios(finance, loans);
     const income = finance.income;
 
-    // Key ratios
-    const debtToAssets = assets > 0 ? (liabilities / assets) * 100 : 0;
-    const debtToEquity = equity > 0 ? liabilities / equity : liabilities > 0 ? Infinity : 0;
     const interestCoverage = profit > 0 ? profit / Math.max(1, liabilities * 0.05) : 0; // Assume 5% interest rate
     const debtServiceCapacity = income > 0 ? (profit / income) * 100 : 0;
 
-    // Debt health score
+    const debtToAssetsScore = scoreDebtToAssets(debtToAssets);
+    const debtToEquityScore = scoreDebtToEquity(debtToEquity);
+
+    // Debt health score — a composite of the SAME three tiers DebtAnalysis
+    // uses for debt-to-assets/debt-to-equity (so a ratio scored "concerning"
+    // there always costs this score the same deduction here), plus interest
+    // coverage, which is unique to this composite.
     const getDebtHealthScore = (): { score: number; status: 'healthy' | 'moderate' | 'concerning'; color: string } => {
         let score = 100;
 
-        if (debtToAssets > 70) score -= 30;
-        else if (debtToAssets > 50) score -= 20;
-        else if (debtToAssets > 30) score -= 10;
-
-        if (debtToEquity > 2) score -= 25;
-        else if (debtToEquity > 1) score -= 15;
-        else if (debtToEquity > 0.5) score -= 5;
+        score -= debtToAssetsScore === 'concerning' ? 30 : debtToAssetsScore === 'stable' ? 15 : 0;
+        score -= debtToEquityScore === 'concerning' ? 25 : debtToEquityScore === 'stable' ? 10 : 0;
 
         if (interestCoverage < 1.5) score -= 20;
         else if (interestCoverage < 2.5) score -= 10;
@@ -63,11 +52,11 @@ export default function EnhancedDebtManagement({ finance, currency, loans = [] }
     const getRecommendations = (): string[] => {
         const recs: string[] = [];
 
-        if (debtToAssets > 60) {
+        if (debtToAssetsScore === 'concerning') {
             recs.push('High debt burden: Prioritize debt repayment or increase asset productivity');
         }
 
-        if (debtToEquity > 1.5) {
+        if (debtToEquityScore === 'concerning') {
             recs.push('Leverage is high: Consider equity financing instead of debt for growth');
         }
 
@@ -79,7 +68,7 @@ export default function EnhancedDebtManagement({ finance, currency, loans = [] }
             recs.push('No recorded income: Start generating revenue to service debt');
         }
 
-        if (debtToAssets < 30 && equity > 0) {
+        if (debtToAssetsScore === 'strong' && equity > 0) {
             recs.push('Strong debt position: You can safely increase borrowing for growth if needed');
         }
 
@@ -144,14 +133,14 @@ export default function EnhancedDebtManagement({ finance, currency, loans = [] }
                 <MetricRow
                     label="Debt-to-Assets Ratio"
                     value={`${debtToAssets.toFixed(1)}%`}
-                    sublabel="Healthy: <30% | Warning: 30-60% | Risky: >60%"
-                    color={debtToAssets < 30 ? Colors.income : debtToAssets < 60 ? Colors.warning : Colors.expense}
+                    sublabel="Healthy: <30% | Warning: 30-50% | Risky: >50%"
+                    color={RATIO_COLOR[debtToAssetsScore]}
                 />
                 <MetricRow
                     label="Debt-to-Equity Ratio"
                     value={debtToEquity === Infinity ? 'No Equity' : debtToEquity.toFixed(2)}
                     sublabel="Healthy: <0.5 | Moderate: 0.5-1.0 | High: >1.0"
-                    color={debtToEquity < 0.5 ? Colors.income : debtToEquity < 1 ? Colors.warning : Colors.expense}
+                    color={RATIO_COLOR[debtToEquityScore]}
                 />
                 <MetricRow
                     label="Interest Coverage"

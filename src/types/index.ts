@@ -18,7 +18,6 @@ export type Screen =
     | 'two-factor-verify'
     | 'payment-link'
     | 'connect-bank'
-    | 'financial-health'
     | 'bank-aggregator'
     | 'import-transactions'
     | 'cashflow'
@@ -27,7 +26,6 @@ export type Screen =
     | 'tax-planning'
     | 'credit-worthiness'
     | 'loan-eligibility'
-    | 'financial-coach'
     | 'bank-statement-import'
     | 'onboarding-choice'
     | 'clarity'
@@ -221,6 +219,7 @@ export interface BusinessSettings {
 export interface NavParams {
     reportSection?: 'statements' | 'customers' | 'tax' | 'planning' | 'growth';
     reportTab?: string;
+    tab?: string;              // sub-tab within a screen that manages its own tab state (e.g. CFOScreen, GrowthIntelligenceScreen)
     goalType?: GoalType;
     goalId?: string;           // pass a saved goal into Goal Bridge
     // Payment link pre-fill from invoice

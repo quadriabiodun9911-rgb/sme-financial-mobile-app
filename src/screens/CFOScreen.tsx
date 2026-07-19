@@ -338,9 +338,11 @@ function FinanceTab() {
             </View>
 
             {/* Break-even calculator */}
-            <Text style={[s.sectionHdr, { marginTop: 8 }]}>Break-Even Calculator</Text>
+            <Text style={[s.sectionHdr, { marginTop: 8 }]}>Break-Even Calculator — Plan a Price or Product</Text>
             <View style={s.card}>
-                <Text style={s.cardSub}>Enter your cost and pricing to find out how many units you need to sell to cover costs.</Text>
+                <Text style={s.cardSub}>
+                    A what-if tool: enter hypothetical cost and pricing to find out how many units you'd need to sell to cover costs. For how your actual whole business is doing against breakeven this period, see Breakeven Analysis under Growth.
+                </Text>
                 <TextInput style={s.input} placeholder={`Monthly Fixed Costs (${currency})`} placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={fixedCosts} onChangeText={setFixedCosts} />
                 <TextInput style={s.input} placeholder={`Variable Cost per Unit (${currency})`} placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={varRate} onChangeText={setVarRate} />
                 <TextInput style={s.input} placeholder={`Selling Price per Unit (${currency})`} placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={pricePerUnit} onChangeText={setPricePerUnit} />
@@ -361,6 +363,7 @@ function FinanceTab() {
                         <Text style={s.dscrHint}>Safety buffer = how far sales can fall before you lose money. Higher is safer.</Text>
                     </View>
                 )}
+                <NextStepLink text="See how your actual business is doing against breakeven this period" onPress={() => navigate('growth', { tab: 'breakeven' })} />
                 <NextStepLink text="Compare month, quarter and year performance" onPress={() => navigate('reports', { reportSection: 'statements', reportTab: 'pnl' })} />
             </View>
         </ScrollView>

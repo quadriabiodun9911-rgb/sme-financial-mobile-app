@@ -1,5 +1,6 @@
 import { Transaction, Invoice, FinanceData, Loan } from '../types';
 import { getWeekRanges, transactionsInRange, sumByType } from './periodRange';
+import { computeCashRunway } from './cashRunway';
 
 export interface CustomerGrowth {
     newThisWeek: number;
@@ -162,9 +163,14 @@ export function computeWeeklySummary(
     }
 
     // 3. Build cash reserves (self-fund equipment instead of financing it)
+    // Uses the same trailing-30-day paid-expense burn rate as CashFlowScreen's
+    // Runway tab (via computeCashRunway) — previously this priority derived
+    // its own weekly burn from a cruder fallback and could disagree with the
+    // Runway tab about the same business's cash position.
     {
-        const weeklyBurn = cost > 0 ? cost : (finance.expense > 0 ? finance.expense / 52 : 0);
-        const weeksOfBuffer = weeklyBurn > 0 ? cashPosition.current / weeklyBurn : Infinity;
+        const { runwayDays, dailyBurn } = computeCashRunway(transactions, cashPosition.current, today);
+        const weeklyBurn = dailyBurn * 7;
+        const weeksOfBuffer = runwayDays >= 999 ? Infinity : runwayDays / 7;
         const lowBuffer = weeksOfBuffer < 8;
         const text = lowBuffer
             ? `Cash reserves cover only ~${Math.max(0, Math.round(weeksOfBuffer))} weeks of spend (${fmtGBP(cashPosition.current)}) — build this up before committing to equipment purchases or other big spend, so you're not forced to borrow.`

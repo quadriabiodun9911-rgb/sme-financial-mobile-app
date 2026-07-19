@@ -32,10 +32,16 @@ export const FEATURE_INDEX: FeatureEntry[] = [
         screen: 'reports', navParams: { reportSection: 'growth', reportTab: 'pricing' },
     },
     {
-        id: 'break-even', label: 'Break-Even Calculator', icon: '⚖️',
-        description: 'Units and revenue needed to cover costs, and your margin of safety',
-        keywords: ['breakeven', 'break even', 'margin of safety'],
-        screen: 'cfo',
+        id: 'break-even', label: 'Break-Even Calculator (Plan a Price or Product)', icon: '⚖️',
+        description: 'What-if: units and revenue needed to cover a hypothetical cost/price, and your margin of safety',
+        keywords: ['breakeven', 'break even', 'margin of safety', 'unit economics'],
+        screen: 'cfo', navParams: { tab: 'finance' },
+    },
+    {
+        id: 'breakeven-analysis', label: 'Breakeven Analysis (Your Actual Business)', icon: '⚖️',
+        description: 'Whether your actual revenue this period is above or below breakeven, and paths to close the gap',
+        keywords: ['breakeven', 'break even', 'profit cushion', 'shortfall'],
+        screen: 'growth', navParams: { tab: 'breakeven' },
     },
     {
         id: 'balance-sheet', label: 'What I Own & Owe (Balance Sheet)', icon: '🏦',

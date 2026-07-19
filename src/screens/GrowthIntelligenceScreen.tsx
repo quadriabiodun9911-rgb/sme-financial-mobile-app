@@ -10,6 +10,7 @@ import ProfitWaterfall from '../components/ProfitWaterfall';
 import ProfitByDimension from '../components/ProfitByDimension';
 import BreakevenAnalysis from '../components/BreakevenAnalysis';
 import ProfitDriversInsights from '../components/ProfitDriversInsights';
+import NextStepLink from '../components/NextStepLink';
 import {
     computeProfitWaterfall,
     computeProfitByCategory,
@@ -308,8 +309,10 @@ function PerformersTab({ currency }: { currency: string }) {
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function GrowthIntelligenceScreen() {
-    const { transactions, settings } = useApp();
-    const [activeTab, setActiveTab] = useState<Tab>('score');
+    const { transactions, settings, navParams, navigate } = useApp();
+    const [activeTab, setActiveTab] = useState<Tab>(
+        (['score', 'momentum', 'performers', 'drivers', 'breakeven'] as Tab[]).includes(navParams?.tab as Tab) ? (navParams!.tab as Tab) : 'score'
+    );
     const currency = settings.currency;
 
     const waterfall  = useMemo(() => computeProfitWaterfall(transactions), [transactions]);
@@ -356,6 +359,10 @@ export default function GrowthIntelligenceScreen() {
                             <ProfitByDimension byCategory={byCategory} byVendor={byVendor} currency={currency} />
                             <View style={{ height: 12 }} />
                             <BreakevenAnalysis result={breakeven} currency={currency} />
+                            <NextStepLink
+                                text="Planning a new price or product? Use the unit-economics Break-Even Calculator instead"
+                                onPress={() => navigate('cfo', { tab: 'finance' })}
+                            />
                         </>
                     )}
                 </ScrollView>

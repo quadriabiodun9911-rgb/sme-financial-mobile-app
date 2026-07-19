@@ -43,7 +43,10 @@ export default function BreakevenAnalysis({ result, currency }: Props) {
 
     return (
         <View style={styles.card}>
-            <Text style={styles.title}>BREAKEVEN ANALYSIS</Text>
+            <Text style={styles.title}>BREAKEVEN ANALYSIS — YOUR ACTUAL BUSINESS</Text>
+            <Text style={styles.subtitle}>
+                Based on this period's real revenue and costs. For a what-if calculator on a specific price or product, see Break-Even Calculator under Financial Ratios.
+            </Text>
 
             {/* Status */}
             <View style={[styles.statusRow, { borderColor: statusColor }]}>
@@ -161,6 +164,13 @@ const styles = StyleSheet.create({
         fontSize: 11,
         fontWeight: '600',
         letterSpacing: 0.8,
+        marginBottom: 4,
+    },
+    subtitle: {
+        color: Colors.textMuted,
+        fontSize: 11,
+        lineHeight: 15,
+        fontStyle: 'italic',
         marginBottom: 12,
     },
     statusRow: {

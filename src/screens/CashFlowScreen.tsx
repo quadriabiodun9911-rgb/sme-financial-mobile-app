@@ -9,6 +9,7 @@ import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { computeCashFlowForecast } from '../utils/finance';
+import { computeCashRunway } from '../utils/cashRunway';
 import NextStepLink from '../components/NextStepLink';
 import { suggestSolution } from '../utils/impactChain';
 
@@ -33,17 +34,10 @@ export default function CashFlowScreen() {
     const usesBudget = weeks.some(w => w.usedBudget);
 
     // Cash runway
-    const { runwayDays, dailyBurn, cashBalance } = useMemo(() => {
-        const last30 = new Date(); last30.setDate(last30.getDate() - 30);
-        const l30 = last30.toISOString().split('T')[0];
-        const burn30 = transactions
-            .filter(t => t.type === 'expense' && t.status === 'paid' && t.date >= l30)
-            .reduce((s, t) => s + t.amount, 0);
-        const daily = burn30 / 30;
-        const bal = finance.cashBalance;
-        const runway = daily > 0 ? Math.floor(bal / daily) : 999;
-        return { runwayDays: runway, dailyBurn: daily, cashBalance: bal };
-    }, [transactions, finance.cashBalance]);
+    const { runwayDays, dailyBurn, cashBalance } = useMemo(
+        () => computeCashRunway(transactions, finance.cashBalance),
+        [transactions, finance.cashBalance]
+    );
 
     const runwayColor = runwayDays < 30 ? Colors.expense : runwayDays < 90 ? Colors.warning : Colors.income;
 
