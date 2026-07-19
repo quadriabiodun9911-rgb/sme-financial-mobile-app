@@ -104,6 +104,12 @@ export const FEATURE_INDEX: FeatureEntry[] = [
         screen: 'reports', navParams: { reportSection: 'tax', reportTab: 'tax' },
     },
     {
+        id: 'tax-filing-readiness', label: 'Tax Filing Readiness', icon: '🧾',
+        description: 'Whether your records are clean enough to hand to an accountant — does not file returns itself',
+        keywords: ['tax filing', 'file taxes', 'tax return', 'accountant', 'ready'],
+        screen: 'tax-filing-readiness',
+    },
+    {
         id: 'clarity', label: 'Financial Clarity', icon: '🧭',
         description: 'Where the business stands and what to do next, in plain terms',
         keywords: ['position', 'strategy', 'biggest lever', 'action plan'],
@@ -147,8 +153,8 @@ export const FEATURE_INDEX: FeatureEntry[] = [
     },
     {
         id: 'payroll', label: 'Payroll', icon: '👥',
-        description: 'Staff, pay runs and payroll costs',
-        keywords: ['staff', 'salary', 'wages'],
+        description: 'Staff, pay runs, payroll costs, and payroll provider status',
+        keywords: ['staff', 'salary', 'wages', 'gusto', 'deel', 'provider'],
         screen: 'payroll',
     },
     {

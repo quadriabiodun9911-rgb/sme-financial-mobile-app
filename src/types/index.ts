@@ -34,7 +34,8 @@ export type Screen =
     | 'financial-assessment'
     | 'funding-qualification'
     | 'goal-bridge'
-    | 'trends';
+    | 'trends'
+    | 'tax-filing-readiness';
 
 export interface Budget {
     id: string;
@@ -214,6 +215,7 @@ export interface BusinessSettings {
     defaultTaxRate: string;
     paystackPublicKey?: string;
     korapayPublicKey?: string;
+    payrollProviderId?: string; // 'manual' (default) | 'gusto' | 'deel' — see src/utils/payrollProvider.ts
 }
 
 export interface NavParams {

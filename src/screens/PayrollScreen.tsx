@@ -12,6 +12,7 @@ import { StaffMember, PayrollItem } from '../types';
 import NextStepLink from '../components/NextStepLink';
 import ProfitCashImpactCard from '../components/ProfitCashImpactCard';
 import { computeProfitCashImpact } from '../utils/impactChain';
+import PayrollProviderCard from '../components/PayrollProviderCard';
 
 type Tab = 'staff' | 'run' | 'history';
 
@@ -22,7 +23,7 @@ const EMPTY_STAFF: Omit<StaffMember, 'id' | 'createdAt'> = {
 };
 
 export default function PayrollScreen() {
-    const { staff, addStaff, updateStaff, deleteStaff, payrollRuns, runPayroll, deletePayrollRun, settings, setCurrentScreen, finance } = useApp();
+    const { staff, addStaff, updateStaff, deleteStaff, payrollRuns, runPayroll, deletePayrollRun, settings, updateSettings, setCurrentScreen, finance } = useApp();
     const [tab, setTab] = useState<Tab>('staff');
     const [staffModal, setStaffModal] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -92,6 +93,11 @@ export default function PayrollScreen() {
                     </TouchableOpacity>
                 ))}
             </View>
+
+            <PayrollProviderCard
+                providerId={settings.payrollProviderId || 'manual'}
+                onChangeProvider={id => updateSettings({ payrollProviderId: id })}
+            />
 
             <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 

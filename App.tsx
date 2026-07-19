@@ -40,6 +40,7 @@ import OnboardingChoiceScreen from './src/screens/OnboardingChoiceScreen';
 import ClarityScreen from './src/screens/ClarityScreen';
 import TrendsScreen from './src/screens/TrendsScreen';
 import WeeklyDashboardScreen from './src/screens/WeeklyDashboardScreen';
+import TaxFilingReadinessScreen from './src/screens/TaxFilingReadinessScreen';
 
 function NavigatorContent() {
     const { user, isLoading, currentScreen, setCurrentScreen, goBack } = useAuth();
@@ -116,6 +117,7 @@ function NavigatorContent() {
             {currentScreen === 'clarity'            && <ClarityScreen />}
             {currentScreen === 'trends'              && <TrendsScreen />}
             {currentScreen === 'weekly-dashboard'    && <WeeklyDashboardScreen />}
+            {currentScreen === 'tax-filing-readiness' && <TaxFilingReadinessScreen />}
         </View>
     );
 }

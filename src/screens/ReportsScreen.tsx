@@ -481,7 +481,15 @@ export default function ReportsScreen() {
                     {activeTab === 'aging' && <AgingReport />}
 
                     {/* ── TAX ──────────────────────────────────────────── */}
-                    {activeTab === 'tax' && <TaxSummary />}
+                    {activeTab === 'tax' && (
+                        <>
+                            <TaxSummary />
+                            <NextStepLink
+                                text="Check if your records are ready to hand to an accountant"
+                                onPress={() => setCurrentScreen('tax-filing-readiness')}
+                            />
+                        </>
+                    )}
 
                     {/* ── BUDGET FORECAST ──────────────────────────────── */}
                     {activeTab === 'budget' && (
