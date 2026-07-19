@@ -25,6 +25,7 @@ import GrowthMetrics from '../components/GrowthMetrics';
 import PricingOptimizer from '../components/PricingOptimizer';
 import NextStepLink from '../components/NextStepLink';
 import CashFlowStatement from '../components/CashFlowStatement';
+import DataQualityBadge from '../components/DataQualityBadge';
 import AccrualCashFlow from '../components/AccrualCashFlow';
 import { filterByPeriod, filterByDateRange, getPreviousPeriodRange, computeFinance, computeAssetCurrentValue, computeMonthlyTrend, computeEnhancedPnL, computeWorkingCapitalMetrics, classifyBusinessSize, sizeLabel, transactionsToCSV, ReportPeriod, MonthlyPoint, DateRange } from '../utils/finance';
 import { FinanceData } from '../types';
@@ -325,6 +326,8 @@ export default function ReportsScreen() {
                     </TouchableOpacity>
                 ))}
             </ScrollView>
+
+            <DataQualityBadge transactions={transactions} />
 
             {/* ── Period filter ─────────────────────────────────────── */}
             {periodActive && (

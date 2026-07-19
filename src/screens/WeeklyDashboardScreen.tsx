@@ -4,6 +4,7 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
+import DataQualityBadge from '../components/DataQualityBadge';
 import { computeWeeklySummary } from '../utils/weeklySummary';
 
 export default function WeeklyDashboardScreen() {
@@ -25,6 +26,8 @@ export default function WeeklyDashboardScreen() {
             <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
                 <Text style={s.title}>🗓️ Weekly Dashboard</Text>
                 <Text style={s.subtitle}>{summary.weekLabel} — a summary of this week, so far</Text>
+
+                <DataQualityBadge transactions={transactions} style={{ marginHorizontal: 0, marginTop: 0, marginBottom: 12 }} />
 
                 {/* Revenue / Cost / Profit */}
                 <View style={s.metricRow}>
