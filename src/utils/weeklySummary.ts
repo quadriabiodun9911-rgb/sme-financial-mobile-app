@@ -1,4 +1,5 @@
 import { Transaction, Invoice, FinanceData, Loan } from '../types';
+import { getWeekRanges, transactionsInRange, sumByType } from './periodRange';
 
 export interface CustomerGrowth {
     newThisWeek: number;
@@ -57,24 +58,19 @@ export function computeWeeklySummary(
     invoices: Invoice[],
     finance: FinanceData,
     loans: Loan[] = [],
+    referenceDate: Date = new Date(),
 ): WeeklySummary {
-    const today = new Date();
+    const today = referenceDate;
     const weekStart = new Date(today); weekStart.setDate(today.getDate() - today.getDay());
-    const lastWeekStart = new Date(weekStart); lastWeekStart.setDate(weekStart.getDate() - 7);
-    const lastWeekEnd = new Date(weekStart); lastWeekEnd.setDate(weekStart.getDate() - 1);
+    const { weekStartStr, todayStr, lastWeekStartStr, lastWeekEndStr } = getWeekRanges(today);
 
-    const weekStartStr = weekStart.toISOString().split('T')[0];
-    const lastWeekStartStr = lastWeekStart.toISOString().split('T')[0];
-    const lastWeekEndStr = lastWeekEnd.toISOString().split('T')[0];
-    const todayStr = today.toISOString().split('T')[0];
+    const thisWeekTx = transactionsInRange(transactions, weekStartStr, todayStr);
+    const lastWeekTx = transactionsInRange(transactions, lastWeekStartStr, lastWeekEndStr);
 
-    const thisWeekTx = transactions.filter(t => t.date >= weekStartStr && t.date <= todayStr);
-    const lastWeekTx = transactions.filter(t => t.date >= lastWeekStartStr && t.date <= lastWeekEndStr);
-
-    const revenue = thisWeekTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-    const lastWeekRevenue = lastWeekTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-    const cost = thisWeekTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-    const lastWeekCost = lastWeekTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+    const revenue = sumByType(thisWeekTx, 'income');
+    const lastWeekRevenue = sumByType(lastWeekTx, 'income');
+    const cost = sumByType(thisWeekTx, 'expense');
+    const lastWeekCost = sumByType(lastWeekTx, 'expense');
     const profit = revenue - cost;
     const lastWeekProfit = lastWeekRevenue - lastWeekCost;
 

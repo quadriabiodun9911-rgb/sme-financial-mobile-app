@@ -1,4 +1,5 @@
 import { Transaction, FinanceData, BusinessSettings, AgingBucket, Asset, Invoice, Loan, FinancialGoal, Budget } from '../types';
+import { getWeekRanges, transactionsInRange, sumByType } from './periodRange';
 
 // ─── Business size classification ─────────────────────────────────────────────
 export type BusinessSize = 'micro' | 'small' | 'medium' | 'large';
@@ -986,23 +987,14 @@ export function computeWeeklyCFOSummary(
     loans: Loan[],
     finance: FinanceData,
 ): WeeklyCFOSummary {
-    const today = new Date();
-    const weekStart = new Date(today); weekStart.setDate(today.getDate() - today.getDay());
-    const lastWeekStart = new Date(weekStart); lastWeekStart.setDate(weekStart.getDate() - 7);
-    const lastWeekEnd = new Date(weekStart); lastWeekEnd.setDate(weekStart.getDate() - 1);
+    const { weekStartStr, todayStr, lastWeekStartStr, lastWeekEndStr } = getWeekRanges();
+    const thisWeekTx = transactionsInRange(transactions, weekStartStr, todayStr);
+    const lastWeekTx = transactionsInRange(transactions, lastWeekStartStr, lastWeekEndStr);
 
-    const weekStartStr = weekStart.toISOString().split('T')[0];
-    const lastWeekStartStr = lastWeekStart.toISOString().split('T')[0];
-    const lastWeekEndStr = lastWeekEnd.toISOString().split('T')[0];
-    const todayStr = today.toISOString().split('T')[0];
-
-    const thisWeekTx = transactions.filter(t => t.date >= weekStartStr && t.date <= todayStr);
-    const lastWeekTx = transactions.filter(t => t.date >= lastWeekStartStr && t.date <= lastWeekEndStr);
-
-    const thisWeekIncome  = thisWeekTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-    const lastWeekIncome  = lastWeekTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-    const thisWeekExpense = thisWeekTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-    const lastWeekExpense = lastWeekTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+    const thisWeekIncome  = sumByType(thisWeekTx, 'income');
+    const lastWeekIncome  = sumByType(lastWeekTx, 'income');
+    const thisWeekExpense = sumByType(thisWeekTx, 'expense');
+    const lastWeekExpense = sumByType(lastWeekTx, 'expense');
     const weeklyChange = lastWeekIncome > 0 ? ((thisWeekIncome - lastWeekIncome) / lastWeekIncome) * 100 : 0;
 
     const dailyBurn = finance.expense > 0 ? finance.expense / 365 : 1;

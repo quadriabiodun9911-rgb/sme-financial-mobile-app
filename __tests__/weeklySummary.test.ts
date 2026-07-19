@@ -37,16 +37,22 @@ const baseFinance: FinanceData = {
     annualDepreciation: 0, depreciationAdjustedProfit: 0,
 };
 
-// Dates relative to "today" so the test is stable regardless of when it runs.
+// Fixed at a Wednesday so "this week" always spans Sun-Wed and "1 day ago"/
+// "9 days ago" land unambiguously in this-week/last-week regardless of the
+// real calendar date the test suite happens to run on (a live bug this
+// caught: the original `new Date()`-based version broke every Sunday, when
+// "yesterday" flips into last week).
+const REF_DATE = new Date('2024-01-17T12:00:00Z'); // Wednesday
+
 function dateStr(daysAgo: number): string {
-    const d = new Date();
+    const d = new Date(REF_DATE);
     d.setDate(d.getDate() - daysAgo);
     return d.toISOString().split('T')[0];
 }
 
 describe('computeWeeklySummary', () => {
     it('returns sensible defaults for no data', () => {
-        const summary = computeWeeklySummary([], [], baseFinance);
+        const summary = computeWeeklySummary([], [], baseFinance, [], REF_DATE);
         expect(summary.revenue).toBe(0);
         expect(summary.cost).toBe(0);
         expect(summary.profit).toBe(0);
@@ -64,7 +70,7 @@ describe('computeWeeklySummary', () => {
             makeTx({ type: 'expense', amount: 200, date: dateStr(1) }),
             makeTx({ type: 'income', amount: 500, date: dateStr(9) }), // last week
         ];
-        const summary = computeWeeklySummary(txs, [], baseFinance);
+        const summary = computeWeeklySummary(txs, [], baseFinance, [], REF_DATE);
         expect(summary.revenue).toBe(1000);
         expect(summary.cost).toBe(200);
         expect(summary.profit).toBe(800);
@@ -76,7 +82,7 @@ describe('computeWeeklySummary', () => {
             makeInvoice({ clientName: 'New Co', issueDate: dateStr(1) }),
             makeInvoice({ clientName: 'Old Co', issueDate: dateStr(20) }),
         ];
-        const summary = computeWeeklySummary([], invoices, baseFinance);
+        const summary = computeWeeklySummary([], invoices, baseFinance, [], REF_DATE);
         expect(summary.customerGrowth.newThisWeek).toBe(1);
         expect(summary.customerGrowth.totalCustomers).toBe(2);
     });
@@ -87,7 +93,7 @@ describe('computeWeeklySummary', () => {
             makeTx({ type: 'income', amount: 5000, date: dateStr(1), status: 'pending' }), // not counted
         ];
         const finance = { ...baseFinance, cashBalance: 10000 };
-        const summary = computeWeeklySummary(txs, [], finance);
+        const summary = computeWeeklySummary(txs, [], finance, [], REF_DATE);
         expect(summary.cashPosition.current).toBe(10000);
         expect(summary.cashPosition.weeklyChange).toBe(1000);
         expect(summary.cashPosition.startOfWeek).toBe(9000);
@@ -98,19 +104,19 @@ describe('computeWeeklySummary', () => {
             makeTx({ type: 'income', amount: 100, date: dateStr(1) }),
             makeTx({ type: 'expense', amount: 500, date: dateStr(1) }),
         ];
-        const summary = computeWeeklySummary(txs, [], baseFinance);
+        const summary = computeWeeklySummary(txs, [], baseFinance, [], REF_DATE);
         expect(summary.profit).toBe(-400);
         expect(summary.problems.some(p => p.includes('loss'))).toBe(true);
     });
 
     it('always covers all four growth levers: cost, revenue, cash, debt', () => {
-        const summary = computeWeeklySummary([], [], baseFinance);
+        const summary = computeWeeklySummary([], [], baseFinance, [], REF_DATE);
         const levers = summary.topPriorities.map(p => p.lever).sort();
         expect(levers).toEqual(['cash', 'cost', 'debt', 'revenue']);
     });
 
     it('ranks priorities by £ opportunity, biggest first', () => {
-        const summary = computeWeeklySummary([], [], baseFinance);
+        const summary = computeWeeklySummary([], [], baseFinance, [], REF_DATE);
         for (let i = 1; i < summary.topPriorities.length; i++) {
             expect(summary.topPriorities[i - 1].impact).toBeGreaterThanOrEqual(summary.topPriorities[i].impact);
         }
@@ -129,7 +135,7 @@ describe('computeWeeklySummary', () => {
                 payments: [], createdAt: dateStr(400),
             },
         ];
-        const summary = computeWeeklySummary([], [], baseFinance, loans);
+        const summary = computeWeeklySummary([], [], baseFinance, loans, REF_DATE);
         const debtPriority = summary.topPriorities.find(p => p.lever === 'debt')!;
         expect(debtPriority.text).toContain('Bank A');
         expect(debtPriority.text).not.toContain('Bank B');
@@ -137,7 +143,7 @@ describe('computeWeeklySummary', () => {
     });
 
     it('shows no-debt-cost text when there are no active loans', () => {
-        const summary = computeWeeklySummary([], [], baseFinance, []);
+        const summary = computeWeeklySummary([], [], baseFinance, [], REF_DATE);
         const debtPriority = summary.topPriorities.find(p => p.lever === 'debt')!;
         expect(debtPriority.impact).toBe(0);
         expect(debtPriority.text).toContain('No active loans');
