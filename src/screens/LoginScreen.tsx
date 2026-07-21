@@ -356,6 +356,9 @@ export default function LoginScreen() {
                     <View style={styles.card}>
                         <Image source={require('../../assets/icon.png')} style={styles.logo} />
                         <Text style={styles.title}>Welcome Back</Text>
+                        <Text style={styles.brandTagline}>
+                            The financial operating system every business trusts more than their bank balance.
+                        </Text>
                         <Text style={styles.subtitle}>Sign in with your email and PIN to restore your account on this device.</Text>
 
                         <View style={styles.newDeviceBanner}>
@@ -586,6 +589,9 @@ export default function LoginScreen() {
                 <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
                     <View style={styles.card}>
                         <Image source={require('../../assets/icon.png')} style={styles.logo} />
+                        <Text style={styles.brandTagline}>
+                            The financial operating system every business trusts more than their bank balance.
+                        </Text>
                         <Text style={styles.subtitle}>{t(setupLang, 'setupSubtitle')}</Text>
 
                         {/* Social proof strip */}
@@ -698,6 +704,9 @@ export default function LoginScreen() {
             <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
                 <View style={styles.card}>
                     <Image source={require('../../assets/icon.png')} style={styles.logo} />
+                    <Text style={styles.brandTagline}>
+                        The financial operating system every business trusts more than their bank balance.
+                    </Text>
                     <Text style={styles.subtitle}>{t(language, 'loginSubtitle')}</Text>
 
                     {/* Social proof strip */}
@@ -826,6 +835,7 @@ const styles = StyleSheet.create({
     },
     logo:     { width: 80, height: 80, alignSelf: 'center', borderRadius: 18, marginBottom: 8 },
     title:    { fontSize: 26, fontWeight: 'bold', color: Colors.textPrimary, textAlign: 'center' },
+    brandTagline: { fontSize: 12.5, color: Colors.primary, textAlign: 'center', fontStyle: 'italic', lineHeight: 17, marginTop: 2, marginBottom: 6 },
     subtitle: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', marginBottom: 20, marginTop: 4 },
 
     group: { marginBottom: 14 },
