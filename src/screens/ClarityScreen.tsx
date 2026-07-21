@@ -91,6 +91,7 @@ export default function ClarityScreen() {
                 <MissionVisionCard
                     missionStatement={settings.missionStatement}
                     visionStatement={settings.visionStatement}
+                    coreValues={settings.coreValues}
                     onEdit={() => setCurrentScreen('settings')}
                 />
 

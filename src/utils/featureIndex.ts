@@ -116,9 +116,9 @@ export const FEATURE_INDEX: FeatureEntry[] = [
         screen: 'clarity',
     },
     {
-        id: 'mission-vision', label: 'Mission & Vision', icon: '🧭',
-        description: 'Set why your business exists and where it\'s going — shown alongside your weekly priorities',
-        keywords: ['mission', 'vision', 'purpose', 'guideline', 'north star'],
+        id: 'mission-vision', label: 'Mission, Vision & Values', icon: '🧭',
+        description: 'Set your destination, how you get there daily, and how your team behaves — shown alongside your weekly priorities',
+        keywords: ['mission', 'vision', 'values', 'purpose', 'guideline', 'north star', 'culture'],
         screen: 'settings',
     },
     {

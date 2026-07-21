@@ -329,21 +329,21 @@ export default function SettingsScreen() {
                             </View>
                         </Section>
 
-                        <Section title="Mission & Vision">
+                        <Section title="Mission, Vision & Values">
                             <Text style={styles.hint}>
-                                Why your business exists, and where it's going. Shown alongside your weekly priorities and strategy — a guideline to check decisions against, not just a statement to file away.
+                                The vision is your destination, the mission is how you get there daily, and your values are the rules of the road for how your team behaves along the way. Shown alongside your weekly priorities and strategy — a guideline to check decisions against, not just a statement to file away.
                             </Text>
-                            <FieldLabel>Mission — why the business exists</FieldLabel>
+                            <FieldLabel>Mission — how you get there, daily</FieldLabel>
                             <TextInput
                                 style={[styles.input, { minHeight: 70 }]}
                                 value={form.missionStatement ?? ''}
                                 onChangeText={v => setForm((f: typeof form) => ({ ...f, missionStatement: v }))}
                                 multiline
                                 textAlignVertical="top"
-                                placeholder="e.g. Help every small shop owner in our city get fresh produce at a fair price"
+                                placeholder="e.g. We deliver fresh produce to every small shop owner in our city, every day, at a fair price"
                                 placeholderTextColor={Colors.muted}
                             />
-                            <FieldLabel>Vision — where it's going</FieldLabel>
+                            <FieldLabel>Vision — your long-term destination</FieldLabel>
                             <TextInput
                                 style={[styles.input, { minHeight: 70 }]}
                                 value={form.visionStatement ?? ''}
@@ -351,6 +351,16 @@ export default function SettingsScreen() {
                                 multiline
                                 textAlignVertical="top"
                                 placeholder="e.g. The most trusted produce supplier in every neighbourhood in the state"
+                                placeholderTextColor={Colors.muted}
+                            />
+                            <FieldLabel>Values — how your team behaves getting there</FieldLabel>
+                            <TextInput
+                                style={[styles.input, { minHeight: 50 }]}
+                                value={form.coreValues ?? ''}
+                                onChangeText={v => setForm((f: typeof form) => ({ ...f, coreValues: v }))}
+                                multiline
+                                textAlignVertical="top"
+                                placeholder="e.g. Integrity, reliability, community focus"
                                 placeholderTextColor={Colors.muted}
                             />
                         </Section>

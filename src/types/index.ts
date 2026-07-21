@@ -216,8 +216,9 @@ export interface BusinessSettings {
     paystackPublicKey?: string;
     korapayPublicKey?: string;
     payrollProviderId?: string; // 'manual' (default) | 'gusto' | 'deel' — see src/utils/payrollProvider.ts
-    missionStatement?: string; // why the business exists — shown alongside priorities/strategy screens as a decision check, not just stored
-    visionStatement?: string;  // where the business is going
+    missionStatement?: string; // why the business exists, and what you do daily to get there — shown alongside priorities/strategy screens as a decision check, not just stored
+    visionStatement?: string;  // the long-term destination
+    coreValues?: string;       // the moral compass — how the team behaves getting there (e.g. "Integrity, reliability, community focus")
 }
 
 export interface NavParams {
