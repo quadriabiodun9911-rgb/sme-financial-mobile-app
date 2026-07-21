@@ -5,10 +5,11 @@ import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import DataQualityBadge from '../components/DataQualityBadge';
+import MissionVisionCard from '../components/MissionVisionCard';
 import { computeWeeklySummary } from '../utils/weeklySummary';
 
 export default function WeeklyDashboardScreen() {
-    const { transactions, invoices, finance, settings, loans } = useApp();
+    const { transactions, invoices, finance, settings, loans, setCurrentScreen } = useApp();
     const currency = settings.currency || '₦';
 
     const summary = useMemo(
@@ -75,6 +76,13 @@ export default function WeeklyDashboardScreen() {
                 <Section title="⚠️ Business Problems" color={Colors.expense}>
                     {summary.problems.map((p, i) => <BulletRow key={i} text={p} />)}
                 </Section>
+
+                {/* Mission/Vision — the guideline to check these priorities against */}
+                <MissionVisionCard
+                    missionStatement={settings.missionStatement}
+                    visionStatement={settings.visionStatement}
+                    onEdit={() => setCurrentScreen('settings')}
+                />
 
                 {/* Top priorities — the 4 levers that drive growth, ranked by £ opportunity */}
                 <Section title="🎯 Top Priorities for Growth" color={Colors.primary}>

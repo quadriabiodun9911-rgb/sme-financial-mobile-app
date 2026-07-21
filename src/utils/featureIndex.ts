@@ -116,6 +116,12 @@ export const FEATURE_INDEX: FeatureEntry[] = [
         screen: 'clarity',
     },
     {
+        id: 'mission-vision', label: 'Mission & Vision', icon: '🧭',
+        description: 'Set why your business exists and where it\'s going — shown alongside your weekly priorities',
+        keywords: ['mission', 'vision', 'purpose', 'guideline', 'north star'],
+        screen: 'settings',
+    },
+    {
         id: 'financial-assessment', label: 'Financial Assessment', icon: '🔍',
         description: 'Diagnose the business\'s current financial issues',
         keywords: ['diagnose', 'health check'],

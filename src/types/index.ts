@@ -216,6 +216,8 @@ export interface BusinessSettings {
     paystackPublicKey?: string;
     korapayPublicKey?: string;
     payrollProviderId?: string; // 'manual' (default) | 'gusto' | 'deel' — see src/utils/payrollProvider.ts
+    missionStatement?: string; // why the business exists — shown alongside priorities/strategy screens as a decision check, not just stored
+    visionStatement?: string;  // where the business is going
 }
 
 export interface NavParams {

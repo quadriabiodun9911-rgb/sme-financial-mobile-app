@@ -9,6 +9,7 @@ import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan, ActionTactic } from '../utils/actionRecommendationEngine';
 import { buildStructuralSnapshot } from '../utils/structuralSnapshot';
 import { suggestSolution } from '../utils/impactChain';
+import MissionVisionCard from '../components/MissionVisionCard';
 
 const MIN_TRANSACTIONS_FOR_DIAGNOSIS = 5;
 
@@ -86,6 +87,13 @@ export default function ClarityScreen() {
             <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
                 <Text style={s.title}>🧭 Financial Clarity</Text>
                 <Text style={s.subtitle}>Where your business stands, and what to do next — in plain terms.</Text>
+
+                <MissionVisionCard
+                    missionStatement={settings.missionStatement}
+                    visionStatement={settings.visionStatement}
+                    onEdit={() => setCurrentScreen('settings')}
+                />
+
                 {/* Import was previously only shown as a one-time onboarding
                     nudge (hidden once an account has enough transactions for
                     a full diagnosis), so there was no way back to it once
