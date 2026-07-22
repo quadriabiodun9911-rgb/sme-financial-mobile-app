@@ -600,7 +600,7 @@ export default function LoginScreen() {
                                 <Text style={styles.socialProofPillText}>Free forever · No credit card</Text>
                             </View>
                             <View style={styles.socialProofPill}>
-                                <Text style={styles.socialProofPillText}>Trusted by SMEs in 10+ countries</Text>
+                                <Text style={styles.socialProofPillText}>Built for SMEs across Africa & beyond</Text>
                             </View>
                             <View style={styles.socialProofPill}>
                                 <Text style={styles.socialProofPillText}>Your data stays private</Text>
@@ -718,7 +718,7 @@ export default function LoginScreen() {
                                 </View>
                             ))}
                         </View>
-                        <Text style={styles.socialProofText}>Trusted by SMEs across Africa & beyond</Text>
+                        <Text style={styles.socialProofText}>Built for SMEs across Africa & beyond</Text>
                     </View>
 
                     {isLockedOut && timeRemaining !== null && timeRemaining > 0 && (
