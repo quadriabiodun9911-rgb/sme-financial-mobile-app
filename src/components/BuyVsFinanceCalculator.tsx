@@ -53,7 +53,19 @@ export default function BuyVsFinanceCalculator({ currency, currentCashBalance, m
                     <Field label="Term" suffix="months" value={term} onChange={setTerm} placeholder="24" />
                 </View>
             </View>
-            <Field label="Down Payment" suffix="%" value={downPct} onChange={setDownPct} placeholder="0" hint="0% if fully financed with no deposit" />
+            <Field
+                label="Down Payment"
+                suffix="%"
+                value={downPct}
+                onChange={setDownPct}
+                placeholder="0"
+                hint={
+                    (parseFloat(downPct) || 0) > 100
+                        ? `Capped at 100% — a down payment can't exceed the equipment cost. At 100%, financing is identical to paying cash.`
+                        : '0% if fully financed with no deposit'
+                }
+                hintColor={(parseFloat(downPct) || 0) > 100 ? Colors.expense : undefined}
+            />
 
             {result && (
                 <View style={s.compareGrid}>
@@ -90,9 +102,9 @@ export default function BuyVsFinanceCalculator({ currency, currentCashBalance, m
     );
 }
 
-function Field({ label, value, onChange, placeholder, currency, suffix, hint }: {
+function Field({ label, value, onChange, placeholder, currency, suffix, hint, hintColor }: {
     label: string; value: string; onChange: (v: string) => void; placeholder: string;
-    currency?: string; suffix?: string; hint?: string;
+    currency?: string; suffix?: string; hint?: string; hintColor?: string;
 }) {
     return (
         <View style={s.field}>
@@ -109,7 +121,7 @@ function Field({ label, value, onChange, placeholder, currency, suffix, hint }: 
                 />
                 {suffix && <Text style={s.affix}>{suffix}</Text>}
             </View>
-            {hint && <Text style={s.fieldHint}>{hint}</Text>}
+            {hint && <Text style={[s.fieldHint, hintColor ? { color: hintColor } : null]}>{hint}</Text>}
         </View>
     );
 }
