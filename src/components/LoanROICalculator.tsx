@@ -18,15 +18,23 @@ export default function LoanROICalculator({ currency }: Props) {
     const result = useMemo(() => {
         const p = parseFloat(principal) || 0;
         const r = parseFloat(rate) || 0;
-        const ret = parseFloat(annualReturn) || 0;
         if (p <= 0 || r < 0) return null;
+
+        // A blank return field means "I don't know yet," not "this earns
+        // nothing." Financing for general business development (a vehicle,
+        // working capital, a shared asset) often can't be tied to a single
+        // annual profit figure — treating an unanswered field as £0 would
+        // brand every one of those loans "Bad Debt" by default, which is
+        // wrong and misleading, not just cautious.
+        const hasReturnEstimate = annualReturn.trim() !== '';
+        const ret = parseFloat(annualReturn) || 0;
 
         const annualCost = p * (r / 100);
         const netBenefit = ret - annualCost;
         const roi = p > 0 ? (ret / p) * 100 : 0;
         const isGoodDebt = ret > annualCost;
 
-        return { annualCost, netBenefit, roi, isGoodDebt };
+        return { annualCost, netBenefit, roi, isGoodDebt, hasReturnEstimate };
     }, [principal, annualReturn, rate]);
 
     return (
@@ -45,7 +53,7 @@ export default function LoanROICalculator({ currency }: Props) {
                 hint="What this loan will let you earn or save each year — e.g. profit from new equipment, stock, or a hire"
             />
 
-            {result && (
+            {result && result.hasReturnEstimate && (
                 <View style={[s.resultCard, { borderColor: result.isGoodDebt ? Colors.income : Colors.expense }]}>
                     <View style={s.resultRow}>
                         <Text style={s.resultLabel}>Cost of Borrowing / Year</Text>
@@ -65,6 +73,18 @@ export default function LoanROICalculator({ currency }: Props) {
                         {result.isGoodDebt
                             ? '✓ Good Debt — this pays for its own financing and then some.'
                             : '⚠ Bad Debt — the cost of borrowing is more than this will earn you.'}
+                    </Text>
+                </View>
+            )}
+
+            {result && !result.hasReturnEstimate && (
+                <View style={s.neutralCard}>
+                    <View style={s.resultRow}>
+                        <Text style={s.resultLabel}>Cost of Borrowing / Year</Text>
+                        <Text style={[s.resultValue, { color: Colors.expense }]}>{currency}{Math.round(result.annualCost).toLocaleString()}</Text>
+                    </View>
+                    <Text style={s.neutralText}>
+                        Not every loan has a single number attached to it — financing a shared asset, a vehicle, or general working capital for the business often can't be tied to one year's profit. Enter an estimate above if you have one. If you don't, this isn't automatically bad debt — check the impact on your cash runway instead with Buy vs Finance or Can I Afford This Growth below.
                     </Text>
                 </View>
             )}
@@ -113,6 +133,8 @@ const s = StyleSheet.create({
     input: { flex: 1, paddingVertical: 10, paddingHorizontal: 6, fontSize: 15, color: Colors.textPrimary },
 
     resultCard: { borderWidth: 1.5, borderRadius: 10, padding: 14, marginTop: 6 },
+    neutralCard: { borderWidth: 1.5, borderColor: Colors.border, borderRadius: 10, padding: 14, marginTop: 6 },
+    neutralText: { fontSize: 12, color: Colors.textSecondary, marginTop: 10, lineHeight: 17 },
     resultRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border },
     resultLabel: { fontSize: 12.5, color: Colors.textSecondary },
     resultValue: { fontSize: 14, fontWeight: '700' },
