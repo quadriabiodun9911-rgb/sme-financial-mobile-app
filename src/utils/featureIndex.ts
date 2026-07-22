@@ -69,8 +69,8 @@ export const FEATURE_INDEX: FeatureEntry[] = [
     },
     {
         id: 'loans-debt', label: 'Loans & Debt', icon: '🏛️',
-        description: 'Debt ratios, solvency, and a borrowing-cost-vs-ROI calculator',
-        keywords: ['loan', 'debt', 'interest', 'solvency', 'leverage', 'dscr'],
+        description: 'Debt ratios, solvency, a borrowing-cost-vs-ROI calculator, and buy-vs-finance equipment comparison',
+        keywords: ['loan', 'debt', 'interest', 'solvency', 'leverage', 'dscr', 'equipment', 'buy vs finance', 'runway'],
         screen: 'reports', navParams: { reportSection: 'planning', reportTab: 'debt' },
     },
     {

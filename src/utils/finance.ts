@@ -617,7 +617,7 @@ export interface DSCRResult {
     status: 'healthy' | 'warning' | 'danger';
 }
 
-function loanMonthlyPayment(principal: number, annualRate: number, termMonths: number): number {
+export function loanMonthlyPayment(principal: number, annualRate: number, termMonths: number): number {
     if (!termMonths || termMonths <= 0) return 0;
     if (annualRate === 0) return principal / termMonths;
     const r = annualRate / 100 / 12;

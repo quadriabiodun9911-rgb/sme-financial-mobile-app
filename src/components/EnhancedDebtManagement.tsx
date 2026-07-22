@@ -1,19 +1,28 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
-import { FinanceData, Loan } from '../types';
+import { FinanceData, Loan, Transaction } from '../types';
 import { computeLeverageRatios, scoreDebtToAssets, scoreDebtToEquity } from '../utils/debtRatios';
+import { computeCashRunway } from '../utils/cashRunway';
 import LoanROICalculator from './LoanROICalculator';
+import BuyVsFinanceCalculator from './BuyVsFinanceCalculator';
 
 interface Props {
     finance: FinanceData;
     currency: string;
     loans?: Loan[];
+    transactions?: Transaction[];
 }
 
 const RATIO_COLOR = { strong: Colors.income, stable: Colors.warning, concerning: Colors.expense };
 
-export default function EnhancedDebtManagement({ finance, currency, loans = [] }: Props) {
+export default function EnhancedDebtManagement({ finance, currency, loans = [], transactions = [] }: Props) {
+    // Same trailing-30-day paid-expense burn rate CashFlowScreen's Runway
+    // tab and the Weekly Dashboard use — one canonical "how much do we
+    // spend a month" source, not a separate estimate invented here.
+    const { dailyBurn } = computeCashRunway(transactions, finance.cashBalance);
+    const monthlyBurn = dailyBurn * 30;
+
     // Leverage ratios (and the live loan balance they're built on) are
     // computed once, in debtRatios.ts, and shared with DebtAnalysis — both
     // cards render on the same Reports > Loans & Debt tab, so a ratio here
@@ -200,6 +209,11 @@ export default function EnhancedDebtManagement({ finance, currency, loans = [] }
                 below from an abstract rule into a number you can check
                 before actually taking a loan. */}
             <LoanROICalculator currency={currency} />
+
+            {/* A different question: not "is this loan worth it" but "what
+                does paying cash vs financing do to my runway either way" —
+                the liquidity-preservation trade-off, not just cost vs return. */}
+            <BuyVsFinanceCalculator currency={currency} currentCashBalance={finance.cashBalance} monthlyBurn={monthlyBurn} />
 
             {/* Educational Tips */}
             <View style={styles.card}>

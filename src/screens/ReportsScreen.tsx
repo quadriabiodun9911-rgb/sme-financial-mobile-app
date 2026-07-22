@@ -528,6 +528,7 @@ export default function ReportsScreen() {
                                 finance={allFinance}
                                 currency={currency}
                                 loans={loansList}
+                                transactions={transactions}
                             />
                             {/* Solvency/leverage ratios (debt-to-assets, debt-to-
                                 equity, ROA, ROE) — was imported but never actually
