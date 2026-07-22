@@ -1,5 +1,5 @@
 import { computeTaxFilingReadiness } from '../src/utils/taxFilingReadiness';
-import { Transaction, Invoice, BusinessSettings } from '../src/types';
+import { Transaction, Invoice, BusinessSettings, FinanceData } from '../src/types';
 
 const makeTx = (overrides: Partial<Transaction>): Transaction => ({
     id: 'tx', date: '2024-06-01', description: 'Test', type: 'income',
@@ -14,9 +14,18 @@ const makeInvoice = (overrides: Partial<Invoice>): Invoice => ({
     ...overrides,
 });
 
+// Fixed reference date so "days until deadline" math is deterministic.
+const REF_DATE = new Date('2024-06-15T12:00:00Z');
+
 function recentDate(daysAgo: number): string {
-    const d = new Date();
+    const d = new Date(REF_DATE);
     d.setDate(d.getDate() - daysAgo);
+    return d.toISOString().split('T')[0];
+}
+
+function futureDate(daysAhead: number): string {
+    const d = new Date(REF_DATE);
+    d.setDate(d.getDate() + daysAhead);
     return d.toISOString().split('T')[0];
 }
 
@@ -24,17 +33,40 @@ const goodSettings: BusinessSettings = {
     businessName: 'Acme Ltd', businessType: 'service', currency: '£', currencyCode: 'GBP',
     minReserve: '0', targetMargin: '0', openingAssets: '0', openingLiabilities: '0',
     openingLoans: '0', openingOtherAssets: '0', defaultTaxRate: '20',
+    nextTaxDeadline: futureDate(60),
+};
+
+const baseFinance: FinanceData = {
+    income: 0, expense: 0, profit: 0, margin: 0, cashBalance: 10000,
+    totalRevenue: 0, totalCosts: 0, assets: 0, liabilities: 0, equity: 0,
+    totalTaxCollected: 0, totalTaxPaid: 0, netTaxPosition: 0,
+    annualDepreciation: 0, depreciationAdjustedProfit: 0,
 };
 
 describe('computeTaxFilingReadiness', () => {
     it('never claims to have a certified filing partner', () => {
-        const r = computeTaxFilingReadiness([], [], goodSettings);
+        const r = computeTaxFilingReadiness([], [], goodSettings, undefined, REF_DATE);
         expect(r.hasCertifiedFilingPartner).toBe(false);
     });
 
-    it('passes all checks for clean, complete records', () => {
-        const txs = Array.from({ length: 5 }, (_, i) => makeTx({ id: `t${i}`, date: recentDate(i) }));
-        const r = computeTaxFilingReadiness(txs, [makeInvoice({ issueDate: recentDate(1) })], goodSettings);
+    it('passes all checks for clean, complete records with a comfortable deadline and coverable tax', () => {
+        // computeDataQuality (used internally) measures against the real
+        // system clock, not an injectable reference date — so this one
+        // test uses real "now"-relative dates throughout instead of the
+        // fixed REF_DATE the other tests use, to keep both checks consistent.
+        const today = (daysAgo: number) => {
+            const d = new Date();
+            d.setDate(d.getDate() - daysAgo);
+            return d.toISOString().split('T')[0];
+        };
+        const futureFromNow = (daysAhead: number) => {
+            const d = new Date();
+            d.setDate(d.getDate() + daysAhead);
+            return d.toISOString().split('T')[0];
+        };
+        const txs = Array.from({ length: 5 }, (_, i) => makeTx({ id: `t${i}`, date: today(i) }));
+        const settings = { ...goodSettings, nextTaxDeadline: futureFromNow(60) };
+        const r = computeTaxFilingReadiness(txs, [makeInvoice({ issueDate: today(1) })], settings, baseFinance);
         expect(r.overallReady).toBe(true);
         expect(r.passedCount).toBe(r.totalChecks);
     });
@@ -45,26 +77,80 @@ describe('computeTaxFilingReadiness', () => {
             makeTx({ id: 't2', category: '' }),
             makeTx({ id: 't3', category: 'Sales' }),
         ];
-        const r = computeTaxFilingReadiness(txs, [], goodSettings);
+        const r = computeTaxFilingReadiness(txs, [], goodSettings, undefined, REF_DATE);
         const check = r.checks.find(c => c.id === 'categorization')!;
         expect(check.passed).toBe(false);
     });
 
     it('fails the invoice-status check when invoices are stuck in draft', () => {
-        const r = computeTaxFilingReadiness([], [makeInvoice({ status: 'draft' })], goodSettings);
+        const r = computeTaxFilingReadiness([], [makeInvoice({ status: 'draft' })], goodSettings, undefined, REF_DATE);
         const check = r.checks.find(c => c.id === 'invoice-status')!;
         expect(check.passed).toBe(false);
     });
 
     it('fails the tax-rate check when defaultTaxRate is unset', () => {
-        const r = computeTaxFilingReadiness([], [], { ...goodSettings, defaultTaxRate: '' });
+        const r = computeTaxFilingReadiness([], [], { ...goodSettings, defaultTaxRate: '' }, undefined, REF_DATE);
         const check = r.checks.find(c => c.id === 'tax-rate')!;
         expect(check.passed).toBe(false);
     });
 
     it('fails the business-identity check when businessName is unset', () => {
-        const r = computeTaxFilingReadiness([], [], { ...goodSettings, businessName: undefined });
+        const r = computeTaxFilingReadiness([], [], { ...goodSettings, businessName: undefined }, undefined, REF_DATE);
         const check = r.checks.find(c => c.id === 'business-identity')!;
         expect(check.passed).toBe(false);
+    });
+
+    describe('deadline check', () => {
+        it('fails and reports "no deadline set" when nextTaxDeadline is unset', () => {
+            const r = computeTaxFilingReadiness([], [], { ...goodSettings, nextTaxDeadline: undefined }, undefined, REF_DATE);
+            expect(r.daysUntilDeadline).toBeNull();
+            const check = r.checks.find(c => c.id === 'deadline')!;
+            expect(check.passed).toBe(false);
+            expect(check.detail).toContain('No deadline set');
+        });
+
+        it('reports OVERDUE with the correct day count when the deadline has passed', () => {
+            const r = computeTaxFilingReadiness([], [], { ...goodSettings, nextTaxDeadline: recentDate(5) }, undefined, REF_DATE);
+            expect(r.daysUntilDeadline).toBe(-5);
+            const check = r.checks.find(c => c.id === 'deadline')!;
+            expect(check.passed).toBe(false);
+            expect(check.detail).toContain('OVERDUE by 5 day');
+        });
+
+        it('fails (as a warning) when the deadline is within 14 days but not yet overdue', () => {
+            const r = computeTaxFilingReadiness([], [], { ...goodSettings, nextTaxDeadline: futureDate(7) }, undefined, REF_DATE);
+            expect(r.daysUntilDeadline).toBe(7);
+            const check = r.checks.find(c => c.id === 'deadline')!;
+            expect(check.passed).toBe(false);
+        });
+
+        it('passes when the deadline is comfortably far away', () => {
+            const r = computeTaxFilingReadiness([], [], { ...goodSettings, nextTaxDeadline: futureDate(60) }, undefined, REF_DATE);
+            const check = r.checks.find(c => c.id === 'deadline')!;
+            expect(check.passed).toBe(true);
+        });
+    });
+
+    describe('ability-to-pay check', () => {
+        it('is omitted entirely when no finance data is passed', () => {
+            const r = computeTaxFilingReadiness([], [], goodSettings, undefined, REF_DATE);
+            expect(r.checks.find(c => c.id === 'ability-to-pay')).toBeUndefined();
+        });
+
+        it('passes when cash on hand covers estimated tax owed', () => {
+            const finance = { ...baseFinance, cashBalance: 5000, totalTaxCollected: 3000, totalTaxPaid: 1000 };
+            const r = computeTaxFilingReadiness([], [], goodSettings, finance, REF_DATE);
+            const check = r.checks.find(c => c.id === 'ability-to-pay')!;
+            // estimated liability = 3000 - 1000 = 2000, cash 5000 >= 2000
+            expect(check.passed).toBe(true);
+        });
+
+        it('fails and reports the shortfall when cash on hand is less than estimated tax owed', () => {
+            const finance = { ...baseFinance, cashBalance: 1000, totalTaxCollected: 5000, totalTaxPaid: 0 };
+            const r = computeTaxFilingReadiness([], [], goodSettings, finance, REF_DATE);
+            const check = r.checks.find(c => c.id === 'ability-to-pay')!;
+            expect(check.passed).toBe(false);
+            expect(check.detail).toContain('short by');
+        });
     });
 });

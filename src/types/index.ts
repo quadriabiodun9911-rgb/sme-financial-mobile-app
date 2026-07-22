@@ -219,6 +219,7 @@ export interface BusinessSettings {
     missionStatement?: string; // why the business exists, and what you do daily to get there — shown alongside priorities/strategy screens as a decision check, not just stored
     visionStatement?: string;  // the long-term destination
     coreValues?: string;       // the moral compass — how the team behaves getting there (e.g. "Integrity, reliability, community focus")
+    nextTaxDeadline?: string;  // ISO date — next VAT/Corporation Tax (or local equivalent) filing deadline, used by Tax Filing Readiness
 }
 
 export interface NavParams {

@@ -7,6 +7,7 @@ import { useApp } from '../contexts/AppContext';
 import { Colors, ColorThemeMode, getColorThemeMode, setColorThemeMode } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
+import DateInput from '../components/DateInput';
 import { BusinessSettings } from '../types';
 import { t, LANGUAGES } from '../utils/i18n';
 import { generateAccountantReportCSV } from '../utils/finance';
@@ -534,6 +535,15 @@ export default function SettingsScreen() {
                             <TextInput style={styles.input} value={form.defaultTaxRate}
                                 onChangeText={v => setForm((f: typeof form) => ({ ...f, defaultTaxRate: v }))}
                                 keyboardType="numeric" placeholder="0" placeholderTextColor={Colors.muted} />
+
+                            <FieldLabel>Next Tax Filing Deadline</FieldLabel>
+                            <Text style={styles.hint}>
+                                Your next VAT return, Corporation Tax, or equivalent filing due date. Tax Filing Readiness uses this to warn you before it's close — missed deadlines are the single biggest reason SMEs get hit with penalties.
+                            </Text>
+                            <DateInput
+                                value={form.nextTaxDeadline ?? ''}
+                                onChange={v => setForm((f: typeof form) => ({ ...f, nextTaxDeadline: v }))}
+                            />
                         </Section>
 
                         <Section title="Money & Things You Had Before Using This App">
