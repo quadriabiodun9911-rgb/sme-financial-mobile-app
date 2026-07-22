@@ -25,7 +25,10 @@ export default function PricingOptimizer({ currentRevenue, currentMargin, curren
 
     const scenarios = useMemo(() => {
         const priceInc = parseFloat(priceIncrease) || 0;
-        const volLoss = parseFloat(volumeLoss) || 0;
+        // Volume loss can't reach 100% (losing every customer) without the
+        // "revenue per remaining customer" math below dividing by zero —
+        // that produced Infinity/NaN profit figures with no explanation.
+        const volLoss = Math.max(0, Math.min(99, parseFloat(volumeLoss) || 0));
         const costRed = parseFloat(costReduction) || 0;
 
         const baseMargin = currentMargin;
@@ -161,7 +164,11 @@ export default function PricingOptimizer({ currentRevenue, currentMargin, curren
                             onChangeText={setVolumeLoss}
                             keyboardType="decimal-pad"
                         />
-                        <Text style={styles.hint}>Expect to lose this % of customers</Text>
+                        <Text style={[styles.hint, (parseFloat(volumeLoss) || 0) >= 100 && { color: Colors.expense }]}>
+                            {(parseFloat(volumeLoss) || 0) >= 100
+                                ? 'Capped at 99% — losing 100% of customers leaves no revenue to model'
+                                : 'Expect to lose this % of customers'}
+                        </Text>
                     </View>
 
                     <View style={styles.inputField}>
@@ -186,7 +193,7 @@ export default function PricingOptimizer({ currentRevenue, currentMargin, curren
                 {/* Scenario 1: Price Increase */}
                 <ScenarioCard
                     title="Scenario 1: Increase Prices"
-                    subtitle={`Raise prices +${priceIncrease}% (accept -${volumeLoss}% volume loss)`}
+                    subtitle={`Raise prices +${priceIncrease}% (accept -${Math.min(99, Math.max(0, parseFloat(volumeLoss) || 0))}% volume loss)`}
                     revenue={scenarios.priceIncrease.revenue}
                     margin={scenarios.priceIncrease.margin}
                     profit={scenarios.priceIncrease.profit}

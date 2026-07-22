@@ -11,36 +11,46 @@ interface Props {
 }
 
 function healthColor(score: RatioScore) {
-    return score === 'strong' ? Colors.income : score === 'stable' ? Colors.warning : Colors.expense;
+    if (score === 'strong') return Colors.income;
+    if (score === 'stable') return Colors.warning;
+    if (score === 'unscored') return Colors.textMuted;
+    return Colors.expense;
 }
+
+const UNSCORED_NOTE = 'No assets recorded yet, so this ratio has nothing to compare against — add your assets in Settings or the Assets tab to unlock it.';
 
 // What each score level actually means for day-to-day decisions — not just
 // the number, but what happens to the business at that level.
-const IMPACT: Record<string, Record<'strong' | 'stable' | 'concerning', string>> = {
+const IMPACT: Record<string, Record<'strong' | 'stable' | 'concerning' | 'unscored', string>> = {
     debtToAssets: {
         strong: 'Most of what you own is yours, not the bank\'s — lenders see you as low-risk, so new financing should be easy to get if you need it.',
         stable: 'A meaningful share of your assets is debt-financed. Still manageable, but leaves less room to absorb a bad month or take on more debt.',
         concerning: 'Most of your assets are financed by debt, not equity — a downturn could leave you owing more than you own, and lenders will see you as high-risk.',
+        unscored: UNSCORED_NOTE,
     },
     debtToEquity: {
         strong: 'Your own capital covers your debt several times over — you\'re financing growth with your own money, not the bank\'s.',
         stable: 'Debt and equity are roughly balanced. Fine for now, but taking on more debt from here raises risk faster than it raises capacity.',
         concerning: 'You owe more than the business is worth to you. This is the single biggest red flag lenders and investors look for — expect higher rates or rejected applications.',
+        unscored: UNSCORED_NOTE,
     },
     equityRatio: {
         strong: 'The business is mostly self-funded. You keep more of the upside, and a bad quarter is less likely to threaten survival.',
         stable: 'A workable mix of your money and borrowed money. Keep an eye on it — it can tip toward risky if debt grows faster than equity.',
         concerning: 'Borrowed money funds most of the business. Profits are increasingly going toward debt service instead of back into the business or to you.',
+        unscored: UNSCORED_NOTE,
     },
     roa: {
         strong: 'Every pound tied up in the business is working hard — a strong sign you could productively deploy more capital, borrowed or not.',
         stable: 'Assets are generating a reasonable return, but there\'s room to get more out of what you already own before adding more.',
         concerning: 'Assets aren\'t earning their keep. Adding more debt to buy more assets right now would likely just repeat the problem at a larger scale.',
+        unscored: UNSCORED_NOTE,
     },
     roe: {
         strong: 'Your own money is earning a strong return in this business — better than it would likely earn sitting elsewhere.',
         stable: 'A reasonable return on your capital, though not spectacular. Worth comparing against what else you could do with that money.',
         concerning: 'Your capital is earning little to nothing here. Before borrowing more, fix why the business isn\'t returning enough on what\'s already invested.',
+        unscored: UNSCORED_NOTE,
     },
 };
 
@@ -49,11 +59,12 @@ export default function DebtAnalysis({ finance, currency, loans = [] }: Props) {
     // computed once, in debtRatios.ts, and shared with EnhancedDebtManagement
     // — both cards render on the same Reports > Loans & Debt tab, so a
     // ratio here and there must always agree.
-    const { liabilities, assets, equity, debtToAssets, debtToEquity, equityRatio, returnOnAssets, returnOnEquity } =
+    const { liabilities, assets, equity, debtToAssets, debtToEquity, equityRatio, returnOnAssets, returnOnEquity, hasAssetData } =
         computeLeverageRatios(finance, loans);
 
-    const debtToAssetsScore = scoreDebtToAssets(debtToAssets);
+    const debtToAssetsScore = scoreDebtToAssets(debtToAssets, hasAssetData);
     const debtToEquityScore = scoreDebtToEquity(debtToEquity);
+    const equityRatioScore = scoreEquityRatio(equityRatio, hasAssetData);
     const roaScore = scoreROA(returnOnAssets);
     const roeScore = scoreROE(returnOnEquity);
 
@@ -72,7 +83,7 @@ export default function DebtAnalysis({ finance, currency, loans = [] }: Props) {
 
                 <RatioRow
                     label="Debt-to-Assets"
-                    value={`${debtToAssets.toFixed(1)}%`}
+                    value={hasAssetData ? `${debtToAssets.toFixed(1)}%` : 'N/A'}
                     score={debtToAssetsScore}
                     desc="% of assets financed by debt. Below 30% is strong."
                     impact={IMPACT.debtToAssets[debtToAssetsScore]}
@@ -86,10 +97,10 @@ export default function DebtAnalysis({ finance, currency, loans = [] }: Props) {
                 />
                 <RatioRow
                     label="Equity Ratio"
-                    value={`${equityRatio.toFixed(1)}%`}
-                    score={scoreEquityRatio(equityRatio)}
+                    value={hasAssetData ? `${equityRatio.toFixed(1)}%` : 'N/A'}
+                    score={equityRatioScore}
                     desc="% of assets financed by equity. Higher is safer."
-                    impact={IMPACT.equityRatio[scoreEquityRatio(equityRatio)]}
+                    impact={IMPACT.equityRatio[equityRatioScore]}
                     last
                 />
             </View>
@@ -121,7 +132,10 @@ export default function DebtAnalysis({ finance, currency, loans = [] }: Props) {
                 {liabilities === 0 && (
                     <ActionItem color={Colors.income} text="No recorded liabilities. Update Opening Liabilities in Settings to reflect real debt obligations." />
                 )}
-                {debtToAssets > 50 && (
+                {!hasAssetData && (
+                    <ActionItem color={Colors.textMuted} text="No assets recorded yet — debt-to-assets and equity ratio can't be calculated until you add assets in Settings or the Assets tab." />
+                )}
+                {hasAssetData && debtToAssets > 50 && (
                     <ActionItem color={Colors.expense} text={`Debt-to-assets of ${debtToAssets.toFixed(1)}% means more than half your assets are financed by debt. Focus on reducing liabilities or growing retained earnings.`} />
                 )}
                 {debtToEquity > 1 && debtToEquity !== Infinity && (
@@ -152,7 +166,7 @@ function SummaryCard({ label, value, color }: { label: string; value: string; co
 
 function RatioRow({ label, value, score, desc, impact, last }: {
     label: string; value: string;
-    score: 'strong' | 'stable' | 'concerning'; desc: string;
+    score: RatioScore; desc: string;
     impact?: string; last?: boolean;
 }) {
     const color = healthColor(score);
@@ -166,7 +180,7 @@ function RatioRow({ label, value, score, desc, impact, last }: {
                 <View style={ratioStyles.right}>
                     <Text style={[ratioStyles.value, { color }]}>{value}</Text>
                     <View style={[ratioStyles.badge, { backgroundColor: color }]}>
-                        <Text style={ratioStyles.badgeText}>{score}</Text>
+                        <Text style={ratioStyles.badgeText}>{score === 'unscored' ? 'no data' : score}</Text>
                     </View>
                 </View>
             </View>

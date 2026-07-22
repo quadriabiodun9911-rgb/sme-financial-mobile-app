@@ -42,6 +42,13 @@ describe('computeLeverageRatios', () => {
         const r = computeLeverageRatios({ ...baseFinance, equity: 0 }, [makeLoan({ principal: 5000 })]);
         expect(r.debtToEquity).toBe(Infinity);
     });
+
+    it('flags hasAssetData false with no real ratio when no assets are recorded', () => {
+        const r = computeLeverageRatios({ ...baseFinance, assets: 0 }, []);
+        expect(r.hasAssetData).toBe(false);
+        expect(r.debtToAssets).toBe(0);
+        expect(r.equityRatio).toBe(0);
+    });
 });
 
 describe('score functions — the canonical thresholds both debt UI cards now share', () => {
@@ -63,5 +70,13 @@ describe('score functions — the canonical thresholds both debt UI cards now sh
         expect(scoreROA(12)).toBe('strong');
         expect(scoreROE(20)).toBe('strong');
         expect(scoreROA(2)).toBe('concerning');
+    });
+
+    it('scoreDebtToAssets/scoreEquityRatio return "unscored", not "strong", with no asset data', () => {
+        // Previously a 0% debt-to-assets from missing asset data scored
+        // "strong" identically to a real 0% ratio backed by actual assets.
+        expect(scoreDebtToAssets(0, false)).toBe('unscored');
+        expect(scoreEquityRatio(0, false)).toBe('unscored');
+        expect(scoreDebtToAssets(0, true)).toBe('strong');
     });
 });

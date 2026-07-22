@@ -31,42 +31,78 @@ export default function CreditWorthinessScreen() {
             return sum + Math.max(0, expectedPayments - paid);
         }, 0);
 
-        const isOnTimePayment = totalDuePayments === 0 ? 100 : Math.max(0, 100 - (totalDuePayments / (currency === '₦' ? 500000 : 5000) * 10));
-        factors.push({
-            name: 'Payment History',
-            score: isOnTimePayment,
-            weight: 0.3,
-            description: 'On-time loan/invoice payments',
-            status: isOnTimePayment >= 80 ? 'Excellent' : isOnTimePayment >= 60 ? 'Good' : 'Needs Work',
-            tips: [
-                'Pay all invoices on time',
-                'Set up payment reminders',
-                'Automate recurring payments',
-            ],
-        });
+        // No loans ever taken means no payment record to judge — that's
+        // "unscored," not "a perfect record." Scoring it 100/Excellent would
+        // treat a brand-new borrower identically to a proven on-time payer.
+        if (loans.length === 0) {
+            factors.push({
+                name: 'Payment History',
+                score: 50,
+                weight: 0.3,
+                description: 'No loan history yet',
+                status: 'Not Yet Scored',
+                tips: [
+                    'This factor updates once you have loan repayment history',
+                    'On-time payments build this score over time',
+                ],
+            });
+        } else {
+            const isOnTimePayment = totalDuePayments === 0 ? 100 : Math.max(0, 100 - (totalDuePayments / (currency === '₦' ? 500000 : 5000) * 10));
+            factors.push({
+                name: 'Payment History',
+                score: isOnTimePayment,
+                weight: 0.3,
+                description: 'On-time loan/invoice payments',
+                status: isOnTimePayment >= 80 ? 'Excellent' : isOnTimePayment >= 60 ? 'Good' : 'Needs Work',
+                tips: [
+                    'Pay all invoices on time',
+                    'Set up payment reminders',
+                    'Automate recurring payments',
+                ],
+            });
+        }
 
         // 2. Credit Utilization (25% weight)
         const availableCredit = (user?.avgMonthlyProfit || 0) * 6; // 6 months of profit = available credit
         const currentDebt = loans.reduce((sum, l) => sum + ((l.principal || 0) - ((l.payments ?? []).reduce((s: number, p: any) => s + (p.amount || 0), 0) || 0)), 0);
-        const creditUtilization = availableCredit > 0 ? (currentDebt / availableCredit) * 100 : 0;
-        const utilizationScore = Math.max(0, 100 - (creditUtilization * 1.5)); // Lower is better
 
-        factors.push({
-            name: 'Credit Utilization',
-            // Score is risk-adjusted (100 = using none of your available
-            // credit, 0 = maxed out or over) — NOT the raw utilization %,
-            // so the description spells out the actual % to avoid reading
-            // a low/0 score as "0% used" (which would sound good, not bad).
-            score: utilizationScore,
-            weight: 0.25,
-            description: `Using ${Math.min(999, Math.round(creditUtilization))}% of available credit`,
-            status: utilizationScore >= 80 ? 'Excellent' : utilizationScore >= 60 ? 'Good' : 'High Risk',
-            tips: [
-                'Keep debt below 30% of available credit',
-                'Pay down loans when possible',
-                'Avoid taking multiple loans at once',
-            ],
-        });
+        // No positive profit history means there's no basis to size available
+        // credit — treating that as "0% utilized" scored it a false 100/
+        // Excellent for businesses that are currently unprofitable or brand
+        // new, not for businesses using credit responsibly.
+        if (availableCredit <= 0) {
+            factors.push({
+                name: 'Credit Utilization',
+                score: 50,
+                weight: 0.25,
+                description: 'Not enough profit history to calculate available credit',
+                status: 'Not Yet Scored',
+                tips: [
+                    'Build a positive average monthly profit to unlock this factor',
+                    'Keep debt below 30% of available credit once it is scored',
+                ],
+            });
+        } else {
+            const creditUtilization = (currentDebt / availableCredit) * 100;
+            const utilizationScore = Math.max(0, 100 - (creditUtilization * 1.5)); // Lower is better
+
+            factors.push({
+                name: 'Credit Utilization',
+                // Score is risk-adjusted (100 = using none of your available
+                // credit, 0 = maxed out or over) — NOT the raw utilization %,
+                // so the description spells out the actual % to avoid reading
+                // a low/0 score as "0% used" (which would sound good, not bad).
+                score: utilizationScore,
+                weight: 0.25,
+                description: `Using ${Math.min(999, Math.round(creditUtilization))}% of available credit`,
+                status: utilizationScore >= 80 ? 'Excellent' : utilizationScore >= 60 ? 'Good' : 'High Risk',
+                tips: [
+                    'Keep debt below 30% of available credit',
+                    'Pay down loans when possible',
+                    'Avoid taking multiple loans at once',
+                ],
+            });
+        }
 
         // 3. Business Age & Stability (20% weight)
         const businessAge = user?.daysActive || 0;

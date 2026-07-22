@@ -1,17 +1,18 @@
 import { FinanceData, Loan } from '../types';
 
-export type RatioScore = 'strong' | 'stable' | 'concerning';
+export type RatioScore = 'strong' | 'stable' | 'concerning' | 'unscored';
 
 export interface LeverageRatios {
     liabilities: number;
     assets: number;
     equity: number;
     profit: number;
-    debtToAssets: number;   // %
+    debtToAssets: number;   // %, meaningless when hasAssetData is false
     debtToEquity: number;   // x, Infinity if equity <= 0 and liabilities > 0
-    equityRatio: number;    // %
+    equityRatio: number;    // %, meaningless when hasAssetData is false
     returnOnAssets: number; // %
     returnOnEquity: number; // %
+    hasAssetData: boolean;  // false when no assets are recorded — debtToAssets/equityRatio have no real basis
 }
 
 /**
@@ -43,11 +44,16 @@ export function computeLeverageRatios(finance: FinanceData, loans: Loan[]): Leve
         assets,
         equity,
         profit,
+        // With no assets recorded, these aren't "0% debt-financed" / "100%
+        // equity-financed" — there's nothing to compute a ratio against.
+        // hasAssetData tells callers to show "not enough data" instead of a
+        // number that reads as a strong balance sheet.
         debtToAssets: assets > 0 ? (liabilities / assets) * 100 : 0,
         debtToEquity: equity > 0 ? liabilities / equity : liabilities > 0 ? Infinity : 0,
-        equityRatio: assets > 0 ? (equity / assets) * 100 : 100,
+        equityRatio: assets > 0 ? (equity / assets) * 100 : 0,
         returnOnAssets: assets > 0 ? (profit / assets) * 100 : 0,
         returnOnEquity: equity > 0 ? (profit / equity) * 100 : 0,
+        hasAssetData: assets > 0,
     };
 }
 
@@ -64,7 +70,8 @@ export function scoreByThreshold(val: number, [strongAt, stableAt]: [number, num
     return 'concerning';
 }
 
-export function scoreDebtToAssets(debtToAssetsPct: number): RatioScore {
+export function scoreDebtToAssets(debtToAssetsPct: number, hasAssetData: boolean = true): RatioScore {
+    if (!hasAssetData) return 'unscored';
     return scoreByThreshold(100 - debtToAssetsPct, [70, 50]); // <=30% strong, <=50% stable, >50% concerning
 }
 
@@ -75,7 +82,8 @@ export function scoreDebtToEquity(debtToEquity: number): RatioScore {
     return 'concerning';
 }
 
-export function scoreEquityRatio(equityRatioPct: number): RatioScore {
+export function scoreEquityRatio(equityRatioPct: number, hasAssetData: boolean = true): RatioScore {
+    if (!hasAssetData) return 'unscored';
     return scoreByThreshold(equityRatioPct, [70, 50]);
 }
 

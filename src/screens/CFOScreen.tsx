@@ -75,7 +75,7 @@ function PulseTab({ onOpenRisk }: { onOpenRisk: () => void }) {
         else if (margin > 20) lines.push(`Strong ${margin.toFixed(0)}% profit margin — you're keeping most of what you earn.`);
         else if (margin < 10 && margin >= 0) lines.push(`Profit margin is thin at ${margin.toFixed(0)}%. Review your biggest costs.`);
         if (summary.cashRunwayDays < 30 && summary.cashRunwayDays > 0) lines.push('Cash runway is under 30 days — prioritise collecting payments now.');
-        if (ratios.currentRatio < 1) lines.push('Your short-term liabilities exceed assets — cash flow needs attention.');
+        if (ratios.hasLiabilitiesData && ratios.currentRatio < 1) lines.push('Your short-term liabilities exceed assets — cash flow needs attention.');
         if (lines.length === 0) lines.push('Business looks stable. Keep monitoring your cash flow and margins.');
         return lines.slice(0, 3);
     }, [summary, profit, margin, ratios]);
@@ -258,15 +258,23 @@ function FinanceTab() {
     const ratioCards: { label: string; value: string; good: boolean; explain: string }[] = [
         {
             label: 'Current Ratio',
-            value: ratios.currentRatio.toFixed(2) + 'x',
-            good: ratios.currentRatio >= 1.5,
-            explain: ratios.currentRatio >= 1.5 ? 'Assets cover short-term debts' : 'Short-term debts may be hard to cover',
+            // 999x is the "no liabilities recorded" sentinel, not an actual
+            // extreme ratio — showing it as a number with a green "good"
+            // badge would read as an exceptionally strong balance sheet
+            // instead of missing data.
+            value: ratios.hasLiabilitiesData ? ratios.currentRatio.toFixed(2) + 'x' : 'N/A',
+            good: ratios.hasLiabilitiesData && ratios.currentRatio >= 1.5,
+            explain: !ratios.hasLiabilitiesData
+                ? 'No liabilities recorded yet'
+                : ratios.currentRatio >= 1.5 ? 'Assets cover short-term debts' : 'Short-term debts may be hard to cover',
         },
         {
             label: 'Debt to Equity',
-            value: ratios.debtToEquity.toFixed(2) + 'x',
-            good: ratios.debtToEquity <= 0.8,
-            explain: ratios.debtToEquity <= 0.8 ? 'Low reliance on debt' : 'High debt relative to equity',
+            value: ratios.hasEquityData ? ratios.debtToEquity.toFixed(2) + 'x' : 'N/A',
+            good: ratios.hasEquityData && ratios.debtToEquity <= 0.8,
+            explain: !ratios.hasEquityData
+                ? 'No equity recorded yet'
+                : ratios.debtToEquity <= 0.8 ? 'Low reliance on debt' : 'High debt relative to equity',
         },
         {
             label: 'Return on Assets',

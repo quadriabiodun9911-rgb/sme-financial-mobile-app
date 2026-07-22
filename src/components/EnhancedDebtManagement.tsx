@@ -15,7 +15,7 @@ interface Props {
     transactions?: Transaction[];
 }
 
-const RATIO_COLOR = { strong: Colors.income, stable: Colors.warning, concerning: Colors.expense };
+const RATIO_COLOR = { strong: Colors.income, stable: Colors.warning, concerning: Colors.expense, unscored: Colors.textMuted };
 
 export default function EnhancedDebtManagement({ finance, currency, loans = [], transactions = [] }: Props) {
     // Same trailing-30-day paid-expense burn rate CashFlowScreen's Runway
@@ -28,19 +28,21 @@ export default function EnhancedDebtManagement({ finance, currency, loans = [], 
     // computed once, in debtRatios.ts, and shared with DebtAnalysis — both
     // cards render on the same Reports > Loans & Debt tab, so a ratio here
     // and there must always agree.
-    const { liabilities, equity, debtToAssets, debtToEquity, profit } = computeLeverageRatios(finance, loans);
+    const { liabilities, equity, debtToAssets, debtToEquity, profit, hasAssetData } = computeLeverageRatios(finance, loans);
     const income = finance.income;
 
     const interestCoverage = profit > 0 ? profit / Math.max(1, liabilities * 0.05) : 0; // Assume 5% interest rate
     const debtServiceCapacity = income > 0 ? (profit / income) * 100 : 0;
 
-    const debtToAssetsScore = scoreDebtToAssets(debtToAssets);
+    const debtToAssetsScore = scoreDebtToAssets(debtToAssets, hasAssetData);
     const debtToEquityScore = scoreDebtToEquity(debtToEquity);
 
     // Debt health score — a composite of the SAME three tiers DebtAnalysis
     // uses for debt-to-assets/debt-to-equity (so a ratio scored "concerning"
     // there always costs this score the same deduction here), plus interest
-    // coverage, which is unique to this composite.
+    // coverage, which is unique to this composite. "unscored" costs nothing
+    // (neither a bonus nor a penalty) rather than being silently read as
+    // "strong" the way an assets-less debtToAssets of 0% used to be.
     const getDebtHealthScore = (): { score: number; status: 'healthy' | 'moderate' | 'concerning'; color: string } => {
         let score = 100;
 
@@ -142,7 +144,7 @@ export default function EnhancedDebtManagement({ finance, currency, loans = [], 
                 />
                 <MetricRow
                     label="Debt-to-Assets Ratio"
-                    value={`${debtToAssets.toFixed(1)}%`}
+                    value={hasAssetData ? `${debtToAssets.toFixed(1)}%` : 'No assets recorded'}
                     sublabel="Healthy: <30% | Warning: 30-50% | Risky: >50%"
                     color={RATIO_COLOR[debtToAssetsScore]}
                 />

@@ -100,8 +100,14 @@ export function recordTacticOutcome(
   metricsAchieved: OutcomeMetric[],
   learnings: string[]
 ): TacticOutcome {
-  const impactPercentage = (actualImpact / tactic.expectedImpact) * 100;
-  const succeeded = impactPercentage >= 60; // 60% or more = success
+  // A tactic with no real baseline (expectedImpact <= 0, e.g. a business
+  // with £0 recorded expenses generating a "cut expenses by 10%" target of
+  // £0) has nothing to measure against — dividing by it produced Infinity/
+  // NaN, which then read as a confident "✅ SUCCESS" regardless of what
+  // actually happened.
+  const hasBaseline = tactic.expectedImpact > 0;
+  const impactPercentage = hasBaseline ? (actualImpact / tactic.expectedImpact) * 100 : 0;
+  const succeeded = hasBaseline && impactPercentage >= 60; // 60% or more = success
 
   return {
     tacticId: tactic.id,
@@ -112,7 +118,7 @@ export function recordTacticOutcome(
     succeeded,
     metricsAchieved,
     learnings,
-    nextSteps: generateNextSteps(tactic, actualImpact, succeeded),
+    nextSteps: generateNextSteps(tactic, actualImpact, succeeded, hasBaseline),
     completionDate: new Date().toISOString().split('T')[0],
   };
 }
@@ -120,11 +126,15 @@ export function recordTacticOutcome(
 function generateNextSteps(
   tactic: ActionTactic,
   actualImpact: number,
-  succeeded: boolean
+  succeeded: boolean,
+  hasBaseline: boolean = true
 ): string[] {
   const steps: string[] = [];
 
-  if (succeeded) {
+  if (!hasBaseline) {
+    steps.push(`ℹ️ No expected-impact baseline to measure this tactic against yet.`);
+    steps.push(`Record more transaction history so future tactics have a real target to compare to.`);
+  } else if (succeeded) {
     steps.push(`✅ Tactic succeeded. Consider scaling it up.`);
     steps.push(`Review what worked and document for future use.`);
     steps.push(`Move to next tactic in priority list.`);
@@ -175,7 +185,10 @@ export function evaluateProgressTracker(
     const goalDate = new Date(goalTargetDate);
     const timelineMs = goalDate.getTime() - startDate.getTime();
     const elapsedMs = now.getTime() - startDate.getTime();
-    expectedProgressPercentage = (elapsedMs / timelineMs) * 100;
+    // A target date on or before the start date gives a timeline of 0 or
+    // negative ms — dividing by it produced Infinity/NaN, which then always
+    // read as "accelerating" below regardless of real progress.
+    expectedProgressPercentage = timelineMs > 0 ? (elapsedMs / timelineMs) * 100 : 100;
   }
 
   // Calculate actual progress (average of completed tactics)
@@ -188,7 +201,7 @@ export function evaluateProgressTracker(
 
   // Determine trend
   let progressTrend: 'accelerating' | 'on-track' | 'lagging' = 'on-track';
-  const progressRatio = actualProgressPercentage / expectedProgressPercentage;
+  const progressRatio = expectedProgressPercentage > 0 ? actualProgressPercentage / expectedProgressPercentage : 0;
   if (progressRatio > 1.2) progressTrend = 'accelerating';
   else if (progressRatio < 0.8) progressTrend = 'lagging';
 

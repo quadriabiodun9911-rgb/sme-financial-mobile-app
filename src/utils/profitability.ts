@@ -502,6 +502,28 @@ export function computeGrowthScore(transactions: Transaction[], settings: Busine
     const breakeven = computeBreakeven(transactions, settings);
     const performers = computeTopPerformers(transactions);
 
+    // Same "at least 2 active months" bar computeMomentum already uses to
+    // decide whether it has enough to say anything. Without this guard a
+    // brand-new account with zero transactions gets 0 revenue/0 costs,
+    // which reads as "at breakeven" and "no concentration risk" — stated
+    // as fact rather than "nothing recorded yet."
+    const hasData = momentum.months.filter(m => m.revenue > 0 || m.expenses > 0).length >= 2;
+
+    if (!hasData) {
+        return {
+            score: 0,
+            label: 'Not Enough Data',
+            color: '#94A3B8',
+            pillars: [
+                { name: 'Revenue consistency', score: 0, max: 25, note: 'No transactions recorded yet' },
+                { name: 'Profitability',        score: 0, max: 20, note: 'No transactions recorded yet' },
+                { name: 'Revenue growth',       score: 0, max: 25, note: 'Add at least 2 months of activity to see a trend' },
+                { name: 'Above breakeven',      score: 0, max: 20, note: 'Not enough data to compare against breakeven' },
+                { name: 'Customer diversity',   score: 0, max: 10, note: 'No customer revenue recorded yet' },
+            ],
+        };
+    }
+
     const revenueConsistency = momentum.months.filter(m => m.revenue > 0).length;  // 0–6
     const profitability      = momentum.months.filter(m => m.profit > 0).length;   // 0–6
     const growthTrend        = momentum.revenueGrowthPct > 10 ? 25 : momentum.revenueGrowthPct > 0 ? 15 : 0;

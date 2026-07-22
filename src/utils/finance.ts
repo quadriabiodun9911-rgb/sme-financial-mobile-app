@@ -645,17 +645,26 @@ export interface FinancialRatios {
     burnRate: number;
     profitMargin: number;
     revenueGrowth: number;
+    hasLiabilitiesData: boolean; // false when no liabilities recorded — currentRatio's 999 is a "no data" sentinel, not a real strength
+    hasEquityData: boolean;      // false when no equity recorded — debtToEquity's 999 is a "no data" sentinel, not a real weakness
 }
 
 export function computeFinancialRatios(finance: FinanceData, loans: Loan[]): FinancialRatios {
     const totalDebt = loans.filter(l => l.status === 'active').reduce((s, l) => s + l.principal - (l.payments ?? []).reduce((ps, p) => ps + p.amount, 0), 0);
+    // 999 here is a "no liabilities/equity recorded to compare against"
+    // sentinel, not an actual extreme ratio — callers must check
+    // hasLiabilitiesData/hasEquityData before rendering it as "good".
     const currentRatio = finance.liabilities > 0 ? finance.assets / finance.liabilities : finance.assets > 0 ? 999 : 0;
     const debtToEquity = finance.equity > 0 ? totalDebt / finance.equity : totalDebt > 0 ? 999 : 0;
     const returnOnAssets = finance.assets > 0 ? (finance.profit / finance.assets) * 100 : 0;
     const burnRate = finance.expense > 0 ? finance.expense / 12 : 0;
     const profitMargin = finance.income > 0 ? (finance.profit / finance.income) * 100 : 0;
     const revenueGrowth = 0; // requires historical data — placeholder
-    return { currentRatio, debtToEquity, returnOnAssets, burnRate, profitMargin, revenueGrowth };
+    return {
+        currentRatio, debtToEquity, returnOnAssets, burnRate, profitMargin, revenueGrowth,
+        hasLiabilitiesData: finance.liabilities > 0,
+        hasEquityData: finance.equity > 0,
+    };
 }
 
 // 6. Customer concentration risk
