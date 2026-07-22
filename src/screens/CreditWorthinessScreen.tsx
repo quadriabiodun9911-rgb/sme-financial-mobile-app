@@ -1,6 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
-    SafeAreaView, ScrollView, View, Text, TouchableOpacity, StyleSheet, Animated, Dimensions,
+    SafeAreaView, ScrollView, View, Text, TouchableOpacity, StyleSheet, Animated, Dimensions, Alert,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { monthlyPayment as calcMonthlyPayment } from '../utils/loanMath';
@@ -9,6 +9,8 @@ import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import LowDataNotice from '../components/LowDataNotice';
 import NextStepLink from '../components/NextStepLink';
+import { generatePDF, sharePDF } from '../utils/pdfExport';
+import { buildLenderSummaryExport } from '../utils/lenderSummaryExport';
 
 export default function CreditWorthinessScreen() {
     const { user, finance, transactions, loans, navigate, settings } = useApp();
@@ -137,6 +139,44 @@ export default function CreditWorthinessScreen() {
         return [...creditFactors].sort((a, b) => a.score - b.score).slice(0, 2);
     }, [creditFactors]);
 
+    // Same conditions rendered by the "What Lenders Look For" checkpoints
+    // below — kept in one place so the exported summary and the on-screen
+    // checklist can never disagree.
+    const lenderCheckpoints = useMemo(() => [
+        { label: 'Credit Score', met: overallCreditScore >= 70, description: '70+ score increases approval odds' },
+        { label: 'Payment History', met: (creditFactors[0]?.score ?? 0) >= 80, description: 'On-time payment record' },
+        { label: 'Cash Flow', met: !!(finance.runway && finance.runway >= 90), description: '3+ months runway' },
+        { label: 'Revenue Level', met: (user?.avgMonthlyRevenue || 0) >= 200000, description: `${currency}200k+ monthly revenue` },
+        { label: 'Business Age', met: (user?.daysActive || 0) >= 90, description: '90+ days operating history' },
+        { label: 'Debt Ratio', met: (creditFactors[1]?.score ?? 0) >= 70, description: 'Debt < 30% of available credit' },
+    ], [overallCreditScore, creditFactors, finance.runway, user?.avgMonthlyRevenue, user?.daysActive, currency]);
+
+    const [exporting, setExporting] = useState(false);
+
+    const handleExportLenderSummary = async () => {
+        setExporting(true);
+        try {
+            const exportData = buildLenderSummaryExport({
+                businessName: user?.businessName || 'Your Business',
+                currency,
+                overallCreditScore,
+                creditRatingLabel: creditRating.label,
+                factors: creditFactors,
+                checkpoints: lenderCheckpoints,
+                runwayDays: finance.runway || 0,
+                avgMonthlyRevenue: user?.avgMonthlyRevenue || 0,
+                daysActive: user?.daysActive || 0,
+                generatedAt: new Date(),
+            });
+            const filePath = await generatePDF(exportData);
+            await sharePDF(filePath, exportData.title);
+        } catch (error) {
+            Alert.alert('Export failed', 'Could not generate the lender-ready summary. Please try again.');
+        } finally {
+            setExporting(false);
+        }
+    };
+
     return (
         <SafeAreaView style={s.safe}>
             <Header />
@@ -149,6 +189,13 @@ export default function CreditWorthinessScreen() {
                 <Text style={s.subtitle}>Track factors that lenders evaluate</Text>
 
                 <LowDataNotice transactionCount={transactions.length} label="your credit-worthiness score" />
+
+                <TouchableOpacity style={s.exportButton} onPress={handleExportLenderSummary} disabled={exporting}>
+                    <Text style={s.exportButtonText}>{exporting ? 'Preparing…' : '📄 Export Lender-Ready Summary'}</Text>
+                </TouchableOpacity>
+                <Text style={s.exportHint}>
+                    A shareable document banks and lenders can actually review — your score, what it's built on, and where you stand against what they check for.
+                </Text>
 
                 {/* Overall Score Card */}
                 <View style={[s.scoreCard, { borderTopColor: creditRating.color, borderTopWidth: 4 }]}>
@@ -244,12 +291,9 @@ export default function CreditWorthinessScreen() {
                 {/* Lender Requirements */}
                 <View style={s.section}>
                     <Text style={s.sectionTitle}>🏦 What Lenders Look For</Text>
-                    <LenderCheckpoint label="Credit Score" status={overallCreditScore >= 70} description="70+ score increases approval odds" />
-                    <LenderCheckpoint label="Payment History" status={creditFactors[0]?.score >= 80} description="On-time payment record" />
-                    <LenderCheckpoint label="Cash Flow" status={!!(finance.runway && finance.runway >= 90)} description="3+ months runway" />
-                    <LenderCheckpoint label="Revenue Level" status={(user?.avgMonthlyRevenue || 0) >= 200000} description={`${currency}200k+ monthly revenue`} />
-                    <LenderCheckpoint label="Business Age" status={(user?.daysActive || 0) >= 90} description="90+ days operating history" />
-                    <LenderCheckpoint label="Debt Ratio" status={creditFactors[1]?.score >= 70} description="Debt < 30% of available credit" />
+                    {lenderCheckpoints.map((c, idx) => (
+                        <LenderCheckpoint key={idx} label={c.label} status={c.met} description={c.description} />
+                    ))}
                     {!(finance.runway && finance.runway >= 90) && (
                         <NextStepLink text="Improve your cash runway" onPress={() => navigate('cashflow')} />
                     )}
@@ -302,7 +346,10 @@ const s = StyleSheet.create({
     scroll: { flex: 1 },
     pad: { padding: 16, paddingBottom: 80 },
     title: { fontSize: 28, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 4 },
-    subtitle: { fontSize: 14, color: Colors.textSecondary, marginBottom: 24 },
+    subtitle: { fontSize: 14, color: Colors.textSecondary, marginBottom: 16 },
+    exportButton: { backgroundColor: Colors.primary, borderRadius: 10, paddingVertical: 13, alignItems: 'center', marginBottom: 6 },
+    exportButtonText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+    exportHint: { fontSize: 11.5, color: Colors.textMuted, marginBottom: 20, lineHeight: 16 },
     scoreCard: {
         backgroundColor: Colors.surface,
         borderRadius: 12,
