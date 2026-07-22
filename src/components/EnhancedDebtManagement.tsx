@@ -6,6 +6,7 @@ import { computeLeverageRatios, scoreDebtToAssets, scoreDebtToEquity } from '../
 import { computeCashRunway } from '../utils/cashRunway';
 import LoanROICalculator from './LoanROICalculator';
 import BuyVsFinanceCalculator from './BuyVsFinanceCalculator';
+import GrowthAffordabilityCalculator from './GrowthAffordabilityCalculator';
 
 interface Props {
     finance: FinanceData;
@@ -214,6 +215,7 @@ export default function EnhancedDebtManagement({ finance, currency, loans = [], 
                 does paying cash vs financing do to my runway either way" —
                 the liquidity-preservation trade-off, not just cost vs return. */}
             <BuyVsFinanceCalculator currency={currency} currentCashBalance={finance.cashBalance} monthlyBurn={monthlyBurn} />
+            <GrowthAffordabilityCalculator currency={currency} currentCashBalance={finance.cashBalance} monthlyBurn={monthlyBurn} />
 
             {/* Educational Tips */}
             <View style={styles.card}>
