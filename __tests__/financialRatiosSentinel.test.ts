@@ -15,14 +15,20 @@ describe('computeFinancialRatios sentinel values', () => {
         expect(r.hasLiabilitiesData).toBe(false);
     });
 
-    it('flags hasEquityData false when no equity is recorded, even though debtToEquity is a 999 sentinel', () => {
-        const r = computeFinancialRatios({ ...baseFinance, equity: 0 }, []);
-        expect(r.hasEquityData).toBe(false);
+    it('delegates debtToEquity to the canonical debtRatios.ts computation (Infinity when equity <= 0 with real debt), instead of its own 999 sentinel', () => {
+        const r = computeFinancialRatios({ ...baseFinance, equity: 0, liabilities: 5000 }, []);
+        expect(r.debtToEquity).toBe(Infinity);
     });
 
-    it('reports real ratios with hasLiabilitiesData/hasEquityData true when both are present', () => {
+    it('flags hasAssetData false when no assets are recorded — returnOnAssets has nothing to divide by', () => {
+        const r = computeFinancialRatios({ ...baseFinance, assets: 0 }, []);
+        expect(r.hasAssetData).toBe(false);
+    });
+
+    it('reports real ratios with hasLiabilitiesData/hasAssetData true when both are present', () => {
         const r = computeFinancialRatios({ ...baseFinance, liabilities: 10000 }, []);
         expect(r.currentRatio).toBe(2); // 20000/10000
         expect(r.hasLiabilitiesData).toBe(true);
+        expect(r.hasAssetData).toBe(true);
     });
 });

@@ -1,5 +1,6 @@
 import { Transaction, FinanceData, BusinessSettings, AgingBucket, Asset, Invoice, Loan, FinancialGoal, Budget } from '../types';
 import { getWeekRanges, transactionsInRange, sumByType } from './periodRange';
+import { computeLeverageRatios } from './debtRatios';
 
 // ─── Business size classification ─────────────────────────────────────────────
 export type BusinessSize = 'micro' | 'small' | 'medium' | 'large';
@@ -646,24 +647,34 @@ export interface FinancialRatios {
     profitMargin: number;
     revenueGrowth: number;
     hasLiabilitiesData: boolean; // false when no liabilities recorded — currentRatio's 999 is a "no data" sentinel, not a real strength
-    hasEquityData: boolean;      // false when no equity recorded — debtToEquity's 999 is a "no data" sentinel, not a real weakness
+    hasAssetData: boolean;       // false when no assets recorded — returnOnAssets has nothing to divide by
 }
 
+/**
+ * debtToEquity and returnOnAssets used to be computed here AND in
+ * debtRatios.ts's computeLeverageRatios — two independent formulas that
+ * could (and did, for debt-to-assets, fixed earlier this session) silently
+ * disagree on the same Loans & Debt tab. Now this delegates those two
+ * fields to the one canonical implementation and only computes what's
+ * actually unique to this view: currentRatio, burnRate, profitMargin.
+ */
 export function computeFinancialRatios(finance: FinanceData, loans: Loan[]): FinancialRatios {
-    const totalDebt = loans.filter(l => l.status === 'active').reduce((s, l) => s + l.principal - (l.payments ?? []).reduce((ps, p) => ps + p.amount, 0), 0);
-    // 999 here is a "no liabilities/equity recorded to compare against"
-    // sentinel, not an actual extreme ratio — callers must check
-    // hasLiabilitiesData/hasEquityData before rendering it as "good".
+    const leverage = computeLeverageRatios(finance, loans);
+
+    // 999 here is a "no liabilities recorded to compare against" sentinel,
+    // not an actual extreme ratio — callers must check hasLiabilitiesData
+    // before rendering it as "good".
     const currentRatio = finance.liabilities > 0 ? finance.assets / finance.liabilities : finance.assets > 0 ? 999 : 0;
-    const debtToEquity = finance.equity > 0 ? totalDebt / finance.equity : totalDebt > 0 ? 999 : 0;
-    const returnOnAssets = finance.assets > 0 ? (finance.profit / finance.assets) * 100 : 0;
     const burnRate = finance.expense > 0 ? finance.expense / 12 : 0;
     const profitMargin = finance.income > 0 ? (finance.profit / finance.income) * 100 : 0;
     const revenueGrowth = 0; // requires historical data — placeholder
     return {
-        currentRatio, debtToEquity, returnOnAssets, burnRate, profitMargin, revenueGrowth,
+        currentRatio,
+        debtToEquity: leverage.debtToEquity,
+        returnOnAssets: leverage.returnOnAssets,
+        burnRate, profitMargin, revenueGrowth,
         hasLiabilitiesData: finance.liabilities > 0,
-        hasEquityData: finance.equity > 0,
+        hasAssetData: leverage.hasAssetData,
     };
 }
 

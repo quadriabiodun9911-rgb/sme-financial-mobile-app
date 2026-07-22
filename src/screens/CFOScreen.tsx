@@ -269,18 +269,24 @@ function FinanceTab() {
                 : ratios.currentRatio >= 1.5 ? 'Assets cover short-term debts' : 'Short-term debts may be hard to cover',
         },
         {
+            // Sourced from the same canonical computeLeverageRatios DebtAnalysis
+            // uses, so this figure can never disagree with the Loans & Debt tab.
+            // Infinity (equity <= 0 with real debt) is its own "N/A", same
+            // convention DebtAnalysis already uses.
             label: 'Debt to Equity',
-            value: ratios.hasEquityData ? ratios.debtToEquity.toFixed(2) + 'x' : 'N/A',
-            good: ratios.hasEquityData && ratios.debtToEquity <= 0.8,
-            explain: !ratios.hasEquityData
+            value: ratios.debtToEquity === Infinity ? 'N/A' : ratios.debtToEquity.toFixed(2) + 'x',
+            good: ratios.debtToEquity !== Infinity && ratios.debtToEquity <= 0.8,
+            explain: ratios.debtToEquity === Infinity
                 ? 'No equity recorded yet'
                 : ratios.debtToEquity <= 0.8 ? 'Low reliance on debt' : 'High debt relative to equity',
         },
         {
             label: 'Return on Assets',
-            value: ratios.returnOnAssets.toFixed(1) + '%',
-            good: ratios.returnOnAssets >= 10,
-            explain: ratios.returnOnAssets >= 10 ? 'Good asset productivity' : 'Assets could be working harder',
+            value: ratios.hasAssetData ? ratios.returnOnAssets.toFixed(1) + '%' : 'N/A',
+            good: ratios.hasAssetData && ratios.returnOnAssets >= 10,
+            explain: !ratios.hasAssetData
+                ? 'No assets recorded yet'
+                : ratios.returnOnAssets >= 10 ? 'Good asset productivity' : 'Assets could be working harder',
         },
         {
             label: 'Monthly Burn',
@@ -480,7 +486,6 @@ function GrowthTab() {
     const { currency } = settings;
     const debtOpt    = useMemo(() => computeDebtOptimiser(loans), [loans]);
     const payActions = useMemo(() => computePaymentOptimiser(transactions, invoices, finance.cashBalance), [transactions, invoices, finance.cashBalance]);
-    const ratios     = useMemo(() => computeFinancialRatios(finance, loans), [finance, loans]);
 
     // Pricing opportunity
     const avgTransaction = useMemo(() => {
