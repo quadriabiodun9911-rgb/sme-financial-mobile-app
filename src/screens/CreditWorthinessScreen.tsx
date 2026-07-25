@@ -11,6 +11,9 @@ import LowDataNotice from '../components/LowDataNotice';
 import NextStepLink from '../components/NextStepLink';
 import { generatePDF, sharePDF } from '../utils/pdfExport';
 import { buildLenderSummaryExport } from '../utils/lenderSummaryExport';
+import { computeDSCR } from '../utils/finance';
+import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
+import { computeDataQuality } from '../utils/dataQuality';
 
 export default function CreditWorthinessScreen() {
     const { user, finance, transactions, loans, navigate, settings } = useApp();
@@ -187,6 +190,26 @@ export default function CreditWorthinessScreen() {
         { label: 'Debt Ratio', met: (creditFactors[1]?.score ?? 0) >= 70, description: 'Debt < 30% of available credit' },
     ], [overallCreditScore, creditFactors, finance.runway, user?.avgMonthlyRevenue, user?.daysActive, currency]);
 
+    // Visibility Score: how much of this business's real history the app
+    // (and by extension a lender) can actually see — reuses the same
+    // coverage math dataQuality.ts already computes elsewhere, framed the
+    // way a fintech underwriting engine frames it: not "is the score good"
+    // but "how much of the business is visible in the first place."
+    const dataQuality = useMemo(() => computeDataQuality(transactions), [transactions]);
+
+    // Estimated Lending Capacity: an illustrative range, not a real offer —
+    // Quad360 has no visibility into any actual lender's pricing, so this
+    // must never look like a quote. hasReliableData gates it separately
+    // from the credit score itself, same "unscored vs. actually poor"
+    // distinction used throughout the credit factors above.
+    const dscrResult = useMemo(() => computeDSCR(transactions, loans), [transactions, loans]);
+    const lendingCapacity = useMemo(() => computeLendingCapacityEstimate({
+        overallCreditScore,
+        avgMonthlyRevenue: user?.avgMonthlyRevenue || 0,
+        dscr: dscrResult.dscr,
+        hasReliableData: dataQuality.confidence !== 'none' && dataQuality.confidence !== 'limited',
+    }), [overallCreditScore, user?.avgMonthlyRevenue, dscrResult.dscr, dataQuality.confidence]);
+
     const [exporting, setExporting] = useState(false);
 
     const handleExportLenderSummary = async () => {
@@ -254,6 +277,43 @@ export default function CreditWorthinessScreen() {
                             </View>
                         ))}
                     </View>
+                </View>
+
+                {/* Visibility Score */}
+                <View style={s.visibilityCard}>
+                    <Text style={s.sectionTitle}>👁️ Visibility Score</Text>
+                    <Text style={s.visibilitySub}>
+                        How much of your business's real history is actually visible right now — the more a lender can see, the more they can act on it before a problem becomes a missed payment.
+                    </Text>
+                    <View style={s.visibilityRow}>
+                        <View style={s.visibilityBar}>
+                            <View style={[s.visibilityBarFill, { width: `${Math.round(dataQuality.coveragePct)}%`, backgroundColor: dataQuality.confidence === 'strong' ? Colors.income : dataQuality.confidence === 'partial' ? Colors.warning : Colors.expense }]} />
+                        </View>
+                        <Text style={s.visibilityPct}>{Math.round(dataQuality.coveragePct)}%</Text>
+                    </View>
+                    <Text style={s.visibilityDetail}>{dataQuality.summary}</Text>
+                </View>
+
+                {/* Estimated Lending Capacity */}
+                <View style={[s.capacityCard, lendingCapacity.tier === 'not-yet-bankable' && s.capacityCardMuted]}>
+                    <Text style={s.sectionTitle}>💰 Estimated Lending Capacity</Text>
+                    <Text style={s.capacitySub}>
+                        An illustrative range based on your own numbers — not an offer from any lender, and not a guarantee. Actual terms depend on the lender you approach.
+                    </Text>
+                    {lendingCapacity.maxAmount > 0 ? (
+                        <>
+                            <Text style={s.capacityRange}>
+                                {currency}{lendingCapacity.minAmount.toLocaleString()} – {currency}{lendingCapacity.maxAmount.toLocaleString()}
+                            </Text>
+                            <View style={s.capacityMetaRow}>
+                                <Text style={s.capacityMeta}>Tier: <Text style={s.capacityMetaVal}>{lendingCapacity.tierLabel}</Text></Text>
+                                <Text style={s.capacityMeta}>Max tenure: <Text style={s.capacityMetaVal}>{lendingCapacity.maxTenureMonths} months</Text></Text>
+                            </View>
+                            <Text style={s.capacityRate}>{lendingCapacity.rateTierLabel}</Text>
+                        </>
+                    ) : (
+                        <Text style={s.capacityUnavailable}>{lendingCapacity.tierLabel} — {lendingCapacity.reason}</Text>
+                    )}
                 </View>
 
                 {/* Areas to Improve */}
@@ -386,6 +446,22 @@ const s = StyleSheet.create({
     exportButton: { backgroundColor: Colors.primary, borderRadius: 10, paddingVertical: 13, alignItems: 'center', marginBottom: 6 },
     exportButtonText: { color: '#fff', fontSize: 14, fontWeight: '700' },
     exportHint: { fontSize: 11.5, color: Colors.textMuted, marginBottom: 20, lineHeight: 16 },
+    visibilityCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 20 },
+    visibilitySub: { fontSize: 12, color: Colors.textSecondary, marginBottom: 14, lineHeight: 17 },
+    visibilityRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    visibilityBar: { flex: 1, height: 10, backgroundColor: Colors.muted, borderRadius: 5, overflow: 'hidden' },
+    visibilityBarFill: { height: 10, borderRadius: 5 },
+    visibilityPct: { fontSize: 16, fontWeight: '800', color: Colors.textPrimary, width: 48, textAlign: 'right' },
+    visibilityDetail: { fontSize: 11.5, color: Colors.textMuted, marginTop: 8 },
+    capacityCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 20, borderLeftWidth: 4, borderLeftColor: Colors.income },
+    capacityCardMuted: { borderLeftColor: Colors.textMuted },
+    capacitySub: { fontSize: 11.5, color: Colors.textMuted, marginBottom: 12, lineHeight: 16, fontStyle: 'italic' },
+    capacityRange: { fontSize: 24, fontWeight: '800', color: Colors.textPrimary, marginBottom: 8 },
+    capacityMetaRow: { flexDirection: 'row', gap: 20, marginBottom: 6 },
+    capacityMeta: { fontSize: 12, color: Colors.textSecondary },
+    capacityMetaVal: { fontWeight: '700', color: Colors.textPrimary },
+    capacityRate: { fontSize: 12.5, color: Colors.textSecondary, marginTop: 4 },
+    capacityUnavailable: { fontSize: 13, color: Colors.textSecondary, lineHeight: 19 },
     scoreCard: {
         backgroundColor: Colors.surface,
         borderRadius: 12,
