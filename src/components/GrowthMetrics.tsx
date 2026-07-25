@@ -86,6 +86,12 @@ export default function GrowthMetrics({ transactions, currency, finance }: Props
             ? ((annualRevenue - previousAnnualRevenue) / previousAnnualRevenue) * 100
             : 0;
 
+        // Scoped to this component's own trailing-12-data-months chart
+        // window — a different figure, by design, from the canonical
+        // `user.avgMonthlyRevenue` (total income / active months) that
+        // CreditWorthinessScreen/LoanEligibilityScreen use for lending
+        // decisions. Not a duplicate to consolidate; just don't assume
+        // the two will match.
         const avgMonthlyRevenue = monthlyRevenue.reduce((sum, m) => sum + m.revenue, 0) / monthlyRevenue.length;
 
         let trend = 'stable';

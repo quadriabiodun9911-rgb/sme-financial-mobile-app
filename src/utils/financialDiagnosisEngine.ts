@@ -114,16 +114,25 @@ export function calculateFinancialMetrics(
   const monthOverMonthGrowth =
     lastMonthRevenue > 0 ? ((thisMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100 : 0;
 
-  // Runway calculation — every caller of performFinancialDiagnosis passes
-  // `finance.expense`, which is an ALL-TIME cumulative total, not a
-  // monthly figure, as `monthlyExpenseAverage` (one caller divides it by
-  // active-months first, most don't). Dividing cash by a lifetime total
-  // produced wildly understated runway for any account with more than a
-  // month of history. Prefer the actual latest-month expense figure
-  // computed above; only fall back to the caller-supplied average when
-  // there's no expense data in that month to go on (e.g. a brand-new
-  // account with just a starting cash balance).
-  const effectiveMonthlyExpense = thisMonthExpenses > 0 ? thisMonthExpenses : monthlyExpenseAverage;
+  // Runway deliberately does NOT delegate to the canonical computeCashRunway
+  // (cashRunway.ts) — that function is anchored to the real system clock
+  // ("today"), which is exactly wrong here: this engine's whole point is
+  // to stay correct for historical/imported data that isn't dated near
+  // today (see the "latest data month" comment above). Swapping in
+  // computeCashRunway's "today"-anchored trailing 30 days made runway go
+  // null for any business whose data isn't recent, regressing the exact
+  // calendar-blindness bug this file exists to fix.
+  //
+  // What IS shared with computeCashRunway: only counting PAID expenses,
+  // not pending/overdue ones that haven't actually left the account yet —
+  // previously this counted every status, which could overstate burn
+  // (and understate runway) relative to every other runway figure in the
+  // app. The anchor stays "latest data month"; only the paid-only filter
+  // is now consistent with the rest of the app.
+  const thisMonthPaidExpenses = expenseTransactions
+    .filter(t => t.date.startsWith(thisMonth) && t.status === 'paid')
+    .reduce((sum, t) => sum + t.amount, 0);
+  const effectiveMonthlyExpense = thisMonthPaidExpenses > 0 ? thisMonthPaidExpenses : monthlyExpenseAverage;
   const runwayDays =
     effectiveMonthlyExpense > 0
       ? Math.floor(cashBalance / (effectiveMonthlyExpense / 30))

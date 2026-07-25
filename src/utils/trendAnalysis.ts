@@ -67,8 +67,15 @@ export interface TrendAnalysis {
     avgMonthlyProfitMargin: number;        // across all months with revenue
 }
 
-/** Group transactions into monthly revenue/expense/profit buckets. */
-export function computeMonthlyTrend(transactions: Transaction[]): MonthlyTrendPoint[] {
+/**
+ * Group transactions into monthly revenue/expense/profit buckets — every
+ * month that has any data, full history, not calendar-windowed. Named
+ * distinctly from finance.ts's computeMonthlyTrend (a trailing-N-months-
+ * from-today rolling window for charts) — the two used to share this exact
+ * name despite having incompatible shapes and semantics, which risked a
+ * future accidental cross-use.
+ */
+export function computeAllTimeMonthlyBuckets(transactions: Transaction[]): MonthlyTrendPoint[] {
     const buckets = new Map<string, { revenue: number; expense: number; count: number }>();
 
     for (const t of transactions) {
@@ -242,7 +249,7 @@ function monthsBetween(a: string, b: string): number {
 }
 
 export function analyzeTrend(transactions: Transaction[]): TrendAnalysis {
-    const monthly = computeMonthlyTrend(transactions);
+    const monthly = computeAllTimeMonthlyBuckets(transactions);
     const yearly = computeYearlyTrend(monthly);
 
     if (monthly.length === 0) {

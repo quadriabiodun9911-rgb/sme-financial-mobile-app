@@ -33,6 +33,11 @@ export default function BudgetForecast({ finance, transactions, currency, target
     const trend = useMemo(() => computeMonthlyTrend(transactions, 6), [transactions]);
     const monthsWithData = trend.filter(p => p.income > 0 || p.expense > 0).length;
 
+    // Scoped to this forecast's own trailing-6-month trend window (falling
+    // back to a lifetime/12 estimate only when there's no trend data at
+    // all) — deliberately not the canonical `user.avgMonthlyRevenue` used
+    // for lending decisions elsewhere, since a forward projection should
+    // react to recent months, not a business's full history.
     const avgMonthlyIncome  = monthsWithData > 0 ? trend.reduce((s, p) => s + p.income,  0) / Math.max(monthsWithData, 1) : finance.income  / 12;
     const avgMonthlyExpense = monthsWithData > 0 ? trend.reduce((s, p) => s + p.expense, 0) / Math.max(monthsWithData, 1) : finance.expense / 12;
 

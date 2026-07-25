@@ -95,11 +95,11 @@ export default function FinancialAssessmentScreen() {
               <Text style={styles.metricSubtext}>This month</Text>
             </View>
             <View style={styles.metricBox}>
-              <Text style={styles.metricLabel}>Profit Margin</Text>
+              <Text style={styles.metricLabel}>Profit Margin (This Month)</Text>
               <Text style={[styles.metricValue, { color: diagnosis.metrics.profitMargin > 20 ? Colors.income : Colors.warning }]}>
                 {diagnosis.metrics.profitMargin.toFixed(1)}%
               </Text>
-              <Text style={styles.metricSubtext}>Target: 20%</Text>
+              <Text style={styles.metricSubtext}>Target: 20% · differs from the all-time margin shown elsewhere</Text>
             </View>
             <View style={styles.metricBox}>
               <Text style={styles.metricLabel}>Runway</Text>

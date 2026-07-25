@@ -17,7 +17,7 @@
  */
 
 import { Transaction } from '../types';
-import { computeMonthlyTrend, MonthlyTrendPoint } from './trendAnalysis';
+import { computeAllTimeMonthlyBuckets, MonthlyTrendPoint } from './trendAnalysis';
 
 export interface InventorySalesTrendPoint {
     key: string;
@@ -56,7 +56,7 @@ function combine(monthlyRevenue: MonthlyTrendPoint[], stockSalesByMonth: Map<str
 }
 
 export function computeInventorySalesTrend(grouping: InventorySalesGrouping, transactions: Transaction[]): InventorySalesTrendPoint[] {
-    const monthlyRevenue = computeMonthlyTrend(transactions);
+    const monthlyRevenue = computeAllTimeMonthlyBuckets(transactions);
     const stockSalesByMonth = monthlyStockSales(transactions);
     const monthly = combine(monthlyRevenue, stockSalesByMonth);
     if (grouping === 'monthly' || monthly.length === 0) return monthly;

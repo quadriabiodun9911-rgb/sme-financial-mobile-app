@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { Transaction, Asset, Loan } from '../types';
-import { computeMonthlyTrend } from '../utils/trendAnalysis';
+import { computeAllTimeMonthlyBuckets } from '../utils/trendAnalysis';
 import { computeBalanceSheetTrend, BalancePeriodGrouping, BalanceSheetTrendPoint, ManualBalances } from '../utils/balanceSheetTrend';
 
 interface Props {
@@ -74,7 +74,7 @@ export default function BalanceSheetComparisonTable({ transactions, assets, loan
     const [grouping, setGrouping] = useState<BalancePeriodGrouping>('monthly');
     const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
-    const monthly = useMemo(() => computeMonthlyTrend(transactions), [transactions]);
+    const monthly = useMemo(() => computeAllTimeMonthlyBuckets(transactions), [transactions]);
     const monthKeys = useMemo(() => monthly.map(m => m.month), [monthly]);
 
     const points = useMemo(

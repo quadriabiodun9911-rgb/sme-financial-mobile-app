@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { Transaction } from '../types';
-import { computeDailyTrend, computeWeeklyTrend, computeMonthlyTrend, computeQuarterlyTrend, computeYearlyTrend, isoWeekKey } from '../utils/trendAnalysis';
+import { computeDailyTrend, computeWeeklyTrend, computeAllTimeMonthlyBuckets, computeQuarterlyTrend, computeYearlyTrend, isoWeekKey } from '../utils/trendAnalysis';
 import { projectionFactor } from '../utils/periodProjection';
 
 interface Props {
@@ -42,7 +42,7 @@ export default function PeriodComparisonTable({ transactions, currency, defaultG
 
     const daily = useMemo(() => computeDailyTrend(transactions), [transactions]);
     const weekly = useMemo(() => computeWeeklyTrend(daily), [daily]);
-    const monthly = useMemo(() => computeMonthlyTrend(transactions), [transactions]);
+    const monthly = useMemo(() => computeAllTimeMonthlyBuckets(transactions), [transactions]);
     const quarterly = useMemo(() => computeQuarterlyTrend(monthly), [monthly]);
     const yearly = useMemo(() => computeYearlyTrend(monthly), [monthly]);
 

@@ -1,4 +1,5 @@
 import { Transaction, BusinessSettings } from '../types';
+import { computeCustomerConcentration } from './finance';
 
 export interface WaterfallItem {
     label: string;
@@ -364,8 +365,21 @@ export function computeMomentum(transactions: Transaction[]): MomentumResult {
     const totalRev   = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
     const avgTxValue = totalTxs > 0 ? totalRev / totalTxs : 0;
 
-    const lastMonth = months[5];
-    const prevMonth = months[4];
+    // Growth % compares the two most recent months that actually HAVE
+    // data within this trailing-6-calendar-month window, not the fixed
+    // last two slots — those can be empty (0 revenue) if a business's
+    // most recent activity isn't dated in the real current month, which
+    // previously understated growth to 0% whenever that was the case.
+    // NOTE: this only helps when the data falls somewhere in the 6-month
+    // window built above (which stays calendar-anchored, since it also
+    // drives the Momentum chart's x-axis). A business whose entire history
+    // predates that window will still show no growth here — fully
+    // matching financialDiagnosisEngine.ts's "latest data month" anchor
+    // would need the chart window itself to move, a larger change than
+    // this fix; financialDiagnosisEngine.ts remains the more correct
+    // model if that's tackled later.
+    const lastMonth = activeMonths.length > 0 ? activeMonths[activeMonths.length - 1] : months[5];
+    const prevMonth = activeMonths.length > 1 ? activeMonths[activeMonths.length - 2] : months[4];
     const revenueGrowthPct = prevMonth.revenue > 0 ? ((lastMonth.revenue - prevMonth.revenue) / prevMonth.revenue) * 100 : 0;
     const profitGrowthPct  = prevMonth.profit  !== 0 ? ((lastMonth.profit  - prevMonth.profit)  / Math.abs(prevMonth.profit)) * 100 : 0;
 
@@ -428,25 +442,20 @@ export interface TopPerformersResult {
 }
 
 export function computeTopPerformers(transactions: Transaction[]): TopPerformersResult {
-    // Customers
-    const custMap = new Map<string, { revenue: number; txCount: number }>();
-    const totalRevenue = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+    // Customers — same grouping/risk logic finance.ts's Customer
+    // Concentration card uses, so this screen and that one never disagree
+    // about who a business's top customer is or whether it's at risk.
+    const concentration = computeCustomerConcentration(transactions).filter(c => c.customer !== 'Unknown');
 
-    transactions.filter(t => t.type === 'income' && t.vendorCustomer).forEach(t => {
-        const name = t.vendorCustomer!.split(' | ')[0].trim() || t.vendorCustomer!;
-        const e = custMap.get(name) ?? { revenue: 0, txCount: 0 };
-        e.revenue += t.amount;
-        e.txCount++;
-        custMap.set(name, e);
-    });
-
-    const topCustomers: TopCustomer[] = [...custMap.entries()]
-        .sort((a, b) => b[1].revenue - a[1].revenue)
+    const topCustomers: TopCustomer[] = concentration
         .slice(0, 5)
-        .map(([name, { revenue, txCount }]) => {
-            const sharePct = totalRevenue > 0 ? (revenue / totalRevenue) * 100 : 0;
-            return { name, revenue, txCount, sharePct, isConcentrationRisk: sharePct > 40 };
-        });
+        .map(c => ({
+            name: c.customer,
+            revenue: c.amount,
+            txCount: c.txCount,
+            sharePct: c.percentage,
+            isConcentrationRisk: c.risk === 'high',
+        }));
 
     // Categories
     const catMap = new Map<string, { revenue: number; cost: number }>();

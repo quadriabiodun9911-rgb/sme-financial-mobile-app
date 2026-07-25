@@ -1,4 +1,4 @@
-import { computeMonthlyTrend, computeQuarterlyTrend, computeYearlyTrend, computeDailyTrend, computeWeeklyTrend, analyzeTrend } from '../src/utils/trendAnalysis';
+import { computeAllTimeMonthlyBuckets, computeQuarterlyTrend, computeYearlyTrend, computeDailyTrend, computeWeeklyTrend, analyzeTrend } from '../src/utils/trendAnalysis';
 import { Transaction } from '../src/types';
 
 const makeTx = (overrides: Partial<Transaction>): Transaction => ({
@@ -61,9 +61,9 @@ describe('computeWeeklyTrend', () => {
     });
 });
 
-describe('computeMonthlyTrend', () => {
+describe('computeAllTimeMonthlyBuckets', () => {
     it('returns an empty array for no transactions', () => {
-        expect(computeMonthlyTrend([])).toEqual([]);
+        expect(computeAllTimeMonthlyBuckets([])).toEqual([]);
     });
 
     it('groups transactions into monthly revenue/expense buckets', () => {
@@ -73,7 +73,7 @@ describe('computeMonthlyTrend', () => {
             makeTx({ type: 'expense', amount: 3000, date: '2024-01-15' }),
             makeTx({ type: 'income', amount: 4000, date: '2024-02-05' }),
         ];
-        const trend = computeMonthlyTrend(txs);
+        const trend = computeAllTimeMonthlyBuckets(txs);
         expect(trend).toHaveLength(2);
         expect(trend[0]).toMatchObject({ month: '2024-01', revenue: 7000, expense: 3000, profit: 4000 });
         expect(trend[1]).toMatchObject({ month: '2024-02', revenue: 4000, expense: 0, profit: 4000 });
@@ -85,17 +85,17 @@ describe('computeMonthlyTrend', () => {
             makeTx({ date: '2023-01-01' }),
             makeTx({ date: '2024-03-01' }),
         ];
-        const trend = computeMonthlyTrend(txs);
+        const trend = computeAllTimeMonthlyBuckets(txs);
         expect(trend.map(m => m.month)).toEqual(['2023-01', '2024-03', '2025-06']);
     });
 
     it('ignores transactions with missing/malformed dates instead of crashing', () => {
         const txs = [makeTx({ date: '' }), makeTx({ date: '2024-01-01' })];
-        expect(computeMonthlyTrend(txs)).toHaveLength(1);
+        expect(computeAllTimeMonthlyBuckets(txs)).toHaveLength(1);
     });
 
     it('computes profit margin as 0 when revenue is 0', () => {
-        const trend = computeMonthlyTrend([makeTx({ type: 'expense', amount: 500, date: '2024-01-01' })]);
+        const trend = computeAllTimeMonthlyBuckets([makeTx({ type: 'expense', amount: 500, date: '2024-01-01' })]);
         expect(trend[0].profitMargin).toBe(0);
     });
 });
@@ -108,7 +108,7 @@ describe('computeQuarterlyTrend', () => {
             makeTx({ type: 'income', amount: 3000, date: '2024-04-10' }), // Q2
             makeTx({ type: 'income', amount: 4000, date: '2024-12-10' }), // Q4
         ];
-        const quarterly = computeQuarterlyTrend(computeMonthlyTrend(txs));
+        const quarterly = computeQuarterlyTrend(computeAllTimeMonthlyBuckets(txs));
         expect(quarterly).toEqual([
             expect.objectContaining({ quarter: '2024-Q1', label: 'Q1 2024', revenue: 3000, monthsWithData: 2 }),
             expect.objectContaining({ quarter: '2024-Q2', label: 'Q2 2024', revenue: 3000, monthsWithData: 1 }),
@@ -122,7 +122,7 @@ describe('computeQuarterlyTrend', () => {
             makeTx({ date: '2024-10-05' }),
             makeTx({ date: '2024-04-05' }),
         ];
-        const quarterly = computeQuarterlyTrend(computeMonthlyTrend(txs));
+        const quarterly = computeQuarterlyTrend(computeAllTimeMonthlyBuckets(txs));
         expect(quarterly.map(q => q.quarter)).toEqual(['2024-Q2', '2024-Q4', '2025-Q1']);
     });
 
@@ -138,7 +138,7 @@ describe('computeYearlyTrend', () => {
             makeTx({ type: 'income', amount: 2000, date: '2023-06-01' }),
             makeTx({ type: 'income', amount: 5000, date: '2024-01-01' }),
         ];
-        const yearly = computeYearlyTrend(computeMonthlyTrend(txs));
+        const yearly = computeYearlyTrend(computeAllTimeMonthlyBuckets(txs));
         expect(yearly).toEqual([
             expect.objectContaining({ year: '2023', revenue: 3000, monthsWithData: 2 }),
             expect.objectContaining({ year: '2024', revenue: 5000, monthsWithData: 1 }),

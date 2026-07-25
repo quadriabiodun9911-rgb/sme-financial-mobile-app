@@ -682,25 +682,40 @@ export function computeFinancialRatios(finance: FinanceData, loans: Loan[]): Fin
 export interface CustomerConcentration {
     customer: string;
     amount: number;
+    txCount: number;
     percentage: number;
     risk: 'low' | 'medium' | 'high';
 }
 
+/**
+ * The one place customer revenue gets grouped and risk-scored. Previously
+ * duplicated in profitability.ts's computeTopPerformers with a different
+ * name-normalization rule (that version stripped a " | ..." suffix some
+ * vendorCustomer values carry, e.g. "John | INV001" vs "John | INV002" —
+ * this version didn't, so the same two invoices counted as one customer on
+ * one screen and two on another) and a different risk cutoff (a strict
+ * boolean >40% there vs a three-tier low/medium/high >=40%/>=20% here).
+ * Both screens now read the same customers with the same risk tiers.
+ */
 export function computeCustomerConcentration(transactions: Transaction[]): CustomerConcentration[] {
-    const map = new Map<string, number>();
+    const map = new Map<string, { amount: number; txCount: number }>();
     let total = 0;
     for (const t of transactions) {
         if (t.type !== 'income') continue;
-        const key = t.vendorCustomer?.trim() || 'Unknown';
-        map.set(key, (map.get(key) ?? 0) + t.amount);
+        const raw = t.vendorCustomer?.split(' | ')[0]?.trim();
+        const key = raw || 'Unknown';
+        const e = map.get(key) ?? { amount: 0, txCount: 0 };
+        e.amount += t.amount;
+        e.txCount++;
+        map.set(key, e);
         total += t.amount;
     }
     return Array.from(map.entries())
-        .sort((a, b) => b[1] - a[1])
-        .map(([customer, amount]) => {
+        .sort((a, b) => b[1].amount - a[1].amount)
+        .map(([customer, { amount, txCount }]) => {
             const percentage = total > 0 ? (amount / total) * 100 : 0;
             const risk: CustomerConcentration['risk'] = percentage >= 40 ? 'high' : percentage >= 20 ? 'medium' : 'low';
-            return { customer, amount, percentage, risk };
+            return { customer, amount, txCount, percentage, risk };
         });
 }
 
