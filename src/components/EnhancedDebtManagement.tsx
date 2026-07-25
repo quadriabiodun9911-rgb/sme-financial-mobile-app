@@ -4,9 +4,11 @@ import { Colors } from '../theme/colors';
 import { FinanceData, Loan, Transaction } from '../types';
 import { computeLeverageRatios, scoreDebtToAssets, scoreDebtToEquity } from '../utils/debtRatios';
 import { computeCashRunway } from '../utils/cashRunway';
+import { loanMonthlyPayment } from '../utils/finance';
 import LoanROICalculator from './LoanROICalculator';
 import BuyVsFinanceCalculator from './BuyVsFinanceCalculator';
 import GrowthAffordabilityCalculator from './GrowthAffordabilityCalculator';
+import LoanAffordabilityChecker from './LoanAffordabilityChecker';
 
 interface Props {
     finance: FinanceData;
@@ -23,6 +25,26 @@ export default function EnhancedDebtManagement({ finance, currency, loans = [], 
     // spend a month" source, not a separate estimate invented here.
     const { dailyBurn } = computeCashRunway(transactions, finance.cashBalance);
     const monthlyBurn = dailyBurn * 30;
+
+    // Same trailing-30-day window as monthlyBurn, mirrored for paid income,
+    // so monthlyProfit is on the same clock as everything else on this tab
+    // rather than a cumulative, all-time figure.
+    const last30 = new Date();
+    last30.setDate(last30.getDate() - 30);
+    const last30Str = last30.toISOString().split('T')[0];
+    const todayStr = new Date().toISOString().split('T')[0];
+    const income30 = transactions
+        .filter(t => t.type === 'income' && t.status === 'paid' && t.date >= last30Str && t.date <= todayStr)
+        .reduce((s, t) => s + t.amount, 0);
+    const monthlyProfit = income30 - monthlyBurn;
+
+    // Structural monthly debt service from the Loan Register itself (same
+    // amortization formula DSCR uses) — independent of whether repayments
+    // happen to be logged as expense transactions, so it's never double
+    // counted against monthlyBurn.
+    const existingMonthlyDebtService = loans
+        .filter(l => l.status === 'active')
+        .reduce((s, l) => s + loanMonthlyPayment(l.principal, l.interestRate, l.termMonths), 0);
 
     // Leverage ratios (and the live loan balance they're built on) are
     // computed once, in debtRatios.ts, and shared with DebtAnalysis — both
@@ -218,6 +240,18 @@ export default function EnhancedDebtManagement({ finance, currency, loans = [], 
                 the liquidity-preservation trade-off, not just cost vs return. */}
             <BuyVsFinanceCalculator currency={currency} currentCashBalance={finance.cashBalance} monthlyBurn={monthlyBurn} />
             <GrowthAffordabilityCalculator currency={currency} currentCashBalance={finance.cashBalance} monthlyBurn={monthlyBurn} />
+
+            {/* A specific loan someone is actually considering, checked
+                against real cash flow — not "is this loan worth it" or
+                "roughly what could I borrow," but "can I absorb THIS
+                repayment." */}
+            <LoanAffordabilityChecker
+                currency={currency}
+                currentCashBalance={finance.cashBalance}
+                monthlyProfit={monthlyProfit}
+                existingMonthlyDebtService={existingMonthlyDebtService}
+                monthlyOperatingBurn={monthlyBurn}
+            />
 
             {/* Educational Tips */}
             <View style={styles.card}>
