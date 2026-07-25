@@ -80,6 +80,12 @@ export const FEATURE_INDEX: FeatureEntry[] = [
         screen: 'reports', navParams: { reportSection: 'planning', reportTab: 'cashflow' },
     },
     {
+        id: 'cash-safety', label: 'Cash Safety', icon: '🛡️',
+        description: 'Reserve coverage, AR/AP aging, and a cash flow stress test for cost spikes or payment delays',
+        keywords: ['reserve', 'aging', 'receivables', 'payables', 'stress test', 'shock', 'fuel', 'delay', 'shipping'],
+        screen: 'reports', navParams: { reportSection: 'planning', reportTab: 'cashmgmt' },
+    },
+    {
         id: 'growth-scenarios', label: 'Growth Scenarios', icon: '🚀',
         description: 'Model different growth paths and their impact on the business',
         keywords: ['budget', 'scenario', 'growth plan'],

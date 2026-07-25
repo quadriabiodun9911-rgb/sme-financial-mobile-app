@@ -3,6 +3,8 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { FinanceData, Transaction } from '../types';
 import { computeAgingBuckets } from '../utils/finance';
+import { computeCashRunway } from '../utils/cashRunway';
+import CashFlowStressTester from './CashFlowStressTester';
 
 interface Props {
     finance: FinanceData;
@@ -29,6 +31,11 @@ export default function CashManagement({ finance, transactions, currency, minRes
     const upcomingAP = apBuckets[0]?.total ?? 0;
 
     const cashAfterObligations = finance.cashBalance - upcomingAP;
+
+    // Same canonical trailing-30-day burn rate used everywhere else in the
+    // app (Runway tab, Weekly Dashboard, Loans & Debt) — one source, not a
+    // separate estimate invented here.
+    const { dailyBurn } = computeCashRunway(transactions, finance.cashBalance);
 
     const getHealthColor = (val: number, threshold: number) =>
         val >= threshold ? Colors.income : val >= threshold * 0.5 ? Colors.warning : Colors.expense;
@@ -116,6 +123,8 @@ export default function CashManagement({ finance, transactions, currency, minRes
                     <ActionItem color={Colors.income} text="Cash position is healthy and above reserve. Consider deploying surplus into growth or short-term investments." />
                 )}
             </View>
+
+            <CashFlowStressTester currency={currency} currentCashBalance={finance.cashBalance} dailyBurn={dailyBurn} />
         </View>
     );
 }
