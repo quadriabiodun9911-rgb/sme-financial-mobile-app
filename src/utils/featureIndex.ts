@@ -27,8 +27,8 @@ export const FEATURE_INDEX: FeatureEntry[] = [
     },
     {
         id: 'pricing-optimizer', label: 'Pricing Optimization', icon: '💰',
-        description: 'Model price increases, cost cuts and their effect on profit',
-        keywords: ['price', 'margin', 'profit per customer', 'scenario'],
+        description: 'Model price increases, cost cuts, their effect on profit, and the price increase needed to protect margin after a cost rise',
+        keywords: ['price', 'margin', 'profit per customer', 'scenario', 'cost increase', 'price adjustment', 'inflation'],
         screen: 'reports', navParams: { reportSection: 'growth', reportTab: 'pricing' },
     },
     {
@@ -81,8 +81,8 @@ export const FEATURE_INDEX: FeatureEntry[] = [
     },
     {
         id: 'cash-safety', label: 'Cash Safety', icon: '🛡️',
-        description: 'Reserve coverage, AR/AP aging, and a cash flow stress test for cost spikes or payment delays',
-        keywords: ['reserve', 'aging', 'receivables', 'payables', 'stress test', 'shock', 'fuel', 'delay', 'shipping'],
+        description: 'Reserve coverage, AR/AP aging, and a cash flow stress test (with scenario comparison) for cost spikes or payment delays',
+        keywords: ['reserve', 'aging', 'receivables', 'payables', 'stress test', 'shock', 'fuel', 'delay', 'shipping', 'scenario', 'compare'],
         screen: 'reports', navParams: { reportSection: 'planning', reportTab: 'cashmgmt' },
     },
     {

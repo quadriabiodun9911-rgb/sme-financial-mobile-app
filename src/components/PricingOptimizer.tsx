@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity } from 'react-native';
 import { Colors } from '../theme/colors';
 import { suggestSolution } from '../utils/impactChain';
+import { computeRequiredPriceIncrease } from '../utils/priceAdjustment';
 import NextStepLink from './NextStepLink';
 import { Invoice } from '../types';
 
@@ -17,6 +18,19 @@ export default function PricingOptimizer({ currentRevenue, currentMargin, curren
     const [priceIncrease, setPriceIncrease] = useState('10');
     const [volumeLoss, setVolumeLoss] = useState('5');
     const [costReduction, setCostReduction] = useState('0');
+
+    // Solves the same margin equation backwards from the scenarios below:
+    // "costs rose X% — what price increase keeps my margin at Y%," instead
+    // of "if I raise prices X%, what does my margin become."
+    const [costIncreaseInput, setCostIncreaseInput] = useState('20');
+    const [targetMarginInput, setTargetMarginInput] = useState(String(Math.round(currentMargin)));
+
+    const priceAdjustment = useMemo(() => computeRequiredPriceIncrease({
+        currentRevenue,
+        currentMarginPct: currentMargin,
+        costIncreasePct: parseFloat(costIncreaseInput) || 0,
+        targetMarginPct: parseFloat(targetMarginInput) || 0,
+    }), [currentRevenue, currentMargin, costIncreaseInput, targetMarginInput]);
 
     const customerCount = useMemo(
         () => new Set(invoices.map(inv => inv.clientName || 'Unknown')).size,
@@ -184,6 +198,54 @@ export default function PricingOptimizer({ currentRevenue, currentMargin, curren
                         <Text style={styles.hint}>Improve margin by reducing costs</Text>
                     </View>
                 </View>
+            </View>
+
+            {/* Price Adjustment Calculator — the inverse of the scenario
+                below: given a cost increase, what price change is needed
+                to hold a target margin. */}
+            <View style={styles.section}>
+                <Text style={styles.sectionTitle}>🧮 Price Adjustment Calculator</Text>
+                <Text style={styles.paSubtitle}>Costs went up — what price increase do you need to protect your margin?</Text>
+
+                <View style={styles.inputGroup}>
+                    <View style={styles.inputField}>
+                        <Text style={styles.label}>Cost Increase (%)</Text>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="20"
+                            placeholderTextColor={Colors.textMuted}
+                            value={costIncreaseInput}
+                            onChangeText={setCostIncreaseInput}
+                            keyboardType="decimal-pad"
+                        />
+                        <Text style={styles.hint}>How much your costs rose (fuel, materials, freight)</Text>
+                    </View>
+                    <View style={styles.inputField}>
+                        <Text style={styles.label}>Target Margin (%)</Text>
+                        <TextInput
+                            style={styles.input}
+                            placeholder={String(Math.round(currentMargin))}
+                            placeholderTextColor={Colors.textMuted}
+                            value={targetMarginInput}
+                            onChangeText={setTargetMarginInput}
+                            keyboardType="decimal-pad"
+                        />
+                        <Text style={styles.hint}>The margin you want to protect — usually your current one</Text>
+                    </View>
+                </View>
+
+                {priceAdjustment.feasible ? (
+                    <View style={[styles.paResultBox, { borderColor: priceAdjustment.requiredPriceIncreasePct > 0 ? Colors.warning : Colors.income }]}>
+                        <Text style={styles.paResultValue}>
+                            {priceAdjustment.requiredPriceIncreasePct > 0 ? '+' : ''}{priceAdjustment.requiredPriceIncreasePct.toFixed(1)}%
+                        </Text>
+                        <Text style={styles.paResultLabel}>required price increase</Text>
+                        <Text style={styles.paReason}>{priceAdjustment.reason}</Text>
+                        <Text style={styles.paCaveat}>Assumes volume holds steady — pair this with the volume-loss estimate above if you expect some pushback.</Text>
+                    </View>
+                ) : (
+                    <Text style={styles.paReason}>{priceAdjustment.reason}</Text>
+                )}
             </View>
 
             {/* Scenario Results */}
@@ -505,6 +567,12 @@ const styles = StyleSheet.create({
         fontSize: 10,
         color: Colors.textMuted,
     },
+    paSubtitle: { fontSize: 12, color: Colors.textSecondary, marginBottom: 12, lineHeight: 17 },
+    paResultBox: { backgroundColor: Colors.surface, borderRadius: 10, borderWidth: 1.5, padding: 14, alignItems: 'center' },
+    paResultValue: { fontSize: 28, fontWeight: '800', color: Colors.textPrimary },
+    paResultLabel: { fontSize: 11, color: Colors.textMuted, marginBottom: 8 },
+    paReason: { fontSize: 12, color: Colors.textSecondary, textAlign: 'center', lineHeight: 17 },
+    paCaveat: { fontSize: 10, color: Colors.textMuted, fontStyle: 'italic', textAlign: 'center', marginTop: 8, lineHeight: 14 },
     scenarioCard: {
         backgroundColor: Colors.surface,
         borderRadius: 10,

@@ -1,7 +1,18 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, TextInput, StyleSheet } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity } from 'react-native';
 import { Colors } from '../theme/colors';
-import { computeCashFlowStressTest, StressVerdict } from '../utils/cashFlowStressTest';
+import { computeCashFlowStressTest, CashFlowStressTestResult, StressVerdict } from '../utils/cashFlowStressTest';
+
+interface SavedScenario {
+    id: string;
+    name: string;
+    costIncreasePct: number;
+    collectionsDelayDays: number;
+    delayedIncome: number;
+    result: CashFlowStressTestResult;
+}
+
+const MAX_SCENARIOS = 3;
 
 interface Props {
     currency: string;
@@ -35,6 +46,8 @@ export default function CashFlowStressTester({ currency, currentCashBalance, dai
     const [costIncreasePct, setCostIncreasePct] = useState('0');
     const [delayDays, setDelayDays] = useState('0');
     const [delayedIncome, setDelayedIncome] = useState('0');
+    const [scenarioName, setScenarioName] = useState('');
+    const [savedScenarios, setSavedScenarios] = useState<SavedScenario[]>([]);
 
     const result = useMemo(() => {
         return computeCashFlowStressTest({
@@ -47,6 +60,23 @@ export default function CashFlowStressTester({ currency, currentCashBalance, dai
     }, [currentCashBalance, dailyBurn, costIncreasePct, delayDays, delayedIncome]);
 
     const hasStress = (parseFloat(costIncreasePct) || 0) > 0 || (parseFloat(delayedIncome) || 0) > 0;
+
+    const saveScenario = () => {
+        if (!hasStress || savedScenarios.length >= MAX_SCENARIOS) return;
+        setSavedScenarios(prev => [...prev, {
+            id: `${Date.now()}`,
+            name: scenarioName.trim() || `Scenario ${prev.length + 1}`,
+            costIncreasePct: parseFloat(costIncreasePct) || 0,
+            collectionsDelayDays: parseFloat(delayDays) || 0,
+            delayedIncome: parseFloat(delayedIncome) || 0,
+            result,
+        }]);
+        setScenarioName('');
+    };
+
+    const removeScenario = (id: string) => {
+        setSavedScenarios(prev => prev.filter(sc => sc.id !== id));
+    };
 
     return (
         <View style={s.card}>
@@ -88,6 +118,50 @@ export default function CashFlowStressTester({ currency, currentCashBalance, dai
             )}
             {!hasStress && (
                 <Text style={s.emptyHint}>Enter a cost increase or delayed cash amount to see the effect on your runway.</Text>
+            )}
+
+            {hasStress && savedScenarios.length < MAX_SCENARIOS && (
+                <View style={s.saveRow}>
+                    <TextInput
+                        style={s.saveInput}
+                        value={scenarioName}
+                        onChangeText={setScenarioName}
+                        placeholder={`Name this scenario (e.g. "Oil stays high 6mo")`}
+                        placeholderTextColor={Colors.textMuted}
+                    />
+                    <TouchableOpacity style={s.saveBtn} onPress={saveScenario}>
+                        <Text style={s.saveBtnText}>Save & Compare</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
+
+            {savedScenarios.length > 0 && (
+                <View style={s.compareSection}>
+                    <Text style={s.compareTitle}>Scenario Comparison</Text>
+                    <Text style={s.compareNote}>Snapshots at the time each was saved — re-save if your cash position has since changed.</Text>
+                    {savedScenarios.map(sc => (
+                        <View key={sc.id} style={[s.compareCard, { borderLeftColor: VERDICT_COLOR[sc.result.verdict] }]}>
+                            <View style={s.compareHeader}>
+                                <Text style={s.compareName}>{sc.name}</Text>
+                                <TouchableOpacity onPress={() => removeScenario(sc.id)}>
+                                    <Text style={s.compareRemove}>✕</Text>
+                                </TouchableOpacity>
+                            </View>
+                            <Text style={s.compareAssumptions}>
+                                {sc.costIncreasePct > 0 ? `+${sc.costIncreasePct}% costs` : null}
+                                {sc.costIncreasePct > 0 && sc.collectionsDelayDays > 0 ? ' · ' : null}
+                                {sc.collectionsDelayDays > 0 ? `${sc.collectionsDelayDays}-day delay` : null}
+                                {(sc.costIncreasePct > 0 || sc.collectionsDelayDays > 0) && sc.delayedIncome > 0 ? ' · ' : null}
+                                {sc.delayedIncome > 0 ? `${currency}${sc.delayedIncome.toLocaleString()} at risk` : null}
+                            </Text>
+                            <View style={s.compareStatRow}>
+                                <Text style={s.compareStatLabel}>Runway under this scenario</Text>
+                                <Text style={[s.compareStatVal, { color: VERDICT_COLOR[sc.result.verdict] }]}>{fmtDays(sc.result.stressedRunwayDays)}</Text>
+                                <Text style={[s.compareVerdictBadge, { color: VERDICT_COLOR[sc.result.verdict] }]}>{VERDICT_LABEL[sc.result.verdict]}</Text>
+                            </View>
+                        </View>
+                    ))}
+                </View>
             )}
         </View>
     );
@@ -140,4 +214,22 @@ const s = StyleSheet.create({
     verdictReason: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
 
     emptyHint: { fontSize: 12, color: Colors.textMuted, fontStyle: 'italic', marginTop: 4 },
+
+    saveRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
+    saveInput: { flex: 1, backgroundColor: Colors.bg, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 12, paddingVertical: 10, fontSize: 13, color: Colors.textPrimary },
+    saveBtn: { backgroundColor: Colors.primary, borderRadius: 8, paddingHorizontal: 14, justifyContent: 'center' },
+    saveBtnText: { color: '#fff', fontSize: 12.5, fontWeight: '700' },
+
+    compareSection: { marginTop: 16, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 14 },
+    compareTitle: { fontSize: 13.5, fontWeight: '800', color: Colors.textPrimary, marginBottom: 2 },
+    compareNote: { fontSize: 10.5, color: Colors.textMuted, fontStyle: 'italic', marginBottom: 10 },
+    compareCard: { backgroundColor: Colors.bg, borderRadius: 10, borderLeftWidth: 4, padding: 12, marginBottom: 10 },
+    compareHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+    compareName: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
+    compareRemove: { fontSize: 13, color: Colors.textMuted, paddingHorizontal: 4 },
+    compareAssumptions: { fontSize: 11, color: Colors.textSecondary, marginBottom: 8 },
+    compareStatRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    compareStatLabel: { fontSize: 11, color: Colors.textMuted, flex: 1 },
+    compareStatVal: { fontSize: 14, fontWeight: '800' },
+    compareVerdictBadge: { fontSize: 11, fontWeight: '700', marginLeft: 10 },
 });
