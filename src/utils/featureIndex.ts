@@ -122,6 +122,18 @@ export const FEATURE_INDEX: FeatureEntry[] = [
         screen: 'clarity',
     },
     {
+        id: 'credit-worthiness', label: 'Credit-Worthiness', icon: '💳',
+        description: 'Payment history, credit utilization, cash flow health, Estimated Lending Capacity, and a Lender-Ready Summary export',
+        keywords: ['credit score', 'creditworthiness', 'lender', 'bank', 'loan readiness', 'visibility score'],
+        screen: 'credit-worthiness',
+    },
+    {
+        id: 'financial-health', label: 'Financial Health (Mobile Money)', icon: '📱',
+        description: 'Pulls income and account signals from mobile money data via phone number — requires the backend integration to be deployed',
+        keywords: ['mobile money', 'pngme', 'phone', 'income verification'],
+        screen: 'financial-health',
+    },
+    {
         id: 'mission-vision', label: 'Mission, Vision & Values', icon: '🧭',
         description: 'Set your destination, how you get there daily, and how your team behaves — shown alongside your weekly priorities',
         keywords: ['mission', 'vision', 'values', 'purpose', 'guideline', 'north star', 'culture'],

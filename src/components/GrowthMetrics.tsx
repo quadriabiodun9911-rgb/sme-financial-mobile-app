@@ -23,10 +23,14 @@ export default function GrowthMetrics({ transactions, currency, finance }: Props
     const monthlyRevenue = useMemo(() => {
         const months = new Map<string, number>();
 
-        // Get last 12 months of data
+        // Get last 12 months of data — read the month directly from the
+        // "YYYY-MM-DD" string instead of via `new Date(tx.date)`, which
+        // parses as UTC midnight; reading it back with getFullYear/getMonth
+        // (local time) moves the 1st of any month into the previous month
+        // for any positive UTC offset (e.g. Nigeria, UTC+1).
         for (const tx of transactions.filter(t => t.type === 'income')) {
-            const date = new Date(tx.date);
-            const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+            const monthKey = tx.date.slice(0, 7);
+            if (monthKey.length !== 7) continue;
             months.set(monthKey, (months.get(monthKey) || 0) + tx.amount);
         }
 

@@ -343,6 +343,8 @@ function normalizeDate(dateStr: string): string {
     /(\w+)\s+(\d{1,2}),?\s+(\d{4})/,
   ];
 
+  const MONTH_NAMES = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
   for (const format of formats) {
     const match = dateStr.match(format);
     if (match) {
@@ -350,7 +352,16 @@ function normalizeDate(dateStr: string): string {
         month = 0,
         day = 0;
 
-      if (match[1].length === 4) {
+      const monthNameIndex = MONTH_NAMES.findIndex(m => match[1].toLowerCase().startsWith(m));
+      if (monthNameIndex >= 0) {
+        // "March 5, 2024" format — match[1] is a month name, not a number.
+        // The numeric branches below all parseInt(match[1]) as a day/month,
+        // which is NaN for a word — this format silently produced an
+        // "Invalid Date" transaction date before this branch existed.
+        month = monthNameIndex + 1;
+        day = parseInt(match[2]);
+        year = parseInt(match[3]);
+      } else if (match[1].length === 4) {
         year = parseInt(match[1]);
         month = parseInt(match[2]);
         day = parseInt(match[3]);
@@ -362,20 +373,28 @@ function normalizeDate(dateStr: string): string {
           month = parseInt(match[2]);
           day = parseInt(match[3]);
         } else if (parseInt(match[1]) > 12) {
+          // Unambiguous DD/MM — first number can't be a month.
           day = parseInt(match[1]);
           month = parseInt(match[2]);
         } else {
-          month = parseInt(match[1]);
-          day = parseInt(match[2]);
+          // Ambiguous (both <=12) — default to DD/MM/YYYY, this app's
+          // NGN/Nigerian bank-statement format, not US MM/DD/YYYY. See the
+          // matching fix and full explanation in bankStatementParser.ts.
+          day = parseInt(match[1]);
+          month = parseInt(match[2]);
         }
       }
 
-      const date = new Date(year, month - 1, day);
-      return date.toISOString().split('T')[0];
+      // Build the date string directly rather than round-tripping through
+      // `new Date(...).toISOString()`, which shifts the date by a day for
+      // any positive UTC offset (local midnight becomes the previous UTC
+      // day) — see the full explanation in bankStatementParser.ts.
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     }
   }
 
-  return new Date().toISOString().split('T')[0];
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
 function extractVendorCustomer(description: string): string {

@@ -35,7 +35,8 @@ export type Screen =
     | 'funding-qualification'
     | 'goal-bridge'
     | 'trends'
-    | 'tax-filing-readiness';
+    | 'tax-filing-readiness'
+    | 'financial-health';
 
 export interface Budget {
     id: string;

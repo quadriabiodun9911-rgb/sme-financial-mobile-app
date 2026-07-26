@@ -63,17 +63,17 @@ export default function DashboardScreen() {
     useEffect(() => {
         AsyncStorage.getItem('@quad360/onboarding_dismissed').then(v => {
             if (v === '1') setOnboardingDismissed(true);
-        });
+        }).catch(() => {});
         AsyncStorage.getItem('@quad360/beta_card_dismissed').then(v => {
             if (v === '1') setBetaCardDismissed(true);
-        });
+        }).catch(() => {});
     }, []);
 
     useEffect(() => {
         if (isDemoMode) return;
         AsyncStorage.getItem('@quad360/first_run_done').then(v => {
             if (!v) setShowFirstRun(true);
-        });
+        }).catch(() => {});
     }, [isDemoMode]);
 
     useEffect(() => {
@@ -83,9 +83,9 @@ export default function DashboardScreen() {
         AsyncStorage.getItem(monthKey).then(v => {
             if (!v) {
                 setShowShareCard(true);
-                AsyncStorage.setItem(monthKey, '1');
+                AsyncStorage.setItem(monthKey, '1').catch(() => {});
             }
-        });
+        }).catch(() => {});
     }, [isDemoMode, finance.profit]);
 
     const categories = qaType === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;

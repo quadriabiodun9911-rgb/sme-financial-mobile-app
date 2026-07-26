@@ -3,7 +3,7 @@ import {
     View, Text, TouchableOpacity, ScrollView,
     StyleSheet, ActivityIndicator, Alert,
 } from 'react-native';
-import { useApp } from '../contexts/AppContext';
+import { useApp } from '../contexts/OptimizedContexts';
 import { Colors } from '../theme/colors';
 import { Config } from '../config';
 import NextStepLink from '../components/NextStepLink';

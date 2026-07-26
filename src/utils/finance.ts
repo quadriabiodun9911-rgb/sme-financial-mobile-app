@@ -363,8 +363,14 @@ export function computeAgingBuckets(
     ];
 
     for (const tx of pending) {
-        const due = new Date(tx.dueDate!);
-        due.setHours(0, 0, 0, 0);
+        // Parse the "YYYY-MM-DD" dueDate as local calendar-date components
+        // directly, not via `new Date(string)` (UTC midnight) followed by
+        // `.setHours(0,0,0,0)` (re-anchors to LOCAL midnight) — that
+        // round-trip shifts the calendar date back a day for negative UTC
+        // offsets, moving transactions into the wrong aging bucket near a
+        // 30/60/90-day boundary.
+        const [dy, dm, dd] = tx.dueDate!.split('-').map(Number);
+        const due = new Date(dy, (dm || 1) - 1, dd || 1);
         const daysOverdue = Math.floor((today.getTime() - due.getTime()) / 86400000);
 
         let bucket: AgingBucket;
@@ -384,12 +390,18 @@ export function computeRecurringDates(
     lastDate: string,
     frequency: 'weekly' | 'monthly' | 'quarterly' | 'yearly'
 ): string {
-    const d = new Date(lastDate);
+    // Parse as local calendar-date components and format back the same
+    // way, instead of `new Date(lastDate)` (UTC midnight) + `.toISOString()`
+    // (converts back to UTC) — that round-trip shifted the computed next
+    // date by a day for negative UTC offsets, so a monthly bill due the
+    // 1st could recur on the last day of the prior month instead.
+    const [ly, lm, ld] = lastDate.split('-').map(Number);
+    const d = new Date(ly, (lm || 1) - 1, ld || 1);
     if (frequency === 'weekly')      d.setDate(d.getDate() + 7);
     else if (frequency === 'monthly')   d.setMonth(d.getMonth() + 1);
     else if (frequency === 'quarterly') d.setMonth(d.getMonth() + 3);
     else                                d.setFullYear(d.getFullYear() + 1);
-    return d.toISOString().split('T')[0];
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 export type ReportPeriod = 'month' | 'quarter' | 'year' | 'all' | 'custom';
@@ -733,7 +745,13 @@ export function computeSeasonalRisk(transactions: Transaction[]): SeasonalRisk[]
     const monthCounts = new Array(12).fill(0);
     for (const t of transactions) {
         if (t.type !== 'income') continue;
-        const mo = new Date(t.date).getMonth();
+        // t.date is a "YYYY-MM-DD" string, which `new Date(...)` parses as
+        // UTC midnight; reading it back with .getMonth() (local time)
+        // shifts the 1st of any month into the previous month for any
+        // positive UTC offset (e.g. Nigeria, UTC+1). Read the month
+        // directly from the string instead of round-tripping through Date.
+        const mo = parseInt(t.date.slice(5, 7), 10) - 1;
+        if (mo < 0 || mo > 11) continue;
         monthTotals[mo] += t.amount;
         monthCounts[mo]++;
     }

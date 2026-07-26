@@ -293,17 +293,26 @@ function normalizeDate(dateStr: string): string {
         month = parseInt(second);
         day = parseInt(third);
       } else if (parseInt(first) > 12) {
-        // Format: DD/MM/YYYY
+        // Format: DD/MM/YYYY — unambiguous, first number can't be a month
         day = parseInt(first);
         month = parseInt(second);
       } else {
-        // Format: MM/DD/YYYY
-        month = parseInt(first);
-        day = parseInt(second);
+        // Ambiguous (both numbers <=12, e.g. 05/03/2024) — default to
+        // DD/MM/YYYY, not MM/DD/YYYY. This app's bank-statement imports are
+        // for NGN/Nigerian SMEs, where DD/MM/YYYY is the standard bank
+        // format; defaulting to the US format silently transposed day and
+        // month for the majority of dates in any real statement (5 March
+        // read as May 3rd), corrupting monthly trends and aging buckets.
+        day = parseInt(first);
+        month = parseInt(second);
       }
 
-      const date = new Date(year, month - 1, day);
-      return date.toISOString().split('T')[0];
+      // Build the YYYY-MM-DD string directly instead of going through
+      // `new Date(...).toISOString()` — that round-trip converts a local-
+      // midnight date to UTC, which shifts the date by a day for any
+      // positive UTC offset (e.g. Nigeria, UTC+1: local midnight Jan 5 is
+      // Jan 4 23:00 UTC, so toISOString() silently returned "2024-01-04").
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     }
   }
 

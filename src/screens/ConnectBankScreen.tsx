@@ -17,7 +17,7 @@ if (Platform.OS === 'android') {
     }
 }
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useApp } from '../contexts/AppContext';
+import { useApp } from '../contexts/OptimizedContexts';
 import { Colors } from '../theme/colors';
 import { Config } from '../config';
 

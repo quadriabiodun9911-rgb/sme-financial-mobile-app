@@ -423,12 +423,7 @@ export default function TransactionsScreen() {
                         recurringTransactions={transactions.filter(t => t.isRecurring) as any[]}
                         currency={currency}
                         onEdit={openEdit}
-                        onDelete={tx => {
-                            Alert.alert('Delete', 'Remove this recurring transaction?', [
-                                { text: 'Cancel' },
-                                { text: 'Delete', onPress: () => deleteTransaction(tx.id), style: 'destructive' }
-                            ]);
-                        }}
+                        onDelete={id => deleteTransaction(id)}
                     />
                 </View>
             )}
@@ -1005,6 +1000,7 @@ const styles = StyleSheet.create({
     safe:    { flex: 1, backgroundColor: Colors.bg },
     scroll:  { flex: 1 },
     pad:     { padding: 12 },
+    recurringSection: { marginTop: 16, marginBottom: 8 },
 
     topBar:  { flexDirection: 'row', padding: 10, gap: 8, backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border },
     search:  { flex: 1, backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, color: Colors.textPrimary, fontSize: 14 },

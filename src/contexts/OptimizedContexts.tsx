@@ -10,7 +10,7 @@
 
 import React, { createContext, useContext, useState, useMemo, useEffect, useRef, useCallback, ReactNode } from 'react';
 import { Platform } from 'react-native';
-import { User, Invoice, InvoiceStatus, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, StaffMember, PayrollRun, PayrollItem, CashPocket, UserRole } from '../types';
+import { User, Invoice, InvoiceStatus, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, MerchantFinancingApplication, LoanPurpose, StaffMember, PayrollRun, PayrollItem, CashPocket, UserRole } from '../types';
 import { computeFinance, computeAssetCurrentValue } from '../utils/finance';
 import { sanitizeStoredGoals } from '../utils/goals';
 import { DEMO_BUSINESSES } from '../utils/demoData';
@@ -92,6 +92,9 @@ interface FinanceContextValue {
   addCashPocket: (name: string, amount: number) => void;
   updateCashPocket: (id: string, amount: number) => void;
   deleteCashPocket: (id: string) => void;
+
+  financing: FinancingContextData;
+  applyForMerchantFinancing: (amount: number, purpose: LoanPurpose) => Promise<void>;
 }
 
 const FinanceContext = createContext<FinanceContextValue | undefined>(undefined);
@@ -105,6 +108,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [payrollRuns, setPayrollRuns] = useState<PayrollRun[]>([]);
   const [cashPockets, setCashPockets] = useState<CashPocket[]>([]);
+  const [financing, setFinancing] = useState<FinancingContextData>({
+    isQualified: false, qualification: undefined, minQualifiedAmount: undefined,
+    maxQualifiedAmount: undefined, application: undefined, activeLoan: undefined,
+    pastApplications: [], applicationStatus: null,
+  });
   const [hydrated, setHydrated] = useState(false);
   // Re-hydrate when the signed-in user changes: on first mount there is no
   // workspace owner yet (loads local), then after login we re-pull from Supabase.
@@ -123,6 +131,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setHydrated(false);
     setTransactions([]); setAssets([]); setLoans([]); setBudgets([]); setInventory([]);
     setStaff([]); setPayrollRuns([]); setCashPockets([]);
+    setFinancing({
+      isQualified: false, qualification: undefined, minQualifiedAmount: undefined,
+      maxQualifiedAmount: undefined, application: undefined, activeLoan: undefined,
+      pastApplications: [], applicationStatus: null,
+    });
 
     // Demo mode: load straight from the bundled sample data, never from
     // AsyncStorage/Supabase — "Try Demo" previously did nothing at all
@@ -156,6 +169,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         if (st) setStaff(st);
         if (pr) setPayrollRuns(pr);
         if (cp) setCashPockets(cp);
+        const financingRaw = await AsyncStorage.getItem('@quad360/financing').catch(() => null);
+        if (financingRaw) {
+          try { setFinancing(JSON.parse(financingRaw)); } catch { /* corrupted cache, keep default */ }
+        }
         console.log(`[Finance] hydrated (user=${syncUserId ?? 'none'}): ${t?.length ?? 0} tx, ${l?.length ?? 0} loans, ${b?.length ?? 0} budgets, ${a?.length ?? 0} assets`);
       } catch (e) {
         console.error('[Finance] hydrate failed:', e);
@@ -176,6 +193,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { if (hydrated && !isDemoMode) saveStaff(staff).catch(() => {}); }, [staff, hydrated, isDemoMode]);
   useEffect(() => { if (hydrated && !isDemoMode) savePayrollRuns(payrollRuns).catch(() => {}); }, [payrollRuns, hydrated, isDemoMode]);
   useEffect(() => { if (hydrated && !isDemoMode) saveCashPockets(cashPockets).catch(() => {}); }, [cashPockets, hydrated, isDemoMode]);
+  useEffect(() => {
+    if (hydrated && !isDemoMode) AsyncStorage.setItem('@quad360/financing', JSON.stringify(financing)).catch(() => {});
+  }, [financing, hydrated, isDemoMode]);
 
   // Computed finance - memoized with specific dependency
   const finance = useMemo(() => {
@@ -333,8 +353,40 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       addCashPocket: (name, amount) => setCashPockets((prev) => [...prev, { id: genId(), name, amount, updatedAt: new Date().toISOString() }]),
       updateCashPocket: (id, amount) => setCashPockets((prev) => prev.map((p) => (p.id === id ? { ...p, amount, updatedAt: new Date().toISOString() } : p))),
       deleteCashPocket: (id) => setCashPockets((prev) => prev.filter((p) => p.id !== id)),
+
+      financing,
+      // Was a no-op stub (`() => Promise.resolve()`) that silently ignored
+      // amount/purpose — a user could submit a financing application, see a
+      // "Success" alert, and nothing was ever recorded anywhere. This
+      // actually creates and persists the application. It deliberately does
+      // NOT assign a specific lender (the abandoned implementation this was
+      // modeled on hardcoded "Zenith Bank", which Quad360 has no actual
+      // partnership with — claiming a named lender for an unmatched
+      // application would be exactly the kind of false claim this session
+      // has been removing elsewhere).
+      applyForMerchantFinancing: async (amount, purpose) => {
+        const application: MerchantFinancingApplication = {
+          id: genId(),
+          userId: syncUserId || '',
+          status: 'pending',
+          requestedAmount: amount,
+          purpose,
+          interestRate: 0,
+          termMonths: 0,
+          lenderName: 'Awaiting lender match',
+          lenderId: '',
+          appliedDate: new Date().toISOString().split('T')[0],
+          monthlyProfitAtApproval: 0,
+          monthlyProfitCurrent: 0,
+        };
+        setFinancing((prev) => ({
+          ...prev,
+          application,
+          applicationStatus: 'pending',
+        }));
+      },
     }),
-    [transactions, assets, loans, budgets, inventory, staff, payrollRuns, cashPockets, finance]
+    [transactions, assets, loans, budgets, inventory, staff, payrollRuns, cashPockets, financing, syncUserId, finance]
   );
 
   return (
@@ -1208,15 +1260,10 @@ export function useApp() {
     isDemoMode: auth.isDemoMode ?? false,
     exitDemo: auth.exitDemo || (() => {}),
     cashPockets: finance?.cashPockets ?? [],
-    financing: {
-      isQualified: false,
-      qualification: undefined,
-      minQualifiedAmount: undefined,
-      maxQualifiedAmount: undefined,
-      application: undefined,
-      activeLoan: undefined,
-      pastApplications: [],
-      applicationStatus: null,
+    financing: finance?.financing ?? {
+      isQualified: false, qualification: undefined, minQualifiedAmount: undefined,
+      maxQualifiedAmount: undefined, application: undefined, activeLoan: undefined,
+      pastApplications: [], applicationStatus: null,
     },
 
     // Payroll & Staff (should be in separate context, but added here for compatibility)
@@ -1244,7 +1291,7 @@ export function useApp() {
     pendingSyncCount: 0,
     lockoutUntil: auth.lockoutUntil,
     isLockedOut: auth.isLockedOut,
-    applyForMerchantFinancing: () => Promise.resolve(),
+    applyForMerchantFinancing: finance?.applyForMerchantFinancing || (async () => {}),
     setupAccount: auth.setupAccount,
     updateProfile: auth.updateProfile || (() => {}),
     updateInventoryItem: finance?.updateInventoryItem || (() => {}),
@@ -1253,7 +1300,13 @@ export function useApp() {
     updateCashPocket: finance?.updateCashPocket || (() => {}),
     addCashPocket: finance?.addCashPocket || (() => {}),
     deleteCashPocket: finance?.deleteCashPocket || (() => {}),
-    changePin: auth.changePin || (async () => ({ ok: false })),
+    // Explicit return type on the fallback so it matches auth.changePin's
+    // signature exactly instead of TypeScript inferring a narrower
+    // `{ok:false}` literal and unioning the two into an undiscriminated
+    // `{ok:boolean,...}|{ok:false}` — harmless today since every call site
+    // reads `.lockedUntil` as optional-and-undefined-safe, but a real
+    // hazard if the shape changes later without this being caught.
+    changePin: auth.changePin || (async (): Promise<{ ok: boolean; lockedUntil?: number; cloudSynced?: boolean }> => ({ ok: false })),
     clearData: auth.clearData || (() => Promise.resolve()),
     resetApp: auth.resetApp || (() => Promise.resolve()),
     resetBusinessData: auth.resetBusinessData || (() => Promise.resolve()),
