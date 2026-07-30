@@ -2,6 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity } from 'react-native';
 import { Colors } from '../theme/colors';
 import { computeCashFlowStressTest, CashFlowStressTestResult, StressVerdict } from '../utils/cashFlowStressTest';
+import DataConfidenceBadge from './DataConfidenceBadge';
+import { Transaction } from '../types';
 
 interface SavedScenario {
     id: string;
@@ -18,6 +20,7 @@ interface Props {
     currency: string;
     currentCashBalance: number;
     dailyBurn: number;
+    transactions: Transaction[];
 }
 
 function fmtDays(n: number): string {
@@ -42,7 +45,7 @@ const VERDICT_LABEL: Record<StressVerdict, string> = {
 // The value is turning a headline about shipping delays or fuel spikes
 // into a concrete answer against this business's own cash position,
 // instead of a vague sense of unease.
-export default function CashFlowStressTester({ currency, currentCashBalance, dailyBurn }: Props) {
+export default function CashFlowStressTester({ currency, currentCashBalance, dailyBurn, transactions }: Props) {
     const [costIncreasePct, setCostIncreasePct] = useState('0');
     const [delayDays, setDelayDays] = useState('0');
     const [delayedIncome, setDelayedIncome] = useState('0');
@@ -84,6 +87,8 @@ export default function CashFlowStressTester({ currency, currentCashBalance, dai
             <Text style={s.subtitle}>
                 Model a shock — rising fuel/input costs, a delayed shipment, slower-paying customers — against your real cash position, before it actually happens.
             </Text>
+
+            <DataConfidenceBadge transactions={transactions} />
 
             <Field label="Cost Increase (fuel, freight, materials)" suffix="%" value={costIncreasePct} onChange={setCostIncreasePct} placeholder="0" hint="e.g. 20 for a 20% rise in what you pay to run the business" />
             <View style={s.row}>

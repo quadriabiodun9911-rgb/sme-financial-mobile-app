@@ -251,6 +251,7 @@ export default function EnhancedDebtManagement({ finance, currency, loans = [], 
                 monthlyProfit={monthlyProfit}
                 existingMonthlyDebtService={existingMonthlyDebtService}
                 monthlyOperatingBurn={monthlyBurn}
+                transactions={transactions}
             />
 
             {/* Educational Tips */}

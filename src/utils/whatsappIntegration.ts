@@ -216,6 +216,7 @@ const openWhatsAppWithMessage = (phoneNumber: string, message: string) => {
     const url = Platform.select({
       ios: `whatsapp://wa.me/${formattedPhone}?text=${encodedMessage}`,
       android: `whatsapp://send?phone=${formattedPhone}&text=${encodedMessage}`,
+      default: `https://wa.me/${formattedPhone}?text=${encodedMessage}`,
     });
 
     if (url) {
@@ -230,6 +231,17 @@ const openWhatsAppWithMessage = (phoneNumber: string, message: string) => {
     console.error('Error opening WhatsApp:', error);
     Alert.alert('Error', 'Failed to open WhatsApp.');
   }
+};
+
+// ─── Open a chat with Quad360 support ──────────────────────────────────────
+// Uses the universal wa.me link (not app deep-link schemes) so it works
+// identically on web, iOS, and Android — this is the entry point for the
+// "human-reachable support" layer, not an automated alert to a customer.
+export const openSupportChat = (supportNumber: string, prefillMessage?: string): boolean => {
+  if (!supportNumber) return false;
+  const message = prefillMessage ?? 'Hi Quad360, I need help with my account.';
+  openWhatsAppWithMessage(supportNumber, message);
+  return true;
 };
 
 // ─── Send automated overdue invoice alert ─────────────────────────────────

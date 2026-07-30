@@ -2,6 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity } from 'react-native';
 import { Colors } from '../theme/colors';
 import { computeLoanAffordabilityCheck, LoanAffordabilityVerdict } from '../utils/loanAffordabilityCheck';
+import DataConfidenceBadge from './DataConfidenceBadge';
+import { Transaction } from '../types';
 
 interface Props {
     currency: string;
@@ -9,6 +11,7 @@ interface Props {
     monthlyProfit: number;
     existingMonthlyDebtService: number;
     monthlyOperatingBurn: number;
+    transactions: Transaction[];
 }
 
 const PURPOSES = [
@@ -43,7 +46,7 @@ const VERDICT_LABEL: Record<LoanAffordabilityVerdict, string> = {
 // against real cash flow, the way a lender's own affordability check
 // would, using the business's own numbers rather than a black-box score.
 export default function LoanAffordabilityChecker({
-    currency, currentCashBalance, monthlyProfit, existingMonthlyDebtService, monthlyOperatingBurn,
+    currency, currentCashBalance, monthlyProfit, existingMonthlyDebtService, monthlyOperatingBurn, transactions,
 }: Props) {
     const [amount, setAmount] = useState('');
     const [rate, setRate] = useState('15');
@@ -67,6 +70,8 @@ export default function LoanAffordabilityChecker({
             <Text style={s.subtitle}>
                 Not "am I approved" — "can my actual cash flow absorb this specific repayment." Checked against your average profit and existing debt, not a guess.
             </Text>
+
+            <DataConfidenceBadge transactions={transactions} />
 
             <Field label="Loan Amount" currency={currency} value={amount} onChange={setAmount} placeholder="5,000,000" />
             <View style={s.row}>

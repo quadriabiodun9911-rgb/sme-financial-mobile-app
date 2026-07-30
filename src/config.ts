@@ -14,6 +14,11 @@ export const Config = {
     // Driven by APP_ENV set in eas.json build profiles
     IS_PRODUCTION: process.env.APP_ENV === 'production',
 
+    // WhatsApp support contact — left empty until a real number is provisioned.
+    // Set EXPO_PUBLIC_SUPPORT_WHATSAPP_NUMBER in .env.local (E.164, no "+").
+    // Never hardcode a placeholder number here — the UI must handle "" gracefully.
+    SUPPORT_WHATSAPP_NUMBER: process.env.EXPO_PUBLIC_SUPPORT_WHATSAPP_NUMBER ?? '',
+
     get PNGME_SDK_TOKEN(): string {
         return this.IS_PRODUCTION ? this.PNGME_SDK_TOKEN_PROD : this.PNGME_SDK_TOKEN_TEST;
     },

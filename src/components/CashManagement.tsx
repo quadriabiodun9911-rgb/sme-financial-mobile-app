@@ -124,7 +124,7 @@ export default function CashManagement({ finance, transactions, currency, minRes
                 )}
             </View>
 
-            <CashFlowStressTester currency={currency} currentCashBalance={finance.cashBalance} dailyBurn={dailyBurn} />
+            <CashFlowStressTester currency={currency} currentCashBalance={finance.cashBalance} dailyBurn={dailyBurn} transactions={transactions} />
         </View>
     );
 }

@@ -292,6 +292,17 @@ export default function CreditWorthinessScreen() {
                         <Text style={s.visibilityPct}>{Math.round(dataQuality.coveragePct)}%</Text>
                     </View>
                     <Text style={s.visibilityDetail}>{dataQuality.summary}</Text>
+                    {dataQuality.confidence !== 'strong' && (
+                        <View style={s.visibilityUnlockBox}>
+                            <Text style={s.visibilityUnlockText}>
+                                {dataQuality.confidence === 'none' && 'Add transactions to unlock a Visibility Score and an Estimated Lending Capacity range below.'}
+                                {dataQuality.confidence === 'limited' && 'Keep logging — once your history is strong enough to be reliable, this unlocks an Estimated Lending Capacity range below.'}
+                                {dataQuality.confidence === 'partial' && (lendingCapacity.tier === 'not-yet-bankable'
+                                    ? 'A few more months of consistent history moves this toward an active Estimated Lending Capacity range.'
+                                    : 'More months of consistent history typically moves the Estimated Lending Capacity range below into a higher, more precise tier.')}
+                            </Text>
+                        </View>
+                    )}
                 </View>
 
                 {/* Estimated Lending Capacity */}
@@ -453,6 +464,8 @@ const s = StyleSheet.create({
     visibilityBarFill: { height: 10, borderRadius: 5 },
     visibilityPct: { fontSize: 16, fontWeight: '800', color: Colors.textPrimary, width: 48, textAlign: 'right' },
     visibilityDetail: { fontSize: 11.5, color: Colors.textMuted, marginTop: 8 },
+    visibilityUnlockBox: { marginTop: 10, backgroundColor: Colors.bg, borderRadius: 8, padding: 10, borderWidth: 1, borderColor: Colors.border },
+    visibilityUnlockText: { fontSize: 11.5, color: Colors.textSecondary, lineHeight: 16 },
     capacityCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 20, borderLeftWidth: 4, borderLeftColor: Colors.income },
     capacityCardMuted: { borderLeftColor: Colors.textMuted },
     capacitySub: { fontSize: 11.5, color: Colors.textMuted, marginBottom: 12, lineHeight: 16, fontStyle: 'italic' },

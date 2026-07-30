@@ -11,6 +11,8 @@ import DateInput from '../components/DateInput';
 import { BusinessSettings } from '../types';
 import { t, LANGUAGES } from '../utils/i18n';
 import { generateAccountantReportCSV } from '../utils/finance';
+import { Config } from '../config';
+import { openSupportChat } from '../utils/whatsappIntegration';
 
 const CURRENCIES = [
     { label: 'USD ($)',    value: '$'   },
@@ -477,6 +479,24 @@ export default function SettingsScreen() {
                             </Section>
                         </CollapsibleSection>
                     )}
+
+                    {/* Help & Support */}
+                    <CollapsibleSection title="Help & Support" defaultOpen={false}>
+                        <Section title="Talk to a Human">
+                            <Text style={styles.hint}>
+                                {Config.SUPPORT_WHATSAPP_NUMBER
+                                    ? "Have a question or stuck on something? Chat with the Quad360 team directly on WhatsApp."
+                                    : "WhatsApp support isn't set up on this deployment yet — a support number needs to be configured before this can go live."}
+                            </Text>
+                            <TouchableOpacity
+                                style={[styles.dataBtn, !Config.SUPPORT_WHATSAPP_NUMBER && { opacity: 0.5 }]}
+                                disabled={!Config.SUPPORT_WHATSAPP_NUMBER}
+                                onPress={() => openSupportChat(Config.SUPPORT_WHATSAPP_NUMBER)}
+                            >
+                                <Text style={styles.dataBtnText}>💬  Chat on WhatsApp</Text>
+                            </TouchableOpacity>
+                        </Section>
+                    </CollapsibleSection>
 
                     {/* Danger Zone */}
                     <CollapsibleSection title="Danger Zone" defaultOpen={false}>
