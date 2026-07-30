@@ -12,6 +12,7 @@ import FooterNav from '../components/FooterNav';
 import NextStepLink from '../components/NextStepLink';
 import PeriodComparisonTable from '../components/PeriodComparisonTable';
 import { suggestSolution } from '../utils/impactChain';
+import { computeStockVelocity } from '../utils/stockVelocity';
 import { InventoryItem } from '../types';
 
 type InventoryTab = 'stock' | 'analytics';
@@ -195,6 +196,20 @@ export default function InventoryScreen() {
         return Colors.expense;
     };
 
+    // ── Stock velocity helpers ────────────────────────────────────────────────
+    const velocityColor = (tier: ReturnType<typeof computeStockVelocity>['tier']): string => {
+        if (tier === 'fast') return Colors.warning;
+        if (tier === 'moderate') return Colors.income;
+        if (tier === 'slow') return Colors.expense;
+        return Colors.textMuted;
+    };
+    const velocityEmoji = (tier: ReturnType<typeof computeStockVelocity>['tier']): string => {
+        if (tier === 'fast') return '🐇';
+        if (tier === 'moderate') return '🚶';
+        if (tier === 'slow') return '🐢';
+        return 'ℹ️';
+    };
+
     return (
         <SafeAreaView style={styles.safe}>
             <Header />
@@ -272,6 +287,7 @@ export default function InventoryScreen() {
                                 ? ((item.sellingPrice - item.costPrice) / item.sellingPrice) * 100
                                 : 0;
                             const stockVal = item.quantity * item.costPrice;
+                            const velocity = computeStockVelocity(item, transactions);
 
                             return (
                                 <View key={item.id} style={styles.itemCard}>
@@ -319,6 +335,11 @@ export default function InventoryScreen() {
                                     <View style={styles.itemFooter}>
                                         <Text style={styles.stockValLabel}>Stock value: </Text>
                                         <Text style={styles.stockValNum}>{currency}{stockVal.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</Text>
+                                    </View>
+
+                                    <View style={[styles.velocityRow, { borderColor: velocityColor(velocity.tier) }]}>
+                                        <Text style={styles.velocityEmoji}>{velocityEmoji(velocity.tier)}</Text>
+                                        <Text style={[styles.velocityText, { color: velocityColor(velocity.tier) }]}>{velocity.summary}</Text>
                                     </View>
                                 </View>
                             );
@@ -656,6 +677,9 @@ const styles = StyleSheet.create({
     itemFooter:    { flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 8 },
     stockValLabel: { fontSize: 11, color: Colors.textMuted },
     stockValNum:   { fontSize: 12, fontWeight: 'bold', color: Colors.asset },
+    velocityRow:   { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: 8, borderWidth: 1, borderRadius: 8, padding: 8 },
+    velocityEmoji: { fontSize: 13 },
+    velocityText:  { flex: 1, fontSize: 11, lineHeight: 15 },
 
     // Analytics
     analyticsCard:      { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, marginBottom: 12 },
