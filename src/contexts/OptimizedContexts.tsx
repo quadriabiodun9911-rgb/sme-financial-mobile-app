@@ -660,7 +660,7 @@ interface AuthContextValue {
   isFirstLaunch: boolean;
   isLockedOut: boolean;
   lockoutUntil: number | null;
-  setupAccount: (email: string, businessName: string, pin: string, loadDemo: boolean, phone?: string) => Promise<void>;
+  setupAccount: (email: string, businessName: string, pin: string, loadDemo: boolean, phone?: string, initialSettings?: Partial<BusinessSettings>) => Promise<void>;
   recoverAccount: (email: string, pin: string) => Promise<void>;
   joinTeam: (email: string, pin: string, inviteCode: string) => Promise<void>;
 }
@@ -838,7 +838,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setIsLoading(false);
         }
       },
-      setupAccount: async (email, businessName, pin, _loadDemo, phone) => {
+      setupAccount: async (email, businessName, pin, _loadDemo, phone, initialSettings) => {
         // Supabase auth is best-effort — never block local account creation.
         try {
           const { error: signUpError } = await supabase.auth.signUp({ email, password: hashPin(pin) });
@@ -862,6 +862,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Stamp the real signup date so 'days active' reflects actual history
         // instead of always reading 0 (the field was never set anywhere before).
         await saveProfile({ email, businessName, phone, createdAt: new Date().toISOString() });
+        // Persist signup choices (currency, industry) to storage BEFORE setUser
+        // fires the settings-hydrate effect below (keyed on the user's email) —
+        // that effect resets settings to DEFAULT_SETTINGS and then re-loads from
+        // storage, so if the caller's own updateSettings() call after setupAccount()
+        // loses that timing race, the correct values are still picked up on load
+        // instead of silently reverting to defaults.
+        if (initialSettings) {
+            await saveSettings({ ...DEFAULT_SETTINGS, ...initialSettings }).catch(() => {});
+        }
         setIsFirstLaunch(false);
         setUser({ email, businessName, role: 'Administrator', phone, createdAt: new Date().toISOString() });
         // First-run choice — upload a statement or set a goal — rather than

@@ -150,7 +150,11 @@ export default function LoginScreen() {
         setSubmitting(true);
         try {
             setLanguage(setupLang);
-            await setupAccount(email.trim(), business.trim(), pin, false, phone.trim());
+            // Passed through setupAccount (not just updateSettings afterward) so
+            // it's persisted before the post-signup settings-hydrate effect
+            // resets/reloads settings — otherwise the chosen currency/industry can
+            // be silently overwritten back to defaults by that reset.
+            await setupAccount(email.trim(), business.trim(), pin, false, phone.trim(), { currency, industry });
             updateSettings({ currency, industry });
         } catch (e: any) {
             const msg: string = e?.message ?? '';
