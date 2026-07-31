@@ -1,4 +1,4 @@
-import { Transaction, Asset, Loan, InventoryItem, Invoice } from '../types';
+import { Transaction, Asset, Loan, InventoryItem, Invoice, Industry } from '../types';
 
 export interface DemoBusiness {
     id: string;
@@ -9,6 +9,7 @@ export interface DemoBusiness {
     description: string;
     currency: string;
     businessName: string;
+    industry?: Industry;
     transactions: Transaction[];
     assets: Asset[];
     loans: Loan[];
@@ -35,6 +36,7 @@ export const DEMO_BUSINESSES: DemoBusiness[] = [
         description: 'Clothing & accessories retailer, Lagos',
         currency: '₦',
         businessName: 'Adunola Fashion Store',
+        industry: 'retail',
         transactions: [
             { id: 'ng1',  date: d(1),  description: 'Sales — Ankara dresses',         type: 'income',  category: 'Sales',           amount: 85000,  status: 'paid' },
             { id: 'ng2',  date: d(2),  description: 'Sales — Shoes & handbags',        type: 'income',  category: 'Sales',           amount: 42000,  status: 'paid' },
@@ -116,6 +118,7 @@ export const DEMO_BUSINESSES: DemoBusiness[] = [
         description: 'Township eatery & events catering, Soweto',
         currency: 'R',
         businessName: 'Mama Zanele Kitchen',
+        industry: 'food-service',
         transactions: [
             { id: 'za1',  date: d(1),  description: 'Daily restaurant sales',          type: 'income',  category: 'Sales',          amount: 3850,  status: 'paid' },
             { id: 'za2',  date: d(2),  description: 'Catering — corporate lunch 80pax',type: 'income',  category: 'Catering',       amount: 12000, status: 'paid' },
@@ -329,6 +332,7 @@ export const DEMO_BUSINESSES: DemoBusiness[] = [
         description: 'Cement, rebar & roofing distributor, Nairobi',
         currency: 'KSh',
         businessName: 'Kamau Building Supplies',
+        industry: 'retail',
         transactions: [
             { id: 'ke1',  date: d(1),  description: 'Bulk sale — cement to contractor',      type: 'income',  category: 'Sales',           amount: 185000, status: 'paid' },
             { id: 'ke2',  date: d(2),  description: 'Sale — roofing sheets, retail shop',    type: 'income',  category: 'Sales',           amount: 62000,  status: 'paid' },

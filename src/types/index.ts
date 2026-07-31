@@ -202,9 +202,16 @@ export interface User {
     createdAt?: string;
 }
 
+// Drives which industry-specific features show up (e.g. Recipe/Menu Item
+// Costing only makes sense for food service — showing it to a retailer or
+// consultant would just be clutter). 'general' is the default for anyone
+// who doesn't fit retail or food service, or hasn't set this yet.
+export type Industry = 'general' | 'retail' | 'food-service';
+
 export interface BusinessSettings {
     businessName?: string;
     businessType: 'product' | 'service' | 'both';
+    industry?: Industry;
     currency: string;
     currencyCode: string;  // ISO code e.g. 'NGN', 'USD'
     minReserve: string;

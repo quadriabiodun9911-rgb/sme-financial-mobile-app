@@ -558,6 +558,7 @@ const SettingsContext = createContext<SettingsContextValue | undefined>(undefine
 
 const DEFAULT_SETTINGS: BusinessSettings = {
   businessType: 'both',
+  industry: 'general',
   currency: '₦',
   currencyCode: 'NGN',
   minReserve: '0',
@@ -586,7 +587,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
     if (isDemoMode) {
       const biz = DEMO_BUSINESSES.find((b) => b.id === demoBusinessId);
-      if (biz) setSettings((prev) => ({ ...prev, currency: biz.currency }));
+      if (biz) setSettings((prev) => ({ ...prev, currency: biz.currency, industry: biz.industry ?? 'general' }));
       setHydrated(true);
       return;
     }

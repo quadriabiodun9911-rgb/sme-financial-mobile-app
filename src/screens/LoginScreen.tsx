@@ -10,6 +10,7 @@ import { DEMO_BUSINESSES } from '../utils/demoData';
 import { trackUserLoggedIn, identifyUser } from '../utils/analytics';
 import { supabase } from '../utils/supabase';
 import { savePin, saveProfile } from '../utils/storage';
+import { Industry } from '../types';
 import CryptoJS from 'crypto-js';
 
 const SALT = 'Q360_SME_2025';
@@ -31,6 +32,12 @@ const CURRENCIES = [
     { label: 'CNY (¥)',   value: '¥'   },
     { label: 'CAD (C$)',  value: 'C$'  },
     { label: 'AUD (A$)',  value: 'A$'  },
+];
+
+const INDUSTRIES: { label: string; value: Industry; hint: string }[] = [
+    { label: '🏬 Retail / Wholesale', value: 'retail', hint: 'Shops, boutiques, distributors — anything that buys and resells stock' },
+    { label: '🍽️ Food Service', value: 'food-service', hint: 'Restaurants, catering, food stalls — recipe & food cost tools' },
+    { label: '🏢 General / Other', value: 'general', hint: 'Services, professionals, or anything else' },
 ];
 
 function detectLocaleCurrency(): string {
@@ -108,6 +115,7 @@ export default function LoginScreen() {
     const [pin, setPin]             = useState('');
     const [confirmPin, setConfirm]  = useState('');
     const [currency, setCurrency]   = useState(detectLocaleCurrency);
+    const [industry, setIndustry]   = useState<Industry>('general');
     const [setupLang, setSetupLang] = useState<Language>(language);
     const [submitting, setSubmitting] = useState(false);
 
@@ -141,7 +149,7 @@ export default function LoginScreen() {
         try {
             setLanguage(setupLang);
             await setupAccount(email.trim(), business.trim(), pin, false, phone.trim());
-            updateSettings({ currency });
+            updateSettings({ currency, industry });
         } catch (e: any) {
             const msg: string = e?.message ?? '';
             if (msg.toLowerCase().includes('already registered') || msg.toLowerCase().includes('already been registered') || msg.toLowerCase().includes('user already exists') || msg.toLowerCase().includes('email address is already')) {
@@ -656,6 +664,25 @@ export default function LoginScreen() {
                             </TouchableOpacity>
                         </Field>
 
+                        {/* Industry — drives which industry-specific tools show up later
+                            (e.g. Recipe/Menu Item Costing only for Food Service), so it
+                            doesn't clutter a retailer's or consultant's app. */}
+                        <Field label="What kind of business is this?">
+                            {INDUSTRIES.map(ind => (
+                                <TouchableOpacity
+                                    key={ind.value}
+                                    style={[styles.industryOption, industry === ind.value && styles.industryOptionActive]}
+                                    onPress={() => setIndustry(ind.value)}
+                                >
+                                    <View style={styles.flex}>
+                                        <Text style={[styles.industryLabel, industry === ind.value && styles.industryLabelActive]}>{ind.label}</Text>
+                                        <Text style={styles.industryHint}>{ind.hint}</Text>
+                                    </View>
+                                    {industry === ind.value && <Text style={styles.industryCheck}>✓</Text>}
+                                </TouchableOpacity>
+                            ))}
+                        </Field>
+
                         <TouchableOpacity style={[styles.btn, submitting && styles.btnDisabled]} onPress={handleSetup} disabled={submitting}>
                             {submitting
                                 ? <ActivityIndicator color="#fff" />
@@ -862,6 +889,18 @@ const styles = StyleSheet.create({
     },
     currencySelected: { fontSize: 14, color: Colors.textPrimary, fontWeight: '600' },
     currencyChevron:  { fontSize: 16, color: Colors.muted },
+
+    flex: { flex: 1 },
+    industryOption: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+        borderWidth: 1, borderColor: Colors.border, borderRadius: 10,
+        backgroundColor: Colors.bg, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 8,
+    },
+    industryOptionActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + '15' },
+    industryLabel: { fontSize: 13.5, fontWeight: '600', color: Colors.textPrimary },
+    industryLabelActive: { color: Colors.primary },
+    industryHint: { fontSize: 11, color: Colors.muted, marginTop: 2, lineHeight: 15 },
+    industryCheck: { fontSize: 16, color: Colors.primary, fontWeight: '700', marginLeft: 8 },
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
     currencyModal: {
         backgroundColor: Colors.surface, borderTopLeftRadius: 18, borderTopRightRadius: 18,

@@ -182,6 +182,7 @@ const ATTEMPTS_KEY = 'quad360_loginAttempts';
 
 const DEFAULT_SETTINGS: BusinessSettings = {
     businessType: 'both',
+    industry: 'general',
     currency: '₦',
     currencyCode: 'NGN',
     minReserve: '5000',
@@ -549,7 +550,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setLoans(biz.loans);
         setInventory(biz.inventory);
         setInvoices(biz.invoices);
-        setSettings(prev => ({ ...prev, currency: biz.currency }));
+        setSettings(prev => ({ ...prev, currency: biz.currency, industry: biz.industry ?? 'general' }));
         setUser({ email: 'demo@quad360.app', businessName: biz.businessName, role: 'Administrator' });
         setCurrentScreen('dashboard');
     };

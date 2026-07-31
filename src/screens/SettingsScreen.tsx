@@ -36,6 +36,12 @@ const BUSINESS_TYPES: { label: string; value: BusinessSettings['businessType'] }
     { label: 'Both',    value: 'both'    },
 ];
 
+const INDUSTRIES: { label: string; value: NonNullable<BusinessSettings['industry']> }[] = [
+    { label: '🏬 Retail / Wholesale', value: 'retail' },
+    { label: '🍽️ Food Service', value: 'food-service' },
+    { label: '🏢 General / Other', value: 'general' },
+];
+
 export default function SettingsScreen() {
     const {
         settings, updateSettings, setCurrentScreen,
@@ -328,6 +334,21 @@ export default function SettingsScreen() {
                                 {BUSINESS_TYPES.map(bt => (
                                     <Opt key={bt.value} label={bt.label} active={form.businessType === bt.value}
                                         onPress={() => setForm((f: typeof form) => ({ ...f, businessType: bt.value }))} />
+                                ))}
+                            </View>
+                        </Section>
+
+                        {/* Drives which industry-specific tools show up (e.g. Recipe/Menu
+                            Item Costing is Food Service only) — doesn't clutter a
+                            retailer's or consultant's app with tools that don't apply. */}
+                        <Section title="Industry">
+                            <Text style={styles.hint}>
+                                Unlocks tools built for how your industry actually works — e.g. food cost costing for Food Service.
+                            </Text>
+                            <View style={styles.optRow}>
+                                {INDUSTRIES.map(ind => (
+                                    <Opt key={ind.value} label={ind.label} active={(form.industry ?? 'general') === ind.value}
+                                        onPress={() => setForm((f: typeof form) => ({ ...f, industry: ind.value }))} />
                                 ))}
                             </View>
                         </Section>

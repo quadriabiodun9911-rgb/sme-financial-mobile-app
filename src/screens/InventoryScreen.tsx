@@ -472,8 +472,12 @@ export default function InventoryScreen() {
                         )}
 
                         {/* Recipe / menu item food cost — built on the same ingredient
-                            cost-per-unit data as the rest of Inventory */}
-                        <RecipeCostCalculator inventory={inventory} currency={currency} />
+                            cost-per-unit data as the rest of Inventory. Food Service
+                            only: showing this to a retailer or distributor would just
+                            be clutter that doesn't apply to how their business works. */}
+                        {settings.industry === 'food-service' && (
+                            <RecipeCostCalculator inventory={inventory} currency={currency} />
+                        )}
 
                         {/* Use in Reports button */}
                         <TouchableOpacity
