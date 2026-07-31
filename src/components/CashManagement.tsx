@@ -5,6 +5,7 @@ import { FinanceData, Transaction } from '../types';
 import { computeAgingBuckets } from '../utils/finance';
 import { computeCashRunway } from '../utils/cashRunway';
 import CashFlowStressTester from './CashFlowStressTester';
+import RainyDayFundPlanner from './RainyDayFundPlanner';
 
 interface Props {
     finance: FinanceData;
@@ -124,6 +125,8 @@ export default function CashManagement({ finance, transactions, currency, minRes
                     <ActionItem color={Colors.income} text="Cash position is healthy and above reserve. Consider deploying surplus into growth or short-term investments." />
                 )}
             </View>
+
+            <RainyDayFundPlanner currency={currency} currentCashBalance={finance.cashBalance} dailyBurn={dailyBurn} />
 
             <CashFlowStressTester currency={currency} currentCashBalance={finance.cashBalance} dailyBurn={dailyBurn} transactions={transactions} inventoryValue={inventoryValue} />
         </View>
