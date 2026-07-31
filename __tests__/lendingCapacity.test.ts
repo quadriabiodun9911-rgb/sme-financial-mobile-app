@@ -49,4 +49,36 @@ describe('computeLendingCapacityEstimate', () => {
         const r = computeLendingCapacityEstimate({ ...base, dscr: Infinity });
         expect(r.tier).toBe('strong');
     });
+
+    it('returns null inventoryBacked when there is no inventory value', () => {
+        const r = computeLendingCapacityEstimate(base);
+        expect(r.inventoryBacked).toBeNull();
+    });
+
+    it('computes an inventory-backed range using a 30-50% advance rate', () => {
+        const r = computeLendingCapacityEstimate({ ...base, inventoryValue: 1000000 });
+        expect(r.inventoryBacked).not.toBeNull();
+        expect(r.inventoryBacked!.minAmount).toBe(300000);
+        expect(r.inventoryBacked!.maxAmount).toBe(500000);
+        expect(r.inventoryBacked!.advanceRatePctRange).toEqual([30, 50]);
+    });
+
+    it('still computes inventory-backed capacity even when not otherwise bankable (thin history)', () => {
+        const r = computeLendingCapacityEstimate({ ...base, hasReliableData: false, inventoryValue: 500000 });
+        expect(r.tier).toBe('not-yet-bankable');
+        expect(r.maxAmount).toBe(0);
+        expect(r.inventoryBacked).not.toBeNull();
+        expect(r.inventoryBacked!.minAmount).toBe(150000);
+    });
+
+    it('still computes inventory-backed capacity when DSCR disqualifies cash-flow-based lending', () => {
+        const r = computeLendingCapacityEstimate({ ...base, dscr: 0.5, inventoryValue: 200000 });
+        expect(r.tier).toBe('not-yet-bankable');
+        expect(r.inventoryBacked).not.toBeNull();
+    });
+
+    it('ignores a zero or negative inventory value', () => {
+        expect(computeLendingCapacityEstimate({ ...base, inventoryValue: 0 }).inventoryBacked).toBeNull();
+        expect(computeLendingCapacityEstimate({ ...base, inventoryValue: -100 }).inventoryBacked).toBeNull();
+    });
 });

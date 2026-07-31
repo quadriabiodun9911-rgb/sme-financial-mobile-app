@@ -6,6 +6,13 @@ export interface CashFlowStressTestInput {
     costIncreasePct: number;        // 0-100+, hypothetical fuel/freight/input cost inflation
     collectionsDelayDays: number;   // how many extra days before expected cash actually arrives
     delayedIncome: number;          // cash expected during that window that won't land on time (overdue AR, a delayed shipment's sale, etc.)
+    inventoryValue?: number;        // total stock at cost price — when present, the cost-increase % is also shown against what it means for restocking
+}
+
+export interface StockRestockImpact {
+    currentRestockCost: number;
+    stressedRestockCost: number;
+    extraCost: number;
 }
 
 export interface CashFlowStressTestResult {
@@ -15,6 +22,7 @@ export interface CashFlowStressTestResult {
     runwayLostDays: number;
     verdict: StressVerdict;
     reason: string;
+    stockRestockImpact: StockRestockImpact | null;
 }
 
 const CRITICAL_BELOW_DAYS = 30;
@@ -32,9 +40,25 @@ function runwayDays(cash: number, burn: number): number {
 // this tab. Quad360 has no live oil-price or FX feed to trigger this
 // automatically; the input is deliberately the user's own assumption.
 export function computeCashFlowStressTest(input: CashFlowStressTestInput): CashFlowStressTestResult {
-    const { currentCashBalance, dailyBurn, costIncreasePct, collectionsDelayDays, delayedIncome } = input;
+    const { currentCashBalance, dailyBurn, costIncreasePct, collectionsDelayDays, delayedIncome, inventoryValue } = input;
 
     const baselineRunwayDays = runwayDays(currentCashBalance, dailyBurn);
+
+    // Turns the abstract "cost increase %" into a concrete number for
+    // inventory-carrying businesses: what would it actually cost to
+    // restock what's currently on the shelf at the stressed price —
+    // the number a retailer or distributor actually thinks in, rather
+    // than an abstract daily-burn inflation figure.
+    const stockRestockImpact: StockRestockImpact | null = (inventoryValue && inventoryValue > 0 && costIncreasePct > 0)
+        ? (() => {
+            const stressedRestockCost = inventoryValue * (1 + costIncreasePct / 100);
+            return {
+                currentRestockCost: inventoryValue,
+                stressedRestockCost,
+                extraCost: stressedRestockCost - inventoryValue,
+            };
+        })()
+        : null;
 
     const stressedDailyBurn = dailyBurn * (1 + Math.max(0, costIncreasePct) / 100);
     // Cash that won't be there during the delay window is gone from the
@@ -62,5 +86,5 @@ export function computeCashFlowStressTest(input: CashFlowStressTestInput): CashF
         reason = `Even under this scenario, runway stays above 3 months — the buffer can absorb this shock.`;
     }
 
-    return { baselineRunwayDays, stressedDailyBurn, stressedRunwayDays, runwayLostDays, verdict, reason };
+    return { baselineRunwayDays, stressedDailyBurn, stressedRunwayDays, runwayLostDays, verdict, reason, stockRestockImpact };
 }

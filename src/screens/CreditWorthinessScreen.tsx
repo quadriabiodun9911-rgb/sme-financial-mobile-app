@@ -16,7 +16,7 @@ import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
 import { computeDataQuality } from '../utils/dataQuality';
 
 export default function CreditWorthinessScreen() {
-    const { user, finance, transactions, loans, navigate, settings } = useApp();
+    const { user, finance, transactions, loans, navigate, settings, inventory } = useApp();
     const { currency } = settings;
 
     // Calculate credit factors
@@ -203,12 +203,17 @@ export default function CreditWorthinessScreen() {
     // from the credit score itself, same "unscored vs. actually poor"
     // distinction used throughout the credit factors above.
     const dscrResult = useMemo(() => computeDSCR(transactions, loans), [transactions, loans]);
+    const inventoryValue = useMemo(
+        () => inventory.reduce((sum, item) => sum + ((item.quantity || 0) * (item.costPrice || 0)), 0),
+        [inventory],
+    );
     const lendingCapacity = useMemo(() => computeLendingCapacityEstimate({
         overallCreditScore,
         avgMonthlyRevenue: user?.avgMonthlyRevenue || 0,
         dscr: dscrResult.dscr,
         hasReliableData: dataQuality.confidence !== 'none' && dataQuality.confidence !== 'limited',
-    }), [overallCreditScore, user?.avgMonthlyRevenue, dscrResult.dscr, dataQuality.confidence]);
+        inventoryValue,
+    }), [overallCreditScore, user?.avgMonthlyRevenue, dscrResult.dscr, dataQuality.confidence, inventoryValue]);
 
     const [exporting, setExporting] = useState(false);
 
@@ -324,6 +329,18 @@ export default function CreditWorthinessScreen() {
                         </>
                     ) : (
                         <Text style={s.capacityUnavailable}>{lendingCapacity.tierLabel} — {lendingCapacity.reason}</Text>
+                    )}
+
+                    {lendingCapacity.inventoryBacked && (
+                        <View style={s.inventoryBackedBox}>
+                            <Text style={s.inventoryBackedTitle}>📦 + Inventory-Backed Potential</Text>
+                            <Text style={s.capacityRange}>
+                                {currency}{lendingCapacity.inventoryBacked.minAmount.toLocaleString()} – {currency}{lendingCapacity.inventoryBacked.maxAmount.toLocaleString()}
+                            </Text>
+                            <Text style={s.inventoryBackedNote}>
+                                Based on {currency}{inventoryValue.toLocaleString()} of stock on hand, at a conservative {lendingCapacity.inventoryBacked.advanceRatePctRange[0]}–{lendingCapacity.inventoryBacked.advanceRatePctRange[1]}% advance rate. {lendingCapacity.inventoryBacked.reason}
+                            </Text>
+                        </View>
                     )}
                 </View>
 
@@ -475,6 +492,9 @@ const s = StyleSheet.create({
     capacityMetaVal: { fontWeight: '700', color: Colors.textPrimary },
     capacityRate: { fontSize: 12.5, color: Colors.textSecondary, marginTop: 4 },
     capacityUnavailable: { fontSize: 13, color: Colors.textSecondary, lineHeight: 19 },
+    inventoryBackedBox: { marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: Colors.border },
+    inventoryBackedTitle: { fontSize: 12.5, fontWeight: '700', color: Colors.textSecondary, marginBottom: 6 },
+    inventoryBackedNote: { fontSize: 11, color: Colors.textMuted, lineHeight: 15, marginTop: 6 },
     scoreCard: {
         backgroundColor: Colors.surface,
         borderRadius: 12,

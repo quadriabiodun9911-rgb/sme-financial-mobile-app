@@ -99,6 +99,10 @@ export default function ReportsScreen() {
     const [period, setPeriod]         = useState<ReportPeriod>('all');
     const [showComparison, setShowComparison] = useState(false);
     const today = new Date().toISOString().split('T')[0];
+    const inventoryValue = useMemo(
+        () => inventory.reduce((sum, item) => sum + (item.quantity || 0) * (item.costPrice || 0), 0),
+        [inventory],
+    );
     const [customRange, setCustomRange] = useState<DateRange>({ from: today, to: today });
 
     const filteredTx = useMemo(() => {
@@ -391,7 +395,7 @@ export default function ReportsScreen() {
                                 loans={loansList}
                                 currency={currency}
                                 manualBalances={{
-                                    stockValue: inventory.reduce((sum, item) => sum + (item.quantity || 0) * (item.costPrice || 0), 0),
+                                    stockValue: inventoryValue,
                                     manualEquipment: parseFloat(settings.openingAssets) || 0,
                                     otherAssets: parseFloat(settings.openingOtherAssets) || 0,
                                     otherLiabilities: parseFloat(settings.openingLiabilities) || 0,
@@ -518,6 +522,7 @@ export default function ReportsScreen() {
                             transactions={transactions}
                             currency={currency}
                             minReserve={minReserve}
+                            inventoryValue={inventoryValue}
                         />
                     )}
 

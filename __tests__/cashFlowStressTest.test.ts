@@ -58,4 +58,22 @@ describe('computeCashFlowStressTest', () => {
         expect(r.stressedRunwayDays).toBe(0);
         expect(r.verdict).toBe('critical');
     });
+
+    it('returns null stockRestockImpact when no inventory value is given', () => {
+        const r = computeCashFlowStressTest({ ...base, costIncreasePct: 20 });
+        expect(r.stockRestockImpact).toBeNull();
+    });
+
+    it('returns null stockRestockImpact when there is no cost increase, even with inventory', () => {
+        const r = computeCashFlowStressTest({ ...base, inventoryValue: 500000 });
+        expect(r.stockRestockImpact).toBeNull();
+    });
+
+    it('computes restock cost impact from inventory value and cost increase %', () => {
+        const r = computeCashFlowStressTest({ ...base, costIncreasePct: 20, inventoryValue: 500000 });
+        expect(r.stockRestockImpact).not.toBeNull();
+        expect(r.stockRestockImpact!.currentRestockCost).toBe(500000);
+        expect(r.stockRestockImpact!.stressedRestockCost).toBeCloseTo(600000, 5);
+        expect(r.stockRestockImpact!.extraCost).toBeCloseTo(100000, 5);
+    });
 });

@@ -11,9 +11,10 @@ interface Props {
     transactions: Transaction[];
     currency: string;
     minReserve: string;
+    inventoryValue?: number;
 }
 
-export default function CashManagement({ finance, transactions, currency, minReserve }: Props) {
+export default function CashManagement({ finance, transactions, currency, minReserve, inventoryValue }: Props) {
     const reserve = parseFloat(minReserve) || 0;
     const surplusShortfall = finance.cashBalance - reserve;
     const coverageRatio    = reserve > 0 ? finance.cashBalance / reserve : null;
@@ -124,7 +125,7 @@ export default function CashManagement({ finance, transactions, currency, minRes
                 )}
             </View>
 
-            <CashFlowStressTester currency={currency} currentCashBalance={finance.cashBalance} dailyBurn={dailyBurn} transactions={transactions} />
+            <CashFlowStressTester currency={currency} currentCashBalance={finance.cashBalance} dailyBurn={dailyBurn} transactions={transactions} inventoryValue={inventoryValue} />
         </View>
     );
 }

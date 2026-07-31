@@ -21,6 +21,7 @@ interface Props {
     currentCashBalance: number;
     dailyBurn: number;
     transactions: Transaction[];
+    inventoryValue?: number;
 }
 
 function fmtDays(n: number): string {
@@ -45,7 +46,7 @@ const VERDICT_LABEL: Record<StressVerdict, string> = {
 // The value is turning a headline about shipping delays or fuel spikes
 // into a concrete answer against this business's own cash position,
 // instead of a vague sense of unease.
-export default function CashFlowStressTester({ currency, currentCashBalance, dailyBurn, transactions }: Props) {
+export default function CashFlowStressTester({ currency, currentCashBalance, dailyBurn, transactions, inventoryValue }: Props) {
     const [costIncreasePct, setCostIncreasePct] = useState('0');
     const [delayDays, setDelayDays] = useState('0');
     const [delayedIncome, setDelayedIncome] = useState('0');
@@ -59,8 +60,9 @@ export default function CashFlowStressTester({ currency, currentCashBalance, dai
             costIncreasePct: parseFloat(costIncreasePct) || 0,
             collectionsDelayDays: parseFloat(delayDays) || 0,
             delayedIncome: parseFloat(delayedIncome) || 0,
+            inventoryValue,
         });
-    }, [currentCashBalance, dailyBurn, costIncreasePct, delayDays, delayedIncome]);
+    }, [currentCashBalance, dailyBurn, costIncreasePct, delayDays, delayedIncome, inventoryValue]);
 
     const hasStress = (parseFloat(costIncreasePct) || 0) > 0 || (parseFloat(delayedIncome) || 0) > 0;
 
@@ -119,6 +121,15 @@ export default function CashFlowStressTester({ currency, currentCashBalance, dai
                 <View style={[s.verdictBox, { borderColor: VERDICT_COLOR[result.verdict] }]}>
                     <Text style={[s.verdictLabel, { color: VERDICT_COLOR[result.verdict] }]}>{VERDICT_LABEL[result.verdict]}</Text>
                     <Text style={s.verdictReason}>{result.reason}</Text>
+                </View>
+            )}
+
+            {result.stockRestockImpact && (
+                <View style={s.restockBox}>
+                    <Text style={s.restockTitle}>📦 What this means for restocking</Text>
+                    <Text style={s.restockText}>
+                        Replacing your current stock (worth {currency}{result.stockRestockImpact.currentRestockCost.toLocaleString()}) would cost {currency}{result.stockRestockImpact.stressedRestockCost.toLocaleString(undefined, { maximumFractionDigits: 0 })} at this rate — {currency}{result.stockRestockImpact.extraCost.toLocaleString(undefined, { maximumFractionDigits: 0 })} more than today.
+                    </Text>
                 </View>
             )}
             {!hasStress && (
@@ -217,6 +228,9 @@ const s = StyleSheet.create({
     verdictBox: { borderRadius: 10, borderWidth: 1.5, padding: 12, marginTop: 12 },
     verdictLabel: { fontSize: 13, fontWeight: '800', marginBottom: 4 },
     verdictReason: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
+    restockBox: { marginTop: 10, backgroundColor: Colors.bg, borderRadius: 8, padding: 10, borderWidth: 1, borderColor: Colors.border },
+    restockTitle: { fontSize: 11.5, fontWeight: '700', color: Colors.textSecondary, marginBottom: 4 },
+    restockText: { fontSize: 11.5, color: Colors.textMuted, lineHeight: 16 },
 
     emptyHint: { fontSize: 12, color: Colors.textMuted, fontStyle: 'italic', marginTop: 4 },
 
