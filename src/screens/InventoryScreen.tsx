@@ -14,6 +14,7 @@ import PeriodComparisonTable from '../components/PeriodComparisonTable';
 import { suggestSolution } from '../utils/impactChain';
 import { computeStockVelocity } from '../utils/stockVelocity';
 import RecipeCostCalculator from '../components/RecipeCostCalculator';
+import ProductionCostCalculator from '../components/ProductionCostCalculator';
 import { InventoryItem } from '../types';
 
 type InventoryTab = 'stock' | 'analytics';
@@ -477,6 +478,12 @@ export default function InventoryScreen() {
                             be clutter that doesn't apply to how their business works. */}
                         {settings.industry === 'food-service' && (
                             <RecipeCostCalculator inventory={inventory} currency={currency} />
+                        )}
+
+                        {/* Production/unit costing — Manufacturing only, same reasoning
+                            as Recipe Costing being Food Service only. */}
+                        {settings.industry === 'manufacturing' && (
+                            <ProductionCostCalculator inventory={inventory} currency={currency} />
                         )}
 
                         {/* Use in Reports button */}

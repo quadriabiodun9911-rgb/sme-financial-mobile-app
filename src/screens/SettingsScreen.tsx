@@ -39,6 +39,7 @@ const BUSINESS_TYPES: { label: string; value: BusinessSettings['businessType'] }
 const INDUSTRIES: { label: string; value: NonNullable<BusinessSettings['industry']> }[] = [
     { label: '🏬 Retail / Wholesale', value: 'retail' },
     { label: '🍽️ Food Service', value: 'food-service' },
+    { label: '🏭 Manufacturing', value: 'manufacturing' },
     { label: '🏢 General / Other', value: 'general' },
 ];
 

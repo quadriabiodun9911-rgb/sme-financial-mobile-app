@@ -286,6 +286,7 @@ export const DEMO_BUSINESSES: DemoBusiness[] = [
         description: 'Electronics factory & wholesale exports, Shenzhen',
         currency: '¥',
         businessName: 'Shenzhen BrightTech Manufacturing',
+        industry: 'manufacturing',
         transactions: [
             { id: 'cn1',  date: d(2),  description: 'Export sale — phones to Nigeria',      type: 'income',  category: 'Export Sales',    amount: 285000, status: 'paid' },
             { id: 'cn2',  date: d(4),  description: 'Raw materials — PCB components',       type: 'expense', category: 'Cost of Goods',   amount: 98000,  status: 'paid' },
