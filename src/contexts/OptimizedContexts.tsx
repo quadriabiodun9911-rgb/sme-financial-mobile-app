@@ -10,7 +10,7 @@
 
 import React, { createContext, useContext, useState, useMemo, useEffect, useRef, useCallback, ReactNode } from 'react';
 import { Platform } from 'react-native';
-import { User, Invoice, InvoiceStatus, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, MerchantFinancingApplication, LoanPurpose, StaffMember, PayrollRun, PayrollItem, CashPocket, UserRole } from '../types';
+import { User, Invoice, InvoiceStatus, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, MerchantFinancingApplication, LoanPurpose, StaffMember, PayrollRun, PayrollItem, CashPocket, CapitalCommitment, UserRole } from '../types';
 import { computeFinance, computeAssetCurrentValue } from '../utils/finance';
 import { sanitizeStoredGoals } from '../utils/goals';
 import { DEMO_BUSINESSES } from '../utils/demoData';
@@ -27,6 +27,7 @@ import {
   loadStaff, saveStaff,
   loadPayrollRuns, savePayrollRuns,
   loadCashPockets, saveCashPockets,
+  loadCapitalCommitments, saveCapitalCommitments,
   clearLocalFinancialCache,
   saveProfile, loadProfile, savePin, loadPin,
   clearAllData, exportAllData, importAllData,
@@ -95,6 +96,11 @@ interface FinanceContextValue {
 
   financing: FinancingContextData;
   applyForMerchantFinancing: (amount: number, purpose: LoanPurpose) => Promise<void>;
+
+  capitalCommitments: CapitalCommitment[];
+  addCommitment: (c: Omit<CapitalCommitment, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateCommitment: (id: string, patch: Partial<CapitalCommitment>) => void;
+  deleteCommitment: (id: string) => void;
 }
 
 const FinanceContext = createContext<FinanceContextValue | undefined>(undefined);
@@ -108,6 +114,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [payrollRuns, setPayrollRuns] = useState<PayrollRun[]>([]);
   const [cashPockets, setCashPockets] = useState<CashPocket[]>([]);
+  const [capitalCommitments, setCapitalCommitments] = useState<CapitalCommitment[]>([]);
   const [financing, setFinancing] = useState<FinancingContextData>({
     isQualified: false, qualification: undefined, minQualifiedAmount: undefined,
     maxQualifiedAmount: undefined, application: undefined, activeLoan: undefined,
@@ -130,7 +137,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     // otherwise be re-saved into the newly-signed-in user's cloud account.
     setHydrated(false);
     setTransactions([]); setAssets([]); setLoans([]); setBudgets([]); setInventory([]);
-    setStaff([]); setPayrollRuns([]); setCashPockets([]);
+    setStaff([]); setPayrollRuns([]); setCashPockets([]); setCapitalCommitments([]);
     setFinancing({
       isQualified: false, qualification: undefined, minQualifiedAmount: undefined,
       maxQualifiedAmount: undefined, application: undefined, activeLoan: undefined,
@@ -163,12 +170,13 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         if (l) setLoans(l.map((x) => ({ ...x, payments: x.payments ?? [] })));
         if (b) setBudgets(b);
         if (inv) setInventory(inv);
-        const [st, pr, cp] = await Promise.all([
-          loadStaff(), loadPayrollRuns(), loadCashPockets(),
+        const [st, pr, cp, cc] = await Promise.all([
+          loadStaff(), loadPayrollRuns(), loadCashPockets(), loadCapitalCommitments(),
         ]);
         if (st) setStaff(st);
         if (pr) setPayrollRuns(pr);
         if (cp) setCashPockets(cp);
+        if (cc) setCapitalCommitments(cc);
         const financingRaw = await AsyncStorage.getItem('@quad360/financing').catch(() => null);
         if (financingRaw) {
           try { setFinancing(JSON.parse(financingRaw)); } catch { /* corrupted cache, keep default */ }
@@ -193,6 +201,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { if (hydrated && !isDemoMode) saveStaff(staff).catch(() => {}); }, [staff, hydrated, isDemoMode]);
   useEffect(() => { if (hydrated && !isDemoMode) savePayrollRuns(payrollRuns).catch(() => {}); }, [payrollRuns, hydrated, isDemoMode]);
   useEffect(() => { if (hydrated && !isDemoMode) saveCashPockets(cashPockets).catch(() => {}); }, [cashPockets, hydrated, isDemoMode]);
+  useEffect(() => { if (hydrated && !isDemoMode) saveCapitalCommitments(capitalCommitments).catch(() => {}); }, [capitalCommitments, hydrated, isDemoMode]);
   useEffect(() => {
     if (hydrated && !isDemoMode) AsyncStorage.setItem('@quad360/financing', JSON.stringify(financing)).catch(() => {});
   }, [financing, hydrated, isDemoMode]);
@@ -354,6 +363,16 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       updateCashPocket: (id, amount) => setCashPockets((prev) => prev.map((p) => (p.id === id ? { ...p, amount, updatedAt: new Date().toISOString() } : p))),
       deleteCashPocket: (id) => setCashPockets((prev) => prev.filter((p) => p.id !== id)),
 
+      capitalCommitments,
+      addCommitment: (c) => {
+        const now = new Date().toISOString();
+        setCapitalCommitments((prev) => [...prev, { ...c, id: genId(), createdAt: now, updatedAt: now }]);
+      },
+      updateCommitment: (id, patch) => setCapitalCommitments((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, ...patch, updatedAt: new Date().toISOString() } : c))
+      ),
+      deleteCommitment: (id) => setCapitalCommitments((prev) => prev.filter((c) => c.id !== id)),
+
       financing,
       // Was a no-op stub (`() => Promise.resolve()`) that silently ignored
       // amount/purpose — a user could submit a financing application, see a
@@ -386,7 +405,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         }));
       },
     }),
-    [transactions, assets, loans, budgets, inventory, staff, payrollRuns, cashPockets, financing, syncUserId, finance]
+    [transactions, assets, loans, budgets, inventory, staff, payrollRuns, cashPockets, capitalCommitments, financing, syncUserId, finance]
   );
 
   return (
@@ -1310,6 +1329,10 @@ export function useApp() {
     updateCashPocket: finance?.updateCashPocket || (() => {}),
     addCashPocket: finance?.addCashPocket || (() => {}),
     deleteCashPocket: finance?.deleteCashPocket || (() => {}),
+    capitalCommitments: finance?.capitalCommitments ?? [],
+    addCommitment: finance?.addCommitment || (() => {}),
+    updateCommitment: finance?.updateCommitment || (() => {}),
+    deleteCommitment: finance?.deleteCommitment || (() => {}),
     // Explicit return type on the fallback so it matches auth.changePin's
     // signature exactly instead of TypeScript inferring a narrower
     // `{ok:false}` literal and unioning the two into an undiscriminated

@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CryptoJS from 'crypto-js';
-import { Transaction, BusinessSettings, FinancialGoal, Invoice, TeamMember, Language, Asset, InventoryItem, Loan, Budget, StaffMember, PayrollRun, FinancingContextData, CashPocket } from '../types';
+import { Transaction, BusinessSettings, FinancialGoal, Invoice, TeamMember, Language, Asset, InventoryItem, Loan, Budget, StaffMember, PayrollRun, FinancingContextData, CashPocket, CapitalCommitment } from '../types';
 import { supabase } from './supabase';
 import { savePinSecurely, loadPinSecurely, clearPinSecurely, clearAllSecureData } from './secureStorage';
 import { enqueue } from './syncQueue';
@@ -630,6 +630,19 @@ export async function saveLanguage(lang: Language): Promise<void> {
 export async function loadLanguage(): Promise<Language> {
     const raw = await AsyncStorage.getItem(KEYS.language);
     return (raw as Language) ?? 'en';
+}
+
+// ─── Capital Commitments ────────────────────────────────────────────────────
+// Local-only (device storage), same as language/theme preferences — no
+// Supabase table exists for this yet, so this doesn't pretend to sync
+// across devices the way transactions/loans/etc. do.
+const CAPITAL_COMMITMENTS_KEY = '@quad360/capitalCommitments';
+export async function saveCapitalCommitments(commitments: CapitalCommitment[]): Promise<void> {
+    await AsyncStorage.setItem(CAPITAL_COMMITMENTS_KEY, JSON.stringify(commitments));
+}
+export async function loadCapitalCommitments(): Promise<CapitalCommitment[] | null> {
+    const raw = await AsyncStorage.getItem(CAPITAL_COMMITMENTS_KEY);
+    return safeParse<CapitalCommitment[]>(raw);
 }
 
 // ─── PIN (local only — never sent to server) ──────────────────────────────────

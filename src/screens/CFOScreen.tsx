@@ -8,6 +8,7 @@ import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import NextStepLink from '../components/NextStepLink';
+import CFOQuestionsTab from '../components/CFOQuestionsTab';
 import {
     computeWeeklyCFOSummary,
     computeRiskScore,
@@ -22,7 +23,7 @@ import {
     computePaymentOptimiser,
 } from '../utils/finance';
 
-type Tab = 'pulse' | 'forecast' | 'finance' | 'risk' | 'growth';
+type Tab = 'pulse' | 'forecast' | 'finance' | 'risk' | 'growth' | 'questions';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmtRunway(days: number): string {
@@ -616,15 +617,16 @@ function GrowthTab() {
 export default function CFOScreen() {
     const { navigate, transactions, setCurrentScreen, navParams } = useApp();
     const [activeTab, setActiveTab] = useState<Tab>(
-        (['pulse', 'forecast', 'finance', 'risk', 'growth'] as Tab[]).includes(navParams?.tab) ? navParams.tab : 'pulse'
+        (['pulse', 'forecast', 'finance', 'risk', 'growth', 'questions'] as Tab[]).includes(navParams?.tab) ? navParams.tab : 'pulse'
     );
 
     const TABS: { key: Tab; label: string; icon: string }[] = [
-        { key: 'pulse',    label: 'Pulse',    icon: '❤️' },
-        { key: 'forecast', label: 'Forecast', icon: '📅' },
-        { key: 'finance',  label: 'Finance',  icon: '📊' },
-        { key: 'risk',     label: 'Risk',     icon: '🛡️' },
-        { key: 'growth',   label: 'Growth',   icon: '🚀' },
+        { key: 'pulse',     label: 'Pulse',     icon: '❤️' },
+        { key: 'forecast',  label: 'Forecast',  icon: '📅' },
+        { key: 'finance',   label: 'Finance',   icon: '📊' },
+        { key: 'risk',      label: 'Risk',      icon: '🛡️' },
+        { key: 'growth',    label: 'Growth',    icon: '🚀' },
+        { key: 'questions', label: 'CFO Q&A',   icon: '❓' },
     ];
 
     const hasEnoughData = transactions.length >= 3;
@@ -690,6 +692,7 @@ export default function CFOScreen() {
                     {activeTab === 'finance'  && <FinanceTab />}
                     {activeTab === 'risk'     && <RiskTab />}
                     {activeTab === 'growth'   && <GrowthTab />}
+                    {activeTab === 'questions' && <CFOQuestionsTab />}
                 </>
             )}
 

@@ -351,6 +351,33 @@ export interface CashPocket {
     updatedAt: string; // ISO date
 }
 
+// ─── Capital Commitments ───────────────────────────────────────────────────
+// "Is each investment delivering what we approved it for?" — a tracked
+// approval with a few KPIs and a target, checked against an actual figure
+// the owner updates themselves. Quad360 has no way to auto-detect whether
+// a piece of equipment or a marketing spend is "delivering" — this is a
+// deliberate record, not an inferred one.
+export interface CommitmentKPI {
+    id: string;
+    name: string;
+    target: number;
+    actual: number;
+}
+
+export type CommitmentStatus = 'on-track' | 'at-risk' | 'off-track' | 'not-started';
+
+export interface CapitalCommitment {
+    id: string;
+    name: string;
+    amountApproved: number;
+    purpose: string;
+    approvedDate: string; // ISO date
+    kpis: CommitmentKPI[];
+    status: CommitmentStatus;
+    createdAt: string;
+    updatedAt: string;
+}
+
 // ─── Merchant Financing ────────────────────────────────────────────────────────
 export type MerchantFinancingStatus = 'pending' | 'approved' | 'rejected' | 'funded' | 'repaying' | 'paid_off';
 export type LoanPurpose = 'inventory' | 'equipment' | 'both' | 'other';
