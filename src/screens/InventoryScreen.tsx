@@ -13,6 +13,7 @@ import NextStepLink from '../components/NextStepLink';
 import PeriodComparisonTable from '../components/PeriodComparisonTable';
 import { suggestSolution } from '../utils/impactChain';
 import { computeStockVelocity } from '../utils/stockVelocity';
+import RecipeCostCalculator from '../components/RecipeCostCalculator';
 import { InventoryItem } from '../types';
 
 type InventoryTab = 'stock' | 'analytics';
@@ -469,6 +470,10 @@ export default function InventoryScreen() {
                         {transactions.length > 0 && (
                             <PeriodComparisonTable transactions={transactions} currency={currency} defaultGrouping="daily" />
                         )}
+
+                        {/* Recipe / menu item food cost — built on the same ingredient
+                            cost-per-unit data as the rest of Inventory */}
+                        <RecipeCostCalculator inventory={inventory} currency={currency} />
 
                         {/* Use in Reports button */}
                         <TouchableOpacity
