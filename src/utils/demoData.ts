@@ -315,4 +315,52 @@ export const DEMO_BUSINESSES: DemoBusiness[] = [
             { id: 'cniv1', invoiceNumber: 'INV-CN-056', clientName: 'TechMart USA LLC', clientEmail: 'orders@techmart.us', clientAddress: '', notes: '', lineItems: [{ description: 'Smartwatches — Model X batch', quantity: 200, unitPrice: 990, taxRate: 0 }], subtotal: 198000, taxTotal: 0, total: 198000, status: 'sent', issueDate: d(8), dueDate: d(-4), createdAt: d(8) },
         ],
     },
+
+    // ─── 8. KENYA ─────────────────────────────────────────────────────────────
+    // Wholesale/distribution: buys building materials in bulk, resells to
+    // contractors and smaller hardware shops — the "distributor" archetype
+    // that sits alongside direct retail in the commerce-business segment.
+    {
+        id: 'kenya',
+        flag: '🇰🇪',
+        country: 'Kenya',
+        emoji: '🧱',
+        name: 'Building Materials Wholesaler',
+        description: 'Cement, rebar & roofing distributor, Nairobi',
+        currency: 'KSh',
+        businessName: 'Kamau Building Supplies',
+        transactions: [
+            { id: 'ke1',  date: d(1),  description: 'Bulk sale — cement to contractor',      type: 'income',  category: 'Sales',           amount: 185000, status: 'paid' },
+            { id: 'ke2',  date: d(2),  description: 'Sale — roofing sheets, retail shop',    type: 'income',  category: 'Sales',           amount: 62000,  status: 'paid' },
+            { id: 'ke3',  date: d(3),  description: 'Stock purchase — cement (bulk)',        type: 'expense', category: 'Stock/Inventory', amount: 140000, status: 'paid' },
+            { id: 'ke4',  date: d(4),  description: 'Warehouse rent — monthly',              type: 'expense', category: 'Rent',            amount: 45000,  status: 'paid', isRecurring: true, recurringFrequency: 'monthly' },
+            { id: 'ke5',  date: d(5),  description: 'Sale — rebar to construction site',     type: 'income',  category: 'Sales',           amount: 210000, status: 'paid' },
+            { id: 'ke6',  date: d(7),  description: 'Warehouse staff wages x4',              type: 'expense', category: 'Salaries',        amount: 68000,  status: 'paid' },
+            { id: 'ke7',  date: d(8),  description: 'Sale — mixed hardware, walk-in trade',  type: 'income',  category: 'Sales',           amount: 34000,  status: 'paid' },
+            { id: 'ke8',  date: d(10), description: 'Truck fuel & delivery costs',           type: 'expense', category: 'Transport',       amount: 22000,  status: 'paid' },
+            { id: 'ke9',  date: d(12), description: 'Bulk sale — roofing sheets, developer', type: 'income',  category: 'Sales',           amount: 275000, status: 'paid' },
+            { id: 'ke10', date: d(14), description: 'Stock purchase — rebar restock',        type: 'expense', category: 'Stock/Inventory', amount: 165000, status: 'paid' },
+            { id: 'ke11', date: d(15), description: 'Sale — cement, small hardware shop',    type: 'income',  category: 'Sales',           amount: 48000,  status: 'paid' },
+            { id: 'ke12', date: d(18), description: 'Forklift maintenance',                  type: 'expense', category: 'Maintenance',     amount: 15000,  status: 'paid' },
+            { id: 'ke13', date: d(20), description: 'Bulk sale — housing estate project',    type: 'income',  category: 'Sales',           amount: 420000, status: 'pending', dueDate: d(-6) },
+            { id: 'ke14', date: d(22), description: 'Loading bay repairs',                   type: 'expense', category: 'Maintenance',     amount: 9500,   status: 'paid' },
+            { id: 'ke15', date: d(25), description: 'Sale — mixed materials, weekend trade', type: 'income',  category: 'Sales',           amount: 58000,  status: 'paid' },
+        ],
+        assets: [
+            { id: 'kea1', name: 'Flatbed delivery truck', purchaseCost: 1800000, purchaseDate: d(400), category: 'vehicle', usefulLifeYears: 8, status: 'active', createdAt: d(400), description: '', residualValue: 0 },
+            { id: 'kea2', name: 'Warehouse forklift', purchaseCost: 650000, purchaseDate: d(250), category: 'equipment', usefulLifeYears: 7, status: 'active', createdAt: d(250), description: '', residualValue: 0 },
+            { id: 'kea3', name: 'Weighing & POS scale', purchaseCost: 45000, purchaseDate: d(120), category: 'equipment', usefulLifeYears: 4, status: 'active', createdAt: d(120), description: '', residualValue: 0 },
+        ],
+        loans: [
+            { id: 'kel1', lenderName: 'Equity Bank Kenya', principal: 2000000, interestRate: 15, termMonths: 24, startDate: d(180), purpose: 'Warehouse stock financing', status: 'active', payments: [{ id: 'p1', date: d(150), amount: 105000, note: 'Month 1' }, { id: 'p2', date: d(120), amount: 105000, note: 'Month 2' }, { id: 'p3', date: d(90), amount: 105000, note: 'Month 3' }], createdAt: d(180) },
+        ],
+        inventory: [
+            { id: 'kei1', name: 'Cement (50kg bags)', quantity: 480, unit: 'bags', costPrice: 650, sellingPrice: 850, category: 'Cement', lowStockThreshold: 150, createdAt: d(30), updatedAt: d(2) },
+            { id: 'kei2', name: 'Rebar (12mm, per length)', quantity: 620, unit: 'lengths', costPrice: 950, sellingPrice: 1250, category: 'Steel', lowStockThreshold: 200, createdAt: d(30), updatedAt: d(3) },
+            { id: 'kei3', name: 'Roofing sheets (iron sheets)', quantity: 340, unit: 'sheets', costPrice: 780, sellingPrice: 1050, category: 'Roofing', lowStockThreshold: 100, createdAt: d(30), updatedAt: d(5) },
+        ],
+        invoices: [
+            { id: 'keiv1', invoiceNumber: 'INV-KE-018', clientName: 'Riverside Estates Ltd', clientEmail: 'procurement@riversideestates.co.ke', clientAddress: '', notes: '', lineItems: [{ description: 'Cement & rebar — housing estate phase 1', quantity: 1, unitPrice: 420000, taxRate: 0 }], subtotal: 420000, taxTotal: 0, total: 420000, status: 'sent', issueDate: d(20), dueDate: d(-6), createdAt: d(20) },
+        ],
+    },
 ];
