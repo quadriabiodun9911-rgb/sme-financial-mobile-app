@@ -206,7 +206,7 @@ export interface User {
 // Costing only makes sense for food service — showing it to a retailer or
 // consultant would just be clutter). 'general' is the default for anyone
 // who doesn't fit retail or food service, or hasn't set this yet.
-export type Industry = 'general' | 'retail' | 'food-service' | 'manufacturing';
+export type Industry = 'general' | 'retail' | 'food-service' | 'manufacturing' | 'professional-services';
 
 export interface BusinessSettings {
     businessName?: string;

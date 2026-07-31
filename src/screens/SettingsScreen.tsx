@@ -40,6 +40,7 @@ const INDUSTRIES: { label: string; value: NonNullable<BusinessSettings['industry
     { label: '🏬 Retail / Wholesale', value: 'retail' },
     { label: '🍽️ Food Service', value: 'food-service' },
     { label: '🏭 Manufacturing', value: 'manufacturing' },
+    { label: '💼 Professional Services', value: 'professional-services' },
     { label: '🏢 General / Other', value: 'general' },
 ];
 

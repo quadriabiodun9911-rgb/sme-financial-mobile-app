@@ -38,7 +38,8 @@ const INDUSTRIES: { label: string; value: Industry; hint: string }[] = [
     { label: '🏬 Retail / Wholesale', value: 'retail', hint: 'Shops, boutiques, distributors — anything that buys and resells stock' },
     { label: '🍽️ Food Service', value: 'food-service', hint: 'Restaurants, catering, food stalls — recipe & food cost tools' },
     { label: '🏭 Manufacturing', value: 'manufacturing', hint: 'Makers, assemblers, processors — production & unit cost tools' },
-    { label: '🏢 General / Other', value: 'general', hint: 'Services, professionals, or anything else' },
+    { label: '💼 Professional Services', value: 'professional-services', hint: 'Consultants, agencies, law firms — project & retainer profitability' },
+    { label: '🏢 General / Other', value: 'general', hint: 'Anything else' },
 ];
 
 function detectLocaleCurrency(): string {

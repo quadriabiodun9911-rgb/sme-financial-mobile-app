@@ -81,6 +81,7 @@ export const DEMO_BUSINESSES: DemoBusiness[] = [
         description: 'Business advisory & professional services, London',
         currency: '£',
         businessName: 'Okafor Advisory Ltd',
+        industry: 'professional-services',
         transactions: [
             { id: 'uk1',  date: d(2),  description: 'Strategy consulting — TechStart Ltd',  type: 'income',  category: 'Consulting',       amount: 3500,  status: 'paid' },
             { id: 'uk2',  date: d(5),  description: 'Monthly retainer — BuildCo',           type: 'income',  category: 'Consulting',       amount: 2000,  status: 'paid', isRecurring: true, recurringFrequency: 'monthly' },

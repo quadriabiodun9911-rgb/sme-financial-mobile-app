@@ -12,6 +12,7 @@ import { generateId } from '../utils/uuid';
 import DateInput from '../components/DateInput';
 import { sendInvoiceReminderViaWhatsApp, sendPaymentRequestViaWhatsApp, isWhatsAppInstalled } from '../utils/whatsappIntegration';
 import NextStepLink from '../components/NextStepLink';
+import ProjectProfitabilityCalculator from '../components/ProjectProfitabilityCalculator';
 
 const STATUS_COLOR: Record<InvoiceStatus, string> = {
     draft:   Colors.textMuted,
@@ -298,6 +299,14 @@ export default function InvoicesScreen() {
                             text="See how paid invoices affect your cash forecast"
                             onPress={() => navigate('cashflow')}
                         />
+                    )}
+
+                    {/* Project/retainer profitability — Professional Services only,
+                        same reasoning as Recipe Costing / Production Cost being
+                        gated to their own industries. Professional services sell
+                        time, not stock, so this lives here rather than Inventory. */}
+                    {settings.industry === 'professional-services' && (
+                        <ProjectProfitabilityCalculator currency={currency} />
                     )}
 
                     {/* Filter tabs */}
