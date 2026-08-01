@@ -198,6 +198,7 @@ export const DEMO_BUSINESSES: DemoBusiness[] = [
         description: 'Football training academy & sports equipment retail, Berlin',
         currency: '€',
         businessName: 'Berlin ProSport Academy',
+        industry: 'retail',
         transactions: [
             { id: 'eu1',  date: d(1),  description: 'Monthly training fees — 24 junior members',  type: 'income',  category: 'Training Fees',    amount: 4800,  status: 'paid', isRecurring: true, recurringFrequency: 'monthly' },
             { id: 'eu2',  date: d(2),  description: 'Sales — football boots & kits',              type: 'income',  category: 'Equipment Sales',  amount: 2350,  status: 'paid' },

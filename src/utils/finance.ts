@@ -1,6 +1,7 @@
 import { Transaction, FinanceData, BusinessSettings, AgingBucket, Asset, Invoice, Loan, FinancialGoal, Budget } from '../types';
 import { getWeekRanges, transactionsInRange, sumByType } from './periodRange';
 import { computeLeverageRatios } from './debtRatios';
+import { computeCashRunway } from './cashRunway';
 
 // ─── Business size classification ─────────────────────────────────────────────
 export type BusinessSize = 'micro' | 'small' | 'medium' | 'large';
@@ -670,14 +671,18 @@ export interface FinancialRatios {
  * fields to the one canonical implementation and only computes what's
  * actually unique to this view: currentRatio, burnRate, profitMargin.
  */
-export function computeFinancialRatios(finance: FinanceData, loans: Loan[]): FinancialRatios {
+export function computeFinancialRatios(finance: FinanceData, loans: Loan[], transactions: Transaction[]): FinancialRatios {
     const leverage = computeLeverageRatios(finance, loans);
 
     // 999 here is a "no liabilities recorded to compare against" sentinel,
     // not an actual extreme ratio — callers must check hasLiabilitiesData
     // before rendering it as "good".
     const currentRatio = finance.liabilities > 0 ? finance.assets / finance.liabilities : finance.assets > 0 ? 999 : 0;
-    const burnRate = finance.expense > 0 ? finance.expense / 12 : 0;
+    // Same trailing-30-day-paid-expenses burn used everywhere else — this
+    // used to divide finance.expense (an all-time cumulative total) by 12,
+    // which doesn't represent a monthly figure and could show a different
+    // "Monthly Burn" than the runway shown elsewhere in the app.
+    const burnRate = computeCashRunway(transactions, finance.cashBalance).dailyBurn * 30;
     const profitMargin = finance.income > 0 ? (finance.profit / finance.income) * 100 : 0;
     const revenueGrowth = 0; // requires historical data — placeholder
     return {
@@ -1050,8 +1055,12 @@ export function computeWeeklyCFOSummary(
     const lastWeekExpense = sumByType(lastWeekTx, 'expense');
     const weeklyChange = lastWeekIncome > 0 ? ((thisWeekIncome - lastWeekIncome) / lastWeekIncome) * 100 : 0;
 
-    const dailyBurn = finance.expense > 0 ? finance.expense / 365 : 1;
-    const cashRunwayDays = Math.round(finance.cashBalance / dailyBurn);
+    // Same trailing-30-day-paid-expenses burn used everywhere else in the
+    // app — this used to divide finance.expense (an all-time cumulative
+    // total) by 365, an unrelated window that made this screen's runway
+    // disagree with the canonical figure shown on Dashboard/Cash Runway/
+    // Cash Flow Stress Test.
+    const { runwayDays: cashRunwayDays } = computeCashRunway(transactions, finance.cashBalance);
 
     const topRisks: string[] = [];
     if (finance.profit < 0) topRisks.push('Business is running at a loss');

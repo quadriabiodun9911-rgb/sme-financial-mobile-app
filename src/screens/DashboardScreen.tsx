@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../contexts/AppContext';
+import { computeCashRunway } from '../utils/cashRunway';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import { trackDemoConvertTapped, trackScreenViewed } from '../utils/analytics';
@@ -207,7 +208,17 @@ export default function DashboardScreen() {
         setOnboardingDismissed(true);
     };
 
-    const runwayDays = finance.expense > 0 ? Math.floor(finance.cashBalance / (finance.expense / 30)) : null;
+    // Same trailing-30-day-paid-expenses burn rate used everywhere else in
+    // the app (Cash Runway tab, Weekly Dashboard, Loans & Debt, Cash Flow
+    // Stress Test) — this used to divide finance.expense (an all-time
+    // cumulative total, not a monthly figure) by 30, which understated or
+    // overstated runway depending purely on how long the business had been
+    // tracked, and could show a different runway than every other screen.
+    const { dailyBurn: dashboardDailyBurn, runwayDays: computedRunwayDays } = useMemo(
+        () => computeCashRunway(transactions, finance.cashBalance),
+        [transactions, finance.cashBalance],
+    );
+    const runwayDays = dashboardDailyBurn > 0 ? computedRunwayDays : null;
     const runwayColor = runwayDays === null ? Colors.income : runwayDays < 30 ? Colors.expense : runwayDays < 60 ? Colors.warning : Colors.income;
 
     // Sync label (how recently data was saved)

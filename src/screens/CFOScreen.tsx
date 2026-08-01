@@ -61,7 +61,7 @@ function PulseTab({ onOpenRisk }: { onOpenRisk: () => void }) {
     const { currency } = settings;
     const summary = useMemo(() => computeWeeklyCFOSummary(transactions, goals, loans, finance), [transactions, goals, loans, finance]);
     const risk    = useMemo(() => computeRiskScore(finance, loans, transactions), [finance, loans, transactions]);
-    const ratios  = useMemo(() => computeFinancialRatios(finance, loans), [finance, loans]);
+    const ratios  = useMemo(() => computeFinancialRatios(finance, loans, transactions), [finance, loans, transactions]);
 
     const health  = healthLabel(risk.score);
     const profit  = finance.profit;
@@ -241,7 +241,7 @@ function ForecastTab() {
 function FinanceTab() {
     const { finance, loans, transactions, settings, navigate } = useApp();
     const { currency } = settings;
-    const ratios = useMemo(() => computeFinancialRatios(finance, loans), [finance, loans]);
+    const ratios = useMemo(() => computeFinancialRatios(finance, loans, transactions), [finance, loans, transactions]);
     const dscr   = useMemo(() => computeDSCR(transactions, loans), [transactions, loans]);
 
     const [fixedCosts, setFixedCosts]     = useState('');
