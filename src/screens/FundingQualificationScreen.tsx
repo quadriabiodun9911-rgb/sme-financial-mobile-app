@@ -13,14 +13,24 @@ export default function FundingQualificationScreen() {
     const daysActive = user?.daysActive || 0;
     const avgMonthlyRevenue = user?.avgMonthlyRevenue || finance.income / 12;
     const totalRecordedRevenue = user?.totalRecordedRevenue || finance.income;
-    const healthScore = user?.financialHealthScore || 75;
+    // financialHealthScore is a real 0 (not "unscored") until there are at
+    // least 5 transactions (see OptimizedContexts.tsx) — this used to fall
+    // back to a fabricated "75" for any brand-new business with no real
+    // score yet, silently inflating their funding-readiness result instead
+    // of honestly reflecting "not enough data." When unreliable, its 10%
+    // weight is dropped from the blend rather than faked.
+    const hasReliableHealthScore = transactions.length >= 5;
+    const healthScore = user?.financialHealthScore || 0;
 
     const businessHistoryScore = Math.min((daysActive / 180) * 100, 100);
     const revenueScore = Math.min((totalRecordedRevenue / 25000000) * 100, 100);
     const profitScore = finance.profit > 0 ? Math.min((finance.profit / (finance.income * 0.3)) * 100, 100) : 40;
     const cashFlowScore = finance.cashBalance > (finance.expense * 3) ? 90 : finance.cashBalance > finance.expense ? 70 : 40;
 
-    const overallScore = Math.round((businessHistoryScore * 0.25 + revenueScore * 0.25 + profitScore * 0.25 + cashFlowScore * 0.15 + healthScore * 0.1));
+    const weightedSum = businessHistoryScore * 0.25 + revenueScore * 0.25 + profitScore * 0.25 + cashFlowScore * 0.15
+        + (hasReliableHealthScore ? healthScore * 0.10 : 0);
+    const totalWeight = 0.25 + 0.25 + 0.25 + 0.15 + (hasReliableHealthScore ? 0.10 : 0);
+    const overallScore = Math.round(weightedSum / totalWeight);
 
     return {
       overall: overallScore,

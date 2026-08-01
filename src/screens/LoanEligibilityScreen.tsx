@@ -63,7 +63,7 @@ export default function LoanEligibilityScreen() {
             requirements: [
                 { label: 'Business Age', value: `${user?.daysActive || 0} days`, met: (user?.daysActive || 0) >= 180 },
                 { label: 'Monthly Revenue', value: `${currency}${(user?.avgMonthlyRevenue || 0).toLocaleString()}`, met: (user?.avgMonthlyRevenue || 0) >= 500000 },
-                { label: 'Credit Score', value: `${user?.financialHealthScore || 0}/100`, met: (user?.financialHealthScore || 0) >= 70 },
+                { label: 'Health Score', value: `${user?.financialHealthScore || 0}/100`, met: (user?.financialHealthScore || 0) >= 70 },
             ],
             eligible: bankLoanEligible,
             pros: ['Lower interest rate', 'Longer repayment period', 'Professional lender', 'Flexible use'],
