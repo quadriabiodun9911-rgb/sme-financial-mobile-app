@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text,
     TouchableOpacity, StyleSheet, Modal,
@@ -74,6 +74,15 @@ export default function InventoryScreen() {
             : 0;
         return { cat, count: items.length, stockVal, avgMargin };
     });
+
+    // Per-item stock velocity — computed once per inventory/transactions
+    // change rather than inline in the render loop (computeStockVelocity
+    // itself scans transactions per item, so leaving it unmemoized redid
+    // that scan for every item on every render).
+    const velocityByItemId = useMemo(
+        () => new Map(inventory.map(item => [item.id, computeStockVelocity(item, transactions)])),
+        [inventory, transactions],
+    );
 
     // Best margin items (top 3)
     const itemsWithMargin = inventory.map(item => ({
@@ -289,7 +298,7 @@ export default function InventoryScreen() {
                                 ? ((item.sellingPrice - item.costPrice) / item.sellingPrice) * 100
                                 : 0;
                             const stockVal = item.quantity * item.costPrice;
-                            const velocity = computeStockVelocity(item, transactions);
+                            const velocity = velocityByItemId.get(item.id)!;
 
                             return (
                                 <View key={item.id} style={styles.itemCard}>

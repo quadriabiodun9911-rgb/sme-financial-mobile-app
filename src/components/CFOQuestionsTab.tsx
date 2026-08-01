@@ -48,12 +48,9 @@ export default function CFOQuestionsTab() {
 
     const [revenueMissPct, setRevenueMissPct] = useState(15);
     const [showAddCommitment, setShowAddCommitment] = useState(false);
-    const [name, setName] = useState('');
-    const [amountApproved, setAmountApproved] = useState('');
-    const [purpose, setPurpose] = useState('');
-    const [kpiName, setKpiName] = useState('');
-    const [kpiTarget, setKpiTarget] = useState('');
-    const [kpiActual, setKpiActual] = useState('');
+    const EMPTY_COMMITMENT_FORM = { name: '', amountApproved: '', purpose: '', kpiName: '', kpiTarget: '', kpiActual: '' };
+    const [form, setForm] = useState(EMPTY_COMMITMENT_FORM);
+    const setField = (field: keyof typeof EMPTY_COMMITMENT_FORM) => (value: string) => setForm(f => ({ ...f, [field]: value }));
 
     const { dailyBurn } = useMemo(() => computeCashRunway(transactions, finance.cashBalance), [transactions, finance.cashBalance]);
 
@@ -66,20 +63,29 @@ export default function CFOQuestionsTab() {
     );
 
     // Same accrual figures AccrualCashFlow.tsx already computes — reused
-    // here, not re-derived differently.
-    const cashIncome = useMemo(() => transactions.filter(t => t.type === 'income' && t.status === 'paid').reduce((s, t) => s + t.amount, 0), [transactions]);
-    const unpaidInvoicesTotal = useMemo(() => invoices.filter(i => i.status === 'sent' || i.status === 'overdue').reduce((s, i) => s + (i.total ?? 0), 0), [invoices]);
-    const accrualRevenue = cashIncome + unpaidInvoicesTotal;
-    const cashExpenses = useMemo(() => transactions.filter(t => t.type === 'expense' && t.status === 'paid').reduce((s, t) => s + t.amount, 0), [transactions]);
-    const unpaidExpenses = useMemo(() => transactions.filter(t => t.type === 'expense' && (t.status === 'pending' || t.status === 'overdue')).reduce((s, t) => s + t.amount, 0), [transactions]);
-    const accrualExpenses = cashExpenses + unpaidExpenses;
-
-    const trailing30Revenue = useMemo(() => {
+    // here, not re-derived differently. One pass over transactions instead
+    // of four separate filter+reduce scans.
+    const { cashIncome, cashExpenses, unpaidExpenses, trailing30Revenue } = useMemo(() => {
         const cutoff = new Date();
         cutoff.setDate(cutoff.getDate() - 30);
         const cutoffStr = cutoff.toISOString().split('T')[0];
-        return transactions.filter(t => t.type === 'income' && t.status === 'paid' && t.date >= cutoffStr).reduce((s, t) => s + t.amount, 0);
+
+        let cashIncome = 0, cashExpenses = 0, unpaidExpenses = 0, trailing30Revenue = 0;
+        for (const t of transactions) {
+            if (t.type === 'income' && t.status === 'paid') {
+                cashIncome += t.amount;
+                if (t.date >= cutoffStr) trailing30Revenue += t.amount;
+            } else if (t.type === 'expense') {
+                if (t.status === 'paid') cashExpenses += t.amount;
+                else if (t.status === 'pending' || t.status === 'overdue') unpaidExpenses += t.amount;
+            }
+        }
+        return { cashIncome, cashExpenses, unpaidExpenses, trailing30Revenue };
     }, [transactions]);
+
+    const unpaidInvoicesTotal = useMemo(() => invoices.filter(i => i.status === 'sent' || i.status === 'overdue').reduce((s, i) => s + (i.total ?? 0), 0), [invoices]);
+    const accrualRevenue = cashIncome + unpaidInvoicesTotal;
+    const accrualExpenses = cashExpenses + unpaidExpenses;
 
     const reserveTarget = parseFloat(settings.minReserve) || 0;
     const quarterlyTaxEstimate = accrualRevenue * (parseFloat(settings.defaultTaxRate) || 0) / 4;
@@ -116,19 +122,19 @@ export default function CFOQuestionsTab() {
     );
 
     const resetForm = () => {
-        setName(''); setAmountApproved(''); setPurpose(''); setKpiName(''); setKpiTarget(''); setKpiActual('');
+        setForm(EMPTY_COMMITMENT_FORM);
         setShowAddCommitment(false);
     };
 
     const saveCommitment = () => {
-        if (!name.trim() || !(parseFloat(amountApproved) > 0)) return;
-        const kpis: CommitmentKPI[] = kpiName.trim()
-            ? [{ id: `kpi-${Date.now()}`, name: kpiName.trim(), target: parseFloat(kpiTarget) || 0, actual: parseFloat(kpiActual) || 0 }]
+        if (!form.name.trim() || !(parseFloat(form.amountApproved) > 0)) return;
+        const kpis: CommitmentKPI[] = form.kpiName.trim()
+            ? [{ id: `kpi-${Date.now()}`, name: form.kpiName.trim(), target: parseFloat(form.kpiTarget) || 0, actual: parseFloat(form.kpiActual) || 0 }]
             : [];
         addCommitment({
-            name: name.trim(),
-            amountApproved: parseFloat(amountApproved) || 0,
-            purpose: purpose.trim(),
+            name: form.name.trim(),
+            amountApproved: parseFloat(form.amountApproved) || 0,
+            purpose: form.purpose.trim(),
             approvedDate: new Date().toISOString().split('T')[0],
             kpis,
             status: 'not-started',
@@ -269,14 +275,14 @@ export default function CFOQuestionsTab() {
                     </TouchableOpacity>
                 ) : (
                     <View style={s.form}>
-                        <TextInput style={s.input} value={name} onChangeText={setName} placeholder="e.g. New delivery van" placeholderTextColor={Colors.textMuted} />
-                        <TextInput style={s.input} value={amountApproved} onChangeText={setAmountApproved} keyboardType="decimal-pad" placeholder={`Amount approved (${currency})`} placeholderTextColor={Colors.textMuted} />
-                        <TextInput style={s.input} value={purpose} onChangeText={setPurpose} placeholder="Purpose" placeholderTextColor={Colors.textMuted} />
+                        <TextInput style={s.input} value={form.name} onChangeText={setField('name')} placeholder="e.g. New delivery van" placeholderTextColor={Colors.textMuted} />
+                        <TextInput style={s.input} value={form.amountApproved} onChangeText={setField('amountApproved')} keyboardType="decimal-pad" placeholder={`Amount approved (${currency})`} placeholderTextColor={Colors.textMuted} />
+                        <TextInput style={s.input} value={form.purpose} onChangeText={setField('purpose')} placeholder="Purpose" placeholderTextColor={Colors.textMuted} />
                         <Text style={s.formSubLabel}>Optional: one KPI to track</Text>
-                        <TextInput style={s.input} value={kpiName} onChangeText={setKpiName} placeholder="e.g. Deliveries per week" placeholderTextColor={Colors.textMuted} />
+                        <TextInput style={s.input} value={form.kpiName} onChangeText={setField('kpiName')} placeholder="e.g. Deliveries per week" placeholderTextColor={Colors.textMuted} />
                         <View style={s.row}>
-                            <TextInput style={[s.input, s.flex]} value={kpiTarget} onChangeText={setKpiTarget} keyboardType="decimal-pad" placeholder="Target" placeholderTextColor={Colors.textMuted} />
-                            <TextInput style={[s.input, s.flex]} value={kpiActual} onChangeText={setKpiActual} keyboardType="decimal-pad" placeholder="Actual so far" placeholderTextColor={Colors.textMuted} />
+                            <TextInput style={[s.input, s.flex]} value={form.kpiTarget} onChangeText={setField('kpiTarget')} keyboardType="decimal-pad" placeholder="Target" placeholderTextColor={Colors.textMuted} />
+                            <TextInput style={[s.input, s.flex]} value={form.kpiActual} onChangeText={setField('kpiActual')} keyboardType="decimal-pad" placeholder="Actual so far" placeholderTextColor={Colors.textMuted} />
                         </View>
                         <View style={s.row}>
                             <TouchableOpacity style={[s.addBtn, s.flex]} onPress={saveCommitment}>

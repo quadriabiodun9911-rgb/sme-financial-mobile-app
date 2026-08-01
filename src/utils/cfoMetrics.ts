@@ -82,25 +82,24 @@ export function computeObligationsWaterfall(
     const activeLoans = loans.filter(l => l.status === 'active');
     const today = new Date();
 
-    // Debt service per quarter is bucketed month-by-month (12 whole
-    // calendar months from today, 3 per quarter) rather than computed from
-    // independently-rounded date overlaps per quarter — that approach could
-    // round a loan's partial month up on both sides of a quarter boundary,
-    // overstating its total debt service across the 4 quarters. This way
-    // each loan contributes at most its own remaining term, counted once.
+    // Debt service per quarter is bucketed by whole calendar months (3 per
+    // quarter, 12 total from today) via integer month-offset arithmetic —
+    // not independently-rounded date overlaps per quarter, which could
+    // round a loan's partial month up on both sides of a quarter boundary
+    // and overstate its total debt service across the 4 quarters. Each
+    // loan contributes at most its own remaining term, counted once.
     const debtServiceByQuarter = [0, 0, 0, 0];
     for (const loan of activeLoans) {
         const loanStart = new Date(loan.startDate);
-        const loanEnd = new Date(loanStart);
-        loanEnd.setMonth(loanEnd.getMonth() + loan.termMonths);
+        // Month offset from today when this loan started (negative if it
+        // already started before today) and when it ends (exclusive).
+        const loanStartOffset = (loanStart.getFullYear() - today.getFullYear()) * 12 + (loanStart.getMonth() - today.getMonth());
+        const loanEndOffset = loanStartOffset + loan.termMonths;
         const payment = monthlyPayment(loan.principal, loan.interestRate, loan.termMonths);
 
-        for (let m = 0; m < 12; m++) {
-            const monthDate = new Date(today);
-            monthDate.setMonth(monthDate.getMonth() + m);
-            if (monthDate >= loanStart && monthDate < loanEnd) {
-                debtServiceByQuarter[Math.floor(m / 3)] += payment;
-            }
+        for (let q = 0; q < 4; q++) {
+            const quarterMonthsActive = Math.max(0, Math.min(q * 3 + 3, loanEndOffset) - Math.max(q * 3, loanStartOffset));
+            debtServiceByQuarter[q] += payment * quarterMonthsActive;
         }
     }
 

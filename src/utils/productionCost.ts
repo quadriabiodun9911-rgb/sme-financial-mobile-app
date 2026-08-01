@@ -8,6 +8,8 @@
  * to maintain.
  */
 
+import { computeBreakEven } from './finance';
+
 export type ProductionCostVerdict = 'healthy' | 'caution' | 'high';
 
 export interface MaterialCost {
@@ -45,11 +47,12 @@ export function computeProductionCost(
     const profitPerUnit = sellingPricePerUnit - costPerUnit;
     const marginPct = sellingPricePerUnit > 0 ? (profitPerUnit / sellingPricePerUnit) * 100 : 0;
 
+    // Same formula as computeBreakEven (finance.ts) — fixed costs / contribution
+    // margin per unit — reused rather than re-derived, with material cost per
+    // unit standing in as the "variable cost" side of that calculation.
     const materialCostPerUnit = unitsProduced > 0 ? totalMaterialCost / unitsProduced : 0;
-    const contributionMarginPerUnit = sellingPricePerUnit - materialCostPerUnit;
-    const breakEvenUnits = contributionMarginPerUnit > 0
-        ? Math.ceil(fixedCostPerBatch / contributionMarginPerUnit)
-        : Infinity;
+    const { breakEvenUnits: rawBreakEvenUnits } = computeBreakEven(fixedCostPerBatch, materialCostPerUnit, sellingPricePerUnit);
+    const breakEvenUnits = isFinite(rawBreakEvenUnits) ? Math.ceil(rawBreakEvenUnits) : Infinity;
 
     let verdict: ProductionCostVerdict;
     let reason: string;
