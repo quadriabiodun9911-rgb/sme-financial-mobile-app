@@ -722,7 +722,7 @@ export async function clearAllData(): Promise<void> {
         KEYS.transactions, KEYS.settings, KEYS.goals, KEYS.invoices,
         KEYS.assets, KEYS.loans, KEYS.pin, KEYS.profile, KEYS.language,
         KEYS.workspaceOwner, KEYS.staff, KEYS.payrollRuns,
-        '@quad360/inventory', '@quad360/budgets', CASH_POCKETS_KEY,
+        '@quad360/inventory', '@quad360/budgets', CASH_POCKETS_KEY, CAPITAL_COMMITMENTS_KEY,
     ]);
     await clearAllSecureData();
 }
@@ -735,7 +735,7 @@ export async function clearLocalFinancialCache(): Promise<void> {
     await AsyncStorage.multiRemove([
         KEYS.transactions, KEYS.settings, KEYS.goals, KEYS.invoices,
         KEYS.assets, KEYS.loans, KEYS.staff, KEYS.payrollRuns,
-        '@quad360/inventory', '@quad360/budgets', CASH_POCKETS_KEY,
+        '@quad360/inventory', '@quad360/budgets', CASH_POCKETS_KEY, CAPITAL_COMMITMENTS_KEY,
     ]);
 }
 

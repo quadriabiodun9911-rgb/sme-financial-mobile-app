@@ -65,6 +65,18 @@ describe('computeObligationsWaterfall', () => {
         r.quarters.forEach(q => expect(q.debtService).toBeGreaterThan(0));
     });
 
+    it('never counts more months of debt service than a loan\'s remaining term, even near a quarter boundary', () => {
+        // Regression test: independently rounding each quarter's date overlap
+        // could double-count a partial month on both sides of a boundary.
+        // A fresh 6-month loan must contribute exactly 6 months of payment
+        // total across the 4 quarters, never more.
+        const loan = makeLoan({ startDate: d(0), termMonths: 6, principal: 60000, interestRate: 0 });
+        const r = computeObligationsWaterfall([loan], 0, 0);
+        const payment = 60000 / 6; // 0% interest, so monthlyPayment = principal/termMonths
+        const totalDebtService = r.quarters.reduce((s, q) => s + q.debtService, 0);
+        expect(totalDebtService).toBeCloseTo(payment * 6, 2);
+    });
+
     it('only applies payablesDue to the first quarter', () => {
         const r = computeObligationsWaterfall([], 8000, 0);
         expect(r.quarters[0].payablesDue).toBe(8000);

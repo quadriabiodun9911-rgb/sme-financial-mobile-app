@@ -82,28 +82,30 @@ export function computeObligationsWaterfall(
     const activeLoans = loans.filter(l => l.status === 'active');
     const today = new Date();
 
-    const quarters: QuarterObligation[] = [1, 2, 3, 4].map(q => {
-        const quarterStart = new Date(today);
-        quarterStart.setMonth(quarterStart.getMonth() + (q - 1) * 3);
-        const quarterEnd = new Date(today);
-        quarterEnd.setMonth(quarterEnd.getMonth() + q * 3);
+    // Debt service per quarter is bucketed month-by-month (12 whole
+    // calendar months from today, 3 per quarter) rather than computed from
+    // independently-rounded date overlaps per quarter — that approach could
+    // round a loan's partial month up on both sides of a quarter boundary,
+    // overstating its total debt service across the 4 quarters. This way
+    // each loan contributes at most its own remaining term, counted once.
+    const debtServiceByQuarter = [0, 0, 0, 0];
+    for (const loan of activeLoans) {
+        const loanStart = new Date(loan.startDate);
+        const loanEnd = new Date(loanStart);
+        loanEnd.setMonth(loanEnd.getMonth() + loan.termMonths);
+        const payment = monthlyPayment(loan.principal, loan.interestRate, loan.termMonths);
 
-        let debtService = 0;
-        for (const loan of activeLoans) {
-            const loanStart = new Date(loan.startDate);
-            const loanEnd = new Date(loanStart);
-            loanEnd.setMonth(loanEnd.getMonth() + loan.termMonths);
-            // Skip entirely if the loan finishes before this quarter starts.
-            if (loanEnd <= quarterStart) continue;
-            const payment = monthlyPayment(loan.principal, loan.interestRate, loan.termMonths);
-            // Count 3 months of payment unless the loan finishes partway
-            // through this quarter, in which case count only those months.
-            const monthsRemainingInQuarter = Math.min(3, Math.max(0, Math.round(
-                (Math.min(loanEnd.getTime(), quarterEnd.getTime()) - Math.max(loanStart.getTime(), quarterStart.getTime())) / (1000 * 60 * 60 * 24 * 30)
-            )));
-            debtService += payment * monthsRemainingInQuarter;
+        for (let m = 0; m < 12; m++) {
+            const monthDate = new Date(today);
+            monthDate.setMonth(monthDate.getMonth() + m);
+            if (monthDate >= loanStart && monthDate < loanEnd) {
+                debtServiceByQuarter[Math.floor(m / 3)] += payment;
+            }
         }
+    }
 
+    const quarters: QuarterObligation[] = [1, 2, 3, 4].map(q => {
+        const debtService = debtServiceByQuarter[q - 1];
         const payablesDue = q === 1 ? upcoming30dayAP : 0;
         const taxDue = quarterlyTaxEstimate;
         const total = debtService + taxDue + payablesDue;
