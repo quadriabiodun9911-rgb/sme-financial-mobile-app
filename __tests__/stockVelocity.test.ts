@@ -1,4 +1,4 @@
-import { computeStockVelocity } from '../src/utils/stockVelocity';
+import { computeStockVelocity, computeInventoryValue } from '../src/utils/stockVelocity';
 import { InventoryItem, Transaction } from '../src/types';
 
 const today = new Date();
@@ -79,5 +79,24 @@ describe('computeStockVelocity', () => {
         ];
         const result = computeStockVelocity(item, txs, 30);
         expect(result.unitsSoldInWindow).toBeCloseTo(3, 5);
+    });
+});
+
+describe('computeInventoryValue', () => {
+    it('sums quantity x costPrice across all items', () => {
+        const items = [
+            makeItem({ id: 'a', quantity: 10, costPrice: 5 }),
+            makeItem({ id: 'b', quantity: 4, costPrice: 25 }),
+        ];
+        expect(computeInventoryValue(items)).toBe(150); // 50 + 100
+    });
+
+    it('returns 0 for an empty inventory', () => {
+        expect(computeInventoryValue([])).toBe(0);
+    });
+
+    it('treats missing quantity/costPrice as 0 rather than NaN', () => {
+        const items = [{ ...makeItem(), quantity: undefined as any, costPrice: 10 }];
+        expect(computeInventoryValue(items)).toBe(0);
     });
 });

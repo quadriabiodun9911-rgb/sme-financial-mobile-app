@@ -16,6 +16,15 @@
 
 import { InventoryItem, Transaction } from '../types';
 
+// Total stock at cost — the one place this gets summed. Previously
+// reimplemented independently in ~5 places (InventoryScreen, ReportsScreen,
+// CreditWorthinessScreen, CFOQuestionsTab) with the same formula; harmless
+// while they all agreed, but a future edge-case fix (e.g. excluding
+// disposed/zero-quantity items) would have needed applying in every copy.
+export function computeInventoryValue(items: InventoryItem[]): number {
+    return items.reduce((sum, item) => sum + (item.quantity || 0) * (item.costPrice || 0), 0);
+}
+
 export type StockVelocityTier = 'fast' | 'moderate' | 'slow' | 'no-data';
 
 export interface StockVelocity {

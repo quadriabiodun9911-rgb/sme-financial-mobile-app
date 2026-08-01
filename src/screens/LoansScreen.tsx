@@ -25,19 +25,7 @@ import { computeDebtOptimiser } from '../utils/finance';
 import NextStepLink from '../components/NextStepLink';
 import ProfitCashImpactCard from '../components/ProfitCashImpactCard';
 import { computeProfitCashImpact } from '../utils/impactChain';
-
-// Original Loans Screen helpers
-function monthlyPayment(principal: number, annualRate: number, termMonths: number): number {
-    if (!termMonths || termMonths <= 0) return 0;
-    if (annualRate === 0) return principal / termMonths;
-    const r = annualRate / 100 / 12;
-    const factor = Math.pow(1 + r, termMonths);
-    return principal * (r * factor) / (factor - 1);
-}
-
-function totalInterest(principal: number, annualRate: number, termMonths: number): number {
-    return monthlyPayment(principal, annualRate, termMonths) * termMonths - principal;
-}
+import { monthlyPayment, totalInterest } from '../utils/loanMath';
 
 function totalPaid(loan: Loan): number {
     return (loan.payments ?? []).reduce((s, p) => s + p.amount, 0);

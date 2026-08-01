@@ -4,6 +4,7 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { computeCashRunway } from '../utils/cashRunway';
 import { computeAgingBuckets } from '../utils/finance';
+import { computeInventoryValue } from '../utils/stockVelocity';
 import { totalMonthlyLoanBurden } from '../utils/loanMath';
 import {
     computeFreeCashFlow,
@@ -57,10 +58,7 @@ export default function CFOQuestionsTab() {
     const apBuckets = useMemo(() => computeAgingBuckets(transactions, 'expense'), [transactions]);
     const upcoming30dayAP = apBuckets[0]?.total ?? 0;
 
-    const inventoryValue = useMemo(
-        () => inventory.reduce((sum, item) => sum + (item.quantity || 0) * (item.costPrice || 0), 0),
-        [inventory],
-    );
+    const inventoryValue = useMemo(() => computeInventoryValue(inventory), [inventory]);
 
     // Same accrual figures AccrualCashFlow.tsx already computes — reused
     // here, not re-derived differently. One pass over transactions instead

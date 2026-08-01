@@ -17,8 +17,6 @@ export type Screen =
     | '2fa'
     | 'two-factor-verify'
     | 'payment-link'
-    | 'connect-bank'
-    | 'bank-aggregator'
     | 'import-transactions'
     | 'cashflow'
     | 'payroll'

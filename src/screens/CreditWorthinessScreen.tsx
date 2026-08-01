@@ -14,6 +14,7 @@ import { buildLenderSummaryExport } from '../utils/lenderSummaryExport';
 import { computeDSCR } from '../utils/finance';
 import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
 import { computeDataQuality } from '../utils/dataQuality';
+import { computeInventoryValue } from '../utils/stockVelocity';
 
 export default function CreditWorthinessScreen() {
     const { user, finance, transactions, loans, navigate, settings, inventory } = useApp();
@@ -203,10 +204,7 @@ export default function CreditWorthinessScreen() {
     // from the credit score itself, same "unscored vs. actually poor"
     // distinction used throughout the credit factors above.
     const dscrResult = useMemo(() => computeDSCR(transactions, loans), [transactions, loans]);
-    const inventoryValue = useMemo(
-        () => inventory.reduce((sum, item) => sum + ((item.quantity || 0) * (item.costPrice || 0)), 0),
-        [inventory],
-    );
+    const inventoryValue = useMemo(() => computeInventoryValue(inventory), [inventory]);
     const lendingCapacity = useMemo(() => computeLendingCapacityEstimate({
         overallCreditScore,
         avgMonthlyRevenue: user?.avgMonthlyRevenue || 0,

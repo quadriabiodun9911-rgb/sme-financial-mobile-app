@@ -32,6 +32,7 @@ import { FinanceData } from '../types';
 import DateInput from '../components/DateInput';
 import { InventoryItem } from '../types';
 import { generatePDF, sharePDF } from '../utils/pdfExport';
+import { computeInventoryValue } from '../utils/stockVelocity';
 
 // ─── Section groups ────────────────────────────────────────────────────────────
 type SectionKey = 'statements' | 'customers' | 'tax' | 'planning' | 'growth';
@@ -100,7 +101,7 @@ export default function ReportsScreen() {
     const [showComparison, setShowComparison] = useState(false);
     const today = new Date().toISOString().split('T')[0];
     const inventoryValue = useMemo(
-        () => inventory.reduce((sum, item) => sum + (item.quantity || 0) * (item.costPrice || 0), 0),
+        () => computeInventoryValue(inventory),
         [inventory],
     );
     const [customRange, setCustomRange] = useState<DateRange>({ from: today, to: today });
@@ -618,7 +619,7 @@ function InventoryReportTab({ inventory, finance, transactions, currency }: {
     transactions: any[];
     currency: string;
 }) {
-    const totalStockCost    = inventory.reduce((s, i) => s + i.quantity * i.costPrice, 0);
+    const totalStockCost    = computeInventoryValue(inventory);
     const potentialRevenue  = inventory.reduce((s, i) => s + i.quantity * i.sellingPrice, 0);
     const potentialProfit   = potentialRevenue - totalStockCost;
     const grossMargin       = potentialRevenue > 0 ? (potentialProfit / potentialRevenue) * 100 : 0;

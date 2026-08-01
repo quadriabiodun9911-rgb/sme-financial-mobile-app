@@ -8,6 +8,7 @@
 import { Budget, Loan, Asset, Invoice, InventoryItem, StaffMember, FinancialGoal } from '../types';
 import { totalMonthlyLoanBurden } from './loanMath';
 import { computeAssetCurrentValue } from './finance';
+import { computeInventoryValue } from './stockVelocity';
 
 export interface StructuralSnapshot {
     hasData: boolean;
@@ -50,7 +51,7 @@ export function buildStructuralSnapshot(
     const committedMonthlyCosts = budgetedMonthlySpend + loanBurden + payrollCost;
 
     const outstandingReceivables = invoices.filter(i => i.status !== 'paid').reduce((s, i) => s + (i.total ?? 0), 0);
-    const inventoryStockValue = inventory.reduce((s, i) => s + i.quantity * i.costPrice, 0);
+    const inventoryStockValue = computeInventoryValue(inventory);
     const inventoryPotentialRevenue = inventory.reduce((s, i) => s + i.quantity * i.sellingPrice, 0);
     const activeAssetValue = assets.filter(a => a.status === 'active').reduce((s, a) => s + computeAssetCurrentValue(a), 0);
 

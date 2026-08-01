@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Colors } from '../theme/colors';
 import { Transaction, InventoryItem } from '../types';
+import { computeInventoryValue } from '../utils/stockVelocity';
 
 interface Props {
     transactions: Transaction[];
@@ -57,7 +58,7 @@ export default function ProductPerformance({ transactions, inventory, currency }
         // Calculate metrics for each category
         const metrics: ProductMetrics[] = Array.from(categoryMap.entries()).map(([category, data]) => {
             const revenue = data.revenue;
-            const inventoryCost = data.inventoryItems.reduce((sum, item) => sum + item.quantity * item.costPrice, 0);
+            const inventoryCost = computeInventoryValue(data.inventoryItems);
             const profit = revenue - inventoryCost;
             const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
             const totalUnits = data.inventoryItems.reduce((sum, item) => sum + item.quantity, 0);

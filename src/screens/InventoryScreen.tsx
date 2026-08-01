@@ -12,7 +12,7 @@ import FooterNav from '../components/FooterNav';
 import NextStepLink from '../components/NextStepLink';
 import PeriodComparisonTable from '../components/PeriodComparisonTable';
 import { suggestSolution } from '../utils/impactChain';
-import { computeStockVelocity } from '../utils/stockVelocity';
+import { computeStockVelocity, computeInventoryValue } from '../utils/stockVelocity';
 import RecipeCostCalculator from '../components/RecipeCostCalculator';
 import ProductionCostCalculator from '../components/ProductionCostCalculator';
 import { InventoryItem } from '../types';
@@ -51,7 +51,7 @@ export default function InventoryScreen() {
     const [sellQty, setSellQty] = useState('');
 
     // ── Summary calculations ──────────────────────────────────────────────────
-    const totalStockValue = inventory.reduce((sum, item) => sum + item.quantity * item.costPrice, 0);
+    const totalStockValue = computeInventoryValue(inventory);
     const totalItems = inventory.length;
     const lowStockItems = inventory.filter(item => item.quantity <= item.lowStockThreshold);
 
@@ -68,7 +68,7 @@ export default function InventoryScreen() {
         categoryMap.get(cat)!.items.push(item);
     }
     const categories = Array.from(categoryMap.entries()).map(([cat, { items }]) => {
-        const stockVal = items.reduce((s, i) => s + i.quantity * i.costPrice, 0);
+        const stockVal = computeInventoryValue(items);
         const avgMargin = items.length > 0
             ? items.reduce((s, i) => s + (i.sellingPrice > 0 ? ((i.sellingPrice - i.costPrice) / i.sellingPrice) * 100 : 0), 0) / items.length
             : 0;
