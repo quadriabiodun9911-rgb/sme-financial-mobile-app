@@ -33,11 +33,16 @@ function fmtRunway(days: number): string {
     return 'Unknown';
 }
 
-function healthLabel(score: number): { label: string; color: string; emoji: string } {
-    if (score >= 80) return { label: 'Excellent',  color: Colors.income,   emoji: '🟢' };
-    if (score >= 60) return { label: 'Good',        color: Colors.income,   emoji: '🟡' };
-    if (score >= 40) return { label: 'Fair',        color: Colors.warning,  emoji: '🟠' };
-    return               { label: 'Needs Work',  color: Colors.expense,  emoji: '🔴' };
+// Labels computeRiskScore's result — a debt/liquidity risk score, distinct
+// from user.financialHealthScore (the diagnosis-engine health score shown on
+// the Financial Health Score card) and from CreditWorthinessScreen's
+// lender-focused credit score. Named riskLabel (not healthLabel) so the code
+// doesn't conflate the two.
+function riskLabel(score: number): { label: string; color: string; emoji: string } {
+    if (score >= 80) return { label: 'Low Risk',      color: Colors.income,   emoji: '🟢' };
+    if (score >= 60) return { label: 'Moderate Risk',  color: Colors.income,   emoji: '🟡' };
+    if (score >= 40) return { label: 'Elevated Risk',  color: Colors.warning,  emoji: '🟠' };
+    return               { label: 'High Risk',      color: Colors.expense,  emoji: '🔴' };
 }
 
 function statusColor(status: string) {
@@ -63,7 +68,7 @@ function PulseTab({ onOpenRisk }: { onOpenRisk: () => void }) {
     const risk    = useMemo(() => computeRiskScore(finance, loans, transactions), [finance, loans, transactions]);
     const ratios  = useMemo(() => computeFinancialRatios(finance, loans, transactions), [finance, loans, transactions]);
 
-    const health  = healthLabel(risk.score);
+    const riskDisplay = riskLabel(risk.score);
     const profit  = finance.profit;
     const margin  = finance.income > 0 ? (profit / finance.income) * 100 : 0;
 
@@ -98,10 +103,10 @@ function PulseTab({ onOpenRisk }: { onOpenRisk: () => void }) {
                 Score card above, which uses a different, canonical
                 engine). Condensed to a one-line teaser pointing at the
                 Risk tab, which already shows this in full. */}
-            <TouchableOpacity style={[s.card, { borderLeftWidth: 4, borderLeftColor: health.color, flexDirection: 'row', alignItems: 'center' }]} onPress={onOpenRisk}>
-                <Text style={{ fontSize: 32, marginRight: 12 }}>{health.emoji}</Text>
+            <TouchableOpacity style={[s.card, { borderLeftWidth: 4, borderLeftColor: riskDisplay.color, flexDirection: 'row', alignItems: 'center' }]} onPress={onOpenRisk}>
+                <Text style={{ fontSize: 32, marginRight: 12 }}>{riskDisplay.emoji}</Text>
                 <View style={{ flex: 1 }}>
-                    <Text style={s.cardTitle}>Debt & Risk: {health.label} ({risk.score}/100)</Text>
+                    <Text style={s.cardTitle}>Debt & Risk Score: {riskDisplay.label} ({risk.score}/100)</Text>
                     {briefing[0] && <Text style={s.briefingLine}>{briefing[0]}</Text>}
                 </View>
                 <Text style={{ fontSize: 18, color: Colors.primary }}>→</Text>
@@ -398,15 +403,15 @@ function RiskTab() {
         <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
             {/* Risk score */}
             <View style={s.card}>
-                <Text style={s.cardTitle}>Business Risk Profile</Text>
+                <Text style={s.cardTitle}>Business Risk Score</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-                    <View style={[s.riskGauge, { borderColor: healthLabel(risk.score).color }]}>
-                        <Text style={[s.riskGradeText, { color: healthLabel(risk.score).color }]}>{risk.grade}</Text>
+                    <View style={[s.riskGauge, { borderColor: riskLabel(risk.score).color }]}>
+                        <Text style={[s.riskGradeText, { color: riskLabel(risk.score).color }]}>{risk.grade}</Text>
                         <Text style={s.riskScoreText}>{risk.score}/100</Text>
                     </View>
                     <View style={{ flex: 1, marginLeft: 16 }}>
-                        <Text style={[{ fontSize: 16, fontWeight: '700', color: healthLabel(risk.score).color, marginBottom: 4 }]}>
-                            {healthLabel(risk.score).label}
+                        <Text style={[{ fontSize: 16, fontWeight: '700', color: riskLabel(risk.score).color, marginBottom: 4 }]}>
+                            {riskLabel(risk.score).label}
                         </Text>
                         <Text style={s.cardSub}>Lower score = more risk. Above 70 is solid.</Text>
                     </View>
