@@ -12,6 +12,7 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { parsePdfStatement } from '../utils/pdfParser';
 import { filterNewTransactions } from '../utils/transactionDedup';
+import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -354,7 +355,7 @@ const CATEGORY_OPTIONS: { label: string; category: TxCategory; subCategory: stri
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function ImportTransactionsScreen() {
-    const { navigate, goBack, addTransaction, transactions, settings } = useApp();
+    const { navigate, goBack, addTransaction, transactions, invoices, finance, settings } = useApp();
     const currency = (settings as any).currency || '₦';
 
     const [step,       setStep]       = useState<'upload' | 'preview' | 'done'>('upload');
@@ -372,6 +373,22 @@ export default function ImportTransactionsScreen() {
     const webInputRef = useRef<any>(null);
 
     useEffect(() => { loadLearnedRules(); }, []);
+
+    // Run diagnosis on the freshly-imported data immediately, right where the
+    // business owner already is, instead of making them navigate away to
+    // Financial Assessment to find out what the import actually means.
+    // transactions/invoices here already reflect the just-imported rows —
+    // addTransaction updates context state, this screen re-renders with it.
+    const diagnosis = React.useMemo(() => {
+        if (step !== 'done') return null;
+        return performFinancialDiagnosis(
+            transactions,
+            invoices,
+            finance.cashBalance,
+            finance.expense || 100000,
+            currency
+        );
+    }, [step, transactions, invoices, finance, currency]);
 
     const processFile = useCallback(async (uri: string, name: string) => {
         setLoading(true);
@@ -672,8 +689,13 @@ export default function ImportTransactionsScreen() {
     // STEP: DONE
     // ─────────────────────────────────────────────────────────────────────────
     if (step === 'done') {
+        const topIssue = diagnosis && diagnosis.diagnoses.length > 0 ? diagnosis.diagnoses[0] : null;
+        const healthColor = diagnosis
+            ? diagnosis.healthStatus === 'healthy' ? '#22c55e' : diagnosis.healthStatus === 'warning' ? '#f59e0b' : '#ef4444'
+            : Colors.textMuted;
+
         return (
-            <View style={[styles.container, styles.centred]}>
+            <ScrollView style={styles.container} contentContainerStyle={[styles.content, styles.centred]}>
                 <Text style={styles.doneIcon}>✅</Text>
                 <Text style={styles.doneTitle}>{imported} transaction{imported !== 1 ? 's' : ''} imported</Text>
                 <Text style={styles.doneSub}>Your dashboard and reports have been updated.</Text>
@@ -682,16 +704,45 @@ export default function ImportTransactionsScreen() {
                         {duplicatesSkipped} row{duplicatesSkipped > 1 ? 's' : ''} already existed and {duplicatesSkipped > 1 ? 'were' : 'was'} skipped to avoid duplicate transactions.
                     </Text>
                 )}
-                <TouchableOpacity style={[styles.primaryBtn, { marginTop: 32, width: 280 }]} onPress={() => navigate('financial-assessment')}>
-                    <Text style={styles.primaryBtnText}>See My Business Health & SWOT →</Text>
+
+                {/* What this import actually means, right here — instead of
+                    making the business owner navigate away to find out.
+                    Mirrors performFinancialDiagnosis's own severity-first
+                    ordering: whatever it ranked most critical is what shows. */}
+                {diagnosis && (
+                    <View style={styles.diagnosisPreviewCard}>
+                        <View style={styles.diagnosisPreviewHeader}>
+                            <Text style={styles.diagnosisPreviewLabel}>Business health, based on this data</Text>
+                            <View style={[styles.diagnosisPreviewBadge, { backgroundColor: healthColor + '22' }]}>
+                                <Text style={[styles.diagnosisPreviewScore, { color: healthColor }]}>{diagnosis.overallHealth}/100</Text>
+                            </View>
+                        </View>
+                        {topIssue ? (
+                            <>
+                                <Text style={styles.diagnosisPreviewProblem}>{topIssue.problem}</Text>
+                                <Text style={styles.diagnosisPreviewImpact}>
+                                    Estimated impact: {currency}{Math.round(topIssue.financialImpact).toLocaleString()}
+                                </Text>
+                            </>
+                        ) : (
+                            <Text style={styles.diagnosisPreviewProblem}>No urgent issues found in this data — nice work.</Text>
+                        )}
+                    </View>
+                )}
+
+                <TouchableOpacity style={[styles.primaryBtn, { marginTop: 20, width: 280 }]} onPress={() => navigate('action-tracker')}>
+                    <Text style={styles.primaryBtnText}>See Recommended Actions →</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.ghostBtn, { marginTop: 12 }]} onPress={() => navigate('transactions')}>
+                <TouchableOpacity style={[styles.ghostBtn, { marginTop: 4 }]} onPress={() => navigate('financial-assessment')}>
+                    <Text style={styles.ghostBtnText}>Full Business Health & SWOT</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.ghostBtn} onPress={() => navigate('transactions')}>
                     <Text style={styles.ghostBtnText}>View Transactions</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.ghostBtn} onPress={() => { setStep('upload'); setRows([]); setError(''); setSkippedNote(''); setOpeningBalance(undefined); setClosingBalance(undefined); setDuplicatesSkipped(0); }}>
                     <Text style={styles.ghostBtnText}>Import another file</Text>
                 </TouchableOpacity>
-            </View>
+            </ScrollView>
         );
     }
 
@@ -893,6 +944,15 @@ const styles = StyleSheet.create({
     modalTitle:   { fontSize: 16, fontWeight: '800', color: Colors.textPrimary, marginBottom: 16 },
     catOption:    { paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: Colors.border },
     catOptionText: { fontSize: 14, color: Colors.textPrimary },
+
+    // Diagnosis preview on the Done screen
+    diagnosisPreviewCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginTop: 24, width: '100%', maxWidth: 340 },
+    diagnosisPreviewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+    diagnosisPreviewLabel: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', flex: 1, marginRight: 8 },
+    diagnosisPreviewBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+    diagnosisPreviewScore: { fontSize: 13, fontWeight: '800' },
+    diagnosisPreviewProblem: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, lineHeight: 20 },
+    diagnosisPreviewImpact: { fontSize: 12, color: Colors.textSecondary, marginTop: 6 },
 
     // Done screen
     doneIcon:  { fontSize: 64, marginBottom: 16 },

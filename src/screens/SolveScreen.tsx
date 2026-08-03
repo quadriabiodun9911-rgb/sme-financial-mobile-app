@@ -20,17 +20,19 @@ interface ProblemEntry {
 // screen that already answers it. Nothing here is a new feature — every
 // destination already exists; this is a front door onto the existing
 // depth, not a replacement for it.
+//
+// These six are the actual questions the app is built to keep answering —
+// not an arbitrary list of problem phrasings. Every screen in the app
+// exists to answer one of these; this front door just says so directly,
+// since that's the one place in the UI whose entire job is to ask the
+// business owner "what's on your mind" and hand back the real answer.
 const PROBLEMS: ProblemEntry[] = [
-    { emoji: '💰', prompt: "I'm not making enough profit", detail: 'See why, and what to do about it', screen: 'analysis', params: { tab: 'diagnosis' } },
-    { emoji: '💸', prompt: "I'm worried about running out of cash", detail: 'Cash runway, forecast & alerts', screen: 'cashflow' },
-    { emoji: '📦', prompt: "My inventory isn't moving", detail: 'Stock velocity & slow-moving items', screen: 'inventory' },
-    { emoji: '🧾', prompt: "Customers aren't paying me", detail: 'Overdue invoices & collections', screen: 'invoices' },
-    { emoji: '🏦', prompt: 'I need funding', detail: 'Credit-worthiness & lending capacity', screen: 'credit-worthiness' },
-    { emoji: '📈', prompt: 'I want to grow', detail: 'Model a decision before you make it', screen: 'analysis', params: { tab: 'scenarios' } },
-    { emoji: '⚙️', prompt: 'My costs are too high', detail: 'Find and cut what to cut', screen: 'analysis', params: { tab: 'scenarios' } },
-    { emoji: '🎯', prompt: "I don't know what to focus on", detail: 'Prioritized actions, ranked for you', screen: 'action-tracker' },
-    { emoji: '🧬', prompt: 'What does my business actually look like?', detail: 'Your Business Financial DNA', screen: 'financial-dna' },
-    { emoji: '🔮', prompt: "What happens if I make a change?", detail: 'Full projected P&L, cash flow & balance sheet', screen: 'future-statements' },
+    { emoji: '💰', prompt: 'Am I making money?', detail: 'Profit, revenue, margins, expenses.', screen: 'analysis', params: { tab: 'diagnosis' } },
+    { emoji: '💵', prompt: 'Will I run out of cash?', detail: 'Cash flow, runway, receivables, upcoming obligations.', screen: 'cashflow' },
+    { emoji: '📦', prompt: 'Where is my money tied up?', detail: 'Inventory, customers owing, assets, deposits.', screen: 'inventory' },
+    { emoji: '📈', prompt: 'Is my business getting healthier?', detail: 'Growth, margins, customer concentration, operating efficiency.', screen: 'growth' },
+    { emoji: '🏦', prompt: 'Can I get funding?', detail: 'Funding readiness, financial history, debt capacity, documentation.', screen: 'credit-worthiness' },
+    { emoji: '🧠', prompt: 'What should I do next?', detail: 'AI advisor, risks, opportunities, priorities and recommendations.', screen: 'action-tracker' },
 ];
 
 export default function SolveScreen() {
