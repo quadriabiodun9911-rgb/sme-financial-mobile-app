@@ -7,6 +7,7 @@ import FooterNav from '../components/FooterNav';
 import { buildBusinessFinancialDNA, detectDNADeviations } from '../utils/businessFinancialDNA';
 import { buildFinancialPassportExport } from '../utils/lenderSummaryExport';
 import { generatePDF, sharePDF } from '../utils/pdfExport';
+import { analyseRootCause } from '../utils/analysis';
 
 const RISK_COLOR = { low: Colors.income, medium: Colors.warning, high: Colors.expense } as const;
 const SEVERITY_CONFIG = {
@@ -33,6 +34,11 @@ export default function BusinessFinancialDNAScreen() {
         [transactions, loans, inventory, finance, settings, user],
     );
     const deviations = useMemo(() => detectDNADeviations(transactions, currency), [transactions, currency]);
+    // The DNA deviation cards say a metric moved and by how much; this adds
+    // the "why" — the same category-level root-cause engine behind the
+    // Analysis screen's "Why is my profit changing?" tab, reused rather
+    // than re-derived so the two never disagree on what actually drove it.
+    const rootCause = useMemo(() => analyseRootCause(transactions, 'month', settings), [transactions, settings]);
 
     const notEnoughData = dna.identity.monthsOfRecordedHistory < 1;
 
@@ -86,12 +92,20 @@ export default function BusinessFinancialDNAScreen() {
                         {deviations.length > 0 && (
                             <View style={s.card}>
                                 <Text style={s.cardTitle}>⚡ Something changed this month</Text>
-                                {deviations.map((d, i) => (
-                                    <View key={i} style={[s.deviationRow, i < deviations.length - 1 && s.deviationDivider]}>
-                                        <Text style={{ fontSize: 18, marginRight: 10 }}>{SEVERITY_CONFIG[d.severity].icon}</Text>
-                                        <Text style={s.deviationText}>{d.changeDescription}</Text>
-                                    </View>
-                                ))}
+                                {deviations.map((d, i) => {
+                                    const showsCause = d.metric === 'Monthly revenue' || d.metric === 'Monthly expenses';
+                                    return (
+                                        <View key={i} style={[s.deviationRow, i < deviations.length - 1 && s.deviationDivider]}>
+                                            <Text style={{ fontSize: 18, marginRight: 10 }}>{SEVERITY_CONFIG[d.severity].icon}</Text>
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={s.deviationText}>{d.changeDescription}</Text>
+                                                {showsCause && (
+                                                    <Text style={s.deviationCause}>Likely driver: {rootCause.primaryCause}</Text>
+                                                )}
+                                            </View>
+                                        </View>
+                                    );
+                                })}
                             </View>
                         )}
 
@@ -218,4 +232,5 @@ const s = StyleSheet.create({
     deviationRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 8 },
     deviationDivider: { borderBottomWidth: 1, borderBottomColor: Colors.border },
     deviationText: { fontSize: 13.5, color: Colors.textPrimary, flex: 1, lineHeight: 19 },
+    deviationCause: { fontSize: 12, color: Colors.textSecondary, marginTop: 3, fontStyle: 'italic', lineHeight: 16 },
 });

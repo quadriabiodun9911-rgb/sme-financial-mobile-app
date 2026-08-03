@@ -7,10 +7,27 @@ import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan, ActionTactic } from '../utils/actionRecommendationEngine';
-import { initiateTacticTracking, updateTacticProgress, TacticExecution } from '../utils/outcomeTrackingEngine';
+import { initiateTacticTracking, updateTacticProgress, recordTacticOutcome, measureActualImpact, TacticExecution, TacticOutcome } from '../utils/outcomeTrackingEngine';
 import NextStepLink from '../components/NextStepLink';
 
 const EXECUTIONS_KEY = 'quad360_tactic_executions_v1';
+const OUTCOMES_KEY = 'quad360_tactic_outcomes_v1';
+const SNAPSHOT_WINDOW_DAYS = 30;
+
+// finance.income/expense/profit are all-time cumulative totals, not a
+// recent-activity figure — comparing them before/after a few-week tactic
+// would barely move and drown out the real signal. This gives
+// measureActualImpact a trailing-30-day window instead, the same window
+// computeCashRunway already uses elsewhere in the app for "recent" figures.
+function trailingSnapshot(transactions: { type: string; amount: number; date: string; status?: string }[]) {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - SNAPSHOT_WINDOW_DAYS);
+  const cutoffStr = cutoff.toISOString().split('T')[0];
+  const recent = transactions.filter(t => t.date >= cutoffStr && t.status !== 'pending' && t.status !== 'overdue');
+  const income = recent.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+  const expense = recent.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  return { income, expense, profit: income - expense };
+}
 
 export default function ActionTrackerScreen() {
   const { transactions, invoices, finance, settings, setCurrentScreen } = useApp();
@@ -25,11 +42,23 @@ export default function ActionTrackerScreen() {
   const [executions, setExecutions] = useState<Record<string, TacticExecution>>({});
   const [executionsLoaded, setExecutionsLoaded] = useState(false);
 
+  // The record of what actually happened after a tactic was marked
+  // complete — the "what's worked for this business before" memory. Before
+  // this, completing a tactic just flipped a status flag with nothing
+  // measuring whether it moved the number it targeted, so the app could
+  // never tell a business owner what had actually worked for them.
+  const [outcomes, setOutcomes] = useState<TacticOutcome[]>([]);
+  const [outcomesLoaded, setOutcomesLoaded] = useState(false);
+
   useEffect(() => {
     AsyncStorage.getItem(EXECUTIONS_KEY)
       .then(raw => { if (raw) setExecutions(JSON.parse(raw)); })
       .catch(() => {})
       .finally(() => setExecutionsLoaded(true));
+    AsyncStorage.getItem(OUTCOMES_KEY)
+      .then(raw => { if (raw) setOutcomes(JSON.parse(raw)); })
+      .catch(() => {})
+      .finally(() => setOutcomesLoaded(true));
   }, []);
 
   useEffect(() => {
@@ -37,17 +66,38 @@ export default function ActionTrackerScreen() {
     AsyncStorage.setItem(EXECUTIONS_KEY, JSON.stringify(executions)).catch(() => {});
   }, [executions, executionsLoaded]);
 
+  useEffect(() => {
+    if (!outcomesLoaded) return;
+    AsyncStorage.setItem(OUTCOMES_KEY, JSON.stringify(outcomes)).catch(() => {});
+  }, [outcomes, outcomesLoaded]);
+
   const startTracking = (action: ActionTactic) => {
     const today = new Date().toISOString().split('T')[0];
-    setExecutions(prev => ({ ...prev, [action.id]: initiateTacticTracking(action, today) }));
+    setExecutions(prev => ({ ...prev, [action.id]: initiateTacticTracking(action, today, trailingSnapshot(transactions)) }));
   };
 
   const advanceTracking = (action: ActionTactic, pct: number) => {
     setExecutions(prev => {
-      const existing = prev[action.id] ?? initiateTacticTracking(action, new Date().toISOString().split('T')[0]);
-      return { ...prev, [action.id]: updateTacticProgress(existing, `${pct}%`, pct) };
+      const existing = prev[action.id] ?? initiateTacticTracking(action, new Date().toISOString().split('T')[0], trailingSnapshot(transactions));
+      const updated = updateTacticProgress(existing, `${pct}%`, pct);
+
+      // Auto-measure the outcome the moment a tactic crosses into
+      // "completed" — comparing the business's trailing 30-day numbers now
+      // against its trailing 30-day numbers when the tactic started, using
+      // the same direction convention as the tactic's own expectedImpact.
+      if (updated.status === 'completed' && updated.baseline && !outcomes.some(o => o.tacticId === action.id)) {
+        const current = trailingSnapshot(transactions);
+        const actualImpact = measureActualImpact(action, updated.baseline, current);
+        const outcome = recordTacticOutcome(updated, action, actualImpact, [], []);
+        setOutcomes(prevOutcomes => [...prevOutcomes, outcome]);
+      }
+
+      return { ...prev, [action.id]: updated };
     });
   };
+
+  const succeededOutcomes = outcomes.filter(o => o.succeeded);
+  const trackRecord = useMemo(() => [...outcomes].reverse().slice(0, 5), [outcomes]);
 
   const diagnosis = useMemo(() => {
     return performFinancialDiagnosis(
@@ -120,6 +170,33 @@ export default function ActionTrackerScreen() {
             </Text>
           )}
         </View>
+
+        {/* Track Record — what's actually worked for this business before,
+            not just what's planned. Empty until at least one tactic has
+            been carried through to completion and measured. */}
+        {trackRecord.length > 0 && (
+          <View style={styles.trackRecordCard}>
+            <Text style={styles.trackRecordTitle}>📈 What's Worked For You Before</Text>
+            <Text style={styles.trackRecordSub}>
+              {succeededOutcomes.length} of {outcomes.length} completed tactic{outcomes.length === 1 ? '' : 's'} hit at least 60% of its target impact.
+            </Text>
+            {trackRecord.map((o, i) => (
+              <View key={o.tacticId + i} style={styles.trackRecordRow}>
+                <Text style={{ fontSize: 16, marginRight: 8 }}>{o.succeeded ? '✅' : '⚠️'}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.trackRecordTacticTitle}>{o.tacticTitle}</Text>
+                  <Text style={styles.trackRecordDetail}>
+                    {o.succeeded
+                      ? `Delivered ${settings.currency}${Math.round(o.actualImpact).toLocaleString()} — worth doing again.`
+                      : o.expectedImpact > 0
+                        ? `Delivered ${settings.currency}${Math.round(o.actualImpact).toLocaleString()} of a ${settings.currency}${Math.round(o.expectedImpact).toLocaleString()} target.`
+                        : `Not enough of a baseline yet to measure this one reliably.`}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
 
         {/* Tab Navigation */}
         <View style={styles.tabContainer}>
@@ -353,6 +430,20 @@ const styles = StyleSheet.create({
   impactBannerText: { fontSize: 12, color: Colors.textSecondary, marginBottom: 4 },
   impactBannerValue: { fontSize: 18, fontWeight: '800', color: Colors.primary },
   impactBannerTracked: { fontSize: 11, color: Colors.textSecondary, marginTop: 6, fontWeight: '600' },
+
+  trackRecordCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  trackRecordTitle: { fontSize: 14.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: 3 },
+  trackRecordSub: { fontSize: 12, color: Colors.textSecondary, marginBottom: 10 },
+  trackRecordRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 6, borderTopWidth: 1, borderTopColor: Colors.border },
+  trackRecordTacticTitle: { fontSize: 13, fontWeight: '600', color: Colors.textPrimary },
+  trackRecordDetail: { fontSize: 12, color: Colors.textSecondary, marginTop: 2, lineHeight: 16 },
 
   tabContainer: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   tab: { flex: 1, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: Colors.surface, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },

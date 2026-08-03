@@ -14,6 +14,11 @@ export interface TacticExecution {
   progressPercentage: number;
   completedSteps: string[];
   notes: string;
+  // Revenue/expense/profit at the moment this tactic was started — the
+  // "before" half of the before/after comparison recordTacticOutcome needs.
+  // Without this, there was no way to ever know whether a tactic marked
+  // "completed" actually moved the number it claimed to target.
+  baseline?: { income: number; expense: number; profit: number };
 }
 
 export interface OutcomeMetric {
@@ -55,7 +60,8 @@ export interface ProgressTracker {
 
 export function initiateTacticTracking(
   tactic: ActionTactic,
-  startDate: string
+  startDate: string,
+  baseline?: { income: number; expense: number; profit: number },
 ): TacticExecution {
   const targetEndDate = new Date(startDate);
   targetEndDate.setDate(targetEndDate.getDate() + tactic.timelineWeeks * 7);
@@ -69,7 +75,26 @@ export function initiateTacticTracking(
     progressPercentage: 0,
     completedSteps: [],
     notes: '',
+    baseline,
   };
+}
+
+/**
+ * Turns a tactic's baseline + the business's current numbers into the
+ * "actualImpact" recordTacticOutcome needs — the one piece that lets
+ * "mark this tactic complete" turn into a real before/after measurement
+ * instead of just a checkbox. Mirrors expectedImpact's own direction
+ * convention: revenue and cash_improvement count a rise as positive
+ * impact, expense_reduction counts a fall as positive impact.
+ */
+export function measureActualImpact(
+  tactic: ActionTactic,
+  baseline: { income: number; expense: number; profit: number },
+  current: { income: number; expense: number; profit: number },
+): number {
+  if (tactic.impactType === 'revenue') return current.income - baseline.income;
+  if (tactic.impactType === 'expense_reduction') return baseline.expense - current.expense;
+  return current.profit - baseline.profit; // cash_improvement
 }
 
 export function updateTacticProgress(
