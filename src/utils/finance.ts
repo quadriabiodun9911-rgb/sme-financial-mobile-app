@@ -829,8 +829,14 @@ export function computeRiskScore(finance: FinanceData, loans: Loan[], transactio
         status: margin >= 20 ? 'good' : margin >= 0 ? 'warning' : 'danger',
     });
 
-    // Cash runway (weight 20)
-    const monthlyBurn = finance.expense / 12;
+    // Cash runway (weight 20) — same trailing-30-day-paid-expenses burn
+    // used everywhere else in the app (Dashboard, Cash Runway tab, Loans &
+    // Debt). finance.expense/12 treated an all-time cumulative expense
+    // total as if it were an annual figure — for any business with more
+    // than a year of history that understated monthly burn (and therefore
+    // overstated this factor's score) more the longer the business had
+    // been recording transactions.
+    const monthlyBurn = computeCashRunway(transactions, finance.cashBalance).dailyBurn * 30;
     const runwayMonths = monthlyBurn > 0 ? finance.cashBalance / monthlyBurn : 12;
     factors.push({
         name: 'Cash Runway',

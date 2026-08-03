@@ -62,8 +62,17 @@ export default function FundingQualificationScreen() {
     return `${settings.currency}${amount.toFixed(0)}`;
   };
 
+  // finance.income/30 treated an all-time cumulative revenue total as a
+  // daily rate — for any business with more than about a month of history
+  // that overstated the true daily rate (and so understated how long
+  // reaching the target would actually take) more the longer the account
+  // had been recording transactions. totalRecordedRevenue / daysActive is
+  // the account's real average daily rate since it started.
+  const avgDailyRevenue = qualificationMetrics.daysActive > 0
+    ? qualificationMetrics.totalRecordedRevenue / qualificationMetrics.daysActive
+    : 0;
   const estimatedDaysToRevenueTarget = qualificationMetrics.revenue >= 100 ? 0 :
-    Math.ceil((qualificationMetrics.targetRevenue - qualificationMetrics.totalRecordedRevenue) / Math.max(finance.income / 30, 1));
+    Math.ceil((qualificationMetrics.targetRevenue - qualificationMetrics.totalRecordedRevenue) / Math.max(avgDailyRevenue, 1));
 
   return (
     <SafeAreaView style={styles.safe}>

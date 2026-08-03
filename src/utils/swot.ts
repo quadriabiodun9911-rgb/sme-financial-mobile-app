@@ -238,7 +238,11 @@ export function generateSwot(
     if (finance.profit < 0) {
         threats.push({
             text: `Sustained net losses will erode equity and cash reserves over time. If the current trajectory continues, the business will deplete its financial buffer.`,
-            metric: `Monthly loss: ${currency}${Math.abs(finance.profit).toLocaleString()}`,
+            // finance.profit is an all-time cumulative total, not a
+            // monthly figure — labeling this "Monthly loss" (this weakness
+            // item's own text one line above correctly frames it as a
+            // sustained/cumulative loss) was an internal inconsistency.
+            metric: `Net loss: ${currency}${Math.abs(finance.profit).toLocaleString()}`,
         });
     }
 

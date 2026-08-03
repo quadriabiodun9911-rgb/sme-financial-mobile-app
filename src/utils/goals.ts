@@ -3,6 +3,7 @@ import {
     StrategyAction, FinanceData, Transaction, BusinessSettings,
 } from '../types';
 import { getTopCategories } from './finance';
+import { computeMonthlyBaseline } from './analysis';
 
 // ─── Goal progress computation ────────────────────────────────────────────────
 
@@ -207,12 +208,19 @@ export function generateStrategy(
                     metric: `Overdue AR: ${currency}${overdueARTotal.toLocaleString()}`,
                 });
             }
-            actions.push({
-                priority: 'medium',
-                title: 'Reduce your monthly expense run rate',
-                detail: `Your current monthly expense is ${currency}${finance.expense.toLocaleString()}. Each ${currency} saved flows directly into your cash reserve.`,
-                metric: `Monthly expenses: ${currency}${finance.expense.toLocaleString()}`,
-            });
+            {
+                // finance.expense is all-time cumulative, not a monthly
+                // figure — this text claimed it was the "current monthly
+                // expense," which would overstate it more the longer a
+                // business had been recording transactions.
+                const monthlyExpense = computeMonthlyBaseline(transactions, finance).expense;
+                actions.push({
+                    priority: 'medium',
+                    title: 'Reduce your monthly expense run rate',
+                    detail: `Your current monthly expense is ${currency}${Math.round(monthlyExpense).toLocaleString()}. Each ${currency} saved flows directly into your cash reserve.`,
+                    metric: `Monthly expenses: ${currency}${Math.round(monthlyExpense).toLocaleString()}`,
+                });
+            }
             actions.push({
                 priority: 'medium',
                 title: 'Set up automated cash sweeping',

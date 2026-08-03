@@ -9,6 +9,7 @@ import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan, ActionTactic } from '../utils/actionRecommendationEngine';
 import { initiateTacticTracking, updateTacticProgress, recordTacticOutcome, measureActualImpact, TacticExecution, TacticOutcome } from '../utils/outcomeTrackingEngine';
 import NextStepLink from '../components/NextStepLink';
+import { computeCashRunway } from '../utils/cashRunway';
 
 const EXECUTIONS_KEY = 'quad360_tactic_executions_v1';
 const OUTCOMES_KEY = 'quad360_tactic_outcomes_v1';
@@ -98,6 +99,11 @@ export default function ActionTrackerScreen() {
 
   const succeededOutcomes = outcomes.filter(o => o.succeeded);
   const trackRecord = useMemo(() => [...outcomes].reverse().slice(0, 5), [outcomes]);
+  // Same trailing-30-day-paid-expenses runway used everywhere else in the
+  // app — this used to divide finance.expense (an all-time cumulative
+  // total) by 30, which understated daily burn (and so overstated runway)
+  // more the longer a business had been recording transactions.
+  const cashRunwayDays = useMemo(() => computeCashRunway(transactions, finance.cashBalance).runwayDays, [transactions, finance.cashBalance]);
 
   const diagnosis = useMemo(() => {
     return performFinancialDiagnosis(
@@ -394,7 +400,7 @@ export default function ActionTrackerScreen() {
             <View style={styles.metricToTrackBox}>
               <Text style={styles.metricToTrackIcon}>📈</Text>
               <Text style={styles.metricToTrackName}>Runway</Text>
-              <Text style={styles.metricToTrackValue}>{Math.floor(finance.cashBalance / (Math.max(finance.expense / 30, 1) || 1)) || '?'} days</Text>
+              <Text style={styles.metricToTrackValue}>{cashRunwayDays >= 999 ? '999+' : cashRunwayDays} days</Text>
             </View>
             <View style={styles.metricToTrackBox}>
               <Text style={styles.metricToTrackIcon}>💹</Text>

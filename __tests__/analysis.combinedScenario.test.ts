@@ -54,16 +54,18 @@ describe('modelCombinedScenario', () => {
         expect(summed).toBeCloseTo(r.profitImpact);
     });
 
-    it('includes a loan lever, adding its annualized payment to expense', () => {
+    it('includes a loan lever, adding its monthly payment to expense', () => {
         const finance = makeFinance();
         const levers: CombinedLever[] = [
             { type: 'loan', label: 'Loan $50000 @ 0%', loanPrincipal: 50000, loanRatePercent: 0, loanTermMonths: 10 },
         ];
         const r = modelCombinedScenario(finance, levers, '$');
-        // 0% loan over 10 months = 5000/mo = 60000/yr added to expense
-        // profit: 100000 - (60000+60000) = -20000
-        expect(r.newProfit).toBeCloseTo(-20000);
-        expect(r.profitImpact).toBeCloseTo(-60000);
+        // finance here represents a monthly baseline (income/expense/profit
+        // are monthly figures, per MonthlyBaseline) — a 0% loan over 10
+        // months is 5000/mo, added directly to the monthly expense baseline,
+        // not annualized. profit: 100000 - (60000+5000) = 35000
+        expect(r.newProfit).toBeCloseTo(35000);
+        expect(r.profitImpact).toBeCloseTo(-5000);
     });
 
     it('never lets expense go negative from a large cost cut', () => {

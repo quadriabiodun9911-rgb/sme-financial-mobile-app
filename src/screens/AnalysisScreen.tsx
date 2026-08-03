@@ -16,6 +16,7 @@ import {
     modelCostCut,
     modelNewProduct,
     modelCombinedScenario,
+    computeMonthlyBaseline,
     ScenarioResult,
     CombinedScenarioResult,
     CombinedLever,
@@ -40,13 +41,14 @@ function fmtRunway(days: number): string {
 
 // ─── Scenario input forms ──────────────────────────────────────────────────────
 function HireForm({ onRun, currency }: { onRun: (r: ScenarioResult) => void; currency: string }) {
-    const { finance } = useApp();
+    const { finance, transactions } = useApp();
+    const monthly = useMemo(() => computeMonthlyBaseline(transactions, finance), [transactions, finance]);
     const [salary, setSalary] = useState('');
     return (
         <View>
             <Text style={s.formLabel}>Monthly salary ({currency})</Text>
             <TextInput style={s.input} placeholder="e.g. 3000" placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={salary} onChangeText={setSalary} />
-            <TouchableOpacity style={[s.runBtn, !salary && s.runBtnDisabled]} disabled={!salary} onPress={() => onRun(modelHireStaff(finance, parseFloat(salary) || 0, currency))}>
+            <TouchableOpacity style={[s.runBtn, !salary && s.runBtnDisabled]} disabled={!salary} onPress={() => onRun(modelHireStaff(monthly, parseFloat(salary) || 0, currency))}>
                 <Text style={s.runBtnText}>Run Scenario →</Text>
             </TouchableOpacity>
         </View>
@@ -54,7 +56,8 @@ function HireForm({ onRun, currency }: { onRun: (r: ScenarioResult) => void; cur
 }
 
 function RevenueForm({ onRun, currency }: { onRun: (r: ScenarioResult) => void; currency: string }) {
-    const { finance } = useApp();
+    const { finance, transactions } = useApp();
+    const monthly = useMemo(() => computeMonthlyBaseline(transactions, finance), [transactions, finance]);
     const [pct, setPct] = useState('');
     const presets = [-30, -20, -10, 10, 20, 30];
     return (
@@ -68,7 +71,7 @@ function RevenueForm({ onRun, currency }: { onRun: (r: ScenarioResult) => void; 
                 ))}
             </View>
             <TextInput style={s.input} placeholder="or type a custom %" placeholderTextColor={Colors.textMuted} keyboardType="numeric" value={pct} onChangeText={setPct} />
-            <TouchableOpacity style={[s.runBtn, !pct && s.runBtnDisabled]} disabled={!pct} onPress={() => onRun(modelRevenueChange(finance, parseFloat(pct) || 0, currency))}>
+            <TouchableOpacity style={[s.runBtn, !pct && s.runBtnDisabled]} disabled={!pct} onPress={() => onRun(modelRevenueChange(monthly, parseFloat(pct) || 0, currency))}>
                 <Text style={s.runBtnText}>Run Scenario →</Text>
             </TouchableOpacity>
         </View>
@@ -76,7 +79,8 @@ function RevenueForm({ onRun, currency }: { onRun: (r: ScenarioResult) => void; 
 }
 
 function LoanForm({ onRun, currency }: { onRun: (r: ScenarioResult) => void; currency: string }) {
-    const { finance } = useApp();
+    const { finance, transactions } = useApp();
+    const monthly = useMemo(() => computeMonthlyBaseline(transactions, finance), [transactions, finance]);
     const [principal, setPrincipal] = useState('');
     const [rate, setRate]           = useState('');
     const [term, setTerm]           = useState('');
@@ -89,7 +93,7 @@ function LoanForm({ onRun, currency }: { onRun: (r: ScenarioResult) => void; cur
             <TextInput style={s.input} placeholder="e.g. 15" placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={rate} onChangeText={setRate} />
             <Text style={s.formLabel}>Term (months)</Text>
             <TextInput style={s.input} placeholder="e.g. 24" placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={term} onChangeText={setTerm} />
-            <TouchableOpacity style={[s.runBtn, !ready && s.runBtnDisabled]} disabled={!ready} onPress={() => onRun(modelNewLoan(finance, parseFloat(principal) || 0, parseFloat(rate) || 0, parseInt(term) || 1, currency))}>
+            <TouchableOpacity style={[s.runBtn, !ready && s.runBtnDisabled]} disabled={!ready} onPress={() => onRun(modelNewLoan(monthly, parseFloat(principal) || 0, parseFloat(rate) || 0, parseInt(term) || 1, currency))}>
                 <Text style={s.runBtnText}>Run Scenario →</Text>
             </TouchableOpacity>
         </View>
@@ -97,7 +101,8 @@ function LoanForm({ onRun, currency }: { onRun: (r: ScenarioResult) => void; cur
 }
 
 function PriceForm({ onRun, currency }: { onRun: (r: ScenarioResult) => void; currency: string }) {
-    const { finance } = useApp();
+    const { finance, transactions } = useApp();
+    const monthly = useMemo(() => computeMonthlyBaseline(transactions, finance), [transactions, finance]);
     const [pct, setPct] = useState('');
     const presets = [5, 10, 15, 20, 25];
     return (
@@ -111,7 +116,7 @@ function PriceForm({ onRun, currency }: { onRun: (r: ScenarioResult) => void; cu
                 ))}
             </View>
             <TextInput style={s.input} placeholder="or type a custom %" placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={pct} onChangeText={setPct} />
-            <TouchableOpacity style={[s.runBtn, !pct && s.runBtnDisabled]} disabled={!pct} onPress={() => onRun(modelPriceIncrease(finance, parseFloat(pct) || 0, currency))}>
+            <TouchableOpacity style={[s.runBtn, !pct && s.runBtnDisabled]} disabled={!pct} onPress={() => onRun(modelPriceIncrease(monthly, parseFloat(pct) || 0, currency))}>
                 <Text style={s.runBtnText}>Run Scenario →</Text>
             </TouchableOpacity>
         </View>
@@ -120,13 +125,22 @@ function PriceForm({ onRun, currency }: { onRun: (r: ScenarioResult) => void; cu
 
 function CostForm({ onRun, currency }: { onRun: (r: ScenarioResult) => void; currency: string }) {
     const { finance, transactions } = useApp();
+    const monthly = useMemo(() => computeMonthlyBaseline(transactions, finance), [transactions, finance]);
     const [cat, setCat]     = useState('');
     const [amount, setAmount] = useState('');
 
+    // Presets used to suggest 20% of a category's ALL-TIME total spend as a
+    // one-off "amount to cut" — since the cut is now applied against a real
+    // monthly expense baseline, that suggested a monthly cut many times
+    // larger than the category's actual monthly spend. Divides by the
+    // number of distinct recorded months instead, so the suggestion is a
+    // real monthly average.
     const topCats = useMemo(() => {
         const m = new Map<string, number>();
         transactions.filter(t => t.type === 'expense').forEach(t => m.set(t.category, (m.get(t.category) ?? 0) + t.amount));
-        return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
+        const monthsSet = new Set(transactions.map(t => (t.date || '').slice(0, 7)).filter(Boolean));
+        const monthCount = Math.max(1, monthsSet.size);
+        return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([c, total]) => [c, total / monthCount] as [string, number]);
     }, [transactions]);
 
     return (
@@ -140,9 +154,9 @@ function CostForm({ onRun, currency }: { onRun: (r: ScenarioResult) => void; cur
                 ))}
             </ScrollView>
             <TextInput style={s.input} placeholder="Category name" placeholderTextColor={Colors.textMuted} value={cat} onChangeText={setCat} />
-            <Text style={s.formLabel}>Amount to cut ({currency})</Text>
+            <Text style={s.formLabel}>Amount to cut per month ({currency})</Text>
             <TextInput style={s.input} placeholder="e.g. 500" placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={amount} onChangeText={setAmount} />
-            <TouchableOpacity style={[s.runBtn, (!cat || !amount) && s.runBtnDisabled]} disabled={!cat || !amount} onPress={() => onRun(modelCostCut(finance, cat, parseFloat(amount) || 0, currency))}>
+            <TouchableOpacity style={[s.runBtn, (!cat || !amount) && s.runBtnDisabled]} disabled={!cat || !amount} onPress={() => onRun(modelCostCut(monthly, cat, parseFloat(amount) || 0, currency))}>
                 <Text style={s.runBtnText}>Run Scenario →</Text>
             </TouchableOpacity>
         </View>
@@ -150,7 +164,8 @@ function CostForm({ onRun, currency }: { onRun: (r: ScenarioResult) => void; cur
 }
 
 function ProductForm({ onRun, currency }: { onRun: (r: ScenarioResult) => void; currency: string }) {
-    const { finance } = useApp();
+    const { finance, transactions } = useApp();
+    const monthly = useMemo(() => computeMonthlyBaseline(transactions, finance), [transactions, finance]);
     const [name, setName]       = useState('');
     const [price, setPrice]     = useState('');
     const [unitCost, setUnitCost] = useState('');
@@ -166,7 +181,7 @@ function ProductForm({ onRun, currency }: { onRun: (r: ScenarioResult) => void; 
             <TextInput style={s.input} placeholder="e.g. 60" placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={unitCost} onChangeText={setUnitCost} />
             <Text style={s.formLabel}>Units sold per month</Text>
             <TextInput style={s.input} placeholder="e.g. 20" placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={unitsSold} onChangeText={setUnitsSold} />
-            <TouchableOpacity style={[s.runBtn, !ready && s.runBtnDisabled]} disabled={!ready} onPress={() => onRun(modelNewProduct(finance, name, parseFloat(price) || 0, parseFloat(unitCost) || 0, parseInt(unitsSold) || 0, currency))}>
+            <TouchableOpacity style={[s.runBtn, !ready && s.runBtnDisabled]} disabled={!ready} onPress={() => onRun(modelNewProduct(monthly, name, parseFloat(price) || 0, parseFloat(unitCost) || 0, parseInt(unitsSold) || 0, currency))}>
                 <Text style={s.runBtnText}>Run Scenario →</Text>
             </TouchableOpacity>
         </View>
@@ -178,7 +193,8 @@ function ProductForm({ onRun, currency }: { onRun: (r: ScenarioResult) => void; 
 // time. Each lever is a checkbox that reveals its own inputs; only enabled
 // levers with valid values are included when the scenario runs.
 function CombineForm({ onRun, currency }: { onRun: (r: CombinedScenarioResult) => void; currency: string }) {
-    const { finance } = useApp();
+    const { finance, transactions } = useApp();
+    const monthly = useMemo(() => computeMonthlyBaseline(transactions, finance), [transactions, finance]);
 
     const [revenueOn, setRevenueOn] = useState(false);
     const [revenuePct, setRevenuePct] = useState('');
@@ -216,7 +232,7 @@ function CombineForm({ onRun, currency }: { onRun: (r: CombinedScenarioResult) =
                 loanTermMonths: parseInt(loanTerm) || 1,
             });
         }
-        onRun(modelCombinedScenario(finance, levers, currency));
+        onRun(modelCombinedScenario(monthly, levers, currency));
     };
 
     return (
@@ -240,7 +256,7 @@ function CombineForm({ onRun, currency }: { onRun: (r: CombinedScenarioResult) =
             {costOn && (
                 <>
                     <TextInput style={s.input} placeholder="What cost? e.g. Salaries" placeholderTextColor={Colors.textMuted} value={costLabel} onChangeText={setCostLabel} />
-                    <TextInput style={s.input} placeholder={`Annual ${currency} change — negative to reduce, e.g. -6000`} placeholderTextColor={Colors.textMuted} keyboardType="numeric" value={costDelta} onChangeText={setCostDelta} />
+                    <TextInput style={s.input} placeholder={`Monthly ${currency} change — negative to reduce, e.g. -500`} placeholderTextColor={Colors.textMuted} keyboardType="numeric" value={costDelta} onChangeText={setCostDelta} />
                 </>
             )}
 
@@ -303,7 +319,7 @@ function ScenarioResultCard({ result, currency }: { result: ScenarioResult | Com
                 <View style={s.impactBox}>
                     <Text style={s.impactLbl}>Profit Change</Text>
                     <Text style={[s.impactVal, { color: good ? Colors.income : Colors.expense }]}>
-                        {good ? '+' : ''}{currency}{result.profitImpact.toLocaleString()}
+                        {good ? '+' : ''}{currency}{Math.round(result.profitImpact).toLocaleString()}
                     </Text>
                 </View>
                 <View style={s.impactBox}>
@@ -325,7 +341,7 @@ function ScenarioResultCard({ result, currency }: { result: ScenarioResult | Com
                 <View style={s.compareCol}>
                     <Text style={s.compareLbl}>Before</Text>
                     <Text style={[s.compareVal, { color: result.baseProfit >= 0 ? Colors.income : Colors.expense }]}>
-                        {currency}{result.baseProfit.toLocaleString()}
+                        {currency}{Math.round(result.baseProfit).toLocaleString()}
                     </Text>
                     <Text style={s.compareMargin}>{result.baseMargin.toFixed(1)}% margin</Text>
                 </View>
@@ -333,7 +349,7 @@ function ScenarioResultCard({ result, currency }: { result: ScenarioResult | Com
                 <View style={s.compareCol}>
                     <Text style={s.compareLbl}>After</Text>
                     <Text style={[s.compareVal, { color: result.newProfit >= 0 ? Colors.income : Colors.expense }]}>
-                        {currency}{result.newProfit.toLocaleString()}
+                        {currency}{Math.round(result.newProfit).toLocaleString()}
                     </Text>
                     <Text style={s.compareMargin}>{result.newMargin.toFixed(1)}% margin</Text>
                 </View>

@@ -7,6 +7,7 @@ import FooterNav from '../components/FooterNav';
 import { calculateGoalBridge, mapSavedGoalToBridge, FinancialGoal } from '../utils/goalBridgeEngine';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan } from '../utils/actionRecommendationEngine';
+import { computeMonthlyBaseline } from '../utils/analysis';
 import NextStepLink from '../components/NextStepLink';
 
 export default function GoalBridgeScreen() {
@@ -44,10 +45,15 @@ export default function GoalBridgeScreen() {
   // Prefer an explicitly selected goal; otherwise fall back to the user's first
   // saved goal so the bridge reflects real goals, not just a placeholder.
   const firstSavedGoal = goals.length > 0 ? mapSavedGoalToBridge(goals[0]) : null;
+  // The default example goal's own description says "monthly profit" —
+  // currentValue needs to match that framing (a real monthly figure, not
+  // finance.profit's all-time cumulative total) or the bridge would compare
+  // a monthly target against a cumulative actual.
+  const monthlyProfit = useMemo(() => computeMonthlyBaseline(transactions, finance).profit, [transactions, finance]);
   const exampleGoal: FinancialGoal = selectedGoal || firstSavedGoal || {
     id: 'goal-profit',
     type: 'profit',
-    currentValue: finance.profit,
+    currentValue: monthlyProfit,
     targetValue: parseInt(targetValue || '1000000') || 1000000,
     timelineMonths: parseInt(timelineMonths || '12') || 12,
     description: `Reach ${settings.currency}${(parseInt(targetValue || '0') || 0).toLocaleString()} monthly profit`,

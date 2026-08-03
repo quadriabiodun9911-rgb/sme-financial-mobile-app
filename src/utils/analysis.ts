@@ -1,5 +1,6 @@
 import { Transaction, Loan, FinanceData, BusinessSettings } from '../types';
 import { filterByDateRange, getPreviousPeriodRange, ReportPeriod } from './finance';
+import { computeAllTimeMonthlyBuckets } from './trendAnalysis';
 
 // ─── Period comparison ─────────────────────────────────────────────────────────
 export interface PeriodMetrics {
@@ -202,6 +203,38 @@ export function analyseRootCause(
 }
 
 // ─── Scenario modelling ────────────────────────────────────────────────────────
+export interface MonthlyBaseline {
+    income: number;
+    expense: number;
+    profit: number;
+    margin: number;
+    cashBalance: number;
+}
+
+/**
+ * Every model*() function below used to take the raw FinanceData object and
+ * work directly with finance.income/expense/profit — but those are
+ * all-time cumulative totals since the account was created, not a monthly
+ * figure. The functions ended up internally inconsistent about what unit
+ * they were even in (some divided by 12 as if the totals were annual,
+ * others divided by 30 as if they were already monthly, sometimes both in
+ * the same function) — for any business with more than about a month of
+ * history the results were not just imprecise but structurally wrong.
+ *
+ * This gives every scenario model one real monthly run-rate to work from —
+ * the same trailing-up-to-3-months average futureFinancialStatements.ts
+ * uses for its baseline, so the two don't quietly disagree either.
+ */
+export function computeMonthlyBaseline(transactions: Transaction[], finance: FinanceData): MonthlyBaseline {
+    const monthly = computeAllTimeMonthlyBuckets(transactions);
+    const recent = monthly.slice(-3);
+    const income = recent.length > 0 ? recent.reduce((s, m) => s + m.revenue, 0) / recent.length : 0;
+    const expense = recent.length > 0 ? recent.reduce((s, m) => s + m.expense, 0) / recent.length : 0;
+    const profit = income - expense;
+    const margin = income > 0 ? (profit / income) * 100 : 0;
+    return { income, expense, profit, margin, cashBalance: finance.cashBalance };
+}
+
 export interface ScenarioResult {
     label: string;
     baseProfit: number;
@@ -218,88 +251,86 @@ export interface ScenarioResult {
 }
 
 export function modelHireStaff(
-    finance: FinanceData,
+    monthly: MonthlyBaseline,
     monthlySalary: number,
     currency: string,
 ): ScenarioResult {
-    const annualCost    = monthlySalary * 12;
-    const newExpense    = finance.expense + annualCost;
-    const newProfit     = finance.income - newExpense;
-    const newMargin     = finance.income > 0 ? (newProfit / finance.income) * 100 : 0;
-    const baseCash      = finance.expense > 0 ? Math.floor(finance.cashBalance / (finance.expense / 30)) : 999;
-    const newMonthlyExp = newExpense / 12;
-    const newCashRunway = newMonthlyExp > 0 ? Math.floor(finance.cashBalance / (newMonthlyExp / 30)) : 999;
+    const newExpense    = monthly.expense + monthlySalary;
+    const newProfit     = monthly.income - newExpense;
+    const newMargin     = monthly.income > 0 ? (newProfit / monthly.income) * 100 : 0;
+    const baseCash      = monthly.expense > 0 ? Math.floor(monthly.cashBalance / (monthly.expense / 30)) : 999;
+    const newCashRunway = newExpense > 0 ? Math.floor(monthly.cashBalance / (newExpense / 30)) : 999;
     const breakEven     = newExpense;
 
-    const revenueNeeded = newExpense - finance.income;
+    const revenueNeeded = newExpense - monthly.income;
     const affordable    = newProfit > 0;
 
     return {
         label: `Hire at ${currency}${monthlySalary.toLocaleString()}/month`,
-        baseProfit: finance.profit,
+        baseProfit: monthly.profit,
         newProfit,
-        profitImpact: newProfit - finance.profit,
-        baseMargin: finance.margin,
+        profitImpact: newProfit - monthly.profit,
+        baseMargin: monthly.margin,
         newMargin,
         baseCashRunway: baseCash,
         newCashRunway,
         breakEvenRevenue: breakEven,
         verdict: affordable
-            ? `Affordable — profit remains positive at ${currency}${newProfit.toLocaleString()}. Cash runway drops from ${baseCash} to ${newCashRunway} days.`
-            : `Risky — this hire would put you into loss (${currency}${Math.abs(newProfit).toLocaleString()} deficit). You need ${currency}${revenueNeeded.toLocaleString()} more revenue to break even.`,
+            ? `Affordable — monthly profit remains positive at ${currency}${Math.round(newProfit).toLocaleString()}. Cash runway drops from ${baseCash} to ${newCashRunway} days.`
+            : `Risky — this hire would put you into a monthly loss (${currency}${Math.round(Math.abs(newProfit)).toLocaleString()} deficit). You need ${currency}${Math.round(revenueNeeded).toLocaleString()} more monthly revenue to break even.`,
         risks: [
             affordable
                 ? `Cash runway reduces from ${baseCash} to ${newCashRunway} days — keep a revenue buffer.`
-                : `You would be loss-making until revenue increases by ${currency}${revenueNeeded.toLocaleString()}.`,
+                : `You would be loss-making until monthly revenue increases by ${currency}${Math.round(revenueNeeded).toLocaleString()}.`,
             `Fixed cost commitment — salary continues even if revenue dips.`,
         ],
         opportunities: [
             `If this hire generates ${currency}${(monthlySalary * 2).toLocaleString()}/month in new revenue, ROI is 100%.`,
-            affordable ? `Remaining profit of ${currency}${newProfit.toLocaleString()} gives a buffer for growth.` : `Consider a part-time hire at ${currency}${Math.round(monthlySalary * 0.5).toLocaleString()}/month first.`,
+            affordable ? `Remaining monthly profit of ${currency}${Math.round(newProfit).toLocaleString()} gives a buffer for growth.` : `Consider a part-time hire at ${currency}${Math.round(monthlySalary * 0.5).toLocaleString()}/month first.`,
         ],
     };
 }
 
 export function modelRevenueChange(
-    finance: FinanceData,
+    monthly: MonthlyBaseline,
     changePercent: number,
     currency: string,
 ): ScenarioResult {
-    const newIncome    = finance.income * (1 + changePercent / 100);
-    const newProfit    = newIncome - finance.expense;
+    const newIncome    = monthly.income * (1 + changePercent / 100);
+    const newProfit    = newIncome - monthly.expense;
     const newMargin    = newIncome > 0 ? (newProfit / newIncome) * 100 : 0;
-    const baseCash     = finance.expense > 0 ? Math.floor(finance.cashBalance / (finance.expense / 30)) : 999;
-    const newCashBal   = finance.cashBalance + (newProfit - finance.profit);
-    const newCashRunway = finance.expense > 0 ? Math.floor(newCashBal / (finance.expense / 30)) : 999;
+    const baseCash     = monthly.expense > 0 ? Math.floor(monthly.cashBalance / (monthly.expense / 30)) : 999;
+    const newCashBal   = monthly.cashBalance + (newProfit - monthly.profit);
+    const newCashRunway = monthly.expense > 0 ? Math.floor(newCashBal / (monthly.expense / 30)) : 999;
     const dir          = changePercent >= 0 ? 'increase' : 'decrease';
 
     return {
         label: `Revenue ${changePercent >= 0 ? '+' : ''}${changePercent}%`,
-        baseProfit: finance.profit,
+        baseProfit: monthly.profit,
         newProfit,
-        profitImpact: newProfit - finance.profit,
-        baseMargin: finance.margin,
+        profitImpact: newProfit - monthly.profit,
+        baseMargin: monthly.margin,
         newMargin,
         baseCashRunway: baseCash,
         newCashRunway: Math.max(0, newCashRunway),
-        breakEvenRevenue: finance.expense,
+        breakEvenRevenue: monthly.expense,
         verdict: newProfit >= 0
-            ? `A ${Math.abs(changePercent)}% revenue ${dir} brings profit to ${currency}${newProfit.toLocaleString()} with a ${newMargin.toFixed(1)}% margin.`
-            : `A ${Math.abs(changePercent)}% revenue ${dir} would push you into loss (${currency}${Math.abs(newProfit).toLocaleString()} deficit). Immediate cost action needed.`,
+            ? `A ${Math.abs(changePercent)}% revenue ${dir} brings monthly profit to ${currency}${Math.round(newProfit).toLocaleString()} with a ${newMargin.toFixed(1)}% margin.`
+            : `A ${Math.abs(changePercent)}% revenue ${dir} would push you into a monthly loss (${currency}${Math.round(Math.abs(newProfit)).toLocaleString()} deficit). Immediate cost action needed.`,
         risks: changePercent < 0
             ? [
                 `Cash runway drops to ${Math.max(0, newCashRunway)} days — review all non-essential costs immediately.`,
-                newProfit < 0 ? `Loss of ${currency}${Math.abs(newProfit).toLocaleString()} — identify which costs can be reduced to restore profitability.` : `Margin compresses from ${finance.margin.toFixed(1)}% to ${newMargin.toFixed(1)}%.`,
+                newProfit < 0 ? `Monthly loss of ${currency}${Math.round(Math.abs(newProfit)).toLocaleString()} — identify which costs can be reduced to restore profitability.` : `Margin compresses from ${monthly.margin.toFixed(1)}% to ${newMargin.toFixed(1)}%.`,
               ]
             : [`Ensure operations can handle increased volume without proportional cost increases.`],
         opportunities: changePercent > 0
-            ? [`Additional ${currency}${(newProfit - finance.profit).toLocaleString()} profit can be reinvested in growth.`, `Use surplus to build cash reserve above minimum threshold.`]
+            ? [`Additional ${currency}${Math.round(newProfit - monthly.profit).toLocaleString()}/month profit can be reinvested in growth.`, `Use surplus to build cash reserve above minimum threshold.`]
             : [`A revenue drop is the time to review your top 3 expense categories for quick cuts.`, `Focus on retaining existing high-value customers before acquiring new ones.`],
     };
 }
 
 export function modelNewLoan(
-    finance: FinanceData,
+    monthly: MonthlyBaseline,
     principal: number,
     annualRatePercent: number,
     termMonths: number,
@@ -313,23 +344,24 @@ export function modelNewLoan(
     const totalRepay    = monthlyPayment * termMonths;
     const totalInterest = totalRepay - principal;
 
-    const newExpense    = finance.expense + annualPayment;
-    const newProfit     = finance.income - newExpense;
-    const newMargin     = finance.income > 0 ? (newProfit / finance.income) * 100 : 0;
-    const baseCash      = finance.expense > 0 ? Math.floor(finance.cashBalance / (finance.expense / 30)) : 999;
-    const newMonthlyExp = newExpense / 12;
-    const newCashRunway = newMonthlyExp > 0 ? Math.floor(finance.cashBalance / (newMonthlyExp / 30)) : 999;
+    const newExpense    = monthly.expense + monthlyPayment;
+    const newProfit     = monthly.income - newExpense;
+    const newMargin     = monthly.income > 0 ? (newProfit / monthly.income) * 100 : 0;
+    const baseCash      = monthly.expense > 0 ? Math.floor(monthly.cashBalance / (monthly.expense / 30)) : 999;
+    const newCashRunway = newExpense > 0 ? Math.floor(monthly.cashBalance / (newExpense / 30)) : 999;
 
-    // DSCR = Net Operating Income / annual debt service (not gross revenue).
-    const netOperatingIncome = finance.income - finance.expense;
+    // DSCR = Net Operating Income / annual debt service (not gross revenue) —
+    // annualized from the real monthly baseline, not an all-time cumulative
+    // total (the same bug already fixed in computeDSCR itself).
+    const netOperatingIncome = (monthly.income - monthly.expense) * 12;
     const dscr = annualPayment > 0 ? netOperatingIncome / annualPayment : 999;
 
     return {
         label: `Loan ${currency}${principal.toLocaleString()} @ ${annualRatePercent}%`,
-        baseProfit: finance.profit,
+        baseProfit: monthly.profit,
         newProfit,
-        profitImpact: newProfit - finance.profit,
-        baseMargin: finance.margin,
+        profitImpact: newProfit - monthly.profit,
+        baseMargin: monthly.margin,
         newMargin,
         baseCashRunway: baseCash,
         newCashRunway: Math.max(0, newCashRunway),
@@ -352,39 +384,39 @@ export function modelNewLoan(
 }
 
 export function modelPriceIncrease(
-    finance: FinanceData,
+    monthly: MonthlyBaseline,
     increasePercent: number,
     currency: string,
 ): ScenarioResult {
-    const newIncome  = finance.income * (1 + increasePercent / 100);
-    const newProfit  = newIncome - finance.expense;
+    const newIncome  = monthly.income * (1 + increasePercent / 100);
+    const newProfit  = newIncome - monthly.expense;
     const newMargin  = newIncome > 0 ? (newProfit / newIncome) * 100 : 0;
-    const baseCash   = finance.expense > 0 ? Math.floor(finance.cashBalance / (finance.expense / 30)) : 999;
+    const baseCash   = monthly.expense > 0 ? Math.floor(monthly.cashBalance / (monthly.expense / 30)) : 999;
 
     return {
         label: `Price increase +${increasePercent}%`,
-        baseProfit: finance.profit,
+        baseProfit: monthly.profit,
         newProfit,
-        profitImpact: newProfit - finance.profit,
-        baseMargin: finance.margin,
+        profitImpact: newProfit - monthly.profit,
+        baseMargin: monthly.margin,
         newMargin,
         baseCashRunway: baseCash,
         newCashRunway: baseCash,
-        breakEvenRevenue: finance.expense,
-        verdict: `A ${increasePercent}% price increase (assuming same volume) adds ${currency}${(newProfit - finance.profit).toLocaleString()} in profit, lifting margin from ${finance.margin.toFixed(1)}% to ${newMargin.toFixed(1)}%.`,
+        breakEvenRevenue: monthly.expense,
+        verdict: `A ${increasePercent}% price increase (assuming same volume) adds ${currency}${Math.round(newProfit - monthly.profit).toLocaleString()}/month in profit, lifting margin from ${monthly.margin.toFixed(1)}% to ${newMargin.toFixed(1)}%.`,
         risks: [
             `Some customers may switch to cheaper alternatives — model assumes same sales volume.`,
             `If volume drops by more than ${increasePercent}%, revenue will actually fall.`,
         ],
         opportunities: [
-            `Even a ${increasePercent / 2}% price increase with no volume loss improves margin by ${((newMargin - finance.margin) / 2).toFixed(1)}%.`,
+            `Even a ${increasePercent / 2}% price increase with no volume loss improves margin by ${((newMargin - monthly.margin) / 2).toFixed(1)}%.`,
             `Combine with added value (better service, quality, speed) to justify the increase and retain customers.`,
         ],
     };
 }
 
 export function modelNewProduct(
-    finance: FinanceData,
+    monthly: MonthlyBaseline,
     productName: string,
     pricePerUnit: number,
     costPerUnit: number,
@@ -393,37 +425,34 @@ export function modelNewProduct(
 ): ScenarioResult {
     const monthlyRevenue = pricePerUnit * unitsSoldPerMonth;
     const monthlyCost    = costPerUnit * unitsSoldPerMonth;
-    const annualRevenue  = monthlyRevenue * 12;
-    const annualCost     = monthlyCost * 12;
-    const newIncome      = finance.income + annualRevenue;
-    const newExpense     = finance.expense + annualCost;
+    const newIncome      = monthly.income + monthlyRevenue;
+    const newExpense     = monthly.expense + monthlyCost;
     const newProfit      = newIncome - newExpense;
     const newMargin      = newIncome > 0 ? (newProfit / newIncome) * 100 : 0;
-    const baseCash       = finance.expense > 0 ? Math.floor(finance.cashBalance / (finance.expense / 30)) : 999;
-    const newMonthlyExp  = newExpense / 12;
-    const newCashRunway  = newMonthlyExp > 0 ? Math.floor(finance.cashBalance / (newMonthlyExp / 30)) : 999;
+    const baseCash       = monthly.expense > 0 ? Math.floor(monthly.cashBalance / (monthly.expense / 30)) : 999;
+    const newCashRunway  = newExpense > 0 ? Math.floor(monthly.cashBalance / (newExpense / 30)) : 999;
     const grossMarginPct = pricePerUnit > 0 ? ((pricePerUnit - costPerUnit) / pricePerUnit) * 100 : 0;
-    const good           = newProfit > finance.profit;
+    const good           = newProfit > monthly.profit;
 
     return {
         label: `New product: ${productName}`,
-        baseProfit: finance.profit,
+        baseProfit: monthly.profit,
         newProfit,
-        profitImpact: newProfit - finance.profit,
-        baseMargin: finance.margin,
+        profitImpact: newProfit - monthly.profit,
+        baseMargin: monthly.margin,
         newMargin,
         baseCashRunway: baseCash,
         newCashRunway,
         breakEvenRevenue: newExpense,
         verdict: good
-            ? `Selling ${unitsSoldPerMonth} units/month of ${productName} adds ${currency}${Math.round(annualRevenue - annualCost).toLocaleString()} annual profit (${grossMarginPct.toFixed(0)}% gross margin).`
+            ? `Selling ${unitsSoldPerMonth} units/month of ${productName} adds ${currency}${Math.round(monthlyRevenue - monthlyCost).toLocaleString()}/month in profit (${grossMarginPct.toFixed(0)}% gross margin).`
             : `The cost of producing ${productName} outweighs the revenue — review your pricing or unit cost.`,
         risks: [
             `Assumes ${unitsSoldPerMonth} units sold every month — actual demand may vary.`,
             costPerUnit > 0 && pricePerUnit < costPerUnit * 1.2 ? `Gross margin of ${grossMarginPct.toFixed(0)}% is thin — small cost rises could wipe profit.` : `Track actual unit cost as volume grows.`,
         ].filter(Boolean) as string[],
         opportunities: [
-            `At ${unitsSoldPerMonth} units/month, you hit break-even at ${Math.ceil(newExpense / (pricePerUnit * 12))} units/month.`,
+            `At ${unitsSoldPerMonth} units/month, you hit break-even at ${pricePerUnit > 0 ? Math.ceil(newExpense / pricePerUnit) : 0} units/month.`,
             `Each extra unit sold adds ${currency}${(pricePerUnit - costPerUnit).toLocaleString()} directly to profit.`,
         ],
     };
@@ -442,7 +471,7 @@ export interface CombinedLever {
     type: CombinedLeverType;
     label: string;
     revenuePct?: number;     // 'revenue': % change applied to income (positive = price/revenue increase, negative = decrease)
-    costDelta?: number;      // 'cost': annual expense delta (positive = new/increased cost, negative = a cut/reduction)
+    costDelta?: number;      // 'cost': monthly expense delta (positive = new/increased cost, negative = a cut/reduction)
     loanPrincipal?: number;  // 'loan'
     loanRatePercent?: number;
     loanTermMonths?: number;
@@ -453,12 +482,12 @@ export interface CombinedScenarioResult extends ScenarioResult {
 }
 
 export function modelCombinedScenario(
-    finance: FinanceData,
+    monthly: MonthlyBaseline,
     levers: CombinedLever[],
     currency: string,
 ): CombinedScenarioResult {
-    let income = finance.income;
-    let expense = finance.expense;
+    let income = monthly.income;
+    let expense = monthly.expense;
     const breakdown: { label: string; profitImpact: number }[] = [];
 
     for (const lever of levers) {
@@ -473,38 +502,37 @@ export function modelCombinedScenario(
             const monthlyPayment = monthlyRate > 0
                 ? (lever.loanPrincipal * monthlyRate * Math.pow(1 + monthlyRate, term)) / (Math.pow(1 + monthlyRate, term) - 1)
                 : lever.loanPrincipal / term;
-            expense += monthlyPayment * 12;
+            expense += monthlyPayment;
         }
         breakdown.push({ label: lever.label, profitImpact: (income - expense) - profitBefore });
     }
 
     const newProfit = income - expense;
     const newMargin = income > 0 ? (newProfit / income) * 100 : 0;
-    const baseCash = finance.expense > 0 ? Math.floor(finance.cashBalance / (finance.expense / 30)) : 999;
-    const newMonthlyExp = expense / 12;
-    const newCashRunway = newMonthlyExp > 0 ? Math.floor(finance.cashBalance / (newMonthlyExp / 30)) : 999;
-    const profitImpact = newProfit - finance.profit;
+    const baseCash = monthly.expense > 0 ? Math.floor(monthly.cashBalance / (monthly.expense / 30)) : 999;
+    const newCashRunway = expense > 0 ? Math.floor(monthly.cashBalance / (expense / 30)) : 999;
+    const profitImpact = newProfit - monthly.profit;
     const good = profitImpact >= 0;
 
     return {
         label: levers.length > 0 ? levers.map(l => l.label).join(' + ') : 'Combined scenario',
-        baseProfit: finance.profit,
+        baseProfit: monthly.profit,
         newProfit,
         profitImpact,
-        baseMargin: finance.margin,
+        baseMargin: monthly.margin,
         newMargin,
         baseCashRunway: baseCash,
         newCashRunway: Math.max(0, newCashRunway),
         breakEvenRevenue: expense,
         verdict: good
-            ? `Combined, these changes add ${currency}${Math.round(profitImpact).toLocaleString()} to profit — margin moves from ${finance.margin.toFixed(1)}% to ${newMargin.toFixed(1)}%.`
-            : `Combined, these changes cut profit by ${currency}${Math.round(Math.abs(profitImpact)).toLocaleString()} — margin moves from ${finance.margin.toFixed(1)}% to ${newMargin.toFixed(1)}%.`,
+            ? `Combined, these changes add ${currency}${Math.round(profitImpact).toLocaleString()}/month to profit — margin moves from ${monthly.margin.toFixed(1)}% to ${newMargin.toFixed(1)}%.`
+            : `Combined, these changes cut profit by ${currency}${Math.round(Math.abs(profitImpact)).toLocaleString()}/month — margin moves from ${monthly.margin.toFixed(1)}% to ${newMargin.toFixed(1)}%.`,
         risks: [
-            newProfit < 0 ? `This combination pushes you into a ${currency}${Math.round(Math.abs(newProfit)).toLocaleString()} loss.` : `Cash runway moves from ${baseCash} to ${Math.max(0, newCashRunway)} days.`,
+            newProfit < 0 ? `This combination pushes you into a ${currency}${Math.round(Math.abs(newProfit)).toLocaleString()}/month loss.` : `Cash runway moves from ${baseCash} to ${Math.max(0, newCashRunway)} days.`,
             `Each lever assumes the others don't change customer or staff behaviour — a big price rise combined with a pay cut can compound retention risk on both sides.`,
         ],
         opportunities: [
-            good ? `Redirect the extra ${currency}${Math.round(profitImpact).toLocaleString()}/yr into cash reserve or growth.` : `Try a smaller version of the harshest lever below and re-run.`,
+            good ? `Redirect the extra ${currency}${Math.round(profitImpact).toLocaleString()}/month into cash reserve or growth.` : `Try a smaller version of the harshest lever below and re-run.`,
             `The breakdown below shows which single change is doing the most work — that's usually the one worth doing carefully, not the one worth cutting first.`,
         ],
         breakdown,
@@ -512,36 +540,35 @@ export function modelCombinedScenario(
 }
 
 export function modelCostCut(
-    finance: FinanceData,
+    monthly: MonthlyBaseline,
     categoryName: string,
     cutAmount: number,
     currency: string,
 ): ScenarioResult {
-    const newExpense = Math.max(0, finance.expense - cutAmount);
-    const newProfit  = finance.income - newExpense;
-    const newMargin  = finance.income > 0 ? (newProfit / finance.income) * 100 : 0;
-    const baseCash   = finance.expense > 0 ? Math.floor(finance.cashBalance / (finance.expense / 30)) : 999;
-    const newMonthlyExp = newExpense / 12;
-    const newCashRunway = newMonthlyExp > 0 ? Math.floor(finance.cashBalance / (newMonthlyExp / 30)) : 999;
+    const newExpense = Math.max(0, monthly.expense - cutAmount);
+    const newProfit  = monthly.income - newExpense;
+    const newMargin  = monthly.income > 0 ? (newProfit / monthly.income) * 100 : 0;
+    const baseCash   = monthly.expense > 0 ? Math.floor(monthly.cashBalance / (monthly.expense / 30)) : 999;
+    const newCashRunway = newExpense > 0 ? Math.floor(monthly.cashBalance / (newExpense / 30)) : 999;
 
     return {
-        label: `Cut ${categoryName} by ${currency}${cutAmount.toLocaleString()}`,
-        baseProfit: finance.profit,
+        label: `Cut ${categoryName} by ${currency}${cutAmount.toLocaleString()}/mo`,
+        baseProfit: monthly.profit,
         newProfit,
-        profitImpact: newProfit - finance.profit,
-        baseMargin: finance.margin,
+        profitImpact: newProfit - monthly.profit,
+        baseMargin: monthly.margin,
         newMargin,
         baseCashRunway: baseCash,
         newCashRunway,
         breakEvenRevenue: newExpense,
-        verdict: `Cutting ${currency}${cutAmount.toLocaleString()} from ${categoryName} improves profit by ${currency}${cutAmount.toLocaleString()}, lifting margin from ${finance.margin.toFixed(1)}% to ${newMargin.toFixed(1)}%.`,
+        verdict: `Cutting ${currency}${cutAmount.toLocaleString()}/month from ${categoryName} improves monthly profit by ${currency}${cutAmount.toLocaleString()}, lifting margin from ${monthly.margin.toFixed(1)}% to ${newMargin.toFixed(1)}%.`,
         risks: [
             `Ensure cut doesn't reduce service quality or capacity to generate revenue.`,
-            `One-time cuts don't solve structural cost problems — review if this is recurring spend.`,
+            `A one-off cut doesn't solve structural cost problems — review if this is recurring spend.`,
         ],
         opportunities: [
-            `Every ${currency}1 saved in costs goes directly to profit — this is the highest-impact lever for margin improvement.`,
-            `Redirect saved ${currency}${cutAmount.toLocaleString()} into revenue-generating activities for compound effect.`,
+            `Every ${currency}1/month saved in costs goes directly to profit — this is the highest-impact lever for margin improvement.`,
+            `Redirect saved ${currency}${cutAmount.toLocaleString()}/month into revenue-generating activities for compound effect.`,
         ],
     };
 }

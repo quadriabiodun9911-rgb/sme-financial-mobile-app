@@ -50,15 +50,25 @@ export default function GrowthMetrics({ transactions, currency, finance }: Props
     // Calculate growth metrics
     const growthMetrics = useMemo(() => {
         if (monthlyRevenue.length < 2) {
+            // finance.income is an all-time cumulative total, not a
+            // monthly/quarterly/annual figure — reusing it for all three
+            // period labels here would show the same (potentially
+            // years-old-and-accumulated) number as if it were this
+            // month's, this quarter's, AND this year's revenue. With
+            // fewer than 2 recorded months there's no real quarterly or
+            // annual figure yet, so those stay 0 rather than fabricated;
+            // only "this month" gets a value, and only from the one real
+            // month of data actually recorded (not the all-time total).
+            const onlyMonth = monthlyRevenue.length === 1 ? monthlyRevenue[0].revenue : 0;
             return {
-                currentMonthRevenue: finance.income || 0,
+                currentMonthRevenue: onlyMonth,
                 lastMonthRevenue: 0,
                 monthlyGrowthRate: 0,
-                quarterlyRevenue: finance.income || 0,
+                quarterlyRevenue: 0,
                 quarterlyGrowthRate: 0,
-                annualRevenue: finance.income || 0,
+                annualRevenue: 0,
                 annualGrowthRate: 0,
-                avgMonthlyRevenue: finance.income || 0,
+                avgMonthlyRevenue: onlyMonth,
                 trend: 'stable',
             };
         }
