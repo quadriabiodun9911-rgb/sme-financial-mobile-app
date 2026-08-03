@@ -29,7 +29,6 @@ import { MetricsComputer } from '../utils/metricsComputer';
 import GreetingCard from '../components/GreetingCard';
 import TodaysNumbersCard from '../components/TodaysNumbersCard';
 import AlertsWidget from '../components/AlertsWidget';
-import SixQuestionsPanel from '../components/SixQuestionsPanel';
 
 const INCOME_CATEGORIES = ['Sales', 'Service', 'Consulting', 'Rental', 'Interest', 'Other Income'];
 const EXPENSE_CATEGORIES = ['Rent', 'Salaries', 'Utilities', 'Marketing', 'Supplies', 'Transport', 'Meals', 'Software', 'Tax', 'Other'];
@@ -258,22 +257,19 @@ export default function DashboardScreen() {
                     </View>
                 )}
 
-                {/* The app's organizing framework, made the first thing a
-                    business owner sees every time they open it — the six
-                    questions every owner actually asks themselves, each
-                    answered live from real data, each routing straight to
-                    the screen that has the full answer. Hidden for staff
-                    accounts for the same reason Vital Signs below is —
-                    it's built from the same financial data. */}
-                {canViewFinancials && <SixQuestionsPanel />}
-
-                {/* Still reachable for someone who'd rather describe their
-                    problem in their own words than scan the six questions —
-                    a secondary path onto the same destinations, not a
-                    competing primary one. */}
+                {/* Problem-first entry point — a first-time owner shouldn't
+                    have to map "I have a cash problem" onto which of the
+                    app's many screens answers it. This routes straight
+                    there; every destination is a real, existing screen.
+                    Hidden for staff accounts: 'solve' isn't in
+                    STAFF_ALLOWED_SCREENS (nor are most of its destinations
+                    — Analysis, Credit-Worthiness, Forecast, DNA, Action
+                    Tracker), so showing this banner to a staff account
+                    would just lead to a dead-end restricted-access screen. */}
                 {canViewFinancials && (
-                    <TouchableOpacity onPress={() => setCurrentScreen('solve')} activeOpacity={0.7} style={{ marginBottom: 14 }}>
-                        <Text style={styles.solveLink}>🧭 Or tell us your problem in your own words →</Text>
+                    <TouchableOpacity style={styles.solveBanner} onPress={() => setCurrentScreen('solve')} activeOpacity={0.8}>
+                        <Text style={styles.solveBannerText}>🧭 What can we help you solve today?</Text>
+                        <Text style={styles.solveBannerArrow}>→</Text>
                     </TouchableOpacity>
                 )}
 
@@ -883,7 +879,12 @@ const styles = StyleSheet.create({
     demoBannerBtn:     { backgroundColor: '#fef3c7', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 5, marginLeft: 8 },
     demoBannerBtnText: { color: '#854d0e', fontWeight: '700', fontSize: 12 },
 
-    solveLink: { color: Colors.primary, fontSize: 13, fontWeight: '600' },
+    solveBanner: {
+        backgroundColor: Colors.primary, borderRadius: 12, padding: 14, marginBottom: 14,
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    },
+    solveBannerText: { color: '#fff', fontWeight: '700', fontSize: 14, flex: 1 },
+    solveBannerArrow: { color: '#fff', fontSize: 18, marginLeft: 8 },
 
     betaCard:           { backgroundColor: Colors.surface, borderRadius: 16, padding: 16, marginBottom: 14, borderWidth: 1.5, borderColor: Colors.primary + '55' },
     betaCardHeader:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },

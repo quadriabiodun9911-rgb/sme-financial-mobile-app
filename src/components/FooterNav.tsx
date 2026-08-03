@@ -11,11 +11,10 @@ import { Screen } from '../types';
 import { isScreenAllowedForRole } from '../utils/rolePermissions';
 import { isProOnlyScreen, isProPlan } from '../utils/planAccess';
 
-// ─── The app's organizing structure: the six questions, not feature
-// categories. Every screen in the app answers one of these — the nav
-// itself is now grouped by the question it answers, matching
-// sixQuestions.ts and the panel on the home screen, rather than an
-// arbitrary Analytics/Finance/Operations split.
+// ─── Grouped by the underlying question each screen answers (profitability,
+// cash, where money is tied up, business health, funding, what to do next)
+// rather than an arbitrary feature taxonomy — that grouping logic just
+// isn't spelled out as literal question text in the UI itself.
 type NavItem = { label: string; icon: string; screen: Screen; color: string };
 
 const Q1_MONEY_ITEMS: NavItem[] = [
@@ -53,13 +52,13 @@ const Q6_NEXT_ITEMS: NavItem[] = [
     { label: 'Goals',      icon: '🎯', screen: 'goals',          color: '#ef4444' },
 ];
 
-const SIX_QUESTION_GROUPS: { header: string; items: NavItem[] }[] = [
-    { header: '💰 AM I MAKING MONEY?',            items: Q1_MONEY_ITEMS },
-    { header: '💵 WILL I RUN OUT OF CASH?',        items: Q2_CASH_ITEMS },
-    { header: '📦 WHERE IS MY MONEY TIED UP?',     items: Q3_TIEDUP_ITEMS },
-    { header: '📈 IS MY BUSINESS GETTING HEALTHIER?', items: Q4_HEALTH_ITEMS },
-    { header: '🏦 CAN I GET FUNDING?',             items: Q5_FUNDING_ITEMS },
-    { header: '🧠 WHAT SHOULD I DO NEXT?',         items: Q6_NEXT_ITEMS },
+const NAV_GROUPS: { header: string; items: NavItem[] }[] = [
+    { header: '💰 PROFIT & REVENUE',    items: Q1_MONEY_ITEMS },
+    { header: '💵 CASH & LIQUIDITY',    items: Q2_CASH_ITEMS },
+    { header: '📦 STOCK & ASSETS',      items: Q3_TIEDUP_ITEMS },
+    { header: '📈 GROWTH & TRENDS',     items: Q4_HEALTH_ITEMS },
+    { header: '🏦 FUNDING & CREDIT',    items: Q5_FUNDING_ITEMS },
+    { header: '🧠 ADVISOR & ACTIONS',   items: Q6_NEXT_ITEMS },
 ];
 
 const ACCOUNT_ITEMS: { label: string; icon: string; screen: Screen; color: string; desc: string }[] = [
@@ -120,8 +119,8 @@ export default function FooterNav() {
         [enableReports, userRole]
     );
 
-    const visibleQuestionGroups = useMemo(
-        () => SIX_QUESTION_GROUPS
+    const visibleNavGroups = useMemo(
+        () => NAV_GROUPS
             .map(g => ({ ...g, items: g.items.filter(i => isScreenAllowedForRole(i.screen, userRole)) }))
             .filter(g => g.items.length > 0),
         [userRole],
@@ -238,10 +237,9 @@ export default function FooterNav() {
                             )}
                         </View>
 
-                        {/* ── The six questions, each with the screens that
-                            answer it — the app's actual structure, not a
-                            feature-category index. */}
-                        {visibleQuestionGroups.map(group => (
+                        {/* ── Grouped by what each screen actually answers,
+                            not an arbitrary feature list. */}
+                        {visibleNavGroups.map(group => (
                             <React.Fragment key={group.header}>
                                 <Text style={styles.sectionHeader}>{group.header}</Text>
                                 <View style={styles.gridCard}>
