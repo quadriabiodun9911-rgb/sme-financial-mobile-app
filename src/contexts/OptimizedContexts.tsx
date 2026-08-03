@@ -587,6 +587,7 @@ const DEFAULT_SETTINGS: BusinessSettings = {
   openingLoans: '0',
   openingOtherAssets: '0',
   defaultTaxRate: '0.2',
+  subscriptionPlan: 'free',
 };
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
@@ -1280,6 +1281,7 @@ export function useApp() {
       openingLoans: '0',
       openingOtherAssets: '0',
       defaultTaxRate: '0.2',
+      subscriptionPlan: 'free',
     },
     language: settings?.language || 'en',
     updateSettings: settings?.updateSettings || (() => {}),

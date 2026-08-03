@@ -9,6 +9,7 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { Screen } from '../types';
 import { isScreenAllowedForRole } from '../utils/rolePermissions';
+import { isProOnlyScreen, isProPlan } from '../utils/planAccess';
 
 // ─── Icon accent colours per section ────────────────────────────────────────
 const ANALYTICS_ITEMS: { label: string; icon: string; screen: Screen; color: string }[] = [
@@ -48,7 +49,8 @@ const TABS: { label: string; screen: Screen; icon: string }[] = [
 ];
 
 export default function FooterNav() {
-    const { currentScreen, setCurrentScreen, user, pendingSyncCount, transactions, goals, invoices, finance, userRole, canViewFinancials } = useApp();
+    const { currentScreen, setCurrentScreen, user, pendingSyncCount, transactions, goals, invoices, finance, userRole, canViewFinancials, settings } = useApp();
+    const isPro = isProPlan(settings);
     const [moreOpen, setMoreOpen] = useState(false);
 
     // Feature flags
@@ -219,6 +221,11 @@ export default function FooterNav() {
                                 >
                                     <View style={[styles.gridIconBox, { backgroundColor: item.color + '22' }]}>
                                         <Text style={styles.gridIcon}>{item.icon}</Text>
+                                        {!isPro && (
+                                            <View style={styles.proBadge}>
+                                                <Text style={styles.proBadgeText}>PRO</Text>
+                                            </View>
+                                        )}
                                     </View>
                                     <Text style={styles.gridLabel}>{item.label}</Text>
                                 </TouchableOpacity>
@@ -407,7 +414,12 @@ const styles = StyleSheet.create({
         justifyContent: 'space-around',
     },
     gridItem:    { alignItems: 'center', flex: 1 },
-    gridIconBox: { width: 50, height: 50, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginBottom: 7 },
+    gridIconBox: { width: 50, height: 50, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginBottom: 7, position: 'relative' },
+    proBadge: {
+        position: 'absolute', top: -6, right: -10, backgroundColor: Colors.primary,
+        borderRadius: 6, paddingHorizontal: 4, paddingVertical: 1,
+    },
+    proBadgeText: { color: '#fff', fontSize: 8, fontWeight: '800' },
     gridIcon:    { fontSize: 22 },
     gridLabel:   { fontSize: 11, color: Colors.textSecondary, fontWeight: '600', textAlign: 'center' },
 

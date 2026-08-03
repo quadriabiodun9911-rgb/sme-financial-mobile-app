@@ -551,6 +551,40 @@ export default function SettingsScreen() {
                         </Section>
                     </CollapsibleSection>
 
+                    {/* ⭐ SUBSCRIPTION */}
+                    <SectionHeader title="⭐ SUBSCRIPTION PLAN" />
+                    <Section title="Plan">
+                        <Text style={styles.hint}>
+                            Free covers Dashboard, Clarity, Invoices, Sales, Payroll, Cash Flow, Reports,
+                            Inventory, Assets, Loans, Goals and Budgets. Pro additionally unlocks Insights,
+                            Analysis, Advisor, Business Financial DNA, Future Financial Statements and Growth
+                            Intelligence.
+                        </Text>
+                        <Text style={[styles.hint, { fontStyle: 'italic', marginBottom: 12 }]}>
+                            No payment is processed here yet — this is a manual switch while billing isn't
+                            connected. Nothing is charged.
+                        </Text>
+                        <View style={{ flexDirection: 'row', gap: 10 }}>
+                            {(['free', 'pro'] as const).map(plan => (
+                                <TouchableOpacity
+                                    key={plan}
+                                    style={[
+                                        styles.planOption,
+                                        (form.subscriptionPlan ?? 'free') === plan && styles.planOptionActive,
+                                    ]}
+                                    onPress={() => { setForm((f: typeof form) => ({ ...f, subscriptionPlan: plan })); updateSettings({ subscriptionPlan: plan }); }}
+                                >
+                                    <Text style={[
+                                        styles.planOptionText,
+                                        (form.subscriptionPlan ?? 'free') === plan && styles.planOptionTextActive,
+                                    ]}>
+                                        {plan === 'pro' ? '⭐ Pro' : 'Free'}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    </Section>
+
                     {/* 💰 FINANCE */}
                     <SectionHeader title="💰 FINANCIAL SETUP" />
 
@@ -938,6 +972,13 @@ const styles = StyleSheet.create({
     subsectionTitle: { fontSize: 13, fontWeight: 'bold', color: Colors.textSecondary, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
 
     hint:  { fontSize: 12, color: Colors.textMuted, lineHeight: 18, marginBottom: 8 },
+    planOption: {
+        flex: 1, paddingVertical: 10, borderRadius: 8, alignItems: 'center',
+        backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border,
+    },
+    planOptionActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+    planOptionText: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
+    planOptionTextActive: { color: '#fff' },
     label: { fontSize: 12, color: Colors.textSecondary, fontWeight: '600', marginBottom: 6, marginTop: 10 },
     input: {
         backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border,

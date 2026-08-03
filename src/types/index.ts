@@ -229,6 +229,14 @@ export interface BusinessSettings {
     visionStatement?: string;  // the long-term destination
     coreValues?: string;       // the moral compass — how the team behaves getting there (e.g. "Integrity, reliability, community focus")
     nextTaxDeadline?: string;  // ISO date — next VAT/Corporation Tax (or local equivalent) filing deadline, used by Tax Filing Readiness
+    // 'pro' unlocks the Analytics section (Insights, Analysis, Advisor,
+    // Business Financial DNA, Future Financial Statements, Growth
+    // Intelligence). There's no real billing integration behind this yet
+    // (Paystack/Korapay are wired for one-off invoice payment links, not
+    // recurring subscriptions) — this flag is the access-control mechanism,
+    // set manually in Settings for now, ready to be driven by a real
+    // subscription webhook later.
+    subscriptionPlan?: 'free' | 'pro';
 }
 
 export interface NavParams {
