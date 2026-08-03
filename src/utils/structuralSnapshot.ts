@@ -27,7 +27,7 @@ export interface StructuralSnapshot {
     estimatedMonthlyProfit: number | null;
 }
 
-function monthlySalaryCost(m: StaffMember): number {
+export function monthlySalaryCost(m: StaffMember): number {
     if (m.salaryType === 'monthly') return m.salary;
     if (m.salaryType === 'weekly') return m.salary * 4.33;
     return m.salary * 22; // daily

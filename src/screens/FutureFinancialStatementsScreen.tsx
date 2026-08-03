@@ -37,7 +37,7 @@ function AdjustmentInput({ label, value, onChange, suffix }: { label: string; va
 }
 
 export default function FutureFinancialStatementsScreen() {
-    const { transactions, loans, finance, settings, goBack } = useApp();
+    const { transactions, loans, finance, settings, staff, goBack } = useApp();
     const { currency } = settings;
 
     const [activeStatement, setActiveStatement] = useState<Statement>('pnl');
@@ -63,12 +63,12 @@ export default function FutureFinancialStatementsScreen() {
     const hasAdjustments = JSON.stringify(adjustments) !== JSON.stringify(NO_ADJUSTMENTS);
 
     const forecast = useMemo(
-        () => buildFutureFinancialStatements(transactions, loans, finance, adjustments, horizon),
-        [transactions, loans, finance, adjustments, horizon],
+        () => buildFutureFinancialStatements(transactions, loans, finance, adjustments, horizon, staff),
+        [transactions, loans, finance, adjustments, horizon, staff],
     );
     const baseline = useMemo(
-        () => buildFutureFinancialStatements(transactions, loans, finance, NO_ADJUSTMENTS, horizon),
-        [transactions, loans, finance, horizon],
+        () => buildFutureFinancialStatements(transactions, loans, finance, NO_ADJUSTMENTS, horizon, staff),
+        [transactions, loans, finance, horizon, staff],
     );
 
     const notEnoughData = forecast.baselineMonthsUsed === 0;
@@ -99,14 +99,37 @@ export default function FutureFinancialStatementsScreen() {
                 ) : (
                     <>
                         <View style={s.card}>
+                            <Text style={s.cardTitle}>Already factored in from your data</Text>
+                            <Text style={s.baselineNote}>
+                                This forecast doesn't just extrapolate a trend — it pulls in what's actually
+                                recorded elsewhere in the app.
+                            </Text>
+                            <Row label="Active staff payroll" value={fmt(forecast.activePayrollMonthlyCost)} />
+                            {forecast.payrollGapIncluded > 0 && (
+                                <Row
+                                    label="↳ not yet in your expense average — added automatically"
+                                    value={fmt(forecast.payrollGapIncluded)}
+                                    valueColor={Colors.warning}
+                                />
+                            )}
+                            <Row label="Existing loan payments" value={`${fmt(forecast.existingLoanMonthlyPayment)}/mo`} />
+                            {forecast.unpaidInventoryPurchases > 0 && (
+                                <Row label="Unpaid inventory/supplier bills" value={fmt(forecast.unpaidInventoryPurchases)} valueColor={Colors.warning} />
+                            )}
+                            {forecast.knownReceivables > 0 && (
+                                <Row label="Unpaid customer invoices" value={fmt(forecast.knownReceivables)} />
+                            )}
+                        </View>
+
+                        <View style={s.card}>
                             <Text style={s.cardTitle}>Adjust the business</Text>
                             <Text style={s.baselineNote}>
                                 Baseline: {fmt(forecast.baselineMonthlyRevenue)}/mo revenue, {fmt(forecast.baselineMonthlyExpense)}/mo
                                 expenses — averaged over your last {forecast.baselineMonthsUsed} recorded month{forecast.baselineMonthsUsed === 1 ? '' : 's'}.
                             </Text>
-                            <AdjustmentInput label="Revenue growth" value={revenueGrowth} onChange={setRevenueGrowth} suffix="%/mo" />
+                            <AdjustmentInput label="Price / revenue adjustment" value={revenueGrowth} onChange={setRevenueGrowth} suffix="%/mo" />
                             <AdjustmentInput label="Cost growth" value={expenseGrowth} onChange={setExpenseGrowth} suffix="%/mo" />
-                            <AdjustmentInput label="New monthly cost (e.g. a hire)" value={extraMonthlyCost} onChange={setExtraMonthlyCost} suffix={currency} />
+                            <AdjustmentInput label="Extra new hire(s), beyond current staff" value={extraMonthlyCost} onChange={setExtraMonthlyCost} suffix={currency} />
                             <AdjustmentInput label="New loan amount" value={newLoanAmount} onChange={setNewLoanAmount} suffix={currency} />
                             {parseFloat(newLoanAmount) > 0 && (
                                 <>

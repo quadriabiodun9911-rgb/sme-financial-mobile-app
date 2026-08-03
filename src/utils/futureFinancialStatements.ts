@@ -23,10 +23,11 @@
  * guarantee — the UI must keep saying so.
  */
 
-import { Transaction, Loan, FinanceData } from '../types';
+import { Transaction, Loan, FinanceData, StaffMember } from '../types';
 import { computeWorkingCapitalMetrics } from './finance';
 import { computeAllTimeMonthlyBuckets } from './trendAnalysis';
 import { monthlyPayment, outstandingLoanBalance } from './loanMath';
+import { monthlySalaryCost } from './structuralSnapshot';
 
 export interface ForecastAdjustments {
     revenueGrowthPctPerMonth: number;  // compounding, can be negative — from a price change, volume change, or new-customer push
@@ -75,6 +76,14 @@ export interface FutureFinancialStatements {
     baselineMonthsUsed: number; // how many recent months fed the baseline — fewer = less reliable
     startingCash: number;
     startingLoanBalance: number;
+    // What's already recorded elsewhere in the app, folded into the
+    // projection automatically rather than left for the user to re-enter.
+    activePayrollMonthlyCost: number;   // current active staff, at today's salaries
+    payrollGapIncluded: number;         // the slice of that not yet showing up in the recent expense run-rate — added to every projected month
+    unpaidInventoryPurchases: number;   // pending/overdue supplier bills specifically from inventory purchases
+    knownPayables: number;              // all pending/overdue expense transactions (accounts payable) — already driving month-to-month cash flow via the payables estimate
+    knownReceivables: number;           // all pending/overdue income transactions (accounts receivable) — already driving month-to-month cash flow via the receivables estimate
+    existingLoanMonthlyPayment: number; // current active loans' combined scheduled payment — already amortizing in the projection
     months: ProjectedMonth[];
 }
 
@@ -97,6 +106,7 @@ export function buildFutureFinancialStatements(
     finance: FinanceData,
     adjustments: ForecastAdjustments,
     horizonMonths: number = 12,
+    staff: StaffMember[] = [],
 ): FutureFinancialStatements {
     const monthly = computeAllTimeMonthlyBuckets(transactions);
     const recentMonths = monthly.slice(-3);
@@ -108,7 +118,31 @@ export function buildFutureFinancialStatements(
         ? recentMonths.reduce((s, m) => s + m.expense, 0) / baselineMonthsUsed
         : 0;
 
+    // Running payroll doesn't post a transaction until it's actually run —
+    // so a staff member added this week (or a raise not yet paid out) is
+    // invisible to the trailing-expense baseline above until the first
+    // payroll run lands. This compares what's committed (active staff at
+    // today's salaries) against what's actually shown up in recent
+    // "Salaries"-category expenses, and folds the gap in automatically —
+    // otherwise the forecast would keep understating costs for any
+    // business that just hired someone.
+    const activePayrollMonthlyCost = staff
+        .filter(m => m.status === 'active')
+        .reduce((s, m) => s + monthlySalaryCost(m), 0);
+    const recentSalariesExpense = recentMonths.length > 0
+        ? recentMonths.reduce((s, m) => {
+            const salariesInMonth = transactions
+                .filter(t => t.type === 'expense' && t.category === 'Salaries' && (t.date || '').slice(0, 7) === m.month)
+                .reduce((sum, t) => sum + t.amount, 0);
+            return s + salariesInMonth;
+        }, 0) / recentMonths.length
+        : 0;
+    const payrollGapIncluded = Math.max(0, activePayrollMonthlyCost - recentSalariesExpense);
+
     const wc = computeWorkingCapitalMetrics(transactions);
+    const unpaidInventoryPurchases = transactions
+        .filter(t => t.type === 'expense' && t.transactionCategory === 'purchase' && (t.status === 'pending' || t.status === 'overdue'))
+        .reduce((s, t) => s + t.amount, 0);
     const dsoMonths = wc.dso / 30;
     const dpoMonths = wc.dpo / 30;
 
@@ -141,7 +175,7 @@ export function buildFutureFinancialStatements(
     for (let m = 1; m <= horizonMonths; m++) {
         const revenue = baselineMonthlyRevenue * Math.pow(1 + adjustments.revenueGrowthPctPerMonth / 100, m);
         const operatingExpenses = baselineMonthlyExpense * Math.pow(1 + adjustments.expenseGrowthPctPerMonth / 100, m)
-            + adjustments.oneOffMonthlyCostAdd;
+            + adjustments.oneOffMonthlyCostAdd + payrollGapIncluded;
         const profit = revenue - operatingExpenses;
         const profitMargin = revenue > 0 ? (profit / revenue) * 100 : 0;
 
@@ -191,5 +225,12 @@ export function buildFutureFinancialStatements(
         });
     }
 
-    return { baselineMonthlyRevenue, baselineMonthlyExpense, baselineMonthsUsed, startingCash, startingLoanBalance, months };
+    const existingLoanMonthlyPayment = loanStates.reduce((s, l) => s + l.payment, 0);
+
+    return {
+        baselineMonthlyRevenue, baselineMonthlyExpense, baselineMonthsUsed, startingCash, startingLoanBalance,
+        activePayrollMonthlyCost, payrollGapIncluded, unpaidInventoryPurchases,
+        knownPayables: wc.accountsPayable, knownReceivables: wc.accountsReceivable, existingLoanMonthlyPayment,
+        months,
+    };
 }
