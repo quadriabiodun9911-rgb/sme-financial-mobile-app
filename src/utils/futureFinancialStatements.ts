@@ -93,6 +93,11 @@ export interface FutureFinancialStatements {
 // not a recomputed-from-origination schedule that could disagree with it.
 function amortizeStep(balance: number, annualRatePct: number, payment: number): { interest: number; newBalance: number; actualPayment: number } {
     if (balance <= 0) return { interest: 0, newBalance: 0, actualPayment: 0 };
+    // A zero (or missing) scheduled payment — a loan record with no valid
+    // term — would otherwise let interest accrue every month with nothing
+    // ever paid toward it, growing the balance without bound. Freeze it
+    // instead of projecting a runaway liability from bad input data.
+    if (payment <= 0) return { interest: 0, newBalance: balance, actualPayment: 0 };
     const monthlyRate = annualRatePct / 100 / 12;
     const interest = balance * monthlyRate;
     const actualPayment = Math.min(payment, balance + interest);
@@ -163,7 +168,13 @@ export function buildFutureFinancialStatements(
     let newLoanBalance = 0;
 
     const startingCash = finance.cashBalance;
-    const otherAssets = Math.max(0, finance.assets - finance.cashBalance - (wc.accountsReceivable));
+    // finance.assets = openingAssets + cashBalance + registeredAssetsValue
+    // (computeFinance) — it never includes receivables in the first place,
+    // so subtracting wc.accountsReceivable here as well as adding it back
+    // in as its own "receivables" line double-counted it, understating
+    // total projected assets (and equity) by the full receivables amount
+    // every month.
+    const otherAssets = Math.max(0, finance.assets - finance.cashBalance);
     const otherLiabilities = Math.max(0, finance.liabilities - startingLoanBalance);
 
     let cash = startingCash;
