@@ -11,54 +11,31 @@ import { Screen } from '../types';
 import { isScreenAllowedForRole } from '../utils/rolePermissions';
 import { isProOnlyScreen, isProPlan } from '../utils/planAccess';
 
-// ─── Grouped by the underlying question each screen answers (profitability,
-// cash, where money is tied up, business health, funding, what to do next)
-// rather than an arbitrary feature taxonomy — that grouping logic just
-// isn't spelled out as literal question text in the UI itself.
-type NavItem = { label: string; icon: string; screen: Screen; color: string };
-
-const Q1_MONEY_ITEMS: NavItem[] = [
+// ─── Icon accent colours per section ────────────────────────────────────────
+const ANALYTICS_ITEMS: { label: string; icon: string; screen: Screen; color: string }[] = [
     { label: 'Insights', icon: '💡', screen: 'insights', color: '#f59e0b' },
     { label: 'Analysis', icon: '📊', screen: 'analysis', color: '#3b82f6' },
-    { label: 'Budget',   icon: '💰', screen: 'budget',   color: '#10b981' },
+    { label: 'Advisor',  icon: '🧠', screen: 'cfo',      color: '#8b5cf6' },
+    { label: 'DNA',      icon: '🧬', screen: 'financial-dna', color: '#06b6d4' },
+    { label: 'Forecast', icon: '🔮', screen: 'future-statements', color: '#a855f7' },
+    { label: 'Growth',   icon: '📈', screen: 'growth',   color: '#10b981' },
 ];
 
-const Q2_CASH_ITEMS: NavItem[] = [
-    { label: 'Cash Flow',      icon: '💧', screen: 'cashflow',       color: '#3b82f6' },
-    { label: 'Reconciliation', icon: '🔗', screen: 'reconciliation', color: '#8b5cf6' },
+const FINANCE_ITEMS: { label: string; icon: string; screen: Screen; color: string }[] = [
+    { label: 'Goals',       icon: '🎯', screen: 'goals',             color: '#ef4444' },
+    { label: 'Goal Bridge', icon: '🌉', screen: 'goal-bridge',       color: '#06b6d4' },
+    { label: 'Budget',      icon: '💰', screen: 'budget',            color: '#10b981' },
+    { label: 'Assets',      icon: '🏢', screen: 'assets',            color: '#3b82f6' },
+    { label: 'Loans',       icon: '🏦', screen: 'loans',             color: '#f97316' },
+    { label: 'Credit',      icon: '💳', screen: 'credit-worthiness', color: '#eab308' },
 ];
 
-const Q3_TIEDUP_ITEMS: NavItem[] = [
-    { label: 'Inventory', icon: '📦', screen: 'inventory', color: '#f59e0b' },
-    { label: 'Assets',    icon: '🏢', screen: 'assets',    color: '#3b82f6' },
-    { label: 'Payroll',   icon: '👥', screen: 'payroll',   color: '#10b981' },
-];
-
-const Q4_HEALTH_ITEMS: NavItem[] = [
-    { label: 'DNA',      icon: '🧬', screen: 'financial-dna',      color: '#06b6d4' },
-    { label: 'Forecast', icon: '🔮', screen: 'future-statements',  color: '#a855f7' },
-    { label: 'Growth',   icon: '📈', screen: 'growth',             color: '#10b981' },
-];
-
-const Q5_FUNDING_ITEMS: NavItem[] = [
-    { label: 'Loans',      icon: '🏦', screen: 'loans',              color: '#f97316' },
-    { label: 'Credit',     icon: '💳', screen: 'credit-worthiness',  color: '#eab308' },
-];
-
-const Q6_NEXT_ITEMS: NavItem[] = [
-    { label: 'Advisor',    icon: '🧠', screen: 'cfo',            color: '#8b5cf6' },
-    { label: 'Actions',    icon: '⚡', screen: 'action-tracker', color: '#ef4444' },
-    { label: 'Goal Bridge', icon: '🌉', screen: 'goal-bridge',   color: '#06b6d4' },
-    { label: 'Goals',      icon: '🎯', screen: 'goals',          color: '#ef4444' },
-];
-
-const NAV_GROUPS: { header: string; items: NavItem[] }[] = [
-    { header: '💰 PROFIT & REVENUE',    items: Q1_MONEY_ITEMS },
-    { header: '💵 CASH & LIQUIDITY',    items: Q2_CASH_ITEMS },
-    { header: '📦 STOCK & ASSETS',      items: Q3_TIEDUP_ITEMS },
-    { header: '📈 GROWTH & TRENDS',     items: Q4_HEALTH_ITEMS },
-    { header: '🏦 FUNDING & CREDIT',    items: Q5_FUNDING_ITEMS },
-    { header: '🧠 ADVISOR & ACTIONS',   items: Q6_NEXT_ITEMS },
+const OPERATIONS_ITEMS: { label: string; icon: string; screen: Screen; color: string; desc: string }[] = [
+    { label: 'Inventory',      icon: '📦', screen: 'inventory',      color: '#f59e0b', desc: 'Stock levels & margins' },
+    { label: 'Cash Flow',      icon: '💧', screen: 'cashflow',       color: '#3b82f6', desc: 'Forecast, runway & AR risk' },
+    { label: 'Payroll',        icon: '👥', screen: 'payroll',        color: '#10b981', desc: 'Staff & monthly pay runs' },
+    { label: 'Reconciliation', icon: '🔗', screen: 'reconciliation', color: '#8b5cf6', desc: 'Match bank vs app records' },
+    { label: 'Action Tracker', icon: '⚡', screen: 'action-tracker', color: '#ef4444', desc: 'Track recommended actions' },
 ];
 
 const ACCOUNT_ITEMS: { label: string; icon: string; screen: Screen; color: string; desc: string }[] = [
@@ -119,12 +96,11 @@ export default function FooterNav() {
         [enableReports, userRole]
     );
 
-    const visibleNavGroups = useMemo(
-        () => NAV_GROUPS
-            .map(g => ({ ...g, items: g.items.filter(i => isScreenAllowedForRole(i.screen, userRole)) }))
-            .filter(g => g.items.length > 0),
-        [userRole],
-    );
+    const visibleAnalytics = useMemo(() => ANALYTICS_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
+
+    const visibleFinance = useMemo(() => FINANCE_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
+
+    const visibleOperations = useMemo(() => OPERATIONS_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
 
     const visibleAccount = useMemo(() =>
         ACCOUNT_ITEMS.filter(item => isScreenAllowedForRole(item.screen, userRole)),
@@ -237,33 +213,68 @@ export default function FooterNav() {
                             )}
                         </View>
 
-                        {/* ── Grouped by what each screen actually answers,
-                            not an arbitrary feature list. */}
-                        {visibleNavGroups.map(group => (
-                            <React.Fragment key={group.header}>
-                                <Text style={styles.sectionHeader}>{group.header}</Text>
-                                <View style={styles.gridCard}>
-                                    {group.items.map(item => (
-                                        <TouchableOpacity
-                                            key={item.label}
-                                            style={styles.gridItem}
-                                            onPress={() => goTo(item.screen)}
-                                            activeOpacity={0.75}
-                                        >
-                                            <View style={[styles.gridIconBox, { backgroundColor: item.color + '22' }]}>
-                                                <Text style={styles.gridIcon}>{item.icon}</Text>
-                                                {!isPro && isProOnlyScreen(item.screen) && (
-                                                    <View style={styles.proBadge}>
-                                                        <Text style={styles.proBadgeText}>PRO</Text>
-                                                    </View>
-                                                )}
+                        {/* ── Analytics ─────────────────────────────────── */}
+                        <Text style={styles.sectionHeader}>📊 ANALYTICS</Text>
+                        <View style={styles.gridCard}>
+                            {visibleAnalytics.map(item => (
+                                <TouchableOpacity
+                                    key={item.label}
+                                    style={styles.gridItem}
+                                    onPress={() => goTo(item.screen)}
+                                    activeOpacity={0.75}
+                                >
+                                    <View style={[styles.gridIconBox, { backgroundColor: item.color + '22' }]}>
+                                        <Text style={styles.gridIcon}>{item.icon}</Text>
+                                        {!isPro && isProOnlyScreen(item.screen) && (
+                                            <View style={styles.proBadge}>
+                                                <Text style={styles.proBadgeText}>PRO</Text>
                                             </View>
-                                            <Text style={styles.gridLabel}>{item.label}</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-                            </React.Fragment>
-                        ))}
+                                        )}
+                                    </View>
+                                    <Text style={styles.gridLabel}>{item.label}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
+                        {/* ── Finance ───────────────────────────────────── */}
+                        <Text style={styles.sectionHeader}>💰 FINANCE</Text>
+                        <View style={styles.gridCard}>
+                            {visibleFinance.map(item => (
+                                <TouchableOpacity
+                                    key={item.label}
+                                    style={styles.gridItem}
+                                    onPress={() => goTo(item.screen)}
+                                    activeOpacity={0.75}
+                                >
+                                    <View style={[styles.gridIconBox, { backgroundColor: item.color + '22' }]}>
+                                        <Text style={styles.gridIcon}>{item.icon}</Text>
+                                    </View>
+                                    <Text style={styles.gridLabel}>{item.label}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
+                        {/* ── Operations ────────────────────────────────── */}
+                        <Text style={styles.sectionHeader}>⚙️ OPERATIONS</Text>
+                        <View style={styles.listCard}>
+                            {visibleOperations.map((item, i, arr) => (
+                                <TouchableOpacity
+                                    key={item.label}
+                                    style={[styles.listRow, i < arr.length - 1 && styles.listRowBorder]}
+                                    onPress={() => goTo(item.screen)}
+                                    activeOpacity={0.75}
+                                >
+                                    <View style={[styles.listIconBox, { backgroundColor: item.color + '22' }]}>
+                                        <Text style={styles.listIcon}>{item.icon}</Text>
+                                    </View>
+                                    <View style={styles.listTextCol}>
+                                        <Text style={styles.listLabel}>{item.label}</Text>
+                                        <Text style={styles.listDesc}>{item.desc}</Text>
+                                    </View>
+                                    <Text style={styles.listArrow}>›</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
 
                         {/* ── Account ───────────────────────────────────── */}
                         <Text style={styles.sectionHeader}>ACCOUNT</Text>
