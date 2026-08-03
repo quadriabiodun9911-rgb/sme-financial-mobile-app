@@ -30,6 +30,20 @@ describe('recordTacticOutcome', () => {
         expect(outcome.succeeded).toBe(false);
         expect(outcome.nextSteps.join(' ')).toMatch(/no expected-impact baseline/i);
     });
+
+    it('records a before/after health delta when health scores are passed', () => {
+        const outcome = recordTacticOutcome(makeExecution(), makeTactic({ expectedImpact: 1000 }), 800, [], [], { before: 58, after: 71 });
+        expect(outcome.healthBefore).toBe(58);
+        expect(outcome.healthAfter).toBe(71);
+        expect(outcome.healthDelta).toBe(13);
+    });
+
+    it('leaves health fields undefined when no health scores are passed', () => {
+        const outcome = recordTacticOutcome(makeExecution(), makeTactic({ expectedImpact: 1000 }), 800, [], []);
+        expect(outcome.healthBefore).toBeUndefined();
+        expect(outcome.healthAfter).toBeUndefined();
+        expect(outcome.healthDelta).toBeUndefined();
+    });
 });
 
 describe('evaluateProgressTracker', () => {

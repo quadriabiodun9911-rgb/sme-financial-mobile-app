@@ -19,6 +19,11 @@ export interface TacticExecution {
   // Without this, there was no way to ever know whether a tactic marked
   // "completed" actually moved the number it claimed to target.
   baseline?: { income: number; expense: number; profit: number };
+  // The overall financial health score (0-100, from performFinancialDiagnosis)
+  // at the moment this tactic was started — the "before" half of the
+  // before/after health comparison recordTacticOutcome needs to show the
+  // business it's actually getting healthier, not just that one metric moved.
+  healthAtStart?: number;
 }
 
 export interface OutcomeMetric {
@@ -42,6 +47,13 @@ export interface TacticOutcome {
   learnings: string[];
   nextSteps: string[];
   completionDate: string;
+  // Overall financial health score (0-100) before this tactic started and
+  // after it completed — lets the business actually see "you got healthier",
+  // not just an isolated metric. Undefined when no healthAtStart was
+  // recorded (e.g. tactics started before this field existed).
+  healthBefore?: number;
+  healthAfter?: number;
+  healthDelta?: number;
 }
 
 export interface ProgressTracker {
@@ -62,6 +74,7 @@ export function initiateTacticTracking(
   tactic: ActionTactic,
   startDate: string,
   baseline?: { income: number; expense: number; profit: number },
+  healthAtStart?: number,
 ): TacticExecution {
   const targetEndDate = new Date(startDate);
   targetEndDate.setDate(targetEndDate.getDate() + tactic.timelineWeeks * 7);
@@ -76,6 +89,7 @@ export function initiateTacticTracking(
     completedSteps: [],
     notes: '',
     baseline,
+    healthAtStart,
   };
 }
 
@@ -123,7 +137,8 @@ export function recordTacticOutcome(
   tactic: ActionTactic,
   actualImpact: number,
   metricsAchieved: OutcomeMetric[],
-  learnings: string[]
+  learnings: string[],
+  health?: { before: number; after: number },
 ): TacticOutcome {
   // A tactic with no real baseline (expectedImpact <= 0, e.g. a business
   // with £0 recorded expenses generating a "cut expenses by 10%" target of
@@ -145,6 +160,9 @@ export function recordTacticOutcome(
     learnings,
     nextSteps: generateNextSteps(tactic, actualImpact, succeeded, hasBaseline),
     completionDate: new Date().toISOString().split('T')[0],
+    healthBefore: health?.before,
+    healthAfter: health?.after,
+    healthDelta: health ? health.after - health.before : undefined,
   };
 }
 

@@ -22,6 +22,21 @@ export interface ActionTactic {
   metrics: string[]; // KPIs to track
   blockers?: string[];
   prerequisite?: string; // Must do this tactic first
+  // What actually happened last time this business tried this tactic —
+  // this is what lets Quad360 "understand the business even better" on the
+  // next pass instead of recommending the same thing blind every time.
+  pastAttempt?: { succeeded: boolean; impactPercentage: number; completionDate: string };
+}
+
+// A minimal, decoupled shape of a past tactic outcome — deliberately not
+// importing TacticOutcome from outcomeTrackingEngine, which itself imports
+// ActionTactic from this file; importing the full type back would create a
+// circular dependency.
+export interface PastTacticOutcome {
+  tacticId: string;
+  succeeded: boolean;
+  impactPercentage: number;
+  completionDate: string;
 }
 
 export interface ActionPlan {
@@ -291,9 +306,10 @@ export function generateRevenueActions(
 export function generateActionPlan(
   diagnosis: DiagnosisResult,
   metrics: FinancialMetrics,
-  currency: string = '₦'
+  currency: string = '₦',
+  outcomeHistory: PastTacticOutcome[] = []
 ): ActionPlan {
-  const allActions: ActionTactic[] = [];
+  let allActions: ActionTactic[] = [];
 
   // Generate crisis actions if needed
   if (diagnosis.healthStatus === 'critical') {
@@ -305,6 +321,27 @@ export function generateActionPlan(
 
   // Generate revenue actions
   allActions.push(...generateRevenueActions(diagnosis, metrics, currency));
+
+  // This is the loop closing: what this business actually did before now
+  // changes what gets recommended and how urgently — a tactic that already
+  // worked is pushed up (worth repeating/scaling), one that underperformed
+  // is pushed down rather than presented with the same confident priority
+  // as before, and either way the business owner sees the track record
+  // right on the card instead of the app recommending the same thing blind.
+  if (outcomeHistory.length > 0) {
+    allActions = allActions.map(action => {
+      const past = outcomeHistory
+        .filter(o => o.tacticId === action.id)
+        .sort((a, b) => b.completionDate.localeCompare(a.completionDate))[0];
+      if (!past) return action;
+
+      const priority = past.succeeded
+        ? Math.min(10, action.priority + 1)
+        : Math.max(1, action.priority - 2);
+
+      return { ...action, priority, pastAttempt: { succeeded: past.succeeded, impactPercentage: past.impactPercentage, completionDate: past.completionDate } };
+    });
+  }
 
   // Sort by priority and timeframe
   const immediateActions = allActions

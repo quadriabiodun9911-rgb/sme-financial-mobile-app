@@ -74,22 +74,28 @@ export default function ActionTrackerScreen() {
 
   const startTracking = (action: ActionTactic) => {
     const today = new Date().toISOString().split('T')[0];
-    setExecutions(prev => ({ ...prev, [action.id]: initiateTacticTracking(action, today, trailingSnapshot(transactions)) }));
+    setExecutions(prev => ({ ...prev, [action.id]: initiateTacticTracking(action, today, trailingSnapshot(transactions), diagnosis.overallHealth) }));
   };
 
   const advanceTracking = (action: ActionTactic, pct: number) => {
     setExecutions(prev => {
-      const existing = prev[action.id] ?? initiateTacticTracking(action, new Date().toISOString().split('T')[0], trailingSnapshot(transactions));
+      const existing = prev[action.id] ?? initiateTacticTracking(action, new Date().toISOString().split('T')[0], trailingSnapshot(transactions), diagnosis.overallHealth);
       const updated = updateTacticProgress(existing, `${pct}%`, pct);
 
       // Auto-measure the outcome the moment a tactic crosses into
       // "completed" — comparing the business's trailing 30-day numbers now
       // against its trailing 30-day numbers when the tactic started, using
       // the same direction convention as the tactic's own expectedImpact.
+      // Also captures the overall health score before/after, so "the
+      // business becomes healthier" is an actual measured comparison, not
+      // just an isolated income/expense number.
       if (updated.status === 'completed' && updated.baseline && !outcomes.some(o => o.tacticId === action.id)) {
         const current = trailingSnapshot(transactions);
         const actualImpact = measureActualImpact(action, updated.baseline, current);
-        const outcome = recordTacticOutcome(updated, action, actualImpact, [], []);
+        const health = updated.healthAtStart !== undefined
+          ? { before: updated.healthAtStart, after: diagnosis.overallHealth }
+          : undefined;
+        const outcome = recordTacticOutcome(updated, action, actualImpact, [], [], health);
         setOutcomes(prevOutcomes => [...prevOutcomes, outcome]);
       }
 
@@ -115,9 +121,16 @@ export default function ActionTrackerScreen() {
     );
   }, [transactions, invoices, finance, settings]);
 
+  // What this business actually did before feeds back into what gets
+  // recommended and how urgently — the closing link of the loop.
+  const outcomeHistory = useMemo(
+    () => outcomes.map(o => ({ tacticId: o.tacticId, succeeded: o.succeeded, impactPercentage: o.impactPercentage, completionDate: o.completionDate })),
+    [outcomes]
+  );
+
   const actionPlan = useMemo(() => {
-    return generateActionPlan(diagnosis, diagnosis.metrics, settings.currency);
-  }, [diagnosis, settings.currency]);
+    return generateActionPlan(diagnosis, diagnosis.metrics, settings.currency, outcomeHistory);
+  }, [diagnosis, settings.currency, outcomeHistory]);
 
   // Land on whichever tab actually has actions instead of always defaulting
   // to "Immediate" — a warning-but-not-critical account often has zero
@@ -198,6 +211,11 @@ export default function ActionTrackerScreen() {
                         ? `Delivered ${settings.currency}${Math.round(o.actualImpact).toLocaleString()} of a ${settings.currency}${Math.round(o.expectedImpact).toLocaleString()} target.`
                         : `Not enough of a baseline yet to measure this one reliably.`}
                   </Text>
+                  {o.healthDelta !== undefined && (
+                    <Text style={[styles.trackRecordHealth, { color: o.healthDelta >= 0 ? Colors.income : Colors.expense }]}>
+                      Business health: {o.healthBefore} → {o.healthAfter} ({o.healthDelta >= 0 ? '+' : ''}{o.healthDelta})
+                    </Text>
+                  )}
                 </View>
               </View>
             ))}
@@ -306,6 +324,19 @@ export default function ActionTrackerScreen() {
                       <Text style={styles.detailLabel}>Rationale</Text>
                       <Text style={styles.detailText}>{action.rationale}</Text>
                     </View>
+
+                    {action.pastAttempt && (
+                      <View style={[styles.detailSection, { backgroundColor: (action.pastAttempt.succeeded ? Colors.income : Colors.warning) + '12', borderLeftWidth: 3, borderLeftColor: action.pastAttempt.succeeded ? Colors.income : Colors.warning }]}>
+                        <Text style={[styles.detailLabel, { color: action.pastAttempt.succeeded ? Colors.income : Colors.warning }]}>
+                          {action.pastAttempt.succeeded ? '✅ You tried this before' : '⚠️ You tried this before'}
+                        </Text>
+                        <Text style={styles.detailText}>
+                          {action.pastAttempt.succeeded
+                            ? `It worked — hit ${action.pastAttempt.impactPercentage.toFixed(0)}% of target on ${action.pastAttempt.completionDate}. Bumped up in priority.`
+                            : `It underperformed — only ${Math.max(0, action.pastAttempt.impactPercentage).toFixed(0)}% of target on ${action.pastAttempt.completionDate}. Lowered in priority; consider a different approach this time.`}
+                        </Text>
+                      </View>
+                    )}
 
                     <View style={styles.detailSection}>
                       <Text style={styles.detailLabel}>Steps ({action.steps.length})</Text>
@@ -450,6 +481,7 @@ const styles = StyleSheet.create({
   trackRecordRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 6, borderTopWidth: 1, borderTopColor: Colors.border },
   trackRecordTacticTitle: { fontSize: 13, fontWeight: '600', color: Colors.textPrimary },
   trackRecordDetail: { fontSize: 12, color: Colors.textSecondary, marginTop: 2, lineHeight: 16 },
+  trackRecordHealth: { fontSize: 11, fontWeight: '700', marginTop: 3 },
 
   tabContainer: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   tab: { flex: 1, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: Colors.surface, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
