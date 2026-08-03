@@ -260,11 +260,18 @@ export default function DashboardScreen() {
                 {/* Problem-first entry point — a first-time owner shouldn't
                     have to map "I have a cash problem" onto which of the
                     app's many screens answers it. This routes straight
-                    there; every destination is a real, existing screen. */}
-                <TouchableOpacity style={styles.solveBanner} onPress={() => setCurrentScreen('solve')} activeOpacity={0.8}>
-                    <Text style={styles.solveBannerText}>🧭 What can we help you solve today?</Text>
-                    <Text style={styles.solveBannerArrow}>→</Text>
-                </TouchableOpacity>
+                    there; every destination is a real, existing screen.
+                    Hidden for staff accounts: 'solve' isn't in
+                    STAFF_ALLOWED_SCREENS (nor are most of its destinations
+                    — Analysis, Credit-Worthiness, Forecast, DNA, Action
+                    Tracker), so showing this banner to a staff account
+                    would just lead to a dead-end restricted-access screen. */}
+                {canViewFinancials && (
+                    <TouchableOpacity style={styles.solveBanner} onPress={() => setCurrentScreen('solve')} activeOpacity={0.8}>
+                        <Text style={styles.solveBannerText}>🧭 What can we help you solve today?</Text>
+                        <Text style={styles.solveBannerArrow}>→</Text>
+                    </TouchableOpacity>
+                )}
 
                 {/* ══════════════════════════════════════════════════════════════════
                     ⚙️ OPERATIONS COMMAND CENTRE
