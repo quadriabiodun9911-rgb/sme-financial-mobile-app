@@ -639,10 +639,40 @@ export function loanMonthlyPayment(principal: number, annualRate: number, termMo
     return principal * (r * factor) / (factor - 1);
 }
 
+/**
+ * DSCR used to divide *all-time cumulative* income/expense by one year of
+ * debt service — for a business with two or three years of history, that
+ * numerator keeps growing every year the business stays on the platform
+ * while the denominator stays fixed to current loans, so DSCR would read
+ * as more and more comfortable purely from account age, regardless of
+ * whether the business could actually service debt *today*. Same
+ * all-time-cumulative-used-where-a-recent-window-was-needed bug class
+ * already fixed for cash runway, burn rate, and the forecast baseline.
+ *
+ * Now uses trailing 12 months of net operating income, annualized (bounded
+ * to a 12x multiplier, i.e. never inferred from less than ~30 days of
+ * data) when less than a full year of history exists, so a 2-month-old
+ * business isn't judged on a partial year's income as if that were its
+ * whole annual capacity.
+ */
 export function computeDSCR(transactions: Transaction[], loans: Loan[]): DSCRResult {
-    const income = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-    const expense = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-    const netOperatingIncome = income - expense;
+    const cutoff = new Date();
+    cutoff.setFullYear(cutoff.getFullYear() - 1);
+    const cutoffStr = cutoff.toISOString().split('T')[0];
+    const recent = transactions.filter(t => t.date >= cutoffStr);
+
+    const income = recent.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+    const expense = recent.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+
+    let netOperatingIncome = income - expense;
+    const dates = recent.map(t => t.date).sort();
+    if (dates.length >= 2) {
+        const spanDays = (new Date(dates[dates.length - 1]).getTime() - new Date(dates[0]).getTime()) / 86400000;
+        if (spanDays >= 30 && spanDays < 365) {
+            netOperatingIncome = netOperatingIncome * (365 / spanDays);
+        }
+    }
+
     const activeLoans = loans.filter(l => l.status === 'active');
     const monthlyDebtService = activeLoans.reduce((s, l) => s + loanMonthlyPayment(l.principal, l.interestRate, l.termMonths), 0);
     const totalDebtService = monthlyDebtService * 12;
