@@ -22,6 +22,7 @@ import GrowthIntelligenceScreen from './src/screens/GrowthIntelligenceScreen';
 import CFOScreen from './src/screens/CFOScreen';
 import BudgetScreen from './src/screens/BudgetScreen';
 import AnalysisScreen from './src/screens/AnalysisScreen';
+import BusinessFinancialDNAScreen from './src/screens/BusinessFinancialDNAScreen';
 import TwoFactorSetupScreen from './src/screens/TwoFactorSetupScreen';
 import TwoFactorVerifyScreen from './src/screens/TwoFactorVerifyScreen';
 import PaymentLinkScreen from './src/screens/PaymentLinkScreen';
@@ -117,6 +118,7 @@ function NavigatorContent() {
             {currentScreen === 'cfo'          && <CFOScreen />}
             {currentScreen === 'budget'       && <BudgetScreen />}
             {currentScreen === 'analysis'     && <AnalysisScreen />}
+            {currentScreen === 'financial-dna' && <BusinessFinancialDNAScreen />}
             {currentScreen === '2fa'          && <TwoFactorSetupScreen />}
             {currentScreen === 'two-factor-verify' && <TwoFactorVerifyScreen />}
             {currentScreen === 'payment-link' && <PaymentLinkScreen />}

@@ -16,6 +16,7 @@ const ANALYTICS_ITEMS: { label: string; icon: string; screen: Screen; color: str
     { label: 'Insights', icon: '💡', screen: 'insights', color: '#f59e0b' },
     { label: 'Analysis', icon: '📊', screen: 'analysis', color: '#3b82f6' },
     { label: 'Advisor',  icon: '🧠', screen: 'cfo',      color: '#8b5cf6' },
+    { label: 'DNA',      icon: '🧬', screen: 'financial-dna', color: '#06b6d4' },
 ];
 
 const FINANCE_ITEMS: { label: string; icon: string; screen: Screen; color: string }[] = [

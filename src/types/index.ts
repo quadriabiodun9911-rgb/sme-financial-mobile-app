@@ -14,6 +14,7 @@ export type Screen =
     | 'cfo'
     | 'budget'
     | 'analysis'
+    | 'financial-dna'
     | '2fa'
     | 'two-factor-verify'
     | 'payment-link'
