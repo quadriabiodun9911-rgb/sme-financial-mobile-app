@@ -199,9 +199,15 @@ export function buildFutureFinancialStatements(
             newLoanBalance = adjustments.newLoanAmount;
         }
         if (newLoanBalance > 0) {
+            // Same month the loan is drawn, its first payment is also due —
+            // the balance-reduction step and the cash outflow for that
+            // payment must both happen in month 1, not just the balance
+            // side (a prior version silently skipped deducting month 1's
+            // payment from cash while still reducing the balance for it,
+            // undercounting total interest paid by one payment).
             const step = amortizeStep(newLoanBalance, adjustments.newLoanAnnualRatePct, newLoanPayment);
             newLoanBalance = step.newBalance;
-            if (m > 1) financingCashFlow -= step.actualPayment;
+            financingCashFlow -= step.actualPayment;
         }
 
         const netCashChange = operatingCashFlow + financingCashFlow;
