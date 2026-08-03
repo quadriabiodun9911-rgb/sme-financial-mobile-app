@@ -15,6 +15,7 @@ export type Screen =
     | 'budget'
     | 'analysis'
     | 'financial-dna'
+    | 'future-statements'
     | '2fa'
     | 'two-factor-verify'
     | 'payment-link'

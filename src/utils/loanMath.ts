@@ -33,3 +33,16 @@ export function totalMonthlyLoanBurden(
     .filter(l => (l.status ?? 'active') === 'active')
     .reduce((sum, l) => sum + monthlyPayment(l.principal, l.interestRate, l.termMonths), 0);
 }
+
+/**
+ * Outstanding balance = original principal minus everything paid so far.
+ * A simplification (doesn't separate the principal vs. interest portion of
+ * each payment) but it's the one the Loans screen has always shown as
+ * "Total Outstanding" — kept here as the single canonical version instead
+ * of duplicated locally, so a future forecast or export never disagrees
+ * with what the Loans screen itself displays.
+ */
+export function outstandingLoanBalance(loan: { principal: number; payments?: Array<{ amount: number }> }): number {
+  const totalPaid = (loan.payments ?? []).reduce((s, p) => s + p.amount, 0);
+  return Math.max(0, loan.principal - totalPaid);
+}

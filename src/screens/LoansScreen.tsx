@@ -25,15 +25,13 @@ import { computeDebtOptimiser } from '../utils/finance';
 import NextStepLink from '../components/NextStepLink';
 import ProfitCashImpactCard from '../components/ProfitCashImpactCard';
 import { computeProfitCashImpact } from '../utils/impactChain';
-import { monthlyPayment, totalInterest } from '../utils/loanMath';
+import { monthlyPayment, totalInterest, outstandingLoanBalance } from '../utils/loanMath';
 
 function totalPaid(loan: Loan): number {
     return (loan.payments ?? []).reduce((s, p) => s + p.amount, 0);
 }
 
-function outstandingBalance(loan: Loan): number {
-    return Math.max(0, loan.principal - totalPaid(loan));
-}
+const outstandingBalance = outstandingLoanBalance;
 
 function nextDueDate(loan: Loan): string {
     const start = new Date(loan.startDate);

@@ -172,7 +172,7 @@ function PulseTab({ onOpenRisk }: { onOpenRisk: () => void }) {
 
 // ── Tab: Forecast ─────────────────────────────────────────────────────────────
 function ForecastTab() {
-    const { transactions, loans, invoices, budgets, settings } = useApp();
+    const { transactions, loans, invoices, budgets, settings, setCurrentScreen } = useApp();
     const { currency } = settings;
     const [forecastMonths, setForecastMonths] = useState<3 | 6 | 12>(3);
 
@@ -238,6 +238,7 @@ function ForecastTab() {
                     </View>
                 ))}
             </View>
+            <NextStepLink text="See a full projected P&L, Cash Flow & Balance Sheet, adjustable to your plans" onPress={() => setCurrentScreen('future-statements')} />
         </ScrollView>
     );
 }
