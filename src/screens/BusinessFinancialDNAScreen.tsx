@@ -1,10 +1,12 @@
-import React, { useMemo } from 'react';
-import { SafeAreaView, ScrollView, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { SafeAreaView, ScrollView, View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { buildBusinessFinancialDNA, detectDNADeviations } from '../utils/businessFinancialDNA';
+import { buildFinancialPassportExport } from '../utils/lenderSummaryExport';
+import { generatePDF, sharePDF } from '../utils/pdfExport';
 
 const RISK_COLOR = { low: Colors.income, medium: Colors.warning, high: Colors.expense } as const;
 const SEVERITY_CONFIG = {
@@ -34,6 +36,20 @@ export default function BusinessFinancialDNAScreen() {
 
     const notEnoughData = dna.identity.monthsOfRecordedHistory < 1;
 
+    const [exporting, setExporting] = useState(false);
+    const handleExportPassport = async () => {
+        setExporting(true);
+        try {
+            const exportData = buildFinancialPassportExport({ dna, deviations, currency, generatedAt: new Date() });
+            const filePath = await generatePDF(exportData);
+            await sharePDF(filePath, exportData.title);
+        } catch (error) {
+            Alert.alert('Export failed', 'Could not generate the Financial Passport. Please try again.');
+        } finally {
+            setExporting(false);
+        }
+    };
+
     return (
         <SafeAreaView style={s.safe}>
             <Header />
@@ -41,6 +57,20 @@ export default function BusinessFinancialDNAScreen() {
                 <TouchableOpacity onPress={goBack}><Text style={s.back}>← Back</Text></TouchableOpacity>
                 <Text style={s.title}>🧬 Business Financial DNA</Text>
                 <Text style={s.subtitle}>How your business actually behaves — built from what you've recorded, not a guess.</Text>
+
+                {!notEnoughData && (
+                    <TouchableOpacity style={s.exportBtn} onPress={handleExportPassport} disabled={exporting}>
+                        {exporting ? <ActivityIndicator color={Colors.textPrimary} /> : (
+                            <Text style={s.exportBtnText}>📄 Export Financial Passport</Text>
+                        )}
+                    </TouchableOpacity>
+                )}
+                {!notEnoughData && (
+                    <Text style={s.exportNote}>
+                        A shareable record of your business's financial behaviour — for a lender, investor, or
+                        partner. This is evidence, not a credit decision or funding offer.
+                    </Text>
+                )}
 
                 {notEnoughData ? (
                     <View style={s.card}>
@@ -167,6 +197,12 @@ const s = StyleSheet.create({
     back: { color: Colors.primary, fontSize: 15, marginBottom: 8 },
     title: { fontSize: 26, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 4 },
     subtitle: { fontSize: 13.5, color: Colors.textSecondary, marginBottom: 16 },
+    exportBtn: {
+        backgroundColor: Colors.primary, borderRadius: 12, paddingVertical: 13,
+        alignItems: 'center', marginBottom: 8,
+    },
+    exportBtnText: { color: '#fff', fontSize: 14.5, fontWeight: '700' },
+    exportNote: { fontSize: 12, color: Colors.textSecondary, marginBottom: 16, lineHeight: 17 },
     card: {
         backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14,
         borderWidth: 1, borderColor: Colors.border,
