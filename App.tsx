@@ -24,6 +24,7 @@ import BudgetScreen from './src/screens/BudgetScreen';
 import AnalysisScreen from './src/screens/AnalysisScreen';
 import BusinessFinancialDNAScreen from './src/screens/BusinessFinancialDNAScreen';
 import FutureFinancialStatementsScreen from './src/screens/FutureFinancialStatementsScreen';
+import SolveScreen from './src/screens/SolveScreen';
 import TwoFactorSetupScreen from './src/screens/TwoFactorSetupScreen';
 import TwoFactorVerifyScreen from './src/screens/TwoFactorVerifyScreen';
 import PaymentLinkScreen from './src/screens/PaymentLinkScreen';
@@ -121,6 +122,7 @@ function NavigatorContent() {
             {currentScreen === 'analysis'     && <AnalysisScreen />}
             {currentScreen === 'financial-dna' && <BusinessFinancialDNAScreen />}
             {currentScreen === 'future-statements' && <FutureFinancialStatementsScreen />}
+            {currentScreen === 'solve'             && <SolveScreen />}
             {currentScreen === '2fa'          && <TwoFactorSetupScreen />}
             {currentScreen === 'two-factor-verify' && <TwoFactorVerifyScreen />}
             {currentScreen === 'payment-link' && <PaymentLinkScreen />}

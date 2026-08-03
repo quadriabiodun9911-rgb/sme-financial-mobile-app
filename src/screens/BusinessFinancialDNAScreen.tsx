@@ -8,6 +8,7 @@ import { buildBusinessFinancialDNA, detectDNADeviations } from '../utils/busines
 import { buildFinancialPassportExport } from '../utils/lenderSummaryExport';
 import { generatePDF, sharePDF } from '../utils/pdfExport';
 import { analyseRootCause } from '../utils/analysis';
+import { estimateBusinessValuation } from '../utils/businessValuation';
 
 const RISK_COLOR = { low: Colors.income, medium: Colors.warning, high: Colors.expense } as const;
 const SEVERITY_CONFIG = {
@@ -39,6 +40,20 @@ export default function BusinessFinancialDNAScreen() {
     // Analysis screen's "Why is my profit changing?" tab, reused rather
     // than re-derived so the two never disagree on what actually drove it.
     const rootCause = useMemo(() => analyseRootCause(transactions, 'month', settings), [transactions, settings]);
+    // The equity-investor-facing counterpart to Credit-Worthiness's lending
+    // capacity estimate — Quad360 otherwise only answers "is this business
+    // loan-worthy," never "what might it be worth."
+    const valuation = useMemo(
+        () => estimateBusinessValuation(
+            dna.financial.avgMonthlyRevenue,
+            dna.identity.monthsOfRecordedHistory,
+            dna.financial.avgMonthlyProfitMargin,
+            dna.financial.yoyRevenueGrowthPct,
+            settings.industry,
+            currency,
+        ),
+        [dna, settings.industry, currency],
+    );
 
     const notEnoughData = dna.identity.monthsOfRecordedHistory < 1;
 
@@ -196,6 +211,25 @@ export default function BusinessFinancialDNAScreen() {
                                 valueColor={dna.risk.marginTrendDirection === 'improving' ? Colors.income : dna.risk.marginTrendDirection === 'declining' ? Colors.expense : Colors.textSecondary}
                             />
                         </View>
+
+                        {/* Estimated business value — the equity-investor
+                            counterpart to Credit-Worthiness's lending
+                            capacity estimate */}
+                        {valuation.hasReliableData && (
+                            <View style={s.card}>
+                                <Text style={s.cardTitle}>💼 Estimated Business Value</Text>
+                                <Text style={s.valuationRange}>
+                                    {currency}{Math.round(valuation.lowValuation).toLocaleString()} – {currency}{Math.round(valuation.highValuation).toLocaleString()}
+                                </Text>
+                                <Text style={s.baselineNote}>{valuation.reason}</Text>
+                                <Text style={s.disclaimerInline}>
+                                    An illustrative range only — not an appraisal or an offer. Uses a rough
+                                    revenue-multiple method common for SMEs without audited financials; a real
+                                    valuation would need a qualified advisor and a full review of assets,
+                                    liabilities, and market conditions.
+                                </Text>
+                            </View>
+                        )}
                     </>
                 )}
             </ScrollView>
@@ -233,4 +267,7 @@ const s = StyleSheet.create({
     deviationDivider: { borderBottomWidth: 1, borderBottomColor: Colors.border },
     deviationText: { fontSize: 13.5, color: Colors.textPrimary, flex: 1, lineHeight: 19 },
     deviationCause: { fontSize: 12, color: Colors.textSecondary, marginTop: 3, fontStyle: 'italic', lineHeight: 16 },
+    valuationRange: { fontSize: 22, fontWeight: '800', color: Colors.textPrimary, marginBottom: 6 },
+    baselineNote: { fontSize: 13, color: Colors.textSecondary, marginBottom: 10, lineHeight: 18 },
+    disclaimerInline: { fontSize: 11.5, color: Colors.textSecondary, lineHeight: 16 },
 });

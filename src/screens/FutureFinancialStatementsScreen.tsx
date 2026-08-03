@@ -5,6 +5,7 @@ import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { buildFutureFinancialStatements, NO_ADJUSTMENTS, ForecastAdjustments } from '../utils/futureFinancialStatements';
+import { getEconomicReference } from '../utils/economicContext';
 
 type Statement = 'pnl' | 'cashflow' | 'balance';
 
@@ -72,6 +73,7 @@ export default function FutureFinancialStatementsScreen() {
     );
 
     const notEnoughData = forecast.baselineMonthsUsed === 0;
+    const econRef = useMemo(() => getEconomicReference(currency), [currency]);
     const month = forecast.months[selectedMonthIdx];
     const baselineMonth = baseline.months[selectedMonthIdx];
 
@@ -119,6 +121,17 @@ export default function FutureFinancialStatementsScreen() {
                             {forecast.knownReceivables > 0 && (
                                 <Row label="Unpaid customer invoices" value={fmt(forecast.knownReceivables)} />
                             )}
+                        </View>
+
+                        <View style={s.refCard}>
+                            <Text style={s.refTitle}>📍 Reference for {econRef.marketLabel}</Text>
+                            <Text style={s.refLine}>Typical inflation: {econRef.inflationBandPct}  ·  Typical SME lending rate: {econRef.lendingRateBandPct}</Text>
+                            <Text style={s.refCaveat}>
+                                Illustrative, approximate bands — not live data. Use these to sanity-check the
+                                adjustments below (e.g. is your price rise keeping up with inflation, is a loan
+                                rate you're considering in the normal range), and verify current figures before
+                                relying on them.
+                            </Text>
                         </View>
 
                         <View style={s.card}>
@@ -261,6 +274,13 @@ const s = StyleSheet.create({
     cardTitle: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, marginBottom: 10 },
     emptyText: { fontSize: 14, color: Colors.textSecondary, lineHeight: 20 },
     baselineNote: { fontSize: 12, color: Colors.textSecondary, marginBottom: 14, lineHeight: 17 },
+    refCard: {
+        backgroundColor: Colors.surfaceVariant, borderRadius: 12, padding: 14, marginBottom: 14,
+        borderWidth: 1, borderColor: Colors.border,
+    },
+    refTitle: { fontSize: 13.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: 4 },
+    refLine: { fontSize: 12.5, color: Colors.textPrimary, marginBottom: 6 },
+    refCaveat: { fontSize: 11, color: Colors.textSecondary, lineHeight: 15 },
 
     inputRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
     inputLabel: { fontSize: 13, color: Colors.textPrimary, flex: 1, marginRight: 8 },

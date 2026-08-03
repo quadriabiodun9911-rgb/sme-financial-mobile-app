@@ -383,10 +383,13 @@ function ScenarioResultCard({ result, currency }: { result: ScenarioResult | Com
 
 // ─── Main screen ───────────────────────────────────────────────────────────────
 export default function AnalysisScreen() {
-    const { transactions, finance, settings, navigate } = useApp();
+    const { transactions, finance, settings, navigate, navParams } = useApp();
     const { currency } = settings;
 
-    const [tab, setTab]             = useState<Tab>('diagnosis');
+    // Lets a deep link (e.g. SolveScreen's "I want to grow" → What if?) land
+    // directly on the right tab instead of always defaulting to Why?.
+    const initialTab: Tab = (navParams?.tab === 'scenarios' || navParams?.tab === 'diagnosis') ? navParams.tab : 'diagnosis';
+    const [tab, setTab]             = useState<Tab>(initialTab);
     const [period, setPeriod]       = useState<ReportPeriod>('month');
     const [scenarioType, setScenarioType] = useState<ScenarioType>('combine');
     const [scenarioResults, setScenarioResults] = useState<Partial<Record<ScenarioType, ScenarioResult | CombinedScenarioResult>>>({});

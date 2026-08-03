@@ -257,6 +257,15 @@ export default function DashboardScreen() {
                     </View>
                 )}
 
+                {/* Problem-first entry point — a first-time owner shouldn't
+                    have to map "I have a cash problem" onto which of the
+                    app's many screens answers it. This routes straight
+                    there; every destination is a real, existing screen. */}
+                <TouchableOpacity style={styles.solveBanner} onPress={() => setCurrentScreen('solve')} activeOpacity={0.8}>
+                    <Text style={styles.solveBannerText}>🧭 What can we help you solve today?</Text>
+                    <Text style={styles.solveBannerArrow}>→</Text>
+                </TouchableOpacity>
+
                 {/* ══════════════════════════════════════════════════════════════════
                     ⚙️ OPERATIONS COMMAND CENTRE
                     ══════════════════════════════════════════════════════════════════ */}
@@ -862,6 +871,13 @@ const styles = StyleSheet.create({
     demoBannerText:    { color: '#fef3c7', fontWeight: '600', fontSize: 13, flex: 1 },
     demoBannerBtn:     { backgroundColor: '#fef3c7', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 5, marginLeft: 8 },
     demoBannerBtnText: { color: '#854d0e', fontWeight: '700', fontSize: 12 },
+
+    solveBanner: {
+        backgroundColor: Colors.primary, borderRadius: 12, padding: 14, marginBottom: 14,
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    },
+    solveBannerText: { color: '#fff', fontWeight: '700', fontSize: 14, flex: 1 },
+    solveBannerArrow: { color: '#fff', fontSize: 18, marginLeft: 8 },
 
     betaCard:           { backgroundColor: Colors.surface, borderRadius: 16, padding: 16, marginBottom: 14, borderWidth: 1.5, borderColor: Colors.primary + '55' },
     betaCardHeader:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
