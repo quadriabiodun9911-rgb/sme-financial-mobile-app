@@ -8,7 +8,6 @@ import { computeMonthlyBaseline } from '../utils/analysis';
 import { computeCashRunway } from '../utils/cashRunway';
 import { computeDSCR } from '../utils/finance';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
-import { generateActionPlan } from '../utils/actionRecommendationEngine';
 
 interface AnswerLine { label: string; value: string; color?: string }
 
@@ -29,18 +28,17 @@ interface ProblemEntry {
 // breakdown" still routes to the deeper existing screen for the full
 // picture, but tapping the question itself has to answer the question.
 //
-// These six are the actual questions the app is built to keep answering —
-// not an arbitrary list of problem phrasings. Every screen in the app
-// exists to answer one of these; this front door just says so directly,
-// since that's the one place in the UI whose entire job is to ask the
-// business owner "what's on your mind" and hand back the real answer.
+// These are the actual questions the app is built to keep answering — not
+// an arbitrary list of problem phrasings. Every screen in the app exists
+// to answer one of these; this front door just says so directly, since
+// that's the one place in the UI whose entire job is to ask the business
+// owner "what's on your mind" and hand back the real answer.
 const PROBLEMS: ProblemEntry[] = [
     { emoji: '💰', prompt: 'Am I making money?', detail: 'Profit, revenue, margins, expenses.', screen: 'analysis', params: { tab: 'diagnosis' }, seeMoreLabel: 'See full profit & margin analysis' },
     { emoji: '💵', prompt: 'Will I run out of cash?', detail: 'Cash flow, runway, receivables, upcoming obligations.', screen: 'cashflow', seeMoreLabel: 'See 13-week cash flow forecast' },
     { emoji: '📦', prompt: 'Where is my money tied up?', detail: 'Inventory, customers owing, assets, deposits.', screen: 'inventory', seeMoreLabel: 'See full inventory breakdown' },
     { emoji: '📈', prompt: 'Is my business getting healthier?', detail: 'Growth, margins, customer concentration, operating efficiency.', screen: 'growth', seeMoreLabel: 'See full growth analysis' },
     { emoji: '🏦', prompt: 'Can I get funding?', detail: 'Funding readiness, financial history, debt capacity, documentation.', screen: 'credit-worthiness', seeMoreLabel: 'See full credit-worthiness score' },
-    { emoji: '🧠', prompt: 'What should I do next?', detail: 'AI advisor, risks, opportunities, priorities and recommendations.', screen: 'action-tracker', seeMoreLabel: 'See all recommended actions' },
 ];
 
 export default function SolveScreen() {
@@ -61,8 +59,6 @@ export default function SolveScreen() {
         () => performFinancialDiagnosis(transactions, invoices, finance.cashBalance, finance.expense || 100000, currency),
         [transactions, invoices, finance, currency]
     );
-    const actionPlan = useMemo(() => generateActionPlan(diagnosis, diagnosis.metrics, currency), [diagnosis, currency]);
-    const topAction = actionPlan.immediateActions[0] || actionPlan.shortTermActions[0] || actionPlan.strategicActions[0] || null;
 
     const inventoryValue = useMemo(() => inventory.reduce((s, i) => s + i.quantity * i.costPrice, 0), [inventory]);
     const unpaidInvoicesTotal = useMemo(
@@ -96,13 +92,6 @@ export default function SolveScreen() {
             { label: 'Debt Service Coverage Ratio', value: dscr.dscr.toFixed(2), color: dscr.status === 'healthy' ? Colors.income : dscr.status === 'warning' ? Colors.warning : Colors.expense },
             { label: 'Cash runway', value: runway.runwayDays >= 999 ? '999+ days' : `${runway.runwayDays} days` },
             { label: 'Readiness', value: dscr.status === 'healthy' ? 'Lender-ready' : dscr.status === 'warning' ? 'Needs work' : 'Not ready yet', color: dscr.status === 'healthy' ? Colors.income : dscr.status === 'warning' ? Colors.warning : Colors.expense },
-        ],
-        'What should I do next?': topAction ? [
-            { label: 'Top recommended action', value: topAction.title },
-            { label: 'Expected impact', value: `+${fmt(topAction.expectedImpact)}` },
-            { label: 'Timeframe', value: `${topAction.timelineWeeks} week${topAction.timelineWeeks === 1 ? '' : 's'}` },
-        ] : [
-            { label: 'Top recommended action', value: 'No urgent actions right now — nice work.' },
         ],
     };
 

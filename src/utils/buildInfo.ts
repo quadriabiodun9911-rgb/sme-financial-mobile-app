@@ -7,4 +7,4 @@
  * cache, or otherwise). Bump BUILD_STAMP any time this file is touched as
  * part of a fix, so the next crash report is self-diagnosing.
  */
-export const BUILD_STAMP = '2026-08-03T21:00Z-solve-screen-answers-inline-not-just-links';
+export const BUILD_STAMP = '2026-08-03T21:30Z-remove-what-next-question-from-solve-screen';
