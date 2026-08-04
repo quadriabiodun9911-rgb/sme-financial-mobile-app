@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "CashClear",
+    "slug": "cashclear",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#0a1f16"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.cashclear.app"
+    },
+    "android": {
+      "package": "com.cashclear.app",
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ]
+    },
+    "web": {
+      "themeColor": "#12b76a",
+      "backgroundColor": "#0a1f16"
+    }
+  }
+}
