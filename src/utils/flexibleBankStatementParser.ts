@@ -95,12 +95,19 @@ export function autoDetectColumns(csvRows: string[]): ColumnMapping | null {
     if (header === 'type' || header === 'transaction type') typeColumn = i;
   }
 
+  // A unified amount column is essential UNLESS the statement instead has
+  // separate credit/debit columns — a common bank export layout with no
+  // combined "amount" column at all. Requiring amountColumn regardless used
+  // to reject that format outright ("Could not detect columns"), even
+  // though parseCSVWithMapping already has a dedicated branch to parse it.
+  const hasAmountSignal = amountColumn >= 0 || (creditColumn >= 0 && debitColumn >= 0);
+
   // If we found essential columns, return mapping
-  if (dateColumn >= 0 && descriptionColumn >= 0 && amountColumn >= 0) {
+  if (dateColumn >= 0 && descriptionColumn >= 0 && hasAmountSignal) {
     return {
       dateColumn,
       descriptionColumn,
-      amountColumn,
+      amountColumn, // -1 when relying on creditColumn/debitColumn instead; parseCSVWithMapping never reads it in that case
       typeColumn: typeColumn >= 0 ? typeColumn : undefined,
       creditColumn: creditColumn >= 0 ? creditColumn : undefined,
       debitColumn: debitColumn >= 0 ? debitColumn : undefined,
@@ -132,6 +139,11 @@ export function parseCSVWithMapping(
     const description = row[mapping.descriptionColumn]?.trim();
     let amount = 0;
     let type: 'income' | 'expense' = 'expense';
+    // True once the CSV itself declares the direction — via separate
+    // credit/debit columns or an explicit type column — as opposed to a
+    // bare amount sign, which is a best-effort guess rather than something
+    // the statement actually states.
+    let hasExplicitDirection = false;
 
     // Get amount - handle credit/debit columns or single amount column
     if (mapping.creditColumn !== undefined && mapping.debitColumn !== undefined) {
@@ -141,9 +153,11 @@ export function parseCSVWithMapping(
       if (credit > 0) {
         amount = credit;
         type = 'income';
+        hasExplicitDirection = true;
       } else if (debit > 0) {
         amount = debit;
         type = 'expense';
+        hasExplicitDirection = true;
       } else {
         continue;
       }
@@ -155,6 +169,7 @@ export function parseCSVWithMapping(
       if (mapping.typeColumn !== undefined) {
         const typeStr = row[mapping.typeColumn]?.toLowerCase().trim() || '';
         type = typeStr.includes('credit') || typeStr.includes('in') ? 'income' : 'expense';
+        hasExplicitDirection = true;
       } else {
         // Assume negative = expense, positive = income
         const amountValue = parseFloat(row[mapping.amountColumn] || '0');
@@ -164,15 +179,26 @@ export function parseCSVWithMapping(
 
     if (!date || !description || amount === 0) continue;
 
-    // Classify the transaction
+    // Classify the transaction. When the CSV itself states the direction
+    // (a credit/debit column, or an explicit type column — exactly the
+    // format this app's own sample CSV uses) that's authoritative and must
+    // win. It used to be silently discarded in favor of a description
+    // keyword guess below, which also defaults any income/expense keyword
+    // tie to 'expense' — so a row explicitly labelled "credit" (e.g.
+    // "customer payment", which matches both the income keyword "customer
+    // payment" and the expense keyword "payment") could still import as an
+    // expense. Keyword classification now only decides direction when the
+    // CSV genuinely gives no explicit signal at all.
     const classification = classifyTransaction(description);
+    const finalType = hasExplicitDirection ? type : classification.type;
+    const category = categorizeTransactionFlex(description, finalType);
 
     transactions.push({
       id: `imported-${i}-${Date.now()}`,
       date: normalizeDate(date),
       description,
-      type: classification.type,
-      category: classification.category,
+      type: finalType,
+      category,
       amount,
       vendorCustomer: extractVendorCustomer(description),
       reference: mapping.referenceColumn !== undefined ? row[mapping.referenceColumn] : undefined,
