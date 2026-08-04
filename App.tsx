@@ -37,6 +37,7 @@ import CreditWorthinessScreen from './src/screens/CreditWorthinessScreen';
 import FinancialHealthScreen from './src/screens/FinancialHealthScreen';
 import LoanEligibilityScreen from './src/screens/LoanEligibilityScreen';
 import FundingQualificationScreen from './src/screens/FundingQualificationScreen';
+import BusinessPassportScreen from './src/screens/BusinessPassportScreen';
 import FinancialAssessmentScreen from './src/screens/FinancialAssessmentScreen';
 import ActionTrackerScreen from './src/screens/ActionTrackerScreen';
 import GoalBridgeScreen from './src/screens/GoalBridgeScreen';
@@ -152,6 +153,7 @@ function NavigatorContent() {
             {currentScreen === 'financial-health' && <FinancialHealthScreen />}
             {currentScreen === 'loan-eligibility'  && <LoanEligibilityScreen />}
             {currentScreen === 'funding-qualification' && <FundingQualificationScreen />}
+            {currentScreen === 'business-passport' && <BusinessPassportScreen />}
             {currentScreen === 'financial-assessment' && <FinancialAssessmentScreen />}
             {currentScreen === 'action-tracker' && <ActionTrackerScreen />}
             {currentScreen === 'goal-bridge' && <GoalBridgeScreen />}

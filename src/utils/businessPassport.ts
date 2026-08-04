@@ -1,0 +1,168 @@
+/**
+ * Quad360 Business Passport — the financial identity of the business,
+ * continuously assembled from what it has already recorded, not something
+ * an owner sits down to "prepare" when they need funding.
+ *
+ * Deliberately a thin aggregation layer over what already exists, not a
+ * new engine: Business Identity + Financial Identity come from
+ * businessFinancialDNA.ts, Health/Credit Readiness are the same
+ * computeRiskScore-derived score used everywhere else in the app (just
+ * framed for a lender here), Investment Readiness reuses
+ * businessValuation.ts's illustrative range, and Actions reuse
+ * performFinancialDiagnosis's own prioritized list. No new score is
+ * invented anywhere in this file — that's the point: Quad360 manufactures
+ * the evidence, not a fifth competing number.
+ *
+ * Investment Readiness is deliberately NOT a fabricated 0-100 score.
+ * Customer acquisition/retention, market opportunity, management quality,
+ * and a capital ask/use-of-funds plan aren't things Quad360 can compute
+ * from transaction data — inventing a number that pretends otherwise would
+ * be exactly the "manufactured score" this file exists to avoid. Instead
+ * it lists what evidence IS available and names what isn't, honestly.
+ */
+
+import { Transaction, Invoice, Loan, InventoryItem, Asset, FinanceData, BusinessSettings, User } from '../types';
+import { buildBusinessFinancialDNA, BusinessFinancialDNA, detectDNADeviations, DNADeviation } from './businessFinancialDNA';
+import { buildFundingReadinessPack, FundingReadinessPack } from './fundingReadiness';
+import { estimateBusinessValuation, ValuationEstimate } from './businessValuation';
+import { performFinancialDiagnosis } from './financialDiagnosisEngine';
+import { computeDataQuality, DataQuality } from './dataQuality';
+import { analyzeTrend } from './trendAnalysis';
+
+export interface InvestmentReadinessSummary {
+    valuation: ValuationEstimate;
+    recurringRevenuePct: number;
+    yoyRevenueGrowthPct: number | null;
+    topCustomerConcentrationPct: number;
+    availableSignals: string[];
+    missingSignals: string[];
+}
+
+export interface BusinessPassport {
+    businessName: string;
+    generatedAt: string;
+    trackRecord: {
+        monthsOfRecordedHistory: number;
+        dataMaturity: BusinessFinancialDNA['identity']['dataMaturity'];
+        dataQuality: DataQuality;
+    };
+    identity: BusinessFinancialDNA['identity'];
+    financialIdentity: FundingReadinessPack['profile'] & {
+        avgMonthlyRevenue: number;
+        avgMonthlyProfitMargin: number;
+        revenueVolatility: BusinessFinancialDNA['financial']['revenueVolatility'];
+    };
+    health: {
+        score: number;
+        band: FundingReadinessPack['band'];
+        categories: FundingReadinessPack['riskProfile'];
+    };
+    risk: {
+        customerConcentrationRisk: BusinessFinancialDNA['risk']['customerConcentrationRisk'];
+        supplierConcentrationRisk: BusinessFinancialDNA['risk']['supplierConcentrationRisk'];
+        deviations: DNADeviation[];
+    };
+    creditReadiness: {
+        score: number;
+        band: FundingReadinessPack['band'];
+        documentsReady: number;
+        documentsTotal: number;
+    };
+    investmentReadiness: InvestmentReadinessSummary;
+    growth: {
+        trend: FundingReadinessPack['trend'];
+        yoyRevenueGrowthPct: number | null;
+        yoyProfitGrowthPct: number | null;
+        marginTrend: BusinessFinancialDNA['risk']['marginTrendDirection'];
+    };
+    topActions: string[];
+}
+
+export function buildBusinessPassport(
+    transactions: Transaction[],
+    invoices: Invoice[],
+    loans: Loan[],
+    inventory: InventoryItem[],
+    assets: Asset[],
+    finance: FinanceData,
+    settings: BusinessSettings,
+    user: User | null | undefined,
+): BusinessPassport {
+    const dna = buildBusinessFinancialDNA(transactions, loans, inventory, finance, settings, user);
+    const pack = buildFundingReadinessPack(transactions, invoices, loans, inventory, assets, finance, settings, dna.identity.businessName);
+    const deviations = detectDNADeviations(transactions, settings.currency);
+    const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, finance.expense || 1, settings.currency, loans, inventory);
+    const dataQuality = computeDataQuality(transactions);
+    const trend = analyzeTrend(transactions);
+
+    const valuation = estimateBusinessValuation(
+        dna.financial.avgMonthlyRevenue,
+        dna.identity.monthsOfRecordedHistory,
+        dna.financial.avgMonthlyProfitMargin,
+        dna.financial.yoyRevenueGrowthPct,
+        settings.industry,
+        settings.currency,
+    );
+
+    return {
+        businessName: dna.identity.businessName,
+        generatedAt: new Date().toISOString(),
+        trackRecord: {
+            monthsOfRecordedHistory: dna.identity.monthsOfRecordedHistory,
+            dataMaturity: dna.identity.dataMaturity,
+            dataQuality,
+        },
+        identity: dna.identity,
+        financialIdentity: {
+            ...pack.profile,
+            avgMonthlyRevenue: dna.financial.avgMonthlyRevenue,
+            avgMonthlyProfitMargin: dna.financial.avgMonthlyProfitMargin,
+            revenueVolatility: dna.financial.revenueVolatility,
+        },
+        health: {
+            score: pack.score,
+            band: pack.band,
+            categories: pack.riskProfile,
+        },
+        risk: {
+            customerConcentrationRisk: dna.risk.customerConcentrationRisk,
+            supplierConcentrationRisk: dna.risk.supplierConcentrationRisk,
+            deviations,
+        },
+        creditReadiness: {
+            // Same score as Health above, deliberately — Quad360 doesn't
+            // maintain a separate "credit" number, only a different frame
+            // (how a lender would read the same evidence) on the one score.
+            score: pack.score,
+            band: pack.band,
+            documentsReady: pack.documents.filter(d => d.ready).length,
+            documentsTotal: pack.documents.length,
+        },
+        investmentReadiness: {
+            valuation,
+            recurringRevenuePct: diagnosis.metrics.revenueRecurringPct,
+            yoyRevenueGrowthPct: dna.financial.yoyRevenueGrowthPct,
+            topCustomerConcentrationPct: dna.operational.topCustomerConcentrationPct,
+            availableSignals: [
+                'Revenue & profit trend',
+                'Gross/net margin',
+                'Recurring revenue share',
+                'Customer & supplier concentration',
+                'Illustrative valuation range',
+            ],
+            missingSignals: [
+                'Customer acquisition & retention',
+                'Market opportunity',
+                'Management quality',
+                'Capital ask & use of funds',
+            ],
+        },
+        growth: {
+            trend: pack.trend,
+            yoyRevenueGrowthPct: trend.yoyRevenueGrowthPct,
+            yoyProfitGrowthPct: trend.yoyProfitGrowthPct,
+            marginTrend: dna.risk.marginTrendDirection,
+        },
+        topActions: diagnosis.topOpportunities,
+    };
+}
