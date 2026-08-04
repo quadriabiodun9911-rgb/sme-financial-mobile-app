@@ -11,13 +11,15 @@ import LowDataNotice from '../components/LowDataNotice';
 import NextStepLink from '../components/NextStepLink';
 import { generatePDF, sharePDF } from '../utils/pdfExport';
 import { buildLenderSummaryExport } from '../utils/lenderSummaryExport';
-import { computeDSCR, computeRiskScore, RiskScore } from '../utils/finance';
+import { computeDSCR, computeRiskScore, computeAssetCurrentValue, RiskScore } from '../utils/finance';
 import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
 import { computeDataQuality } from '../utils/dataQuality';
 import { computeInventoryValue } from '../utils/stockVelocity';
+import { computeLeverageRatios } from '../utils/debtRatios';
+import { buildFiveCsAssessment } from '../utils/fiveCsOfCredit';
 
 export default function CreditWorthinessScreen() {
-    const { user, finance, transactions, loans, navigate, settings, inventory } = useApp();
+    const { user, finance, transactions, loans, navigate, settings, inventory, assets } = useApp();
     const { currency } = settings;
 
     // Calculate credit factors
@@ -223,6 +225,20 @@ export default function CreditWorthinessScreen() {
         inventoryValue,
     }), [overallCreditScore, user?.avgMonthlyRevenue, dscrResult.dscr, dataQuality.confidence, inventoryValue]);
 
+    // The Five C's of Credit — the classic framework the canonical score
+    // above is often read against. Built from the same already-computed
+    // numbers on this screen (DSCR, inventory value) plus leverage/net
+    // worth, which the weighted score doesn't include at all.
+    const leverage = useMemo(() => computeLeverageRatios(finance, loans), [finance, loans]);
+    const assetBookValue = useMemo(
+        () => assets.filter(a => a.status === 'active').reduce((s, a) => s + computeAssetCurrentValue(a), 0),
+        [assets],
+    );
+    const fiveCs = useMemo(
+        () => buildFiveCsAssessment(risk, dscrResult, leverage, inventoryValue, assetBookValue, currency),
+        [risk, dscrResult, leverage, inventoryValue, assetBookValue, currency],
+    );
+
     const [exporting, setExporting] = useState(false);
 
     const handleExportLenderSummary = async () => {
@@ -300,6 +316,30 @@ export default function CreditWorthinessScreen() {
                             </View>
                         ))}
                     </View>
+                </View>
+
+                {/* The Five C's of Credit — the classic lender framework the
+                    score above is often read against. Honest about which
+                    of the five it can and can't actually evidence. */}
+                <View style={s.fiveCsCard}>
+                    <Text style={s.sectionTitle}>🔤 The Five C's of Credit</Text>
+                    <Text style={s.visibilitySub}>
+                        How your score maps onto what a lender actually asks — and where the gaps genuinely are, not papered over.
+                    </Text>
+                    {fiveCs.map((c, idx) => (
+                        <View key={c.name} style={[s.fiveCRow, idx === fiveCs.length - 1 && { borderBottomWidth: 0 }]}>
+                            <View style={s.fiveCHeader}>
+                                <Text style={s.fiveCName}>{idx + 1}. {c.name}</Text>
+                                <View style={[s.fiveCBadge, { backgroundColor: (c.evidenced ? Colors.income : Colors.textMuted) + '22' }]}>
+                                    <Text style={[s.fiveCBadgeText, { color: c.evidenced ? Colors.income : Colors.textMuted }]}>
+                                        {c.evidenced ? 'Evidenced' : 'Not evidenced'}
+                                    </Text>
+                                </View>
+                            </View>
+                            <Text style={s.fiveCQuestion}>{c.question}</Text>
+                            <Text style={s.fiveCSummary}>{c.summary}</Text>
+                        </View>
+                    ))}
                 </View>
 
                 {/* Visibility Score */}
@@ -491,6 +531,15 @@ const s = StyleSheet.create({
     exportButton: { backgroundColor: Colors.primary, borderRadius: 10, paddingVertical: 13, alignItems: 'center', marginBottom: 6 },
     exportButtonText: { color: '#fff', fontSize: 14, fontWeight: '700' },
     exportHint: { fontSize: 11.5, color: Colors.textMuted, marginBottom: 20, lineHeight: 16 },
+    fiveCsCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 20 },
+    fiveCRow: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    fiveCHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
+    fiveCName: { fontSize: 13.5, fontWeight: '700', color: Colors.textPrimary },
+    fiveCBadge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+    fiveCBadgeText: { fontSize: 10, fontWeight: '700' },
+    fiveCQuestion: { fontSize: 11.5, color: Colors.textMuted, fontStyle: 'italic', marginBottom: 5 },
+    fiveCSummary: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
+
     visibilityCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 20 },
     visibilitySub: { fontSize: 12, color: Colors.textSecondary, marginBottom: 14, lineHeight: 17 },
     visibilityRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },

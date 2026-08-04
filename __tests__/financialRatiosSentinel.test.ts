@@ -16,7 +16,10 @@ describe('computeFinancialRatios sentinel values', () => {
     });
 
     it('delegates debtToEquity to the canonical debtRatios.ts computation (Infinity when equity <= 0 with real debt), instead of its own 999 sentinel', () => {
-        const r = computeFinancialRatios({ ...baseFinance, equity: 0, liabilities: 5000 }, [], []);
+        // debtRatios.ts now derives equity as assets - liabilities rather
+        // than trusting FinanceData.equity as-is, so forcing the zero-equity
+        // case means making assets exactly match liabilities.
+        const r = computeFinancialRatios({ ...baseFinance, assets: 5000, liabilities: 5000 }, [], []);
         expect(r.debtToEquity).toBe(Infinity);
     });
 

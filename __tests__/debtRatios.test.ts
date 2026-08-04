@@ -39,8 +39,25 @@ describe('computeLeverageRatios', () => {
     });
 
     it('reports Infinity debt-to-equity when equity is zero but debt exists', () => {
-        const r = computeLeverageRatios({ ...baseFinance, equity: 0 }, [makeLoan({ principal: 5000 })]);
+        // equity is now derived (assets - liabilities), not taken from the
+        // input as-is — so to land on zero equity, assets must exactly
+        // match the live loan balance.
+        const r = computeLeverageRatios({ ...baseFinance, assets: 5000, liabilities: 0 }, [makeLoan({ principal: 5000 })]);
+        expect(r.equity).toBe(0);
         expect(r.debtToEquity).toBe(Infinity);
+    });
+
+    it('keeps equity, liabilities and assets internally consistent (assets = liabilities + equity)', () => {
+        // This is exactly the case that used to disagree with itself: a
+        // business with real debt would show a stale, loan-exclusive equity
+        // figure alongside loan-inclusive liabilities, so debtToEquity and
+        // equityRatio told two different stories about the same balance sheet.
+        const r = computeLeverageRatios({ ...baseFinance, assets: 20000, liabilities: 0 }, [makeLoan({ principal: 15000 })]);
+        expect(r.liabilities).toBe(15000);
+        expect(r.equity).toBe(5000); // 20000 - 15000
+        expect(r.assets).toBe(r.liabilities + r.equity);
+        expect(r.equityRatio).toBeCloseTo(25); // 5000 / 20000
+        expect(r.debtToEquity).toBeCloseTo(3); // 15000 / 5000
     });
 
     it('flags hasAssetData false with no real ratio when no assets are recorded', () => {

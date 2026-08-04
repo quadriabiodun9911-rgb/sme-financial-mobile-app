@@ -36,7 +36,14 @@ export function computeLiveLoanBalance(loans: Loan[]): number {
 export function computeLeverageRatios(finance: FinanceData, loans: Loan[]): LeverageRatios {
     const liabilities = finance.liabilities + computeLiveLoanBalance(loans);
     const assets = finance.assets;
-    const equity = finance.equity;
+    // Recomputed from the loan-inclusive liabilities above, not taken as-is
+    // from finance.equity — finance.equity is computed before the live Loan
+    // Register is folded in, so using it unchanged broke the balance-sheet
+    // identity (assets = liabilities + equity): debtToEquity used the
+    // loan-inclusive liabilities while equityRatio used the loan-exclusive
+    // equity, so the same business could show "100% equity-financed" and a
+    // "1.33x debt-to-equity" ratio at the same time — directly contradictory.
+    const equity = assets - liabilities;
     const profit = finance.profit;
 
     return {
