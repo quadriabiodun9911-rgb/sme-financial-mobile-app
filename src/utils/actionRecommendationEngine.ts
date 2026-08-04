@@ -65,7 +65,7 @@ export function generateCrisisActions(
     actions.push({
       id: 'crisis-collections',
       title: 'Urgent: Collect Overdue Invoices',
-      description: `Send payment reminders to customers with outstanding invoices (${currency}${metrics.accountsReceivable.toLocaleString()} total)`,
+      description: `Send payment reminders to customers with outstanding balances (${currency}${metrics.accountsReceivable.toLocaleString()} total)`,
       category: 'collections',
       priority: 10,
       timeframe: 'immediate',

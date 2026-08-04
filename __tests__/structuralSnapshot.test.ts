@@ -49,6 +49,15 @@ describe('buildStructuralSnapshot', () => {
         expect(snap.outstandingReceivables).toBe(1000);
     });
 
+    it('excludes draft invoices from receivables — a draft has never been sent to the client', () => {
+        const invoices: Invoice[] = [
+            { id: 'i1', invoiceNumber: '1', clientName: 'A', clientEmail: '', clientAddress: '', issueDate: '2026-01-01', dueDate: '2026-02-01', lineItems: [], notes: '', status: 'sent', subtotal: 1000, taxTotal: 0, total: 1000, createdAt: '2026-01-01' },
+            { id: 'i2', invoiceNumber: '2', clientName: 'B', clientEmail: '', clientAddress: '', issueDate: '2026-01-01', dueDate: '2026-02-01', lineItems: [], notes: '', status: 'draft', subtotal: 999999, taxTotal: 0, total: 999999, createdAt: '2026-01-01' },
+        ];
+        const snap = buildStructuralSnapshot([], [], [], invoices, [], [], []);
+        expect(snap.outstandingReceivables).toBe(1000);
+    });
+
     it('computes inventory stock value (cost) and potential revenue (selling price) separately', () => {
         const inventory: InventoryItem[] = [
             { id: 'inv1', name: 'Widget', category: 'General', quantity: 10, unit: 'pcs', costPrice: 100, sellingPrice: 150, lowStockThreshold: 5, createdAt: '2026-01-01', updatedAt: '2026-01-01' },

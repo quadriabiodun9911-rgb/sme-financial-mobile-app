@@ -42,7 +42,7 @@ const STATUS_LABEL: Record<CommitmentStatus, string> = {
 // equipment or marketing is "delivering."
 export default function CFOQuestionsTab() {
     const {
-        transactions, loans, invoices, inventory, finance, settings, navigate,
+        transactions, loans, inventory, finance, settings, navigate,
         capitalCommitments, addCommitment, updateCommitment, deleteCommitment,
     } = useApp();
     const { currency } = settings;
@@ -63,26 +63,37 @@ export default function CFOQuestionsTab() {
     // Same accrual figures AccrualCashFlow.tsx already computes — reused
     // here, not re-derived differently. One pass over transactions instead
     // of four separate filter+reduce scans.
-    const { cashIncome, cashExpenses, unpaidExpenses, trailing30Revenue } = useMemo(() => {
+    //
+    // unpaidIncome used to come from invoices.filter(status sent/overdue)
+    // instead of pending/overdue income transactions — the same
+    // transaction-vs-invoice duality fixed in financialDiagnosisEngine.ts's
+    // accountsReceivable. That version missed any pending income recorded
+    // without going through the Invoice flow; this one is symmetric with
+    // unpaidExpenses right below it and matches computeWorkingCapitalMetrics'
+    // accountsReceivable (finance.ts) — same figure everywhere.
+    const { cashIncome, cashExpenses, unpaidIncome, unpaidExpenses, trailing30Revenue } = useMemo(() => {
         const cutoff = new Date();
         cutoff.setDate(cutoff.getDate() - 30);
         const cutoffStr = cutoff.toISOString().split('T')[0];
 
-        let cashIncome = 0, cashExpenses = 0, unpaidExpenses = 0, trailing30Revenue = 0;
+        let cashIncome = 0, cashExpenses = 0, unpaidIncome = 0, unpaidExpenses = 0, trailing30Revenue = 0;
         for (const t of transactions) {
-            if (t.type === 'income' && t.status === 'paid') {
-                cashIncome += t.amount;
-                if (t.date >= cutoffStr) trailing30Revenue += t.amount;
+            if (t.type === 'income') {
+                if (t.status === 'paid') {
+                    cashIncome += t.amount;
+                    if (t.date >= cutoffStr) trailing30Revenue += t.amount;
+                } else if (t.status === 'pending' || t.status === 'overdue') {
+                    unpaidIncome += t.amount;
+                }
             } else if (t.type === 'expense') {
                 if (t.status === 'paid') cashExpenses += t.amount;
                 else if (t.status === 'pending' || t.status === 'overdue') unpaidExpenses += t.amount;
             }
         }
-        return { cashIncome, cashExpenses, unpaidExpenses, trailing30Revenue };
+        return { cashIncome, cashExpenses, unpaidIncome, unpaidExpenses, trailing30Revenue };
     }, [transactions]);
 
-    const unpaidInvoicesTotal = useMemo(() => invoices.filter(i => i.status === 'sent' || i.status === 'overdue').reduce((s, i) => s + (i.total ?? 0), 0), [invoices]);
-    const accrualRevenue = cashIncome + unpaidInvoicesTotal;
+    const accrualRevenue = cashIncome + unpaidIncome;
     const accrualExpenses = cashExpenses + unpaidExpenses;
 
     const reserveTarget = parseFloat(settings.minReserve) || 0;
@@ -97,8 +108,8 @@ export default function CFOQuestionsTab() {
 
     // Q2
     const ccc = useMemo(
-        () => computeCashConversionCycle(unpaidInvoicesTotal, accrualRevenue, unpaidExpenses, accrualExpenses, inventoryValue),
-        [unpaidInvoicesTotal, accrualRevenue, unpaidExpenses, accrualExpenses, inventoryValue],
+        () => computeCashConversionCycle(unpaidIncome, accrualRevenue, unpaidExpenses, accrualExpenses, inventoryValue),
+        [unpaidIncome, accrualRevenue, unpaidExpenses, accrualExpenses, inventoryValue],
     );
 
     // Q3

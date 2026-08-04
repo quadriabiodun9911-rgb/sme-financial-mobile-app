@@ -50,7 +50,11 @@ export function buildStructuralSnapshot(
     const payrollCost = staff.filter(s => s.status === 'active').reduce((s, m) => s + monthlySalaryCost(m), 0);
     const committedMonthlyCosts = budgetedMonthlySpend + loanBurden + payrollCost;
 
-    const outstandingReceivables = invoices.filter(i => i.status !== 'paid').reduce((s, i) => s + (i.total ?? 0), 0);
+    // 'sent'/'overdue' only — a draft invoice hasn't gone to the client and
+    // isn't a real receivable yet (matches the same exclusion the
+    // transaction-based accountsReceivable figure gets elsewhere, via each
+    // non-draft invoice's linked transaction never being created for drafts).
+    const outstandingReceivables = invoices.filter(i => i.status === 'sent' || i.status === 'overdue').reduce((s, i) => s + (i.total ?? 0), 0);
     const inventoryStockValue = computeInventoryValue(inventory);
     const inventoryPotentialRevenue = inventory.reduce((s, i) => s + i.quantity * i.sellingPrice, 0);
     const activeAssetValue = assets.filter(a => a.status === 'active').reduce((s, a) => s + computeAssetCurrentValue(a), 0);

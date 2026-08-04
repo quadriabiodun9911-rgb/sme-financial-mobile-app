@@ -61,10 +61,6 @@ export default function SolveScreen() {
     );
 
     const inventoryValue = useMemo(() => inventory.reduce((s, i) => s + i.quantity * i.costPrice, 0), [inventory]);
-    const unpaidInvoicesTotal = useMemo(
-        () => invoices.filter(i => i.status === 'sent' || i.status === 'overdue').reduce((s, i) => s + i.total, 0),
-        [invoices]
-    );
 
     const ANSWERS: Record<string, AnswerLine[]> = {
         'Am I making money?': [
@@ -80,7 +76,7 @@ export default function SolveScreen() {
         ],
         'Where is my money tied up?': [
             { label: 'Inventory value', value: fmt(inventoryValue) },
-            { label: 'Owed by customers', value: fmt(unpaidInvoicesTotal) },
+            { label: 'Owed by customers', value: fmt(diagnosis.metrics.accountsReceivable) },
             { label: 'Assets', value: fmt(finance.assets) },
         ],
         'Is my business getting healthier?': [

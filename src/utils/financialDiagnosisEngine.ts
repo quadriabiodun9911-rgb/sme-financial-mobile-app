@@ -173,29 +173,32 @@ export function calculateFinancialMetrics(
       ? Math.floor(cashBalance / (effectiveMonthlyExpense / 30))
       : null;
 
-  // Accounts Receivable
-  const unpaidInvoices = invoices.filter(i => i.status !== 'paid');
-  const accountsReceivable = unpaidInvoices.reduce((sum, i) => sum + i.total, 0);
-
-  // Accounts Payable: unpaid/overdue expense transactions (bills owed to suppliers)
-  const unpaidExpenses = transactions.filter(
-    t => t.type === 'expense' && (t.status === 'pending' || t.status === 'overdue')
-  );
-  const accountsPayable = unpaidExpenses.reduce((sum, t) => sum + t.amount, 0);
-
-  // Days Sales Outstanding: average age (in days) of unpaid invoices, weighted
-  // by amount, measured from each invoice's issue date to today.
-  const daysOutstanding = unpaidInvoices.length > 0
-    ? Math.round(
-        unpaidInvoices.reduce((sum, i) => {
-          const ageDays = Math.max(
-            0,
-            (now.getTime() - new Date(i.issueDate).getTime()) / 86400000
-          );
-          return sum + ageDays * i.total;
-        }, 0) / Math.max(1, accountsReceivable)
-      )
-    : 0;
+  // Accounts Receivable / Payable and DSO/DPO — sourced from the same
+  // computeWorkingCapitalMetrics() the Working Capital pillar below uses,
+  // not recomputed separately here. This used to read accountsReceivable
+  // straight off Invoice records (invoices.filter(i => i.status !== 'paid'))
+  // while Working Capital read it off transactions with a pending/overdue
+  // status — two different numbers for "what's currently receivable" in
+  // the same diagnosis result, one of which (the invoice-based figure)
+  // also over-counted by including draft invoices that were never sent and
+  // have no real transaction behind them yet. Every non-draft invoice
+  // already keeps a linked income transaction whose status mirrors the
+  // invoice's own (see OptimizedContexts.tsx's addInvoice/markInvoiceStatus),
+  // so the transaction-based figure is a strict superset — invoiced AND
+  // manually-recorded pending income both count, drafts don't.
+  //
+  // Caveat inherited from computeWorkingCapitalMetrics (and, already,
+  // computeDSCR just below): its revenue-rate denominator is a trailing
+  // 90 real-world days, not the "latest data month" this file's own
+  // runwayDays anchors to for historical/imported data. A dataset with no
+  // paid income in the last 90 real days (e.g. testing against an old bank
+  // import) will show daysOutstanding as 0 rather than reflecting genuinely
+  // slow-paying customers — the same tradeoff already accepted for DSCR in
+  // this file, not something newly introduced here.
+  const wc = computeWorkingCapitalMetrics(transactions);
+  const accountsReceivable = wc.accountsReceivable;
+  const accountsPayable = wc.accountsPayable;
+  const daysOutstanding = wc.dso;
 
   // Recurring revenue percentage — recurring income THIS MONTH as a share of
   // THIS MONTH's total revenue. Previously divided an all-time count of
@@ -212,10 +215,6 @@ export function calculateFinancialMetrics(
   let profitTrend: 'improving' | 'declining' | 'stable' = 'stable';
   if (monthOverMonthGrowth > 5) profitTrend = 'improving';
   else if (monthOverMonthGrowth < -5) profitTrend = 'declining';
-
-  // Working capital — the canonical DSO/DPO/cash-conversion-cycle
-  // implementation, same one Business Financial DNA and the CFO screen use.
-  const wc = computeWorkingCapitalMetrics(transactions);
 
   // Debt — trailing-12-month DSCR against active loans.
   const dscrResult = computeDSCR(transactions, loans);
@@ -340,15 +339,15 @@ export function diagnoseLiquidity(
   // guaranteed a false positive for any business on normal net-30 terms
   // (which carries close to a month of AR by design), and got worse the
   // longer a business had been invoicing without archiving old invoices.
-  // DSO — average age of unpaid invoices — is scale-independent and was
-  // already computed but never actually used here.
+  // DSO is scale-independent and was already computed but never actually
+  // used here.
   if (metrics.accountsReceivable > 0 && metrics.daysOutstanding > INDUSTRY_BENCHMARKS.daysOutstandingTarget) {
     const severity = metrics.daysOutstanding > INDUSTRY_BENCHMARKS.daysOutstandingTarget * 2 ? 'critical' : 'warning';
     diagnoses.push({
       problem: `Slow-paying customers (${metrics.daysOutstanding}-day average vs ${INDUSTRY_BENCHMARKS.daysOutstandingTarget}-day target)`,
       severity,
       rootCause: 'Customers paying slowly (high DSO)',
-      impact: `${currency}${metrics.accountsReceivable.toLocaleString()} tied up in unpaid invoices`,
+      impact: `${currency}${metrics.accountsReceivable.toLocaleString()} tied up in outstanding customer receivables`,
       financialImpact: metrics.accountsReceivable,
       opportunity: 'Implement strict payment terms; offer early payment discounts',
     });
