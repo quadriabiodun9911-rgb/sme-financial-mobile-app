@@ -257,18 +257,20 @@ export default function DashboardScreen() {
                     </View>
                 )}
 
-                {/* Problem-first entry point — a first-time owner shouldn't
-                    have to map "I have a cash problem" onto which of the
-                    app's many screens answers it. This routes straight
-                    there; every destination is a real, existing screen.
-                    Hidden for staff accounts: 'solve' isn't in
-                    STAFF_ALLOWED_SCREENS (nor are most of its destinations
-                    — Analysis, Credit-Worthiness, Forecast, DNA, Action
-                    Tracker), so showing this banner to a staff account
-                    would just lead to a dead-end restricted-access screen. */}
+                {/* Business Passport entry point — the continuously-updating
+                    financial identity (health, risk, credit readiness,
+                    investment readiness, growth, actions) in one place,
+                    instead of a first-time owner having to map "I have a
+                    cash problem" onto which of the app's many screens
+                    answers it. Hidden for staff accounts: 'business-passport'
+                    isn't in STAFF_ALLOWED_SCREENS (nor are most of its
+                    destinations — Analysis, Credit-Worthiness, Forecast,
+                    Action Tracker), so showing this banner to a staff
+                    account would just lead to a dead-end restricted-access
+                    screen. */}
                 {canViewFinancials && (
-                    <TouchableOpacity style={styles.solveBanner} onPress={() => setCurrentScreen('solve')} activeOpacity={0.8}>
-                        <Text style={styles.solveBannerText}>🧭 What can we help you solve today?</Text>
+                    <TouchableOpacity style={styles.solveBanner} onPress={() => setCurrentScreen('business-passport')} activeOpacity={0.8}>
+                        <Text style={styles.solveBannerText}>🛂 See your Business Passport</Text>
                         <Text style={styles.solveBannerArrow}>→</Text>
                     </TouchableOpacity>
                 )}
@@ -428,7 +430,7 @@ export default function DashboardScreen() {
                       <Text style={styles.actionLabel}>Record Expense</Text>
                     </TouchableOpacity>
                     {canViewFinancials && (
-                    <TouchableOpacity style={styles.actionCard} onPress={() => setCurrentScreen('clarity')}>
+                    <TouchableOpacity style={styles.actionCard} onPress={() => setCurrentScreen('import-transactions')}>
                       <Text style={styles.actionEmoji}>🏦</Text>
                       <Text style={styles.actionLabel}>Import Bank Statement</Text>
                     </TouchableOpacity>

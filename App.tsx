@@ -22,9 +22,7 @@ import GrowthIntelligenceScreen from './src/screens/GrowthIntelligenceScreen';
 import CFOScreen from './src/screens/CFOScreen';
 import BudgetScreen from './src/screens/BudgetScreen';
 import AnalysisScreen from './src/screens/AnalysisScreen';
-import BusinessFinancialDNAScreen from './src/screens/BusinessFinancialDNAScreen';
 import FutureFinancialStatementsScreen from './src/screens/FutureFinancialStatementsScreen';
-import SolveScreen from './src/screens/SolveScreen';
 import TwoFactorSetupScreen from './src/screens/TwoFactorSetupScreen';
 import TwoFactorVerifyScreen from './src/screens/TwoFactorVerifyScreen';
 import PaymentLinkScreen from './src/screens/PaymentLinkScreen';
@@ -42,7 +40,6 @@ import FinancialAssessmentScreen from './src/screens/FinancialAssessmentScreen';
 import ActionTrackerScreen from './src/screens/ActionTrackerScreen';
 import GoalBridgeScreen from './src/screens/GoalBridgeScreen';
 import OnboardingChoiceScreen from './src/screens/OnboardingChoiceScreen';
-import ClarityScreen from './src/screens/ClarityScreen';
 import TrendsScreen from './src/screens/TrendsScreen';
 import WeeklyDashboardScreen from './src/screens/WeeklyDashboardScreen';
 import TaxFilingReadinessScreen from './src/screens/TaxFilingReadinessScreen';
@@ -107,12 +104,12 @@ function NavigatorContent() {
         );
     }
 
-    // Free plan covers Dashboard, Clarity, Invoices, Sales/Transactions,
-    // Payroll, Cash Flow, Reports, Inventory, Assets, Loans, Goals, and
-    // Budgets — Analytics (Insights, Analysis, Advisor, Business Financial
-    // DNA, Future Financial Statements, Growth Intelligence) is Pro-only.
-    // Checked once here, same pattern as the role gate above, so a new
-    // Analytics screen defaults to gated rather than accidentally free.
+    // Free plan covers Dashboard, Business Passport, Invoices, Sales/
+    // Transactions, Payroll, Cash Flow, Reports, Inventory, Assets, Loans,
+    // Goals, and Budgets — Analytics (Insights, Analysis, Advisor, Future
+    // Financial Statements, Growth Intelligence) is Pro-only. Checked once
+    // here, same pattern as the role gate above, so a new Analytics screen
+    // defaults to gated rather than accidentally free.
     if (!canAccessScreen(currentScreen as Screen, settings)) {
         return (
             <View style={{ flex: 1 }}>
@@ -138,9 +135,7 @@ function NavigatorContent() {
             {currentScreen === 'cfo'          && <CFOScreen />}
             {currentScreen === 'budget'       && <BudgetScreen />}
             {currentScreen === 'analysis'     && <AnalysisScreen />}
-            {currentScreen === 'financial-dna' && <BusinessFinancialDNAScreen />}
             {currentScreen === 'future-statements' && <FutureFinancialStatementsScreen />}
-            {currentScreen === 'solve'             && <SolveScreen />}
             {currentScreen === '2fa'          && <TwoFactorSetupScreen />}
             {currentScreen === 'two-factor-verify' && <TwoFactorVerifyScreen />}
             {currentScreen === 'payment-link' && <PaymentLinkScreen />}
@@ -158,7 +153,6 @@ function NavigatorContent() {
             {currentScreen === 'action-tracker' && <ActionTrackerScreen />}
             {currentScreen === 'goal-bridge' && <GoalBridgeScreen />}
             {currentScreen === 'onboarding-choice' && <OnboardingChoiceScreen />}
-            {currentScreen === 'clarity'            && <ClarityScreen />}
             {currentScreen === 'trends'              && <TrendsScreen />}
             {currentScreen === 'weekly-dashboard'    && <WeeklyDashboardScreen />}
             {currentScreen === 'tax-filing-readiness' && <TaxFilingReadinessScreen />}

@@ -244,7 +244,7 @@ export default function GoalsScreen() {
                                     onDelete={() => handleDelete(goal.id, goal.title)}
                                     onExecute={() => setCurrentScreen('action-tracker')}
                                     onCollect={() => navigate('transactions', { filter: 'collect' })}
-                                    onSeeFullPicture={() => setCurrentScreen('clarity')}
+                                    onSeeFullPicture={() => setCurrentScreen('business-passport')}
                                 />
                             ))}
                             {/* Achieved goals */}

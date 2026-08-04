@@ -385,7 +385,7 @@ export default function BudgetScreen() {
                                     impact={computeProfitCashImpact(monthlyRevenue, cashBalance, -dCommitments)}
                                     source="budget"
                                     currency={currency}
-                                    onSeeFullPicture={() => navigate('clarity')}
+                                    onSeeFullPicture={() => navigate('business-passport')}
                                 />
                                 <View style={s.adjustBtnRow}>
                                     <TouchableOpacity style={s.adjustCancelBtn} onPress={cancelAdjustMode}>
@@ -407,7 +407,7 @@ export default function BudgetScreen() {
                                         impact={computeProfitCashImpact(monthlyRevenue, cashBalance, -totalCommitments)}
                                         source="budget"
                                         currency={currency}
-                                        onSeeFullPicture={() => navigate('clarity')}
+                                        onSeeFullPicture={() => navigate('business-passport')}
                                     />
                                 )}
                             </>

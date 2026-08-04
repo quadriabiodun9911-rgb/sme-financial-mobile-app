@@ -592,7 +592,7 @@ export default function ReportsScreen() {
                                 currentMargin={allFinance.margin}
                                 currency={currency}
                                 invoices={invoices}
-                                onSeeFullPicture={() => setCurrentScreen('clarity')}
+                                onSeeFullPicture={() => setCurrentScreen('business-passport')}
                             />
                             <NextStepLink
                                 text="After adjusting prices, see the effect on your Balance Sheet"

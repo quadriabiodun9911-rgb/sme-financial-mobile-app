@@ -1,10 +1,13 @@
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity, Alert } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import LowDataNotice from '../components/LowDataNotice';
+import MissionVisionCard from '../components/MissionVisionCard';
+import { generatePDF, sharePDF } from '../utils/pdfExport';
+import { buildBusinessPassportExport } from '../utils/lenderSummaryExport';
 import { buildBusinessPassport } from '../utils/businessPassport';
 
 const STATUS_DOT: Record<string, string> = { good: '🟢', warning: '🟡', danger: '🔴' };
@@ -28,15 +31,30 @@ function fmtCompact(currency: string, amount: number): string {
 }
 
 export default function BusinessPassportScreen() {
-    const { transactions, invoices, loans, inventory, assets, finance, settings, user, navigate } = useApp();
+    const { transactions, invoices, loans, inventory, assets, finance, settings, user, navigate, setCurrentScreen, budgets, staff, goals } = useApp();
     const { currency } = settings;
+    const [exporting, setExporting] = useState(false);
 
     const passport = useMemo(
-        () => buildBusinessPassport(transactions, invoices, loans, inventory, assets, finance, settings, user),
-        [transactions, invoices, loans, inventory, assets, finance, settings, user],
+        () => buildBusinessPassport(transactions, invoices, loans, inventory, assets, finance, settings, user, budgets, staff, goals),
+        [transactions, invoices, loans, inventory, assets, finance, settings, user, budgets, staff, goals],
     );
 
     const maxTrendRevenue = Math.max(1, ...passport.growth.trend.map(m => Math.max(m.revenue, m.expense)));
+    const snapshot = passport.structuralSnapshot;
+
+    const handleExport = async () => {
+        setExporting(true);
+        try {
+            const exportData = buildBusinessPassportExport(passport, currency);
+            const filePath = await generatePDF(exportData);
+            await sharePDF(filePath, exportData.title);
+        } catch {
+            Alert.alert('Export failed', 'Could not generate the Business Passport. Please try again.');
+        } finally {
+            setExporting(false);
+        }
+    };
 
     return (
         <SafeAreaView style={s.safe}>
@@ -51,6 +69,10 @@ export default function BusinessPassportScreen() {
 
                 <LowDataNotice transactionCount={transactions.length} label="your Business Passport" />
 
+                <TouchableOpacity style={s.exportButton} onPress={handleExport} disabled={exporting}>
+                    <Text style={s.exportButtonText}>{exporting ? 'Preparing…' : '📄 Export Business Passport'}</Text>
+                </TouchableOpacity>
+
                 {/* Track record */}
                 <View style={s.trackRecordCard}>
                     <Text style={s.trackRecordLabel}>Financial Track Record</Text>
@@ -61,8 +83,38 @@ export default function BusinessPassportScreen() {
                     <Text style={s.trackRecordDetail}>{passport.trackRecord.dataQuality.summary}</Text>
                 </View>
 
+                {/* Estimated starting position — while there's not enough
+                    transaction history for a full diagnosis, build a rough
+                    picture from goals/budgets/loans/assets/invoices/stock
+                    instead of showing an empty page. */}
+                {!passport.trackRecord.hasEnoughDataForDiagnosis && snapshot?.hasData && (
+                    <View style={s.snapshotCard}>
+                        <Text style={s.cardTitle}>Estimated Starting Position</Text>
+                        <Text style={s.readinessNote}>
+                            Not enough recorded transactions yet for a full diagnosis ({transactions.length}/5). This
+                            is built from your goals, budget, loans, assets, invoices and stock instead.
+                        </Text>
+                        <View style={s.profileGrid}>
+                            <Stat label="Committed monthly costs" value={fmtCompact(currency, snapshot.committedMonthlyCosts)} />
+                            <Stat label="Outstanding receivables" value={fmtCompact(currency, snapshot.outstandingReceivables)} />
+                            <Stat label="Stock on hand (cost)" value={fmtCompact(currency, snapshot.inventoryStockValue)} />
+                            <Stat label="Active asset value" value={fmtCompact(currency, snapshot.activeAssetValue)} />
+                        </View>
+                        <TouchableOpacity onPress={() => setCurrentScreen('import-transactions')}>
+                            <Text style={s.linkText}>📄 Upload a bank statement to unlock the full Passport →</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
+
+                <MissionVisionCard
+                    missionStatement={settings.missionStatement}
+                    visionStatement={settings.visionStatement}
+                    coreValues={settings.coreValues}
+                    onEdit={() => setCurrentScreen('settings')}
+                />
+
                 {/* 1. Business Identity */}
-                <Section title="Business Identity" subtitle="Who are you?">
+                <Section title="Business Identity" subtitle="Who are you?" teaser={`${passport.identity.businessType} · ${passport.identity.industry}`}>
                     <Row label="Business" value={passport.identity.businessName} />
                     <Row label="Type" value={passport.identity.businessType} />
                     <Row label="Industry" value={passport.identity.industry} />
@@ -70,7 +122,11 @@ export default function BusinessPassportScreen() {
                 </Section>
 
                 {/* 2. Financial Identity */}
-                <Section title="Financial Identity" subtitle="What is happening financially?">
+                <Section
+                    title="Financial Identity"
+                    subtitle="What is happening financially?"
+                    teaser={`Revenue ${fmtCompact(currency, passport.financialIdentity.revenue)} · Net Profit ${fmtCompact(currency, passport.financialIdentity.netProfit)}`}
+                >
                     <View style={s.profileGrid}>
                         <Stat label="Revenue (TTM)" value={fmtCompact(currency, passport.financialIdentity.revenue)} />
                         <Stat label="Gross Profit" value={fmtCompact(currency, passport.financialIdentity.grossProfit)} sub={`${passport.financialIdentity.grossMargin.toFixed(0)}% margin`} />
@@ -83,7 +139,7 @@ export default function BusinessPassportScreen() {
                 </Section>
 
                 {/* 3. Health */}
-                <Section title="Health" subtitle="Is the business healthy?">
+                <Section title="Health" subtitle="Is the business healthy?" teaser={`${passport.health.score}/100 — ${passport.health.band}`}>
                     <Text style={[s.scoreValue, { color: BAND_COLOR[passport.health.band] }]}>
                         {passport.health.score}/100 — {passport.health.band}
                     </Text>
@@ -97,7 +153,7 @@ export default function BusinessPassportScreen() {
                 </Section>
 
                 {/* 4. Risk */}
-                <Section title="Risk" subtitle="What could go wrong?">
+                <Section title="Risk" subtitle="What could go wrong?" teaser={`${passport.risk.customerConcentrationRisk} customer concentration risk`}>
                     <Row label="Customer concentration" value={passport.risk.customerConcentrationRisk} valueColor={CONCENTRATION_COLOR[passport.risk.customerConcentrationRisk]} />
                     <Row label="Supplier concentration" value={passport.risk.supplierConcentrationRisk} valueColor={CONCENTRATION_COLOR[passport.risk.supplierConcentrationRisk]} />
                     {passport.risk.deviations.length === 0 ? (
@@ -112,7 +168,11 @@ export default function BusinessPassportScreen() {
                 </Section>
 
                 {/* 5. Credit Readiness */}
-                <Section title="Credit Readiness" subtitle="How prepared are you for debt?">
+                <Section
+                    title="Credit Readiness"
+                    subtitle="How prepared are you for debt?"
+                    teaser={`${passport.creditReadiness.score}/100 — ${passport.creditReadiness.band}`}
+                >
                     <Text style={s.readinessNote}>
                         Same score as Health above, read the way a lender's own assessment would read it — not a
                         pre-approval, and not a promise of funding.
@@ -127,7 +187,11 @@ export default function BusinessPassportScreen() {
                 </Section>
 
                 {/* 6. Investment Readiness */}
-                <Section title="Investment Readiness" subtitle="How prepared are you for equity/investment?">
+                <Section
+                    title="Investment Readiness"
+                    subtitle="How prepared are you for equity/investment?"
+                    teaser={`${passport.investmentReadiness.availableSignals.length} of ${passport.investmentReadiness.availableSignals.length + passport.investmentReadiness.missingSignals.length} signals evidenced`}
+                >
                     <Text style={s.readinessNote}>
                         Investment readiness needs more than creditworthiness — a bank asks "can you repay me," an
                         investor asks "can this grow my money." Quad360 can evidence part of that today; the rest
@@ -155,7 +219,11 @@ export default function BusinessPassportScreen() {
                 </Section>
 
                 {/* 7. Growth */}
-                <Section title="Growth" subtitle="Is the business improving?">
+                <Section
+                    title="Growth"
+                    subtitle="Is the business improving?"
+                    teaser={passport.growth.yoyRevenueGrowthPct !== null ? `${passport.growth.yoyRevenueGrowthPct >= 0 ? '+' : ''}${passport.growth.yoyRevenueGrowthPct.toFixed(0)}% YoY revenue` : 'Not enough history yet'}
+                >
                     {passport.growth.trend.length === 0 ? (
                         <Text style={s.emptyText}>Not enough recorded history yet to show a trend.</Text>
                     ) : (
@@ -174,9 +242,13 @@ export default function BusinessPassportScreen() {
                     <Row label="Revenue growth (YoY)" value={passport.growth.yoyRevenueGrowthPct !== null ? `${passport.growth.yoyRevenueGrowthPct.toFixed(0)}%` : 'Not yet available'} />
                     <Row label="Profit growth (YoY)" value={passport.growth.yoyProfitGrowthPct !== null ? `${passport.growth.yoyProfitGrowthPct.toFixed(0)}%` : 'Not yet available'} />
                     <Row label="Margin trend (3mo)" value={passport.growth.marginTrend} />
+                    <TouchableOpacity onPress={() => navigate('growth')}>
+                        <Text style={s.linkText}>See the full Growth Intelligence breakdown →</Text>
+                    </TouchableOpacity>
                 </Section>
 
-                {/* 8. Actions */}
+                {/* 8. Actions — always visible, not collapsible; this is
+                    the "what do I do now" summary the whole page builds to. */}
                 <View style={s.actionsCard}>
                     <Text style={s.cardTitle}>Actions</Text>
                     <Text style={s.cardSubtitle}>What should you do next?</Text>
@@ -200,12 +272,25 @@ export default function BusinessPassportScreen() {
     );
 }
 
-function Section({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
+// Tap-to-expand, matching the retired Solve screen's "tap a question for
+// the answer" pattern — a one-line teaser is always visible, the full
+// section opens on tap instead of every section being fully expanded at
+// once on a page with eight of them.
+function Section({ title, subtitle, teaser, children }: { title: string; subtitle: string; teaser: string; children: React.ReactNode }) {
+    const [open, setOpen] = useState(false);
     return (
         <View style={s.card}>
-            <Text style={s.cardTitle}>{title}</Text>
-            <Text style={s.cardSubtitle}>{subtitle}</Text>
-            {children}
+            <TouchableOpacity onPress={() => setOpen(o => !o)} activeOpacity={0.75}>
+                <View style={s.sectionHeaderRow}>
+                    <View style={{ flex: 1 }}>
+                        <Text style={s.cardTitle}>{title}</Text>
+                        <Text style={s.cardSubtitle}>{subtitle}</Text>
+                    </View>
+                    <Text style={s.sectionArrow}>{open ? '▲' : '▼'}</Text>
+                </View>
+                {!open && <Text style={s.teaserText}>{teaser}</Text>}
+            </TouchableOpacity>
+            {open && <View style={s.sectionBody}>{children}</View>}
         </View>
     );
 }
@@ -236,13 +321,20 @@ const s = StyleSheet.create({
     title: { fontSize: 22, fontWeight: '700', color: Colors.textPrimary, marginBottom: 4 },
     tagline: { fontSize: 13, fontWeight: '600', color: Colors.primary, marginBottom: 6 },
     subtitle: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17, marginBottom: 16 },
+    exportButton: { backgroundColor: Colors.primary, borderRadius: 10, paddingVertical: 13, alignItems: 'center', marginBottom: 16 },
+    exportButtonText: { color: '#fff', fontWeight: '700', fontSize: 14 },
     trackRecordCard: { backgroundColor: Colors.card, borderRadius: 12, padding: 14, marginBottom: 16, borderLeftWidth: 4, borderLeftColor: Colors.primary },
     trackRecordLabel: { fontSize: 11, color: Colors.textMuted, fontWeight: '600', marginBottom: 4 },
     trackRecordValue: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginBottom: 4, textTransform: 'capitalize' },
     trackRecordDetail: { fontSize: 11, color: Colors.textMuted },
+    snapshotCard: { backgroundColor: Colors.card, borderRadius: 14, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: Colors.primary },
     card: { backgroundColor: Colors.card, borderRadius: 14, padding: 16, marginBottom: 16 },
     cardTitle: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary },
-    cardSubtitle: { fontSize: 11.5, color: Colors.textMuted, marginBottom: 12, fontStyle: 'italic' },
+    cardSubtitle: { fontSize: 11.5, color: Colors.textMuted, marginBottom: 4, fontStyle: 'italic' },
+    sectionHeaderRow: { flexDirection: 'row', alignItems: 'flex-start' },
+    sectionArrow: { fontSize: 12, color: Colors.textMuted, marginLeft: 8, marginTop: 2 },
+    teaserText: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary, marginTop: 6 },
+    sectionBody: { marginTop: 10 },
     row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: Colors.border },
     rowLabel: { fontSize: 12.5, color: Colors.textSecondary, textTransform: 'capitalize' },
     rowValue: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary, textTransform: 'capitalize' },

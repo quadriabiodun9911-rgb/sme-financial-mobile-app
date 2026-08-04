@@ -133,7 +133,7 @@ export default function CashFlowScreen() {
                                 <View style={styles.solutionBanner}>
                                     <Text style={styles.solutionTitle}>💡 {solution.title}</Text>
                                     <Text style={styles.solutionDetail}>{solution.detail}</Text>
-                                    <NextStepLink text="See the full profit → cash picture" onPress={() => setCurrentScreen('clarity')} />
+                                    <NextStepLink text="See the full profit → cash picture" onPress={() => setCurrentScreen('business-passport')} />
                                 </View>
                             );
                         })()}

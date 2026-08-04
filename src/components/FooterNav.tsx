@@ -16,13 +16,11 @@ const ANALYTICS_ITEMS: { label: string; icon: string; screen: Screen; color: str
     { label: 'Insights', icon: '💡', screen: 'insights', color: '#f59e0b' },
     { label: 'Analysis', icon: '📊', screen: 'analysis', color: '#3b82f6' },
     { label: 'Advisor',  icon: '🧠', screen: 'cfo',      color: '#8b5cf6' },
-    { label: 'DNA',      icon: '🧬', screen: 'financial-dna', color: '#06b6d4' },
     { label: 'Forecast', icon: '🔮', screen: 'future-statements', color: '#a855f7' },
     { label: 'Growth',   icon: '📈', screen: 'growth',   color: '#10b981' },
 ];
 
 const FINANCE_ITEMS: { label: string; icon: string; screen: Screen; color: string }[] = [
-    { label: 'Passport',    icon: '🛂', screen: 'business-passport', color: '#14b8a6' },
     { label: 'Goals',       icon: '🎯', screen: 'goals',             color: '#ef4444' },
     { label: 'Goal Bridge', icon: '🌉', screen: 'goal-bridge',       color: '#06b6d4' },
     { label: 'Budget',      icon: '💰', screen: 'budget',            color: '#10b981' },
@@ -46,11 +44,11 @@ const ACCOUNT_ITEMS: { label: string; icon: string; screen: Screen; color: strin
 
 // ─── Footer tabs ─────────────────────────────────────────────────────────────
 const TABS: { label: string; screen: Screen; icon: string }[] = [
-    { label: 'Home',      screen: 'dashboard',    icon: '🏠' },
-    { label: 'Clarity',   screen: 'clarity',      icon: '🧭' },
-    { label: 'Sales',     screen: 'transactions', icon: '📋' },
-    { label: 'Invoices',  screen: 'invoices',     icon: '🧾' },
-    { label: 'Reports',   screen: 'reports',      icon: '📊' },
+    { label: 'Home',      screen: 'dashboard',        icon: '🏠' },
+    { label: 'Passport',  screen: 'business-passport', icon: '🛂' },
+    { label: 'Sales',     screen: 'transactions',      icon: '📋' },
+    { label: 'Invoices',  screen: 'invoices',          icon: '🧾' },
+    { label: 'Reports',   screen: 'reports',           icon: '📊' },
 ];
 
 export default function FooterNav() {

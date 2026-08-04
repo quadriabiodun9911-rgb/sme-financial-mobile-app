@@ -21,13 +21,20 @@
  * it lists what evidence IS available and names what isn't, honestly.
  */
 
-import { Transaction, Invoice, Loan, InventoryItem, Asset, FinanceData, BusinessSettings, User } from '../types';
+import { Transaction, Invoice, Loan, InventoryItem, Asset, FinanceData, BusinessSettings, User, Budget, StaffMember, FinancialGoal } from '../types';
 import { buildBusinessFinancialDNA, BusinessFinancialDNA, detectDNADeviations, DNADeviation } from './businessFinancialDNA';
 import { buildFundingReadinessPack, FundingReadinessPack } from './fundingReadiness';
 import { estimateBusinessValuation, ValuationEstimate } from './businessValuation';
 import { performFinancialDiagnosis } from './financialDiagnosisEngine';
 import { computeDataQuality, DataQuality } from './dataQuality';
 import { analyzeTrend } from './trendAnalysis';
+import { buildStructuralSnapshot, StructuralSnapshot } from './structuralSnapshot';
+
+// Below this many recorded transactions, a full diagnosis is too thin to
+// trust — the Passport falls back to a structural snapshot built from
+// whatever else exists (goals, budgets, loans, assets, invoices, stock)
+// instead of showing a near-empty page. Same threshold ClarityScreen used.
+const MIN_TRANSACTIONS_FOR_DIAGNOSIS = 5;
 
 export interface InvestmentReadinessSummary {
     valuation: ValuationEstimate;
@@ -45,7 +52,12 @@ export interface BusinessPassport {
         monthsOfRecordedHistory: number;
         dataMaturity: BusinessFinancialDNA['identity']['dataMaturity'];
         dataQuality: DataQuality;
+        hasEnoughDataForDiagnosis: boolean;
     };
+    // Populated only when hasEnoughDataForDiagnosis is false — a rough
+    // picture built from goals/budgets/loans/assets/invoices/stock instead
+    // of a near-empty page while transaction history is still thin.
+    structuralSnapshot: StructuralSnapshot | null;
     identity: BusinessFinancialDNA['identity'];
     financialIdentity: FundingReadinessPack['profile'] & {
         avgMonthlyRevenue: number;
@@ -87,6 +99,9 @@ export function buildBusinessPassport(
     finance: FinanceData,
     settings: BusinessSettings,
     user: User | null | undefined,
+    budgets: Budget[] = [],
+    staff: StaffMember[] = [],
+    goals: FinancialGoal[] = [],
 ): BusinessPassport {
     const dna = buildBusinessFinancialDNA(transactions, loans, inventory, finance, settings, user);
     const pack = buildFundingReadinessPack(transactions, invoices, loans, inventory, assets, finance, settings, dna.identity.businessName);
@@ -94,6 +109,11 @@ export function buildBusinessPassport(
     const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, finance.expense || 1, settings.currency, loans, inventory);
     const dataQuality = computeDataQuality(transactions);
     const trend = analyzeTrend(transactions);
+
+    const hasEnoughDataForDiagnosis = transactions.length >= MIN_TRANSACTIONS_FOR_DIAGNOSIS;
+    const structuralSnapshot = hasEnoughDataForDiagnosis
+        ? null
+        : buildStructuralSnapshot(budgets, loans, assets, invoices, inventory, staff, goals);
 
     const valuation = estimateBusinessValuation(
         dna.financial.avgMonthlyRevenue,
@@ -111,7 +131,9 @@ export function buildBusinessPassport(
             monthsOfRecordedHistory: dna.identity.monthsOfRecordedHistory,
             dataMaturity: dna.identity.dataMaturity,
             dataQuality,
+            hasEnoughDataForDiagnosis,
         },
+        structuralSnapshot,
         identity: dna.identity,
         financialIdentity: {
             ...pack.profile,

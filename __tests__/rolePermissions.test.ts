@@ -28,7 +28,7 @@ describe('isScreenAllowedForRole', () => {
     it('blocks staff from financial screens', () => {
         expect(isScreenAllowedForRole('reports', 'staff')).toBe(false);
         expect(isScreenAllowedForRole('weekly-dashboard', 'staff')).toBe(false);
-        expect(isScreenAllowedForRole('clarity', 'staff')).toBe(false);
+        expect(isScreenAllowedForRole('business-passport', 'staff')).toBe(false);
         expect(isScreenAllowedForRole('cfo', 'staff')).toBe(false);
         expect(isScreenAllowedForRole('settings', 'staff')).toBe(false);
         expect(isScreenAllowedForRole('loans', 'staff')).toBe(false);

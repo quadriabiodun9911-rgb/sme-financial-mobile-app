@@ -215,7 +215,7 @@ export default function PayrollScreen() {
                                     impact={computeProfitCashImpact(finance?.profit ?? 0, finance?.cashBalance ?? 0, -totalMonthlyPayroll)}
                                     source="payroll"
                                     currency={sym}
-                                    onSeeFullPicture={() => setCurrentScreen('clarity')}
+                                    onSeeFullPicture={() => setCurrentScreen('business-passport')}
                                 />
                             </View>
                         )}

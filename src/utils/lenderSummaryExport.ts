@@ -1,6 +1,6 @@
 import { ExportData } from './pdfExport';
-import { BusinessFinancialDNA, DNADeviation } from './businessFinancialDNA';
 import { FundingReadinessPack } from './fundingReadiness';
+import { BusinessPassport } from './businessPassport';
 
 export interface LenderSummaryFactor {
     name: string;
@@ -72,83 +72,102 @@ export function buildLenderSummaryExport(input: LenderSummaryInput): ExportData 
     };
 }
 
-export interface FinancialPassportInput {
-    dna: BusinessFinancialDNA;
-    deviations: DNADeviation[];
-    currency: string;
-    generatedAt: Date;
-}
-
 /**
  * The fuller companion to buildLenderSummaryExport above: that function
  * turns the credit score alone into a document; this turns the whole
- * Business Financial DNA profile into one — identity, behaviour, and risk,
- * not just a score. Deliberately doesn't restate the credit score or
- * lending checklist (buildLenderSummaryExport already owns that document);
- * a business wanting both shares two focused exports rather than one
- * bloated one.
+ * Business Passport into one — identity, financial identity, health, risk,
+ * credit readiness, investment readiness, growth, and actions, not just a
+ * score. Deliberately doesn't restate the funding-readiness document
+ * (buildFundingReadinessPackExport already owns that); a business wanting
+ * both shares two focused exports rather than one bloated one.
  *
  * This is a record of recorded behaviour, not a credit decision or a
  * funding offer — Quad360 doesn't lend and doesn't guarantee an outcome,
  * it gives whoever the owner shares this with real evidence to decide from.
+ * Previously named buildFinancialPassportExport, titled "Financial
+ * Passport" — renamed to stop colliding with the Business Passport screen
+ * it now exports, which didn't exist when this was first written.
  */
-export function buildFinancialPassportExport(input: FinancialPassportInput): ExportData {
-    const { dna, deviations, currency, generatedAt } = input;
+export function buildBusinessPassportExport(passport: BusinessPassport, currency: string): ExportData {
     const fmt = (n: number) => fmtCurrency(currency, n);
 
     return {
-        title: `${dna.identity.businessName} — Financial Passport`,
-        date: generatedAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
+        title: `${passport.businessName} — Business Passport`,
+        date: new Date(passport.generatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
         summary: [
-            { label: 'Recorded History', value: `${dna.identity.monthsOfRecordedHistory} month(s)` },
-            { label: 'Avg. Monthly Revenue', value: fmt(dna.financial.avgMonthlyRevenue) },
-            { label: 'Avg. Profit Margin', value: `${dna.financial.avgMonthlyProfitMargin.toFixed(1)}%` },
-            { label: 'Business Risk Score', value: `${dna.risk.riskScore.score} / 100 (${dna.risk.riskScore.grade})` },
+            { label: 'Recorded History', value: `${passport.trackRecord.monthsOfRecordedHistory} month(s) — ${passport.trackRecord.dataMaturity}` },
+            { label: 'Avg. Monthly Revenue', value: fmt(passport.financialIdentity.avgMonthlyRevenue) },
+            { label: 'Avg. Profit Margin', value: `${passport.financialIdentity.avgMonthlyProfitMargin.toFixed(1)}%` },
+            { label: 'Health / Credit Readiness Score', value: `${passport.health.score} / 100 (${passport.health.band})` },
         ],
         sections: [
             {
                 name: 'Business Identity',
                 data: [
-                    { label: 'Business type', value: dna.identity.businessType },
-                    { label: 'Industry', value: dna.identity.industry },
-                    { label: 'Profile maturity', value: dna.identity.dataMaturity },
+                    { label: 'Business type', value: passport.identity.businessType },
+                    { label: 'Industry', value: passport.identity.industry },
+                    { label: 'Profile maturity', value: passport.identity.dataMaturity },
                 ],
             },
             {
-                name: 'Financial Behaviour',
+                name: 'Financial Identity',
                 data: [
-                    { label: 'Revenue predictability', value: dna.financial.revenueVolatility },
-                    { label: 'Year-over-year revenue growth', value: dna.financial.yoyRevenueGrowthPct !== null ? `${dna.financial.yoyRevenueGrowthPct.toFixed(1)}%` : 'Not yet available' },
-                    { label: 'Days sales outstanding', value: `${dna.financial.dso} days` },
-                    { label: 'Days payable outstanding', value: `${dna.financial.dpo} days` },
-                    { label: 'Cash conversion cycle', value: `${dna.financial.cashConversionCycleDays} days` },
-                    { label: 'Monthly debt obligation', value: fmt(dna.financial.monthlyDebtObligation) },
-                    { label: 'Historically slow months', value: dna.financial.seasonalLowMonths.length ? dna.financial.seasonalLowMonths.join(', ') : 'None identified yet' },
+                    { label: 'Revenue (TTM)', value: fmt(passport.financialIdentity.revenue) },
+                    { label: 'Gross Profit (TTM)', value: `${fmt(passport.financialIdentity.grossProfit)} (${passport.financialIdentity.grossMargin.toFixed(0)}% margin)` },
+                    { label: 'Net Profit (TTM)', value: fmt(passport.financialIdentity.netProfit) },
+                    { label: 'Cash', value: fmt(passport.financialIdentity.cash) },
+                    { label: 'Receivables', value: fmt(passport.financialIdentity.receivables) },
+                    { label: 'Debt', value: fmt(passport.financialIdentity.debt) },
+                    { label: 'Revenue predictability', value: passport.financialIdentity.revenueVolatility },
                 ],
             },
             {
-                name: 'Operational Behaviour',
+                name: 'Health',
+                data: passport.health.categories.map(f => ({
+                    label: f.name,
+                    value: `${f.status === 'good' ? 'Strong' : f.status === 'warning' ? 'Watch' : 'High risk'} (${f.score}/100)`,
+                })),
+            },
+            {
+                name: 'Risk',
                 data: [
-                    { label: 'Inventory value (at cost)', value: fmt(dna.operational.inventoryValue) },
-                    { label: 'Slow-moving stock', value: `${dna.operational.slowMovingItemCount} of ${dna.operational.totalInventoryItems} items` },
-                    { label: 'Outstanding receivables', value: fmt(dna.operational.outstandingReceivables) },
-                    { label: 'Outstanding payables', value: fmt(dna.operational.outstandingPayables) },
-                    { label: 'Top customer share of revenue', value: `${dna.operational.topCustomerConcentrationPct.toFixed(0)}%` },
-                    { label: 'Top supplier share of spend', value: `${dna.operational.topSupplierConcentrationPct.toFixed(0)}%` },
+                    { label: 'Customer concentration risk', value: passport.risk.customerConcentrationRisk },
+                    { label: 'Supplier concentration risk', value: passport.risk.supplierConcentrationRisk },
+                    ...passport.risk.deviations.map(d => ({ label: d.metric, value: d.changeDescription })),
                 ],
             },
             {
-                name: 'Risk Behaviour',
+                name: 'Credit Readiness',
                 data: [
-                    { label: 'Customer concentration risk', value: dna.risk.customerConcentrationRisk },
-                    { label: 'Supplier concentration risk', value: dna.risk.supplierConcentrationRisk },
-                    { label: 'Margin trend (last 3 months)', value: dna.risk.marginTrendDirection },
+                    { label: 'Score', value: `${passport.creditReadiness.score} / 100 (${passport.creditReadiness.band})` },
+                    { label: 'Supporting documents', value: `${passport.creditReadiness.documentsReady} of ${passport.creditReadiness.documentsTotal} ready` },
                 ],
             },
-            ...(deviations.length > 0 ? [{
-                name: 'Recent Changes vs. This Business\'s Own History',
-                data: deviations.map(d => ({ label: d.metric, value: d.changeDescription })),
-            }] : []),
+            {
+                name: 'Investment Readiness',
+                data: [
+                    ...(passport.investmentReadiness.valuation.hasReliableData ? [{
+                        label: 'Illustrative valuation range',
+                        value: `${fmt(passport.investmentReadiness.valuation.lowValuation)} – ${fmt(passport.investmentReadiness.valuation.highValuation)}`,
+                    }] : []),
+                    { label: 'Recurring revenue', value: `${passport.investmentReadiness.recurringRevenuePct.toFixed(0)}%` },
+                    { label: 'Revenue growth (YoY)', value: passport.investmentReadiness.yoyRevenueGrowthPct !== null ? `${passport.investmentReadiness.yoyRevenueGrowthPct.toFixed(1)}%` : 'Not yet available' },
+                    { label: 'Evidenced', value: passport.investmentReadiness.availableSignals.join(', ') },
+                    { label: 'Not yet evidenced — needs owner input', value: passport.investmentReadiness.missingSignals.join(', ') },
+                ],
+            },
+            {
+                name: 'Growth',
+                data: [
+                    { label: 'Revenue growth (YoY)', value: passport.growth.yoyRevenueGrowthPct !== null ? `${passport.growth.yoyRevenueGrowthPct.toFixed(1)}%` : 'Not yet available' },
+                    { label: 'Profit growth (YoY)', value: passport.growth.yoyProfitGrowthPct !== null ? `${passport.growth.yoyProfitGrowthPct.toFixed(1)}%` : 'Not yet available' },
+                    { label: 'Margin trend (last 3 months)', value: passport.growth.marginTrend },
+                ],
+            },
+            {
+                name: 'Actions — What To Do Next',
+                data: passport.topActions.map((a, i) => ({ label: `${i + 1}`, value: a })),
+            },
         ],
     };
 }

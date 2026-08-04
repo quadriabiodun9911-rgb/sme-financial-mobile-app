@@ -15,7 +15,7 @@
 
 import { Screen, BusinessSettings } from '../types';
 
-const PRO_ONLY_SCREENS: Screen[] = ['insights', 'analysis', 'cfo', 'financial-dna', 'future-statements', 'growth'];
+const PRO_ONLY_SCREENS: Screen[] = ['insights', 'analysis', 'cfo', 'future-statements', 'growth'];
 
 export function isProOnlyScreen(screen: Screen): boolean {
     return PRO_ONLY_SCREENS.includes(screen);
