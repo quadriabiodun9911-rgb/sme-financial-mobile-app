@@ -670,7 +670,8 @@ export default function CFOScreen() {
             {/* Financial Health card — always visible. Was pointing at the
                 Pngme bank-connection health screen, a feature that isn't
                 live yet (its connect button is disabled, "Available after
-                beta") — redirected to Clarity, the real, working health view. */}
+                beta") — redirected to Business Passport, the real, working
+                health view. */}
             <TouchableOpacity style={s.healthCard} onPress={() => navigate('business-passport')}>
                 <View style={{ flex: 1 }}>
                     <Text style={s.healthTitle}>📊 Financial Health Score</Text>

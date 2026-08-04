@@ -33,7 +33,8 @@ import { buildStructuralSnapshot, StructuralSnapshot } from './structuralSnapsho
 // Below this many recorded transactions, a full diagnosis is too thin to
 // trust — the Passport falls back to a structural snapshot built from
 // whatever else exists (goals, budgets, loans, assets, invoices, stock)
-// instead of showing a near-empty page. Same threshold ClarityScreen used.
+// instead of showing a near-empty page. Same threshold the retired
+// ClarityScreen used.
 const MIN_TRANSACTIONS_FOR_DIAGNOSIS = 5;
 
 export interface InvestmentReadinessSummary {
@@ -165,18 +166,24 @@ export function buildBusinessPassport(
             recurringRevenuePct: diagnosis.metrics.revenueRecurringPct,
             yoyRevenueGrowthPct: dna.financial.yoyRevenueGrowthPct,
             topCustomerConcentrationPct: dna.operational.topCustomerConcentrationPct,
+            // 'Illustrative valuation range' only counts as evidenced when
+            // estimateBusinessValuation() actually produced one — listing
+            // it as available while the section above says "too little
+            // history to estimate" would be exactly the manufactured
+            // confidence this file exists to avoid.
             availableSignals: [
                 'Revenue & profit trend',
                 'Gross/net margin',
                 'Recurring revenue share',
                 'Customer & supplier concentration',
-                'Illustrative valuation range',
+                ...(valuation.hasReliableData ? ['Illustrative valuation range'] : []),
             ],
             missingSignals: [
                 'Customer acquisition & retention',
                 'Market opportunity',
                 'Management quality',
                 'Capital ask & use of funds',
+                ...(valuation.hasReliableData ? [] : ['Illustrative valuation range']),
             ],
         },
         growth: {
