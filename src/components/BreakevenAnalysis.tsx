@@ -106,31 +106,36 @@ export default function BreakevenAnalysis({ result, currency }: Props) {
                 )}
             </View>
 
-            <View style={styles.divider} />
-
-            {/* Paths to more profit */}
-            <Text style={styles.sectionTitle}>PATHS TO MORE PROFIT</Text>
-            <View style={styles.section}>
-                <View style={styles.pathCard}>
-                    <Text style={styles.pathLabel}>Option A: Grow Revenue 15%</Text>
-                    <Text style={styles.pathDetail}>
-                        Need {fmt(pathsToProfitability.revenueIncreaseNeeded, currency)} more revenue
-                    </Text>
-                </View>
-                <View style={styles.pathCard}>
-                    <Text style={styles.pathLabel}>Option B: Cut Costs 10%</Text>
-                    <Text style={styles.pathDetail}>
-                        Reduce costs by {fmt(pathsToProfitability.costReductionNeeded, currency)}
-                    </Text>
-                </View>
-                <View style={styles.pathCard}>
-                    <Text style={styles.pathLabel}>Option C: Both 8% each</Text>
-                    <Text style={styles.pathDetail}>
-                        +{fmt(pathsToProfitability.combinedPath.revenueIncrease, currency)} revenue
-                        {' & '}−{fmt(pathsToProfitability.combinedPath.costReduction, currency)} costs
-                    </Text>
-                </View>
-            </View>
+            {/* Paths to more profit — only meaningful while there's still a gap to
+                close; once above breakeven, revenueIncreaseNeeded/costReductionNeeded
+                are 0 and there's nothing to show here. */}
+            {!isAboveBreakeven && (
+                <>
+                    <View style={styles.divider} />
+                    <Text style={styles.sectionTitle}>PATHS TO BREAKEVEN</Text>
+                    <View style={styles.section}>
+                        <View style={styles.pathCard}>
+                            <Text style={styles.pathLabel}>Option A: Revenue Only</Text>
+                            <Text style={styles.pathDetail}>
+                                Need {fmt(pathsToProfitability.revenueIncreaseNeeded, currency)} more revenue
+                            </Text>
+                        </View>
+                        <View style={styles.pathCard}>
+                            <Text style={styles.pathLabel}>Option B: Costs Only</Text>
+                            <Text style={styles.pathDetail}>
+                                Reduce costs by {fmt(pathsToProfitability.costReductionNeeded, currency)}
+                            </Text>
+                        </View>
+                        <View style={styles.pathCard}>
+                            <Text style={styles.pathLabel}>Option C: Split Evenly</Text>
+                            <Text style={styles.pathDetail}>
+                                +{fmt(pathsToProfitability.combinedPath.revenueIncrease, currency)} revenue
+                                {' & '}−{fmt(pathsToProfitability.combinedPath.costReduction, currency)} costs
+                            </Text>
+                        </View>
+                    </View>
+                </>
+            )}
 
             {!isAboveBreakeven && (
                 <>
