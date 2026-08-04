@@ -394,10 +394,20 @@ export function decryptBudget(
     return cleanDecrypted;
 }
 
+// generateEncryptionKey() produces a 64-character hex string (32 random
+// bytes). Anything drastically shorter isn't a key this app generated —
+// but CryptoJS.AES will silently accept *any* non-empty string as a
+// passphrase and derive key material from it, so an encrypt/decrypt
+// round-trip alone previously "verified" clearly-bogus keys like
+// 'invalid-key' or '' (empty passphrases still derive deterministic key
+// material) as long as the same string was used on both sides.
+const MIN_ENCRYPTION_KEY_LENGTH = 16;
+
 /**
  * Verify encryption key is valid
  */
 export function verifyEncryptionKey(key: string): boolean {
+    if (!key || key.length < MIN_ENCRYPTION_KEY_LENGTH) return false;
     try {
         const testValue = 'test';
         const encrypted = encryptValue(testValue, key);
