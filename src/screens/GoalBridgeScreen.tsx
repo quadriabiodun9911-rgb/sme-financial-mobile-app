@@ -11,7 +11,7 @@ import { computeMonthlyBaseline } from '../utils/analysis';
 import NextStepLink from '../components/NextStepLink';
 
 export default function GoalBridgeScreen() {
-  const { transactions, invoices, finance, settings, goals, navParams, setCurrentScreen } = useApp();
+  const { transactions, invoices, finance, settings, goals, navParams, setCurrentScreen, loans, inventory } = useApp();
 
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [goalType, setGoalType] = useState<'profit' | 'revenue' | 'cash' | 'margin' | 'runway'>('profit');
@@ -34,9 +34,11 @@ export default function GoalBridgeScreen() {
       invoices,
       finance.cashBalance,
       finance.expense || 100000,
-      settings.currency
+      settings.currency,
+      loans,
+      inventory
     );
-  }, [transactions, invoices, finance, settings]);
+  }, [transactions, invoices, finance, settings, loans, inventory]);
 
   const actionPlan = useMemo(() => {
     return generateActionPlan(diagnosis, diagnosis.metrics, settings.currency);

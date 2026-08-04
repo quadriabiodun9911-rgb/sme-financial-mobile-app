@@ -62,10 +62,10 @@ function MiniBar({ pct, color }: { pct: number; color: string }) {
 
 // ── Tab: Pulse (was Overview) ─────────────────────────────────────────────────
 function PulseTab({ onOpenRisk }: { onOpenRisk: () => void }) {
-    const { transactions, goals, loans, finance, settings } = useApp();
+    const { transactions, goals, loans, finance, settings, inventory } = useApp();
     const { currency } = settings;
     const summary = useMemo(() => computeWeeklyCFOSummary(transactions, goals, loans, finance), [transactions, goals, loans, finance]);
-    const risk    = useMemo(() => computeRiskScore(finance, loans, transactions), [finance, loans, transactions]);
+    const risk    = useMemo(() => computeRiskScore(finance, loans, transactions, inventory), [finance, loans, transactions, inventory]);
     const ratios  = useMemo(() => computeFinancialRatios(finance, loans, transactions), [finance, loans, transactions]);
 
     const riskDisplay = riskLabel(risk.score);
@@ -393,10 +393,10 @@ function FinanceTab() {
 
 // ── Tab: Risk ─────────────────────────────────────────────────────────────────
 function RiskTab() {
-    const { transactions, loans, finance, navigate } = useApp();
+    const { transactions, loans, finance, navigate, inventory } = useApp();
     const concentration = useMemo(() => computeCustomerConcentration(transactions), [transactions]);
     const seasonal      = useMemo(() => computeSeasonalRisk(transactions), [transactions]);
-    const risk          = useMemo(() => computeRiskScore(finance, loans, transactions), [finance, loans, transactions]);
+    const risk          = useMemo(() => computeRiskScore(finance, loans, transactions, inventory), [finance, loans, transactions, inventory]);
 
     const MONTHS_GRID = [seasonal.slice(0, 6), seasonal.slice(6, 12)];
 

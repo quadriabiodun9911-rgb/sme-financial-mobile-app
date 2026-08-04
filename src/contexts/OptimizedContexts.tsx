@@ -1180,7 +1180,7 @@ export function useApp() {
   // Reuses the same root-cause diagnosis engine as the AI Advisor for a
   // consistent, real health score instead of a hardcoded placeholder.
   const financialHealthScore = transactions.length >= 5 && financeData
-    ? performFinancialDiagnosis(transactions, invoicesArray, financeData.cashBalance, (financeData.expense || 1) / activeMonths, settings?.settings?.currency ?? '₦').overallHealth
+    ? performFinancialDiagnosis(transactions, invoicesArray, financeData.cashBalance, (financeData.expense || 1) / activeMonths, settings?.settings?.currency ?? '₦', loans, inventory).overallHealth
     : 0;
 
   const userWithMetrics = auth.user

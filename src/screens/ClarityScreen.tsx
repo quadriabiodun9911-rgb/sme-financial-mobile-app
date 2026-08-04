@@ -35,8 +35,8 @@ export default function ClarityScreen() {
 
     const diagnosis = useMemo(() => {
         if (!hasEnoughData) return null;
-        return performFinancialDiagnosis(transactions, invoices, finance.cashBalance, finance.expense || 1, currency);
-    }, [hasEnoughData, transactions, invoices, finance.cashBalance, finance.expense, currency]);
+        return performFinancialDiagnosis(transactions, invoices, finance.cashBalance, finance.expense || 1, currency, loans, inventory);
+    }, [hasEnoughData, transactions, invoices, finance.cashBalance, finance.expense, currency, loans, inventory]);
 
     const actionPlan = useMemo(() => {
         if (!diagnosis) return null;

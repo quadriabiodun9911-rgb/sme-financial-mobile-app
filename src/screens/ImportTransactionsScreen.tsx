@@ -355,7 +355,7 @@ const CATEGORY_OPTIONS: { label: string; category: TxCategory; subCategory: stri
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function ImportTransactionsScreen() {
-    const { navigate, goBack, addTransaction, transactions, invoices, finance, settings } = useApp();
+    const { navigate, goBack, addTransaction, transactions, invoices, finance, settings, loans, inventory } = useApp();
     const currency = (settings as any).currency || '₦';
 
     const [step,       setStep]       = useState<'upload' | 'preview' | 'done'>('upload');
@@ -386,9 +386,11 @@ export default function ImportTransactionsScreen() {
             invoices,
             finance.cashBalance,
             finance.expense || 100000,
-            currency
+            currency,
+            loans,
+            inventory
         );
-    }, [step, transactions, invoices, finance, currency]);
+    }, [step, transactions, invoices, finance, currency, loans, inventory]);
 
     const processFile = useCallback(async (uri: string, name: string) => {
         setLoading(true);

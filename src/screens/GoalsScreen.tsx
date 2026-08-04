@@ -54,7 +54,7 @@ const STATUS_LABELS: Record<FinancialGoal['status'], string> = {
 const PRIORITY_COLORS = { high: Colors.expense, medium: Colors.warning, low: Colors.textMuted };
 
 export default function GoalsScreen() {
-    const { goals, addGoal, deleteGoal, updateGoal, finance, transactions, invoices, settings, navParams, navigate, setCurrentScreen } = useApp();
+    const { goals, addGoal, deleteGoal, updateGoal, finance, transactions, invoices, settings, navParams, navigate, setCurrentScreen, loans, inventory } = useApp();
     const { currency } = settings;
 
     const [addModalOpen, setAddModalOpen] = useState(false);
@@ -79,7 +79,7 @@ export default function GoalsScreen() {
     // instead of only revealing that after tapping into a separate screen.
     const feasibilityByGoalId = useMemo(() => {
         if (transactions.length < 5 || goals.length === 0) return {};
-        const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, finance.expense || 1, settings.currency);
+        const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, finance.expense || 1, settings.currency, loans, inventory);
         const tactics = generateActionPlan(diagnosis, diagnosis.metrics, settings.currency);
         const allTactics = [...tactics.immediateActions, ...tactics.shortTermActions, ...tactics.strategicActions];
         const map: Record<string, { feasibility: string; requiredMonthlyImprovement: number; successProbability: number }> = {};

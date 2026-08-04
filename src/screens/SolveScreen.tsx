@@ -56,8 +56,8 @@ export default function SolveScreen() {
     const runway = useMemo(() => computeCashRunway(transactions, finance.cashBalance), [transactions, finance.cashBalance]);
     const dscr = useMemo(() => computeDSCR(transactions, loans), [transactions, loans]);
     const diagnosis = useMemo(
-        () => performFinancialDiagnosis(transactions, invoices, finance.cashBalance, finance.expense || 100000, currency),
-        [transactions, invoices, finance, currency]
+        () => performFinancialDiagnosis(transactions, invoices, finance.cashBalance, finance.expense || 100000, currency, loans, inventory),
+        [transactions, invoices, finance, currency, loans, inventory]
     );
 
     const inventoryValue = useMemo(() => inventory.reduce((s, i) => s + i.quantity * i.costPrice, 0), [inventory]);
