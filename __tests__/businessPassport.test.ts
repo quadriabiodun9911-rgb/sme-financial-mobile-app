@@ -79,4 +79,26 @@ describe('buildBusinessPassport', () => {
         const established = buildBusinessPassport(rich, [], [], [], [], finance, settings, null);
         expect(established.trackRecord.monthsOfRecordedHistory).toBeGreaterThan(thin.trackRecord.monthsOfRecordedHistory);
     });
+
+    it('only lists the valuation range as evidenced once there is enough history to estimate it', () => {
+        // Too little history (< 3 months) — estimateBusinessValuation can't produce a range,
+        // so it must not be claimed as evidenced.
+        const thinTransactions: Transaction[] = [
+            makeTx({ type: 'income', amount: 50000, date: daysAgo(10) }),
+            makeTx({ type: 'income', amount: 50000, date: daysAgo(5) }),
+        ];
+        const thin = buildBusinessPassport(thinTransactions, [], [], [], [], finance, settings, null);
+        expect(thin.investmentReadiness.valuation.hasReliableData).toBe(false);
+        expect(thin.investmentReadiness.availableSignals).not.toContain('Illustrative valuation range');
+        expect(thin.investmentReadiness.missingSignals).toContain('Illustrative valuation range');
+
+        // Enough history (>= 3 months of revenue) — now it should be evidenced.
+        const richTransactions: Transaction[] = Array.from({ length: 6 }, (_, i) =>
+            makeTx({ type: 'income', amount: 500000, date: daysAgo(30 * i + 1) }),
+        );
+        const established = buildBusinessPassport(richTransactions, [], [], [], [], finance, settings, null);
+        expect(established.investmentReadiness.valuation.hasReliableData).toBe(true);
+        expect(established.investmentReadiness.availableSignals).toContain('Illustrative valuation range');
+        expect(established.investmentReadiness.missingSignals).not.toContain('Illustrative valuation range');
+    });
 });
