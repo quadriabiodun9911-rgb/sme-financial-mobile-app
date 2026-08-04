@@ -11,7 +11,7 @@ import LowDataNotice from '../components/LowDataNotice';
 import NextStepLink from '../components/NextStepLink';
 import { generatePDF, sharePDF } from '../utils/pdfExport';
 import { buildLenderSummaryExport } from '../utils/lenderSummaryExport';
-import { computeDSCR } from '../utils/finance';
+import { computeDSCR, computeRiskScore, RiskScore } from '../utils/finance';
 import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
 import { computeDataQuality } from '../utils/dataQuality';
 import { computeInventoryValue } from '../utils/stockVelocity';
@@ -163,21 +163,31 @@ export default function CreditWorthinessScreen() {
         return factors;
     }, [user, finance, transactions, loans, currency]);
 
-    // Calculate overall credit score
-    const overallCreditScore = useMemo(() => {
-        return creditFactors.reduce((sum, factor) => sum + (factor.score * factor.weight), 0);
-    }, [creditFactors]);
+    // The canonical 7-pillar score — the same number Financial Health, the
+    // CFO screen, Business Financial DNA, and the Funding Readiness Pack
+    // all show. This screen used to compute its own separate weighted sum
+    // from the 5 factors below (Payment History/Credit Utilization/
+    // Business Stability/Cash Flow Health/Revenue Growth) — a different
+    // number from every other "how healthy is this business" screen in the
+    // app. Those 5 factors are still shown (see "Additional Lender
+    // Signals" below) since Payment History and Credit Utilization reflect
+    // real repayment behavior the canonical score doesn't capture — they
+    // just no longer drive the headline number.
+    const risk = useMemo(() => computeRiskScore(finance, loans, transactions, inventory), [finance, loans, transactions, inventory]);
+    const overallCreditScore = risk.score;
 
-    const creditRating = useMemo(() => {
-        if (overallCreditScore >= 80) return { label: 'Excellent', color: Colors.income, emoji: '💎' };
-        if (overallCreditScore >= 70) return { label: 'Good', color: '#10b981', emoji: '✅' };
-        if (overallCreditScore >= 60) return { label: 'Fair', color: Colors.warning, emoji: '⚠️' };
-        return { label: 'Poor', color: Colors.expense, emoji: '⛔' };
-    }, [overallCreditScore]);
+    const BAND_STYLE: Record<RiskScore['band'], { label: string; color: string; emoji: string }> = {
+        Excellent: { label: 'Excellent', color: Colors.income, emoji: '💎' },
+        Strong: { label: 'Strong', color: '#10b981', emoji: '✅' },
+        Moderate: { label: 'Moderate', color: Colors.warning, emoji: '⚠️' },
+        Weak: { label: 'Weak', color: '#fb923c', emoji: '⚠️' },
+        Critical: { label: 'Critical', color: Colors.expense, emoji: '⛔' },
+    };
+    const creditRating = useMemo(() => BAND_STYLE[risk.band], [risk.band]);
 
     const topFactors = useMemo(() => {
-        return [...creditFactors].sort((a, b) => a.score - b.score).slice(0, 2);
-    }, [creditFactors]);
+        return [...risk.factors].sort((a, b) => a.score - b.score).slice(0, 2);
+    }, [risk.factors]);
 
     // Same conditions rendered by the "What Lenders Look For" checkpoints
     // below — kept in one place so the exported summary and the on-screen
@@ -223,7 +233,16 @@ export default function CreditWorthinessScreen() {
                 currency,
                 overallCreditScore,
                 creditRatingLabel: creditRating.label,
-                factors: creditFactors,
+                // The canonical 7-factor breakdown, not the 5 supplementary
+                // factors — this has to match the score shown above it, and
+                // only the canonical factors actually sum to that score.
+                factors: risk.factors.map(f => ({
+                    name: f.name,
+                    score: f.score,
+                    weight: f.weight / 100,
+                    description: f.status === 'good' ? 'Strong' : f.status === 'warning' ? 'Watch' : 'High risk',
+                    status: f.status === 'good' ? 'Strong' : f.status === 'warning' ? 'Watch' : 'High risk',
+                })),
                 checkpoints: lenderCheckpoints,
                 runwayDays: finance.runway || 0,
                 avgMonthlyRevenue: user?.avgMonthlyRevenue || 0,
@@ -248,7 +267,7 @@ export default function CreditWorthinessScreen() {
                 </TouchableOpacity>
 
                 <Text style={s.title}>💳 Credit-Worthiness</Text>
-                <Text style={s.subtitle}>Track factors that lenders evaluate</Text>
+                <Text style={s.subtitle}>How your business looks against what lenders evaluate — not a loan decision, and not a guarantee.</Text>
 
                 <LowDataNotice transactionCount={transactions.length} label="your credit-worthiness score" />
 
@@ -268,14 +287,15 @@ export default function CreditWorthinessScreen() {
                     </Text>
                     <Text style={s.scoreRating}>{creditRating.label} Credit Profile</Text>
 
-                    {/* Score Breakdown */}
+                    {/* Score Breakdown — the same 7-pillar composition
+                        Financial Health and the Funding Readiness Pack use */}
                     <View style={s.scoreBreakdown}>
                         <Text style={s.breakdownLabel}>Score Composition:</Text>
-                        {creditFactors.map((factor, idx) => (
+                        {risk.factors.map((factor, idx) => (
                             <View key={idx} style={s.breakdownItem}>
                                 <Text style={s.breakdownName}>{factor.name}</Text>
                                 <Text style={s.breakdownWeight}>
-                                    {Math.round(factor.score * factor.weight)} ({Math.round(factor.weight * 100)}%)
+                                    {Math.round(factor.score * factor.weight / 100)} ({Math.round(factor.weight)}%)
                                 </Text>
                             </View>
                         ))}
@@ -354,7 +374,9 @@ export default function CreditWorthinessScreen() {
                                         {Math.round(factor.score)}
                                     </Text>
                                 </View>
-                                <Text style={s.improvementDescription}>{factor.description}</Text>
+                                <Text style={s.improvementDescription}>
+                                    {factor.status === 'danger' ? 'High risk' : 'Watch'} — {Math.round(factor.weight)}% of your score
+                                </Text>
                                 <View style={s.progressBar}>
                                     <View
                                         style={[
@@ -366,21 +388,18 @@ export default function CreditWorthinessScreen() {
                                         ]}
                                     />
                                 </View>
-                                <View style={s.tipsList}>
-                                    {factor.tips.map((tip, tipIdx) => (
-                                        <Text key={tipIdx} style={s.tipItem}>
-                                            ✓ {tip}
-                                        </Text>
-                                    ))}
-                                </View>
                             </View>
                         ))}
                     </View>
                 )}
 
-                {/* All Credit Factors */}
+                {/* Additional Lender Signals — real repayment behavior and
+                    credit utilization the canonical score above doesn't
+                    capture (it only sees DSCR, not on-time payment history).
+                    These are supplementary context, not part of the score
+                    composition shown above. */}
                 <View style={s.section}>
-                    <Text style={s.sectionTitle}>📊 All Credit Factors</Text>
+                    <Text style={s.sectionTitle}>📊 Additional Lender Signals</Text>
                     {creditFactors.map((factor, idx) => (
                         <View key={idx} style={s.factorCard}>
                             <View style={s.factorHeader}>

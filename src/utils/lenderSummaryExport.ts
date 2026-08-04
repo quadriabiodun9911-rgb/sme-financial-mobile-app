@@ -1,5 +1,6 @@
 import { ExportData } from './pdfExport';
 import { BusinessFinancialDNA, DNADeviation } from './businessFinancialDNA';
+import { FundingReadinessPack } from './fundingReadiness';
 
 export interface LenderSummaryFactor {
     name: string;
@@ -148,6 +149,63 @@ export function buildFinancialPassportExport(input: FinancialPassportInput): Exp
                 name: 'Recent Changes vs. This Business\'s Own History',
                 data: deviations.map(d => ({ label: d.metric, value: d.changeDescription })),
             }] : []),
+        ],
+    };
+}
+
+const STATUS_LABEL: Record<RiskFactorStatus, string> = { good: 'Strong', warning: 'Watch', danger: 'High risk' };
+type RiskFactorStatus = 'good' | 'warning' | 'danger';
+
+/**
+ * The document this whole file exists to eventually produce: not a score
+ * alone (buildLenderSummaryExport) or a behavioural profile alone
+ * (buildFinancialPassportExport), but the full pack a business can hand a
+ * lender — what it made, how it's trending, where the risk sits, how ready
+ * it is, and what backs that up. Same "this is evidence, not a decision or
+ * an offer" discipline as the other two exports in this file.
+ */
+export function buildFundingReadinessPackExport(pack: FundingReadinessPack, currency: string): ExportData {
+    const fmt = (n: number) => fmtCurrency(currency, n);
+
+    return {
+        title: `${pack.businessName} — Funding Readiness Pack`,
+        date: new Date(pack.generatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
+        summary: [
+            { label: 'Funding Readiness', value: `${pack.score} / 100 (${pack.band})` },
+            { label: 'Revenue (trailing 12 months)', value: fmt(pack.profile.revenue) },
+            { label: 'Net Profit (trailing 12 months)', value: fmt(pack.profile.netProfit) },
+            { label: 'Cash on hand', value: fmt(pack.profile.cash) },
+        ],
+        sections: [
+            {
+                name: 'Business Financial Profile',
+                data: [
+                    { label: 'Revenue (TTM)', value: fmt(pack.profile.revenue) },
+                    { label: 'Gross Profit (TTM)', value: `${fmt(pack.profile.grossProfit)} (${pack.profile.grossMargin.toFixed(0)}% margin)` },
+                    { label: 'Net Profit (TTM)', value: fmt(pack.profile.netProfit) },
+                    { label: 'Cash', value: fmt(pack.profile.cash) },
+                    { label: 'Receivables', value: fmt(pack.profile.receivables) },
+                    { label: 'Debt (active loans, outstanding principal)', value: fmt(pack.profile.debt) },
+                ],
+            },
+            {
+                name: 'Financial Performance — Last 12 Months',
+                data: pack.trend.map(m => ({
+                    label: m.month,
+                    value: `Revenue ${fmt(m.revenue)} · Profit ${fmt(m.profit)} (${m.profitMargin.toFixed(0)}%)`,
+                })),
+            },
+            {
+                name: 'Risk Profile',
+                data: pack.riskProfile.map(f => ({ label: f.name, value: `${STATUS_LABEL[f.status]} (${f.score}/100)` })),
+            },
+            {
+                name: 'Supporting Documents',
+                data: pack.documents.map(d => ({
+                    label: d.label,
+                    value: `${d.ready ? 'Ready' : 'Not yet ready'} — ${d.detail}`,
+                })),
+            },
         ],
     };
 }
