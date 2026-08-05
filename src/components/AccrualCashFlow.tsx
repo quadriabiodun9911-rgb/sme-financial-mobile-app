@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Transaction, Invoice, FinanceData } from '../types';
 import { Colors } from '../theme/colors';
+import { trailingCutoffDateString } from '../utils/cfoMetrics';
 
 interface Props {
     transactions: Transaction[];
@@ -50,9 +51,7 @@ export default function AccrualCashFlow({ transactions, invoices, finance, curre
     // the denominator, the smaller the resulting "days" figure looks — a
     // false improvement with no relation to actual collection speed). Uses a
     // trailing-30-day accrual revenue instead, so the ×30 is meaningful.
-    const trailing30Cutoff = new Date();
-    trailing30Cutoff.setDate(trailing30Cutoff.getDate() - 30);
-    const trailing30CutoffStr = trailing30Cutoff.toISOString().split('T')[0];
+    const trailing30CutoffStr = trailingCutoffDateString(30);
     const trailing30AccrualRevenue =
         transactions
             .filter(t => t.type === 'income' && t.status === 'paid' && t.date >= trailing30CutoffStr)

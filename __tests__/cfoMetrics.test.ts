@@ -5,6 +5,7 @@ import {
     computeRevenueShockImpact,
     computeFullCapitalCapacity,
     computeTrailingAccrualFigures,
+    trailingCutoffDateString,
 } from '../src/utils/cfoMetrics';
 import { Loan, Transaction } from '../src/types';
 
@@ -66,6 +67,14 @@ describe('computeCashConversionCycle', () => {
         expect(r.dso).toBe(0);
         expect(r.dpo).toBe(0);
         expect(r.dio).toBe(0);
+    });
+});
+
+describe('trailingCutoffDateString', () => {
+    it('subtracts the given number of days from an injected reference date, independent of the real wall-clock date', () => {
+        const fixedNow = new Date('2026-06-15T12:00:00Z');
+        expect(trailingCutoffDateString(30, fixedNow)).toBe('2026-05-16');
+        expect(trailingCutoffDateString(90, fixedNow)).toBe('2026-03-17');
     });
 });
 

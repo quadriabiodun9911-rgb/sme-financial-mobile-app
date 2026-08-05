@@ -12,6 +12,16 @@ import { Loan, Transaction } from '../types';
 import { monthlyPayment } from './loanMath';
 
 // ─── Shared: trailing-window accrual figures ───────────────────────────────
+// Reusable so every trailing-window figure across CFO views is derived from
+// the same cutoff logic instead of each call site re-deriving its own 'now'
+// and date-string math. `now` is injectable so callers/tests can pin a fixed
+// reference date instead of depending on the real wall-clock date.
+export function trailingCutoffDateString(daysAgo: number, now: Date = new Date()): string {
+    const cutoff = new Date(now);
+    cutoff.setDate(cutoff.getDate() - daysAgo);
+    return cutoff.toISOString().split('T')[0];
+}
+
 export interface TrailingAccrualFigures {
     unpaidIncome: number; // current point-in-time balance: every pending/overdue income transaction ever recorded
     unpaidExpenses: number; // current point-in-time balance: every pending/overdue expense transaction ever recorded
@@ -29,13 +39,9 @@ export interface TrailingAccrualFigures {
 // used to make those numbers shrink the longer a business had been
 // recording data, with no relation to the real trend — see cashConversionCycle's
 // accrualRevenue/accrualExpenses doc comment below for the failure mode.
-export function computeTrailingAccrualFigures(transactions: Transaction[]): TrailingAccrualFigures {
-    const cutoff30 = new Date();
-    cutoff30.setDate(cutoff30.getDate() - 30);
-    const cutoff30Str = cutoff30.toISOString().split('T')[0];
-    const cutoff90 = new Date();
-    cutoff90.setDate(cutoff90.getDate() - 90);
-    const cutoff90Str = cutoff90.toISOString().split('T')[0];
+export function computeTrailingAccrualFigures(transactions: Transaction[], now: Date = new Date()): TrailingAccrualFigures {
+    const cutoff30Str = trailingCutoffDateString(30, now);
+    const cutoff90Str = trailingCutoffDateString(90, now);
 
     let unpaidIncome = 0, unpaidExpenses = 0, trailing30Revenue = 0;
     let trailing30AccrualRevenue = 0, trailing30AccrualExpenses = 0, trailing90AccrualRevenue = 0;
