@@ -5,6 +5,7 @@ import {
     computeAgingBuckets,
     computeRecurringDates,
     transactionsToCSV,
+    getTaxRatePercent,
 } from '../src/utils/finance';
 import { Transaction } from '../src/types';
 
@@ -288,5 +289,25 @@ describe('transactionsToCSV', () => {
         expect(csv).toContain('Yes');
         expect(csv).toContain('monthly');
         expect(csv).toContain('10');
+    });
+});
+
+describe('getTaxRatePercent', () => {
+    it('parses a percentage-number string as-is', () => {
+        expect(getTaxRatePercent('20')).toBe(20);
+    });
+
+    it('defaults to 0 for undefined, empty, or non-numeric input', () => {
+        expect(getTaxRatePercent(undefined)).toBe(0);
+        expect(getTaxRatePercent('')).toBe(0);
+        expect(getTaxRatePercent('not a number')).toBe(0);
+    });
+
+    it('clamps negative rates to 0', () => {
+        expect(getTaxRatePercent('-5')).toBe(0);
+    });
+
+    it('clamps rates above 100 to 100', () => {
+        expect(getTaxRatePercent('250')).toBe(100);
     });
 });

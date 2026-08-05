@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView } from 
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { computeCashRunway } from '../utils/cashRunway';
-import { computeAgingBuckets } from '../utils/finance';
+import { computeAgingBuckets, getTaxRatePercent } from '../utils/finance';
 import { computeInventoryValue } from '../utils/stockVelocity';
 import { totalMonthlyLoanBurden } from '../utils/loanMath';
 import {
@@ -97,10 +97,7 @@ export default function CFOQuestionsTab() {
     const accrualExpenses = cashExpenses + unpaidExpenses;
 
     const reserveTarget = parseFloat(settings.minReserve) || 0;
-    // defaultTaxRate is a percentage NUMBER (e.g. "20" means 20%), same
-    // convention as Transaction.taxRate elsewhere in the app — must divide
-    // by 100 before applying it as a fraction of revenue.
-    const quarterlyTaxEstimate = accrualRevenue * ((parseFloat(settings.defaultTaxRate) || 0) / 100) / 4;
+    const quarterlyTaxEstimate = accrualRevenue * (getTaxRatePercent(settings.defaultTaxRate) / 100) / 4;
     const upcoming30dayDebtService = useMemo(() => totalMonthlyLoanBurden(loans), [loans]);
 
     // Q1

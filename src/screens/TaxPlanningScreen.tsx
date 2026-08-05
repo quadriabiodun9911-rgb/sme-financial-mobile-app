@@ -8,13 +8,12 @@ import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import NextStepLink from '../components/NextStepLink';
+import { getTaxRatePercent } from '../utils/finance';
 
 export default function TaxPlanningScreen() {
     const { transactions, settings, navigate, finance, user } = useApp();
-    const { currency, defaultTaxRate } = settings;
-    // defaultTaxRate is a percentage NUMBER (e.g. "20" means 20%), same
-    // convention as Transaction.taxRate elsewhere in the app.
-    const taxRatePct = parseFloat(defaultTaxRate) || 0;
+    const { currency } = settings;
+    const taxRatePct = getTaxRatePercent(settings.defaultTaxRate);
     const [showDeductionModal, setShowDeductionModal] = useState(false);
     const [selectedQuarter, setSelectedQuarter] = useState<1 | 2 | 3 | 4>(1);
     const [deductionName, setDeductionName] = useState('');

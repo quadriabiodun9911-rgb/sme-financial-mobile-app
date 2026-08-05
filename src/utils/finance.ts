@@ -4,6 +4,17 @@ import { computeLeverageRatios } from './debtRatios';
 import { computeCashRunway } from './cashRunway';
 import { computeStockVelocity } from './stockVelocity';
 
+// ─── Tax rate ──────────────────────────────────────────────────────────────
+// settings.defaultTaxRate is stored as a percentage NUMBER (e.g. "20" means
+// 20%), the same convention Transaction.taxRate and settings.targetMargin
+// use elsewhere in the app. Centralized here so every consumer parses,
+// defaults, and clamps it identically instead of re-deriving the convention.
+export function getTaxRatePercent(defaultTaxRate: string | undefined): number {
+    const parsed = parseFloat(defaultTaxRate ?? '');
+    if (!Number.isFinite(parsed)) return 0;
+    return Math.min(100, Math.max(0, parsed));
+}
+
 // ─── Business size classification ─────────────────────────────────────────────
 export type BusinessSize = 'micro' | 'small' | 'medium' | 'large';
 
