@@ -83,3 +83,26 @@ describe('computeMomentum — growth % uses the latest active months within its 
         expect(r.revenueGrowthPct).toBeCloseTo(50, 0); // (150k-100k)/100k
     });
 });
+
+describe('computeMomentum — best/worst month excludes the current in-progress month', () => {
+    it('does not flag the current month as weakest purely for having fewer elapsed days', () => {
+        const now = new Date();
+        const monthsAgo = (n: number) => {
+            const d = new Date(now.getFullYear(), now.getMonth() - n, 10);
+            return d.toISOString().slice(0, 10);
+        };
+        const thisMonthEarly = new Date(now.getFullYear(), now.getMonth(), 2).toISOString().slice(0, 10);
+        const txs = [
+            makeTx({ type: 'income', amount: 200000, date: monthsAgo(2) }),
+            makeTx({ type: 'expense', amount: 50000, date: monthsAgo(2) }),  // profit 150000, two months ago
+            makeTx({ type: 'income', amount: 205000, date: monthsAgo(1) }),
+            makeTx({ type: 'expense', amount: 45000, date: monthsAgo(1) }),  // profit 160000, last month
+            makeTx({ type: 'income', amount: 30000, date: thisMonthEarly }),
+            makeTx({ type: 'expense', amount: 5000, date: thisMonthEarly }), // profit 25000, this month (just started)
+        ];
+        const r = computeMomentum(txs);
+        // Without the fix, the current month's smaller (but real) partial
+        // profit would be misreported as the weakest month.
+        expect(r.worstMonth?.month).not.toBe(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+    });
+});

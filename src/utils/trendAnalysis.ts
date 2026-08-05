@@ -263,9 +263,20 @@ export function analyzeTrend(transactions: Transaction[]): TrendAnalysis {
 
     const spanMonths = monthsBetween(monthly[0].month, monthly[monthly.length - 1].month);
 
-    let bestMonth = monthly[0];
-    let worstMonth = monthly[0];
-    for (const m of monthly) {
+    // Best/worst month is a superlative over each month's FULL total, which
+    // unfairly crowns/condemns the current in-progress calendar month —
+    // its partial total is compared against fully-elapsed months, so it
+    // almost always looks like the "toughest" simply because it hasn't
+    // finished yet, not because performance actually dropped. Excluded from
+    // the ranking (but still shown in the monthly chart/table below) as
+    // long as there's at least one other, complete month to rank instead.
+    const currentRealMonth = new Date().toISOString().slice(0, 7);
+    const rankableMonths = monthly.length > 1 ? monthly.filter(m => m.month !== currentRealMonth) : monthly;
+    const superlativeSource = rankableMonths.length > 0 ? rankableMonths : monthly;
+
+    let bestMonth = superlativeSource[0];
+    let worstMonth = superlativeSource[0];
+    for (const m of superlativeSource) {
         if (m.profit > bestMonth.profit) bestMonth = m;
         if (m.profit < worstMonth.profit) worstMonth = m;
     }
