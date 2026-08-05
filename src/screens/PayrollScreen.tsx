@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
     ScrollView, View, Text, TouchableOpacity,
-    StyleSheet, TextInput, Modal, Alert,
+    StyleSheet, TextInput, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from '../contexts/AppContext';
@@ -13,6 +13,7 @@ import NextStepLink from '../components/NextStepLink';
 import ProfitCashImpactCard from '../components/ProfitCashImpactCard';
 import { computeProfitCashImpact } from '../utils/impactChain';
 import PayrollProviderCard from '../components/PayrollProviderCard';
+import { showAlert, confirmAction } from '../utils/webAlert';
 
 type Tab = 'staff' | 'run' | 'history';
 
@@ -49,23 +50,20 @@ export default function PayrollScreen() {
         setEditingId(s.id); setStaffModal(true);
     };
     const saveStaff = () => {
-        if (!form.name.trim()) { Alert.alert('Name required'); return; }
-        if (!form.salary || form.salary <= 0) { Alert.alert('Valid salary required'); return; }
+        if (!form.name.trim()) { showAlert('Name required'); return; }
+        if (!form.salary || form.salary <= 0) { showAlert('Valid salary required'); return; }
         if (editingId) updateStaff(editingId, form);
         else addStaff(form);
         setStaffModal(false);
     };
     const confirmDelete = (id: string, name: string) => {
-        Alert.alert('Remove Staff', `Remove ${name}?`, [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Remove', style: 'destructive', onPress: () => deleteStaff(id) },
-        ]);
+        confirmAction('Remove Staff', `Remove ${name}?`, 'Remove', () => deleteStaff(id));
     };
 
     const doRunPayroll = () => {
-        if (activeStaff.length === 0) { Alert.alert('No active staff'); return; }
+        if (activeStaff.length === 0) { showAlert('No active staff'); return; }
         const existing = payrollRuns.find(r => r.period === runPeriod);
-        if (existing) { Alert.alert('Already run', `Payroll for ${runPeriod} already exists.`); return; }
+        if (existing) { showAlert('Already run', `Payroll for ${runPeriod} already exists.`); return; }
         const parsedRate = parseFloat(deductRate);
         const rate = (isNaN(parsedRate) || parsedRate < 0) ? 0 : parsedRate / 100;
         const items: PayrollItem[] = activeStaff.map(m => {
@@ -73,10 +71,12 @@ export default function PayrollScreen() {
             const deductions = gross * rate;
             return { staffId: m.id, staffName: m.name, grossSalary: gross, deductions, netSalary: gross - deductions };
         });
-        Alert.alert('Run Payroll', `Pay ${activeStaff.length} staff for ${runPeriod}?\nTotal Net: ${fmt(items.reduce((s, i) => s + i.netSalary, 0))}`, [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Run & Record', onPress: () => { runPayroll(runPeriod, items, parseFloat(deductRate)); setTab('history'); } },
-        ]);
+        confirmAction(
+            'Run Payroll',
+            `Pay ${activeStaff.length} staff for ${runPeriod}?\nTotal Net: ${fmt(items.reduce((s, i) => s + i.netSalary, 0))}`,
+            'Run & Record',
+            () => { runPayroll(runPeriod, items, parseFloat(deductRate)); setTab('history'); },
+        );
     };
 
     return (
@@ -263,7 +263,7 @@ export default function PayrollScreen() {
                                         <View style={[styles.runStatus, { backgroundColor: run.status === 'paid' ? Colors.income + '22' : Colors.warning + '22' }]}>
                                             <Text style={[styles.runStatusText, { color: run.status === 'paid' ? Colors.income : Colors.warning }]}>{run.status.toUpperCase()}</Text>
                                         </View>
-                                        <TouchableOpacity onPress={() => Alert.alert('Delete Run', `Delete payroll run for ${run.period}?`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => deletePayrollRun(run.id) }])} activeOpacity={0.7}>
+                                        <TouchableOpacity onPress={() => confirmAction('Delete Run', `Delete payroll run for ${run.period}?`, 'Delete', () => deletePayrollRun(run.id))} activeOpacity={0.7}>
                                             <Text style={styles.deleteIcon}>🗑️</Text>
                                         </TouchableOpacity>
                                     </View>

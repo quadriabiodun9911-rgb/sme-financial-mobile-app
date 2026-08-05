@@ -130,7 +130,13 @@ function MomentumTab({ currency }: { currency: string }) {
                         </Text>
                     </View>
                     <View style={gs.momBox}>
-                        <Text style={gs.momLabel}>Avg Monthly Revenue</Text>
+                        {/* Scoped to the trailing 6 months (this tab's own
+                            momentum window), not the lifetime average shown
+                            elsewhere in the app (e.g. Loan Eligibility,
+                            Dashboard) — labeled explicitly so the two don't
+                            read as the same figure when they legitimately
+                            aren't. */}
+                        <Text style={gs.momLabel}>Avg Monthly Revenue (6mo)</Text>
                         <Text style={gs.momVal}>{fmt(m.avgRevenue, currency)}</Text>
                     </View>
                     <View style={gs.momBox}>

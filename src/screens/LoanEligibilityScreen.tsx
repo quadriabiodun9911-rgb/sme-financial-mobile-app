@@ -1,12 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import {
-    SafeAreaView, ScrollView, View, Text, TouchableOpacity, StyleSheet, Modal, Alert,
+    SafeAreaView, ScrollView, View, Text, TouchableOpacity, StyleSheet, Modal,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import NextStepLink from '../components/NextStepLink';
+import { showAlert } from '../utils/webAlert';
 
 export default function LoanEligibilityScreen() {
     const { user, finance, navigate, financing, applyForMerchantFinancing, settings } = useApp();
@@ -131,14 +132,14 @@ export default function LoanEligibilityScreen() {
         const loan = loanOptions.find(l => l.id === loanId);
         if (loanId === 'merchant-financing') {
             if (financing?.activeLoan) {
-                Alert.alert('Info', 'You already have an active merchant financing loan');
+                showAlert('Info', 'You already have an active merchant financing loan');
             } else if (financing?.application) {
-                Alert.alert('Info', 'Your application is pending approval');
+                showAlert('Info', 'Your application is pending approval');
             } else {
                 navigate('loans');
             }
         } else {
-            Alert.alert('Coming Soon', `${loan?.name} applications will be available soon in Quad360 Pro`);
+            showAlert('Coming Soon', `${loan?.name} applications will be available soon in Quad360 Pro`);
         }
     };
 

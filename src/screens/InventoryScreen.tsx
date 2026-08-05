@@ -16,6 +16,7 @@ import { computeStockVelocity, computeInventoryValue } from '../utils/stockVeloc
 import RecipeCostCalculator from '../components/RecipeCostCalculator';
 import ProductionCostCalculator from '../components/ProductionCostCalculator';
 import { InventoryItem } from '../types';
+import { showAlert } from '../utils/webAlert';
 
 type InventoryTab = 'stock' | 'analytics';
 
@@ -38,6 +39,7 @@ const EMPTY_FORM: FormState = {
     sellingPrice: '',
     lowStockThreshold: '5',
 };
+
 
 export default function InventoryScreen() {
     const { inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem, settings, navigate, addTransaction, transactions } = useApp();
@@ -132,10 +134,10 @@ export default function InventoryScreen() {
         const sell = parseFloat(form.sellingPrice);
         const threshold = parseFloat(form.lowStockThreshold) || 5;
 
-        if (!form.name.trim()) { Alert.alert('Validation', 'Item name is required.'); return; }
-        if (isNaN(qty) || qty < 0) { Alert.alert('Validation', 'Enter a valid quantity.'); return; }
-        if (isNaN(cost) || cost < 0) { Alert.alert('Validation', 'Enter a valid cost price.'); return; }
-        if (isNaN(sell) || sell < 0) { Alert.alert('Validation', 'Enter a valid selling price.'); return; }
+        if (!form.name.trim()) { showAlert('Validation', 'Item name is required.'); return; }
+        if (isNaN(qty) || qty < 0) { showAlert('Validation', 'Enter a valid quantity.'); return; }
+        if (isNaN(cost) || cost < 0) { showAlert('Validation', 'Enter a valid cost price.'); return; }
+        if (isNaN(sell) || sell < 0) { showAlert('Validation', 'Enter a valid selling price.'); return; }
 
         const payload = {
             name: form.name.trim(),
@@ -176,8 +178,8 @@ export default function InventoryScreen() {
         if (!sellModal) return;
         const { item } = sellModal;
         const qty = parseFloat(sellQty);
-        if (isNaN(qty) || qty <= 0) { Alert.alert('Validation', 'Enter a valid quantity.'); return; }
-        if (qty > item.quantity) { Alert.alert('Validation', `Only ${item.quantity} ${item.unit} in stock.`); return; }
+        if (isNaN(qty) || qty <= 0) { showAlert('Validation', 'Enter a valid quantity.'); return; }
+        if (qty > item.quantity) { showAlert('Validation', `Only ${item.quantity} ${item.unit} in stock.`); return; }
         updateInventoryItem(item.id, { quantity: item.quantity - qty });
         addTransaction({
             type: 'income',
@@ -190,7 +192,7 @@ export default function InventoryScreen() {
         });
         setSellModal(null);
         setSellQty('');
-        Alert.alert('Recorded', `${qty} ${item.unit} of ${item.name} sold.`);
+        showAlert('Recorded', `${qty} ${item.unit} of ${item.name} sold.`);
     };
 
     // ── Stock colour helper ───────────────────────────────────────────────────

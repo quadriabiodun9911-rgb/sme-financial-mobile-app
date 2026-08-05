@@ -312,6 +312,23 @@ const GOAL_TYPE_TO_BRIDGE: Record<GoalType, FinancialGoal['type']> = {
   custom: 'profit',
 };
 
+// Reverse of the mapping above, used when a goal is created directly on the
+// Goal Bridge screen and needs to be persisted as a real saved Goal. Not a
+// true inverse — several GoalTypes collapse onto the same bridge metric
+// above (cost_reduction/custom -> profit, cash_reserve/reduce_overdue_ar ->
+// cash) — so 'profit' and 'runway' bridge goals, which have no dedicated
+// GoalType of their own, are saved as 'custom'. That's the correct
+// degrade: computeGoalCurrent's 'custom' case just keeps whatever value the
+// goal was created with instead of silently recomputing it against the
+// wrong metric (e.g. treating a profit target as a cost-reduction target).
+export const BRIDGE_TYPE_TO_GOAL_TYPE: Record<FinancialGoal['type'], GoalType> = {
+  revenue: 'revenue_growth',
+  margin: 'margin_improvement',
+  cash: 'cash_reserve',
+  profit: 'custom',
+  runway: 'custom',
+};
+
 export function mapSavedGoalToBridge(g: SavedGoal): FinancialGoal {
   // Months remaining until the deadline (at least 1).
   const msPerMonth = 30 * 24 * 60 * 60 * 1000;

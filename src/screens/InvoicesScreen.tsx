@@ -13,6 +13,7 @@ import DateInput from '../components/DateInput';
 import { sendInvoiceReminderViaWhatsApp, sendPaymentRequestViaWhatsApp, isWhatsAppInstalled } from '../utils/whatsappIntegration';
 import NextStepLink from '../components/NextStepLink';
 import ProjectProfitabilityCalculator from '../components/ProjectProfitabilityCalculator';
+import { showAlert } from '../utils/webAlert';
 
 const STATUS_COLOR: Record<InvoiceStatus, string> = {
     draft:   Colors.textMuted,
@@ -111,6 +112,7 @@ ${inv.notes ? `<div class="notes" style="clear:both;margin-top:60px"><b>Notes:</
 </html>`;
 }
 
+
 export default function InvoicesScreen() {
     const { invoices, addInvoice, updateInvoice, deleteInvoice, markInvoiceStatus, settings, user, navigate } = useApp();
     const currency = settings.currency;
@@ -178,10 +180,10 @@ export default function InvoicesScreen() {
     };
 
     const handleSave = (asDraft: boolean) => {
-        if (!clientName.trim()) { Alert.alert('Required', 'Client name is required.'); return; }
-        if (!dueDate.trim())    { Alert.alert('Required', 'Due date is required.'); return; }
+        if (!clientName.trim()) { showAlert('Required', 'Client name is required.'); return; }
+        if (!dueDate.trim())    { showAlert('Required', 'Due date is required.'); return; }
         if (lineItems.some(li => !li.description.trim())) {
-            Alert.alert('Required', 'All line items need a description.');
+            showAlert('Required', 'All line items need a description.');
             return;
         }
 
@@ -214,12 +216,12 @@ export default function InvoicesScreen() {
         try {
             if (Platform.OS === 'web') {
                 if (navigator.share) { await navigator.share({ title: `Invoice ${inv.invoiceNumber}`, text: msg }); }
-                else { await navigator.clipboard.writeText(msg); Alert.alert('Copied!', 'Invoice details copied to clipboard.'); }
+                else { await navigator.clipboard.writeText(msg); showAlert('Copied!', 'Invoice details copied to clipboard.'); }
             } else {
                 await Share.share({ message: msg, title: `Invoice ${inv.invoiceNumber}` });
             }
         } catch {
-            Alert.alert('Error', 'Could not share invoice.');
+            showAlert('Error', 'Could not share invoice.');
         }
     };
 

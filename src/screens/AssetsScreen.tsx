@@ -17,6 +17,7 @@ import DateInput from '../components/DateInput';
 import NextStepLink from '../components/NextStepLink';
 import ProfitCashImpactCard from '../components/ProfitCashImpactCard';
 import { computeProfitCashImpact } from '../utils/impactChain';
+import { showAlert, confirmAction } from '../utils/webAlert';
 
 const CATEGORIES: AssetCategory[] = ['equipment', 'vehicle', 'furniture', 'property', 'intangible', 'other'];
 
@@ -77,12 +78,12 @@ export default function AssetsScreen() {
     };
 
     const handleSave = () => {
-        if (!name.trim()) { Alert.alert(t(language, 'error'), t(language, 'missingFields')); return; }
+        if (!name.trim()) { showAlert(t(language, 'error'), t(language, 'missingFields')); return; }
         const cost = parseFloat(purchaseCost);
         const life = parseFloat(usefulLife);
         const resid = parseFloat(residualValue) || 0;
-        if (isNaN(cost) || cost <= 0) { Alert.alert(t(language, 'error'), t(language, 'missingFields')); return; }
-        if (isNaN(life) || life <= 0) { Alert.alert(t(language, 'error'), t(language, 'missingFields')); return; }
+        if (isNaN(cost) || cost <= 0) { showAlert(t(language, 'error'), t(language, 'missingFields')); return; }
+        if (isNaN(life) || life <= 0) { showAlert(t(language, 'error'), t(language, 'missingFields')); return; }
 
         const payload = {
             name: name.trim(), category, description: description.trim(),
@@ -112,13 +113,12 @@ export default function AssetsScreen() {
                     status: 'active',
                     payments: [],
                 } as any);
-                Alert.alert(
+                confirmAction(
                     'Recorded',
                     `Asset added and a loan (${currency}${Math.round(monthlyPayment(cost, rate, term)).toLocaleString()}/mo for ${term} months) was created under Loans.`,
-                    [
-                        { text: 'OK', style: 'cancel' },
-                        { text: 'View in Loans →', onPress: () => setCurrentScreen('loans') },
-                    ]
+                    'View in Loans',
+                    () => setCurrentScreen('loans'),
+                    false,
                 );
             } else if (acqMethod === 'lease') {
                 // Leased — record the first monthly lease payment as an expense.
@@ -131,7 +131,7 @@ export default function AssetsScreen() {
                     amount: Math.round(leaseMonthly),
                     status: 'paid',
                 } as any);
-                Alert.alert('Recorded', `Asset added and a lease expense (${currency}${Math.round(leaseMonthly).toLocaleString()}/mo) was logged. Add each month's payment under Transactions as it recurs.`);
+                showAlert('Recorded', `Asset added and a lease expense (${currency}${Math.round(leaseMonthly).toLocaleString()}/mo) was logged. Add each month's payment under Transactions as it recurs.`);
             }
         }
         setShowForm(false);

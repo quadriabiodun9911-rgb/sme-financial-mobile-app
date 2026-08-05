@@ -16,19 +16,7 @@ import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan } from '../utils/actionRecommendationEngine';
 import { suggestSolution, ImpactSource } from '../utils/impactChain';
 import { getMonthlyExpenseAverage } from '../utils/finance';
-
-// Alert.alert is a silent no-op on react-native-web — without this, every
-// validation error here (missing title/deadline/amount) failed with no
-// feedback at all: the user tapped Create/Save and nothing happened.
-function showAlert(title: string, message: string) {
-    if (Platform.OS === 'web') {
-        if (typeof window !== 'undefined' && typeof window.alert === 'function') {
-            window.alert(`${title}\n\n${message}`);
-        }
-    } else {
-        Alert.alert(title, message);
-    }
-}
+import { showAlert } from '../utils/webAlert';
 
 // Maps each goal type to the closest matching solution category — a
 // revenue/margin goal is fundamentally a pricing/growth problem, a cost or
@@ -505,12 +493,14 @@ function GoalCard({ goal, currency, daysRemaining, feasibility, onStrategy, onBr
 }) {
     const statusColor = STATUS_COLORS[goal.status];
     const isReduction = goal.type === 'cost_reduction' || goal.type === 'reduce_overdue_ar';
-    const unit = goal.unit === '%' ? '%' : currency;
-    // '%' is a suffix (64.4%), currency is a prefix (₦64.4) — unit was being
-    // prepended unconditionally throughout this card, so every percentage
-    // goal (margin_improvement) displayed as "%64.4" instead of "64.4%".
+    const unit = goal.unit === '%' ? '%' : goal.unit === 'days' ? 'days' : currency;
+    // '%' and 'days' are suffixes (64.4%, 90 days), currency is a prefix
+    // (₦64.4) — unit was being prepended unconditionally throughout this
+    // card, so every percentage goal (margin_improvement) displayed as
+    // "%64.4" instead of "64.4%". 'days' (runway goals saved from the Goal
+    // Bridge screen) needs the same suffix treatment.
     const fmtUnit = (value: number, decimals: number = 0) =>
-        unit === '%' ? `${value.toFixed(decimals)}%` : `${unit}${Math.round(value).toLocaleString()}`;
+        unit === '%' ? `${value.toFixed(decimals)}%` : unit === 'days' ? `${Math.round(value)} days` : `${unit}${Math.round(value).toLocaleString()}`;
 
     const isAchieved = goal.status === 'achieved';
     const feasColor = feasibility?.feasibility === 'easy' ? Colors.income : feasibility?.feasibility === 'medium' ? Colors.warning : Colors.expense;
