@@ -58,6 +58,29 @@ describe('computeFinance', () => {
         expect(computeFinance(txs, settings).margin).toBe(0);
     });
 
+    // Runway used to be computed from net burn (expense - income) over the
+    // whole transaction history: a profitable business (income > expense,
+    // the common case) clamped monthlyBurn to 0 via Math.max(0, ...), which
+    // hit the "no burn at all" branch and returned a meaningless ~9999-day
+    // "infinite" runway regardless of actual cash reserves. It now delegates
+    // to computeCashRunway, which measures against real 30-day gross burn.
+    it('does not report a near-infinite runway for a profitable business with real recent expenses', () => {
+        const today = (daysAgo: number) => {
+            const d = new Date();
+            d.setDate(d.getDate() - daysAgo);
+            return d.toISOString().split('T')[0];
+        };
+        const txs = [
+            makeTx({ id: 'i1', type: 'income', amount: 420000, date: today(10) }),
+            makeTx({ id: 'e1', type: 'expense', amount: 147500, date: today(5) }),
+        ];
+        const r = computeFinance(txs, settings);
+        // Cash balance 272,500, burning 147,500 over 30 days — real runway
+        // is on the order of weeks, nowhere near the old ~9999-day sentinel.
+        expect(r.runway).toBeLessThan(365);
+        expect(r.runway).toBeGreaterThan(0);
+    });
+
     it('assets = opening assets + cash balance', () => {
         const txs = [makeTx({ type: 'income', amount: 5000 })];
         const r = computeFinance(txs, { openingAssets: '10000', openingLiabilities: '0', openingLoans: '0', openingOtherAssets: '0' });

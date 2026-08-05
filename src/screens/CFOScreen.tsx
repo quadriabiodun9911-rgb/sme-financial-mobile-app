@@ -471,16 +471,16 @@ function RiskTab() {
                 {MONTHS_GRID.map((row, ri) => (
                     <View key={ri} style={s.seasonRow}>
                         {row.map((m, i) => (
-                            <View key={i} style={[s.seasonCell, { borderColor: m.riskLevel === 'high' ? Colors.expense : m.riskLevel === 'medium' ? Colors.warning : Colors.income }]}>
+                            <View key={i} style={[s.seasonCell, { borderColor: m.riskLevel === 'high' ? Colors.expense : m.riskLevel === 'medium' ? Colors.warning : m.riskLevel === 'unknown' ? Colors.border : Colors.income }]}>
                                 <Text style={s.seasonMonth}>{m.month}</Text>
-                                <Text style={[s.seasonRisk, { color: m.riskLevel === 'high' ? Colors.expense : m.riskLevel === 'medium' ? Colors.warning : Colors.income }]}>
-                                    {m.riskLevel === 'high' ? '✗' : m.riskLevel === 'medium' ? '!' : '✓'}
+                                <Text style={[s.seasonRisk, { color: m.riskLevel === 'high' ? Colors.expense : m.riskLevel === 'medium' ? Colors.warning : m.riskLevel === 'unknown' ? Colors.textMuted : Colors.income }]}>
+                                    {m.riskLevel === 'high' ? '✗' : m.riskLevel === 'medium' ? '!' : m.riskLevel === 'unknown' ? '?' : '✓'}
                                 </Text>
                             </View>
                         ))}
                     </View>
                 ))}
-                {seasonal.filter(m => m.riskLevel !== 'low').map((m, i) => (
+                {seasonal.filter(m => m.hasData && m.riskLevel !== 'low').map((m, i) => (
                     <Text key={i} style={[s.seasonWarning, { color: m.riskLevel === 'high' ? Colors.expense : Colors.warning }]}>
                         {m.warning}
                     </Text>

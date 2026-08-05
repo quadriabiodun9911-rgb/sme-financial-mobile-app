@@ -274,23 +274,23 @@ export default function BudgetScreen() {
                     <View style={s.summaryRow}>
                         <View style={s.summaryBox}>
                             <Text style={s.summaryLabel}>Budgeted</Text>
-                            <Text style={[s.summaryVal, { color: Colors.primary }]}>{currency}{displayTotalBudgeted.toLocaleString()}</Text>
+                            <Text style={[s.summaryVal, { color: Colors.primary }]}>{currency}{displayTotalBudgeted.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
                         </View>
                         <View style={s.summaryDivider} />
                         <View style={s.summaryBox}>
                             <Text style={s.summaryLabel}>Actual</Text>
-                            <Text style={[s.summaryVal, { color: Colors.expense }]}>{currency}{displayTotalActual.toLocaleString()}</Text>
+                            <Text style={[s.summaryVal, { color: Colors.expense }]}>{currency}{displayTotalActual.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
                         </View>
                         <View style={s.summaryDivider} />
                         <View style={s.summaryBox}>
                             <Text style={s.summaryLabel}>Variance</Text>
                             <Text style={[s.summaryVal, { color: displayTotalVariance >= 0 ? Colors.income : Colors.expense }]}>
-                                {displayTotalVariance >= 0 ? '+' : ''}{currency}{displayTotalVariance.toLocaleString()}
+                                {displayTotalVariance >= 0 ? '+' : ''}{currency}{displayTotalVariance.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                             </Text>
                         </View>
                     </View>
                     {!hasManualLoanBudget && loanBurden > 0 && (
-                        <Text style={s.loanIncludedNote}>Includes {currency}{Math.round(loanBurden).toLocaleString()}/mo in loan repayments</Text>
+                        <Text style={s.loanIncludedNote}>Includes {currency}{Math.round(loanBurden).toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo in loan repayments</Text>
                     )}
                     {displayOverCount > 0 && (
                         <Text style={s.overAlert}>⚠ {displayOverCount} categor{displayOverCount > 1 ? 'ies' : 'y'} over budget</Text>
@@ -426,7 +426,7 @@ export default function BudgetScreen() {
                                 <Text style={s.tacticRationale}>{tac.rationale}</Text>
                                 <View style={s.tacticMetaRow}>
                                     <Text style={[s.tacticMeta, { color: Colors.income, fontWeight: '700' }]}>
-                                        Save ~{currency}{Math.round(tac.expectedImpact).toLocaleString()}
+                                        Save ~{currency}{Math.round(tac.expectedImpact).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                     </Text>
                                     <Text style={s.tacticMeta}>⏱ {tac.timeframe}</Text>
                                     <Text style={s.tacticMeta}>✓ {(tac.successProbability * 100).toFixed(0)}% likely</Text>
@@ -475,8 +475,8 @@ export default function BudgetScreen() {
                                 <TouchableOpacity key={i} style={[s.tableRow, row.status === 'over' && s.overRow]} onPress={() => budget && openEdit(budget)}>
                                     <View style={[s.statusDot, { backgroundColor: statusColor(row.status) }]} />
                                     <Text style={[s.td, { flex: 2, color: Colors.textPrimary, fontWeight: '600' }]} numberOfLines={1}>{row.category}</Text>
-                                    <Text style={[s.td, { color: Colors.textSecondary }]}>{currency}{row.budgeted.toLocaleString()}</Text>
-                                    <Text style={[s.td, { color: row.status === 'over' ? Colors.expense : Colors.textSecondary }]}>{currency}{row.actual.toLocaleString()}</Text>
+                                    <Text style={[s.td, { color: Colors.textSecondary }]}>{currency}{row.budgeted.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                                    <Text style={[s.td, { color: row.status === 'over' ? Colors.expense : Colors.textSecondary }]}>{currency}{row.actual.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
                                     <Text style={[s.td, { color: statusColor(row.status), fontWeight: '700' }]}>
                                         {overUnderPct >= 0 ? '+' : ''}{overUnderPct.toFixed(0)}% {row.status === 'over' ? 'over' : row.status === 'under' ? 'under' : ''}
                                     </Text>
@@ -491,7 +491,7 @@ export default function BudgetScreen() {
                                 <TouchableOpacity key={`no-tx-${i}`} style={s.tableRow} onPress={() => openEdit(b)}>
                                     <View style={[s.statusDot, { backgroundColor: Colors.textMuted }]} />
                                     <Text style={[s.td, { flex: 2, color: Colors.textPrimary, fontWeight: '600' }]} numberOfLines={1}>{b.category}</Text>
-                                    <Text style={[s.td, { color: Colors.textSecondary }]}>{currency}{b.monthlyAmount.toLocaleString()}</Text>
+                                    <Text style={[s.td, { color: Colors.textSecondary }]}>{currency}{b.monthlyAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
                                     <Text style={[s.td, { color: Colors.textMuted, fontSize: 10 }]}>No spending yet</Text>
                                     <Text style={[s.td, { color: Colors.textMuted, fontWeight: '700' }]}>-</Text>
                                 </TouchableOpacity>
@@ -512,8 +512,8 @@ export default function BudgetScreen() {
                         <View key={i} style={s.overCard}>
                             <Text style={s.overCardTitle}>Over Budget: {r.category}</Text>
                             <Text style={s.overCardText}>
-                                Spent {currency}{r.actual.toLocaleString()} vs {currency}{r.budgeted.toLocaleString()} budget
-                                {' '}({Math.abs(r.variancePct).toFixed(0)}% over) — {currency}{Math.round(overage).toLocaleString()} extra coming out of profit.
+                                Spent {currency}{r.actual.toLocaleString(undefined, { maximumFractionDigits: 0 })} vs {currency}{r.budgeted.toLocaleString(undefined, { maximumFractionDigits: 0 })} budget
+                                {' '}({Math.abs(r.variancePct).toFixed(0)}% over) — {currency}{Math.round(overage).toLocaleString(undefined, { maximumFractionDigits: 0 })} extra coming out of profit.
                             </Text>
                         </View>
                     );
@@ -566,7 +566,7 @@ export default function BudgetScreen() {
                             onPress={() => setAmount(String(Math.round(pastSuggestion)))}
                         >
                             <Text style={s.suggestChipText}>
-                                💡 You spent ~{currency}{Math.round(pastSuggestion).toLocaleString()}/mo here on average — tap to use
+                                💡 You spent ~{currency}{Math.round(pastSuggestion).toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo here on average — tap to use
                             </Text>
                         </TouchableOpacity>
                     )}
@@ -594,16 +594,16 @@ export default function BudgetScreen() {
                     <Text style={s.sheetTitle}>🤖 Auto-Generated Budget</Text>
                     <Text style={s.autoGenSub}>
                         Based on your last 3 months of spending, sized against{' '}
-                        {currency}{Math.round(autoBudget.projectedRevenue).toLocaleString()} projected revenue next month
-                        {autoBudget.loanBurden > 0 ? ` (after ${currency}${Math.round(autoBudget.loanBurden).toLocaleString()}/mo loan repayments)` : ''}.
+                        {currency}{Math.round(autoBudget.projectedRevenue).toLocaleString(undefined, { maximumFractionDigits: 0 })} projected revenue next month
+                        {autoBudget.loanBurden > 0 ? ` (after ${currency}${Math.round(autoBudget.loanBurden).toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo loan repayments)` : ''}.
                     </Text>
 
                     {autoBudget.scaled && (
                         <View style={s.autoGenScaledNote}>
                             <Text style={s.autoGenScaledNoteText}>
-                                ⚠ Your recent spending ({currency}{Math.round(autoBudget.totalRaw).toLocaleString()}/mo) is above what your
+                                ⚠ Your recent spending ({currency}{Math.round(autoBudget.totalRaw).toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo) is above what your
                                 projected revenue can safely support — every category below has been scaled down to fit within
-                                {' '}{currency}{Math.round(autoBudget.safeCap).toLocaleString()}/mo.
+                                {' '}{currency}{Math.round(autoBudget.safeCap).toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo.
                             </Text>
                         </View>
                     )}
@@ -625,10 +625,10 @@ export default function BudgetScreen() {
                                     <Text style={[s.autoGenCat, excluded && s.autoGenTextExcluded]} numberOfLines={1}>{sug.category}</Text>
                                     <View style={{ alignItems: 'flex-end' }}>
                                         <Text style={[s.autoGenAmt, excluded && s.autoGenTextExcluded]}>
-                                            {currency}{sug.monthlyAmount.toLocaleString()}
+                                            {currency}{sug.monthlyAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                         </Text>
                                         {sug.monthlyAmount !== sug.rawAverage && (
-                                            <Text style={s.autoGenRaw}>was {currency}{sug.rawAverage.toLocaleString()}</Text>
+                                            <Text style={s.autoGenRaw}>was {currency}{sug.rawAverage.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
                                         )}
                                     </View>
                                 </TouchableOpacity>
@@ -639,7 +639,7 @@ export default function BudgetScreen() {
                     <View style={s.autoGenTotalRow}>
                         <Text style={s.autoGenTotalLabel}>Total budget</Text>
                         <Text style={s.autoGenTotalVal}>
-                            {currency}{autoBudget.suggestions.filter(s2 => !excludedCats.has(s2.category)).reduce((sum, s2) => sum + s2.monthlyAmount, 0).toLocaleString()}
+                            {currency}{autoBudget.suggestions.filter(s2 => !excludedCats.has(s2.category)).reduce((sum, s2) => sum + s2.monthlyAmount, 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                         </Text>
                     </View>
 
