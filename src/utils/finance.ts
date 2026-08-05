@@ -702,8 +702,13 @@ export interface FinancialRatios {
  * fields to the one canonical implementation and only computes what's
  * actually unique to this view: currentRatio, burnRate, profitMargin.
  */
-export function computeFinancialRatios(finance: FinanceData, loans: Loan[], transactions: Transaction[]): FinancialRatios {
-    const leverage = computeLeverageRatios(finance, loans);
+export function computeFinancialRatios(finance: FinanceData, loans: Loan[], transactions: Transaction[], inventoryValue: number = 0): FinancialRatios {
+    // AR/AP folded in the same way DebtAnalysis, EnhancedDebtManagement and
+    // Reports > "What I Own & Owe" already do, so debtToEquity/returnOnAssets
+    // here agree with those screens instead of a narrower figure that
+    // ignores money owed to the business and stock on hand.
+    const wc = computeWorkingCapitalMetrics(transactions);
+    const leverage = computeLeverageRatios(finance, loans, wc.accountsReceivable, wc.accountsPayable, inventoryValue);
 
     // 999 here is a "no liabilities recorded to compare against" sentinel,
     // not an actual extreme ratio — callers must check hasLiabilitiesData

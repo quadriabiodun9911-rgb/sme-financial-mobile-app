@@ -127,6 +127,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const syncUserId = authForSync?.user?.email;
   const isDemoMode = authForSync?.isDemoMode ?? false;
   const demoBusinessId = authForSync?.demoBusinessId ?? null;
+  // The real opening-balance settings (Settings > Financial Set Up) — see
+  // the `finance` useMemo below for why this has to be read here instead
+  // of assumed zero.
+  const settingsForFinance = useContext(SettingsContext);
 
   useEffect(() => {
     // Reset FIRST, synchronously, before any async work: clears any previous
@@ -208,23 +212,36 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   // Computed finance - memoized with specific dependency
   const finance = useMemo(() => {
-    // Note: computeFinance uses Pick of BusinessSettings (only specific fields)
+    // Note: computeFinance uses Pick of BusinessSettings (only specific fields).
+    // This used to hardcode all four opening-balance fields to '0' regardless
+    // of what the business actually entered in Settings > Financial Set Up —
+    // so finance.assets/liabilities/equity (and every leverage ratio built on
+    // them: DebtAnalysis, EnhancedDebtManagement, Credit-Worthiness's Five
+    // C's Capital section) silently ignored real opening balances, while
+    // Reports > "What I Own & Owe" called computeFinance directly with the
+    // real settings and so showed a different, correct net worth for the
+    // same business.
     const settingsSubset = {
-      openingAssets: '0',
-      openingLiabilities: '0',
-      openingLoans: '0',
-      openingOtherAssets: '0',
+      openingAssets: settingsForFinance?.settings?.openingAssets ?? '0',
+      openingLiabilities: settingsForFinance?.settings?.openingLiabilities ?? '0',
+      openingLoans: settingsForFinance?.settings?.openingLoans ?? '0',
+      openingOtherAssets: settingsForFinance?.settings?.openingOtherAssets ?? '0',
     };
-    const totalAssetsValue = assets.reduce((sum, a) => sum + (a.purchaseCost || 0), 0);
+    // Depreciated current book value, not raw purchase cost — an asset
+    // bought years ago for its full price would otherwise overstate what
+    // the business currently owns, and disagree with the depreciated figure
+    // Reports > "What I Own & Owe" and the Assets screen both already show.
+    const activeAssets = assets.filter(a => a.status === 'active');
+    const registeredAssetsValue = activeAssets.reduce((sum, a) => sum + computeAssetCurrentValue(a), 0);
     try {
-      return computeFinance(transactions, settingsSubset, totalAssetsValue, assets);
+      return computeFinance(transactions, settingsSubset, registeredAssetsValue, activeAssets);
     } catch (e) {
       // Never let a bad record white-screen the whole app — fall back to an
       // empty computation so screens still render.
       console.error('[Finance] compute failed, using empty result:', e);
       return computeFinance([], settingsSubset, 0, []);
     }
-  }, [transactions, assets]); // Only re-compute if these change
+  }, [transactions, assets, settingsForFinance?.settings]); // Only re-compute if these change
 
   const value: FinanceContextValue = useMemo(
     () => ({

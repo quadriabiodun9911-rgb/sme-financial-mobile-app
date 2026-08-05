@@ -8,6 +8,9 @@ interface Props {
     finance: FinanceData;
     currency: string;
     loans?: Loan[];
+    accountsReceivable?: number;
+    accountsPayable?: number;
+    inventoryValue?: number;
 }
 
 function healthColor(score: RatioScore) {
@@ -54,13 +57,13 @@ const IMPACT: Record<string, Record<'strong' | 'stable' | 'concerning' | 'unscor
     },
 };
 
-export default function DebtAnalysis({ finance, currency, loans = [] }: Props) {
+export default function DebtAnalysis({ finance, currency, loans = [], accountsReceivable = 0, accountsPayable = 0, inventoryValue = 0 }: Props) {
     // Leverage ratios (and the live loan balance they're built on) are
     // computed once, in debtRatios.ts, and shared with EnhancedDebtManagement
     // — both cards render on the same Reports > Loans & Debt tab, so a
     // ratio here and there must always agree.
     const { liabilities, assets, equity, debtToAssets, debtToEquity, equityRatio, returnOnAssets, returnOnEquity, hasAssetData } =
-        computeLeverageRatios(finance, loans);
+        computeLeverageRatios(finance, loans, accountsReceivable, accountsPayable, inventoryValue);
 
     const debtToAssetsScore = scoreDebtToAssets(debtToAssets, hasAssetData);
     const debtToEquityScore = scoreDebtToEquity(debtToEquity);

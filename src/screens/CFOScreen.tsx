@@ -22,6 +22,7 @@ import {
     computeDebtOptimiser,
     computePaymentOptimiser,
 } from '../utils/finance';
+import { computeInventoryValue } from '../utils/stockVelocity';
 
 type Tab = 'pulse' | 'forecast' | 'finance' | 'risk' | 'growth' | 'questions';
 
@@ -66,7 +67,8 @@ function PulseTab({ onOpenRisk }: { onOpenRisk: () => void }) {
     const { currency } = settings;
     const summary = useMemo(() => computeWeeklyCFOSummary(transactions, goals, loans, finance), [transactions, goals, loans, finance]);
     const risk    = useMemo(() => computeRiskScore(finance, loans, transactions, inventory), [finance, loans, transactions, inventory]);
-    const ratios  = useMemo(() => computeFinancialRatios(finance, loans, transactions), [finance, loans, transactions]);
+    const inventoryValue = useMemo(() => computeInventoryValue(inventory), [inventory]);
+    const ratios  = useMemo(() => computeFinancialRatios(finance, loans, transactions, inventoryValue), [finance, loans, transactions, inventoryValue]);
 
     const riskDisplay = riskLabel(risk.score);
     const profit  = finance.profit;
@@ -245,9 +247,10 @@ function ForecastTab() {
 
 // ── Tab: Finance (was Ratios) ─────────────────────────────────────────────────
 function FinanceTab() {
-    const { finance, loans, transactions, settings, navigate } = useApp();
+    const { finance, loans, transactions, settings, navigate, inventory } = useApp();
     const { currency } = settings;
-    const ratios = useMemo(() => computeFinancialRatios(finance, loans, transactions), [finance, loans, transactions]);
+    const inventoryValue = useMemo(() => computeInventoryValue(inventory), [inventory]);
+    const ratios = useMemo(() => computeFinancialRatios(finance, loans, transactions, inventoryValue), [finance, loans, transactions, inventoryValue]);
     const dscr   = useMemo(() => computeDSCR(transactions, loans), [transactions, loans]);
 
     const [fixedCosts, setFixedCosts]     = useState('');

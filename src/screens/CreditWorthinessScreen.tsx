@@ -11,7 +11,7 @@ import LowDataNotice from '../components/LowDataNotice';
 import NextStepLink from '../components/NextStepLink';
 import { generatePDF, sharePDF } from '../utils/pdfExport';
 import { buildLenderSummaryExport } from '../utils/lenderSummaryExport';
-import { computeDSCR, computeRiskScore, computeAssetCurrentValue, RiskScore } from '../utils/finance';
+import { computeDSCR, computeRiskScore, computeAssetCurrentValue, computeWorkingCapitalMetrics, RiskScore } from '../utils/finance';
 import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
 import { computeDataQuality } from '../utils/dataQuality';
 import { computeInventoryValue } from '../utils/stockVelocity';
@@ -229,7 +229,14 @@ export default function CreditWorthinessScreen() {
     // above is often read against. Built from the same already-computed
     // numbers on this screen (DSCR, inventory value) plus leverage/net
     // worth, which the weighted score doesn't include at all.
-    const leverage = useMemo(() => computeLeverageRatios(finance, loans), [finance, loans]);
+    // AR/AP folded in the same way DebtAnalysis, EnhancedDebtManagement and
+    // Reports > "What I Own & Owe" already do, so Capital's net worth agrees
+    // with those screens instead of a narrower figure.
+    const wcMetrics = useMemo(() => computeWorkingCapitalMetrics(transactions), [transactions]);
+    const leverage = useMemo(
+        () => computeLeverageRatios(finance, loans, wcMetrics.accountsReceivable, wcMetrics.accountsPayable, inventoryValue),
+        [finance, loans, wcMetrics, inventoryValue],
+    );
     const assetBookValue = useMemo(
         () => assets.filter(a => a.status === 'active').reduce((s, a) => s + computeAssetCurrentValue(a), 0),
         [assets],

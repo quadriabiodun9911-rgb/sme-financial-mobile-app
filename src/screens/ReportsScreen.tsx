@@ -122,6 +122,12 @@ export default function ReportsScreen() {
     const trend      = useMemo(() => computeMonthlyTrend(transactions, 6), [transactions]);
     const enhPnL     = useMemo(() => computeEnhancedPnL(filteredTx, assets), [filteredTx, assets]);
     const wcMetrics  = useMemo(() => computeWorkingCapitalMetrics(filteredTx), [filteredTx]);
+    // Unfiltered (all-time, "as of today") AR/AP — the Debt tab's leverage
+    // ratios describe the business's current balance sheet, not a
+    // period-scoped slice, so this must match Reports > "What I Own & Owe"
+    // and Credit-Worthiness's Five C's Capital section rather than wcMetrics
+    // above (which is intentionally scoped to whatever period is selected).
+    const allTimeWcMetrics = useMemo(() => computeWorkingCapitalMetrics(transactions), [transactions]);
     const bizSize    = classifyBusinessSize(enhPnL.revenue);
 
     const prevFinance = useMemo(() => {
@@ -535,6 +541,7 @@ export default function ReportsScreen() {
                                 currency={currency}
                                 loans={loansList}
                                 transactions={transactions}
+                                inventoryValue={inventoryValue}
                             />
                             {/* Solvency/leverage ratios (debt-to-assets, debt-to-
                                 equity, ROA, ROE) — was imported but never actually
@@ -543,6 +550,9 @@ export default function ReportsScreen() {
                                 finance={allFinance}
                                 currency={currency}
                                 loans={loansList}
+                                accountsReceivable={allTimeWcMetrics.accountsReceivable}
+                                accountsPayable={allTimeWcMetrics.accountsPayable}
+                                inventoryValue={inventoryValue}
                             />
                         </>
                     )}
