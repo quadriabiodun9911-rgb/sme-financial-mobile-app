@@ -46,7 +46,16 @@ export interface BalanceSheetTrendPoint {
     otherLiabilities: number; // current-only, flat
     totalLiabilities: number; // accountsPayable + loansOutstanding + otherLiabilities
     netWorth: number; // totalAssets - totalLiabilities
-    cashBuffer: number; // accountsReceivable - accountsPayable ("day-to-day cash buffer")
+    // Actual cash on hand minus what's due to suppliers — how much spare
+    // cash is left to run day-to-day operations after covering upcoming
+    // bills. Previously this was accountsReceivable - accountsPayable,
+    // which ignores cashOnHand entirely: a business with zero cash and
+    // healthy receivables showed a reassuring positive "buffer" it didn't
+    // actually have, and a business sitting on real cash reserves but with
+    // large payables and no receivables showed a falsely alarming negative
+    // one — the number had nothing to do with actual liquidity, despite the
+    // "cash buffer" label.
+    cashBuffer: number;
 }
 
 export interface ManualBalances {
@@ -150,7 +159,7 @@ function buildPoints(periods: PeriodDef[], transactions: Transaction[], assets: 
             otherLiabilities: manual.otherLiabilities,
             totalLiabilities,
             netWorth: totalAssets - totalLiabilities,
-            cashBuffer: accountsReceivable - accountsPayable,
+            cashBuffer: cashOnHand - accountsPayable,
         };
     });
 }
