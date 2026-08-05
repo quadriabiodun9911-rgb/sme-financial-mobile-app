@@ -31,6 +31,22 @@ function categoryLabel(cat: AssetCategory, lang: Parameters<typeof t>[0]): strin
 
 type FilterTab = 'active' | 'disposed' | 'all';
 
+// Alert.alert is a silent no-op on react-native-web — these validation/
+// confirmation messages never appeared at all without this guard.
+function showAlert(title: string, message: string, action?: { label: string; onPress: () => void }) {
+    if (Platform.OS === 'web') {
+        if (action) {
+            if (window.confirm(`${title}\n\n${message}\n\nOK to ${action.label}, Cancel to stay here.`)) action.onPress();
+        } else {
+            window.alert(`${title}\n\n${message}`);
+        }
+    } else if (action) {
+        Alert.alert(title, message, [{ text: 'OK', style: 'cancel' }, { text: action.label, onPress: action.onPress }]);
+    } else {
+        Alert.alert(title, message);
+    }
+}
+
 export default function AssetsScreen() {
     const { assets, addAsset, updateAsset, deleteAsset, disposeAsset, settings, language, setCurrentScreen, navigate, finance, addLoan, addTransaction } = useApp();
     const { currency } = settings;
@@ -77,12 +93,12 @@ export default function AssetsScreen() {
     };
 
     const handleSave = () => {
-        if (!name.trim()) { Alert.alert(t(language, 'error'), t(language, 'missingFields')); return; }
+        if (!name.trim()) { showAlert(t(language, 'error'), t(language, 'missingFields')); return; }
         const cost = parseFloat(purchaseCost);
         const life = parseFloat(usefulLife);
         const resid = parseFloat(residualValue) || 0;
-        if (isNaN(cost) || cost <= 0) { Alert.alert(t(language, 'error'), t(language, 'missingFields')); return; }
-        if (isNaN(life) || life <= 0) { Alert.alert(t(language, 'error'), t(language, 'missingFields')); return; }
+        if (isNaN(cost) || cost <= 0) { showAlert(t(language, 'error'), t(language, 'missingFields')); return; }
+        if (isNaN(life) || life <= 0) { showAlert(t(language, 'error'), t(language, 'missingFields')); return; }
 
         const payload = {
             name: name.trim(), category, description: description.trim(),
@@ -112,13 +128,10 @@ export default function AssetsScreen() {
                     status: 'active',
                     payments: [],
                 } as any);
-                Alert.alert(
+                showAlert(
                     'Recorded',
                     `Asset added and a loan (${currency}${Math.round(monthlyPayment(cost, rate, term)).toLocaleString()}/mo for ${term} months) was created under Loans.`,
-                    [
-                        { text: 'OK', style: 'cancel' },
-                        { text: 'View in Loans →', onPress: () => setCurrentScreen('loans') },
-                    ]
+                    { label: 'View in Loans', onPress: () => setCurrentScreen('loans') },
                 );
             } else if (acqMethod === 'lease') {
                 // Leased — record the first monthly lease payment as an expense.
@@ -131,7 +144,7 @@ export default function AssetsScreen() {
                     amount: Math.round(leaseMonthly),
                     status: 'paid',
                 } as any);
-                Alert.alert('Recorded', `Asset added and a lease expense (${currency}${Math.round(leaseMonthly).toLocaleString()}/mo) was logged. Add each month's payment under Transactions as it recurs.`);
+                showAlert('Recorded', `Asset added and a lease expense (${currency}${Math.round(leaseMonthly).toLocaleString()}/mo) was logged. Add each month's payment under Transactions as it recurs.`);
             }
         }
         setShowForm(false);

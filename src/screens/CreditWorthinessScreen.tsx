@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
-    SafeAreaView, ScrollView, View, Text, TouchableOpacity, StyleSheet, Animated, Dimensions, Alert,
+    SafeAreaView, ScrollView, View, Text, TouchableOpacity, StyleSheet, Animated, Dimensions, Alert, Platform,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { monthlyPayment as calcMonthlyPayment } from '../utils/loanMath';
@@ -15,7 +15,7 @@ import { computeDSCR, computeRiskScore, computeAssetCurrentValue, computeWorking
 import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
 import { computeDataQuality } from '../utils/dataQuality';
 import { computeInventoryValue } from '../utils/stockVelocity';
-import { computeLeverageRatios } from '../utils/debtRatios';
+import { computeLeverageRatios, computeLiveLoanBalance } from '../utils/debtRatios';
 import { buildFiveCsAssessment } from '../utils/fiveCsOfCredit';
 
 export default function CreditWorthinessScreen() {
@@ -70,7 +70,13 @@ export default function CreditWorthinessScreen() {
 
         // 2. Credit Utilization (25% weight)
         const availableCredit = (user?.avgMonthlyProfit || 0) * 6; // 6 months of profit = available credit
-        const currentDebt = loans.reduce((sum, l) => sum + ((l.principal || 0) - ((l.payments ?? []).reduce((s: number, p: any) => s + (p.amount || 0), 0) || 0)), 0);
+        // Same computeLiveLoanBalance() the Five C's/leverage section below
+        // uses — the inline version this replaced summed every loan
+        // regardless of status (including paid_off/defaulted) and never
+        // floored an individual loan at 0, so Credit Utilization could
+        // silently disagree with — or even go negative relative to — the
+        // "how much is owed" figure shown elsewhere on this same screen.
+        const currentDebt = computeLiveLoanBalance(loans);
 
         // No positive profit history means there's no basis to size available
         // credit — treating that as "0% utilized" scored it a false 100/
@@ -275,7 +281,12 @@ export default function CreditWorthinessScreen() {
             const filePath = await generatePDF(exportData);
             await sharePDF(filePath, exportData.title);
         } catch (error) {
-            Alert.alert('Export failed', 'Could not generate the lender-ready summary. Please try again.');
+            // Alert.alert is a silent no-op on react-native-web.
+            if (Platform.OS === 'web') {
+                window.alert('Export failed\n\nCould not generate the lender-ready summary. Please try again.');
+            } else {
+                Alert.alert('Export failed', 'Could not generate the lender-ready summary. Please try again.');
+            }
         } finally {
             setExporting(false);
         }

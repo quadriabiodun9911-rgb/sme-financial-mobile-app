@@ -111,6 +111,18 @@ ${inv.notes ? `<div class="notes" style="clear:both;margin-top:60px"><b>Notes:</
 </html>`;
 }
 
+// Alert.alert is a silent no-op on react-native-web — used unguarded here
+// even inside code paths already branched on Platform.OS === 'web' (the
+// clipboard-copy confirmation), so the underlying action succeeded but the
+// user got no feedback at all.
+function showAlert(title: string, message: string) {
+    if (Platform.OS === 'web') {
+        window.alert(`${title}\n\n${message}`);
+    } else {
+        Alert.alert(title, message);
+    }
+}
+
 export default function InvoicesScreen() {
     const { invoices, addInvoice, updateInvoice, deleteInvoice, markInvoiceStatus, settings, user, navigate } = useApp();
     const currency = settings.currency;
@@ -178,10 +190,10 @@ export default function InvoicesScreen() {
     };
 
     const handleSave = (asDraft: boolean) => {
-        if (!clientName.trim()) { Alert.alert('Required', 'Client name is required.'); return; }
-        if (!dueDate.trim())    { Alert.alert('Required', 'Due date is required.'); return; }
+        if (!clientName.trim()) { showAlert('Required', 'Client name is required.'); return; }
+        if (!dueDate.trim())    { showAlert('Required', 'Due date is required.'); return; }
         if (lineItems.some(li => !li.description.trim())) {
-            Alert.alert('Required', 'All line items need a description.');
+            showAlert('Required', 'All line items need a description.');
             return;
         }
 
@@ -214,12 +226,12 @@ export default function InvoicesScreen() {
         try {
             if (Platform.OS === 'web') {
                 if (navigator.share) { await navigator.share({ title: `Invoice ${inv.invoiceNumber}`, text: msg }); }
-                else { await navigator.clipboard.writeText(msg); Alert.alert('Copied!', 'Invoice details copied to clipboard.'); }
+                else { await navigator.clipboard.writeText(msg); showAlert('Copied!', 'Invoice details copied to clipboard.'); }
             } else {
                 await Share.share({ message: msg, title: `Invoice ${inv.invoiceNumber}` });
             }
         } catch {
-            Alert.alert('Error', 'Could not share invoice.');
+            showAlert('Error', 'Could not share invoice.');
         }
     };
 

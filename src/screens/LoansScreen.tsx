@@ -54,6 +54,16 @@ function isOverdue(loan: Loan): boolean {
     return due < new Date();
 }
 
+// Alert.alert is a silent no-op on react-native-web — these validation
+// messages never appeared at all without this guard.
+function showAlert(title: string, message: string) {
+    if (Platform.OS === 'web') {
+        window.alert(`${title}\n\n${message}`);
+    } else {
+        Alert.alert(title, message);
+    }
+}
+
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────
 
 export default function LoansScreen() {
@@ -101,13 +111,13 @@ export default function LoansScreen() {
     };
 
     const handleSave = () => {
-        if (!lender.trim()) { Alert.alert('Error', 'Please enter the lender name.'); return; }
+        if (!lender.trim()) { showAlert('Error', 'Please enter the lender name.'); return; }
         const p = parseFloat(principal);
         const r = parseFloat(rate);
         const t = parseInt(term, 10);
-        if (isNaN(p) || p <= 0) { Alert.alert('Error', 'Please enter a valid loan amount.'); return; }
-        if (isNaN(r) || r < 0) { Alert.alert('Error', 'Please enter a valid interest rate (0 for interest-free).'); return; }
-        if (isNaN(t) || t <= 0) { Alert.alert('Error', 'Please enter a valid loan term in months.'); return; }
+        if (isNaN(p) || p <= 0) { showAlert('Error', 'Please enter a valid loan amount.'); return; }
+        if (isNaN(r) || r < 0) { showAlert('Error', 'Please enter a valid interest rate (0 for interest-free).'); return; }
+        if (isNaN(t) || t <= 0) { showAlert('Error', 'Please enter a valid loan term in months.'); return; }
 
         const payload = {
             lenderName: lender.trim(), purpose: purpose.trim(),
@@ -125,7 +135,7 @@ export default function LoansScreen() {
 
     const handleAddPayment = (loanId: string) => {
         const amt = parseFloat(payAmount);
-        if (isNaN(amt) || amt <= 0) { Alert.alert('Error', 'Please enter a valid payment amount.'); return; }
+        if (isNaN(amt) || amt <= 0) { showAlert('Error', 'Please enter a valid payment amount.'); return; }
         addLoanPayment(loanId, { amount: amt, date: payDate, note: payNote.trim() || undefined });
         setShowPayment(null);
         setPayAmount(''); setPayNote('');
