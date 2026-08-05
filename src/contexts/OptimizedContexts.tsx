@@ -265,7 +265,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       deleteAsset: (id) => setAssets((prev) =>
         prev.filter((a) => a.id !== id)
       ),
-      addLoan: (loan) => setLoans((prev) => [...prev, { ...loan, id: loan.id || genId(), payments: loan.payments ?? [] }]),
+      // createdAt backfilled the same way addAsset/addInvoice do — Loan
+      // declares it required, but this line previously left it undefined
+      // on every loan created through the normal Add Loan flow.
+      addLoan: (loan) => setLoans((prev) => [...prev, { ...loan, id: loan.id || genId(), payments: loan.payments ?? [], createdAt: loan.createdAt || new Date().toISOString() }]),
       updateLoan: (id, loan) => setLoans((prev) =>
         prev.map((l) => (l.id === id ? { ...l, ...loan } : l))
       ),

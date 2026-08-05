@@ -1126,30 +1126,68 @@ export function computeDebtOptimiser(loans: Loan[]): DebtOptimizerResult {
     }
 
     const getBalance = (l: Loan) => Math.max(0, l.principal - (l.payments ?? []).reduce((s, p) => s + p.amount, 0));
-    const getTotalInterest = (l: Loan) => {
-        const bal = getBalance(l);
-        const mp = loanMonthlyPayment(bal, l.interestRate, l.termMonths);
-        return Math.max(0, mp * l.termMonths - bal);
+
+    // Avalanche/snowball only differ in real interest cost when a loan
+    // that finishes early frees up its minimum payment, and that freed
+    // amount gets redirected to the next loan in priority order — the
+    // classic debt-snowball mechanism. Summing each loan's own
+    // independent interest (the previous approach) is invariant to sort
+    // order, since a+b === b+a regardless of which is listed first, so it
+    // always produced a $0 "saving" no matter how far apart the real
+    // rates were. This simulates the actual month-by-month payoff under a
+    // fixed combined budget (the sum of every loan's own scheduled
+    // payment) so reallocation — and the resulting interest/time
+    // difference — is real.
+    const simulatePayoff = (order: Loan[]): { totalInterest: number; months: number } => {
+        const minPayments = new Map(order.map(l => [l.id, loanMonthlyPayment(l.principal, l.interestRate, l.termMonths)]));
+        const monthlyRates = new Map(order.map(l => [l.id, l.interestRate / 100 / 12]));
+        const balances = new Map(order.map(l => [l.id, getBalance(l)]));
+        const totalBudget = order.reduce((s, l) => s + (minPayments.get(l.id) ?? 0), 0);
+
+        let totalInterest = 0;
+        let months = 0;
+        const maxMonths = 600; // 50-year safety cap against pathological inputs
+        while (order.some(l => (balances.get(l.id) ?? 0) > 0.01) && months < maxMonths) {
+            months++;
+            let spent = 0;
+            for (const l of order) {
+                const bal0 = balances.get(l.id) ?? 0;
+                if (bal0 <= 0.01) continue;
+                const interest = bal0 * (monthlyRates.get(l.id) ?? 0);
+                totalInterest += interest;
+                const pay = Math.min(bal0 + interest, minPayments.get(l.id) ?? 0);
+                balances.set(l.id, bal0 + interest - pay);
+                spent += pay;
+            }
+            let extra = Math.max(0, totalBudget - spent);
+            for (const l of order) {
+                if (extra <= 0) break;
+                const bal = balances.get(l.id) ?? 0;
+                if (bal <= 0.01) continue;
+                const applied = Math.min(bal, extra);
+                balances.set(l.id, bal - applied);
+                extra -= applied;
+            }
+        }
+        return { totalInterest, months };
     };
 
     // Avalanche: highest interest rate first
     const avalancheOrder = [...activeLoans].sort((a, b) => b.interestRate - a.interestRate);
-    const avalancheInterest = avalancheOrder.reduce((s, l) => s + getTotalInterest(l), 0);
-    const avalancheMonths = Math.max(...avalancheOrder.map(l => l.termMonths));
+    const avalancheResult = simulatePayoff(avalancheOrder);
 
     // Snowball: smallest balance first
     const snowballOrder = [...activeLoans].sort((a, b) => getBalance(a) - getBalance(b));
-    const snowballInterest = snowballOrder.reduce((s, l) => s + getTotalInterest(l), 0);
-    const snowballMonths = Math.max(...snowballOrder.map(l => l.termMonths));
+    const snowballResult = simulatePayoff(snowballOrder);
 
-    const interestDiff = snowballInterest - avalancheInterest;
-    const recommendation = interestDiff > 0
+    const interestDiff = snowballResult.totalInterest - avalancheResult.totalInterest;
+    const recommendation = interestDiff > 1
         ? `Avalanche method saves ${interestDiff.toFixed(0)} in interest. Focus on ${avalancheOrder[0]?.lenderName} first (${avalancheOrder[0]?.interestRate}% rate).`
         : `Both methods yield similar results. Snowball may boost motivation by clearing ${snowballOrder[0]?.lenderName} first.`;
 
     return {
-        avalanche: { order: avalancheOrder.map(l => l.lenderName), totalInterestSaved: Math.round(interestDiff), monthsToPayoff: avalancheMonths },
-        snowball: { order: snowballOrder.map(l => l.lenderName), totalInterestSaved: 0, monthsToPayoff: snowballMonths },
+        avalanche: { order: avalancheOrder.map(l => l.lenderName), totalInterestSaved: Math.round(interestDiff), monthsToPayoff: avalancheResult.months },
+        snowball: { order: snowballOrder.map(l => l.lenderName), totalInterestSaved: 0, monthsToPayoff: snowballResult.months },
         recommendation,
     };
 }
