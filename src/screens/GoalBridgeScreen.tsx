@@ -8,6 +8,7 @@ import { calculateGoalBridge, mapSavedGoalToBridge, formatGoalMetric, FinancialG
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan } from '../utils/actionRecommendationEngine';
 import { computeMonthlyBaseline } from '../utils/analysis';
+import { countActiveMonths } from '../utils/finance';
 import NextStepLink from '../components/NextStepLink';
 
 export default function GoalBridgeScreen() {
@@ -33,7 +34,7 @@ export default function GoalBridgeScreen() {
       transactions,
       invoices,
       finance.cashBalance,
-      finance.expense || 100000,
+      finance.expense / countActiveMonths(transactions),
       settings.currency,
       loans,
       inventory

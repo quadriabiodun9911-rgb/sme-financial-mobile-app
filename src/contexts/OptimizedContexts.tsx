@@ -11,7 +11,7 @@
 import React, { createContext, useContext, useState, useMemo, useEffect, useRef, useCallback, ReactNode } from 'react';
 import { Platform } from 'react-native';
 import { User, Invoice, InvoiceStatus, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, MerchantFinancingApplication, LoanPurpose, StaffMember, PayrollRun, PayrollItem, CashPocket, CapitalCommitment, UserRole } from '../types';
-import { computeFinance, computeAssetCurrentValue } from '../utils/finance';
+import { computeFinance, computeAssetCurrentValue, countActiveMonths } from '../utils/finance';
 import { sanitizeStoredGoals, refreshGoal } from '../utils/goals';
 import { DEMO_BUSINESSES } from '../utils/demoData';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -1213,14 +1213,14 @@ export function useApp() {
   const daysActive = auth.user?.createdAt
     ? Math.max(0, Math.floor((Date.now() - new Date(auth.user.createdAt).getTime()) / 86400000))
     : 0;
-  const activeMonths = new Set(transactions.map((t) => (t.date || '').slice(0, 7)).filter(Boolean)).size || 1;
+  const activeMonths = countActiveMonths(transactions);
   const avgMonthlyRevenue = (financeData?.income ?? 0) / activeMonths;
   const avgMonthlyProfit = (financeData?.profit ?? 0) / activeMonths;
   const totalRecordedRevenue = financeData?.income ?? 0;
   // Reuses the same root-cause diagnosis engine as the AI Advisor for a
   // consistent, real health score instead of a hardcoded placeholder.
   const financialHealthScore = transactions.length >= 5 && financeData
-    ? performFinancialDiagnosis(transactions, invoicesArray, financeData.cashBalance, (financeData.expense || 1) / activeMonths, settings?.settings?.currency ?? '₦', loans, inventory).overallHealth
+    ? performFinancialDiagnosis(transactions, invoicesArray, financeData.cashBalance, (financeData.expense ?? 0) / activeMonths, settings?.settings?.currency ?? '₦', loans, inventory).overallHealth
     : 0;
 
   const userWithMetrics = auth.user

@@ -7,7 +7,7 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
-import { computeBudgetVsActual } from '../utils/finance';
+import { computeBudgetVsActual, countActiveMonths } from '../utils/finance';
 import { totalMonthlyLoanBurden } from '../utils/loanMath';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateExpenseReductionActions } from '../utils/actionRecommendationEngine';
@@ -154,7 +154,7 @@ export default function BudgetScreen() {
     // a generic "you're over budget" flag.
     const expenseTactics = useMemo(() => {
         if (transactions.length < 5) return [];
-        const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, finance.expense || 1, settings.currency, loans, inventory);
+        const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, finance.expense / countActiveMonths(transactions), settings.currency, loans, inventory);
         return generateExpenseReductionActions(diagnosis, diagnosis.metrics, settings.currency).slice(0, 3);
     }, [transactions, invoices, finance.cashBalance, finance.expense, settings.currency, loans, inventory]);
 

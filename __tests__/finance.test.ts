@@ -6,6 +6,7 @@ import {
     computeRecurringDates,
     transactionsToCSV,
     getTaxRatePercent,
+    countActiveMonths,
 } from '../src/utils/finance';
 import { Transaction } from '../src/types';
 
@@ -309,5 +310,37 @@ describe('getTaxRatePercent', () => {
 
     it('clamps rates above 100 to 100', () => {
         expect(getTaxRatePercent('250')).toBe(100);
+    });
+});
+
+describe('countActiveMonths', () => {
+    it('counts distinct calendar months with at least one transaction', () => {
+        const txs = [
+            makeTx({ date: '2026-01-05' }),
+            makeTx({ date: '2026-01-20' }), // same month as above
+            makeTx({ date: '2026-02-01' }),
+            makeTx({ date: '2026-03-15' }),
+        ];
+        expect(countActiveMonths(txs)).toBe(3);
+    });
+
+    it('returns 1 (not 0) for an empty transaction list, to keep any division by it safe', () => {
+        expect(countActiveMonths([])).toBe(1);
+    });
+
+    it('does not let a long history dilute a monthly average down to a fabricated tiny figure', () => {
+        // Regression: several screens used to pass an ALL-TIME cumulative
+        // expense total straight into a parameter documented as
+        // "monthlyExpenseAverage" (used as a runway-estimate fallback),
+        // silently understating runway more the longer a business had
+        // been recording data — the same period-mismatch bug class fixed
+        // elsewhere in the app, just not caught here until now.
+        const txs = Array.from({ length: 12 }, (_, i) =>
+            makeTx({ id: `tx${i}`, date: `2026-${String(i + 1).padStart(2, '0')}-01`, amount: 10000, type: 'expense' })
+        );
+        const activeMonths = countActiveMonths(txs);
+        expect(activeMonths).toBe(12);
+        const totalExpense = txs.reduce((s, t) => s + t.amount, 0);
+        expect(totalExpense / activeMonths).toBe(10000); // genuine monthly average, not the ₦120,000 all-time total
     });
 });

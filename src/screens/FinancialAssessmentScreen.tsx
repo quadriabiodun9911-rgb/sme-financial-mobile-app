@@ -6,6 +6,7 @@ import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan } from '../utils/actionRecommendationEngine';
+import { countActiveMonths } from '../utils/finance';
 import SwotAnalysis from '../components/SwotAnalysis';
 import NextStepLink from '../components/NextStepLink';
 
@@ -18,7 +19,7 @@ export default function FinancialAssessmentScreen() {
       transactions,
       invoices,
       finance.cashBalance,
-      finance.expense || 100000,
+      finance.expense / countActiveMonths(transactions),
       settings.currency,
       loans,
       inventory
