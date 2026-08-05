@@ -4,15 +4,17 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
-import { calculateGoalBridge, mapSavedGoalToBridge, formatGoalMetric, FinancialGoal } from '../utils/goalBridgeEngine';
+import { calculateGoalBridge, mapSavedGoalToBridge, formatGoalMetric, BRIDGE_TYPE_TO_GOAL_TYPE, FinancialGoal } from '../utils/goalBridgeEngine';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan } from '../utils/actionRecommendationEngine';
 import { computeMonthlyBaseline } from '../utils/analysis';
 import { getMonthlyExpenseAverage } from '../utils/finance';
+import { buildNewGoal } from '../utils/goals';
 import NextStepLink from '../components/NextStepLink';
+import { showAlert } from '../utils/webAlert';
 
 export default function GoalBridgeScreen() {
-  const { transactions, invoices, finance, settings, goals, navParams, setCurrentScreen, loans, inventory } = useApp();
+  const { transactions, invoices, finance, settings, goals, addGoal, navParams, setCurrentScreen, loans, inventory } = useApp();
 
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [goalType, setGoalType] = useState<'profit' | 'revenue' | 'cash' | 'margin' | 'runway'>('profit');
@@ -83,14 +85,45 @@ export default function GoalBridgeScreen() {
       runway: finance.runway,
     };
     const parsedTarget = parseInt(targetValue || '1000000') || 1000000;
+    const months = parseInt(timelineMonths || '12') || 12;
+    const currentVal = currentByType[goalType] ?? 0;
+    const description = `Reach ${formatGoalMetric(parsedTarget, goalType, settings.currency)} ${goalType}`;
+
     setSelectedGoal({
       id: `goal-${Date.now()}`,
       type: goalType,
-      currentValue: currentByType[goalType] ?? 0,
+      currentValue: currentVal,
       targetValue: parsedTarget,
-      timelineMonths: parseInt(timelineMonths || '12') || 12,
-      description: `Reach ${formatGoalMetric(parsedTarget, goalType, settings.currency)} ${goalType}`,
+      timelineMonths: months,
+      description,
     });
+
+    // Previously this only ever updated local component state — nothing
+    // built here was ever saved, so it vanished the moment the user
+    // navigated away and never appeared on the Goals screen. Persist it as
+    // a real saved goal too.
+    const deadline = new Date();
+    deadline.setMonth(deadline.getMonth() + months);
+    const savedGoal = buildNewGoal({
+      type: BRIDGE_TYPE_TO_GOAL_TYPE[goalType],
+      title: description,
+      description,
+      targetValue: parsedTarget,
+      deadline: deadline.toISOString().split('T')[0],
+    }, finance, settings, transactions);
+    // buildNewGoal's baseline/unit defaults come from goalDefaults(type,...),
+    // which has no dedicated entry for the 'profit'/'runway' bridge metrics
+    // (both fall back to the generic 'custom' template: baseline 0, unit
+    // '%') — override with the values this screen already computed so the
+    // saved goal matches exactly what the user saw before saving.
+    addGoal({
+      ...savedGoal,
+      baselineValue: currentVal,
+      currentValue: currentVal,
+      unit: goalType === 'margin' ? '%' : goalType === 'runway' ? 'days' : settings.currency,
+    });
+
+    showAlert('Goal saved', 'This goal is now saved and visible on your Goals screen.');
     setShowGoalModal(false);
   };
 

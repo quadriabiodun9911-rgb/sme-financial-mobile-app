@@ -493,12 +493,14 @@ function GoalCard({ goal, currency, daysRemaining, feasibility, onStrategy, onBr
 }) {
     const statusColor = STATUS_COLORS[goal.status];
     const isReduction = goal.type === 'cost_reduction' || goal.type === 'reduce_overdue_ar';
-    const unit = goal.unit === '%' ? '%' : currency;
-    // '%' is a suffix (64.4%), currency is a prefix (₦64.4) — unit was being
-    // prepended unconditionally throughout this card, so every percentage
-    // goal (margin_improvement) displayed as "%64.4" instead of "64.4%".
+    const unit = goal.unit === '%' ? '%' : goal.unit === 'days' ? 'days' : currency;
+    // '%' and 'days' are suffixes (64.4%, 90 days), currency is a prefix
+    // (₦64.4) — unit was being prepended unconditionally throughout this
+    // card, so every percentage goal (margin_improvement) displayed as
+    // "%64.4" instead of "64.4%". 'days' (runway goals saved from the Goal
+    // Bridge screen) needs the same suffix treatment.
     const fmtUnit = (value: number, decimals: number = 0) =>
-        unit === '%' ? `${value.toFixed(decimals)}%` : `${unit}${Math.round(value).toLocaleString()}`;
+        unit === '%' ? `${value.toFixed(decimals)}%` : unit === 'days' ? `${Math.round(value)} days` : `${unit}${Math.round(value).toLocaleString()}`;
 
     const isAchieved = goal.status === 'achieved';
     const feasColor = feasibility?.feasibility === 'easy' ? Colors.income : feasibility?.feasibility === 'medium' ? Colors.warning : Colors.expense;
