@@ -250,6 +250,28 @@ export function computeAssetAnnualDepreciation(asset: Asset): number {
     return (cost - residual) / life;
 }
 
+export interface TaxTotals {
+    totalTaxCollected: number;
+    totalTaxPaid: number;
+    netTaxPosition: number;
+}
+
+// Extracted so any screen showing tax collected/paid can scope it to
+// whatever period it's actually displaying (e.g. a period-filtered slice
+// of transactions), instead of only ever being able to read the all-time
+// totals baked into FinanceData.
+export function computeTaxTotals(transactions: Transaction[]): TaxTotals {
+    const totalTaxCollected = transactions
+        .filter(t => t.type === 'income')
+        .reduce((sum, t) => sum + (t.taxAmount ?? 0), 0);
+
+    const totalTaxPaid = transactions
+        .filter(t => t.type === 'expense')
+        .reduce((sum, t) => sum + (t.taxAmount ?? 0), 0);
+
+    return { totalTaxCollected, totalTaxPaid, netTaxPosition: totalTaxCollected - totalTaxPaid };
+}
+
 export function computeFinance(
     transactions: Transaction[],
     settings: Pick<BusinessSettings, 'openingAssets' | 'openingLiabilities' | 'openingLoans' | 'openingOtherAssets'>,
@@ -293,15 +315,7 @@ export function computeFinance(
     // Note: live loan balances are added by callers (AppContext) to keep computeFinance pure
     const equity = assets - liabilities;
 
-    const totalTaxCollected = transactions
-        .filter(t => t.type === 'income')
-        .reduce((sum, t) => sum + (t.taxAmount ?? 0), 0);
-
-    const totalTaxPaid = transactions
-        .filter(t => t.type === 'expense')
-        .reduce((sum, t) => sum + (t.taxAmount ?? 0), 0);
-
-    const netTaxPosition = totalTaxCollected - totalTaxPaid;
+    const { totalTaxCollected, totalTaxPaid, netTaxPosition } = computeTaxTotals(transactions);
 
     // Runway delegates to computeCashRunway — the single canonical "how many
     // days of cash are left" calculation already used by CashFlowScreen,

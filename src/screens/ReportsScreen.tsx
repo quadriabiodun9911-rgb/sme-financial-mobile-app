@@ -494,7 +494,7 @@ export default function ReportsScreen() {
                     {/* ── TAX ──────────────────────────────────────────── */}
                     {activeTab === 'tax' && (
                         <>
-                            <TaxSummary />
+                            <TaxSummary periodTransactions={filteredTx} allTransactions={transactions} currency={currency} />
                             <NextStepLink
                                 text="Check if your records are ready to hand to an accountant"
                                 onPress={() => setCurrentScreen('tax-filing-readiness')}
