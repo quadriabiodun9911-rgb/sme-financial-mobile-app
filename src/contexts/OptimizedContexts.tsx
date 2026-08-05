@@ -552,7 +552,13 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
   const value: InvoiceContextValue = useMemo(
     () => ({
       invoices,
-      addInvoice: (invoice) => setInvoices((prev) => [...prev, { ...invoice, id: invoice.id || genId() }]),
+      // createdAt backfilled the same way addAsset/addLoan do — without it,
+      // every invoice created through the normal New Invoice flow had
+      // createdAt undefined, and InvoicesScreen's list sort
+      // (b.createdAt.localeCompare(a.createdAt)) crashed the whole screen
+      // with a white error boundary as soon as that comparison landed on
+      // the new invoice.
+      addInvoice: (invoice) => setInvoices((prev) => [...prev, { ...invoice, id: invoice.id || genId(), createdAt: invoice.createdAt || new Date().toISOString() }]),
       markInvoiceStatus: (id, status) => setInvoices((prev) => prev.map((inv) => (inv.id === id ? { ...inv, status } : inv))),
       updateInvoice: (id, invoice) => setInvoices((prev) =>
         prev.map((i) => (i.id === id ? { ...i, ...invoice } : i))
@@ -1276,7 +1282,47 @@ export function useApp() {
         } as any);
       }
     },
-    updateInvoice: invoices?.updateInvoice || (() => {}),
+    // Kept the linked transaction in sync with the invoice — this used to
+    // be a bare passthrough to invoices.updateInvoice with no linked-
+    // transaction logic at all (unlike addInvoice/markInvoiceStatus right
+    // above/below, which both maintain the link). So editing an
+    // already-sent invoice's line items — changing its total — left the
+    // linked transaction's amount stuck at whatever it was when the
+    // invoice was first created or last sent, forever. Marking that
+    // invoice paid later would then only book the stale original amount
+    // as revenue, silently understating income by the edited difference.
+    updateInvoice: (id, patch) => {
+      invoices?.updateInvoice(id, patch);
+      const before = invoicesArray.find((i) => i.id === id);
+      if (!before) return;
+      const after = { ...before, ...patch };
+      const txStatus = after.status === 'paid' ? 'paid' : after.status === 'overdue' ? 'overdue' : after.status === 'sent' ? 'pending' : null;
+      const linked = transactions.find((t) => t.reference === before.invoiceNumber && t.type === 'income');
+      if (linked && finance?.updateTransaction) {
+        finance.updateTransaction(linked.id, {
+          amount: after.total,
+          description: `Invoice ${after.invoiceNumber}: ${after.clientName}`,
+          vendorCustomer: after.clientName,
+          dueDate: after.dueDate,
+          ...(txStatus ? { status: txStatus } : {}),
+        });
+      } else if (!linked && txStatus && finance?.addTransaction) {
+        // Editing turned a draft into sent/paid/overdue for the first
+        // time, or the invoice predates transaction-linking — create the
+        // link now instead of leaving this revenue invisible.
+        finance.addTransaction({
+          date: after.issueDate,
+          description: `Invoice ${after.invoiceNumber}: ${after.clientName}`,
+          type: 'income',
+          category: 'Sales',
+          amount: after.total,
+          status: txStatus,
+          reference: after.invoiceNumber,
+          vendorCustomer: after.clientName,
+          dueDate: after.dueDate,
+        } as any);
+      }
+    },
     deleteInvoice: (id) => {
       const inv = invoicesArray.find((i) => i.id === id);
       if (inv && finance?.deleteTransaction) {
