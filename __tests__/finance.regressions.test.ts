@@ -72,9 +72,13 @@ describe('computeEnhancedPnL — EBITDA does not double-count depreciation', () 
     };
 
     it('EBIT is grossProfit - sga - depreciation, and EBITDA adds depreciation back to EBIT (not double)', () => {
+        // Dates span a full year so depreciation isn't prorated down to ~0 —
+        // computeEnhancedPnL charges a full year's depreciation only against
+        // a full year of transactions (see the proration regression test
+        // below for the partial-period case).
         const txs: Transaction[] = [
-            makeTx({ type: 'income', amount: 50000, category: 'Sales' }),
-            makeTx({ type: 'expense', amount: 10000, category: 'Rent' }), // SG&A
+            makeTx({ type: 'income', amount: 50000, category: 'Sales', date: '2026-01-01' }),
+            makeTx({ type: 'expense', amount: 10000, category: 'Rent', date: '2026-12-31' }), // SG&A
         ];
         const r = computeEnhancedPnL(txs, [asset]);
 
@@ -97,6 +101,27 @@ describe('computeEnhancedPnL — EBITDA does not double-count depreciation', () 
         const r = computeEnhancedPnL(txs, []);
         expect(r.depreciation).toBe(0);
         expect(r.ebitda).toBe(r.ebit);
+    });
+
+    it('prorates depreciation to the actual span of the transactions, not a flat full year', () => {
+        // Regression: computeEnhancedPnL used to deduct a full year's
+        // depreciation (3000 here) regardless of how short the actual
+        // transaction history was — a business with ~25 days of data (this
+        // function is often called with a trailing-N-month slice far
+        // shorter than a year) had its netProfit understated by nearly the
+        // full annual charge, and disagreed with computeFinance()'s
+        // depreciationAdjustedProfit for the identical data, which already
+        // prorated correctly. Business Passport (netProfit) vs Reports
+        // (profit) showed materially different "profit" for the same
+        // business as a result.
+        const txs: Transaction[] = [
+            makeTx({ type: 'income', amount: 50000, category: 'Sales', date: '2026-06-01' }),
+            makeTx({ type: 'expense', amount: 10000, category: 'Rent', date: '2026-06-26' }), // 25-day span
+        ];
+        const r = computeEnhancedPnL(txs, [asset]);
+        expect(r.depreciation).toBeLessThan(3000 * 0.1); // far less than a full year's 3000
+        expect(r.depreciation).toBeGreaterThan(0); // but not zeroed out either
+        expect(r.ebit).toBeCloseTo(40000 - r.depreciation, 5);
     });
 });
 

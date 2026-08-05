@@ -89,6 +89,22 @@ export interface EnhancedPnL {
     sgaCategories: { category: string; amount: number }[];
 }
 
+// Fraction of a year actually covered by dated transactions (capped at 1),
+// used to prorate a full annual per-year figure (e.g. depreciation) down to
+// the portion actually earned/incurred within the data's real span, instead
+// of charging a full year's worth against a much shorter history — the same
+// bug class (a full-period total applied to a partial period) fixed
+// elsewhere in the app. Returns 1 (no reduction) for fewer than 2 dated
+// transactions, since a meaningful span can't be measured from a single
+// point — matches the pre-existing convention this replaces.
+function transactionSpanYears(transactions: Transaction[]): number {
+    const dates = transactions.map(t => t.date).sort();
+    if (dates.length === 0) return 0;
+    if (dates.length === 1) return 1;
+    const spanDays = (new Date(dates[dates.length - 1]).getTime() - new Date(dates[0]).getTime()) / 86400000;
+    return Math.min(1, spanDays / 365);
+}
+
 export function computeEnhancedPnL(transactions: Transaction[], assets: Asset[]): EnhancedPnL {
     const isCOGS = (cat: string) => COGS_KEYWORDS.some(k => cat.toLowerCase().includes(k));
 
@@ -112,7 +128,15 @@ export function computeEnhancedPnL(transactions: Transaction[], assets: Asset[])
     const grossProfit = revenue - cogs;
     const grossMargin = revenue > 0 ? (grossProfit / revenue) * 100 : 0;
 
-    const depreciation = assets.filter(a => a.status === 'active').reduce((s, a) => s + computeAssetAnnualDepreciation(a), 0);
+    // Prorated to the actual span of these transactions — an un-prorated
+    // full year's depreciation deducted against, say, one month of trading
+    // (this function is typically called with a trailing-N-month slice,
+    // sometimes much shorter) understated netProfit far more than the
+    // business's real depreciation drag for that period, and disagreed with
+    // computeFinance()'s depreciationAdjustedProfit for the same data, which
+    // already prorated correctly.
+    const annualDepreciation = assets.filter(a => a.status === 'active').reduce((s, a) => s + computeAssetAnnualDepreciation(a), 0);
+    const depreciation = annualDepreciation * transactionSpanYears(transactions);
     // EBITDA excludes depreciation by definition; EBIT (and net profit) must
     // actually deduct it, otherwise EBITDA double-counts a charge that was
     // never subtracted in the first place.
@@ -242,17 +266,7 @@ export function computeFinance(
 
     // Annual depreciation prorated to the period covered by transactions
     const annualDepreciation = activeAssets.reduce((s, a) => s + (computeAssetAnnualDepreciation(a) || 0), 0);
-
-    // Prorate depreciation: if transactions span less than a year, charge proportionally
-    const dates = transactions.map(t => t.date).sort();
-    let depreciationCharge = annualDepreciation;
-    if (dates.length >= 2) {
-        const spanDays = (new Date(dates[dates.length - 1]).getTime() - new Date(dates[0]).getTime()) / 86400000;
-        const spanYears = Math.min(1, spanDays / 365);
-        depreciationCharge = annualDepreciation * spanYears;
-    } else if (dates.length === 0) {
-        depreciationCharge = 0;
-    }
+    const depreciationCharge = annualDepreciation * transactionSpanYears(transactions);
 
     const profit = income - expense;
     const depreciationAdjustedProfit = profit - depreciationCharge;
