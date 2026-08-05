@@ -7,7 +7,6 @@ interface RecurringTransaction extends Transaction {
   id: string;
   isRecurring: true;
   recurringFrequency: RecurringFrequency;
-  nextRecurringDate: string;
   createdAt?: string;
 }
 
@@ -108,7 +107,9 @@ export default function RecurringTransactionManager({
               </View>
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Next</Text>
-                <Text style={styles.detailValue}>{new Date(item.nextRecurringDate).toLocaleDateString()}</Text>
+                <Text style={styles.detailValue}>
+                  {new Date(getNextDate(item.recurringFrequency, item.nextRecurringDate || item.date)).toLocaleDateString()}
+                </Text>
               </View>
             </View>
           </View>

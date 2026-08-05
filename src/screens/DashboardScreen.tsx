@@ -153,8 +153,9 @@ export default function DashboardScreen() {
         const inc = parseFloat(eodIncome) || 0;
         const exp = parseFloat(eodExpense) || 0;
         if (inc <= 0 && exp <= 0) { Alert.alert('Nothing to save', 'Enter at least one amount.'); return; }
-        if (inc > 0) addTransaction({ type: 'income',  amount: inc, description: 'End of day income',   category: 'Sales' });
-        if (exp > 0) addTransaction({ type: 'expense', amount: exp, description: 'End of day expenses', category: 'Other' });
+        const today = new Date().toISOString().split('T')[0];
+        if (inc > 0) addTransaction({ type: 'income',  amount: inc, description: 'End of day income',   category: 'Sales', date: today });
+        if (exp > 0) addTransaction({ type: 'expense', amount: exp, description: 'End of day expenses', category: 'Other', date: today });
         setEodIncome(''); setEodExpense(''); setEodOpen(false);
         setLastSynced(new Date());
         const newProfit = finance.profit + inc - exp;
@@ -175,6 +176,7 @@ export default function DashboardScreen() {
                 amount: amt,
                 description: qaDesc.trim(),
                 category: qaCategory || (qaType === 'income' ? 'Sales' : 'General'),
+                date: new Date().toISOString().split('T')[0],
             });
             setQaAmount(''); setQaDesc(''); setQaCategory(''); setFabOpen(false);
             const newProfit = finance.profit + (qaType === 'income' ? amt : -amt);
@@ -417,20 +419,20 @@ export default function DashboardScreen() {
                 <View style={styles.operationsSection}>
                   <Text style={styles.operationsSectionTitle}>⚡ QUICK ACTIONS</Text>
                   <View style={styles.actionsGrid}>
-                    <TouchableOpacity style={styles.actionCard} onPress={() => openFab('income')}>
+                    <TouchableOpacity style={styles.actionCard} activeOpacity={0.7} onPress={() => openFab('income')}>
                       <Text style={styles.actionEmoji}>💵</Text>
                       <Text style={styles.actionLabel}>Log Sales</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionCard} onPress={() => setCurrentScreen('invoices')}>
+                    <TouchableOpacity style={styles.actionCard} activeOpacity={0.7} onPress={() => setCurrentScreen('invoices')}>
                       <Text style={styles.actionEmoji}>📄</Text>
                       <Text style={styles.actionLabel}>Send Invoice</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionCard} onPress={() => openFab('expense')}>
+                    <TouchableOpacity style={styles.actionCard} activeOpacity={0.7} onPress={() => openFab('expense')}>
                       <Text style={styles.actionEmoji}>💸</Text>
                       <Text style={styles.actionLabel}>Record Expense</Text>
                     </TouchableOpacity>
                     {canViewFinancials && (
-                    <TouchableOpacity style={styles.actionCard} onPress={() => setCurrentScreen('import-transactions')}>
+                    <TouchableOpacity style={styles.actionCard} activeOpacity={0.7} onPress={() => setCurrentScreen('import-transactions')}>
                       <Text style={styles.actionEmoji}>🏦</Text>
                       <Text style={styles.actionLabel}>Import Bank Statement</Text>
                     </TouchableOpacity>
@@ -1217,7 +1219,6 @@ const styles = StyleSheet.create({
       alignItems: 'center',
       borderWidth: 1.5,
       borderColor: Colors.primary,
-      active: 0.7,
     },
     actionEmoji: {
       fontSize: 32,

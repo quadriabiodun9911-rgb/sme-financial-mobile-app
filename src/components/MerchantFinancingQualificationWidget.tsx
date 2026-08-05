@@ -200,8 +200,10 @@ const s = StyleSheet.create({
     progressBar: {
         height: 6,
         borderRadius: 3,
+        // Web-only smooth width animation; react-native-web passes this
+        // through to the DOM node, native platforms silently ignore it.
         transition: 'width 0.3s ease',
-    },
+    } as any,
     requirementsGrid: {
         gap: 10,
         marginBottom: 12,

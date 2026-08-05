@@ -39,6 +39,7 @@ import { supabase } from '../utils/supabase';
 import { getTwoFactorStatus, verifyTwoFactorLogin } from '../utils/twoFactorAuth';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { canViewFinancials as computeCanViewFinancials } from '../utils/rolePermissions';
+import { Language } from '../utils/i18n';
 import CryptoJS from 'crypto-js';
 
 const PIN_SALT = 'Q360_SME_2025';
@@ -64,13 +65,13 @@ interface FinanceContextValue {
   inventory: InventoryItem[];
   finance: FinanceData; // computed from above
 
-  addTransaction: (tx: Transaction) => void;
+  addTransaction: (tx: Omit<Transaction, 'id'> & { id?: string }) => void;
   updateTransaction: (id: string, tx: Partial<Transaction>) => void;
   deleteTransaction: (id: string) => void;
-  addAsset: (asset: Asset) => void;
+  addAsset: (asset: Omit<Asset, 'id' | 'createdAt'> & { id?: string; createdAt?: string }) => void;
   updateAsset: (id: string, asset: Partial<Asset>) => void;
   deleteAsset: (id: string) => void;
-  addLoan: (loan: Loan) => void;
+  addLoan: (loan: Omit<Loan, 'id' | 'payments' | 'createdAt'> & { id?: string; payments?: Loan['payments']; createdAt?: string }) => void;
   updateLoan: (id: string, loan: Partial<Loan>) => void;
   deleteLoan: (id: string) => void;
   addLoanPayment: (loanId: string, payment: { amount: number; date: string; note?: string }) => void;
@@ -78,7 +79,7 @@ interface FinanceContextValue {
   updateBudget: (id: string, budget: Partial<Budget>) => void;
   deleteBudget: (id: string) => void;
   disposeAsset: (id: string, disposalDate: string, disposalValue: number) => void;
-  addInventoryItem: (item: InventoryItem) => void;
+  addInventoryItem: (item: Omit<InventoryItem, 'id' | 'createdAt' | 'updatedAt'> & { id?: string; createdAt?: string; updatedAt?: string }) => void;
   updateInventoryItem: (id: string, item: Partial<InventoryItem>) => void;
   deleteInventoryItem: (id: string) => void;
 
@@ -339,7 +340,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           prev.map((a) => (a.id === id ? { ...a, status: 'disposed', disposalDate, disposalValue } as Asset : a))
         );
       },
-      addInventoryItem: (item) => setInventory((prev) => [...prev, { ...item, id: item.id || genId() }]),
+      addInventoryItem: (item) => setInventory((prev) => {
+        const now = new Date().toISOString();
+        return [...prev, { ...item, id: item.id || genId(), createdAt: item.createdAt || now, updatedAt: item.updatedAt || now }];
+      }),
       updateInventoryItem: (id, item) => setInventory((prev) =>
         prev.map((i) => (i.id === id ? { ...i, ...item } : i))
       ),
@@ -594,9 +598,9 @@ export function useInvoices(): InvoiceContextValue {
 
 interface SettingsContextValue {
   settings: BusinessSettings;
-  language: string;
+  language: Language;
   updateSettings: (settings: Partial<BusinessSettings>) => void;
-  setLanguage: (lang: string) => void;
+  setLanguage: (lang: Language) => void;
 }
 
 const SettingsContext = createContext<SettingsContextValue | undefined>(undefined);
@@ -619,7 +623,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<BusinessSettings>({
     ...DEFAULT_SETTINGS,
   });
-  const [language, setLanguage] = useState('en');
+  const [language, setLanguage] = useState<Language>('en');
   const [hydrated, setHydrated] = useState(false);
   const authCtx = useContext(AuthContext);
   const syncUserId = authCtx?.user?.email;
@@ -651,7 +655,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       settings,
       language,
       updateSettings: (s: Partial<BusinessSettings>) => setSettings((prev: BusinessSettings) => ({ ...prev, ...s })),
-      setLanguage: (lang: string) => setLanguage(lang),
+      setLanguage: (lang: Language) => setLanguage(lang),
     }),
     [settings, language]
   );
