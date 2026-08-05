@@ -68,7 +68,7 @@ export default function PaymentLinkScreen() {
                     await navigator.share({ title: `Payment Request — ${businessName}`, text: msg });
                 } else {
                     await navigator.clipboard.writeText(msg);
-                    Alert.alert('Copied!', 'Payment request copied to clipboard. Paste it to send to your customer.');
+                    window.alert('Copied! Payment request copied to clipboard. Paste it to send to your customer.');
                 }
             } catch { /* user cancelled */ }
         } else {
@@ -102,7 +102,8 @@ export default function PaymentLinkScreen() {
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         } catch {
-            Alert.alert('Error', 'Could not copy text.');
+            if (Platform.OS === 'web') window.alert('Could not copy text.');
+            else Alert.alert('Error', 'Could not copy text.');
         }
     };
 
@@ -120,7 +121,8 @@ export default function PaymentLinkScreen() {
     const handlePaystack = async () => {
         if (!validate()) return;
         if (!customerEmail) {
-            Alert.alert('Email required', 'Please enter the customer email to use Paystack.');
+            if (Platform.OS === 'web') window.alert('Email required. Please enter the customer email to use Paystack.');
+            else Alert.alert('Email required', 'Please enter the customer email to use Paystack.');
             return;
         }
         // Open a blank window NOW (synchronous, in the tap handler) so iOS Safari
@@ -147,20 +149,27 @@ export default function PaymentLinkScreen() {
             } else {
                 openWebUrl(authUrl);
             }
-            Alert.alert(
-                'Payment page opened',
-                'Complete the payment in your browser. Come back here once done to confirm.',
-                [{ text: 'Mark as Paid', onPress: () => recordManualPayment('Paystack') }]
-            );
+            const confirmMsg = 'Payment page opened. Complete the payment in your browser. Come back here once done, then click OK to mark this as paid (or Cancel to do it later).';
+            if (Platform.OS === 'web') {
+                if (window.confirm(confirmMsg)) recordManualPayment('Paystack');
+            } else {
+                Alert.alert(
+                    'Payment page opened',
+                    'Complete the payment in your browser. Come back here once done to confirm.',
+                    [{ text: 'Mark as Paid', onPress: () => recordManualPayment('Paystack') }]
+                );
+            }
         } catch (e: any) {
             if (payWin && !payWin.closed) payWin.close();
-            if (e.message?.includes('Server error') || e.message?.includes('fetch') || e.message?.includes('Network')) {
-                Alert.alert(
-                    '🔌 Server unavailable',
-                    'The payment server is offline or starting up. Please try again in 30 seconds, or use “Send Payment Request” to share a manual payment link.'
-                );
+            const serverDown = e.message?.includes('Server error') || e.message?.includes('fetch') || e.message?.includes('Network');
+            const title = serverDown ? '🔌 Server unavailable' : 'Paystack error';
+            const body = serverDown
+                ? 'The payment server is offline or starting up. Please try again in 30 seconds, or use “Send Payment Request” to share a manual payment link.'
+                : (e.message || 'Could not start payment.');
+            if (Platform.OS === 'web') {
+                window.alert(`${title}\n\n${body}`);
             } else {
-                Alert.alert('Paystack error', e.message || 'Could not start payment.');
+                Alert.alert(title, body);
             }
         } finally {
             clearTimeout(wakeTimer);
@@ -173,7 +182,8 @@ export default function PaymentLinkScreen() {
     const handleKorapay = async () => {
         if (!validate()) return;
         if (!customerEmail) {
-            Alert.alert('Email required', 'Please enter the customer email to use Korapay.');
+            if (Platform.OS === 'web') window.alert('Email required. Please enter the customer email to use Korapay.');
+            else Alert.alert('Email required', 'Please enter the customer email to use Korapay.');
             return;
         }
         const payWin = Platform.OS === 'web' ? window.open('', '_blank') : null;
@@ -196,20 +206,27 @@ export default function PaymentLinkScreen() {
             } else {
                 openWebUrl(data.checkoutUrl);
             }
-            Alert.alert(
-                'Payment page opened',
-                'Complete the payment in your browser. Come back here once done to confirm.',
-                [{ text: 'Mark as Paid', onPress: () => recordManualPayment('Korapay') }]
-            );
+            const confirmMsg = 'Payment page opened. Complete the payment in your browser. Come back here once done, then click OK to mark this as paid (or Cancel to do it later).';
+            if (Platform.OS === 'web') {
+                if (window.confirm(confirmMsg)) recordManualPayment('Korapay');
+            } else {
+                Alert.alert(
+                    'Payment page opened',
+                    'Complete the payment in your browser. Come back here once done to confirm.',
+                    [{ text: 'Mark as Paid', onPress: () => recordManualPayment('Korapay') }]
+                );
+            }
         } catch (e: any) {
             if (payWin && !payWin.closed) payWin.close();
-            if (e.message?.includes('fetch') || e.message?.includes('Network')) {
-                Alert.alert(
-                    '🔌 Server unavailable',
-                    'The payment server is offline or starting up. Please try again in 30 seconds.'
-                );
+            const networkDown = e.message?.includes('fetch') || e.message?.includes('Network');
+            const title = networkDown ? '🔌 Server unavailable' : 'Korapay error';
+            const body = networkDown
+                ? 'The payment server is offline or starting up. Please try again in 30 seconds.'
+                : (e.message || 'Could not initialise payment.');
+            if (Platform.OS === 'web') {
+                window.alert(`${title}\n\n${body}`);
             } else {
-                Alert.alert('Korapay error', e.message || 'Could not initialise payment.');
+                Alert.alert(title, body);
             }
         } finally {
             clearTimeout(wakeTimer);
@@ -231,7 +248,9 @@ export default function PaymentLinkScreen() {
         if (params.invoiceId && markInvoiceStatus) {
             markInvoiceStatus(params.invoiceId, 'paid');
         }
-        Alert.alert('✅ Recorded', 'Payment saved to your transactions.' + (params.invoiceId ? ' Invoice marked as paid.' : ''));
+        const msg = '✅ Recorded. Payment saved to your transactions.' + (params.invoiceId ? ' Invoice marked as paid.' : '');
+        if (Platform.OS === 'web') window.alert(msg);
+        else Alert.alert('✅ Recorded', 'Payment saved to your transactions.' + (params.invoiceId ? ' Invoice marked as paid.' : ''));
         navigate('transactions');
     };
 
