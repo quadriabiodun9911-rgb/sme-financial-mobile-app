@@ -141,12 +141,35 @@ export default function LoginScreen() {
     const [resetStep, setResetStep]           = useState<'request' | 'verify' | 'complete-web'>('request');
     const [resetSubmitting, setResetSubmitting] = useState(false);
 
+    // Alert.alert doesn't render on Expo web — every call site in this screen
+    // used it unguarded, so PIN/email validation errors and reset/join-team
+    // outcomes silently no-opped on web with zero visible feedback. This
+    // mirrors the window.alert/window.confirm fallback already used in the
+    // "email already registered" branch below.
+    const showAlert = (
+        title: string,
+        message: string,
+        buttons?: { text: string; onPress?: () => void; style?: 'default' | 'cancel' | 'destructive' }[],
+    ) => {
+        if (Platform.OS === 'web') {
+            const actionable = buttons?.filter(b => b.style !== 'cancel') ?? [];
+            if (buttons && buttons.length > 1 && actionable.length >= 1) {
+                if (window.confirm(`${title}\n\n${message}`)) actionable[0].onPress?.();
+            } else {
+                window.alert(`${title}\n\n${message}`);
+                buttons?.[0]?.onPress?.();
+            }
+            return;
+        }
+        Alert.alert(title, message, buttons);
+    };
+
     const handleSetup = async () => {
         if (!email.trim() || !business.trim()) {
-            Alert.alert(t(setupLang, 'missingFields'), t(setupLang, 'email') + ' & ' + t(setupLang, 'businessName')); return;
+            showAlert(t(setupLang, 'missingFields'), t(setupLang, 'email') + ' & ' + t(setupLang, 'businessName')); return;
         }
-        if (!/^\d{6}$/.test(pin)) { Alert.alert(t(setupLang, 'error'), t(setupLang, 'invalidPin')); return; }
-        if (pin !== confirmPin)   { Alert.alert(t(setupLang, 'error'), t(setupLang, 'pinMismatch')); return; }
+        if (!/^\d{6}$/.test(pin)) { showAlert(t(setupLang, 'error'), t(setupLang, 'invalidPin')); return; }
+        if (pin !== confirmPin)   { showAlert(t(setupLang, 'error'), t(setupLang, 'pinMismatch')); return; }
         setSubmitting(true);
         try {
             setLanguage(setupLang);
@@ -175,7 +198,7 @@ export default function LoginScreen() {
                     );
                 }
             } else {
-                Alert.alert(t(setupLang, 'error'), msg || 'Could not create account. Please try again.');
+                showAlert(t(setupLang, 'error'), msg || 'Could not create account. Please try again.');
             }
             setSubmitting(false);
         }
@@ -183,30 +206,30 @@ export default function LoginScreen() {
 
     const handleLogin = async () => {
         if (isLockedOut && timeRemaining !== null && timeRemaining > 0) {
-            Alert.alert(
+            showAlert(
                 'Account Locked',
                 `Too many failed login attempts. Please try again in ${Math.ceil(timeRemaining / 60)} minute${Math.ceil(timeRemaining / 60) !== 1 ? 's' : ''}.`,
             );
             return;
         }
-        if (!returnPin) { Alert.alert(t(language, 'error'), 'Please enter your 6-digit PIN.'); return; }
+        if (!returnPin) { showAlert(t(language, 'error'), 'Please enter your 6-digit PIN.'); return; }
         const ok = await login(returnPin);
         if (!ok) {
-            Alert.alert(t(language, 'error'), 'Incorrect PIN. Please try again.');
+            showAlert(t(language, 'error'), 'Incorrect PIN. Please try again.');
             setReturnPin('');
         }
     };
 
     const handleEmailLogin = async () => {
         if (isLockedOut && timeRemaining !== null && timeRemaining > 0) {
-            Alert.alert(
+            showAlert(
                 'Account Locked',
                 `Too many failed login attempts. Please try again in ${Math.ceil(timeRemaining / 60)} minute${Math.ceil(timeRemaining / 60) !== 1 ? 's' : ''}.`,
             );
             return;
         }
-        if (!emailLoginEmail.trim()) { Alert.alert(t(language, 'error'), 'Please enter your email address.'); return; }
-        if (!emailLoginPin) { Alert.alert(t(language, 'error'), 'Please enter your 6-digit PIN.'); return; }
+        if (!emailLoginEmail.trim()) { showAlert(t(language, 'error'), 'Please enter your email address.'); return; }
+        if (!emailLoginPin) { showAlert(t(language, 'error'), 'Please enter your 6-digit PIN.'); return; }
 
         setSubmitting(true);
         let navigating = false;
@@ -219,16 +242,16 @@ export default function LoginScreen() {
             if (error) {
                 const msg = error.message.toLowerCase();
                 if (msg.includes('invalid login') || msg.includes('invalid credentials') || msg.includes('invalid email or password')) {
-                    Alert.alert('Incorrect Details', 'The email or PIN you entered is incorrect. Please try again.');
+                    showAlert('Incorrect Details', 'The email or PIN you entered is incorrect. Please try again.');
                 } else if (msg.includes('email not confirmed')) {
-                    Alert.alert('Email Not Verified', 'Please check your inbox and confirm your email before signing in.');
+                    showAlert('Email Not Verified', 'Please check your inbox and confirm your email before signing in.');
                 } else if (msg.includes('too many requests')) {
-                    Alert.alert('Too Many Attempts', 'Too many login attempts. Please wait a few minutes and try again.');
+                    showAlert('Too Many Attempts', 'Too many login attempts. Please wait a few minutes and try again.');
                 } else {
                     // Network / offline — fall back to local PIN
                     const ok = await login(emailLoginPin);
                     if (ok) { navigating = true; identifyUser(emailLoginEmail.trim()); trackUserLoggedIn('email'); return; }
-                    Alert.alert('Sign In Failed', 'Could not reach the server. Please check your connection and try again.');
+                    showAlert('Sign In Failed', 'Could not reach the server. Please check your connection and try again.');
                 }
             } else {
                 // Supabase session created — restore profile + data and navigate
@@ -242,7 +265,7 @@ export default function LoginScreen() {
             // Network error — try local PIN as offline fallback
             const ok = await login(emailLoginPin);
             if (ok) { navigating = true; identifyUser(emailLoginEmail.trim()); trackUserLoggedIn('email'); return; }
-            Alert.alert('Sign In Failed', 'Could not connect. Please check your internet connection and try again.');
+            showAlert('Sign In Failed', 'Could not connect. Please check your internet connection and try again.');
         } finally {
             if (!navigating) setSubmitting(false);
         }
@@ -250,23 +273,23 @@ export default function LoginScreen() {
     };
 
     const handleJoinTeam = async () => {
-        if (!joinEmail.trim()) { Alert.alert(t(language, 'required'), t(language, 'email')); return; }
-        if (!/^\d{6}$/.test(joinPin)) { Alert.alert(t(language, 'error'), t(language, 'invalidPin')); return; }
-        if (joinPin !== joinConfirm)  { Alert.alert(t(language, 'error'), t(language, 'pinMismatch')); return; }
-        if (!inviteCode.trim())       { Alert.alert(t(language, 'required'), t(language, 'inviteCode')); return; }
+        if (!joinEmail.trim()) { showAlert(t(language, 'required'), t(language, 'email')); return; }
+        if (!/^\d{6}$/.test(joinPin)) { showAlert(t(language, 'error'), t(language, 'invalidPin')); return; }
+        if (joinPin !== joinConfirm)  { showAlert(t(language, 'error'), t(language, 'pinMismatch')); return; }
+        if (!inviteCode.trim())       { showAlert(t(language, 'required'), t(language, 'inviteCode')); return; }
         setJoiningTeam(true);
         try {
             await joinTeam(joinEmail.trim(), joinPin, inviteCode.trim());
         } catch (e: any) {
-            Alert.alert('Join Failed', e?.message ?? 'Invalid invite code or account error.');
+            showAlert('Join Failed', e?.message ?? 'Invalid invite code or account error.');
             setJoiningTeam(false);
         }
     };
 
     const handleResetRequest = async () => {
-        if (!resetEmail.trim()) { Alert.alert('Error', 'Please enter your email address.'); return; }
-        if (!/^\d{6}$/.test(resetNewPin)) { Alert.alert('Error', 'New PIN must be exactly 6 digits.'); return; }
-        if (resetNewPin !== resetConfirmPin) { Alert.alert('Error', 'PINs do not match.'); return; }
+        if (!resetEmail.trim()) { showAlert('Error', 'Please enter your email address.'); return; }
+        if (!/^\d{6}$/.test(resetNewPin)) { showAlert('Error', 'New PIN must be exactly 6 digits.'); return; }
+        if (resetNewPin !== resetConfirmPin) { showAlert('Error', 'PINs do not match.'); return; }
         setResetSubmitting(true);
         try {
             const redirectTo = Platform.OS === 'web' && typeof window !== 'undefined'
@@ -276,30 +299,30 @@ export default function LoginScreen() {
             if (error) {
                 const msg = error.message.toLowerCase();
                 if (msg.includes('user not found') || msg.includes('not found')) {
-                    Alert.alert('No Account Found', 'No account exists with that email address. Please check and try again.');
+                    showAlert('No Account Found', 'No account exists with that email address. Please check and try again.');
                 } else {
-                    Alert.alert('Error', error.message);
+                    showAlert('Error', error.message);
                 }
             } else {
                 setResetStep('verify');
             }
         } catch (e: any) {
-            Alert.alert('Error', e?.message ?? 'Failed to send reset email.');
+            showAlert('Error', e?.message ?? 'Failed to send reset email.');
         }
         setResetSubmitting(false);
     };
 
     // Called after user clicks email link on web — Supabase auto-sets session from URL hash
     const handleWebResetComplete = async () => {
-        if (!/^\d{6}$/.test(resetNewPin)) { Alert.alert('Error', 'New PIN must be exactly 6 digits.'); return; }
-        if (resetNewPin !== resetConfirmPin) { Alert.alert('Error', 'PINs do not match.'); return; }
+        if (!/^\d{6}$/.test(resetNewPin)) { showAlert('Error', 'New PIN must be exactly 6 digits.'); return; }
+        if (resetNewPin !== resetConfirmPin) { showAlert('Error', 'PINs do not match.'); return; }
         setResetSubmitting(true);
         try {
             // Wait briefly for Supabase to process the URL hash token
             await new Promise(r => setTimeout(r, 800));
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) {
-                Alert.alert('Link Expired', 'This reset link has expired. Please request a new one.', [
+                showAlert('Link Expired', 'This reset link has expired. Please request a new one.', [
                     { text: 'OK', onPress: () => { setResetStep('request'); setResetNewPin(''); setResetConfirmPin(''); } }
                 ]);
                 setResetSubmitting(false);
@@ -307,7 +330,7 @@ export default function LoginScreen() {
             }
             const { error } = await supabase.auth.updateUser({ password: hashPin(resetNewPin) });
             if (error) {
-                Alert.alert('Reset Failed', error.message + '\n\nPlease request a new reset link.', [
+                showAlert('Reset Failed', error.message + '\n\nPlease request a new reset link.', [
                     { text: 'Try Again', onPress: () => setResetStep('request') }
                 ]);
                 setResetSubmitting(false);
@@ -317,24 +340,24 @@ export default function LoginScreen() {
             const email = session.user.email ?? '';
             await savePin(resetNewPin).catch(() => {});
             await saveProfile({ email, businessName: '' }).catch(() => {});
-            Alert.alert('PIN Reset Successful', 'Your new PIN is set. You are now logged in.', [
+            showAlert('PIN Reset Successful', 'Your new PIN is set. You are now logged in.', [
                 { text: 'Continue', onPress: async () => {
                     try { await recoverAccount(email, resetNewPin); } catch {}
                     setResetStep('request'); setResetNewPin(''); setResetConfirmPin('');
                 }}
             ]);
         } catch (e: any) {
-            Alert.alert('Error', e?.message ?? 'Reset failed. Please try again.');
+            showAlert('Error', e?.message ?? 'Reset failed. Please try again.');
             setResetStep('request');
         }
         setResetSubmitting(false);
     };
 
     const handleResetVerify = async () => {
-        if (!/^\d{6}$/.test(resetOtp.trim())) { Alert.alert('Error', 'Please enter the 6-digit code from the email link.'); return; }
+        if (!/^\d{6}$/.test(resetOtp.trim())) { showAlert('Error', 'Please enter the 6-digit code from the email link.'); return; }
         setResetSubmitting(true);
         try {
-            
+
             // On web the reset link sets a session automatically via the URL hash;
             // verify the OTP token directly for environments that support it
             const { error: verifyError } = await supabase.auth.verifyOtp({
@@ -343,21 +366,21 @@ export default function LoginScreen() {
                 type: 'recovery',
             });
             if (verifyError) {
-                Alert.alert('Invalid Code', 'The code is incorrect or has expired. Please request a new reset email.');
+                showAlert('Invalid Code', 'The code is incorrect or has expired. Please request a new reset email.');
                 setResetSubmitting(false);
                 return;
             }
             const { error: updateError } = await supabase.auth.updateUser({ password: hashPin(resetNewPin) });
             if (updateError) {
-                Alert.alert('Error', 'Could not update PIN: ' + updateError.message);
+                showAlert('Error', 'Could not update PIN: ' + updateError.message);
                 setResetSubmitting(false);
                 return;
             }
-            Alert.alert('PIN Reset Successful', 'Your PIN has been updated. Please log in with your new PIN.', [
+            showAlert('PIN Reset Successful', 'Your PIN has been updated. Please log in with your new PIN.', [
                 { text: 'OK', onPress: () => { setMode('owner-login'); setLoginMethod('email'); setEmailLoginEmail(resetEmail.trim()); setResetStep('request'); setResetOtp(''); setResetNewPin(''); setResetConfirmPin(''); } }
             ]);
         } catch (e: any) {
-            Alert.alert('Error', e?.message ?? 'Verification failed.');
+            showAlert('Error', e?.message ?? 'Verification failed.');
         }
         setResetSubmitting(false);
     };
