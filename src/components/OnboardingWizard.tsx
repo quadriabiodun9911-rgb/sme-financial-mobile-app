@@ -28,6 +28,7 @@ export default function OnboardingWizard({ visible, onDone }: Props) {
             description: desc.trim(),
             category: txType === 'income' ? 'Sales' : 'General',
             status: 'paid',
+            date: new Date().toISOString().split('T')[0],
         });
         setStep(2);
     };
