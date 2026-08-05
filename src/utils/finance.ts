@@ -431,33 +431,43 @@ export function filterByDateRange(transactions: Transaction[], range: DateRange)
 export function getPreviousPeriodRange(period: ReportPeriod): { current: DateRange; previous: DateRange } {
     const now = new Date();
     const today = now.toISOString().split('T')[0];
+    const iso = (d: Date) => d.toISOString().split('T')[0];
+
+    // Compares "so far this period" against the SAME NUMBER OF ELAPSED DAYS
+    // in the prior period, not the prior period's full length. Comparing a
+    // few days into a new month against a full previous month always shows
+    // a "decline" purely because fewer days have elapsed — not because the
+    // business is actually doing worse. This was silently misleading e.g.
+    // the Analysis screen's "Why is your profit changing?" headline early
+    // in any month.
+    const buildRange = (currentStart: Date, previousStart: Date, previousEnd: Date) => {
+        const daysElapsed = Math.floor((now.getTime() - currentStart.getTime()) / 86400000) + 1;
+        const previousTo = new Date(previousStart);
+        previousTo.setDate(previousTo.getDate() + daysElapsed - 1);
+        if (previousTo > previousEnd) previousTo.setTime(previousEnd.getTime());
+        return {
+            current:  { from: iso(currentStart), to: today },
+            previous: { from: iso(previousStart), to: iso(previousTo) },
+        };
+    };
 
     if (period === 'month') {
-        const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-        const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0];
-        const lastMonthEnd   = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0];
-        return {
-            current:  { from: thisMonthStart, to: today },
-            previous: { from: lastMonthStart, to: lastMonthEnd },
-        };
+        const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const lastMonthEnd   = new Date(now.getFullYear(), now.getMonth(), 0);
+        return buildRange(thisMonthStart, lastMonthStart, lastMonthEnd);
     }
     if (period === 'quarter') {
-        const thisQStart  = new Date(now.getFullYear(), now.getMonth() - 2, 1).toISOString().split('T')[0];
-        const prevQStart  = new Date(now.getFullYear(), now.getMonth() - 5, 1).toISOString().split('T')[0];
-        const prevQEnd    = new Date(now.getFullYear(), now.getMonth() - 3, 0).toISOString().split('T')[0];
-        return {
-            current:  { from: thisQStart, to: today },
-            previous: { from: prevQStart, to: prevQEnd },
-        };
+        const thisQStart = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+        const prevQStart = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+        const prevQEnd   = new Date(now.getFullYear(), now.getMonth() - 2, 0);
+        return buildRange(thisQStart, prevQStart, prevQEnd);
     }
     // year
-    const thisYearStart = `${now.getFullYear()}-01-01`;
-    const lastYearStart = `${now.getFullYear() - 1}-01-01`;
-    const lastYearEnd   = `${now.getFullYear() - 1}-12-31`;
-    return {
-        current:  { from: thisYearStart, to: today },
-        previous: { from: lastYearStart, to: lastYearEnd },
-    };
+    const thisYearStart = new Date(now.getFullYear(), 0, 1);
+    const lastYearStart = new Date(now.getFullYear() - 1, 0, 1);
+    const lastYearEnd   = new Date(now.getFullYear() - 1, 11, 31);
+    return buildRange(thisYearStart, lastYearStart, lastYearEnd);
 }
 
 export interface MonthlyPoint {
