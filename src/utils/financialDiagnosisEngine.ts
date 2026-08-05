@@ -118,18 +118,40 @@ export function calculateFinancialMetrics(
   );
 
   const thisMonthRevenue = thisMonthTransactions.reduce((sum, t) => sum + t.amount, 0);
-  const lastMonthRevenue = lastMonthTransactions.reduce((sum, t) => sum + t.amount, 0);
 
   // Expense calculations
   const expenseTransactions = transactions.filter(t => t.type === 'expense');
   const thisMonthExpenses = expenseTransactions
     .filter(t => t.date.startsWith(thisMonth))
     .reduce((sum, t) => sum + t.amount, 0);
-  const lastMonthExpenses = expenseTransactions
-    .filter(t => t.date.startsWith(lastMonth))
+
+  // Growth comparisons below use a day-capped version of lastMonth — "this
+  // month" here means "latest data month" (see comment above), which for
+  // an actively-used
+  // business is whatever real month is in progress right now, i.e. USUALLY
+  // partial. Comparing e.g. 5 days of data against a full 31-day previous
+  // month reports a large fake decline purely from fewer days having
+  // elapsed — the same fallacy already fixed in getPreviousPeriodRange and
+  // getWeekRanges. dayCap stays anchored to the latest date actually SEEN
+  // in the data (not `now`), preserving this file's calendar-blindness for
+  // historical/imported datasets: a complete historical month naturally has
+  // dayCap = its own length, so the comparison is unaffected there.
+  const thisMonthDaysSeen = transactions
+    .filter(t => t.date.startsWith(thisMonth))
+    .map(t => parseInt(t.date.slice(8, 10), 10))
+    .filter(d => !isNaN(d));
+  const lastMonthLength = new Date(thisMonthYear, thisMonthNum - 1, 0).getDate();
+  const dayCap = thisMonthDaysSeen.length > 0 ? Math.min(Math.max(...thisMonthDaysSeen), lastMonthLength) : lastMonthLength;
+
+  const lastMonthRevenueComparable = lastMonthTransactions
+    .filter(t => parseInt(t.date.slice(8, 10), 10) <= dayCap)
     .reduce((sum, t) => sum + t.amount, 0);
+  const lastMonthExpensesComparable = expenseTransactions
+    .filter(t => t.date.startsWith(lastMonth) && parseInt(t.date.slice(8, 10), 10) <= dayCap)
+    .reduce((sum, t) => sum + t.amount, 0);
+
   const expenseGrowthPct =
-    lastMonthExpenses > 0 ? ((thisMonthExpenses - lastMonthExpenses) / lastMonthExpenses) * 100 : 0;
+    lastMonthExpensesComparable > 0 ? ((thisMonthExpenses - lastMonthExpensesComparable) / lastMonthExpensesComparable) * 100 : 0;
 
   const expensesByCategory: Record<string, number> = {};
   expenseTransactions
@@ -147,7 +169,7 @@ export function calculateFinancialMetrics(
 
   // Growth calculation
   const monthOverMonthGrowth =
-    lastMonthRevenue > 0 ? ((thisMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100 : 0;
+    lastMonthRevenueComparable > 0 ? ((thisMonthRevenue - lastMonthRevenueComparable) / lastMonthRevenueComparable) * 100 : 0;
 
   // Runway deliberately does NOT delegate to the canonical computeCashRunway
   // (cashRunway.ts) — that function is anchored to the real system clock

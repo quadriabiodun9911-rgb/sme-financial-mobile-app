@@ -8,7 +8,7 @@
 import React, { useState, useCallback } from 'react';
 import {
     View, Text, TouchableOpacity, ScrollView,
-    StyleSheet, ActivityIndicator, Alert,
+    StyleSheet, ActivityIndicator, Alert, Platform,
 } from 'react-native';
 import { useApp } from '../contexts/OptimizedContexts';
 import { Colors } from '../theme/colors';
@@ -66,11 +66,9 @@ export default function FinancialHealthScreen() {
 
     const fetchHealth = useCallback(async () => {
         if (!phone) {
-            Alert.alert(
-                'Phone number required',
-                'Please add your phone number in Settings to use Financial Health scoring.',
-                [{ text: 'OK' }]
-            );
+            const msg = 'Phone number required. Please add your phone number in Settings to use Financial Health scoring.';
+            if (Platform.OS === 'web') window.alert(msg);
+            else Alert.alert('Phone number required', 'Please add your phone number in Settings to use Financial Health scoring.', [{ text: 'OK' }]);
             return;
         }
 
@@ -89,7 +87,8 @@ export default function FinancialHealthScreen() {
                 console.warn('Pngme partial errors:', json.errors);
             }
         } catch (err: any) {
-            Alert.alert('Could not load data', err.message);
+            if (Platform.OS === 'web') window.alert(`Could not load data: ${err.message}`);
+            else Alert.alert('Could not load data', err.message);
         } finally {
             setLoading(false);
         }

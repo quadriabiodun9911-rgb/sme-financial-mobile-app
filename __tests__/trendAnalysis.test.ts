@@ -198,4 +198,30 @@ describe('analyzeTrend — a genuine multi-year view, not just a current-month s
         expect(trend.bestMonth?.month).toBe('2024-01');
         expect(trend.worstMonth?.month).toBe('2024-02');
     });
+
+    it('does not crown the current in-progress month as "toughest" just because it has fewer days of data', () => {
+        jest.useFakeTimers().setSystemTime(new Date('2025-04-05T12:00:00'));
+        try {
+            const txs = [
+                // Two complete prior months, both solidly profitable
+                makeTx({ type: 'income', amount: 200000, date: '2025-02-10' }),
+                makeTx({ type: 'expense', amount: 50000, date: '2025-02-15' }), // profit 150000
+                makeTx({ type: 'income', amount: 205000, date: '2025-03-10' }),
+                makeTx({ type: 'expense', amount: 45000, date: '2025-03-15' }), // profit 160000
+                // Only 5 days into April — a smaller (but still real) profit
+                // purely because the month just started, not a downturn
+                makeTx({ type: 'income', amount: 30000, date: '2025-04-02' }),
+                makeTx({ type: 'expense', amount: 5000, date: '2025-04-04' }), // profit 25000
+            ];
+            const trend = analyzeTrend(txs);
+            // Without the fix, April (profit 25000, the lowest raw total)
+            // would be misreported as the worst month purely for not being
+            // over yet — February, the genuinely lower of the two complete
+            // months, should be identified instead.
+            expect(trend.worstMonth?.month).toBe('2025-02');
+            expect(trend.bestMonth?.month).toBe('2025-03');
+        } finally {
+            jest.useRealTimers();
+        }
+    });
 });

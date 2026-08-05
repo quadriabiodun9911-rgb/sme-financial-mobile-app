@@ -11,7 +11,7 @@
 import React, { useState } from 'react';
 import {
     SafeAreaView, View, Text, TextInput, TouchableOpacity,
-    StyleSheet, Alert, ActivityIndicator,
+    StyleSheet, ActivityIndicator,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -21,18 +21,24 @@ export default function TwoFactorVerifyScreen() {
     const [code, setCode] = useState('');
     const [useBackupCode, setUseBackupCode] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    // Alert.alert is a confirmed no-op on web (same issue already fixed in
+    // TwoFactorSetupScreen) — a wrong/empty code here produced zero visible
+    // feedback on this security-critical login gate. Inline error, same
+    // pattern used there.
+    const [codeError, setCodeError] = useState('');
 
     const handleVerify = async () => {
         const trimmed = code.trim();
+        setCodeError('');
         if (!trimmed) {
-            Alert.alert('Enter a code', useBackupCode ? 'Enter one of your backup codes.' : 'Enter your 6-digit authenticator code.');
+            setCodeError(useBackupCode ? 'Enter one of your backup codes.' : 'Enter your 6-digit authenticator code.');
             return;
         }
         setSubmitting(true);
         try {
             const ok = await completeTwoFactorLogin(trimmed, 'totp');
             if (!ok) {
-                Alert.alert('Incorrect Code', useBackupCode ? 'That backup code is invalid or already used.' : 'That code is incorrect or has expired. Try again.');
+                setCodeError(useBackupCode ? 'That backup code is invalid or already used.' : 'That code is incorrect or has expired. Try again.');
                 setCode('');
             }
         } finally {
@@ -52,7 +58,7 @@ export default function TwoFactorVerifyScreen() {
                 <TextInput
                     style={s.input}
                     value={code}
-                    onChangeText={setCode}
+                    onChangeText={(text) => { setCode(text); if (codeError) setCodeError(''); }}
                     placeholder={useBackupCode ? 'Backup code' : '6-digit code'}
                     placeholderTextColor={Colors.textMuted}
                     keyboardType={useBackupCode ? 'default' : 'number-pad'}
@@ -60,6 +66,7 @@ export default function TwoFactorVerifyScreen() {
                     autoFocus
                     autoCapitalize="characters"
                 />
+                {codeError ? <Text style={s.errorText}>{codeError}</Text> : null}
 
                 <TouchableOpacity style={s.primaryBtn} onPress={handleVerify} disabled={submitting}>
                     {submitting ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryBtnText}>Verify</Text>}
@@ -88,6 +95,7 @@ const s = StyleSheet.create({
         paddingHorizontal: 16, paddingVertical: 14, fontSize: 18, color: Colors.textPrimary, textAlign: 'center',
         letterSpacing: 4, marginBottom: 20,
     },
+    errorText: { fontSize: 13, color: Colors.expense, textAlign: 'center', marginTop: -12, marginBottom: 16 },
     primaryBtn: { width: '100%', backgroundColor: Colors.primary, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginBottom: 16 },
     primaryBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
     link: { fontSize: 13, color: Colors.primary, fontWeight: '600', textAlign: 'center' },

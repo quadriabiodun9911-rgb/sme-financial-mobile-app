@@ -406,9 +406,17 @@ export function computeMomentum(transactions: Transaction[]): MomentumResult {
     else if (growthScore >= 40) growthVerdict = 'Steady progress. Revenue is moving but there\'s room to improve consistency.';
     else growthVerdict = 'Growth needs attention. Focus on consistent revenue and reducing loss months.';
 
+    // Excludes the current in-progress calendar month from the best/worst
+    // ranking (same fix as trendAnalysis.ts's analyzeTrend) — its partial
+    // total compared against fully-elapsed months almost always looks like
+    // the "weakest" simply because it hasn't finished yet. Falls back to
+    // including it only when there's no other active month to rank instead.
+    const currentRealMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     const profitMonths = months.filter(m => m.txCount > 0);
-    const bestMonth  = profitMonths.length > 0 ? profitMonths.reduce((a, b) => b.profit > a.profit ? b : a) : null;
-    const worstMonth = profitMonths.length > 0 ? profitMonths.reduce((a, b) => b.profit < a.profit ? b : a) : null;
+    const rankableMonths = profitMonths.length > 1 ? profitMonths.filter(m => m.month !== currentRealMonth) : profitMonths;
+    const superlativeSource = rankableMonths.length > 0 ? rankableMonths : profitMonths;
+    const bestMonth  = superlativeSource.length > 0 ? superlativeSource.reduce((a, b) => b.profit > a.profit ? b : a) : null;
+    const worstMonth = superlativeSource.length > 0 ? superlativeSource.reduce((a, b) => b.profit < a.profit ? b : a) : null;
 
     return { months, avgRevenue, avgProfit, avgTxValue, revenueGrowthPct, profitGrowthPct, bestMonth, worstMonth, growthScore, growthVerdict, growthTrend };
 }

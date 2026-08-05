@@ -452,7 +452,7 @@ export default function DashboardScreen() {
                       onPress={() => setCurrentScreen('financial-assessment')}
                     >
                       <Text style={styles.engineEmoji}>🔍</Text>
-                      <Text style={styles.engineTitle}>Financial<br/>Assessment</Text>
+                      <Text style={styles.engineTitle}>{'Financial\nAssessment'}</Text>
                       <Text style={styles.engineSubtext}>Diagnose issues</Text>
                     </TouchableOpacity>
                     <TouchableOpacity

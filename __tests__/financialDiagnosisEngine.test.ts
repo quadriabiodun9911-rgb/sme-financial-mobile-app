@@ -81,6 +81,41 @@ describe('calculateFinancialMetrics — uses the latest data month, not real-wor
         const m = calculateFinancialMetrics(txs, [], 10000, 5000);
         expect(m.monthOverMonthGrowth).toBeCloseTo(50, 0); // (150k-100k)/100k
     });
+
+    it('does not report a fake decline from comparing a few days of the latest month against a full previous month', () => {
+        // The latest data month only has 5 days of transactions (an
+        // actively-used business mid-month) — comparing that against ALL
+        // 31 days of the previous month used to report a large fabricated
+        // "decline" purely from fewer days having elapsed, not real
+        // business performance.
+        const txs = [
+            // Full March: 31 days worth, 10000/day = 310000 total
+            ...Array.from({ length: 31 }, (_, i) =>
+                makeTx({ id: `mar-${i}`, type: 'income', amount: 10000, status: 'paid', date: `2025-03-${String(i + 1).padStart(2, '0')}` })
+            ),
+            // Only the first 5 days of April, at the SAME daily pace
+            ...Array.from({ length: 5 }, (_, i) =>
+                makeTx({ id: `apr-${i}`, type: 'income', amount: 10000, status: 'paid', date: `2025-04-0${i + 1}` })
+            ),
+        ];
+        const m = calculateFinancialMetrics(txs, [], 10000, 5000);
+        // Like-for-like (first 5 days of March vs first 5 days of April,
+        // both 50000) should show ~0% growth, not the ~-84% a full-month
+        // comparison (50000 vs 310000) would report.
+        expect(m.monthOverMonthGrowth).toBeCloseTo(0, 0);
+    });
+
+    it('still compares full months when the latest data month is itself complete (historical import)', () => {
+        // A fully-imported historical month must behave exactly as before —
+        // dayCap naturally equals the month's own length when data spans
+        // the whole month, so this is unaffected by the partial-month fix.
+        const txs = [
+            makeTx({ id: 'feb', type: 'income', amount: 100000, status: 'paid', date: '2025-02-28' }),
+            makeTx({ id: 'mar', type: 'income', amount: 150000, status: 'paid', date: '2025-03-31' }),
+        ];
+        const m = calculateFinancialMetrics(txs, [], 10000, 5000);
+        expect(m.monthOverMonthGrowth).toBeCloseTo(50, 0);
+    });
 });
 
 describe('calculateFinancialMetrics — runway uses actual monthly expense, not a lifetime total', () => {
