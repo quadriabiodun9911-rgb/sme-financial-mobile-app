@@ -21,6 +21,7 @@ import {
     Modal,
     ActivityIndicator,
     TextInput,
+    Platform,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -61,6 +62,7 @@ export default function TwoFactorSetupScreen() {
     const [qrCodeUrl, setQrCodeUrl] = useState('');
     const [verificationCode, setVerificationCode] = useState('');
     const [verifying, setVerifying] = useState(false);
+    const [codeError, setCodeError] = useState('');
     const [backupCodes, setBackupCodes] = useState<string[]>([]);
     const [showBackupCodes, setShowBackupCodes] = useState(false);
     const [backupCodesCount, setBackupCodesCount] = useState(0);
@@ -95,8 +97,9 @@ export default function TwoFactorSetupScreen() {
     };
 
     const handleVerifyCode = async () => {
+        setCodeError('');
         if (!verificationCode || verificationCode.length !== 6) {
-            Alert.alert('Invalid Code', 'Please enter a 6-digit code');
+            setCodeError('Please enter a 6-digit code');
             return;
         }
 
@@ -105,7 +108,7 @@ export default function TwoFactorSetupScreen() {
             // Verify against the in-memory secret — it hasn't been saved yet
             const isValid = verifyTOTPCode(secret, verificationCode);
             if (!isValid) {
-                Alert.alert('Invalid Code', 'The code you entered is incorrect. Please try again.');
+                setCodeError('The code you entered is incorrect. Please try again.');
                 return;
             }
 
@@ -121,38 +124,55 @@ export default function TwoFactorSetupScreen() {
 
             setStatus('enabled');
             setSetupStep(4);
-            Alert.alert(
-                '2FA Enabled!',
-                'Two-factor authentication has been successfully enabled. Please save your backup codes in a secure location.',
-            );
         } catch (e) {
-            Alert.alert('Error', `Failed to enable 2FA: ${e}`);
+            setCodeError(`Failed to enable 2FA: ${e}`);
         } finally {
             setVerifying(false);
         }
     };
 
     const handleDisable2FA = () => {
-        Alert.alert('Disable 2FA?', 'Are you sure you want to disable two-factor authentication?', [
+        const msg = 'Are you sure you want to disable two-factor authentication?';
+        const doDisable = async () => {
+            try {
+                await disableTwoFactor();
+                setStatus('disabled');
+                if (Platform.OS === 'web') {
+                    window.alert('Two-factor authentication has been disabled.');
+                } else {
+                    Alert.alert('2FA Disabled', 'Two-factor authentication has been disabled.');
+                }
+            } catch (e) {
+                if (Platform.OS === 'web') {
+                    window.alert(`Failed to disable 2FA: ${e}`);
+                } else {
+                    Alert.alert('Error', `Failed to disable 2FA: ${e}`);
+                }
+            }
+        };
+
+        if (Platform.OS === 'web') {
+            if (window.confirm(msg)) doDisable();
+            return;
+        }
+        Alert.alert('Disable 2FA?', msg, [
             { text: 'Cancel', style: 'cancel' },
-            {
-                text: 'Disable',
-                style: 'destructive',
-                onPress: async () => {
-                    try {
-                        await disableTwoFactor();
-                        setStatus('disabled');
-                        Alert.alert('2FA Disabled', 'Two-factor authentication has been disabled.');
-                    } catch (e) {
-                        Alert.alert('Error', `Failed to disable 2FA: ${e}`);
-                    }
-                },
-            },
+            { text: 'Disable', style: 'destructive', onPress: doDisable },
         ]);
     };
 
     const downloadBackupCodes = () => {
         const codesText = backupCodes.join('\n');
+        if (Platform.OS === 'web') {
+            const blob = new Blob([codesText], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'quad360-2fa-backup-codes.txt';
+            a.click();
+            URL.revokeObjectURL(url);
+            return;
+        }
         // In production, use react-native-share or similar
         Alert.alert(
             'Backup Codes',
@@ -286,9 +306,10 @@ export default function TwoFactorSetupScreen() {
                             keyboardType="number-pad"
                             maxLength={6}
                             value={verificationCode}
-                            onChangeText={setVerificationCode}
+                            onChangeText={(text) => { setVerificationCode(text); if (codeError) setCodeError(''); }}
                             editable={!verifying}
                         />
+                        {codeError ? <Text style={styles.errorText}>{codeError}</Text> : null}
                     </View>
 
                     <TouchableOpacity
@@ -469,6 +490,12 @@ const styles = StyleSheet.create({
         borderBottomColor: Colors.primary,
         width: 200,
         paddingVertical: 12,
+    },
+    errorText: {
+        fontSize: 13,
+        color: Colors.expense,
+        marginTop: 12,
+        textAlign: 'center',
     },
 
     warningCard: {
