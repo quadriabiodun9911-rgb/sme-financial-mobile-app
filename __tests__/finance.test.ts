@@ -7,6 +7,7 @@ import {
     transactionsToCSV,
     getTaxRatePercent,
     countActiveMonths,
+    getMonthlyExpenseAverage,
 } from '../src/utils/finance';
 import { Transaction } from '../src/types';
 
@@ -342,5 +343,19 @@ describe('countActiveMonths', () => {
         expect(activeMonths).toBe(12);
         const totalExpense = txs.reduce((s, t) => s + t.amount, 0);
         expect(totalExpense / activeMonths).toBe(10000); // genuine monthly average, not the ₦120,000 all-time total
+    });
+});
+
+describe('getMonthlyExpenseAverage', () => {
+    it('divides an all-time cumulative expense total by the number of active months', () => {
+        const txs = [
+            makeTx({ date: '2026-01-05' }),
+            makeTx({ date: '2026-02-10' }),
+        ];
+        expect(getMonthlyExpenseAverage(60000, txs)).toBe(30000);
+    });
+
+    it('returns 0 for a business with genuinely zero recorded expenses, not a fabricated fallback', () => {
+        expect(getMonthlyExpenseAverage(0, [])).toBe(0);
     });
 });

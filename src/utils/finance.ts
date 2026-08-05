@@ -25,6 +25,15 @@ export function countActiveMonths(transactions: Transaction[]): number {
     return new Set(transactions.map(t => (t.date || '').slice(0, 7)).filter(Boolean)).size || 1;
 }
 
+// Convenience wrapper for the app's most common use of countActiveMonths:
+// turning an all-time cumulative expense total (FinanceData.expense) into
+// the genuine monthly average performFinancialDiagnosis's
+// monthlyExpenseAverage parameter expects. Centralized so every call site
+// stays in sync if the averaging logic ever changes.
+export function getMonthlyExpenseAverage(expense: number, transactions: Transaction[]): number {
+    return expense / countActiveMonths(transactions);
+}
+
 // ─── Business size classification ─────────────────────────────────────────────
 export type BusinessSize = 'micro' | 'small' | 'medium' | 'large';
 

@@ -15,14 +15,16 @@ import { calculateGoalBridge, mapSavedGoalToBridge } from '../utils/goalBridgeEn
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan } from '../utils/actionRecommendationEngine';
 import { suggestSolution, ImpactSource } from '../utils/impactChain';
-import { countActiveMonths } from '../utils/finance';
+import { getMonthlyExpenseAverage } from '../utils/finance';
 
 // Alert.alert is a silent no-op on react-native-web — without this, every
 // validation error here (missing title/deadline/amount) failed with no
 // feedback at all: the user tapped Create/Save and nothing happened.
 function showAlert(title: string, message: string) {
     if (Platform.OS === 'web') {
-        window.alert(`${title}\n\n${message}`);
+        if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+            window.alert(`${title}\n\n${message}`);
+        }
     } else {
         Alert.alert(title, message);
     }
@@ -91,7 +93,7 @@ export default function GoalsScreen() {
     // instead of only revealing that after tapping into a separate screen.
     const feasibilityByGoalId = useMemo(() => {
         if (transactions.length < 5 || goals.length === 0) return {};
-        const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, finance.expense / countActiveMonths(transactions), settings.currency, loans, inventory);
+        const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), settings.currency, loans, inventory);
         const tactics = generateActionPlan(diagnosis, diagnosis.metrics, settings.currency);
         const allTactics = [...tactics.immediateActions, ...tactics.shortTermActions, ...tactics.strategicActions];
         const map: Record<string, { feasibility: string; requiredMonthlyImprovement: number; successProbability: number }> = {};
