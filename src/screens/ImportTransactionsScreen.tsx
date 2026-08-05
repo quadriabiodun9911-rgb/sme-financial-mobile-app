@@ -13,6 +13,7 @@ import { Colors } from '../theme/colors';
 import { parsePdfStatement } from '../utils/pdfParser';
 import { filterNewTransactions } from '../utils/transactionDedup';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
+import { getMonthlyExpenseAverage } from '../utils/finance';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -385,7 +386,7 @@ export default function ImportTransactionsScreen() {
             transactions,
             invoices,
             finance.cashBalance,
-            finance.expense || 100000,
+            getMonthlyExpenseAverage(finance.expense, transactions),
             currency,
             loans,
             inventory

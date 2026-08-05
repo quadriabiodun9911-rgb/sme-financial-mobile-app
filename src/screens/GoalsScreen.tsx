@@ -15,6 +15,20 @@ import { calculateGoalBridge, mapSavedGoalToBridge } from '../utils/goalBridgeEn
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan } from '../utils/actionRecommendationEngine';
 import { suggestSolution, ImpactSource } from '../utils/impactChain';
+import { getMonthlyExpenseAverage } from '../utils/finance';
+
+// Alert.alert is a silent no-op on react-native-web — without this, every
+// validation error here (missing title/deadline/amount) failed with no
+// feedback at all: the user tapped Create/Save and nothing happened.
+function showAlert(title: string, message: string) {
+    if (Platform.OS === 'web') {
+        if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+            window.alert(`${title}\n\n${message}`);
+        }
+    } else {
+        Alert.alert(title, message);
+    }
+}
 
 // Maps each goal type to the closest matching solution category — a
 // revenue/margin goal is fundamentally a pricing/growth problem, a cost or
@@ -79,7 +93,7 @@ export default function GoalsScreen() {
     // instead of only revealing that after tapping into a separate screen.
     const feasibilityByGoalId = useMemo(() => {
         if (transactions.length < 5 || goals.length === 0) return {};
-        const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, finance.expense || 1, settings.currency, loans, inventory);
+        const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), settings.currency, loans, inventory);
         const tactics = generateActionPlan(diagnosis, diagnosis.metrics, settings.currency);
         const allTactics = [...tactics.immediateActions, ...tactics.shortTermActions, ...tactics.strategicActions];
         const map: Record<string, { feasibility: string; requiredMonthlyImprovement: number; successProbability: number }> = {};
@@ -154,10 +168,10 @@ export default function GoalsScreen() {
 
     const handleCreate = () => {
         if (!selectedType) return;
-        if (!form.title.trim()) { Alert.alert('Almost there', 'Give your goal a name first'); return; }
-        if (!form.deadline.match(/^\d{4}-\d{2}-\d{2}$/)) { Alert.alert('Please pick a date', 'Tap the date field and choose your deadline'); return; }
+        if (!form.title.trim()) { showAlert('Almost there', 'Give your goal a name first'); return; }
+        if (!form.deadline.match(/^\d{4}-\d{2}-\d{2}$/)) { showAlert('Please pick a date', 'Tap the date field and choose your deadline'); return; }
         const tv = parseFloat(form.targetValue);
-        if (isNaN(tv)) { Alert.alert('Please enter an amount', 'Type in the target amount, e.g. 50000'); return; }
+        if (isNaN(tv)) { showAlert('Please enter an amount', 'Type in the target amount, e.g. 50000'); return; }
 
         const pct = parseFloat(form.percentTarget);
         addGoal(buildNewGoal({
@@ -193,10 +207,10 @@ export default function GoalsScreen() {
 
     const handleEditSave = () => {
         if (!editGoal) return;
-        if (!form.title.trim()) { Alert.alert('Almost there', 'Give your goal a name first'); return; }
-        if (!form.deadline.match(/^\d{4}-\d{2}-\d{2}$/)) { Alert.alert('Please pick a date', 'Tap the date field and choose your deadline'); return; }
+        if (!form.title.trim()) { showAlert('Almost there', 'Give your goal a name first'); return; }
+        if (!form.deadline.match(/^\d{4}-\d{2}-\d{2}$/)) { showAlert('Please pick a date', 'Tap the date field and choose your deadline'); return; }
         const tv = parseFloat(form.targetValue);
-        if (isNaN(tv)) { Alert.alert('Please enter an amount', 'Type in the target amount, e.g. 50000'); return; }
+        if (isNaN(tv)) { showAlert('Please enter an amount', 'Type in the target amount, e.g. 50000'); return; }
         const pct = parseFloat(form.percentTarget);
         updateGoal(editGoal.id, { title: form.title.trim(), description: form.description.trim(), targetValue: tv, deadline: form.deadline, percentTarget: isNaN(pct) ? undefined : pct });
         setEditGoal(null);

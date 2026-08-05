@@ -10,6 +10,7 @@ import { generateActionPlan, ActionTactic } from '../utils/actionRecommendationE
 import { initiateTacticTracking, updateTacticProgress, recordTacticOutcome, measureActualImpact, TacticExecution, TacticOutcome } from '../utils/outcomeTrackingEngine';
 import NextStepLink from '../components/NextStepLink';
 import { computeCashRunway } from '../utils/cashRunway';
+import { getMonthlyExpenseAverage } from '../utils/finance';
 
 const EXECUTIONS_KEY = 'quad360_tactic_executions_v1';
 const OUTCOMES_KEY = 'quad360_tactic_outcomes_v1';
@@ -116,7 +117,7 @@ export default function ActionTrackerScreen() {
       transactions,
       invoices,
       finance.cashBalance,
-      finance.expense || 100000,
+      getMonthlyExpenseAverage(finance.expense, transactions),
       settings.currency,
       loans,
       inventory
