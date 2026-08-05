@@ -4,8 +4,10 @@ import {
     computeObligationsWaterfall,
     computeRevenueShockImpact,
     computeFullCapitalCapacity,
+    computeTrailingAccrualFigures,
+    trailingCutoffDateString,
 } from '../src/utils/cfoMetrics';
-import { Loan } from '../src/types';
+import { Loan, Transaction } from '../src/types';
 
 const today = new Date();
 const d = (daysAgo: number) => {
@@ -13,6 +15,17 @@ const d = (daysAgo: number) => {
     date.setDate(date.getDate() - daysAgo);
     return date.toISOString().split('T')[0];
 };
+
+const makeTx = (overrides: Partial<Transaction>): Transaction => ({
+    id: 'tx',
+    date: d(0),
+    description: 'Test',
+    type: 'income',
+    category: 'Sales',
+    amount: 1000,
+    status: 'paid',
+    ...overrides,
+});
 
 const makeLoan = (overrides: Partial<Loan> = {}): Loan => ({
     id: 'l1',
@@ -54,6 +67,67 @@ describe('computeCashConversionCycle', () => {
         expect(r.dso).toBe(0);
         expect(r.dpo).toBe(0);
         expect(r.dio).toBe(0);
+    });
+});
+
+describe('trailingCutoffDateString', () => {
+    it('subtracts the given number of days from an injected reference date, independent of the real wall-clock date', () => {
+        const fixedNow = new Date('2026-06-15T12:00:00Z');
+        expect(trailingCutoffDateString(30, fixedNow)).toBe('2026-05-16');
+        expect(trailingCutoffDateString(90, fixedNow)).toBe('2026-03-17');
+    });
+});
+
+describe('computeTrailingAccrualFigures', () => {
+    it('sums unpaid income/expenses as all-time balances, not windowed', () => {
+        const txs = [
+            makeTx({ type: 'income', amount: 500, status: 'pending', date: d(200) }),
+            makeTx({ type: 'expense', amount: 300, status: 'overdue', date: d(200) }),
+        ];
+        const r = computeTrailingAccrualFigures(txs);
+        expect(r.unpaidIncome).toBe(500);
+        expect(r.unpaidExpenses).toBe(300);
+    });
+
+    it('excludes transactions older than the 30/90-day windows from the trailing figures', () => {
+        const txs = [
+            makeTx({ type: 'income', amount: 1000, status: 'paid', date: d(10) }),
+            makeTx({ type: 'income', amount: 1000, status: 'paid', date: d(45) }), // outside 30d, inside 90d
+            makeTx({ type: 'income', amount: 1000, status: 'paid', date: d(120) }), // outside both
+        ];
+        const r = computeTrailingAccrualFigures(txs);
+        expect(r.trailing30Revenue).toBe(1000);
+        expect(r.trailing30AccrualRevenue).toBe(1000);
+        expect(r.trailing90AccrualRevenue).toBe(2000);
+    });
+
+    it('does not let a long transaction history dilute the trailing-30-day rate', () => {
+        // Regression: this used to be computed as an ALL-TIME cumulative
+        // total, so a business with a year of steady ₦1,000/day revenue
+        // would show a trailing30 figure of ~₦365,000 instead of ~₦30,000 —
+        // the longer the history, the more inflated (or, when used as a
+        // divisor for DSO/DIO/DPO, the more artificially small the "days"
+        // figure looked, with no relation to the real recent trend).
+        const txs: Transaction[] = [];
+        for (let i = 0; i < 365; i++) {
+            txs.push(makeTx({ id: `tx${i}`, type: 'income', amount: 1000, status: 'paid', date: d(i) }));
+        }
+        const r = computeTrailingAccrualFigures(txs);
+        expect(r.trailing30Revenue).toBe(31000); // cutoff is inclusive: days 0-30
+        expect(r.trailing90AccrualRevenue).toBe(91000); // days 0-90
+    });
+
+    it('includes both paid and unpaid transactions dated within the window in the accrual figures, but excludes unpaid from the cash-only figure', () => {
+        const txs = [
+            makeTx({ type: 'income', amount: 400, status: 'paid', date: d(5) }),
+            makeTx({ type: 'income', amount: 600, status: 'pending', date: d(5) }),
+            makeTx({ type: 'expense', amount: 200, status: 'paid', date: d(5) }),
+            makeTx({ type: 'expense', amount: 150, status: 'overdue', date: d(5) }),
+        ];
+        const r = computeTrailingAccrualFigures(txs);
+        expect(r.trailing30Revenue).toBe(400); // cash-collected only
+        expect(r.trailing30AccrualRevenue).toBe(1000); // paid + pending
+        expect(r.trailing30AccrualExpenses).toBe(350); // paid + overdue
     });
 });
 

@@ -12,6 +12,7 @@ import {
     computeObligationsWaterfall,
     computeRevenueShockImpact,
     computeFullCapitalCapacity,
+    computeTrailingAccrualFigures,
 } from '../utils/cfoMetrics';
 import { CommitmentStatus, CommitmentKPI } from '../types';
 
@@ -60,10 +61,6 @@ export default function CFOQuestionsTab() {
 
     const inventoryValue = useMemo(() => computeInventoryValue(inventory), [inventory]);
 
-    // Same accrual figures AccrualCashFlow.tsx already computes — reused
-    // here, not re-derived differently. One pass over transactions instead
-    // of four separate filter+reduce scans.
-    //
     // unpaidIncome used to come from invoices.filter(status sent/overdue)
     // instead of pending/overdue income transactions — the same
     // transaction-vs-invoice duality fixed in financialDiagnosisEngine.ts's
@@ -71,33 +68,16 @@ export default function CFOQuestionsTab() {
     // without going through the Invoice flow; this one is symmetric with
     // unpaidExpenses right below it and matches computeWorkingCapitalMetrics'
     // accountsReceivable (finance.ts) — same figure everywhere.
-    const { cashIncome, cashExpenses, unpaidIncome, unpaidExpenses, trailing30Revenue } = useMemo(() => {
-        const cutoff = new Date();
-        cutoff.setDate(cutoff.getDate() - 30);
-        const cutoffStr = cutoff.toISOString().split('T')[0];
-
-        let cashIncome = 0, cashExpenses = 0, unpaidIncome = 0, unpaidExpenses = 0, trailing30Revenue = 0;
-        for (const t of transactions) {
-            if (t.type === 'income') {
-                if (t.status === 'paid') {
-                    cashIncome += t.amount;
-                    if (t.date >= cutoffStr) trailing30Revenue += t.amount;
-                } else if (t.status === 'pending' || t.status === 'overdue') {
-                    unpaidIncome += t.amount;
-                }
-            } else if (t.type === 'expense') {
-                if (t.status === 'paid') cashExpenses += t.amount;
-                else if (t.status === 'pending' || t.status === 'overdue') unpaidExpenses += t.amount;
-            }
-        }
-        return { cashIncome, cashExpenses, unpaidIncome, unpaidExpenses, trailing30Revenue };
-    }, [transactions]);
-
-    const accrualRevenue = cashIncome + unpaidIncome;
-    const accrualExpenses = cashExpenses + unpaidExpenses;
+    const {
+        unpaidIncome, unpaidExpenses, trailing30Revenue,
+        trailing30AccrualRevenue, trailing30AccrualExpenses, trailing90AccrualRevenue,
+    } = useMemo(() => computeTrailingAccrualFigures(transactions), [transactions]);
 
     const reserveTarget = parseFloat(settings.minReserve) || 0;
-    const quarterlyTaxEstimate = accrualRevenue * (getTaxRatePercent(settings.defaultTaxRate) / 100) / 4;
+    // trailing90AccrualRevenue already covers ~one quarter, so it's applied
+    // directly — no /4 needed (that would have divided an all-time total by
+    // 4 quarters regardless of how much history actually exists).
+    const quarterlyTaxEstimate = trailing90AccrualRevenue * (getTaxRatePercent(settings.defaultTaxRate) / 100);
     const upcoming30dayDebtService = useMemo(() => totalMonthlyLoanBurden(loans), [loans]);
 
     // Q1
@@ -108,8 +88,8 @@ export default function CFOQuestionsTab() {
 
     // Q2
     const ccc = useMemo(
-        () => computeCashConversionCycle(unpaidIncome, accrualRevenue, unpaidExpenses, accrualExpenses, inventoryValue),
-        [unpaidIncome, accrualRevenue, unpaidExpenses, accrualExpenses, inventoryValue],
+        () => computeCashConversionCycle(unpaidIncome, trailing30AccrualRevenue, unpaidExpenses, trailing30AccrualExpenses, inventoryValue),
+        [unpaidIncome, trailing30AccrualRevenue, unpaidExpenses, trailing30AccrualExpenses, inventoryValue],
     );
 
     // Q3

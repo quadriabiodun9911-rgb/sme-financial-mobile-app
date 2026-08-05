@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Transaction, Invoice, FinanceData } from '../types';
 import { Colors } from '../theme/colors';
+import { trailingCutoffDateString } from '../utils/cfoMetrics';
 
 interface Props {
     transactions: Transaction[];
@@ -42,7 +43,23 @@ export default function AccrualCashFlow({ transactions, invoices, finance, curre
     const receivables = unpaidInvoicesTotal;
     const payables = unpaidExpenses;
     const netWorkingCapital = receivables - payables;
-    const dso = accrualRevenue > 0 ? (receivables / accrualRevenue) * 30 : 0;
+
+    // DSO = receivables / (revenue over N days) × N — accrualRevenue above is
+    // an ALL-TIME cumulative total, not a 30-day figure, so dividing by it
+    // and multiplying by 30 silently understated DSO for any business with
+    // more than one month of history (the older the business, the bigger
+    // the denominator, the smaller the resulting "days" figure looks — a
+    // false improvement with no relation to actual collection speed). Uses a
+    // trailing-30-day accrual revenue instead, so the ×30 is meaningful.
+    const trailing30CutoffStr = trailingCutoffDateString(30);
+    const trailing30AccrualRevenue =
+        transactions
+            .filter(t => t.type === 'income' && t.status === 'paid' && t.date >= trailing30CutoffStr)
+            .reduce((s, t) => s + t.amount, 0) +
+        invoices
+            .filter(inv => (inv.status === 'sent' || inv.status === 'overdue') && inv.issueDate >= trailing30CutoffStr)
+            .reduce((s, inv) => s + (inv.total ?? (inv as any).totalAmount ?? 0), 0);
+    const dso = trailing30AccrualRevenue > 0 ? (receivables / trailing30AccrualRevenue) * 30 : 0;
 
     return (
         <View>
