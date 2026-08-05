@@ -1,17 +1,32 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
-import { getTopCategories } from '../utils/finance';
+import { computeTaxTotals } from '../utils/finance';
+import { Transaction } from '../types';
 import TaxComparisonTable from './TaxComparisonTable';
 
-export default function TaxSummary() {
-    const { finance, transactions, settings, navigate } = useApp();
-    const { currency } = settings;
+interface Props {
+    // Whatever period Reports' own Monthly/Quarterly/Yearly/Custom selector
+    // currently has selected — the Tax Overview/Metrics boxes below need to
+    // respect it like every other Reports tab does, instead of always
+    // showing all-time totals regardless of what's selected.
+    periodTransactions: Transaction[];
+    // TaxComparisonTable builds its own Monthly/Quarterly/Yearly breakdown
+    // and needs the full history to do that, independent of the outer
+    // period selector — scoping it down would leave it with only one column.
+    allTransactions: Transaction[];
+    currency: string;
+    // Taken as a prop (not read from useApp() itself) so this component has
+    // no context dependency at all — every input is explicit, making it
+    // reusable and testable outside a full AppContext tree.
+    navigate: (screen: string, params?: any) => void;
+}
+
+export default function TaxSummary({ periodTransactions, allTransactions, currency, navigate }: Props) {
 
     const taxByCategory = useMemo(() => {
         const map = new Map<string, number>();
-        transactions.forEach(tx => {
+        periodTransactions.forEach(tx => {
             if (tx.taxAmount && tx.taxAmount > 0) {
                 const key = `${tx.category} (${tx.type})`;
                 map.set(key, (map.get(key) ?? 0) + tx.taxAmount);
@@ -20,17 +35,22 @@ export default function TaxSummary() {
         return Array.from(map.entries())
             .sort((a, b) => b[1] - a[1])
             .map(([label, amount]) => ({ label, amount }));
-    }, [transactions]);
+    }, [periodTransactions]);
 
     const taxableIncome = useMemo(() => (
-        transactions.filter(t => t.type === 'income' && (t.taxAmount ?? 0) > 0).reduce((s, t) => s + t.amount, 0)
-    ), [transactions]);
+        periodTransactions.filter(t => t.type === 'income' && (t.taxAmount ?? 0) > 0).reduce((s, t) => s + t.amount, 0)
+    ), [periodTransactions]);
 
     const taxableExpenses = useMemo(() => (
-        transactions.filter(t => t.type === 'expense' && (t.taxAmount ?? 0) > 0).reduce((s, t) => s + t.amount, 0)
-    ), [transactions]);
+        periodTransactions.filter(t => t.type === 'expense' && (t.taxAmount ?? 0) > 0).reduce((s, t) => s + t.amount, 0)
+    ), [periodTransactions]);
 
-    const effectiveTaxRate = taxableIncome > 0 ? (finance.totalTaxCollected / taxableIncome) * 100 : 0;
+    const { totalTaxCollected, totalTaxPaid, netTaxPosition } = useMemo(
+        () => computeTaxTotals(periodTransactions),
+        [periodTransactions]
+    );
+
+    const effectiveTaxRate = taxableIncome > 0 ? (totalTaxCollected / taxableIncome) * 100 : 0;
 
     return (
         <View>
@@ -38,7 +58,7 @@ export default function TaxSummary() {
                 Sheet and P&L — tax collected/paid per transaction is a
                 fixed historical fact, so this is a genuine trend, not a
                 repeated current-only figure. */}
-            <TaxComparisonTable transactions={transactions} currency={currency} />
+            <TaxComparisonTable transactions={allTransactions} currency={currency} />
 
             {/* Overview */}
             <View style={styles.card}>
@@ -48,26 +68,26 @@ export default function TaxSummary() {
                     <View style={[styles.statBox, { borderColor: Colors.income }]}>
                         <Text style={styles.statLabel}>Tax Collected</Text>
                         <Text style={[styles.statValue, { color: Colors.income }]}>
-                            {currency}{finance.totalTaxCollected.toLocaleString()}
+                            {currency}{totalTaxCollected.toLocaleString()}
                         </Text>
                         <Text style={styles.statSub}>From income transactions</Text>
                     </View>
                     <View style={[styles.statBox, { borderColor: Colors.expense }]}>
                         <Text style={styles.statLabel}>Tax Paid</Text>
                         <Text style={[styles.statValue, { color: Colors.expense }]}>
-                            {currency}{finance.totalTaxPaid.toLocaleString()}
+                            {currency}{totalTaxPaid.toLocaleString()}
                         </Text>
                         <Text style={styles.statSub}>On expense transactions</Text>
                     </View>
                 </View>
 
-                <View style={[styles.netBox, { backgroundColor: finance.netTaxPosition >= 0 ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)' }]}>
+                <View style={[styles.netBox, { backgroundColor: netTaxPosition >= 0 ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)' }]}>
                     <Text style={styles.netLabel}>Net Tax Position</Text>
-                    <Text style={[styles.netValue, { color: finance.netTaxPosition >= 0 ? Colors.income : Colors.expense }]}>
-                        {finance.netTaxPosition >= 0 ? '+' : ''}{currency}{finance.netTaxPosition.toLocaleString()}
+                    <Text style={[styles.netValue, { color: netTaxPosition >= 0 ? Colors.income : Colors.expense }]}>
+                        {netTaxPosition >= 0 ? '+' : ''}{currency}{netTaxPosition.toLocaleString()}
                     </Text>
                     <Text style={styles.netHint}>
-                        {finance.netTaxPosition >= 0
+                        {netTaxPosition >= 0
                             ? 'You have collected more tax than you have paid — check compliance obligations.'
                             : 'You have paid more tax than collected on income.'}
                     </Text>
@@ -80,7 +100,7 @@ export default function TaxSummary() {
                 <MetricRow label="Taxable Revenue" value={`${currency}${taxableIncome.toLocaleString()}`} />
                 <MetricRow label="Taxable Expenses" value={`${currency}${taxableExpenses.toLocaleString()}`} />
                 <MetricRow label="Effective Tax Rate on Revenue" value={`${effectiveTaxRate.toFixed(2)}%`} />
-                <MetricRow label="Transactions with Tax" value={`${transactions.filter(t => (t.taxAmount ?? 0) > 0).length}`} />
+                <MetricRow label="Transactions with Tax" value={`${periodTransactions.filter(t => (t.taxAmount ?? 0) > 0).length}`} />
             </View>
 
             {/* Tax Planning Tool */}

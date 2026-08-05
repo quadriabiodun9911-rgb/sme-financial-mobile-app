@@ -8,6 +8,7 @@ import {
     getTaxRatePercent,
     countActiveMonths,
     getMonthlyExpenseAverage,
+    computeTaxTotals,
 } from '../src/utils/finance';
 import { Transaction } from '../src/types';
 
@@ -357,5 +358,35 @@ describe('getMonthlyExpenseAverage', () => {
 
     it('returns 0 for a business with genuinely zero recorded expenses, not a fabricated fallback', () => {
         expect(getMonthlyExpenseAverage(0, [])).toBe(0);
+    });
+});
+
+describe('computeTaxTotals', () => {
+    it('sums taxAmount separately for income (collected) and expense (paid) transactions', () => {
+        const txs = [
+            makeTx({ type: 'income', taxAmount: 500 }),
+            makeTx({ type: 'income', taxAmount: 300 }),
+            makeTx({ type: 'expense', taxAmount: 200 }),
+        ];
+        const r = computeTaxTotals(txs);
+        expect(r.totalTaxCollected).toBe(800);
+        expect(r.totalTaxPaid).toBe(200);
+        expect(r.netTaxPosition).toBe(600);
+    });
+
+    it('only reflects the transactions actually passed in, not any wider all-time total', () => {
+        // Regression: Reports screen's Tax tab used to always show all-time
+        // tax totals via the FinanceData context object regardless of the
+        // screen's own Monthly/Quarterly/Yearly/Custom period selector,
+        // silently ignoring a control the user could see and interact with.
+        // computeTaxTotals is scoped purely to whatever's passed in, so a
+        // caller filtering to one period gets that period's totals.
+        const allTime = [
+            makeTx({ type: 'income', taxAmount: 500, date: '2025-01-01' }),
+            makeTx({ type: 'income', taxAmount: 300, date: '2026-06-01' }),
+        ];
+        const thisYearOnly = allTime.filter(t => t.date.startsWith('2026'));
+        expect(computeTaxTotals(allTime).totalTaxCollected).toBe(800);
+        expect(computeTaxTotals(thisYearOnly).totalTaxCollected).toBe(300);
     });
 });
