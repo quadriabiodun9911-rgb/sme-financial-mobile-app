@@ -44,6 +44,14 @@ const INDUSTRIES: { label: string; value: NonNullable<BusinessSettings['industry
     { label: '🏢 General / Other', value: 'general' },
 ];
 
+const LEGAL_ENTITY_TYPES: { label: string; value: NonNullable<BusinessSettings['legalEntityType']> }[] = [
+    { label: 'Sole Proprietorship', value: 'sole-proprietorship' },
+    { label: 'Partnership', value: 'partnership' },
+    { label: 'LLC / Limited Company', value: 'llc' },
+    { label: 'Corporation', value: 'corporation' },
+    { label: 'Nonprofit', value: 'nonprofit' },
+];
+
 export default function SettingsScreen() {
     const {
         settings, updateSettings, setCurrentScreen,
@@ -596,6 +604,17 @@ export default function SettingsScreen() {
                                 value={form.nextTaxDeadline ?? ''}
                                 onChange={v => setForm((f: typeof form) => ({ ...f, nextTaxDeadline: v }))}
                             />
+
+                            <FieldLabel>Legal Structure</FieldLabel>
+                            <Text style={styles.hint}>
+                                Drives the compliance checklist on Tax Filing Readiness — e.g. an LLC has separate annual-return and corporate-tax obligations a sole proprietorship doesn't.
+                            </Text>
+                            <View style={styles.optRow}>
+                                {LEGAL_ENTITY_TYPES.map(ent => (
+                                    <Opt key={ent.value} label={ent.label} active={form.legalEntityType === ent.value}
+                                        onPress={() => setForm((f: typeof form) => ({ ...f, legalEntityType: ent.value }))} />
+                                ))}
+                            </View>
                         </Section>
 
                         <Section title="Money & Things You Had Before Using This App">
