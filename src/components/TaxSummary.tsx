@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { computeTaxTotals } from '../utils/finance';
 import { Transaction } from '../types';
@@ -17,10 +16,13 @@ interface Props {
     // period selector — scoping it down would leave it with only one column.
     allTransactions: Transaction[];
     currency: string;
+    // Taken as a prop (not read from useApp() itself) so this component has
+    // no context dependency at all — every input is explicit, making it
+    // reusable and testable outside a full AppContext tree.
+    navigate: (screen: string, params?: any) => void;
 }
 
-export default function TaxSummary({ periodTransactions, allTransactions, currency }: Props) {
-    const { navigate } = useApp();
+export default function TaxSummary({ periodTransactions, allTransactions, currency, navigate }: Props) {
 
     const taxByCategory = useMemo(() => {
         const map = new Map<string, number>();

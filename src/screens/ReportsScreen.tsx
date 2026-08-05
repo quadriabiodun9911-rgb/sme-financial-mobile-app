@@ -91,7 +91,7 @@ const PERIODS: { key: ReportPeriod; label: string }[] = [
 ];
 
 export default function ReportsScreen() {
-    const { finance: allFinance, settings, updateSettings, transactions, assets, loans: loansList, navParams, inventory, invoices, setCurrentScreen } = useApp();
+    const { finance: allFinance, settings, updateSettings, transactions, assets, loans: loansList, navParams, inventory, invoices, setCurrentScreen, navigate } = useApp();
     const { currency, minReserve, targetMargin } = settings;
 
     const [showLanding, setShowLanding] = useState(false);
@@ -494,7 +494,7 @@ export default function ReportsScreen() {
                     {/* ── TAX ──────────────────────────────────────────── */}
                     {activeTab === 'tax' && (
                         <>
-                            <TaxSummary periodTransactions={filteredTx} allTransactions={transactions} currency={currency} />
+                            <TaxSummary periodTransactions={filteredTx} allTransactions={transactions} currency={currency} navigate={navigate} />
                             <NextStepLink
                                 text="Check if your records are ready to hand to an accountant"
                                 onPress={() => setCurrentScreen('tax-filing-readiness')}
