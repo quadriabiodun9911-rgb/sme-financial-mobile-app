@@ -100,6 +100,19 @@ describe('computeTaxFilingReadiness', () => {
         expect(check.passed).toBe(false);
     });
 
+    it('passes the business-identity check from the explicit businessName argument, even when settings.businessName is unset', () => {
+        // The real app (and demo data) only ever sets the business name on
+        // User, never on BusinessSettings — Settings has no business-name
+        // field at all — so this is the actual path every real caller uses.
+        // Checking settings.businessName alone made this fail for every
+        // business, always, with an "Edit in Settings" prompt that led
+        // nowhere since there's nothing there to edit.
+        const r = computeTaxFilingReadiness([], [], { ...goodSettings, businessName: undefined }, undefined, REF_DATE, 'Adunola Fashion Store');
+        const check = r.checks.find(c => c.id === 'business-identity')!;
+        expect(check.passed).toBe(true);
+        expect(check.detail).toBe('Adunola Fashion Store');
+    });
+
     describe('deadline check', () => {
         it('fails and reports "no deadline set" when nextTaxDeadline is unset', () => {
             const r = computeTaxFilingReadiness([], [], { ...goodSettings, nextTaxDeadline: undefined }, undefined, REF_DATE);

@@ -89,7 +89,7 @@ export function buildFundingReadinessPack(
     const trend = allMonths.slice(-12);
 
     const dataQuality = computeDataQuality(transactions);
-    const taxReadiness = computeTaxFilingReadiness(transactions, invoices, settings, finance);
+    const taxReadiness = computeTaxFilingReadiness(transactions, invoices, settings, finance, new Date(), businessName);
     const nonDraftInvoices = invoices.filter(i => i.status !== 'draft');
 
     // Quad360 has no document upload — "ready" here means "Quad360 has
