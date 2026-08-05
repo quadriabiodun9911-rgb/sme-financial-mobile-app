@@ -3,7 +3,7 @@ import { View, ActivityIndicator, Platform, BackHandler, Alert } from 'react-nat
 import * as Updates from 'expo-updates';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider } from './src/contexts/ThemeContext';
-import { AuthProvider, SettingsProvider, FinanceProvider, GoalProvider, InvoiceProvider, useAuth, useSettings } from './src/contexts/OptimizedContexts';
+import { AuthProvider, SettingsProvider, FinanceProvider, GoalProvider, InvoiceProvider, useAuth } from './src/contexts/OptimizedContexts';
 import { trackScreenViewed } from './src/utils/analytics';
 import { initSentry, setSentryUser } from './src/utils/sentry';
 import ErrorBoundary from './src/components/ErrorBoundary';
@@ -44,14 +44,11 @@ import TrendsScreen from './src/screens/TrendsScreen';
 import WeeklyDashboardScreen from './src/screens/WeeklyDashboardScreen';
 import TaxFilingReadinessScreen from './src/screens/TaxFilingReadinessScreen';
 import RestrictedAccessScreen from './src/screens/RestrictedAccessScreen';
-import UpgradeScreen from './src/screens/UpgradeScreen';
 import { isScreenAllowedForRole } from './src/utils/rolePermissions';
-import { canAccessScreen } from './src/utils/planAccess';
 import { UserRole, Screen } from './src/types';
 
 function NavigatorContent() {
     const { user, isLoading, currentScreen, setCurrentScreen, goBack } = useAuth();
-    const { settings } = useSettings();
     const userRole = (user?.role === 'Accountant' ? 'accountant' : user?.role === 'Staff' ? 'staff' : 'owner') as UserRole;
 
     useEffect(() => {
@@ -100,20 +97,6 @@ function NavigatorContent() {
         return (
             <View style={{ flex: 1 }}>
                 <RestrictedAccessScreen />
-            </View>
-        );
-    }
-
-    // Free plan covers Dashboard, Business Passport, Invoices, Sales/
-    // Transactions, Payroll, Cash Flow, Reports, Inventory, Assets, Loans,
-    // Goals, and Budgets — Analytics (Insights, Analysis, Advisor, Future
-    // Financial Statements, Growth Intelligence) is Pro-only. Checked once
-    // here, same pattern as the role gate above, so a new Analytics screen
-    // defaults to gated rather than accidentally free.
-    if (!canAccessScreen(currentScreen as Screen, settings)) {
-        return (
-            <View style={{ flex: 1 }}>
-                <UpgradeScreen />
             </View>
         );
     }
