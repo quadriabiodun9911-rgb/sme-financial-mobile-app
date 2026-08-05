@@ -196,7 +196,7 @@ export default function CashFlowScreen() {
                         <View style={[styles.runwayCard, { borderColor: runwayColor }]}>
                             <Text style={styles.runwayLabel}>Cash Runway</Text>
                             <Text style={[styles.runwayDays, { color: runwayColor }]}>
-                                {runwayDays >= 999 ? '∞' : runwayDays} days
+                                {Number.isFinite(runwayDays) ? runwayDays : '∞'} days
                             </Text>
                             <Text style={styles.runwaySub}>
                                 {runwayDays < 30

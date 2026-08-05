@@ -433,7 +433,7 @@ export default function ActionTrackerScreen() {
             <View style={styles.metricToTrackBox}>
               <Text style={styles.metricToTrackIcon}>📈</Text>
               <Text style={styles.metricToTrackName}>Runway</Text>
-              <Text style={styles.metricToTrackValue}>{cashRunwayDays >= 999 ? '999+' : cashRunwayDays} days</Text>
+              <Text style={styles.metricToTrackValue}>{Number.isFinite(cashRunwayDays) ? cashRunwayDays : '∞'} days</Text>
             </View>
             <View style={styles.metricToTrackBox}>
               <Text style={styles.metricToTrackIcon}>💹</Text>

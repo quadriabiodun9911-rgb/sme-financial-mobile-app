@@ -44,7 +44,7 @@ export default function StickyMetricsHeader({ finance, currency, isSticky = fals
             <Text style={styles.metricLabel}>{metric.label}</Text>
             <Text style={[styles.metricValue, { color: metric.color }]}>
               {metric.format === 'days'
-                ? `${Math.floor(metric.value)}d`
+                ? (Number.isFinite(metric.value) ? `${Math.floor(metric.value)}d` : '∞')
                 : `${currency}${Math.abs(metric.value).toLocaleString()}`}
             </Text>
           </View>

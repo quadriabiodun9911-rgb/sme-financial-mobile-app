@@ -1,7 +1,16 @@
 import { Transaction } from '../types';
 
 export interface CashRunway {
-    runwayDays: number; // 999 is used as a display-only "effectively infinite" sentinel, matching CashFlowScreen's existing convention
+    // Infinity when dailyBurn <= 0 (cash isn't shrinking) — genuinely
+    // unlimited runway, not a magnitude sentinel. Previously this used the
+    // literal number 999 as an "effectively infinite" stand-in, which
+    // collided with any real business whose ACTUAL computed runway (real
+    // burn, just very low relative to a large cash balance) happened to
+    // reach 999+ days — e.g. a business with a huge cash balance and small
+    // daily burn genuinely computes to tens of thousands of days, which is
+    // a real, finite number, not "infinite". Callers should check
+    // `Number.isFinite(runwayDays)` rather than a magnitude threshold.
+    runwayDays: number;
     dailyBurn: number;
     cashBalance: number;
 }
@@ -29,7 +38,7 @@ export function computeCashRunway(
         .reduce((s, t) => s + t.amount, 0);
 
     const dailyBurn = burn30 / 30;
-    const runwayDays = dailyBurn > 0 ? Math.floor(cashBalance / dailyBurn) : 999;
+    const runwayDays = dailyBurn > 0 ? Math.floor(cashBalance / dailyBurn) : Infinity;
 
     return { runwayDays, dailyBurn, cashBalance };
 }

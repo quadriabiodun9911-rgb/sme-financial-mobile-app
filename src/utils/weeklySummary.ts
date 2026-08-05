@@ -170,11 +170,14 @@ export function computeWeeklySummary(
     {
         const { runwayDays, dailyBurn } = computeCashRunway(transactions, cashPosition.current, today);
         const weeklyBurn = dailyBurn * 7;
-        const weeksOfBuffer = runwayDays >= 999 ? Infinity : runwayDays / 7;
+        const weeksOfBuffer = runwayDays / 7;
         const lowBuffer = weeksOfBuffer < 8;
+        const bufferDescription = Number.isFinite(weeksOfBuffer)
+            ? `~${Math.round(weeksOfBuffer)} weeks of buffer`
+            : 'no meaningful burn right now — effectively unlimited buffer';
         const text = lowBuffer
             ? `Cash reserves cover only ~${Math.max(0, Math.round(weeksOfBuffer))} weeks of spend (${fmtGBP(cashPosition.current)}) — build this up before committing to equipment purchases or other big spend, so you're not forced to borrow.`
-            : `Cash reserves stand at ${fmtGBP(cashPosition.current)} (~${Math.round(weeksOfBuffer)} weeks of buffer) — healthy enough to start setting aside a fund toward your next equipment purchase instead of financing it.`;
+            : `Cash reserves stand at ${fmtGBP(cashPosition.current)} (${bufferDescription}) — healthy enough to start setting aside a fund toward your next equipment purchase instead of financing it.`;
         priorities.push({
             lever: 'cash',
             label: 'Build Cash Reserves',

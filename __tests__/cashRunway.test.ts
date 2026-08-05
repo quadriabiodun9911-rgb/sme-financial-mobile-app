@@ -15,10 +15,22 @@ const makeTx = (overrides: Partial<Transaction>): Transaction => ({
 const REF = new Date('2024-01-31T12:00:00Z');
 
 describe('computeCashRunway', () => {
-    it('returns a 999-day sentinel when there is no burn', () => {
+    it('returns Infinity (genuinely unlimited, not a magnitude sentinel) when there is no burn', () => {
         const r = computeCashRunway([], 10000, REF);
         expect(r.dailyBurn).toBe(0);
-        expect(r.runwayDays).toBe(999);
+        expect(r.runwayDays).toBe(Infinity);
+    });
+
+    it('does not confuse a real large finite runway with the no-burn case', () => {
+        // Regression: runwayDays used to use the literal number 999 as an
+        // "infinite" sentinel, which collided with any business whose ACTUAL
+        // computed runway (real, nonzero burn) happened to reach 999+ days —
+        // e.g. a large cash balance against a small daily burn.
+        const txs = [makeTx({ amount: 30, date: '2024-01-15' })]; // dailyBurn = 1
+        const r = computeCashRunway(txs, 3_284_231, REF);
+        expect(r.dailyBurn).toBe(1);
+        expect(Number.isFinite(r.runwayDays)).toBe(true);
+        expect(r.runwayDays).toBe(3_284_231);
     });
 
     it('only counts PAID expenses within the trailing 30 days', () => {
