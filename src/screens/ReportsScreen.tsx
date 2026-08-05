@@ -275,7 +275,7 @@ export default function ReportsScreen() {
                     {/* ── TAX Section ────────────────────────────────────── */}
                     <Text style={styles.reportGroupHeader}>🧾 TAX</Text>
                     {[
-                        { icon: '🧾', label: 'Tax Summary', sub: 'Tax collected, paid and your net tax position', section: 'operations' as SectionKey, tab: 'tax' as SubTab },
+                        { icon: '🧾', label: 'Tax Summary', sub: 'Tax collected, paid and your net tax position', section: 'tax' as SectionKey, tab: 'tax' as SubTab },
                     ].map(item => (
                         <TouchableOpacity
                             key={item.tab}

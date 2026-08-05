@@ -165,7 +165,7 @@ export default function EnhancedDebtManagement({ finance, currency, loans = [], 
 
                 <MetricRow
                     label="Total Debt"
-                    value={`${currency}${liabilities.toLocaleString()}`}
+                    value={`${currency}${liabilities.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
                     sublabel="All liabilities and obligations"
                 />
                 <MetricRow

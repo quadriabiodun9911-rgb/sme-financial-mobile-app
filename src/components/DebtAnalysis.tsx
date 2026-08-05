@@ -75,9 +75,9 @@ export default function DebtAnalysis({ finance, currency, loans = [], accountsRe
         <View>
             {/* Balance summary */}
             <View style={styles.summaryRow}>
-                <SummaryCard label="Total Assets"      value={`${currency}${assets.toLocaleString()}`}      color={Colors.asset} />
-                <SummaryCard label="Total Liabilities" value={`${currency}${liabilities.toLocaleString()}`} color={Colors.liability} />
-                <SummaryCard label="Owner's Equity"    value={`${currency}${equity.toLocaleString()}`}      color={Colors.equity} />
+                <SummaryCard label="Total Assets"      value={`${currency}${assets.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}      color={Colors.asset} />
+                <SummaryCard label="Total Liabilities" value={`${currency}${liabilities.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} color={Colors.liability} />
+                <SummaryCard label="Owner's Equity"    value={`${currency}${equity.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}      color={Colors.equity} />
             </View>
 
             {/* Solvency ratios */}
