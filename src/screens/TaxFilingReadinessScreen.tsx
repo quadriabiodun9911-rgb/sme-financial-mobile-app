@@ -5,13 +5,19 @@ import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { computeTaxFilingReadiness } from '../utils/taxFilingReadiness';
+import { computeComplianceObligations } from '../utils/complianceMapping';
 
 export default function TaxFilingReadinessScreen() {
-    const { transactions, invoices, settings, finance, setCurrentScreen, user } = useApp();
+    const { transactions, invoices, settings, finance, setCurrentScreen, user, staff } = useApp();
 
     const readiness = useMemo(
         () => computeTaxFilingReadiness(transactions, invoices, settings, finance, new Date(), user?.businessName),
         [transactions, invoices, settings, finance, user?.businessName]
+    );
+
+    const compliance = useMemo(
+        () => computeComplianceObligations(settings, staff ?? []),
+        [settings, staff]
     );
 
     const d = readiness.daysUntilDeadline;
@@ -67,6 +73,33 @@ export default function TaxFilingReadinessScreen() {
                         </View>
                     </View>
                 ))}
+
+                {/* Compliance obligations — gated on legalEntityType being
+                    set, same "don't fabricate from missing data" posture as
+                    the checklist above. */}
+                {compliance.hasEntityType ? (
+                    <View style={s.complianceCard}>
+                        <Text style={s.complianceTitle}>YOUR COMPLIANCE OBLIGATIONS — {compliance.entityLabel.toUpperCase()}</Text>
+                        <Text style={s.complianceLiability}>{compliance.liabilityNote}</Text>
+                        {compliance.obligations.map(o => (
+                            <View key={o.id} style={s.obligationRow}>
+                                <Text style={s.obligationLabel}>{o.label}</Text>
+                                <Text style={s.obligationDetail}>{o.detail}</Text>
+                            </View>
+                        ))}
+                        <Text style={s.complianceDisclaimer}>
+                            These are the obligation categories a {compliance.entityLabel.toLowerCase()} typically has, not a jurisdiction-specific legal determination — confirm exact requirements with an accountant or lawyer local to your business.
+                        </Text>
+                    </View>
+                ) : (
+                    <TouchableOpacity style={s.complianceEmptyCard} onPress={() => setCurrentScreen('settings')} activeOpacity={0.8}>
+                        <Text style={s.complianceEmptyTitle}>🏛️ Set your legal structure</Text>
+                        <Text style={s.complianceEmptyText}>
+                            Add your legal entity type in Settings to see the compliance obligations it typically implies — annual returns, corporate tax, personal liability, and more.
+                        </Text>
+                        <Text style={s.complianceEmptyLink}>Set it in Settings →</Text>
+                    </TouchableOpacity>
+                )}
 
                 <View style={s.noticeCard}>
                     <Text style={s.noticeTitle}>What this does — and doesn't — do</Text>
@@ -131,4 +164,31 @@ const s = StyleSheet.create({
     },
     noticeTitle: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 },
     noticeText: { fontSize: 11.5, color: Colors.textMuted, lineHeight: 17 },
+
+    complianceCard: {
+        backgroundColor: Colors.surface,
+        borderRadius: 12,
+        padding: 16,
+        marginTop: 12,
+        borderWidth: 1,
+        borderColor: Colors.border,
+    },
+    complianceTitle: { fontSize: 11, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, marginBottom: 10 },
+    complianceLiability: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18, marginBottom: 14 },
+    obligationRow: { marginBottom: 12 },
+    obligationLabel: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: 3 },
+    obligationDetail: { fontSize: 12, color: Colors.textMuted, lineHeight: 17 },
+    complianceDisclaimer: { fontSize: 11, color: Colors.textMuted, fontStyle: 'italic', lineHeight: 16, marginTop: 4 },
+
+    complianceEmptyCard: {
+        backgroundColor: Colors.surface,
+        borderRadius: 12,
+        padding: 16,
+        marginTop: 12,
+        borderWidth: 1,
+        borderColor: Colors.primary + '44',
+    },
+    complianceEmptyTitle: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 },
+    complianceEmptyText: { fontSize: 12.5, color: Colors.textMuted, lineHeight: 18, marginBottom: 10 },
+    complianceEmptyLink: { fontSize: 13, color: Colors.primary, fontWeight: '700' },
 });

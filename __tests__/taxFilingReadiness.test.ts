@@ -33,7 +33,7 @@ const goodSettings: BusinessSettings = {
     businessName: 'Acme Ltd', businessType: 'service', currency: '£', currencyCode: 'GBP',
     minReserve: '0', targetMargin: '0', openingAssets: '0', openingLiabilities: '0',
     openingLoans: '0', openingOtherAssets: '0', defaultTaxRate: '20',
-    nextTaxDeadline: futureDate(60),
+    nextTaxDeadline: futureDate(60), legalEntityType: 'llc',
 };
 
 const baseFinance: FinanceData = {
@@ -91,6 +91,12 @@ describe('computeTaxFilingReadiness', () => {
     it('fails the tax-rate check when defaultTaxRate is unset', () => {
         const r = computeTaxFilingReadiness([], [], { ...goodSettings, defaultTaxRate: '' }, undefined, REF_DATE);
         const check = r.checks.find(c => c.id === 'tax-rate')!;
+        expect(check.passed).toBe(false);
+    });
+
+    it('fails the entity-type check when legalEntityType is unset', () => {
+        const r = computeTaxFilingReadiness([], [], { ...goodSettings, legalEntityType: undefined }, undefined, REF_DATE);
+        const check = r.checks.find(c => c.id === 'entity-type')!;
         expect(check.passed).toBe(false);
     });
 

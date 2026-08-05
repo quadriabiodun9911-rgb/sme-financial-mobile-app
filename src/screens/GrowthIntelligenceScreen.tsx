@@ -22,13 +22,15 @@ import {
     computeGrowthScore,
     MonthlySnapshot,
 } from '../utils/profitability';
+import { computeCustomerMetrics } from '../utils/customerMetrics';
 
-type Tab = 'score' | 'momentum' | 'performers' | 'drivers' | 'breakeven';
+type Tab = 'score' | 'momentum' | 'performers' | 'drivers' | 'breakeven' | 'customers';
 
 const TABS: { key: Tab; icon: string; label: string }[] = [
     { key: 'score',      icon: '🏆', label: 'Score'      },
     { key: 'momentum',   icon: '📈', label: 'Momentum'   },
     { key: 'performers', icon: '⭐', label: 'Top'        },
+    { key: 'customers',  icon: '👥', label: 'Customers'  },
     { key: 'drivers',    icon: '🔍', label: 'Drivers'    },
     { key: 'breakeven',  icon: '⚖️',  label: 'Breakeven'  },
 ];
@@ -307,11 +309,80 @@ function PerformersTab({ currency }: { currency: string }) {
     );
 }
 
+// ─── Customers Tab (CAC & Churn) ───────────────────────────────────────────────
+function CustomersTab({ currency }: { currency: string }) {
+    const { transactions } = useApp();
+    const m = useMemo(() => computeCustomerMetrics(transactions), [transactions]);
+
+    if (!m.hasEnoughData) {
+        return (
+            <View style={gs.emptyBox}>
+                <Text style={gs.emptyIcon}>👥</Text>
+                <Text style={gs.emptyTitle}>Not enough customer data yet</Text>
+                <Text style={gs.emptyBody}>{m.reason}</Text>
+            </View>
+        );
+    }
+
+    const latest = m.latestMonth!;
+
+    return (
+        <ScrollView showsVerticalScrollIndicator={false}>
+            {/* Latest month summary */}
+            <View style={gs.momCard}>
+                <View style={gs.momRow}>
+                    <View style={gs.momBox}>
+                        <Text style={gs.momLabel}>Churn Rate ({latest.month})</Text>
+                        <Text style={[gs.momVal, { color: latest.churnRate === null ? Colors.textMuted : latest.churnRate > 0.2 ? Colors.expense : Colors.income }]}>
+                            {latest.churnRate === null ? 'N/A' : `${Math.round(latest.churnRate * 100)}%`}
+                        </Text>
+                    </View>
+                    <View style={gs.momBox}>
+                        <Text style={gs.momLabel}>CAC ({latest.month})</Text>
+                        <Text style={gs.momVal}>{latest.cac === null ? 'N/A' : fmt(latest.cac, currency)}</Text>
+                    </View>
+                    <View style={gs.momBox}>
+                        <Text style={gs.momLabel}>Avg CAC (12mo)</Text>
+                        <Text style={gs.momVal}>{m.avgCac === null ? 'N/A' : fmt(m.avgCac, currency)}</Text>
+                    </View>
+                </View>
+            </View>
+
+            <View style={gs.tableCard}>
+                <Text style={gs.sectionTitle}>MONTH-BY-MONTH CUSTOMERS</Text>
+                <View style={gs.tableHeader}>
+                    <Text style={[gs.tableCell, { flex: 1 }]}>Month</Text>
+                    <Text style={[gs.tableCell, gs.tableCellR]}>New</Text>
+                    <Text style={[gs.tableCell, gs.tableCellR]}>Churned</Text>
+                    <Text style={[gs.tableCell, gs.tableCellR]}>CAC</Text>
+                </View>
+                {m.monthly.map((mo, i) => (
+                    <View key={mo.month} style={[gs.tableRow, i % 2 === 0 && gs.tableRowAlt]}>
+                        <Text style={[gs.tableCell, { flex: 1, color: Colors.textPrimary }]}>{mo.month}</Text>
+                        <Text style={[gs.tableCell, gs.tableCellR, { color: Colors.income }]}>{mo.newCustomers}</Text>
+                        <Text style={[gs.tableCell, gs.tableCellR, { color: mo.churnedCustomers > 0 ? Colors.expense : Colors.textMuted }]}>
+                            {mo.churnedCustomers}
+                        </Text>
+                        <Text style={[gs.tableCell, gs.tableCellR]}>{mo.cac === null ? '—' : fmt(mo.cac, currency)}</Text>
+                    </View>
+                ))}
+            </View>
+
+            <View style={gs.focusCard}>
+                <Text style={gs.focusIcon}>💡</Text>
+                <Text style={gs.focusText}>
+                    CAC = Marketing-category spend ÷ new customers that month. Churn = customers who bought last month but not this one, as a share of last month's active customers. Add a customer name to sales transactions and tag spend "Marketing" to keep these accurate.
+                </Text>
+            </View>
+        </ScrollView>
+    );
+}
+
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function GrowthIntelligenceScreen() {
     const { transactions, settings, navParams, navigate } = useApp();
     const [activeTab, setActiveTab] = useState<Tab>(
-        (['score', 'momentum', 'performers', 'drivers', 'breakeven'] as Tab[]).includes(navParams?.tab as Tab) ? (navParams!.tab as Tab) : 'score'
+        (['score', 'momentum', 'performers', 'customers', 'drivers', 'breakeven'] as Tab[]).includes(navParams?.tab as Tab) ? (navParams!.tab as Tab) : 'score'
     );
     const currency = settings.currency;
 
@@ -347,6 +418,7 @@ export default function GrowthIntelligenceScreen() {
                     {activeTab === 'score'      && <ScoreTab      currency={currency} />}
                     {activeTab === 'momentum'   && <MomentumTab   currency={currency} />}
                     {activeTab === 'performers' && <PerformersTab currency={currency} />}
+                    {activeTab === 'customers'  && <CustomersTab  currency={currency} />}
                     {activeTab === 'drivers'    && (
                         <>
                             <ProfitWaterfall items={waterfall} currency={currency} />

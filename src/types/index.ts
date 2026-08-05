@@ -227,6 +227,7 @@ export interface BusinessSettings {
     visionStatement?: string;  // the long-term destination
     coreValues?: string;       // the moral compass — how the team behaves getting there (e.g. "Integrity, reliability, community focus")
     nextTaxDeadline?: string;  // ISO date — next VAT/Corporation Tax (or local equivalent) filing deadline, used by Tax Filing Readiness
+    legalEntityType?: LegalEntityType; // drives the generic compliance-obligations checklist on Tax Filing Readiness
 }
 
 export interface NavParams {
@@ -245,6 +246,12 @@ export interface NavParams {
 
 export type UserRole = 'owner' | 'accountant' | 'staff';
 export type Language = 'en' | 'zh';
+
+// Generic legal-structure categories, not tied to any one country's exact
+// registration terms — used to surface the broad compliance obligations
+// that structure implies (see src/utils/complianceMapping.ts), not to give
+// jurisdiction-specific legal advice.
+export type LegalEntityType = 'sole-proprietorship' | 'partnership' | 'llc' | 'corporation' | 'nonprofit';
 
 export type AssetCategory = 'equipment' | 'vehicle' | 'furniture' | 'property' | 'intangible' | 'other';
 export type AssetStatus = 'active' | 'disposed';

@@ -137,6 +137,16 @@ export function computeTaxFilingReadiness(
         detail: businessNameSet ? resolvedBusinessName! : 'Not set — add it when creating your account or contact support to update it.',
     });
 
+    const entityTypeSet = !!settings.legalEntityType;
+    checks.push({
+        id: 'entity-type',
+        label: 'Legal entity type is set',
+        passed: entityTypeSet,
+        detail: entityTypeSet
+            ? 'Compliance obligations checklist below is tailored to your structure.'
+            : 'Not set — add it in Settings to see the compliance obligations your business structure typically implies.',
+    });
+
     const passedCount = checks.filter(c => c.passed).length;
 
     return {
