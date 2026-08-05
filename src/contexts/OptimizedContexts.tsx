@@ -12,7 +12,7 @@ import React, { createContext, useContext, useState, useMemo, useEffect, useRef,
 import { Platform } from 'react-native';
 import { User, Invoice, InvoiceStatus, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, MerchantFinancingApplication, LoanPurpose, StaffMember, PayrollRun, PayrollItem, CashPocket, CapitalCommitment, UserRole } from '../types';
 import { computeFinance, computeAssetCurrentValue } from '../utils/finance';
-import { sanitizeStoredGoals } from '../utils/goals';
+import { sanitizeStoredGoals, refreshGoal } from '../utils/goals';
 import { DEMO_BUSINESSES } from '../utils/demoData';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -1186,7 +1186,18 @@ export function useApp() {
   const loans = finance?.loans ?? [];
   const budgets = finance?.budgets ?? [];
   const inventory = finance?.inventory ?? [];
-  const goalsArray = goals?.goals ?? [];
+  // Recomputes currentValue/progress/status against live finance/transaction
+  // data on every read instead of trusting whatever was stored at creation
+  // (or last edit) time — GoalProvider's addGoal/updateGoal never refresh
+  // these fields themselves, so without this every goal's progress bar and
+  // status badge would freeze at its initial value forever, never moving as
+  // real sales/expenses/collections happen. Recomputed here rather than
+  // written back into GoalProvider's state so refreshing progress doesn't
+  // itself trigger a save/re-render loop.
+  const goalsArray = useMemo(
+    () => (goals?.goals ?? []).map((g) => refreshGoal(g, finance.finance, transactions)),
+    [goals?.goals, finance.finance, transactions]
+  );
   const invoicesArray = invoices?.invoices ?? [];
 
   // Derived business metrics, computed from real data instead of being read
