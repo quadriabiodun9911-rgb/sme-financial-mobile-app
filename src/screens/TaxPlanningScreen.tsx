@@ -8,10 +8,12 @@ import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import NextStepLink from '../components/NextStepLink';
+import { getTaxRatePercent } from '../utils/finance';
 
 export default function TaxPlanningScreen() {
     const { transactions, settings, navigate, finance, user } = useApp();
     const { currency } = settings;
+    const taxRatePct = getTaxRatePercent(settings.defaultTaxRate);
     const [showDeductionModal, setShowDeductionModal] = useState(false);
     const [selectedQuarter, setSelectedQuarter] = useState<1 | 2 | 3 | 4>(1);
     const [deductionName, setDeductionName] = useState('');
@@ -51,9 +53,9 @@ export default function TaxPlanningScreen() {
                 .filter(d => d.quarter === quarter.q)
                 .reduce((sum, d) => sum + d.amount, 0);
 
-            // Estimated tax (assuming 20% effective tax rate for SMEs in Nigeria)
+            // Estimated tax, using the business's configured tax rate (Settings > Tax)
             const taxableIncome = Math.max(0, profit - quarterDeductions);
-            const estimatedTax = taxableIncome * 0.2;
+            const estimatedTax = taxableIncome * (taxRatePct / 100);
 
             return {
                 quarter: quarter.q,
@@ -66,7 +68,7 @@ export default function TaxPlanningScreen() {
                 estimatedTax,
             };
         });
-    }, [transactions, deductions]);
+    }, [transactions, deductions, taxRatePct]);
 
     const annualData = useMemo(() => {
         const totalIncome = quarterlyData.reduce((sum, q) => sum + q.income, 0);
@@ -117,7 +119,7 @@ Total Expenses: ${currency}${annualData.totalExpenses.toLocaleString()}
 Gross Profit: ${currency}${annualData.totalProfit.toLocaleString()}
 Total Deductions: ${currency}${annualData.totalDeductions.toLocaleString()}
 Taxable Income: ${currency}${annualData.totalTaxableIncome.toLocaleString()}
-Estimated Annual Tax (20%): ${currency}${annualData.totalEstimatedTax.toLocaleString()}
+Estimated Annual Tax (${taxRatePct}%): ${currency}${annualData.totalEstimatedTax.toLocaleString()}
 Average Quarterly Payment: ${currency}${annualData.avgQuarterlyTax.toLocaleString()}
 
 QUARTERLY BREAKDOWN
@@ -148,7 +150,7 @@ NOTES
 - This is an estimate. Actual tax liability may vary.
 - Consult with a tax professional before filing.
 - Some deductions may not be tax-deductible.
-- Tax rate assumed: 20% (adjust based on actual rate)
+- Tax rate used: ${taxRatePct}% (set this in Settings > Tax)
 `;
 
             if (Platform.OS === 'web') {
@@ -203,7 +205,7 @@ NOTES
                             color={Colors.primary}
                         />
                         <SummaryCard
-                            label="Est. Tax (20%)"
+                            label={`Est. Tax (${taxRatePct}%)`}
                             value={`${currency}${annualData.totalEstimatedTax.toLocaleString()}`}
                             color={Colors.warning}
                         />
@@ -269,7 +271,7 @@ NOTES
                 <View style={s.infoBox}>
                     <Text style={s.infoIcon}>⚠️</Text>
                     <Text style={s.infoText}>
-                        This is an estimate based on 20% effective tax rate. Consult with a tax professional for accurate calculations specific to your jurisdiction and business type.
+                        This is an estimate based on your configured {taxRatePct}% tax rate (Settings &gt; Tax). Consult with a tax professional for accurate calculations specific to your jurisdiction and business type.
                     </Text>
                 </View>
             </ScrollView>

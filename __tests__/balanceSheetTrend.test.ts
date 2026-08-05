@@ -138,13 +138,29 @@ describe('computeBalanceSheetTrend', () => {
         expect(points[1]).toMatchObject(manual);
     });
 
-    it('computes the day-to-day cash buffer as accounts receivable minus accounts payable', () => {
+    it('computes the day-to-day cash buffer as actual cash on hand minus accounts payable', () => {
         const txs = [
-            makeTx({ type: 'income', amount: 800, date: '2024-01-05', status: 'pending' }),
-            makeTx({ type: 'expense', amount: 300, date: '2024-01-06', status: 'overdue' }),
+            makeTx({ type: 'income', amount: 2000, date: '2024-01-01', status: 'paid' }),   // cash on hand
+            makeTx({ type: 'income', amount: 800, date: '2024-01-05', status: 'pending' }), // AR — not cash yet
+            makeTx({ type: 'expense', amount: 300, date: '2024-01-06', status: 'overdue' }), // AP
         ];
         const points = computeBalanceSheetTrend('monthly', ['2024-01'], txs, [], []);
-        expect(points[0].cashBuffer).toBe(500);
+        expect(points[0].cashOnHand).toBe(2000);
+        expect(points[0].accountsPayable).toBe(300);
+        expect(points[0].cashBuffer).toBe(1700); // 2000 cash - 300 payable, NOT accountsReceivable-based
+    });
+
+    it('does not report a positive cash buffer from unpaid receivables when there is no actual cash', () => {
+        // Regression: cashBuffer used to be accountsReceivable - accountsPayable,
+        // which could show a healthy-looking positive "buffer" for a business
+        // with real cash of zero — money it hasn't been paid yet isn't a
+        // buffer it can spend today.
+        const txs = [
+            makeTx({ type: 'income', amount: 800, date: '2024-01-05', status: 'pending' }),
+        ];
+        const points = computeBalanceSheetTrend('monthly', ['2024-01'], txs, [], []);
+        expect(points[0].cashOnHand).toBe(0);
+        expect(points[0].cashBuffer).toBe(0); // not 800
     });
 
     it('counts a currently-unpaid income transaction as accounts receivable from the period it was dated', () => {

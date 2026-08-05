@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView } from 
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { computeCashRunway } from '../utils/cashRunway';
-import { computeAgingBuckets } from '../utils/finance';
+import { computeAgingBuckets, getTaxRatePercent } from '../utils/finance';
 import { computeInventoryValue } from '../utils/stockVelocity';
 import { totalMonthlyLoanBurden } from '../utils/loanMath';
 import {
@@ -97,7 +97,7 @@ export default function CFOQuestionsTab() {
     const accrualExpenses = cashExpenses + unpaidExpenses;
 
     const reserveTarget = parseFloat(settings.minReserve) || 0;
-    const quarterlyTaxEstimate = accrualRevenue * (parseFloat(settings.defaultTaxRate) || 0) / 4;
+    const quarterlyTaxEstimate = accrualRevenue * (getTaxRatePercent(settings.defaultTaxRate) / 100) / 4;
     const upcoming30dayDebtService = useMemo(() => totalMonthlyLoanBurden(loans), [loans]);
 
     // Q1
