@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import {
-    SafeAreaView, ScrollView, View, Text, TouchableOpacity, StyleSheet, Animated, Dimensions, Alert, Platform,
+    SafeAreaView, ScrollView, View, Text, TouchableOpacity, StyleSheet, Animated, Dimensions,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { monthlyPayment as calcMonthlyPayment } from '../utils/loanMath';
+import { showAlert } from '../utils/webAlert';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
@@ -281,12 +282,7 @@ export default function CreditWorthinessScreen() {
             const filePath = await generatePDF(exportData);
             await sharePDF(filePath, exportData.title);
         } catch (error) {
-            // Alert.alert is a silent no-op on react-native-web.
-            if (Platform.OS === 'web') {
-                window.alert('Export failed\n\nCould not generate the lender-ready summary. Please try again.');
-            } else {
-                Alert.alert('Export failed', 'Could not generate the lender-ready summary. Please try again.');
-            }
+            showAlert('Export failed', 'Could not generate the lender-ready summary. Please try again.');
         } finally {
             setExporting(false);
         }

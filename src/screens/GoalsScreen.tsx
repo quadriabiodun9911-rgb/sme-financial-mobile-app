@@ -16,19 +16,7 @@ import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan } from '../utils/actionRecommendationEngine';
 import { suggestSolution, ImpactSource } from '../utils/impactChain';
 import { getMonthlyExpenseAverage } from '../utils/finance';
-
-// Alert.alert is a silent no-op on react-native-web — without this, every
-// validation error here (missing title/deadline/amount) failed with no
-// feedback at all: the user tapped Create/Save and nothing happened.
-function showAlert(title: string, message: string) {
-    if (Platform.OS === 'web') {
-        if (typeof window !== 'undefined' && typeof window.alert === 'function') {
-            window.alert(`${title}\n\n${message}`);
-        }
-    } else {
-        Alert.alert(title, message);
-    }
-}
+import { showAlert } from '../utils/webAlert';
 
 // Maps each goal type to the closest matching solution category — a
 // revenue/margin goal is fundamentally a pricing/growth problem, a cost or

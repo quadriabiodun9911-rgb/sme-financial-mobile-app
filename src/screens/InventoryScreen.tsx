@@ -16,6 +16,7 @@ import { computeStockVelocity, computeInventoryValue } from '../utils/stockVeloc
 import RecipeCostCalculator from '../components/RecipeCostCalculator';
 import ProductionCostCalculator from '../components/ProductionCostCalculator';
 import { InventoryItem } from '../types';
+import { showAlert } from '../utils/webAlert';
 
 type InventoryTab = 'stock' | 'analytics';
 
@@ -39,15 +40,6 @@ const EMPTY_FORM: FormState = {
     lowStockThreshold: '5',
 };
 
-// Alert.alert is a silent no-op on react-native-web — these validation/
-// confirmation messages never appeared at all without this guard.
-function showAlert(title: string, message: string) {
-    if (Platform.OS === 'web') {
-        window.alert(`${title}\n\n${message}`);
-    } else {
-        Alert.alert(title, message);
-    }
-}
 
 export default function InventoryScreen() {
     const { inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem, settings, navigate, addTransaction, transactions } = useApp();

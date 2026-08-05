@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
     ScrollView, View, Text, TouchableOpacity,
-    StyleSheet, TextInput, Modal, Alert, Platform,
+    StyleSheet, TextInput, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from '../contexts/AppContext';
@@ -13,32 +13,9 @@ import NextStepLink from '../components/NextStepLink';
 import ProfitCashImpactCard from '../components/ProfitCashImpactCard';
 import { computeProfitCashImpact } from '../utils/impactChain';
 import PayrollProviderCard from '../components/PayrollProviderCard';
+import { showAlert, confirmAction } from '../utils/webAlert';
 
 type Tab = 'staff' | 'run' | 'history';
-
-// Alert.alert is a silent no-op on react-native-web. Unguarded, this didn't
-// just drop messages — the confirm-dialog calls (confirmDelete, doRunPayroll's
-// final step, delete-run) never fired their onPress at all, meaning removing
-// staff, running payroll, and deleting a payroll run were all unreachable on
-// web, not just silent.
-function alertMessage(title: string, message?: string) {
-    if (Platform.OS === 'web') {
-        window.alert(message ? `${title}\n\n${message}` : title);
-    } else {
-        Alert.alert(title, message);
-    }
-}
-
-function confirmAction(title: string, message: string, confirmLabel: string, onConfirm: () => void) {
-    if (Platform.OS === 'web') {
-        if (window.confirm(`${title}\n\n${message}`)) onConfirm();
-    } else {
-        Alert.alert(title, message, [
-            { text: 'Cancel', style: 'cancel' },
-            { text: confirmLabel, style: 'destructive', onPress: onConfirm },
-        ]);
-    }
-}
 
 const EMPTY_STAFF: Omit<StaffMember, 'id' | 'createdAt'> = {
     name: '', role: '', salary: 0, salaryType: 'monthly',
@@ -73,8 +50,8 @@ export default function PayrollScreen() {
         setEditingId(s.id); setStaffModal(true);
     };
     const saveStaff = () => {
-        if (!form.name.trim()) { alertMessage('Name required'); return; }
-        if (!form.salary || form.salary <= 0) { alertMessage('Valid salary required'); return; }
+        if (!form.name.trim()) { showAlert('Name required'); return; }
+        if (!form.salary || form.salary <= 0) { showAlert('Valid salary required'); return; }
         if (editingId) updateStaff(editingId, form);
         else addStaff(form);
         setStaffModal(false);
@@ -84,9 +61,9 @@ export default function PayrollScreen() {
     };
 
     const doRunPayroll = () => {
-        if (activeStaff.length === 0) { alertMessage('No active staff'); return; }
+        if (activeStaff.length === 0) { showAlert('No active staff'); return; }
         const existing = payrollRuns.find(r => r.period === runPeriod);
-        if (existing) { alertMessage('Already run', `Payroll for ${runPeriod} already exists.`); return; }
+        if (existing) { showAlert('Already run', `Payroll for ${runPeriod} already exists.`); return; }
         const parsedRate = parseFloat(deductRate);
         const rate = (isNaN(parsedRate) || parsedRate < 0) ? 0 : parsedRate / 100;
         const items: PayrollItem[] = activeStaff.map(m => {

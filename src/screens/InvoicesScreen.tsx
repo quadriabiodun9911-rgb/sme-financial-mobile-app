@@ -13,6 +13,7 @@ import DateInput from '../components/DateInput';
 import { sendInvoiceReminderViaWhatsApp, sendPaymentRequestViaWhatsApp, isWhatsAppInstalled } from '../utils/whatsappIntegration';
 import NextStepLink from '../components/NextStepLink';
 import ProjectProfitabilityCalculator from '../components/ProjectProfitabilityCalculator';
+import { showAlert } from '../utils/webAlert';
 
 const STATUS_COLOR: Record<InvoiceStatus, string> = {
     draft:   Colors.textMuted,
@@ -111,17 +112,6 @@ ${inv.notes ? `<div class="notes" style="clear:both;margin-top:60px"><b>Notes:</
 </html>`;
 }
 
-// Alert.alert is a silent no-op on react-native-web — used unguarded here
-// even inside code paths already branched on Platform.OS === 'web' (the
-// clipboard-copy confirmation), so the underlying action succeeded but the
-// user got no feedback at all.
-function showAlert(title: string, message: string) {
-    if (Platform.OS === 'web') {
-        window.alert(`${title}\n\n${message}`);
-    } else {
-        Alert.alert(title, message);
-    }
-}
 
 export default function InvoicesScreen() {
     const { invoices, addInvoice, updateInvoice, deleteInvoice, markInvoiceStatus, settings, user, navigate } = useApp();

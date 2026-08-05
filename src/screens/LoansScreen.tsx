@@ -26,6 +26,7 @@ import NextStepLink from '../components/NextStepLink';
 import ProfitCashImpactCard from '../components/ProfitCashImpactCard';
 import { computeProfitCashImpact } from '../utils/impactChain';
 import { monthlyPayment, totalInterest, outstandingLoanBalance } from '../utils/loanMath';
+import { showAlert } from '../utils/webAlert';
 
 function totalPaid(loan: Loan): number {
     return (loan.payments ?? []).reduce((s, p) => s + p.amount, 0);
@@ -54,15 +55,6 @@ function isOverdue(loan: Loan): boolean {
     return due < new Date();
 }
 
-// Alert.alert is a silent no-op on react-native-web — these validation
-// messages never appeared at all without this guard.
-function showAlert(title: string, message: string) {
-    if (Platform.OS === 'web') {
-        window.alert(`${title}\n\n${message}`);
-    } else {
-        Alert.alert(title, message);
-    }
-}
 
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────
 

@@ -1,21 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import {
-    SafeAreaView, ScrollView, View, Text, TouchableOpacity, StyleSheet, Modal, Alert, Platform,
+    SafeAreaView, ScrollView, View, Text, TouchableOpacity, StyleSheet, Modal,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import NextStepLink from '../components/NextStepLink';
-
-// Alert.alert is a silent no-op on react-native-web.
-function showAlert(title: string, message: string) {
-    if (Platform.OS === 'web') {
-        window.alert(`${title}\n\n${message}`);
-    } else {
-        Alert.alert(title, message);
-    }
-}
+import { showAlert } from '../utils/webAlert';
 
 export default function LoanEligibilityScreen() {
     const { user, finance, navigate, financing, applyForMerchantFinancing, settings } = useApp();
