@@ -8,8 +8,63 @@
  * result says so rather than presenting an approximation as exact.
  */
 
-import { Loan } from '../types';
+import { Loan, Transaction } from '../types';
 import { monthlyPayment } from './loanMath';
+
+// ─── Shared: trailing-window accrual figures ───────────────────────────────
+export interface TrailingAccrualFigures {
+    unpaidIncome: number; // current point-in-time balance: every pending/overdue income transaction ever recorded
+    unpaidExpenses: number; // current point-in-time balance: every pending/overdue expense transaction ever recorded
+    trailing30Revenue: number; // cash COLLECTED in the last 30 days (paid only)
+    trailing30AccrualRevenue: number; // sales MADE in the last 30 days, paid or not
+    trailing30AccrualExpenses: number; // costs INCURRED in the last 30 days, paid or not
+    trailing90AccrualRevenue: number; // sales MADE in the last 90 days, paid or not — a "typical quarter" run-rate
+}
+
+// unpaidIncome/unpaidExpenses are correct as all-time cumulative balances —
+// they represent what's outstanding right now. The trailing30/90 figures are
+// different in kind: they're RATES (revenue or expenses per representative
+// period), needed anywhere a "days" ratio (DSO/DIO/DPO) or a "per quarter"
+// estimate divides by them. Using an all-time cumulative total as that rate
+// used to make those numbers shrink the longer a business had been
+// recording data, with no relation to the real trend — see cashConversionCycle's
+// accrualRevenue/accrualExpenses doc comment below for the failure mode.
+export function computeTrailingAccrualFigures(transactions: Transaction[]): TrailingAccrualFigures {
+    const cutoff30 = new Date();
+    cutoff30.setDate(cutoff30.getDate() - 30);
+    const cutoff30Str = cutoff30.toISOString().split('T')[0];
+    const cutoff90 = new Date();
+    cutoff90.setDate(cutoff90.getDate() - 90);
+    const cutoff90Str = cutoff90.toISOString().split('T')[0];
+
+    let unpaidIncome = 0, unpaidExpenses = 0, trailing30Revenue = 0;
+    let trailing30AccrualRevenue = 0, trailing30AccrualExpenses = 0, trailing90AccrualRevenue = 0;
+    for (const t of transactions) {
+        const in30 = t.date >= cutoff30Str;
+        const in90 = t.date >= cutoff90Str;
+        if (t.type === 'income') {
+            if (t.status === 'paid') {
+                if (in30) { trailing30Revenue += t.amount; trailing30AccrualRevenue += t.amount; }
+                if (in90) trailing90AccrualRevenue += t.amount;
+            } else if (t.status === 'pending' || t.status === 'overdue') {
+                unpaidIncome += t.amount;
+                if (in30) trailing30AccrualRevenue += t.amount;
+                if (in90) trailing90AccrualRevenue += t.amount;
+            }
+        } else if (t.type === 'expense') {
+            if (t.status === 'paid') {
+                if (in30) trailing30AccrualExpenses += t.amount;
+            } else if (t.status === 'pending' || t.status === 'overdue') {
+                unpaidExpenses += t.amount;
+                if (in30) trailing30AccrualExpenses += t.amount;
+            }
+        }
+    }
+    return {
+        unpaidIncome, unpaidExpenses, trailing30Revenue,
+        trailing30AccrualRevenue, trailing30AccrualExpenses, trailing90AccrualRevenue,
+    };
+}
 
 // ─── Q1: How much cash can we actually deploy? ─────────────────────────────
 export interface FreeCashFlowResult {
@@ -42,6 +97,14 @@ export interface CashConversionCycleResult {
 // No true COGS category exists across every business type, so DIO/DPO use
 // total accrual expenses as the cost base — the same proxy already used for
 // DSO elsewhere in the app (AccrualCashFlow.tsx), not a separate invention.
+//
+// accrualRevenue/accrualExpenses MUST be a 30-day-equivalent figure (e.g.
+// trailing-30-day accrual revenue), not an all-time cumulative total — the
+// formula below multiplies the ratio by 30, so passing a bigger window
+// (or all-time) silently shrinks the resulting "days" figure the longer a
+// business has been recording data, with no relation to actual collection
+// speed. receivables/payables, by contrast, are meant to be current
+// point-in-time balances (everything outstanding right now).
 export function computeCashConversionCycle(
     receivables: number,
     accrualRevenue: number,
