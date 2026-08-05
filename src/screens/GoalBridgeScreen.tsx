@@ -4,14 +4,14 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
-import { calculateGoalBridge, mapSavedGoalToBridge, FinancialGoal } from '../utils/goalBridgeEngine';
+import { calculateGoalBridge, mapSavedGoalToBridge, formatGoalMetric, FinancialGoal } from '../utils/goalBridgeEngine';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan } from '../utils/actionRecommendationEngine';
 import { computeMonthlyBaseline } from '../utils/analysis';
 import NextStepLink from '../components/NextStepLink';
 
 export default function GoalBridgeScreen() {
-  const { transactions, invoices, finance, settings, goals, navParams, setCurrentScreen } = useApp();
+  const { transactions, invoices, finance, settings, goals, navParams, setCurrentScreen, loans, inventory } = useApp();
 
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [goalType, setGoalType] = useState<'profit' | 'revenue' | 'cash' | 'margin' | 'runway'>('profit');
@@ -34,9 +34,11 @@ export default function GoalBridgeScreen() {
       invoices,
       finance.cashBalance,
       finance.expense || 100000,
-      settings.currency
+      settings.currency,
+      loans,
+      inventory
     );
-  }, [transactions, invoices, finance, settings]);
+  }, [transactions, invoices, finance, settings, loans, inventory]);
 
   const actionPlan = useMemo(() => {
     return generateActionPlan(diagnosis, diagnosis.metrics, settings.currency);
@@ -79,13 +81,14 @@ export default function GoalBridgeScreen() {
       margin: finance.margin,
       runway: finance.runway,
     };
+    const parsedTarget = parseInt(targetValue || '1000000') || 1000000;
     setSelectedGoal({
       id: `goal-${Date.now()}`,
       type: goalType,
       currentValue: currentByType[goalType] ?? 0,
-      targetValue: parseInt(targetValue || '1000000') || 1000000,
+      targetValue: parsedTarget,
       timelineMonths: parseInt(timelineMonths || '12') || 12,
-      description: `Reach ${settings.currency}${(parseInt(targetValue || '0') || 0).toLocaleString()} ${goalType}`,
+      description: `Reach ${formatGoalMetric(parsedTarget, goalType, settings.currency)} ${goalType}`,
     });
     setShowGoalModal(false);
   };
@@ -113,21 +116,21 @@ export default function GoalBridgeScreen() {
           <View style={styles.goalMetrics}>
             <View style={styles.goalMetricBox}>
               <Text style={styles.goalMetricLabel}>Current</Text>
-              <Text style={styles.goalMetricValue}>{settings.currency}{Math.round(bridge.goal.currentValue).toLocaleString()}</Text>
+              <Text style={styles.goalMetricValue}>{formatGoalMetric(bridge.goal.currentValue, bridge.goal.type, settings.currency)}</Text>
             </View>
             <View style={styles.goalArrow}>
               <Text style={styles.arrowText}>→</Text>
             </View>
             <View style={styles.goalMetricBox}>
               <Text style={styles.goalMetricLabel}>Target</Text>
-              <Text style={styles.goalMetricValue}>{settings.currency}{Math.round(bridge.goal.targetValue).toLocaleString()}</Text>
+              <Text style={styles.goalMetricValue}>{formatGoalMetric(bridge.goal.targetValue, bridge.goal.type, settings.currency)}</Text>
             </View>
           </View>
 
           <View style={styles.gapInfo}>
             <Text style={styles.gapLabel}>Gap to Close</Text>
             <View style={styles.gapRow}>
-              <Text style={styles.gapValue}>{settings.currency}{Math.round(Math.abs(bridge.gap)).toLocaleString()}</Text>
+              <Text style={styles.gapValue}>{formatGoalMetric(Math.abs(bridge.gap), bridge.goal.type, settings.currency)}</Text>
               <Text style={styles.gapPercentage}>({Math.abs(bridge.gapPercentage).toFixed(1)}%)</Text>
             </View>
           </View>
@@ -146,7 +149,7 @@ export default function GoalBridgeScreen() {
 
           <View style={styles.assessmentRow}>
             <Text style={styles.assessmentRowLabel}>Required Monthly Improvement:</Text>
-            <Text style={styles.assessmentRowValue}>{settings.currency}{Math.round(bridge.requiredMonthlyImprovement).toLocaleString()}</Text>
+            <Text style={styles.assessmentRowValue}>{formatGoalMetric(bridge.requiredMonthlyImprovement, bridge.goal.type, settings.currency)}</Text>
           </View>
 
           <View style={styles.assessmentRow}>
@@ -218,7 +221,7 @@ export default function GoalBridgeScreen() {
                   <Text style={styles.milestoneDescription}>{milestone.description}</Text>
                 </View>
               </View>
-              <Text style={styles.milestoneValue}>{settings.currency}{Math.round(milestone.targetValue).toLocaleString()}</Text>
+              <Text style={styles.milestoneValue}>{formatGoalMetric(milestone.targetValue, bridge.goal.type, settings.currency)}</Text>
             </View>
           ))}
         </View>
@@ -280,7 +283,7 @@ export default function GoalBridgeScreen() {
                 ))}
               </View>
 
-              <Text style={styles.inputLabel}>Target Value</Text>
+              <Text style={styles.inputLabel}>Target Value ({goalType === 'margin' ? '%' : goalType === 'runway' ? 'days' : settings.currency})</Text>
               <TextInput
                 style={styles.input}
                 placeholder="Enter target value"

@@ -65,7 +65,7 @@ export function generateCrisisActions(
     actions.push({
       id: 'crisis-collections',
       title: 'Urgent: Collect Overdue Invoices',
-      description: `Send payment reminders to customers with outstanding invoices (${currency}${metrics.accountsReceivable.toLocaleString()} total)`,
+      description: `Send payment reminders to customers with outstanding balances (${currency}${metrics.accountsReceivable.toLocaleString()} total)`,
       category: 'collections',
       priority: 10,
       timeframe: 'immediate',
@@ -303,6 +303,131 @@ export function generateRevenueActions(
   return actions;
 }
 
+export function generateDebtActions(
+  diagnosis: DiagnosisResult,
+  metrics: FinancialMetrics,
+  currency: string = '₦'
+): ActionTactic[] {
+  const actions: ActionTactic[] = [];
+
+  if (metrics.dscrStatus === 'danger' || metrics.dscrStatus === 'warning') {
+    actions.push({
+      id: 'debt-improve-dscr',
+      title: 'Restore Debt Service Coverage',
+      description: `DSCR is ${metrics.dscr.toFixed(2)} against a ${currency}${metrics.monthlyDebtService.toLocaleString()}/month debt load — needs to reach 1.25+`,
+      category: 'operations',
+      priority: metrics.dscrStatus === 'danger' ? 9 : 6,
+      timeframe: metrics.dscrStatus === 'danger' ? 'immediate' : 'month',
+      timelineWeeks: metrics.dscrStatus === 'danger' ? 1 : 4,
+      expectedImpact: metrics.monthlyDebtService * 3,
+      impactType: 'cash_improvement',
+      difficulty: 'medium',
+      successProbability: 0.55,
+      rationale: 'Lenders and the business itself both need operating income to comfortably cover debt payments, not just barely meet them.',
+      steps: [
+        'List every active loan with its monthly payment',
+        'Talk to lenders about restructuring or extending terms before missing a payment',
+        'Pause any new borrowing until DSCR is back above 1.25',
+        'Prioritize collections and cost cuts that improve operating income',
+      ],
+      metrics: ['DSCR', 'Monthly debt service', 'Operating income'],
+      blockers: ['Lender unwilling to restructure'],
+    });
+  }
+
+  return actions;
+}
+
+export function generateInventoryActions(
+  diagnosis: DiagnosisResult,
+  metrics: FinancialMetrics,
+  currency: string = '₦'
+): ActionTactic[] {
+  const actions: ActionTactic[] = [];
+
+  if (metrics.slowMovingValuePct > 25) {
+    const trappedValue = metrics.inventoryValue * (metrics.slowMovingValuePct / 100);
+    actions.push({
+      id: 'inventory-clear-slow-movers',
+      title: 'Clear Slow-Moving Stock',
+      description: `${metrics.slowMovingValuePct.toFixed(0)}% of stock value (${currency}${Math.round(trappedValue).toLocaleString()}) is moving slowly`,
+      category: 'operations',
+      priority: metrics.slowMovingValuePct > 50 ? 7 : 5,
+      timeframe: 'month',
+      timelineWeeks: 4,
+      expectedImpact: trappedValue * 0.6,
+      impactType: 'cash_improvement',
+      difficulty: 'medium',
+      successProbability: 0.65,
+      rationale: 'Cash sitting in stock that isn\'t selling is cash that isn\'t available for rent, payroll, or debt service.',
+      steps: [
+        'Identify the specific slow-moving items in the Inventory screen',
+        'Run a discount or bundle promotion on those items',
+        'Reduce reorder quantities for items that stay slow',
+        'Reallocate freed-up cash to fast movers or debt paydown',
+      ],
+      metrics: ['Slow-moving stock value', 'Inventory turnover', 'Cash freed up'],
+    });
+  }
+
+  return actions;
+}
+
+export function generateConcentrationActions(
+  diagnosis: DiagnosisResult,
+  metrics: FinancialMetrics,
+): ActionTactic[] {
+  const actions: ActionTactic[] = [];
+
+  if (metrics.topCustomerConcentrationPct >= 40) {
+    actions.push({
+      id: 'concentration-diversify-customers',
+      title: 'Diversify Customer Base',
+      description: `Your largest customer is ${metrics.topCustomerConcentrationPct.toFixed(0)}% of revenue`,
+      category: 'revenue',
+      priority: metrics.topCustomerConcentrationPct >= 60 ? 8 : 5,
+      timeframe: 'quarter',
+      timelineWeeks: 10,
+      expectedImpact: 0,
+      impactType: 'revenue',
+      difficulty: 'hard',
+      successProbability: 0.4,
+      rationale: 'Losing this one relationship would be an existential risk, not a normal bad month — concentration this high needs active diversification, not just growth.',
+      steps: [
+        'Set an internal cap on any single customer\'s share of revenue',
+        'Prioritize new-customer acquisition over deepening the concentrated relationship further',
+        'Formalize the terms of the concentrated relationship (contract, notice period) to reduce downside risk',
+      ],
+      metrics: ['Top customer % of revenue', 'Number of active customers'],
+    });
+  }
+
+  if (metrics.topSupplierConcentrationPct >= 40) {
+    actions.push({
+      id: 'concentration-diversify-suppliers',
+      title: 'Qualify a Backup Supplier',
+      description: `Your largest supplier is ${metrics.topSupplierConcentrationPct.toFixed(0)}% of spend`,
+      category: 'operations',
+      priority: metrics.topSupplierConcentrationPct >= 60 ? 7 : 4,
+      timeframe: 'quarter',
+      timelineWeeks: 8,
+      expectedImpact: 0,
+      impactType: 'cash_improvement',
+      difficulty: 'medium',
+      successProbability: 0.5,
+      rationale: 'A price increase, stockout, or falling-out with a supplier this concentrated hits operations directly — a qualified backup is cheap insurance.',
+      steps: [
+        'Identify the critical inputs this supplier provides',
+        'Source and test at least one alternative supplier for those inputs',
+        'Negotiate better terms with the primary supplier using the alternative as leverage',
+      ],
+      metrics: ['Top supplier % of spend', 'Number of qualified suppliers per critical input'],
+    });
+  }
+
+  return actions;
+}
+
 export function generateActionPlan(
   diagnosis: DiagnosisResult,
   metrics: FinancialMetrics,
@@ -321,6 +446,13 @@ export function generateActionPlan(
 
   // Generate revenue actions
   allActions.push(...generateRevenueActions(diagnosis, metrics, currency));
+
+  // Debt, inventory, and concentration tactics — previously the plan could
+  // only ever recommend fixes for profitability/liquidity/expenses, even
+  // when a business's actual biggest problem was one of these three.
+  allActions.push(...generateDebtActions(diagnosis, metrics, currency));
+  allActions.push(...generateInventoryActions(diagnosis, metrics, currency));
+  allActions.push(...generateConcentrationActions(diagnosis, metrics));
 
   // This is the loop closing: what this business actually did before now
   // changes what gets recommended and how urgently — a tactic that already

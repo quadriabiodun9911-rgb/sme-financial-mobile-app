@@ -366,7 +366,7 @@ export default function AssetsScreen() {
                                                     impact={computeProfitCashImpact(finance?.profit ?? 0, (finance?.cashBalance ?? 0) - selected.upfront, -selected.monthlyProfitImpact)}
                                                     source="asset"
                                                     currency={currency}
-                                                    onSeeFullPicture={() => navigate('clarity')}
+                                                    onSeeFullPicture={() => navigate('business-passport')}
                                                 />
                                             );
                                         })()}

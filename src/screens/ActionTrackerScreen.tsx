@@ -31,7 +31,7 @@ function trailingSnapshot(transactions: { type: string; amount: number; date: st
 }
 
 export default function ActionTrackerScreen() {
-  const { transactions, invoices, finance, settings, setCurrentScreen } = useApp();
+  const { transactions, invoices, finance, settings, setCurrentScreen, loans, inventory } = useApp();
   const [activeTab, setActiveTab] = useState<'immediate' | 'shortterm' | 'strategic'>('immediate');
   const [expandedActionId, setExpandedActionId] = useState<string | null>(null);
 
@@ -117,9 +117,11 @@ export default function ActionTrackerScreen() {
       invoices,
       finance.cashBalance,
       finance.expense || 100000,
-      settings.currency
+      settings.currency,
+      loans,
+      inventory
     );
-  }, [transactions, invoices, finance, settings]);
+  }, [transactions, invoices, finance, settings, loans, inventory]);
 
   // What this business actually did before feeds back into what gets
   // recommended and how urgently — the closing link of the loop.

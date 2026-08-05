@@ -386,8 +386,8 @@ export default function AnalysisScreen() {
     const { transactions, finance, settings, navigate, navParams } = useApp();
     const { currency } = settings;
 
-    // Lets a deep link (e.g. SolveScreen's "I want to grow" → What if?) land
-    // directly on the right tab instead of always defaulting to Why?.
+    // Lets a deep link (e.g. "I want to grow" → What if?) land directly on
+    // the right tab instead of always defaulting to Why?.
     const initialTab: Tab = (navParams?.tab === 'scenarios' || navParams?.tab === 'diagnosis') ? navParams.tab : 'diagnosis';
     const [tab, setTab]             = useState<Tab>(initialTab);
     const [period, setPeriod]       = useState<ReportPeriod>('month');

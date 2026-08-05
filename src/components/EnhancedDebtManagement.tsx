@@ -4,7 +4,7 @@ import { Colors } from '../theme/colors';
 import { FinanceData, Loan, Transaction } from '../types';
 import { computeLeverageRatios, scoreDebtToAssets, scoreDebtToEquity } from '../utils/debtRatios';
 import { computeCashRunway } from '../utils/cashRunway';
-import { loanMonthlyPayment } from '../utils/finance';
+import { loanMonthlyPayment, computeWorkingCapitalMetrics } from '../utils/finance';
 import LoanROICalculator from './LoanROICalculator';
 import BuyVsFinanceCalculator from './BuyVsFinanceCalculator';
 import GrowthAffordabilityCalculator from './GrowthAffordabilityCalculator';
@@ -15,11 +15,12 @@ interface Props {
     currency: string;
     loans?: Loan[];
     transactions?: Transaction[];
+    inventoryValue?: number;
 }
 
 const RATIO_COLOR = { strong: Colors.income, stable: Colors.warning, concerning: Colors.expense, unscored: Colors.textMuted };
 
-export default function EnhancedDebtManagement({ finance, currency, loans = [], transactions = [] }: Props) {
+export default function EnhancedDebtManagement({ finance, currency, loans = [], transactions = [], inventoryValue = 0 }: Props) {
     // Same trailing-30-day paid-expense burn rate CashFlowScreen's Runway
     // tab and the Weekly Dashboard use — one canonical "how much do we
     // spend a month" source, not a separate estimate invented here.
@@ -49,8 +50,11 @@ export default function EnhancedDebtManagement({ finance, currency, loans = [], 
     // Leverage ratios (and the live loan balance they're built on) are
     // computed once, in debtRatios.ts, and shared with DebtAnalysis — both
     // cards render on the same Reports > Loans & Debt tab, so a ratio here
-    // and there must always agree.
-    const { liabilities, equity, debtToAssets, debtToEquity, profit, hasAssetData } = computeLeverageRatios(finance, loans);
+    // and there must always agree. AR/AP folded in the same way DebtAnalysis
+    // and Reports > "What I Own & Owe" already do.
+    const wc = computeWorkingCapitalMetrics(transactions);
+    const { liabilities, equity, debtToAssets, debtToEquity, profit, hasAssetData } =
+        computeLeverageRatios(finance, loans, wc.accountsReceivable, wc.accountsPayable, inventoryValue);
     const income = finance.income;
 
     const interestCoverage = profit > 0 ? profit / Math.max(1, liabilities * 0.05) : 0; // Assume 5% interest rate
@@ -161,7 +165,7 @@ export default function EnhancedDebtManagement({ finance, currency, loans = [], 
 
                 <MetricRow
                     label="Total Debt"
-                    value={`${currency}${liabilities.toLocaleString()}`}
+                    value={`${currency}${liabilities.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
                     sublabel="All liabilities and obligations"
                 />
                 <MetricRow

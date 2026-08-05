@@ -1,7 +1,8 @@
-import { Transaction, FinanceData, BusinessSettings, AgingBucket, Asset, Invoice, Loan, FinancialGoal, Budget } from '../types';
+import { Transaction, FinanceData, BusinessSettings, AgingBucket, Asset, Invoice, Loan, FinancialGoal, Budget, InventoryItem } from '../types';
 import { getWeekRanges, transactionsInRange, sumByType } from './periodRange';
 import { computeLeverageRatios } from './debtRatios';
 import { computeCashRunway } from './cashRunway';
+import { computeStockVelocity } from './stockVelocity';
 
 // ─── Business size classification ─────────────────────────────────────────────
 export type BusinessSize = 'micro' | 'small' | 'medium' | 'large';
@@ -701,8 +702,13 @@ export interface FinancialRatios {
  * fields to the one canonical implementation and only computes what's
  * actually unique to this view: currentRatio, burnRate, profitMargin.
  */
-export function computeFinancialRatios(finance: FinanceData, loans: Loan[], transactions: Transaction[]): FinancialRatios {
-    const leverage = computeLeverageRatios(finance, loans);
+export function computeFinancialRatios(finance: FinanceData, loans: Loan[], transactions: Transaction[], inventoryValue: number = 0): FinancialRatios {
+    // AR/AP folded in the same way DebtAnalysis, EnhancedDebtManagement and
+    // Reports > "What I Own & Owe" already do, so debtToEquity/returnOnAssets
+    // here agree with those screens instead of a narrower figure that
+    // ignores money owed to the business and stock on hand.
+    const wc = computeWorkingCapitalMetrics(transactions);
+    const leverage = computeLeverageRatios(finance, loans, wc.accountsReceivable, wc.accountsPayable, inventoryValue);
 
     // 999 here is a "no liabilities recorded to compare against" sentinel,
     // not an actual extreme ratio — callers must check hasLiabilitiesData
@@ -766,6 +772,38 @@ export function computeCustomerConcentration(transactions: Transaction[]): Custo
         });
 }
 
+export interface SupplierConcentration {
+    supplier: string;
+    amount: number;
+    percentage: number;
+    risk: 'low' | 'medium' | 'high';
+}
+
+/**
+ * Mirrors computeCustomerConcentration's grouping + risk-tier logic, applied
+ * to expense transactions instead of income. Previously duplicated in
+ * businessFinancialDNA.ts with an identical formula — promoted here so
+ * there's one canonical implementation, same as computeCustomerConcentration.
+ */
+export function computeSupplierConcentration(transactions: Transaction[]): SupplierConcentration[] {
+    const map = new Map<string, number>();
+    let total = 0;
+    for (const t of transactions) {
+        if (t.type !== 'expense') continue;
+        const raw = t.vendorCustomer?.split(' | ')[0]?.trim();
+        const key = raw || 'Unknown';
+        map.set(key, (map.get(key) ?? 0) + t.amount);
+        total += t.amount;
+    }
+    return Array.from(map.entries())
+        .sort((a, b) => b[1] - a[1])
+        .map(([supplier, amount]) => {
+            const percentage = total > 0 ? (amount / total) * 100 : 0;
+            const risk: SupplierConcentration['risk'] = percentage >= 40 ? 'high' : percentage >= 20 ? 'medium' : 'low';
+            return { supplier, amount, percentage, risk };
+        });
+}
+
 // 7. Seasonal risk detection
 export interface SeasonalRisk {
     month: string;
@@ -814,69 +852,122 @@ export interface RiskFactor {
 export interface RiskScore {
     score: number;
     grade: 'A' | 'B' | 'C' | 'D' | 'F';
+    band: 'Excellent' | 'Strong' | 'Moderate' | 'Weak' | 'Critical';
     factors: RiskFactor[];
 }
 
-export function computeRiskScore(finance: FinanceData, loans: Loan[], transactions: Transaction[]): RiskScore {
+/**
+ * The single canonical business health score — seven weighted factors, one
+ * per pillar a lender or the business owner actually cares about:
+ * Profitability, Liquidity, Working Capital, Debt, Efficiency, Inventory,
+ * Concentration. This used to only cover five (no Working Capital, no
+ * Inventory, and Concentration counted customers but not suppliers) and
+ * financialDiagnosisEngine.ts computed a second, independent health score
+ * from a different formula — the two could (and did) disagree for the same
+ * business. financialDiagnosisEngine.ts now derives its overall score from
+ * this function instead of reimplementing its own.
+ */
+export function computeRiskScore(
+    finance: Pick<FinanceData, 'income' | 'profit' | 'cashBalance'>,
+    loans: Loan[],
+    transactions: Transaction[],
+    inventory: InventoryItem[] = [],
+): RiskScore {
     const factors: RiskFactor[] = [];
 
-    // Profit margin (weight 25)
+    // Profitability (weight 20)
     const margin = finance.income > 0 ? (finance.profit / finance.income) * 100 : 0;
     factors.push({
-        name: 'Profit Margin',
+        name: 'Profitability',
         score: margin >= 20 ? 100 : margin >= 10 ? 70 : margin >= 0 ? 40 : 0,
-        weight: 25,
+        weight: 20,
         status: margin >= 20 ? 'good' : margin >= 0 ? 'warning' : 'danger',
     });
 
-    // Cash runway (weight 20) — same trailing-30-day-paid-expenses burn
-    // used everywhere else in the app (Dashboard, Cash Runway tab, Loans &
-    // Debt). finance.expense/12 treated an all-time cumulative expense
-    // total as if it were an annual figure — for any business with more
-    // than a year of history that understated monthly burn (and therefore
-    // overstated this factor's score) more the longer the business had
-    // been recording transactions.
+    // Liquidity / cash runway (weight 20) — same trailing-30-day-paid-expenses
+    // burn used everywhere else in the app (Dashboard, Cash Runway tab, Loans
+    // & Debt), not an all-time cumulative total treated as an annual figure.
     const monthlyBurn = computeCashRunway(transactions, finance.cashBalance).dailyBurn * 30;
     const runwayMonths = monthlyBurn > 0 ? finance.cashBalance / monthlyBurn : 12;
     factors.push({
-        name: 'Cash Runway',
+        name: 'Liquidity',
         score: runwayMonths >= 6 ? 100 : runwayMonths >= 3 ? 70 : runwayMonths >= 1 ? 40 : 10,
         weight: 20,
         status: runwayMonths >= 6 ? 'good' : runwayMonths >= 3 ? 'warning' : 'danger',
     });
 
-    // DSCR (weight 20)
+    // Working capital (weight 10) — cash conversion cycle: how many days
+    // cash is tied up between paying suppliers and collecting from
+    // customers. Shorter (or negative) is better.
+    const wc = computeWorkingCapitalMetrics(transactions);
+    factors.push({
+        name: 'Working Capital',
+        score: wc.ccc <= 15 ? 100 : wc.ccc <= 30 ? 70 : wc.ccc <= 60 ? 40 : 10,
+        weight: 10,
+        status: wc.ccc <= 30 ? 'good' : wc.ccc <= 60 ? 'warning' : 'danger',
+    });
+
+    // Debt (weight 15) — DSCR
     const dscr = computeDSCR(transactions, loans);
     factors.push({
-        name: 'Debt Coverage',
+        name: 'Debt',
         score: dscr.dscr >= 1.25 ? 100 : dscr.dscr >= 1.0 ? 60 : 20,
-        weight: 20,
+        weight: 15,
         status: dscr.status === 'healthy' ? 'good' : dscr.status,
     });
 
-    // Customer concentration (weight 15)
-    const conc = computeCustomerConcentration(transactions);
-    const topPct = conc.length > 0 ? conc[0].percentage : 0;
+    // Efficiency (weight 10) — is expense growth outrunning revenue growth?
+    // A business can be profitable today and still be getting less
+    // efficient, which margin alone won't show until it's already eaten
+    // the margin.
+    const trend3 = computeMonthlyTrend(transactions, 3);
+    let expenseGrowthGap = 0;
+    if (trend3.length >= 2) {
+        const first = trend3[0];
+        const last = trend3[trend3.length - 1];
+        const revenueGrowthPct = first.income > 0 ? ((last.income - first.income) / first.income) * 100 : 0;
+        const expenseGrowthPct = first.expense > 0 ? ((last.expense - first.expense) / first.expense) * 100 : 0;
+        expenseGrowthGap = expenseGrowthPct - revenueGrowthPct; // positive = expenses outgrowing revenue
+    }
     factors.push({
-        name: 'Customer Concentration',
-        score: topPct <= 20 ? 100 : topPct <= 40 ? 60 : 20,
-        weight: 15,
-        status: topPct <= 20 ? 'good' : topPct <= 40 ? 'warning' : 'danger',
+        name: 'Efficiency',
+        score: expenseGrowthGap <= 0 ? 100 : expenseGrowthGap <= 10 ? 70 : expenseGrowthGap <= 25 ? 40 : 10,
+        weight: 10,
+        status: expenseGrowthGap <= 0 ? 'good' : expenseGrowthGap <= 25 ? 'warning' : 'danger',
     });
 
-    // Revenue trend (weight 20)
-    const trend = computeMonthlyTrend(transactions, 3);
-    const hasGrowth = trend.length >= 2 && trend[trend.length - 1].income >= trend[0].income;
+    // Inventory (weight 10) — share of stock value sitting in slow movers.
+    // No inventory recorded is treated as neutral (not penalized), same as
+    // the "no data" convention computeStockVelocity itself uses.
+    let inventoryScore = 100;
+    let inventoryStatus: RiskFactor['status'] = 'good';
+    if (inventory.length > 0) {
+        const totalValue = inventory.reduce((s, i) => s + i.quantity * i.costPrice, 0);
+        const slowValue = inventory
+            .filter(i => computeStockVelocity(i, transactions).tier === 'slow')
+            .reduce((s, i) => s + i.quantity * i.costPrice, 0);
+        const slowPct = totalValue > 0 ? (slowValue / totalValue) * 100 : 0;
+        inventoryScore = slowPct <= 15 ? 100 : slowPct <= 35 ? 60 : 25;
+        inventoryStatus = slowPct <= 15 ? 'good' : slowPct <= 35 ? 'warning' : 'danger';
+    }
+    factors.push({ name: 'Inventory', score: inventoryScore, weight: 10, status: inventoryStatus });
+
+    // Concentration (weight 15) — the worse of customer or supplier
+    // concentration, since either one alone can sink the business.
+    const custConc = computeCustomerConcentration(transactions);
+    const suppConc = computeSupplierConcentration(transactions);
+    const worstPct = Math.max(custConc[0]?.percentage ?? 0, suppConc[0]?.percentage ?? 0);
     factors.push({
-        name: 'Revenue Trend',
-        score: hasGrowth ? 90 : 40,
-        weight: 20,
-        status: hasGrowth ? 'good' : 'warning',
+        name: 'Concentration',
+        score: worstPct <= 20 ? 100 : worstPct <= 40 ? 60 : 20,
+        weight: 15,
+        status: worstPct <= 20 ? 'good' : worstPct <= 40 ? 'warning' : 'danger',
     });
 
     const score = Math.round(factors.reduce((s, f) => s + (f.score * f.weight) / 100, 0));
     const grade: RiskScore['grade'] = score >= 85 ? 'A' : score >= 70 ? 'B' : score >= 55 ? 'C' : score >= 40 ? 'D' : 'F';
-    return { score, grade, factors };
+    const band: RiskScore['band'] = score >= 90 ? 'Excellent' : score >= 75 ? 'Strong' : score >= 55 ? 'Moderate' : score >= 35 ? 'Weak' : 'Critical';
+    return { score, grade, band, factors };
 }
 
 // 9. Cash flow forecast (90 days, week by week)
@@ -1035,30 +1126,68 @@ export function computeDebtOptimiser(loans: Loan[]): DebtOptimizerResult {
     }
 
     const getBalance = (l: Loan) => Math.max(0, l.principal - (l.payments ?? []).reduce((s, p) => s + p.amount, 0));
-    const getTotalInterest = (l: Loan) => {
-        const bal = getBalance(l);
-        const mp = loanMonthlyPayment(bal, l.interestRate, l.termMonths);
-        return Math.max(0, mp * l.termMonths - bal);
+
+    // Avalanche/snowball only differ in real interest cost when a loan
+    // that finishes early frees up its minimum payment, and that freed
+    // amount gets redirected to the next loan in priority order — the
+    // classic debt-snowball mechanism. Summing each loan's own
+    // independent interest (the previous approach) is invariant to sort
+    // order, since a+b === b+a regardless of which is listed first, so it
+    // always produced a $0 "saving" no matter how far apart the real
+    // rates were. This simulates the actual month-by-month payoff under a
+    // fixed combined budget (the sum of every loan's own scheduled
+    // payment) so reallocation — and the resulting interest/time
+    // difference — is real.
+    const simulatePayoff = (order: Loan[]): { totalInterest: number; months: number } => {
+        const minPayments = new Map(order.map(l => [l.id, loanMonthlyPayment(l.principal, l.interestRate, l.termMonths)]));
+        const monthlyRates = new Map(order.map(l => [l.id, l.interestRate / 100 / 12]));
+        const balances = new Map(order.map(l => [l.id, getBalance(l)]));
+        const totalBudget = order.reduce((s, l) => s + (minPayments.get(l.id) ?? 0), 0);
+
+        let totalInterest = 0;
+        let months = 0;
+        const maxMonths = 600; // 50-year safety cap against pathological inputs
+        while (order.some(l => (balances.get(l.id) ?? 0) > 0.01) && months < maxMonths) {
+            months++;
+            let spent = 0;
+            for (const l of order) {
+                const bal0 = balances.get(l.id) ?? 0;
+                if (bal0 <= 0.01) continue;
+                const interest = bal0 * (monthlyRates.get(l.id) ?? 0);
+                totalInterest += interest;
+                const pay = Math.min(bal0 + interest, minPayments.get(l.id) ?? 0);
+                balances.set(l.id, bal0 + interest - pay);
+                spent += pay;
+            }
+            let extra = Math.max(0, totalBudget - spent);
+            for (const l of order) {
+                if (extra <= 0) break;
+                const bal = balances.get(l.id) ?? 0;
+                if (bal <= 0.01) continue;
+                const applied = Math.min(bal, extra);
+                balances.set(l.id, bal - applied);
+                extra -= applied;
+            }
+        }
+        return { totalInterest, months };
     };
 
     // Avalanche: highest interest rate first
     const avalancheOrder = [...activeLoans].sort((a, b) => b.interestRate - a.interestRate);
-    const avalancheInterest = avalancheOrder.reduce((s, l) => s + getTotalInterest(l), 0);
-    const avalancheMonths = Math.max(...avalancheOrder.map(l => l.termMonths));
+    const avalancheResult = simulatePayoff(avalancheOrder);
 
     // Snowball: smallest balance first
     const snowballOrder = [...activeLoans].sort((a, b) => getBalance(a) - getBalance(b));
-    const snowballInterest = snowballOrder.reduce((s, l) => s + getTotalInterest(l), 0);
-    const snowballMonths = Math.max(...snowballOrder.map(l => l.termMonths));
+    const snowballResult = simulatePayoff(snowballOrder);
 
-    const interestDiff = snowballInterest - avalancheInterest;
-    const recommendation = interestDiff > 0
+    const interestDiff = snowballResult.totalInterest - avalancheResult.totalInterest;
+    const recommendation = interestDiff > 1
         ? `Avalanche method saves ${interestDiff.toFixed(0)} in interest. Focus on ${avalancheOrder[0]?.lenderName} first (${avalancheOrder[0]?.interestRate}% rate).`
         : `Both methods yield similar results. Snowball may boost motivation by clearing ${snowballOrder[0]?.lenderName} first.`;
 
     return {
-        avalanche: { order: avalancheOrder.map(l => l.lenderName), totalInterestSaved: Math.round(interestDiff), monthsToPayoff: avalancheMonths },
-        snowball: { order: snowballOrder.map(l => l.lenderName), totalInterestSaved: 0, monthsToPayoff: snowballMonths },
+        avalanche: { order: avalancheOrder.map(l => l.lenderName), totalInterestSaved: Math.round(interestDiff), monthsToPayoff: avalancheResult.months },
+        snowball: { order: snowballOrder.map(l => l.lenderName), totalInterestSaved: 0, monthsToPayoff: snowballResult.months },
         recommendation,
     };
 }

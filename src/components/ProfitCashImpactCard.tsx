@@ -8,7 +8,7 @@ interface Props {
     impact: ProfitCashImpact;
     source: ImpactSource;
     currency: string;
-    onSeeFullPicture: () => void; // always the same terminal step: Clarity's profit -> cash pathway
+    onSeeFullPicture: () => void; // always the same terminal step: Business Passport's profit -> cash pathway
 }
 
 // The consistent last leg of every decision chain in the app: does this

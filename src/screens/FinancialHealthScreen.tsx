@@ -1,3 +1,10 @@
+// NOTE: despite the name, this screen has nothing to do with the app's
+// internal record-based diagnosis (performFinancialDiagnosis / computeRiskScore
+// in utils/financialDiagnosisEngine.ts + utils/finance.ts, surfaced on
+// FinancialAssessmentScreen and BusinessPassportScreen). This one calls an
+// external third party (Pngme) that estimates income from mobile money/bank
+// SMS text — a different data source for a different purpose (income
+// verification for lending), not a summary of what's recorded in Quad360.
 import React, { useState, useCallback } from 'react';
 import {
     View, Text, TouchableOpacity, ScrollView,

@@ -555,9 +555,9 @@ export default function SettingsScreen() {
                     <SectionHeader title="⭐ SUBSCRIPTION PLAN" />
                     <Section title="Plan">
                         <Text style={styles.hint}>
-                            Free covers Dashboard, Clarity, Invoices, Sales, Payroll, Cash Flow, Reports,
+                            Free covers Dashboard, Business Passport, Invoices, Sales, Payroll, Cash Flow, Reports,
                             Inventory, Assets, Loans, Goals and Budgets. Pro additionally unlocks Insights,
-                            Analysis, Advisor, Business Financial DNA, Future Financial Statements and Growth
+                            Analysis, Advisor, Future Financial Statements and Growth
                             Intelligence.
                         </Text>
                         <Text style={[styles.hint, { fontStyle: 'italic', marginBottom: 12 }]}>

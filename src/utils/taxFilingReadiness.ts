@@ -36,6 +36,7 @@ export function computeTaxFilingReadiness(
     settings: BusinessSettings,
     finance?: FinanceData,
     referenceDate: Date = new Date(),
+    businessName?: string,
 ): TaxFilingReadiness {
     const checks: ReadinessCheck[] = [];
     const currency = settings.currency || '';
@@ -122,12 +123,18 @@ export function computeTaxFilingReadiness(
         detail: taxRateSet ? `Set to ${settings.defaultTaxRate}%` : 'Not set in Settings',
     });
 
-    const businessNameSet = !!(settings.businessName && settings.businessName.trim());
+    // The business's display name lives on User (set at signup), not
+    // BusinessSettings — Settings has no business-name field at all, so
+    // checking settings.businessName here made this check permanently fail
+    // for every business, demo or real, with an "Edit in Settings" prompt
+    // that led nowhere (there's nothing there to edit).
+    const resolvedBusinessName = businessName || settings.businessName;
+    const businessNameSet = !!(resolvedBusinessName && resolvedBusinessName.trim());
     checks.push({
         id: 'business-identity',
         label: 'Business name is set (needed on any filing)',
         passed: businessNameSet,
-        detail: businessNameSet ? settings.businessName! : 'Not set in Settings',
+        detail: businessNameSet ? resolvedBusinessName! : 'Not set — add it when creating your account or contact support to update it.',
     });
 
     const passedCount = checks.filter(c => c.passed).length;

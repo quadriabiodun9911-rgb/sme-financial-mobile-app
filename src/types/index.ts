@@ -14,9 +14,7 @@ export type Screen =
     | 'cfo'
     | 'budget'
     | 'analysis'
-    | 'financial-dna'
     | 'future-statements'
-    | 'solve'
     | '2fa'
     | 'two-factor-verify'
     | 'payment-link'
@@ -29,7 +27,6 @@ export type Screen =
     | 'loan-eligibility'
     | 'bank-statement-import'
     | 'onboarding-choice'
-    | 'clarity'
     | 'weekly-dashboard'
     | 'action-tracker'
     | 'financial-assessment'
@@ -37,7 +34,8 @@ export type Screen =
     | 'goal-bridge'
     | 'trends'
     | 'tax-filing-readiness'
-    | 'financial-health';
+    | 'financial-health'
+    | 'business-passport';
 
 export interface Budget {
     id: string;

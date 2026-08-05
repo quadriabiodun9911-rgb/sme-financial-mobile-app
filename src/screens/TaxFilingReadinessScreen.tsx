@@ -7,11 +7,11 @@ import FooterNav from '../components/FooterNav';
 import { computeTaxFilingReadiness } from '../utils/taxFilingReadiness';
 
 export default function TaxFilingReadinessScreen() {
-    const { transactions, invoices, settings, finance, setCurrentScreen } = useApp();
+    const { transactions, invoices, settings, finance, setCurrentScreen, user } = useApp();
 
     const readiness = useMemo(
-        () => computeTaxFilingReadiness(transactions, invoices, settings, finance),
-        [transactions, invoices, settings, finance]
+        () => computeTaxFilingReadiness(transactions, invoices, settings, finance, new Date(), user?.businessName),
+        [transactions, invoices, settings, finance, user?.businessName]
     );
 
     const d = readiness.daysUntilDeadline;

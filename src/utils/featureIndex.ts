@@ -116,10 +116,10 @@ export const FEATURE_INDEX: FeatureEntry[] = [
         screen: 'tax-filing-readiness',
     },
     {
-        id: 'clarity', label: 'Financial Clarity', icon: '🧭',
-        description: 'Where the business stands and what to do next, in plain terms',
-        keywords: ['position', 'strategy', 'biggest lever', 'action plan'],
-        screen: 'clarity',
+        id: 'business-passport', label: 'Business Passport', icon: '🛂',
+        description: 'The continuously-updating financial identity of the business — identity, health, risk, credit readiness, investment readiness, growth, and what to do next',
+        keywords: ['position', 'strategy', 'biggest lever', 'action plan', 'passport', 'identity', 'clarity'],
+        screen: 'business-passport',
     },
     {
         id: 'credit-worthiness', label: 'Credit-Worthiness', icon: '💳',
@@ -161,7 +161,7 @@ export const FEATURE_INDEX: FeatureEntry[] = [
         id: 'import-bank-statement', label: 'Import Bank Statement', icon: '🏦',
         description: 'Upload a bank statement to auto-import transactions',
         keywords: ['import', 'bank statement', 'csv', 'upload'],
-        screen: 'clarity',
+        screen: 'import-transactions',
     },
     {
         id: 'invoices', label: 'Invoices', icon: '📄',

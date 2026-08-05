@@ -16,7 +16,7 @@
 
 import { Transaction, Loan, InventoryItem, BusinessSettings, User } from '../types';
 import { FinanceData } from '../types';
-import { computeCustomerConcentration, computeSeasonalRisk, computeRiskScore, computeWorkingCapitalMetrics, RiskScore } from './finance';
+import { computeCustomerConcentration, computeSupplierConcentration, SupplierConcentration, computeSeasonalRisk, computeRiskScore, computeWorkingCapitalMetrics, RiskScore } from './finance';
 import { analyzeTrend, TrendAnalysis, computeAllTimeMonthlyBuckets } from './trendAnalysis';
 import { computeInventoryValue, computeStockVelocity } from './stockVelocity';
 import { totalMonthlyLoanBurden } from './loanMath';
@@ -96,13 +96,6 @@ function buildFinancialBehaviour(transactions: Transaction[], loans: Loan[], tre
 }
 
 // ── Operational behaviour ────────────────────────────────────────────────────
-export interface SupplierConcentration {
-    supplier: string;
-    amount: number;
-    percentage: number;
-    risk: 'low' | 'medium' | 'high';
-}
-
 export interface OperationalBehaviour {
     inventoryValue: number;
     slowMovingItemCount: number;
@@ -112,29 +105,6 @@ export interface OperationalBehaviour {
     suppliers: SupplierConcentration[];
     outstandingReceivables: number;
     outstandingPayables: number;
-}
-
-// Mirrors computeCustomerConcentration's grouping + risk-tier logic
-// (finance.ts) onto expense transactions — the one piece of this file that
-// isn't reused from elsewhere, because nothing else in the app groups
-// spend by supplier today.
-function computeSupplierConcentration(transactions: Transaction[]): SupplierConcentration[] {
-    const map = new Map<string, number>();
-    let total = 0;
-    for (const t of transactions) {
-        if (t.type !== 'expense') continue;
-        const raw = t.vendorCustomer?.split(' | ')[0]?.trim();
-        const key = raw || 'Unknown';
-        map.set(key, (map.get(key) ?? 0) + t.amount);
-        total += t.amount;
-    }
-    return Array.from(map.entries())
-        .sort((a, b) => b[1] - a[1])
-        .map(([supplier, amount]) => {
-            const percentage = total > 0 ? (amount / total) * 100 : 0;
-            const risk: SupplierConcentration['risk'] = percentage >= 40 ? 'high' : percentage >= 20 ? 'medium' : 'low';
-            return { supplier, amount, percentage, risk };
-        });
 }
 
 function buildOperationalBehaviour(transactions: Transaction[], inventory: InventoryItem[]): OperationalBehaviour {
@@ -172,8 +142,9 @@ function buildRiskBehaviour(
     transactions: Transaction[],
     trend: TrendAnalysis,
     operational: OperationalBehaviour,
+    inventory: InventoryItem[],
 ): RiskBehaviour {
-    const riskScore = computeRiskScore(finance, loans, transactions);
+    const riskScore = computeRiskScore(finance, loans, transactions, inventory);
 
     const customerConcentrationRisk: RiskBehaviour['customerConcentrationRisk'] =
         operational.topCustomerConcentrationPct >= 40 ? 'high' : operational.topCustomerConcentrationPct >= 20 ? 'medium' : 'low';
@@ -213,7 +184,7 @@ export function buildBusinessFinancialDNA(
         identity: buildIdentity(settings, user, trend.spanMonths),
         financial: buildFinancialBehaviour(transactions, loans, trend),
         operational,
-        risk: buildRiskBehaviour(finance, loans, transactions, trend, operational),
+        risk: buildRiskBehaviour(finance, loans, transactions, trend, operational, inventory),
     };
 }
 

@@ -157,6 +157,21 @@ function buildPoints(periods: PeriodDef[], transactions: Transaction[], assets: 
 
 const MONTH_SHORT = (y: number, m: number) => new Date(y, m - 1, 1).toLocaleString('default', { month: 'short' }) + ` '${String(y).slice(2)}`;
 
+// A period's calendar end date (month/quarter/year-end) can be in the
+// future for the current, still-in-progress period — e.g. today is Aug 4
+// but the monthly bucket's calendar end is Aug 31. Depreciation
+// (equipmentValueAsOf) accrues continuously with elapsed time, so computing
+// it "as of Aug 31" quietly counts 27 days of depreciation that haven't
+// happened yet, understating equipment value versus every other figure on
+// this screen (which only ever reflect real, already-recorded transactions
+// and so can't be affected either way). This showed up as a small but real
+// mismatch against computeLeverageRatios' "as of right now" net worth for
+// the same business. Capping at today makes both agree.
+function capAtToday(endDate: string): string {
+    const today = new Date().toISOString().slice(0, 10);
+    return endDate > today ? today : endDate;
+}
+
 export function computeBalanceSheetTrend(
     grouping: BalancePeriodGrouping,
     months: string[], // sorted 'YYYY-MM' keys that have transaction data, e.g. from computeMonthlyTrend
@@ -170,7 +185,7 @@ export function computeBalanceSheetTrend(
     if (grouping === 'monthly') {
         const periods: PeriodDef[] = months.map(m => {
             const [y, mo] = m.split('-').map(Number);
-            return { key: m, label: MONTH_SHORT(y, mo), endDate: monthEndDate(y, mo) };
+            return { key: m, label: MONTH_SHORT(y, mo), endDate: capAtToday(monthEndDate(y, mo)) };
         });
         return buildPoints(periods, transactions, assets, loans, manual);
     }
@@ -181,7 +196,7 @@ export function computeBalanceSheetTrend(
             const [y, mo] = m.split('-').map(Number);
             const q = Math.ceil(mo / 3);
             const key = `${y}-Q${q}`;
-            if (!seen.has(key)) seen.set(key, { key, label: `Q${q} ${y}`, endDate: monthEndDate(y, q * 3) });
+            if (!seen.has(key)) seen.set(key, { key, label: `Q${q} ${y}`, endDate: capAtToday(monthEndDate(y, q * 3)) });
         }
         return buildPoints(Array.from(seen.values()).sort((a, b) => a.key.localeCompare(b.key)), transactions, assets, loans, manual);
     }
@@ -191,7 +206,7 @@ export function computeBalanceSheetTrend(
     for (const m of months) {
         const y = Number(m.slice(0, 4));
         const key = String(y);
-        if (!seen.has(key)) seen.set(key, { key, label: key, endDate: `${y}-12-31` });
+        if (!seen.has(key)) seen.set(key, { key, label: key, endDate: capAtToday(`${y}-12-31`) });
     }
     return Array.from(seen.values())
         .sort((a, b) => a.key.localeCompare(b.key))

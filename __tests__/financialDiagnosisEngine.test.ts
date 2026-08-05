@@ -109,37 +109,52 @@ describe('calculateFinancialMetrics — runway uses actual monthly expense, not 
     });
 });
 
-describe('calculateFinancialMetrics — daysOutstanding', () => {
-    it('is 0 when there are no unpaid invoices', () => {
-        const m = calculateFinancialMetrics([], [makeInvoice({ status: 'paid' })], 10000, 5000);
+// accountsReceivable/daysOutstanding used to be computed straight off
+// Invoice records here, while the Working Capital pillar (and Business
+// Financial DNA, and the CFO screen) computed AR off transactions with a
+// pending/overdue status — two different "what's currently receivable"
+// numbers for the same business, and the invoice-based one over-counted by
+// including draft invoices that were never sent and have no transaction
+// behind them. Both fields are now sourced from computeWorkingCapitalMetrics,
+// the same canonical implementation those other screens already use.
+describe('calculateFinancialMetrics — accountsReceivable & daysOutstanding are transaction-based', () => {
+    const daysAgo = (n: number) => {
+        const d = new Date();
+        d.setDate(d.getDate() - n);
+        return d.toISOString().split('T')[0];
+    };
+
+    it('is 0 when there are no pending/overdue income transactions', () => {
+        const m = calculateFinancialMetrics([], [], 10000, 5000);
+        expect(m.accountsReceivable).toBe(0);
         expect(m.daysOutstanding).toBe(0);
     });
 
-    it('reflects the actual age of a single unpaid invoice, not a flat 30', () => {
-        const tenDaysAgo = new Date(Date.now() - 10 * 86400000).toISOString().split('T')[0];
-        const m = calculateFinancialMetrics(
-            [],
-            [makeInvoice({ issueDate: tenDaysAgo, total: 1000, status: 'sent' })],
-            10000,
-            5000
-        );
-        expect(m.daysOutstanding).toBeGreaterThanOrEqual(9);
-        expect(m.daysOutstanding).toBeLessThanOrEqual(11);
+    it('sums pending and overdue income transactions, matching Working Capital\'s own AR figure', () => {
+        const txs = [
+            makeTx({ type: 'income', amount: 6000, status: 'pending' }),
+            makeTx({ type: 'income', amount: 4000, status: 'overdue' }),
+            makeTx({ type: 'income', amount: 2000, status: 'paid' }), // already paid — excluded
+        ];
+        const m = calculateFinancialMetrics(txs, [], 10000, 5000);
+        expect(m.accountsReceivable).toBe(10000);
     });
 
-    it('weights the average by invoice amount', () => {
-        const fiveDaysAgo = new Date(Date.now() - 5 * 86400000).toISOString().split('T')[0];
-        const fiftyDaysAgo = new Date(Date.now() - 50 * 86400000).toISOString().split('T')[0];
-        const m = calculateFinancialMetrics(
-            [],
-            [
-                makeInvoice({ id: 'a', issueDate: fiveDaysAgo, total: 9000, status: 'sent' }),
-                makeInvoice({ id: 'b', issueDate: fiftyDaysAgo, total: 1000, status: 'sent' }),
-            ],
-            10000,
-            5000
-        );
-        // Weighted average should sit much closer to 5 days (the $9k invoice) than to 50.
-        expect(m.daysOutstanding).toBeLessThan(15);
+    it('excludes draft invoices — a draft has no linked transaction and no real commitment yet', () => {
+        const txs = [makeTx({ type: 'income', amount: 5000, status: 'pending' })];
+        const draftInvoice = makeInvoice({ status: 'draft', total: 999999 });
+        const m = calculateFinancialMetrics(txs, [draftInvoice], 10000, 5000);
+        expect(m.accountsReceivable).toBe(5000); // not 999999 + 5000
+    });
+
+    it('computes DSO as the AR balance over trailing-90-day daily revenue', () => {
+        const txs = [
+            // 90-day trailing paid revenue: 90,000 -> 1,000/day
+            makeTx({ type: 'income', amount: 90000, status: 'paid', date: daysAgo(30) }),
+            makeTx({ type: 'income', amount: 5000, status: 'pending', date: daysAgo(5) }),
+        ];
+        const m = calculateFinancialMetrics(txs, [], 10000, 5000);
+        expect(m.accountsReceivable).toBe(5000);
+        expect(m.daysOutstanding).toBe(5); // 5,000 AR / 1,000 per day
     });
 });

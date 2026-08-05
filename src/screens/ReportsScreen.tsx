@@ -122,6 +122,12 @@ export default function ReportsScreen() {
     const trend      = useMemo(() => computeMonthlyTrend(transactions, 6), [transactions]);
     const enhPnL     = useMemo(() => computeEnhancedPnL(filteredTx, assets), [filteredTx, assets]);
     const wcMetrics  = useMemo(() => computeWorkingCapitalMetrics(filteredTx), [filteredTx]);
+    // Unfiltered (all-time, "as of today") AR/AP — the Debt tab's leverage
+    // ratios describe the business's current balance sheet, not a
+    // period-scoped slice, so this must match Reports > "What I Own & Owe"
+    // and Credit-Worthiness's Five C's Capital section rather than wcMetrics
+    // above (which is intentionally scoped to whatever period is selected).
+    const allTimeWcMetrics = useMemo(() => computeWorkingCapitalMetrics(transactions), [transactions]);
     const bizSize    = classifyBusinessSize(enhPnL.revenue);
 
     const prevFinance = useMemo(() => {
@@ -269,7 +275,7 @@ export default function ReportsScreen() {
                     {/* ── TAX Section ────────────────────────────────────── */}
                     <Text style={styles.reportGroupHeader}>🧾 TAX</Text>
                     {[
-                        { icon: '🧾', label: 'Tax Summary', sub: 'Tax collected, paid and your net tax position', section: 'operations' as SectionKey, tab: 'tax' as SubTab },
+                        { icon: '🧾', label: 'Tax Summary', sub: 'Tax collected, paid and your net tax position', section: 'tax' as SectionKey, tab: 'tax' as SubTab },
                     ].map(item => (
                         <TouchableOpacity
                             key={item.tab}
@@ -535,6 +541,7 @@ export default function ReportsScreen() {
                                 currency={currency}
                                 loans={loansList}
                                 transactions={transactions}
+                                inventoryValue={inventoryValue}
                             />
                             {/* Solvency/leverage ratios (debt-to-assets, debt-to-
                                 equity, ROA, ROE) — was imported but never actually
@@ -543,6 +550,9 @@ export default function ReportsScreen() {
                                 finance={allFinance}
                                 currency={currency}
                                 loans={loansList}
+                                accountsReceivable={allTimeWcMetrics.accountsReceivable}
+                                accountsPayable={allTimeWcMetrics.accountsPayable}
+                                inventoryValue={inventoryValue}
                             />
                         </>
                     )}
@@ -592,7 +602,7 @@ export default function ReportsScreen() {
                                 currentMargin={allFinance.margin}
                                 currency={currency}
                                 invoices={invoices}
-                                onSeeFullPicture={() => setCurrentScreen('clarity')}
+                                onSeeFullPicture={() => setCurrentScreen('business-passport')}
                             />
                             <NextStepLink
                                 text="After adjusting prices, see the effect on your Balance Sheet"

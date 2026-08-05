@@ -1,7 +1,25 @@
+// jest-expo (already a devDependency, previously unused) supplies the
+// react-native/Expo test environment this project's source actually needs:
+// platform-extension module resolution (Platform.ios.js etc.), transforms
+// for the untranspiled ESM react-native/Expo packages ship under
+// node_modules, and the native-module setup those packages expect at
+// import time. Hand-rolling this in a plain node + ts-jest config (see git
+// history on this file) chased one missing piece after another — this is
+// the config the framework itself is built to need.
 module.exports = {
-    testEnvironment: 'node',
+    preset: 'jest-expo',
     testMatch: ['**/__tests__/**/*.test.ts'],
     transform: {
-        '^.+\\.tsx?$': ['ts-jest', { tsconfig: { strict: false } }],
+        '^.+\\.tsx?$': ['babel-jest', { presets: ['babel-preset-expo'] }],
     },
+    // jest-expo's preset already needs its own two setupFiles (native module
+    // shims, __DEV__, etc.) — Jest does NOT merge a project's `setupFiles`
+    // with a preset's, it replaces the array outright, so our addition has
+    // to explicitly re-list them alongside jest.setup.js instead of relying
+    // on the preset to still run them.
+    setupFiles: [
+        'react-native/jest/setup.js',
+        'jest-expo/src/preset/setup.js',
+        '<rootDir>/jest.setup.js',
+    ],
 };

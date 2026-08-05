@@ -24,7 +24,7 @@ const EXPENSE_CATEGORIES = [
 ];
 
 export default function BudgetScreen() {
-    const { transactions, budgets, addBudget, updateBudget, deleteBudget, settings, navigate, finance, loans, invoices } = useApp();
+    const { transactions, budgets, addBudget, updateBudget, deleteBudget, settings, navigate, finance, loans, invoices, inventory } = useApp();
     const { currency } = settings;
 
     const now = new Date();
@@ -154,9 +154,9 @@ export default function BudgetScreen() {
     // a generic "you're over budget" flag.
     const expenseTactics = useMemo(() => {
         if (transactions.length < 5) return [];
-        const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, finance.expense || 1, settings.currency);
+        const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, finance.expense || 1, settings.currency, loans, inventory);
         return generateExpenseReductionActions(diagnosis, diagnosis.metrics, settings.currency).slice(0, 3);
-    }, [transactions, invoices, finance.cashBalance, finance.expense, settings.currency]);
+    }, [transactions, invoices, finance.cashBalance, finance.expense, settings.currency, loans, inventory]);
 
     // Auto-generated budget: sized against forward-looking revenue (via
     // computeRevenueForecast inside generateAutoBudget), scaled down if
@@ -385,7 +385,7 @@ export default function BudgetScreen() {
                                     impact={computeProfitCashImpact(monthlyRevenue, cashBalance, -dCommitments)}
                                     source="budget"
                                     currency={currency}
-                                    onSeeFullPicture={() => navigate('clarity')}
+                                    onSeeFullPicture={() => navigate('business-passport')}
                                 />
                                 <View style={s.adjustBtnRow}>
                                     <TouchableOpacity style={s.adjustCancelBtn} onPress={cancelAdjustMode}>
@@ -407,7 +407,7 @@ export default function BudgetScreen() {
                                         impact={computeProfitCashImpact(monthlyRevenue, cashBalance, -totalCommitments)}
                                         source="budget"
                                         currency={currency}
-                                        onSeeFullPicture={() => navigate('clarity')}
+                                        onSeeFullPicture={() => navigate('business-passport')}
                                     />
                                 )}
                             </>

@@ -11,7 +11,7 @@ interface Props {
 
 /**
  * Surfaces the business's own mission/vision/values right where decisions
- * get made — the Weekly Dashboard's priorities and the Clarity screen's
+ * get made — the Weekly Dashboard's priorities and the Business Passport's
  * strategy — instead of leaving them buried in Settings where they're set
  * once and never seen again. Deliberately just displays the owner's own
  * words; no automated "alignment score" against them, since that would

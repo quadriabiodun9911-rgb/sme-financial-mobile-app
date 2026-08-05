@@ -5,14 +5,18 @@ const makeMetrics = (overrides: Partial<FinancialMetrics> = {}): FinancialMetric
     totalRevenue: 100000, totalExpenses: 60000, netProfit: 40000, profitMargin: 40,
     cashBalance: 200000, runwayDays: 90,
     accountsReceivable: 0, accountsPayable: 0, daysOutstanding: 0,
+    dso: 20, dpo: 20, cashConversionCycleDays: 0,
+    dscr: 2, dscrStatus: 'healthy', monthlyDebtService: 0,
+    inventoryValue: 0, slowMovingValuePct: 0,
+    topCustomerConcentrationPct: 10, topSupplierConcentrationPct: 10,
     expensesByCategory: { rent: 40000, utilities: 20000 },
-    revenueRecurringPct: 50,
+    revenueRecurringPct: 50, expenseGrowthPct: 0,
     monthOverMonthGrowth: 5, profitTrend: 'stable',
     ...overrides,
 });
 
 const makeDiagnosis = (metrics: FinancialMetrics): DiagnosisResult => ({
-    overallHealth: 70, healthStatus: 'healthy', metrics, diagnoses: [], topOpportunities: [],
+    overallHealth: 70, healthStatus: 'healthy', band: 'Strong', categories: [], metrics, diagnoses: [], topOpportunities: [],
 });
 
 // This tactic's id is deterministic given the two expense categories above:

@@ -3,7 +3,9 @@
  * Audits financial statements and identifies root causes
  */
 
-import { Transaction, Invoice } from '../types';
+import { Transaction, Invoice, Loan, InventoryItem } from '../types';
+import { computeDSCR, computeWorkingCapitalMetrics, computeCustomerConcentration, computeSupplierConcentration, computeRiskScore, RiskScore, DSCRResult } from './finance';
+import { computeStockVelocity } from './stockVelocity';
 
 export interface FinancialMetrics {
   // Profitability
@@ -20,14 +22,38 @@ export interface FinancialMetrics {
   accountsReceivable: number;
   accountsPayable: number;
   daysOutstanding: number;
+  dso: number;
+  dpo: number;
+  cashConversionCycleDays: number;
+
+  // Debt
+  dscr: number;
+  dscrStatus: DSCRResult['status'];
+  monthlyDebtService: number;
+
+  // Inventory
+  inventoryValue: number;
+  slowMovingValuePct: number;
+
+  // Concentration
+  topCustomerConcentrationPct: number;
+  topSupplierConcentrationPct: number;
 
   // Efficiency
   expensesByCategory: Record<string, number>;
   revenueRecurringPct: number;
+  expenseGrowthPct: number;
 
   // Trends
   monthOverMonthGrowth: number;
   profitTrend: 'improving' | 'declining' | 'stable';
+}
+
+export interface HealthCategory {
+  key: 'profitability' | 'liquidity' | 'workingCapital' | 'debt' | 'efficiency' | 'inventory' | 'concentration';
+  label: string;
+  score: number; // 0-100
+  status: 'strong' | 'watch' | 'high-risk';
 }
 
 export interface RootCauseAnalysis {
@@ -42,6 +68,8 @@ export interface RootCauseAnalysis {
 export interface DiagnosisResult {
   overallHealth: number; // 0-100
   healthStatus: 'critical' | 'warning' | 'healthy';
+  band: RiskScore['band'];
+  categories: HealthCategory[];
   metrics: FinancialMetrics;
   diagnoses: RootCauseAnalysis[];
   topOpportunities: string[];
@@ -60,7 +88,9 @@ export function calculateFinancialMetrics(
   transactions: Transaction[],
   invoices: Invoice[],
   cashBalance: number,
-  monthlyExpenseAverage: number
+  monthlyExpenseAverage: number,
+  loans: Loan[] = [],
+  inventory: InventoryItem[] = []
 ): FinancialMetrics {
   const now = new Date();
   // "This month" means the most recent month the business actually has
@@ -95,6 +125,11 @@ export function calculateFinancialMetrics(
   const thisMonthExpenses = expenseTransactions
     .filter(t => t.date.startsWith(thisMonth))
     .reduce((sum, t) => sum + t.amount, 0);
+  const lastMonthExpenses = expenseTransactions
+    .filter(t => t.date.startsWith(lastMonth))
+    .reduce((sum, t) => sum + t.amount, 0);
+  const expenseGrowthPct =
+    lastMonthExpenses > 0 ? ((thisMonthExpenses - lastMonthExpenses) / lastMonthExpenses) * 100 : 0;
 
   const expensesByCategory: Record<string, number> = {};
   expenseTransactions
@@ -138,39 +173,62 @@ export function calculateFinancialMetrics(
       ? Math.floor(cashBalance / (effectiveMonthlyExpense / 30))
       : null;
 
-  // Accounts Receivable
-  const unpaidInvoices = invoices.filter(i => i.status !== 'paid');
-  const accountsReceivable = unpaidInvoices.reduce((sum, i) => sum + i.total, 0);
+  // Accounts Receivable / Payable and DSO/DPO — sourced from the same
+  // computeWorkingCapitalMetrics() the Working Capital pillar below uses,
+  // not recomputed separately here. This used to read accountsReceivable
+  // straight off Invoice records (invoices.filter(i => i.status !== 'paid'))
+  // while Working Capital read it off transactions with a pending/overdue
+  // status — two different numbers for "what's currently receivable" in
+  // the same diagnosis result, one of which (the invoice-based figure)
+  // also over-counted by including draft invoices that were never sent and
+  // have no real transaction behind them yet. Every non-draft invoice
+  // already keeps a linked income transaction whose status mirrors the
+  // invoice's own (see OptimizedContexts.tsx's addInvoice/markInvoiceStatus),
+  // so the transaction-based figure is a strict superset — invoiced AND
+  // manually-recorded pending income both count, drafts don't.
+  //
+  // Caveat inherited from computeWorkingCapitalMetrics (and, already,
+  // computeDSCR just below): its revenue-rate denominator is a trailing
+  // 90 real-world days, not the "latest data month" this file's own
+  // runwayDays anchors to for historical/imported data. A dataset with no
+  // paid income in the last 90 real days (e.g. testing against an old bank
+  // import) will show daysOutstanding as 0 rather than reflecting genuinely
+  // slow-paying customers — the same tradeoff already accepted for DSCR in
+  // this file, not something newly introduced here.
+  const wc = computeWorkingCapitalMetrics(transactions);
+  const accountsReceivable = wc.accountsReceivable;
+  const accountsPayable = wc.accountsPayable;
+  const daysOutstanding = wc.dso;
 
-  // Accounts Payable: unpaid/overdue expense transactions (bills owed to suppliers)
-  const unpaidExpenses = transactions.filter(
-    t => t.type === 'expense' && (t.status === 'pending' || t.status === 'overdue')
-  );
-  const accountsPayable = unpaidExpenses.reduce((sum, t) => sum + t.amount, 0);
-
-  // Days Sales Outstanding: average age (in days) of unpaid invoices, weighted
-  // by amount, measured from each invoice's issue date to today.
-  const daysOutstanding = unpaidInvoices.length > 0
-    ? Math.round(
-        unpaidInvoices.reduce((sum, i) => {
-          const ageDays = Math.max(
-            0,
-            (now.getTime() - new Date(i.issueDate).getTime()) / 86400000
-          );
-          return sum + ageDays * i.total;
-        }, 0) / Math.max(1, accountsReceivable)
-      )
-    : 0;
-
-  // Recurring revenue percentage
-  const recurringTransactions = transactions.filter(t => t.isRecurring);
+  // Recurring revenue percentage — recurring income THIS MONTH as a share of
+  // THIS MONTH's total revenue. Previously divided an all-time count of
+  // recurring transactions (any type, any month) by this month's income
+  // transaction count — numerator and denominator were on different
+  // timescales and could produce percentages over 100%.
+  const thisMonthRecurringRevenue = thisMonthTransactions
+    .filter(t => t.isRecurring)
+    .reduce((sum, t) => sum + t.amount, 0);
   const revenueRecurringPct =
-    thisMonthRevenue > 0 ? (recurringTransactions.length / thisMonthTransactions.length) * 100 : 0;
+    thisMonthRevenue > 0 ? (thisMonthRecurringRevenue / thisMonthRevenue) * 100 : 0;
 
   // Profit trend
   let profitTrend: 'improving' | 'declining' | 'stable' = 'stable';
   if (monthOverMonthGrowth > 5) profitTrend = 'improving';
   else if (monthOverMonthGrowth < -5) profitTrend = 'declining';
+
+  // Debt — trailing-12-month DSCR against active loans.
+  const dscrResult = computeDSCR(transactions, loans);
+
+  // Inventory — share of stock value sitting in slow-moving items.
+  const inventoryValue = inventory.reduce((sum, i) => sum + i.quantity * i.costPrice, 0);
+  const slowMovingValue = inventory
+    .filter(i => computeStockVelocity(i, transactions).tier === 'slow')
+    .reduce((sum, i) => sum + i.quantity * i.costPrice, 0);
+  const slowMovingValuePct = inventoryValue > 0 ? (slowMovingValue / inventoryValue) * 100 : 0;
+
+  // Concentration — worst of customer or supplier concentration.
+  const customerConcentration = computeCustomerConcentration(transactions);
+  const supplierConcentration = computeSupplierConcentration(transactions);
 
   return {
     totalRevenue,
@@ -182,8 +240,19 @@ export function calculateFinancialMetrics(
     accountsReceivable,
     accountsPayable,
     daysOutstanding,
+    dso: wc.dso,
+    dpo: wc.dpo,
+    cashConversionCycleDays: wc.ccc,
+    dscr: dscrResult.dscr,
+    dscrStatus: dscrResult.status,
+    monthlyDebtService: dscrResult.totalDebtService / 12,
+    inventoryValue,
+    slowMovingValuePct,
+    topCustomerConcentrationPct: customerConcentration[0]?.percentage ?? 0,
+    topSupplierConcentrationPct: supplierConcentration[0]?.percentage ?? 0,
     expensesByCategory,
     revenueRecurringPct,
+    expenseGrowthPct,
     monthOverMonthGrowth,
     profitTrend,
   };
@@ -264,15 +333,115 @@ export function diagnoseLiquidity(
     });
   }
 
-  // High AR diagnosis
-  if (metrics.accountsReceivable > metrics.totalRevenue * 0.5) {
+  // High AR diagnosis — benchmarked against days sales outstanding, not
+  // against a single month's revenue. Comparing the *total* balance of every
+  // unpaid invoice ever issued to *one month's* revenue previously
+  // guaranteed a false positive for any business on normal net-30 terms
+  // (which carries close to a month of AR by design), and got worse the
+  // longer a business had been invoicing without archiving old invoices.
+  // DSO is scale-independent and was already computed but never actually
+  // used here.
+  if (metrics.accountsReceivable > 0 && metrics.daysOutstanding > INDUSTRY_BENCHMARKS.daysOutstandingTarget) {
+    const severity = metrics.daysOutstanding > INDUSTRY_BENCHMARKS.daysOutstandingTarget * 2 ? 'critical' : 'warning';
     diagnoses.push({
-      problem: 'High accounts receivable',
-      severity: 'warning',
+      problem: `Slow-paying customers (${metrics.daysOutstanding}-day average vs ${INDUSTRY_BENCHMARKS.daysOutstandingTarget}-day target)`,
+      severity,
       rootCause: 'Customers paying slowly (high DSO)',
-      impact: `${currency}${metrics.accountsReceivable.toLocaleString()} tied up in unpaid invoices`,
+      impact: `${currency}${metrics.accountsReceivable.toLocaleString()} tied up in outstanding customer receivables`,
       financialImpact: metrics.accountsReceivable,
       opportunity: 'Implement strict payment terms; offer early payment discounts',
+    });
+  }
+
+  return diagnoses;
+}
+
+export function diagnoseWorkingCapital(
+  metrics: FinancialMetrics,
+): RootCauseAnalysis[] {
+  const diagnoses: RootCauseAnalysis[] = [];
+
+  if (metrics.cashConversionCycleDays > 45) {
+    diagnoses.push({
+      problem: `Cash conversion cycle is ${metrics.cashConversionCycleDays} days`,
+      severity: metrics.cashConversionCycleDays > 75 ? 'critical' : 'warning',
+      rootCause: 'Cash spends too long tied up between paying suppliers and collecting from customers',
+      impact: 'Working capital trapped in the gap between paying out and getting paid',
+      financialImpact: 0,
+      opportunity: 'Negotiate longer supplier payment terms or shorter customer payment terms to close the gap',
+    });
+  }
+
+  return diagnoses;
+}
+
+export function diagnoseDebt(
+  metrics: FinancialMetrics,
+  currency: string = '₦'
+): RootCauseAnalysis[] {
+  const diagnoses: RootCauseAnalysis[] = [];
+
+  if (metrics.dscrStatus !== 'healthy' && metrics.monthlyDebtService > 0) {
+    diagnoses.push({
+      problem: `Debt Service Coverage Ratio is ${metrics.dscr.toFixed(2)} (target ≥1.25)`,
+      severity: metrics.dscrStatus === 'danger' ? 'critical' : 'warning',
+      rootCause: metrics.dscr < 1.0
+        ? 'Operating income does not cover current debt obligations'
+        : 'Operating income covers debt but with little margin for a bad month',
+      impact: `${currency}${metrics.monthlyDebtService.toLocaleString()} in monthly debt service against current income`,
+      financialImpact: metrics.monthlyDebtService,
+      opportunity: 'Grow operating income, refinance for lower payments, or pause new borrowing until DSCR recovers',
+    });
+  }
+
+  return diagnoses;
+}
+
+export function diagnoseInventory(
+  metrics: FinancialMetrics,
+  currency: string = '₦'
+): RootCauseAnalysis[] {
+  const diagnoses: RootCauseAnalysis[] = [];
+
+  if (metrics.inventoryValue > 0 && metrics.slowMovingValuePct > 25) {
+    const trappedValue = metrics.inventoryValue * (metrics.slowMovingValuePct / 100);
+    diagnoses.push({
+      problem: `${metrics.slowMovingValuePct.toFixed(0)}% of stock value is slow-moving`,
+      severity: metrics.slowMovingValuePct > 50 ? 'critical' : 'warning',
+      rootCause: 'Cash is tied up in inventory that isn\'t selling at a healthy pace',
+      impact: `${currency}${Math.round(trappedValue).toLocaleString()} sitting in slow-moving stock instead of cash`,
+      financialImpact: trappedValue,
+      opportunity: 'Discount or bundle slow movers to free up cash; reduce reorder quantities for these items',
+    });
+  }
+
+  return diagnoses;
+}
+
+export function diagnoseConcentration(
+  metrics: FinancialMetrics,
+): RootCauseAnalysis[] {
+  const diagnoses: RootCauseAnalysis[] = [];
+
+  if (metrics.topCustomerConcentrationPct >= 40) {
+    diagnoses.push({
+      problem: `Single customer is ${metrics.topCustomerConcentrationPct.toFixed(0)}% of revenue`,
+      severity: metrics.topCustomerConcentrationPct >= 60 ? 'critical' : 'warning',
+      rootCause: 'Revenue depends heavily on one customer',
+      impact: 'Losing this customer would be an existential risk, not just a bad month',
+      financialImpact: 0,
+      opportunity: 'Actively diversify the customer base; cap any single customer\'s share of revenue',
+    });
+  }
+
+  if (metrics.topSupplierConcentrationPct >= 40) {
+    diagnoses.push({
+      problem: `Single supplier is ${metrics.topSupplierConcentrationPct.toFixed(0)}% of spend`,
+      severity: metrics.topSupplierConcentrationPct >= 60 ? 'critical' : 'warning',
+      rootCause: 'Supply chain depends heavily on one vendor',
+      impact: 'A price increase, stockout, or falling-out with this supplier would hit operations directly',
+      financialImpact: 0,
+      opportunity: 'Qualify a second supplier for critical inputs before it becomes urgent',
     });
   }
 
@@ -284,6 +453,21 @@ export function diagnoseEfficiency(
   currency: string = '₦'
 ): RootCauseAnalysis[] {
   const diagnoses: RootCauseAnalysis[] = [];
+
+  // Are expenses growing faster than revenue? A business can look
+  // profitable this month and still be getting structurally less
+  // efficient — margin alone doesn't surface that until it's already gone.
+  const growthGap = metrics.expenseGrowthPct - metrics.monthOverMonthGrowth;
+  if (growthGap > 10) {
+    diagnoses.push({
+      problem: `Expenses growing faster than revenue (${metrics.expenseGrowthPct >= 0 ? '+' : ''}${metrics.expenseGrowthPct.toFixed(1)}% vs ${metrics.monthOverMonthGrowth >= 0 ? '+' : ''}${metrics.monthOverMonthGrowth.toFixed(1)}%)`,
+      severity: growthGap > 25 ? 'critical' : 'warning',
+      rootCause: 'Cost growth is outrunning revenue growth',
+      impact: 'Margins will keep compressing month over month if this continues',
+      financialImpact: metrics.totalExpenses * (growthGap / 100),
+      opportunity: 'Freeze discretionary spend increases until revenue growth catches up',
+    });
+  }
 
   // Find highest expense category
   const categories = Object.entries(metrics.expensesByCategory).sort(
@@ -309,60 +493,104 @@ export function diagnoseEfficiency(
   return diagnoses;
 }
 
+const CATEGORY_LABELS: Record<HealthCategory['key'], string> = {
+  profitability: 'Profitability',
+  liquidity: 'Liquidity',
+  workingCapital: 'Working Capital',
+  debt: 'Debt',
+  efficiency: 'Efficiency',
+  inventory: 'Inventory',
+  concentration: 'Concentration',
+};
+
+const RISK_FACTOR_TO_CATEGORY_KEY: Record<string, HealthCategory['key']> = {
+  Profitability: 'profitability',
+  Liquidity: 'liquidity',
+  'Working Capital': 'workingCapital',
+  Debt: 'debt',
+  Efficiency: 'efficiency',
+  Inventory: 'inventory',
+  Concentration: 'concentration',
+};
+
+function statusFromRiskFactor(status: 'good' | 'warning' | 'danger'): HealthCategory['status'] {
+  return status === 'good' ? 'strong' : status === 'warning' ? 'watch' : 'high-risk';
+}
+
 export function performFinancialDiagnosis(
   transactions: Transaction[],
   invoices: Invoice[],
   cashBalance: number,
   monthlyExpenseAverage: number,
-  currency: string = '₦'
+  currency: string = '₦',
+  loans: Loan[] = [],
+  inventory: InventoryItem[] = []
 ): DiagnosisResult {
   // Calculate metrics
   const metrics = calculateFinancialMetrics(
     transactions,
     invoices,
     cashBalance,
-    monthlyExpenseAverage
+    monthlyExpenseAverage,
+    loans,
+    inventory
   );
 
-  // Run diagnosis engines
-  const profitabilityDiagnoses = diagnoseProfitability(metrics, currency);
-  const liquidityDiagnoses = diagnoseLiquidity(metrics, currency);
-  const efficiencyDiagnoses = diagnoseEfficiency(metrics, currency);
-
+  // Run diagnosis engines — one per pillar, so a business's actual biggest
+  // problem (which might be debt, inventory, or concentration) always has a
+  // chance to surface instead of only ever hearing about profitability,
+  // liquidity, or expense categories.
   const allDiagnoses = [
-    ...profitabilityDiagnoses,
-    ...liquidityDiagnoses,
-    ...efficiencyDiagnoses,
+    ...diagnoseProfitability(metrics, currency),
+    ...diagnoseLiquidity(metrics, currency),
+    ...diagnoseWorkingCapital(metrics),
+    ...diagnoseDebt(metrics, currency),
+    ...diagnoseEfficiency(metrics, currency),
+    ...diagnoseInventory(metrics, currency),
+    ...diagnoseConcentration(metrics),
   ].sort((a, b) => {
     const severityOrder = { critical: 0, warning: 1, info: 2 };
-    return severityOrder[a.severity] - severityOrder[b.severity];
+    if (severityOrder[a.severity] !== severityOrder[b.severity]) {
+      return severityOrder[a.severity] - severityOrder[b.severity];
+    }
+    return b.financialImpact - a.financialImpact;
   });
 
-  // Calculate overall health score
-  let healthScore = 100;
-  if (metrics.runwayDays && metrics.runwayDays < 30) healthScore -= 40;
-  else if (metrics.runwayDays && metrics.runwayDays < 60) healthScore -= 20;
+  // Overall health score — delegates to computeRiskScore, the single
+  // canonical 7-factor scorer also used by the CFO screen and Business
+  // Financial DNA, instead of an independent point-deduction formula that
+  // only looked at 3 of the 7 pillars and could disagree with those screens
+  // for the same business.
+  const riskScore = computeRiskScore(
+    { income: metrics.totalRevenue, profit: metrics.netProfit, cashBalance: metrics.cashBalance },
+    loans,
+    transactions,
+    inventory,
+  );
 
-  if (metrics.profitMargin < 10) healthScore -= 20;
-  else if (metrics.profitMargin < 15) healthScore -= 10;
+  const categories: HealthCategory[] = riskScore.factors.map(f => ({
+    key: RISK_FACTOR_TO_CATEGORY_KEY[f.name] ?? 'profitability',
+    label: CATEGORY_LABELS[RISK_FACTOR_TO_CATEGORY_KEY[f.name] ?? 'profitability'],
+    score: f.score,
+    status: statusFromRiskFactor(f.status),
+  }));
 
-  if (metrics.monthOverMonthGrowth < -10) healthScore -= 15;
-  else if (metrics.monthOverMonthGrowth < 0) healthScore -= 5;
+  const healthStatus: DiagnosisResult['healthStatus'] =
+    riskScore.band === 'Excellent' || riskScore.band === 'Strong' ? 'healthy'
+    : riskScore.band === 'Moderate' ? 'warning'
+    : 'critical';
 
-  healthScore = Math.max(0, Math.min(100, healthScore));
-
-  const healthStatus =
-    healthScore >= 70 ? 'healthy' : healthScore >= 40 ? 'warning' : 'critical';
-
-  // Extract top opportunities
-  const topOpportunities = allDiagnoses
-    .filter(d => d.severity === 'critical')
-    .slice(0, 3)
-    .map(d => d.opportunity);
+  // "3 things to fix first" — always tries to surface 3, worst first
+  // (critical before warning before info, then by financial impact within
+  // the same severity), instead of only pulling from critical-severity
+  // items in 3 pre-selected categories and sometimes returning 0-1 results.
+  const topOpportunities = allDiagnoses.slice(0, 3).map(d => d.opportunity);
 
   return {
-    overallHealth: healthScore,
+    overallHealth: riskScore.score,
     healthStatus,
+    band: riskScore.band,
+    categories,
     metrics,
     diagnoses: allDiagnoses,
     topOpportunities,

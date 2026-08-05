@@ -6,16 +6,16 @@
  *
  * Gates exactly the app's existing "Analytics" section (the same grouping
  * already shown under More > Analytics in FooterNav) — Insights, Analysis,
- * Advisor, Business Financial DNA, Future Financial Statements, and Growth
- * Intelligence (reachable only via a deep link from Advisor's Forecast tab,
- * but the same category). Everything else — Dashboard, Clarity, Invoices,
- * Transactions, Payroll, Cash Flow, Reports, Inventory, Assets, Loans,
- * Goals, Budgets, and more — stays free.
+ * Advisor, Future Financial Statements, and Growth Intelligence (reachable
+ * only via a deep link from Advisor's Forecast tab, but the same category).
+ * Everything else — Dashboard, Business Passport, Invoices, Transactions,
+ * Payroll, Cash Flow, Reports, Inventory, Assets, Loans, Goals, Budgets,
+ * and more — stays free.
  */
 
 import { Screen, BusinessSettings } from '../types';
 
-const PRO_ONLY_SCREENS: Screen[] = ['insights', 'analysis', 'cfo', 'financial-dna', 'future-statements', 'growth'];
+const PRO_ONLY_SCREENS: Screen[] = ['insights', 'analysis', 'cfo', 'future-statements', 'growth'];
 
 export function isProOnlyScreen(screen: Screen): boolean {
     return PRO_ONLY_SCREENS.includes(screen);

@@ -12,7 +12,7 @@ import React, { createContext, useContext, useState, useMemo, useEffect, useRef,
 import { Platform } from 'react-native';
 import { User, Invoice, InvoiceStatus, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, MerchantFinancingApplication, LoanPurpose, StaffMember, PayrollRun, PayrollItem, CashPocket, CapitalCommitment, UserRole } from '../types';
 import { computeFinance, computeAssetCurrentValue } from '../utils/finance';
-import { sanitizeStoredGoals } from '../utils/goals';
+import { sanitizeStoredGoals, refreshGoal } from '../utils/goals';
 import { DEMO_BUSINESSES } from '../utils/demoData';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -127,6 +127,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const syncUserId = authForSync?.user?.email;
   const isDemoMode = authForSync?.isDemoMode ?? false;
   const demoBusinessId = authForSync?.demoBusinessId ?? null;
+  // The real opening-balance settings (Settings > Financial Set Up) — see
+  // the `finance` useMemo below for why this has to be read here instead
+  // of assumed zero.
+  const settingsForFinance = useContext(SettingsContext);
 
   useEffect(() => {
     // Reset FIRST, synchronously, before any async work: clears any previous
@@ -208,23 +212,36 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   // Computed finance - memoized with specific dependency
   const finance = useMemo(() => {
-    // Note: computeFinance uses Pick of BusinessSettings (only specific fields)
+    // Note: computeFinance uses Pick of BusinessSettings (only specific fields).
+    // This used to hardcode all four opening-balance fields to '0' regardless
+    // of what the business actually entered in Settings > Financial Set Up —
+    // so finance.assets/liabilities/equity (and every leverage ratio built on
+    // them: DebtAnalysis, EnhancedDebtManagement, Credit-Worthiness's Five
+    // C's Capital section) silently ignored real opening balances, while
+    // Reports > "What I Own & Owe" called computeFinance directly with the
+    // real settings and so showed a different, correct net worth for the
+    // same business.
     const settingsSubset = {
-      openingAssets: '0',
-      openingLiabilities: '0',
-      openingLoans: '0',
-      openingOtherAssets: '0',
+      openingAssets: settingsForFinance?.settings?.openingAssets ?? '0',
+      openingLiabilities: settingsForFinance?.settings?.openingLiabilities ?? '0',
+      openingLoans: settingsForFinance?.settings?.openingLoans ?? '0',
+      openingOtherAssets: settingsForFinance?.settings?.openingOtherAssets ?? '0',
     };
-    const totalAssetsValue = assets.reduce((sum, a) => sum + (a.purchaseCost || 0), 0);
+    // Depreciated current book value, not raw purchase cost — an asset
+    // bought years ago for its full price would otherwise overstate what
+    // the business currently owns, and disagree with the depreciated figure
+    // Reports > "What I Own & Owe" and the Assets screen both already show.
+    const activeAssets = assets.filter(a => a.status === 'active');
+    const registeredAssetsValue = activeAssets.reduce((sum, a) => sum + computeAssetCurrentValue(a), 0);
     try {
-      return computeFinance(transactions, settingsSubset, totalAssetsValue, assets);
+      return computeFinance(transactions, settingsSubset, registeredAssetsValue, activeAssets);
     } catch (e) {
       // Never let a bad record white-screen the whole app — fall back to an
       // empty computation so screens still render.
       console.error('[Finance] compute failed, using empty result:', e);
       return computeFinance([], settingsSubset, 0, []);
     }
-  }, [transactions, assets]); // Only re-compute if these change
+  }, [transactions, assets, settingsForFinance?.settings]); // Only re-compute if these change
 
   const value: FinanceContextValue = useMemo(
     () => ({
@@ -248,7 +265,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       deleteAsset: (id) => setAssets((prev) =>
         prev.filter((a) => a.id !== id)
       ),
-      addLoan: (loan) => setLoans((prev) => [...prev, { ...loan, id: loan.id || genId(), payments: loan.payments ?? [] }]),
+      // createdAt backfilled the same way addAsset/addInvoice do — Loan
+      // declares it required, but this line previously left it undefined
+      // on every loan created through the normal Add Loan flow.
+      addLoan: (loan) => setLoans((prev) => [...prev, { ...loan, id: loan.id || genId(), payments: loan.payments ?? [], createdAt: loan.createdAt || new Date().toISOString() }]),
       updateLoan: (id, loan) => setLoans((prev) =>
         prev.map((l) => (l.id === id ? { ...l, ...loan } : l))
       ),
@@ -535,7 +555,13 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
   const value: InvoiceContextValue = useMemo(
     () => ({
       invoices,
-      addInvoice: (invoice) => setInvoices((prev) => [...prev, { ...invoice, id: invoice.id || genId() }]),
+      // createdAt backfilled the same way addAsset/addLoan do — without it,
+      // every invoice created through the normal New Invoice flow had
+      // createdAt undefined, and InvoicesScreen's list sort
+      // (b.createdAt.localeCompare(a.createdAt)) crashed the whole screen
+      // with a white error boundary as soon as that comparison landed on
+      // the new invoice.
+      addInvoice: (invoice) => setInvoices((prev) => [...prev, { ...invoice, id: invoice.id || genId(), createdAt: invoice.createdAt || new Date().toISOString() }]),
       markInvoiceStatus: (id, status) => setInvoices((prev) => prev.map((inv) => (inv.id === id ? { ...inv, status } : inv))),
       updateInvoice: (id, invoice) => setInvoices((prev) =>
         prev.map((i) => (i.id === id ? { ...i, ...invoice } : i))
@@ -1160,7 +1186,18 @@ export function useApp() {
   const loans = finance?.loans ?? [];
   const budgets = finance?.budgets ?? [];
   const inventory = finance?.inventory ?? [];
-  const goalsArray = goals?.goals ?? [];
+  // Recomputes currentValue/progress/status against live finance/transaction
+  // data on every read instead of trusting whatever was stored at creation
+  // (or last edit) time — GoalProvider's addGoal/updateGoal never refresh
+  // these fields themselves, so without this every goal's progress bar and
+  // status badge would freeze at its initial value forever, never moving as
+  // real sales/expenses/collections happen. Recomputed here rather than
+  // written back into GoalProvider's state so refreshing progress doesn't
+  // itself trigger a save/re-render loop.
+  const goalsArray = useMemo(
+    () => (goals?.goals ?? []).map((g) => refreshGoal(g, finance.finance, transactions)),
+    [goals?.goals, finance.finance, transactions]
+  );
   const invoicesArray = invoices?.invoices ?? [];
 
   // Derived business metrics, computed from real data instead of being read
@@ -1180,7 +1217,7 @@ export function useApp() {
   // Reuses the same root-cause diagnosis engine as the AI Advisor for a
   // consistent, real health score instead of a hardcoded placeholder.
   const financialHealthScore = transactions.length >= 5 && financeData
-    ? performFinancialDiagnosis(transactions, invoicesArray, financeData.cashBalance, (financeData.expense || 1) / activeMonths, settings?.settings?.currency ?? '₦').overallHealth
+    ? performFinancialDiagnosis(transactions, invoicesArray, financeData.cashBalance, (financeData.expense || 1) / activeMonths, settings?.settings?.currency ?? '₦', loans, inventory).overallHealth
     : 0;
 
   const userWithMetrics = auth.user
@@ -1259,7 +1296,47 @@ export function useApp() {
         } as any);
       }
     },
-    updateInvoice: invoices?.updateInvoice || (() => {}),
+    // Kept the linked transaction in sync with the invoice — this used to
+    // be a bare passthrough to invoices.updateInvoice with no linked-
+    // transaction logic at all (unlike addInvoice/markInvoiceStatus right
+    // above/below, which both maintain the link). So editing an
+    // already-sent invoice's line items — changing its total — left the
+    // linked transaction's amount stuck at whatever it was when the
+    // invoice was first created or last sent, forever. Marking that
+    // invoice paid later would then only book the stale original amount
+    // as revenue, silently understating income by the edited difference.
+    updateInvoice: (id, patch) => {
+      invoices?.updateInvoice(id, patch);
+      const before = invoicesArray.find((i) => i.id === id);
+      if (!before) return;
+      const after = { ...before, ...patch };
+      const txStatus = after.status === 'paid' ? 'paid' : after.status === 'overdue' ? 'overdue' : after.status === 'sent' ? 'pending' : null;
+      const linked = transactions.find((t) => t.reference === before.invoiceNumber && t.type === 'income');
+      if (linked && finance?.updateTransaction) {
+        finance.updateTransaction(linked.id, {
+          amount: after.total,
+          description: `Invoice ${after.invoiceNumber}: ${after.clientName}`,
+          vendorCustomer: after.clientName,
+          dueDate: after.dueDate,
+          ...(txStatus ? { status: txStatus } : {}),
+        });
+      } else if (!linked && txStatus && finance?.addTransaction) {
+        // Editing turned a draft into sent/paid/overdue for the first
+        // time, or the invoice predates transaction-linking — create the
+        // link now instead of leaving this revenue invisible.
+        finance.addTransaction({
+          date: after.issueDate,
+          description: `Invoice ${after.invoiceNumber}: ${after.clientName}`,
+          type: 'income',
+          category: 'Sales',
+          amount: after.total,
+          status: txStatus,
+          reference: after.invoiceNumber,
+          vendorCustomer: after.clientName,
+          dueDate: after.dueDate,
+        } as any);
+      }
+    },
     deleteInvoice: (id) => {
       const inv = invoicesArray.find((i) => i.id === id);
       if (inv && finance?.deleteTransaction) {

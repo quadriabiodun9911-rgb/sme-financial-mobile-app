@@ -33,10 +33,30 @@ export function computeLiveLoanBalance(loans: Loan[]): number {
         }, 0);
 }
 
-export function computeLeverageRatios(finance: FinanceData, loans: Loan[]): LeverageRatios {
-    const liabilities = finance.liabilities + computeLiveLoanBalance(loans);
-    const assets = finance.assets;
-    const equity = finance.equity;
+// accountsReceivable/accountsPayable/inventoryValue are optional and default
+// to 0 so existing callers are unaffected. When supplied (from the same
+// canonical sources balanceSheetTrend.ts's "Everything You Own/Owe" table
+// uses — computeWorkingCapitalMetrics() for AR/AP, computeInventoryValue()
+// for stock) this agrees with that screen's net worth instead of the
+// narrower figure finance.assets alone produces, which omits money owed to
+// the business and stock on hand entirely.
+export function computeLeverageRatios(
+    finance: FinanceData,
+    loans: Loan[],
+    accountsReceivable: number = 0,
+    accountsPayable: number = 0,
+    inventoryValue: number = 0,
+): LeverageRatios {
+    const liabilities = finance.liabilities + computeLiveLoanBalance(loans) + accountsPayable;
+    const assets = finance.assets + accountsReceivable + inventoryValue;
+    // Recomputed from the loan-inclusive liabilities above, not taken as-is
+    // from finance.equity — finance.equity is computed before the live Loan
+    // Register is folded in, so using it unchanged broke the balance-sheet
+    // identity (assets = liabilities + equity): debtToEquity used the
+    // loan-inclusive liabilities while equityRatio used the loan-exclusive
+    // equity, so the same business could show "100% equity-financed" and a
+    // "1.33x debt-to-equity" ratio at the same time — directly contradictory.
+    const equity = assets - liabilities;
     const profit = finance.profit;
 
     return {

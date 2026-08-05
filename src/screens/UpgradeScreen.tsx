@@ -23,7 +23,7 @@ export default function UpgradeScreen() {
                 <Text style={s.icon}>⭐</Text>
                 <Text style={s.title}>Analytics is a Pro feature</Text>
                 <Text style={s.text}>
-                    Everything else — Dashboard, Clarity, Invoices, Sales, Payroll, Cash Flow, Reports,
+                    Everything else — Dashboard, Business Passport, Invoices, Sales, Payroll, Cash Flow, Reports,
                     Inventory, Assets, Loans, Goals and Budgets — stays free. Analytics unlocks:
                 </Text>
                 <View style={s.list}>

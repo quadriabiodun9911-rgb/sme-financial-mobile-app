@@ -183,42 +183,54 @@ export default function PayrollScreen() {
                             />
                         </View>
 
-                        {activeStaff.length > 0 && (
-                            <View style={styles.card}>
-                                <Text style={styles.cardTitle}>Preview</Text>
-                                {activeStaff.map(s => {
-                                    const gross = s.salaryType === 'monthly' ? s.salary : s.salaryType === 'weekly' ? s.salary * 4.33 : s.salary * 22;
-                                    const deductions = gross * (Math.max(0, parseFloat(deductRate) || 0) / 100);
-                                    const net = gross - deductions;
-                                    return (
-                                        <View key={s.id} style={styles.previewRow}>
-                                            <Text style={styles.previewName}>{s.name}</Text>
-                                            <View style={styles.previewAmounts}>
-                                                <Text style={styles.previewGross}>{fmt(gross)}</Text>
-                                                <Text style={styles.previewDeduct}>-{fmt(deductions)}</Text>
-                                                <Text style={styles.previewNet}>{fmt(net)}</Text>
+                        {activeStaff.length > 0 && (() => {
+                            // Only the net amount is ever recorded as a
+                            // transaction when payroll actually runs (see
+                            // runPayroll in OptimizedContexts.tsx — deductions
+                            // are withheld, not paid out through this expense).
+                            // The impact preview below has to use the same net
+                            // figure as "Total Net Payroll" above it, or the two
+                            // cards state two different dollar amounts for the
+                            // same run — it used to use gross (totalMonthlyPayroll),
+                            // so at any deduction rate above 0% the preview
+                            // promised a bigger profit/cash hit than would
+                            // actually happen once the run was recorded.
+                            const totalNetPreview = activeStaff.reduce((s, m) => {
+                                const g = m.salaryType === 'monthly' ? m.salary : m.salaryType === 'weekly' ? m.salary * 4.33 : m.salary * 22;
+                                return s + g * (1 - (Math.max(0, parseFloat(deductRate) || 0) / 100));
+                            }, 0);
+                            return (
+                                <View style={styles.card}>
+                                    <Text style={styles.cardTitle}>Preview</Text>
+                                    {activeStaff.map(s => {
+                                        const gross = s.salaryType === 'monthly' ? s.salary : s.salaryType === 'weekly' ? s.salary * 4.33 : s.salary * 22;
+                                        const deductions = gross * (Math.max(0, parseFloat(deductRate) || 0) / 100);
+                                        const net = gross - deductions;
+                                        return (
+                                            <View key={s.id} style={styles.previewRow}>
+                                                <Text style={styles.previewName}>{s.name}</Text>
+                                                <View style={styles.previewAmounts}>
+                                                    <Text style={styles.previewGross}>{fmt(gross)}</Text>
+                                                    <Text style={styles.previewDeduct}>-{fmt(deductions)}</Text>
+                                                    <Text style={styles.previewNet}>{fmt(net)}</Text>
+                                                </View>
                                             </View>
-                                        </View>
-                                    );
-                                })}
-                                <View style={styles.previewTotal}>
-                                    <Text style={styles.previewTotalLabel}>Total Net Payroll</Text>
-                                    <Text style={styles.previewTotalValue}>
-                                        {fmt(activeStaff.reduce((s, m) => {
-                                            const g = m.salaryType === 'monthly' ? m.salary : m.salaryType === 'weekly' ? m.salary * 4.33 : m.salary * 22;
-                                            return s + g * (1 - (Math.max(0, parseFloat(deductRate) || 0) / 100));
-                                        }, 0))}
-                                    </Text>
-                                </View>
+                                        );
+                                    })}
+                                    <View style={styles.previewTotal}>
+                                        <Text style={styles.previewTotalLabel}>Total Net Payroll</Text>
+                                        <Text style={styles.previewTotalValue}>{fmt(totalNetPreview)}</Text>
+                                    </View>
 
-                                <ProfitCashImpactCard
-                                    impact={computeProfitCashImpact(finance?.profit ?? 0, finance?.cashBalance ?? 0, -totalMonthlyPayroll)}
-                                    source="payroll"
-                                    currency={sym}
-                                    onSeeFullPicture={() => setCurrentScreen('clarity')}
-                                />
-                            </View>
-                        )}
+                                    <ProfitCashImpactCard
+                                        impact={computeProfitCashImpact(finance?.profit ?? 0, finance?.cashBalance ?? 0, -totalNetPreview)}
+                                        source="payroll"
+                                        currency={sym}
+                                        onSeeFullPicture={() => setCurrentScreen('business-passport')}
+                                    />
+                                </View>
+                            );
+                        })()}
 
                         <TouchableOpacity style={[styles.runBtn, activeStaff.length === 0 && styles.runBtnDisabled]} onPress={doRunPayroll} activeOpacity={0.8} disabled={activeStaff.length === 0}>
                             <Text style={styles.runBtnText}>Run Payroll for {runPeriod}</Text>

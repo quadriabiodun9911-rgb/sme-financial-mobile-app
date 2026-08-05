@@ -10,7 +10,7 @@ import SwotAnalysis from '../components/SwotAnalysis';
 import NextStepLink from '../components/NextStepLink';
 
 export default function FinancialAssessmentScreen() {
-  const { transactions, invoices, finance, settings, setCurrentScreen } = useApp();
+  const { transactions, invoices, finance, settings, setCurrentScreen, loans, inventory } = useApp();
   const [selectedDiagnosis, setSelectedDiagnosis] = useState<number>(0);
 
   const diagnosis = useMemo(() => {
@@ -19,9 +19,11 @@ export default function FinancialAssessmentScreen() {
       invoices,
       finance.cashBalance,
       finance.expense || 100000,
-      settings.currency
+      settings.currency,
+      loans,
+      inventory
     );
-  }, [transactions, invoices, finance, settings]);
+  }, [transactions, invoices, finance, settings, loans, inventory]);
 
   const actionPlan = useMemo(() => {
     return generateActionPlan(diagnosis, diagnosis.metrics, settings.currency);
@@ -32,6 +34,15 @@ export default function FinancialAssessmentScreen() {
     if (score >= 40) return Colors.warning;
     return Colors.expense;
   };
+
+  const categoryStatusColor = (status: 'strong' | 'watch' | 'high-risk') =>
+    status === 'strong' ? Colors.income : status === 'watch' ? Colors.warning : Colors.expense;
+
+  const categoryStatusDot = (status: 'strong' | 'watch' | 'high-risk') =>
+    status === 'strong' ? '🟢' : status === 'watch' ? '🟡' : '🔴';
+
+  const categoryStatusLabel = (status: 'strong' | 'watch' | 'high-risk') =>
+    status === 'strong' ? 'Strong' : status === 'watch' ? 'Watch' : 'High risk';
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
@@ -59,18 +70,13 @@ export default function FinancialAssessmentScreen() {
         {/* Overall Health Score */}
         <View style={[styles.healthCard, { borderLeftColor: getHealthColor(diagnosis.overallHealth) }]}>
           <View style={styles.healthHeader}>
-            <Text style={styles.healthLabel}>Financial Health</Text>
+            <Text style={styles.healthLabel}>Quad360 Financial Health</Text>
             <View style={[styles.healthBadge, { backgroundColor: getHealthColor(diagnosis.overallHealth) + '22' }]}>
               <Text style={[styles.healthScore, { color: getHealthColor(diagnosis.overallHealth) }]}>
-                {diagnosis.overallHealth}/100
+                {diagnosis.overallHealth}/100 — {diagnosis.band}
               </Text>
             </View>
           </View>
-          <Text style={styles.healthStatus}>
-            Status: <Text style={{ fontWeight: '700', color: getHealthColor(diagnosis.overallHealth) }}>
-              {diagnosis.healthStatus.toUpperCase()}
-            </Text>
-          </Text>
           <Text style={styles.healthDescription}>
             {diagnosis.healthStatus === 'critical'
               ? '🚨 Immediate action required to improve financial health'
@@ -78,7 +84,39 @@ export default function FinancialAssessmentScreen() {
               ? '⚠️ Address key issues to prevent deterioration'
               : '✅ Business in good financial health'}
           </Text>
+
+          {/* Per-pillar breakdown — Profitability, Liquidity, Working
+              Capital, Debt, Efficiency, Inventory, Concentration, each
+              scored the same way this overall number is, so a single glance
+              shows which pillar is actually dragging the score down instead
+              of just the one aggregate number. */}
+          <View style={styles.categoryList}>
+            {diagnosis.categories.map(cat => (
+              <View key={cat.key} style={styles.categoryRow}>
+                <Text style={styles.categoryDot}>{categoryStatusDot(cat.status)}</Text>
+                <Text style={styles.categoryLabel}>{cat.label}</Text>
+                <Text style={[styles.categoryStatus, { color: categoryStatusColor(cat.status) }]}>
+                  {categoryStatusLabel(cat.status)}
+                </Text>
+              </View>
+            ))}
+          </View>
         </View>
+
+        {/* "3 things to fix first" — the whole point of running a diagnosis
+            instead of just showing numbers: a short, ranked list of what to
+            actually do about it. */}
+        {diagnosis.topOpportunities.length > 0 && (
+          <View style={styles.fixFirstCard}>
+            <Text style={styles.fixFirstTitle}>🎯 Here are the {diagnosis.topOpportunities.length} things you should fix first</Text>
+            {diagnosis.topOpportunities.map((opportunity, idx) => (
+              <View key={idx} style={styles.fixFirstRow}>
+                <Text style={styles.fixFirstNumber}>{idx + 1}</Text>
+                <Text style={styles.fixFirstText}>{opportunity}</Text>
+              </View>
+            ))}
+          </View>
+        )}
 
         {/* Key Metrics — reframed as evidence for the diagnosis below rather
             than a standalone headline restating Dashboard's Profit/Cash
@@ -298,6 +336,30 @@ const styles = StyleSheet.create({
   healthScore: { fontSize: 16, fontWeight: '800' },
   healthStatus: { fontSize: 13, color: Colors.textSecondary },
   healthDescription: { fontSize: 12, color: Colors.textSecondary, lineHeight: 18 },
+
+  categoryList: { gap: 8, marginTop: 4 },
+  categoryRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  categoryDot: { fontSize: 11 },
+  categoryLabel: { flex: 1, fontSize: 12, color: Colors.textSecondary, fontWeight: '600' },
+  categoryStatus: { fontSize: 12, fontWeight: '700' },
+
+  fixFirstCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.primary,
+    padding: 16,
+    marginBottom: 20,
+    gap: 10,
+  },
+  fixFirstTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: 4 },
+  fixFirstRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  fixFirstNumber: {
+    fontSize: 12, fontWeight: '800', color: Colors.primary,
+    backgroundColor: Colors.primary + '22', borderRadius: 10,
+    width: 20, height: 20, textAlign: 'center', lineHeight: 20,
+  },
+  fixFirstText: { flex: 1, fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
 
   section: { marginBottom: 24 },
   sectionTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: 12 },

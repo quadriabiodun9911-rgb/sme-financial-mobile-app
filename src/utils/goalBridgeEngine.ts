@@ -16,6 +16,19 @@ export interface FinancialGoal {
   description: string;
 }
 
+// 'margin' is a percentage and 'runway' is a day count — neither is a
+// currency amount. GoalBridgeScreen used to prefix every metric with the
+// business's currency symbol regardless of type, so a margin goal read as
+// "Reach ₦40 margin" and a runway goal as "Reach ₦90 runway" instead of
+// "40%" and "90 days". This is the one place that decision gets made, so
+// the goal card, gap, milestones and any future export/share text can't
+// drift out of sync with each other again.
+export function formatGoalMetric(value: number, type: FinancialGoal['type'], currency: string): string {
+  if (type === 'margin') return `${value.toFixed(1)}%`;
+  if (type === 'runway') return `${Math.round(value)} days`;
+  return `${currency}${Math.round(value).toLocaleString()}`;
+}
+
 export interface GoalBridge {
   goal: FinancialGoal;
   gap: number; // Gap between current and target
@@ -175,10 +188,15 @@ function generateMilestones(
 ): Milestone[] {
   const milestones: Milestone[] = [];
 
-  // Monthly milestones
+  // Monthly milestones — stops strictly before `timeline` since the final
+  // "Goal achieved" milestone below always covers the last month itself.
+  // Using `<=` here used to duplicate that final month whenever timeline
+  // divided evenly by stepSize (the common case: stepSize is ~timeline/4,
+  // so a 12/24-month timeline always hit this), showing two milestones
+  // back to back with the identical month and target value.
   const stepSize = Math.max(1, Math.ceil(timeline / 4)); // 4-5 milestones
 
-  for (let month = stepSize; month <= timeline; month += stepSize) {
+  for (let month = stepSize; month < timeline; month += stepSize) {
     const progressPercentage = month / timeline;
     // Signed gap so reduction goals (target < current) progress downward too,
     // instead of flat-lining at the current value.
@@ -247,11 +265,11 @@ export function formatGoalBridge(bridge: GoalBridge, currency: string = '₦'): 
 
   lines.push(`📊 Goal: ${bridge.goal.description}`);
   lines.push(
-    `   Current: ${currency}${Math.round(bridge.goal.currentValue).toLocaleString()}`
+    `   Current: ${formatGoalMetric(bridge.goal.currentValue, bridge.goal.type, currency)}`
   );
-  lines.push(`   Target: ${currency}${Math.round(bridge.goal.targetValue).toLocaleString()}`);
+  lines.push(`   Target: ${formatGoalMetric(bridge.goal.targetValue, bridge.goal.type, currency)}`);
   lines.push(
-    `   Gap: ${currency}${Math.round(bridge.gap).toLocaleString()} (${bridge.gapPercentage.toFixed(1)}%)`
+    `   Gap: ${formatGoalMetric(bridge.gap, bridge.goal.type, currency)} (${bridge.gapPercentage.toFixed(1)}%)`
   );
   lines.push('');
 
@@ -275,7 +293,7 @@ export function formatGoalBridge(bridge: GoalBridge, currency: string = '₦'): 
   lines.push('🏁 Milestones:');
   for (const milestone of bridge.milestones) {
     lines.push(
-      `   Month ${milestone.month}: ${currency}${Math.round(milestone.targetValue).toLocaleString()}`
+      `   Month ${milestone.month}: ${formatGoalMetric(milestone.targetValue, bridge.goal.type, currency)}`
     );
   }
 

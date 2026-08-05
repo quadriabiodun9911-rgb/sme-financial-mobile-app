@@ -11,13 +11,15 @@ import LowDataNotice from '../components/LowDataNotice';
 import NextStepLink from '../components/NextStepLink';
 import { generatePDF, sharePDF } from '../utils/pdfExport';
 import { buildLenderSummaryExport } from '../utils/lenderSummaryExport';
-import { computeDSCR } from '../utils/finance';
+import { computeDSCR, computeRiskScore, computeAssetCurrentValue, computeWorkingCapitalMetrics, RiskScore } from '../utils/finance';
 import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
 import { computeDataQuality } from '../utils/dataQuality';
 import { computeInventoryValue } from '../utils/stockVelocity';
+import { computeLeverageRatios } from '../utils/debtRatios';
+import { buildFiveCsAssessment } from '../utils/fiveCsOfCredit';
 
 export default function CreditWorthinessScreen() {
-    const { user, finance, transactions, loans, navigate, settings, inventory } = useApp();
+    const { user, finance, transactions, loans, navigate, settings, inventory, assets } = useApp();
     const { currency } = settings;
 
     // Calculate credit factors
@@ -163,21 +165,31 @@ export default function CreditWorthinessScreen() {
         return factors;
     }, [user, finance, transactions, loans, currency]);
 
-    // Calculate overall credit score
-    const overallCreditScore = useMemo(() => {
-        return creditFactors.reduce((sum, factor) => sum + (factor.score * factor.weight), 0);
-    }, [creditFactors]);
+    // The canonical 7-pillar score — the same number Financial Health, the
+    // CFO screen, Business Financial DNA, and the Funding Readiness Pack
+    // all show. This screen used to compute its own separate weighted sum
+    // from the 5 factors below (Payment History/Credit Utilization/
+    // Business Stability/Cash Flow Health/Revenue Growth) — a different
+    // number from every other "how healthy is this business" screen in the
+    // app. Those 5 factors are still shown (see "Additional Lender
+    // Signals" below) since Payment History and Credit Utilization reflect
+    // real repayment behavior the canonical score doesn't capture — they
+    // just no longer drive the headline number.
+    const risk = useMemo(() => computeRiskScore(finance, loans, transactions, inventory), [finance, loans, transactions, inventory]);
+    const overallCreditScore = risk.score;
 
-    const creditRating = useMemo(() => {
-        if (overallCreditScore >= 80) return { label: 'Excellent', color: Colors.income, emoji: '💎' };
-        if (overallCreditScore >= 70) return { label: 'Good', color: '#10b981', emoji: '✅' };
-        if (overallCreditScore >= 60) return { label: 'Fair', color: Colors.warning, emoji: '⚠️' };
-        return { label: 'Poor', color: Colors.expense, emoji: '⛔' };
-    }, [overallCreditScore]);
+    const BAND_STYLE: Record<RiskScore['band'], { label: string; color: string; emoji: string }> = {
+        Excellent: { label: 'Excellent', color: Colors.income, emoji: '💎' },
+        Strong: { label: 'Strong', color: '#10b981', emoji: '✅' },
+        Moderate: { label: 'Moderate', color: Colors.warning, emoji: '⚠️' },
+        Weak: { label: 'Weak', color: '#fb923c', emoji: '⚠️' },
+        Critical: { label: 'Critical', color: Colors.expense, emoji: '⛔' },
+    };
+    const creditRating = useMemo(() => BAND_STYLE[risk.band], [risk.band]);
 
     const topFactors = useMemo(() => {
-        return [...creditFactors].sort((a, b) => a.score - b.score).slice(0, 2);
-    }, [creditFactors]);
+        return [...risk.factors].sort((a, b) => a.score - b.score).slice(0, 2);
+    }, [risk.factors]);
 
     // Same conditions rendered by the "What Lenders Look For" checkpoints
     // below — kept in one place so the exported summary and the on-screen
@@ -213,6 +225,27 @@ export default function CreditWorthinessScreen() {
         inventoryValue,
     }), [overallCreditScore, user?.avgMonthlyRevenue, dscrResult.dscr, dataQuality.confidence, inventoryValue]);
 
+    // The Five C's of Credit — the classic framework the canonical score
+    // above is often read against. Built from the same already-computed
+    // numbers on this screen (DSCR, inventory value) plus leverage/net
+    // worth, which the weighted score doesn't include at all.
+    // AR/AP folded in the same way DebtAnalysis, EnhancedDebtManagement and
+    // Reports > "What I Own & Owe" already do, so Capital's net worth agrees
+    // with those screens instead of a narrower figure.
+    const wcMetrics = useMemo(() => computeWorkingCapitalMetrics(transactions), [transactions]);
+    const leverage = useMemo(
+        () => computeLeverageRatios(finance, loans, wcMetrics.accountsReceivable, wcMetrics.accountsPayable, inventoryValue),
+        [finance, loans, wcMetrics, inventoryValue],
+    );
+    const assetBookValue = useMemo(
+        () => assets.filter(a => a.status === 'active').reduce((s, a) => s + computeAssetCurrentValue(a), 0),
+        [assets],
+    );
+    const fiveCs = useMemo(
+        () => buildFiveCsAssessment(risk, dscrResult, leverage, inventoryValue, assetBookValue, currency),
+        [risk, dscrResult, leverage, inventoryValue, assetBookValue, currency],
+    );
+
     const [exporting, setExporting] = useState(false);
 
     const handleExportLenderSummary = async () => {
@@ -223,7 +256,16 @@ export default function CreditWorthinessScreen() {
                 currency,
                 overallCreditScore,
                 creditRatingLabel: creditRating.label,
-                factors: creditFactors,
+                // The canonical 7-factor breakdown, not the 5 supplementary
+                // factors — this has to match the score shown above it, and
+                // only the canonical factors actually sum to that score.
+                factors: risk.factors.map(f => ({
+                    name: f.name,
+                    score: f.score,
+                    weight: f.weight / 100,
+                    description: f.status === 'good' ? 'Strong' : f.status === 'warning' ? 'Watch' : 'High risk',
+                    status: f.status === 'good' ? 'Strong' : f.status === 'warning' ? 'Watch' : 'High risk',
+                })),
                 checkpoints: lenderCheckpoints,
                 runwayDays: finance.runway || 0,
                 avgMonthlyRevenue: user?.avgMonthlyRevenue || 0,
@@ -248,7 +290,7 @@ export default function CreditWorthinessScreen() {
                 </TouchableOpacity>
 
                 <Text style={s.title}>💳 Credit-Worthiness</Text>
-                <Text style={s.subtitle}>Track factors that lenders evaluate</Text>
+                <Text style={s.subtitle}>How your business looks against what lenders evaluate — not a loan decision, and not a guarantee.</Text>
 
                 <LowDataNotice transactionCount={transactions.length} label="your credit-worthiness score" />
 
@@ -268,18 +310,43 @@ export default function CreditWorthinessScreen() {
                     </Text>
                     <Text style={s.scoreRating}>{creditRating.label} Credit Profile</Text>
 
-                    {/* Score Breakdown */}
+                    {/* Score Breakdown — the same 7-pillar composition
+                        Financial Health and the Funding Readiness Pack use */}
                     <View style={s.scoreBreakdown}>
                         <Text style={s.breakdownLabel}>Score Composition:</Text>
-                        {creditFactors.map((factor, idx) => (
+                        {risk.factors.map((factor, idx) => (
                             <View key={idx} style={s.breakdownItem}>
                                 <Text style={s.breakdownName}>{factor.name}</Text>
                                 <Text style={s.breakdownWeight}>
-                                    {Math.round(factor.score * factor.weight)} ({Math.round(factor.weight * 100)}%)
+                                    {Math.round(factor.score * factor.weight / 100)} ({Math.round(factor.weight)}%)
                                 </Text>
                             </View>
                         ))}
                     </View>
+                </View>
+
+                {/* The Five C's of Credit — the classic lender framework the
+                    score above is often read against. Honest about which
+                    of the five it can and can't actually evidence. */}
+                <View style={s.fiveCsCard}>
+                    <Text style={s.sectionTitle}>🔤 The Five C's of Credit</Text>
+                    <Text style={s.visibilitySub}>
+                        How your score maps onto what a lender actually asks — and where the gaps genuinely are, not papered over.
+                    </Text>
+                    {fiveCs.map((c, idx) => (
+                        <View key={c.name} style={[s.fiveCRow, idx === fiveCs.length - 1 && { borderBottomWidth: 0 }]}>
+                            <View style={s.fiveCHeader}>
+                                <Text style={s.fiveCName}>{idx + 1}. {c.name}</Text>
+                                <View style={[s.fiveCBadge, { backgroundColor: (c.evidenced ? Colors.income : Colors.textMuted) + '22' }]}>
+                                    <Text style={[s.fiveCBadgeText, { color: c.evidenced ? Colors.income : Colors.textMuted }]}>
+                                        {c.evidenced ? 'Evidenced' : 'Not evidenced'}
+                                    </Text>
+                                </View>
+                            </View>
+                            <Text style={s.fiveCQuestion}>{c.question}</Text>
+                            <Text style={s.fiveCSummary}>{c.summary}</Text>
+                        </View>
+                    ))}
                 </View>
 
                 {/* Visibility Score */}
@@ -354,7 +421,9 @@ export default function CreditWorthinessScreen() {
                                         {Math.round(factor.score)}
                                     </Text>
                                 </View>
-                                <Text style={s.improvementDescription}>{factor.description}</Text>
+                                <Text style={s.improvementDescription}>
+                                    {factor.status === 'danger' ? 'High risk' : 'Watch'} — {Math.round(factor.weight)}% of your score
+                                </Text>
                                 <View style={s.progressBar}>
                                     <View
                                         style={[
@@ -366,21 +435,18 @@ export default function CreditWorthinessScreen() {
                                         ]}
                                     />
                                 </View>
-                                <View style={s.tipsList}>
-                                    {factor.tips.map((tip, tipIdx) => (
-                                        <Text key={tipIdx} style={s.tipItem}>
-                                            ✓ {tip}
-                                        </Text>
-                                    ))}
-                                </View>
                             </View>
                         ))}
                     </View>
                 )}
 
-                {/* All Credit Factors */}
+                {/* Additional Lender Signals — real repayment behavior and
+                    credit utilization the canonical score above doesn't
+                    capture (it only sees DSCR, not on-time payment history).
+                    These are supplementary context, not part of the score
+                    composition shown above. */}
                 <View style={s.section}>
-                    <Text style={s.sectionTitle}>📊 All Credit Factors</Text>
+                    <Text style={s.sectionTitle}>📊 Additional Lender Signals</Text>
                     {creditFactors.map((factor, idx) => (
                         <View key={idx} style={s.factorCard}>
                             <View style={s.factorHeader}>
@@ -472,6 +538,15 @@ const s = StyleSheet.create({
     exportButton: { backgroundColor: Colors.primary, borderRadius: 10, paddingVertical: 13, alignItems: 'center', marginBottom: 6 },
     exportButtonText: { color: '#fff', fontSize: 14, fontWeight: '700' },
     exportHint: { fontSize: 11.5, color: Colors.textMuted, marginBottom: 20, lineHeight: 16 },
+    fiveCsCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 20 },
+    fiveCRow: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    fiveCHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
+    fiveCName: { fontSize: 13.5, fontWeight: '700', color: Colors.textPrimary },
+    fiveCBadge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+    fiveCBadgeText: { fontSize: 10, fontWeight: '700' },
+    fiveCQuestion: { fontSize: 11.5, color: Colors.textMuted, fontStyle: 'italic', marginBottom: 5 },
+    fiveCSummary: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
+
     visibilityCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 20 },
     visibilitySub: { fontSize: 12, color: Colors.textSecondary, marginBottom: 14, lineHeight: 17 },
     visibilityRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },

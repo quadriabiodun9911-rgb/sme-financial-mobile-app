@@ -54,7 +54,7 @@ const STATUS_LABELS: Record<FinancialGoal['status'], string> = {
 const PRIORITY_COLORS = { high: Colors.expense, medium: Colors.warning, low: Colors.textMuted };
 
 export default function GoalsScreen() {
-    const { goals, addGoal, deleteGoal, updateGoal, finance, transactions, invoices, settings, navParams, navigate, setCurrentScreen } = useApp();
+    const { goals, addGoal, deleteGoal, updateGoal, finance, transactions, invoices, settings, navParams, navigate, setCurrentScreen, loans, inventory } = useApp();
     const { currency } = settings;
 
     const [addModalOpen, setAddModalOpen] = useState(false);
@@ -79,7 +79,7 @@ export default function GoalsScreen() {
     // instead of only revealing that after tapping into a separate screen.
     const feasibilityByGoalId = useMemo(() => {
         if (transactions.length < 5 || goals.length === 0) return {};
-        const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, finance.expense || 1, settings.currency);
+        const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, finance.expense || 1, settings.currency, loans, inventory);
         const tactics = generateActionPlan(diagnosis, diagnosis.metrics, settings.currency);
         const allTactics = [...tactics.immediateActions, ...tactics.shortTermActions, ...tactics.strategicActions];
         const map: Record<string, { feasibility: string; requiredMonthlyImprovement: number; successProbability: number }> = {};
@@ -244,7 +244,7 @@ export default function GoalsScreen() {
                                     onDelete={() => handleDelete(goal.id, goal.title)}
                                     onExecute={() => setCurrentScreen('action-tracker')}
                                     onCollect={() => navigate('transactions', { filter: 'collect' })}
-                                    onSeeFullPicture={() => setCurrentScreen('clarity')}
+                                    onSeeFullPicture={() => setCurrentScreen('business-passport')}
                                 />
                             ))}
                             {/* Achieved goals */}
@@ -492,6 +492,11 @@ function GoalCard({ goal, currency, daysRemaining, feasibility, onStrategy, onBr
     const statusColor = STATUS_COLORS[goal.status];
     const isReduction = goal.type === 'cost_reduction' || goal.type === 'reduce_overdue_ar';
     const unit = goal.unit === '%' ? '%' : currency;
+    // '%' is a suffix (64.4%), currency is a prefix (₦64.4) — unit was being
+    // prepended unconditionally throughout this card, so every percentage
+    // goal (margin_improvement) displayed as "%64.4" instead of "64.4%".
+    const fmtUnit = (value: number, decimals: number = 0) =>
+        unit === '%' ? `${value.toFixed(decimals)}%` : `${unit}${Math.round(value).toLocaleString()}`;
 
     const isAchieved = goal.status === 'achieved';
     const feasColor = feasibility?.feasibility === 'easy' ? Colors.income : feasibility?.feasibility === 'medium' ? Colors.warning : Colors.expense;
@@ -515,7 +520,7 @@ function GoalCard({ goal, currency, daysRemaining, feasibility, onStrategy, onBr
                 <View style={[cardStyles.feasRow, { borderColor: feasColor + '55', backgroundColor: feasColor + '12' }]}>
                     <Text style={[cardStyles.feasBadge, { color: feasColor }]}>{feasibility.feasibility.toUpperCase()}</Text>
                     <Text style={cardStyles.feasText}>
-                        Needs {currency}{Math.round(Math.abs(feasibility.requiredMonthlyImprovement)).toLocaleString()}/mo · {(feasibility.successProbability * 100).toFixed(0)}% likely
+                        Needs {fmtUnit(Math.abs(feasibility.requiredMonthlyImprovement), 1)}/mo · {(feasibility.successProbability * 100).toFixed(0)}% likely
                     </Text>
                 </View>
             )}
@@ -549,12 +554,12 @@ function GoalCard({ goal, currency, daysRemaining, feasibility, onStrategy, onBr
             )}
             <View style={cardStyles.bigNumbers}>
                 <View style={cardStyles.bigNum}>
-                    <Text style={cardStyles.bigNumVal}>{unit}{(goal.currentValue ?? 0).toLocaleString()}</Text>
+                    <Text style={cardStyles.bigNumVal}>{fmtUnit(goal.currentValue ?? 0, 1)}</Text>
                     <Text style={cardStyles.bigNumLabel}>Current</Text>
                 </View>
                 <Text style={cardStyles.bigNumArrow}>→</Text>
                 <View style={cardStyles.bigNum}>
-                    <Text style={[cardStyles.bigNumVal, { color: statusColor }]}>{unit}{(goal.targetValue ?? 0).toLocaleString()}</Text>
+                    <Text style={[cardStyles.bigNumVal, { color: statusColor }]}>{fmtUnit(goal.targetValue ?? 0, 1)}</Text>
                     <Text style={cardStyles.bigNumLabel}>Target</Text>
                 </View>
             </View>
@@ -563,15 +568,15 @@ function GoalCard({ goal, currency, daysRemaining, feasibility, onStrategy, onBr
             <View style={cardStyles.metricsRow}>
                 <View style={cardStyles.metric}>
                     <Text style={cardStyles.metricLabel}>Current</Text>
-                    <Text style={cardStyles.metricValue}>{unit}{(goal.currentValue ?? 0).toLocaleString()}</Text>
+                    <Text style={cardStyles.metricValue}>{fmtUnit(goal.currentValue ?? 0, 1)}</Text>
                 </View>
                 <View style={cardStyles.metric}>
                     <Text style={cardStyles.metricLabel}>Baseline</Text>
-                    <Text style={cardStyles.metricValue}>{unit}{(goal.baselineValue ?? 0).toLocaleString()}</Text>
+                    <Text style={cardStyles.metricValue}>{fmtUnit(goal.baselineValue ?? 0, 1)}</Text>
                 </View>
                 <View style={cardStyles.metric}>
                     <Text style={cardStyles.metricLabel}>Target</Text>
-                    <Text style={[cardStyles.metricValue, { color: statusColor }]}>{unit}{(goal.targetValue ?? 0).toLocaleString()}</Text>
+                    <Text style={[cardStyles.metricValue, { color: statusColor }]}>{fmtUnit(goal.targetValue ?? 0, 1)}</Text>
                 </View>
                 <View style={cardStyles.metric}>
                     <Text style={cardStyles.metricLabel}>Deadline</Text>

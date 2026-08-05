@@ -141,12 +141,15 @@ export function verifyTOTPCode(secret: string, code: string): boolean {
 export function generateBackupCodes(count: number = BACKUP_CODES_COUNT): string[] {
     const codes: string[] = [];
     for (let i = 0; i < count; i++) {
-        // Format: XXXX-XXXX (4 pairs of hex digits)
-        const code = Array(4)
-            .fill(0)
-            .map(() => Math.floor(Math.random() * 16).toString(16).toUpperCase())
-            .join('-');
-        codes.push(code);
+        // Format: XXXX-XXXX (4 hex digits, dash, 4 hex digits) — 16^8 ≈ 4.3
+        // billion possible codes, drawn from CryptoJS's CSPRNG (the same
+        // source generateBase32Secret uses for TOTP secrets, above).
+        // Previously generated 4 *single* hex digits joined by dashes
+        // (e.g. "4-E-D-2") via Math.random() — a 16^4 = 65,536-code space
+        // of weak, non-cryptographic randomness that collided within a
+        // batch of just 1,000 codes.
+        const hex = CryptoJS.lib.WordArray.random(4).toString(CryptoJS.enc.Hex).toUpperCase();
+        codes.push(`${hex.slice(0, 4)}-${hex.slice(4, 8)}`);
     }
     return codes;
 }
