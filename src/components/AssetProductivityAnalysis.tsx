@@ -158,9 +158,9 @@ export default function AssetProductivityAnalysis({ finance, assets, currency }:
                     sublabel="Equipment, vehicles, property, and other assets in use"
                 />
                 <MetricRow
-                    label="Total Asset Value"
+                    label="Total Purchase Cost"
                     value={`${currency}${totalAssetValue.toLocaleString()}`}
-                    sublabel="Combined purchase cost of all active assets"
+                    sublabel="Combined original cost of all active assets, before depreciation"
                 />
                 <MetricRow
                     label="Revenue per Asset"
