@@ -87,10 +87,20 @@ function deriveActions(
     return actions;
 }
 
-function extractTitle(text: string): string {
-    // Pull first clause before comma or period as the title
-    const chunk = text.split(/[.,]/)[0];
-    return chunk.length > 60 ? chunk.slice(0, 57) + '…' : chunk;
+export function extractTitle(text: string): string {
+    // Truncate at a word boundary, never at punctuation — every currency
+    // amount here goes through toLocaleString(), which inserts thousands-
+    // separator commas (e.g. "₦95,000"), and phrases like "e.g." contain
+    // periods too. Splitting on the first comma/period (the previous
+    // approach) cut titles off mid-number or mid-word — "Collecting the
+    // ₦95,000 in outstanding receivables..." became just "Collecting the
+    // ₦95", and "...income categories (e.g., consulting...)" became
+    // "...income categories (e".
+    const LIMIT = 70;
+    if (text.length <= LIMIT) return text;
+    const truncated = text.slice(0, LIMIT);
+    const lastSpace = truncated.lastIndexOf(' ');
+    return (lastSpace > 30 ? truncated.slice(0, lastSpace) : truncated) + '…';
 }
 
 const URGENCY_CONFIG = {
