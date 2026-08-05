@@ -62,14 +62,23 @@ export default function SettingsScreen() {
     const [colorTheme, setColorThemeState] = useState<ColorThemeMode>(getColorThemeMode());
     const [applyingTheme, setApplyingTheme] = useState(false);
 
-    // Sync payment keys from settings when they load from storage/Supabase
+    // Re-sync the whole form once real settings arrive from storage/Supabase.
+    // settings hydrates asynchronously (a network round-trip, then an
+    // AsyncStorage fallback) well after this screen's first render, so the
+    // form's useState({ ...settings }) above can capture nothing but
+    // hardcoded app defaults if Settings is opened before that finishes.
+    // This used to only re-sync the two payment-key fields — every other
+    // field (tax rate, opening balances, target margin, business type,
+    // mission/vision/values, next tax deadline...) stayed frozen at
+    // whatever `form` captured at mount, so hitting Save while settings
+    // were still loading silently overwrote the user's real, already-saved
+    // settings back to those defaults. `settings` only ever changes here
+    // from hydration completing or this same screen's own updateSettings()
+    // calls, so re-syncing the full object on every change is safe — it's
+    // a no-op after a self-triggered save, since form already matches.
     useEffect(() => {
-        setForm(f => ({
-            ...f,
-            paystackPublicKey: settings.paystackPublicKey ?? f.paystackPublicKey ?? '',
-            korapayPublicKey:  settings.korapayPublicKey  ?? f.korapayPublicKey  ?? '',
-        }));
-    }, [settings.paystackPublicKey, settings.korapayPublicKey]);
+        setForm({ ...settings });
+    }, [settings]);
 
     // Change PIN
     const [currentPin, setCurrentPin] = useState('');
