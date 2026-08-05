@@ -1,5 +1,5 @@
 import { computeFinancialRatios } from '../src/utils/finance';
-import { FinanceData } from '../src/types';
+import { FinanceData, Loan } from '../src/types';
 
 const baseFinance: FinanceData = {
     income: 10000, expense: 5000, profit: 5000, margin: 50, cashBalance: 8000,
@@ -33,5 +33,24 @@ describe('computeFinancialRatios sentinel values', () => {
         expect(r.currentRatio).toBe(2); // 20000/10000
         expect(r.hasLiabilitiesData).toBe(true);
         expect(r.hasAssetData).toBe(true);
+    });
+
+    // Regression: currentRatio/hasLiabilitiesData used to read finance.
+    // liabilities directly (only manually entered opening balances), while
+    // debtToEquity/returnOnAssets on the same screen already delegated to
+    // the broadened leverage.liabilities (which folds in real loan
+    // balances). A business with real active loans and finance.liabilities
+    // still at 0 (the common case — nobody manually re-enters their loans
+    // as an "opening liability") saw Current Ratio report "N/A — No
+    // liabilities recorded yet" right next to a real, non-zero
+    // Debt-to-Equity ratio on the same card.
+    it('recognizes real loan debt for currentRatio/hasLiabilitiesData even when finance.liabilities is 0', () => {
+        const loans: Loan[] = [{
+            id: 'l1', lenderName: 'Bank', purpose: 'Stock', principal: 10000, interestRate: 10,
+            termMonths: 12, startDate: '2024-01-01', status: 'active', payments: [], createdAt: '2024-01-01',
+        }];
+        const r = computeFinancialRatios(baseFinance, loans, []);
+        expect(r.hasLiabilitiesData).toBe(true);
+        expect(r.currentRatio).toBeCloseTo(20000 / 10000, 5);
     });
 });

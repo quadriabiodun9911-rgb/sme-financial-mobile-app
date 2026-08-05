@@ -259,21 +259,21 @@ export function computeFinance(
 
     const netTaxPosition = totalTaxCollected - totalTaxPaid;
 
-    // Calculate runway: days of cash at current burn rate
-    let runway = 365; // default 1 year if no burn
-    if (transactions.length >= 2) {
-        const dates = transactions.map(t => t.date).sort();
-        const spanDays = Math.max(1, (new Date(dates[dates.length - 1]).getTime() - new Date(dates[0]).getTime()) / 86400000);
-        const monthlyBurn = Math.max(0, expense - income) * (30 / spanDays);
-        if (monthlyBurn > 0 && cashBalance > 0) {
-            runway = Math.round((cashBalance / monthlyBurn) * 30); // convert to days
-        } else if (monthlyBurn === 0 && cashBalance > 0) {
-            runway = Infinity;
-        } else if (cashBalance <= 0) {
-            runway = 0;
-        }
-        runway = Math.min(9999, runway); // cap at 9999 days to avoid display issues
-    }
+    // Runway delegates to computeCashRunway — the single canonical "how many
+    // days of cash are left" calculation already used by CashFlowScreen,
+    // WeeklyDashboardScreen, and elsewhere in this file. This used to compute
+    // its own separate figure from net burn (expense - income) over the
+    // entire transaction history: any profitable business (income >
+    // expense, the common case) made monthlyBurn clamp to 0, which hit the
+    // "no burn at all" branch and returned Infinity — capped here to a
+    // meaningless "9999 days". That bogus value fed the sticky header shown
+    // on every screen, Goal Bridge's runway-goal baseline, and a
+    // Credit-Worthiness scoring factor ("3+ months runway") that was
+    // therefore silently satisfied for any profitable business regardless
+    // of how little actual cash it held. computeCashRunway instead measures
+    // against gross 30-day burn — how long cash lasts if revenue stopped —
+    // which is what "runway" actually means.
+    const runway = computeCashRunway(transactions, cashBalance).runwayDays;
 
     return {
         income,
@@ -712,8 +712,13 @@ export function computeFinancialRatios(finance: FinanceData, loans: Loan[], tran
 
     // 999 here is a "no liabilities recorded to compare against" sentinel,
     // not an actual extreme ratio — callers must check hasLiabilitiesData
-    // before rendering it as "good".
-    const currentRatio = finance.liabilities > 0 ? finance.assets / finance.liabilities : finance.assets > 0 ? 999 : 0;
+    // before rendering it as "good". Uses the same broadened leverage.assets/
+    // leverage.liabilities as debtToEquity/returnOnAssets above (not the
+    // narrow finance.assets/finance.liabilities, which only reflect manually
+    // entered opening balances) — otherwise a business with real loans and a
+    // real debt-to-equity ratio could see Current Ratio report "N/A — No
+    // liabilities recorded yet" on the very same screen.
+    const currentRatio = leverage.liabilities > 0 ? leverage.assets / leverage.liabilities : leverage.assets > 0 ? 999 : 0;
     // Same trailing-30-day-paid-expenses burn used everywhere else — this
     // used to divide finance.expense (an all-time cumulative total) by 12,
     // which doesn't represent a monthly figure and could show a different
@@ -726,7 +731,7 @@ export function computeFinancialRatios(finance: FinanceData, loans: Loan[], tran
         debtToEquity: leverage.debtToEquity,
         returnOnAssets: leverage.returnOnAssets,
         burnRate, profitMargin, revenueGrowth,
-        hasLiabilitiesData: finance.liabilities > 0,
+        hasLiabilitiesData: leverage.liabilities > 0,
         hasAssetData: leverage.hasAssetData,
     };
 }
@@ -808,8 +813,9 @@ export function computeSupplierConcentration(transactions: Transaction[]): Suppl
 export interface SeasonalRisk {
     month: string;
     avgRevenue: number;
-    riskLevel: 'low' | 'medium' | 'high';
+    riskLevel: 'low' | 'medium' | 'high' | 'unknown';
     warning: string;
+    hasData: boolean; // false when no income transaction has ever landed in this calendar month
 }
 
 export function computeSeasonalRisk(transactions: Transaction[]): SeasonalRisk[] {
@@ -829,8 +835,23 @@ export function computeSeasonalRisk(transactions: Transaction[]): SeasonalRisk[]
         monthCounts[mo]++;
     }
     const avgRevenues = monthTotals.map((total, i) => monthCounts[i] > 0 ? total / monthCounts[i] : 0);
-    const overallAvg = avgRevenues.reduce((s, v) => s + v, 0) / 12;
+    // Average only over months that actually have data — a business with a
+    // couple months of real history used to have that average diluted by
+    // up to 10 phantom zero-revenue months, which then got confidently
+    // reported as "historically low-revenue... prepare cash reserves" for
+    // every month with no data at all. A new business (the majority of
+    // users at any given time) saw 10 of 12 months flagged that way from
+    // nothing but the absence of a calendar year of history.
+    const monthsWithData = avgRevenues.filter((_, i) => monthCounts[i] > 0);
+    const overallAvg = monthsWithData.length > 0 ? monthsWithData.reduce((s, v) => s + v, 0) / monthsWithData.length : 0;
     return MONTHS.map((month, i) => {
+        const hasData = monthCounts[i] > 0;
+        if (!hasData) {
+            return {
+                month, avgRevenue: 0, riskLevel: 'unknown' as const, hasData,
+                warning: `No revenue recorded for ${month} yet — a real seasonal pattern needs at least a year of history.`,
+            };
+        }
         const avgRevenue = avgRevenues[i];
         const ratio = overallAvg > 0 ? avgRevenue / overallAvg : 1;
         const riskLevel: SeasonalRisk['riskLevel'] = ratio < 0.6 ? 'high' : ratio < 0.85 ? 'medium' : 'low';
@@ -838,7 +859,7 @@ export function computeSeasonalRisk(transactions: Transaction[]): SeasonalRisk[]
             riskLevel === 'high' ? `${month} is historically a low-revenue month (${Math.round(ratio * 100)}% of average). Prepare cash reserves.` :
             riskLevel === 'medium' ? `${month} revenue tends to be below average (${Math.round(ratio * 100)}%). Monitor closely.` :
             `${month} revenue is at or above average.`;
-        return { month, avgRevenue, riskLevel, warning };
+        return { month, avgRevenue, riskLevel, warning, hasData };
     });
 }
 

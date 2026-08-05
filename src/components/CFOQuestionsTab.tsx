@@ -163,8 +163,9 @@ export default function CFOQuestionsTab() {
                 <Text style={s.qResult}>{fmt(currency, freeCashFlow.deployableCash)}</Text>
                 <Row label="Cash balance" value={fmt(currency, freeCashFlow.cashBalance)} />
                 <Row label="Due within 30 days (AP)" value={`− ${fmt(currency, freeCashFlow.upcoming30dayAP)}`} negative />
+                <Row label="Due within 30 days (loan repayments)" value={`− ${fmt(currency, freeCashFlow.upcoming30dayDebtService)}`} negative />
                 <Row label="Reserve target" value={`− ${fmt(currency, freeCashFlow.reserveTarget)}`} negative />
-                <Text style={s.qNote}>What's left after upcoming payables and your reserve target — the number that's actually yours to spend.</Text>
+                <Text style={s.qNote}>What's left after upcoming payables, loan repayments, and your reserve target — the number that's actually yours to spend.</Text>
             </View>
 
             {/* Q2 */}
