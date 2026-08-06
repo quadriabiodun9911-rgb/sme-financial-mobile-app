@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import {
-    View, Text, TouchableOpacity, StyleSheet, Share, Alert,
+    View, Text, TouchableOpacity, StyleSheet, Share,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
+import { showAlert } from '../utils/webAlert';
 
 interface Props {
     visible: boolean;
@@ -45,7 +46,7 @@ Try it free: quad360.vercel.app`;
             await Share.share({ message, title: `${monthName} Business Summary` });
             setShared(true);
         } catch {
-            Alert.alert('Error', 'Could not share.');
+            showAlert('Error', 'Could not share.');
         }
     };
 

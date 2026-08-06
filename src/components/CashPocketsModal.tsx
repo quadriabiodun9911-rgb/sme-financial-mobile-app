@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal, TextInput, ScrollView, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Modal, TextInput, ScrollView } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
+import { showAlert, confirmAction } from '../utils/webAlert';
 
 interface Props { visible: boolean; onClose: () => void; }
 
@@ -16,25 +17,22 @@ export default function CashPocketsModal({ visible, onClose }: Props) {
     const total = cashPockets.reduce((s, p) => s + p.amount, 0);
 
     const handleAdd = () => {
-        if (!newName.trim()) { Alert.alert('Name required', 'Enter a name for this cash pocket.'); return; }
+        if (!newName.trim()) { showAlert('Name required', 'Enter a name for this cash pocket.'); return; }
         const amt = parseFloat(newAmount);
-        if (isNaN(amt) || amt < 0) { Alert.alert('Invalid amount', 'Enter a valid amount.'); return; }
+        if (isNaN(amt) || amt < 0) { showAlert('Invalid amount', 'Enter a valid amount.'); return; }
         addCashPocket(newName.trim(), amt);
         setNewName(''); setNewAmount('');
     };
 
     const handleUpdate = (id: string) => {
         const amt = parseFloat(editAmount);
-        if (isNaN(amt) || amt < 0) { Alert.alert('Invalid amount', 'Enter a valid amount.'); return; }
+        if (isNaN(amt) || amt < 0) { showAlert('Invalid amount', 'Enter a valid amount.'); return; }
         updateCashPocket(id, amt);
         setEditingId(null);
     };
 
     const handleDelete = (id: string, name: string) => {
-        Alert.alert('Remove pocket', `Remove "${name}"?`, [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Remove', style: 'destructive', onPress: () => deleteCashPocket(id) },
-        ]);
+        confirmAction('Remove pocket', `Remove "${name}"?`, 'Remove', () => deleteCashPocket(id));
     };
 
     const DEFAULT_POCKETS = ['In my pocket', 'Mobile money', 'Bank account', 'Susu / savings group', 'Shop drawer'];

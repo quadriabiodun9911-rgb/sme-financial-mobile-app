@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput } from 'react-native';
 import { Colors } from '../theme/colors';
 import { FinancialGoal, Transaction } from '../types';
+import { showAlert, confirmAction } from '../utils/webAlert';
 
 interface Props {
     goals: FinancialGoal[];
@@ -47,18 +48,15 @@ export default function DailyTargetCard({ goals, transactions, currency, onSetGo
     const saveEdit = () => {
         if (!activeGoal || !onEditGoal) return;
         const tv = parseFloat(editTarget);
-        if (isNaN(tv) || tv <= 0) { Alert.alert('Invalid target', 'Enter a valid target amount.'); return; }
-        if (!editDeadline.match(/^\d{4}-\d{2}-\d{2}$/)) { Alert.alert('Invalid date', 'Enter date as YYYY-MM-DD.'); return; }
+        if (isNaN(tv) || tv <= 0) { showAlert('Invalid target', 'Enter a valid target amount.'); return; }
+        if (!editDeadline.match(/^\d{4}-\d{2}-\d{2}$/)) { showAlert('Invalid date', 'Enter date as YYYY-MM-DD.'); return; }
         onEditGoal(activeGoal.id, { targetValue: tv, deadline: editDeadline, title: editTitle.trim() || activeGoal.title });
         setEditOpen(false);
     };
 
     const confirmDelete = () => {
         if (!activeGoal || !onDeleteGoal) return;
-        Alert.alert('Remove Target', `Remove "${activeGoal.title}" from your daily plan?`, [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Remove', style: 'destructive', onPress: () => onDeleteGoal(activeGoal.id) },
-        ]);
+        confirmAction('Remove Target', `Remove "${activeGoal.title}" from your daily plan?`, 'Remove', () => onDeleteGoal(activeGoal.id));
     };
 
     if (!activeGoal) {

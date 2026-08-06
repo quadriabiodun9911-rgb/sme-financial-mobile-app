@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
     ScrollView, View, Text, TouchableOpacity,
-    StyleSheet, TextInput, Alert, Modal, Platform,
+    StyleSheet, TextInput, Modal, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from '../contexts/AppContext';
@@ -11,6 +11,7 @@ import FooterNav from '../components/FooterNav';
 import { Transaction } from '../types';
 import { autoDetectColumns, parseCSVWithMapping } from '../utils/flexibleBankStatementParser';
 import { isDuplicateTransaction } from '../utils/transactionDedup';
+import { showAlert, confirmAction } from '../utils/webAlert';
 
 // Bank transaction as imported from a statement or manual entry
 interface BankTx {
@@ -98,11 +99,11 @@ export default function ReconciliationScreen() {
     }, [bankTxs, transactions]);
 
     const parseCSV = () => {
-        if (!csvText.trim()) { Alert.alert('Paste your CSV first'); return; }
+        if (!csvText.trim()) { showAlert('Paste your CSV first'); return; }
         try {
             const rows = csvText.trim().split('\n').filter(l => l.trim());
             if (rows.length < 2) {
-                Alert.alert('CSV Error', 'Need a header row and at least one data row.');
+                showAlert('CSV Error', 'Need a header row and at least one data row.');
                 return;
             }
 
@@ -111,7 +112,7 @@ export default function ReconciliationScreen() {
             // variants, multiple date formats, etc.)
             const mapping = autoDetectColumns(rows);
             if (!mapping) {
-                Alert.alert('CSV Error', 'Could not detect columns. Ensure the file has date, description, and amount columns.');
+                showAlert('CSV Error', 'Could not detect columns. Ensure the file has date, description, and amount columns.');
                 return;
             }
 
@@ -124,7 +125,7 @@ export default function ReconciliationScreen() {
                 type: t.type === 'income' ? 'credit' : 'debit',
             }));
 
-            if (parsed.length === 0) { Alert.alert('No valid rows found'); return; }
+            if (parsed.length === 0) { showAlert('No valid rows found'); return; }
 
             // How many pasted rows already match a recorded app transaction.
             // We do NOT drop these — reconciliation needs them to show as "Matched" —
@@ -148,16 +149,16 @@ export default function ReconciliationScreen() {
             const recordedNote = alreadyRecorded > 0
                 ? `\n\n${alreadyRecorded} of these are already in your recorded transactions and will appear under "Matched".`
                 : '';
-            Alert.alert('Imported', `${parsed.length} rows parsed, ${addedCount} new bank transactions added.${recordedNote}`);
+            showAlert('Imported', `${parsed.length} rows parsed, ${addedCount} new bank transactions added.${recordedNote}`);
         } catch {
-            Alert.alert('Parse Error', 'Could not parse the CSV. Check format.');
+            showAlert('Parse Error', 'Could not parse the CSV. Check format.');
         }
     };
 
     const addManualBankTx = () => {
-        if (!manualForm.description.trim()) { Alert.alert('Description required'); return; }
+        if (!manualForm.description.trim()) { showAlert('Description required'); return; }
         const amt = parseFloat(manualForm.amount);
-        if (!amt || amt <= 0) { Alert.alert('Valid amount required'); return; }
+        if (!amt || amt <= 0) { showAlert('Valid amount required'); return; }
         const tx: BankTx = {
             id: `bank-manual-${Date.now()}`,
             date: manualForm.date,
@@ -176,33 +177,24 @@ export default function ReconciliationScreen() {
         // Shared duplicate guard — don't re-add a transaction that already exists
         // (e.g. the same statement was already imported via the Dashboard flow).
         if (isDuplicateTransaction({ date: b.date, description: b.description, amount: b.amount, type: txType }, transactions as any)) {
-            Alert.alert('Already Recorded', `"${b.description}" (${fmt(b.amount)}) already exists in your transactions, so it was not added again.`);
+            showAlert('Already Recorded', `"${b.description}" (${fmt(b.amount)}) already exists in your transactions, so it was not added again.`);
             return;
         }
 
-        Alert.alert('Import as Transaction', `Add "${b.description}" (${fmt(b.amount)}) to your app transactions?`, [
-            { text: 'Cancel', style: 'cancel' },
-            {
-                text: 'Import',
-                onPress: () => {
-                    addTransaction({
-                        date: b.date,
-                        description: b.description,
-                        type: txType,
-                        category: b.type === 'credit' ? 'Sales' : 'Operating Expense',
-                        amount: b.amount,
-                        status: 'paid',
-                    });
-                },
-            },
-        ]);
+        confirmAction('Import as Transaction', `Add "${b.description}" (${fmt(b.amount)}) to your app transactions?`, 'Import', () => {
+            addTransaction({
+                date: b.date,
+                description: b.description,
+                type: txType,
+                category: b.type === 'credit' ? 'Sales' : 'Operating Expense',
+                amount: b.amount,
+                status: 'paid',
+            });
+        }, false);
     };
 
     const clearBankData = () => {
-        Alert.alert('Clear Bank Data', 'Remove all imported bank transactions?', [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Clear', style: 'destructive', onPress: () => setBankTxs([]) },
-        ]);
+        confirmAction('Clear Bank Data', 'Remove all imported bank transactions?', 'Clear', () => setBankTxs([]));
     };
 
     return (
@@ -382,13 +374,12 @@ export default function ReconciliationScreen() {
                                         </View>
                                         <TouchableOpacity
                                             style={[styles.importBtn, { backgroundColor: Colors.warning + '22' }]}
-                                            onPress={() => Alert.alert(
+                                            onPress={() => confirmAction(
                                                 'App-only Transaction',
                                                 `"${a.description}" exists in your app but not in the bank statement.\n\nPossible reasons:\n• Cash payment not via bank\n• Pending bank clearance\n• Entry error — check Transactions screen`,
-                                                [
-                                                    { text: 'OK', style: 'cancel' },
-                                                    { text: 'Review in Transactions →', onPress: () => setCurrentScreen('transactions') },
-                                                ]
+                                                'Review in Transactions →',
+                                                () => setCurrentScreen('transactions'),
+                                                false,
                                             )}
                                             activeOpacity={0.7}
                                         >

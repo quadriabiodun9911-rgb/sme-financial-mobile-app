@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Switch, FlatList, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Switch, FlatList } from 'react-native';
 import { Colors } from '../theme/colors';
 import { RecurringFrequency, Transaction } from '../types';
+import { confirmAction } from '../utils/webAlert';
 
 interface RecurringTransaction extends Transaction {
   id: string;
@@ -52,14 +53,7 @@ export default function RecurringTransactionManager({
   };
 
   const handleDelete = (id: string) => {
-    Alert.alert('Delete Recurring', 'Stop this recurring transaction?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => onDelete?.(id),
-      },
-    ]);
+    confirmAction('Delete Recurring', 'Stop this recurring transaction?', 'Delete', () => onDelete?.(id));
   };
 
   if (!recurringTransactions.length) {

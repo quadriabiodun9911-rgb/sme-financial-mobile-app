@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text,
     TouchableOpacity, StyleSheet, ActivityIndicator,
-    Modal, TextInput, KeyboardAvoidingView, Platform, Alert, Animated,
+    Modal, TextInput, KeyboardAvoidingView, Platform, Animated,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../contexts/AppContext';
@@ -29,6 +29,7 @@ import { MetricsComputer } from '../utils/metricsComputer';
 import GreetingCard from '../components/GreetingCard';
 import TodaysNumbersCard from '../components/TodaysNumbersCard';
 import AlertsWidget from '../components/AlertsWidget';
+import { showAlert } from '../utils/webAlert';
 
 const INCOME_CATEGORIES = ['Sales', 'Service', 'Consulting', 'Rental', 'Interest', 'Other Income'];
 const EXPENSE_CATEGORIES = ['Rent', 'Salaries', 'Utilities', 'Marketing', 'Supplies', 'Transport', 'Meals', 'Software', 'Tax', 'Other'];
@@ -152,7 +153,7 @@ export default function DashboardScreen() {
     const submitEod = () => {
         const inc = parseFloat(eodIncome) || 0;
         const exp = parseFloat(eodExpense) || 0;
-        if (inc <= 0 && exp <= 0) { Alert.alert('Nothing to save', 'Enter at least one amount.'); return; }
+        if (inc <= 0 && exp <= 0) { showAlert('Nothing to save', 'Enter at least one amount.'); return; }
         const today = new Date().toISOString().split('T')[0];
         if (inc > 0) addTransaction({ type: 'income',  amount: inc, description: 'End of day income',   category: 'Sales', date: today });
         if (exp > 0) addTransaction({ type: 'expense', amount: exp, description: 'End of day expenses', category: 'Other', date: today });
@@ -165,9 +166,9 @@ export default function DashboardScreen() {
     const submitQuickAdd = () => {
         const amt = parseFloat(qaAmount);
         const amountError = validateAmount(amt);
-        if (amountError) { Alert.alert('Invalid Amount', amountError.message); return; }
+        if (amountError) { showAlert('Invalid Amount', amountError.message); return; }
         const descError = validateDescription(qaDesc.trim());
-        if (descError) { Alert.alert('Invalid Description', descError.message); return; }
+        if (descError) { showAlert('Invalid Description', descError.message); return; }
 
         setQaSubmitting(true);
         try {

@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text,
-    TouchableOpacity, StyleSheet, TextInput, Modal, Alert, Platform,
+    TouchableOpacity, StyleSheet, TextInput, Modal,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -16,6 +16,7 @@ import NextStepLink from '../components/NextStepLink';
 import ProfitCashImpactCard from '../components/ProfitCashImpactCard';
 import { computeProfitCashImpact } from '../utils/impactChain';
 import { Budget } from '../types';
+import { showAlert, confirmAction } from '../utils/webAlert';
 
 const EXPENSE_CATEGORIES = [
     'Office & Admin', 'Salaries', 'Marketing', 'Equipment', 'Software',
@@ -204,15 +205,15 @@ export default function BudgetScreen() {
     function handleSave() {
         const cat = customCat.trim() || category;
         const amt = parseFloat(amount);
-        if (!cat) { Alert.alert('Error', 'Please select or enter a category.'); return; }
-        if (!amt || amt <= 0) { Alert.alert('Error', 'Please enter a valid amount.'); return; }
+        if (!cat) { showAlert('Error', 'Please select or enter a category.'); return; }
+        if (!amt || amt <= 0) { showAlert('Error', 'Please enter a valid amount.'); return; }
 
         if (editingId) {
             updateBudget(editingId, { category: cat, monthlyAmount: amt, period: currentMonth });
         } else {
             // Check duplicate category
             if (budgets.find(b => b.category.toLowerCase() === cat.toLowerCase())) {
-                Alert.alert('Duplicate', `A budget for "${cat}" already exists. Edit the existing one.`);
+                showAlert('Duplicate', `A budget for "${cat}" already exists. Edit the existing one.`);
                 return;
             }
             addBudget({ id: '', category: cat, monthlyAmount: amt, period: currentMonth });
@@ -221,16 +222,7 @@ export default function BudgetScreen() {
     }
 
     function handleDelete(id: string, cat: string) {
-        if (Platform.OS === 'web') {
-            if (window.confirm(`Remove budget for "${cat}"?`)) {
-                deleteBudget(id);
-            }
-        } else {
-            Alert.alert('Delete Budget', `Remove budget for "${cat}"?`, [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Delete', style: 'destructive', onPress: () => deleteBudget(id) },
-            ]);
-        }
+        confirmAction('Delete Budget', `Remove budget for "${cat}"?`, 'Delete', () => deleteBudget(id));
     }
 
     function statusColor(status: string) {
