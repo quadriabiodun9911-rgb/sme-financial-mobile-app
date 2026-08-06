@@ -153,9 +153,9 @@ export const FEATURE_INDEX: FeatureEntry[] = [
     },
     {
         id: 'goal-bridge', label: 'Goal Bridge', icon: '🌉',
-        description: 'Connect today\'s numbers to your financial goals',
+        description: 'Connect today\'s numbers to your financial goals — open a goal\'s "View Plan" on the Goals screen',
         keywords: ['goals', 'targets'],
-        screen: 'goal-bridge',
+        screen: 'goals',
     },
     {
         id: 'import-bank-statement', label: 'Import Bank Statement', icon: '🏦',

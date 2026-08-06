@@ -38,7 +38,6 @@ import FundingQualificationScreen from './src/screens/FundingQualificationScreen
 import BusinessPassportScreen from './src/screens/BusinessPassportScreen';
 import FinancialAssessmentScreen from './src/screens/FinancialAssessmentScreen';
 import ActionTrackerScreen from './src/screens/ActionTrackerScreen';
-import GoalBridgeScreen from './src/screens/GoalBridgeScreen';
 import OnboardingChoiceScreen from './src/screens/OnboardingChoiceScreen';
 import TrendsScreen from './src/screens/TrendsScreen';
 import WeeklyDashboardScreen from './src/screens/WeeklyDashboardScreen';
@@ -134,7 +133,6 @@ function NavigatorContent() {
             {currentScreen === 'business-passport' && <BusinessPassportScreen />}
             {currentScreen === 'financial-assessment' && <FinancialAssessmentScreen />}
             {currentScreen === 'action-tracker' && <ActionTrackerScreen />}
-            {currentScreen === 'goal-bridge' && <GoalBridgeScreen />}
             {currentScreen === 'onboarding-choice' && <OnboardingChoiceScreen />}
             {currentScreen === 'trends'              && <TrendsScreen />}
             {currentScreen === 'weekly-dashboard'    && <WeeklyDashboardScreen />}
