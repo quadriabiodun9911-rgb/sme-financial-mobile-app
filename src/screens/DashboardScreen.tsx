@@ -29,13 +29,14 @@ import { MetricsComputer } from '../utils/metricsComputer';
 import GreetingCard from '../components/GreetingCard';
 import TodaysNumbersCard from '../components/TodaysNumbersCard';
 import AlertsWidget from '../components/AlertsWidget';
+import WeeklyReportModal from '../components/WeeklyReportModal';
 import { showAlert } from '../utils/webAlert';
 
 const INCOME_CATEGORIES = ['Sales', 'Service', 'Consulting', 'Rental', 'Interest', 'Other Income'];
 const EXPENSE_CATEGORIES = ['Rent', 'Salaries', 'Utilities', 'Marketing', 'Supplies', 'Transport', 'Meals', 'Software', 'Tax', 'Other'];
 
 export default function DashboardScreen() {
-    const { finance, settings, goals, transactions, invoices, assets, loans, navigate, setCurrentScreen, language: rawLanguage, isLoading, addTransaction, isDemoMode, exitDemo, cashPockets, deleteGoal, updateGoal, budgets, inventory, user, financing, canViewFinancials } = useApp();
+    const { finance, settings, goals, transactions, invoices, assets, loans, navigate, setCurrentScreen, navParams, language: rawLanguage, isLoading, addTransaction, isDemoMode, exitDemo, cashPockets, deleteGoal, updateGoal, budgets, inventory, user, financing, canViewFinancials } = useApp();
     const language = rawLanguage as Language;
 
     const [fabOpen, setFabOpen]           = useState(false);
@@ -56,6 +57,7 @@ export default function DashboardScreen() {
     const [showMonthlyReview, setShowMonthlyReview] = useState(false);
     const [showCashPockets, setShowCashPockets] = useState(false);
     const [showDailyReport, setShowDailyReport] = useState(false);
+    const [showWeeklyReport, setShowWeeklyReport] = useState(false);
     const [toast, setToast]                     = useState<string | null>(null);
     const [eodOpen, setEodOpen]                 = useState(false);
     const [eodIncome, setEodIncome]             = useState('');
@@ -77,6 +79,11 @@ export default function DashboardScreen() {
             if (!v) setShowFirstRun(true);
         }).catch(() => {});
     }, [isDemoMode]);
+
+    // Deep-link from Global Search
+    useEffect(() => {
+        if (navParams?.openWeeklyReport) setShowWeeklyReport(true);
+    }, [navParams]);
 
     useEffect(() => {
         if (isDemoMode) return;
@@ -473,7 +480,7 @@ export default function DashboardScreen() {
                       <Text style={styles.engineSubtext}>Connect to goals</Text>
                     </TouchableOpacity>
                   </View>
-                  <TouchableOpacity style={[styles.btn, { marginTop: 10 }]} onPress={() => setCurrentScreen('weekly-dashboard')}>
+                  <TouchableOpacity style={[styles.btn, { marginTop: 10 }]} onPress={() => setShowWeeklyReport(true)}>
                     <Text style={styles.btnText}>🗓️ Weekly Dashboard — Wins, Problems & Priorities</Text>
                   </TouchableOpacity>
                 </View>
@@ -828,6 +835,16 @@ export default function DashboardScreen() {
                 }}
             />
             <MonthlyReview visible={showMonthlyReview} onClose={() => setShowMonthlyReview(false)} />
+            <WeeklyReportModal
+                visible={showWeeklyReport}
+                onClose={() => setShowWeeklyReport(false)}
+                onEditMission={() => { setShowWeeklyReport(false); setCurrentScreen('settings'); }}
+                transactions={transactions}
+                invoices={invoices}
+                finance={finance}
+                loans={loans}
+                settings={settings}
+            />
             <CashPocketsModal visible={showCashPockets} onClose={() => setShowCashPockets(false)} />
             {/* ── End of Day quick-log modal ───────────────────────────────── */}
             <Modal visible={eodOpen} transparent animationType="slide" onRequestClose={() => setEodOpen(false)}>

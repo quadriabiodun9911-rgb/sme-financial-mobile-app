@@ -40,7 +40,6 @@ import FinancialAssessmentScreen from './src/screens/FinancialAssessmentScreen';
 import ActionTrackerScreen from './src/screens/ActionTrackerScreen';
 import OnboardingChoiceScreen from './src/screens/OnboardingChoiceScreen';
 import TrendsScreen from './src/screens/TrendsScreen';
-import WeeklyDashboardScreen from './src/screens/WeeklyDashboardScreen';
 import TaxFilingReadinessScreen from './src/screens/TaxFilingReadinessScreen';
 import RestrictedAccessScreen from './src/screens/RestrictedAccessScreen';
 import { isScreenAllowedForRole } from './src/utils/rolePermissions';
@@ -135,7 +134,6 @@ function NavigatorContent() {
             {currentScreen === 'action-tracker' && <ActionTrackerScreen />}
             {currentScreen === 'onboarding-choice' && <OnboardingChoiceScreen />}
             {currentScreen === 'trends'              && <TrendsScreen />}
-            {currentScreen === 'weekly-dashboard'    && <WeeklyDashboardScreen />}
             {currentScreen === 'tax-filing-readiness' && <TaxFilingReadinessScreen />}
         </View>
     );
