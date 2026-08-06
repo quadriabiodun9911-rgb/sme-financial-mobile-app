@@ -466,7 +466,7 @@ export default function DashboardScreen() {
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.engineCard}
-                      onPress={() => setCurrentScreen('goal-bridge')}
+                      onPress={() => setCurrentScreen('goals')}
                     >
                       <Text style={styles.engineEmoji}>🌉</Text>
                       <Text style={styles.engineTitle}>Goal<br/>Bridge</Text>

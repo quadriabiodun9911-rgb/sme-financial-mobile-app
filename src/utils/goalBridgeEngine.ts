@@ -301,8 +301,9 @@ export function formatGoalBridge(bridge: GoalBridge, currency: string = '₦'): 
 }
 
 // ── Shared adapter: saved Goals-screen goal -> Goal Bridge engine goal ──
-// Used by both GoalsScreen (inline feasibility preview) and GoalBridgeScreen
-// (full roadmap), so both screens agree on the same mapping.
+// Used by GoalsScreen for both the inline feasibility preview on each card
+// and the full roadmap in its Plan modal's Bridge tab, so the two always
+// agree on the same mapping.
 const GOAL_TYPE_TO_BRIDGE: Record<GoalType, FinancialGoal['type']> = {
   revenue_growth: 'revenue',
   margin_improvement: 'margin',

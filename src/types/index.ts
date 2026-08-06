@@ -31,7 +31,6 @@ export type Screen =
     | 'action-tracker'
     | 'financial-assessment'
     | 'funding-qualification'
-    | 'goal-bridge'
     | 'trends'
     | 'tax-filing-readiness'
     | 'financial-health'

@@ -11,7 +11,7 @@ import DateInput from '../components/DateInput';
 import { GoalType, FinancialGoal, Transaction } from '../types';
 import { generateStrategy, goalDefaults, buildNewGoal } from '../utils/goals';
 import NextStepLink from '../components/NextStepLink';
-import { calculateGoalBridge, mapSavedGoalToBridge } from '../utils/goalBridgeEngine';
+import { calculateGoalBridge, mapSavedGoalToBridge, formatGoalMetric } from '../utils/goalBridgeEngine';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan } from '../utils/actionRecommendationEngine';
 import { suggestSolution, ImpactSource } from '../utils/impactChain';
@@ -55,13 +55,20 @@ const STATUS_LABELS: Record<FinancialGoal['status'], string> = {
 
 const PRIORITY_COLORS = { high: Colors.expense, medium: Colors.warning, low: Colors.textMuted };
 
+const FEASIBILITY_COLORS: Record<string, string> = { easy: Colors.income, medium: Colors.warning, difficult: Colors.expense };
+
 export default function GoalsScreen() {
     const { goals, addGoal, deleteGoal, updateGoal, finance, transactions, invoices, settings, navParams, navigate, setCurrentScreen, loans, inventory } = useApp();
     const { currency } = settings;
 
     const [addModalOpen, setAddModalOpen] = useState(false);
     const [editGoal, setEditGoal]         = useState<FinancialGoal | null>(null);
-    const [strategyGoalId, setStrategyGoalId] = useState<string | null>(null);
+    // Plan modal — merges what used to be two separate destinations (a
+    // "View Strategy" modal here, and a full navigate-away to GoalBridgeScreen)
+    // into one modal with two tabs, since both answered the same underlying
+    // question ("what do I do about this goal?") with overlapping content.
+    const [planGoalId, setPlanGoalId] = useState<string | null>(null);
+    const [planTab, setPlanTab] = useState<'bridge' | 'strategy'>('bridge');
     const [selectedType, setSelectedType] = useState<GoalType | null>(null);
 
     // Form state for new/edit goal
@@ -96,21 +103,40 @@ export default function GoalsScreen() {
         return map;
     }, [transactions, invoices, finance.cashBalance, finance.expense, goals, settings.currency]);
 
-    const strategyGoal = useMemo(
-        () => goals.find(g => g.id === strategyGoalId) ?? null,
-        [goals, strategyGoalId]
+    const planGoal = useMemo(
+        () => goals.find(g => g.id === planGoalId) ?? null,
+        [goals, planGoalId]
     );
 
     const strategy = useMemo(
-        () => strategyGoal ? generateStrategy(strategyGoal, finance, transactions, settings) : null,
-        [strategyGoal, finance, transactions, settings]
+        () => planGoal ? generateStrategy(planGoal, finance, transactions, settings) : null,
+        [planGoal, finance, transactions, settings]
     );
 
-    // Auto-open add modal if navigated here with a goalType param
+    // Full Goal Bridge computation for the plan modal's Bridge tab — mirrors
+    // the retired GoalBridgeScreen's own diagnosis -> tactics -> bridge
+    // pipeline exactly (that screen never gated on transaction count, unlike
+    // feasibilityByGoalId's lightweight card-preview above).
+    const planBridge = useMemo(() => {
+        if (!planGoal) return null;
+        const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), settings.currency, loans, inventory);
+        const tactics = generateActionPlan(diagnosis, diagnosis.metrics, settings.currency);
+        const allTactics = [...tactics.immediateActions, ...tactics.shortTermActions, ...tactics.strategicActions];
+        return calculateGoalBridge(mapSavedGoalToBridge(planGoal), diagnosis.metrics, allTactics, settings.currency);
+    }, [planGoal, transactions, invoices, finance, settings, loans, inventory]);
+
+    // Auto-open add modal if navigated here with a goalType param, or the
+    // plan modal (defaulting to its Bridge tab) if navigated here with a
+    // goalId — the latter mirrors the deep-link capability the retired
+    // GoalBridgeScreen used to offer via its own goalId navParam.
     useEffect(() => {
         if (navParams?.goalType) {
             setAddModalOpen(true);
             openAddModal(navParams.goalType);
+        }
+        if (navParams?.goalId) {
+            setPlanGoalId(navParams.goalId);
+            setPlanTab('bridge');
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -240,8 +266,7 @@ export default function GoalsScreen() {
                                     currency={currency}
                                     daysRemaining={daysRemaining(goal.deadline)}
                                     feasibility={feasibilityByGoalId[goal.id]}
-                                    onStrategy={() => setStrategyGoalId(goal.id)}
-                                    onBridge={() => navigate('goal-bridge', { goalId: goal.id })}
+                                    onPlan={() => { setPlanGoalId(goal.id); setPlanTab('bridge'); }}
                                     onEdit={() => openEditModal(goal)}
                                     onDelete={() => handleDelete(goal.id, goal.title)}
                                     onExecute={() => setCurrentScreen('action-tracker')}
@@ -259,8 +284,7 @@ export default function GoalsScreen() {
                                             goal={goal}
                                             currency={currency}
                                             daysRemaining={daysRemaining(goal.deadline)}
-                                            onStrategy={() => setStrategyGoalId(goal.id)}
-                                            onBridge={() => navigate('goal-bridge', { goalId: goal.id })}
+                                            onPlan={() => { setPlanGoalId(goal.id); setPlanTab('bridge'); }}
                                             onEdit={() => openEditModal(goal)}
                                             onDelete={() => handleDelete(goal.id, goal.title)}
                                         />
@@ -370,44 +394,154 @@ export default function GoalsScreen() {
                 </View>
             </Modal>
 
-            {/* Strategy Modal */}
-            <Modal visible={!!strategyGoalId} animationType="slide" transparent onRequestClose={() => setStrategyGoalId(null)}>
+            {/* Plan Modal — Bridge (tactics/roadmap/feasibility) + Strategy
+                (prioritised actions/daily actions), merged into one
+                destination since both used to answer "what do I do about
+                this goal?" separately (one as a modal here, one as a whole
+                other screen — GoalBridgeScreen, now retired). */}
+            <Modal visible={!!planGoalId} animationType="slide" transparent onRequestClose={() => setPlanGoalId(null)}>
                 <View style={styles.overlay}>
                     <ScrollView>
                         <View style={styles.modal}>
-                            {strategyGoal && strategy && (
+                            {planGoal && (
                                 <>
-                                    <Text style={styles.modalTitle}>Strategy: {strategyGoal.title}</Text>
-                                    <Text style={styles.strategyIntro}>
-                                        Based on your live financial data, here is a prioritised action plan to achieve this goal.
-                                    </Text>
+                                    <Text style={styles.modalTitle}>Plan: {planGoal.title}</Text>
 
-                                    {strategy.actions.map((action, i) => (
-                                        <View key={i} style={[styles.actionCard, { borderLeftColor: PRIORITY_COLORS[action.priority] }]}>
-                                            <View style={styles.actionHeader}>
-                                                <View style={[styles.priorityBadge, { backgroundColor: PRIORITY_COLORS[action.priority] + '22' }]}>
-                                                    <Text style={[styles.priorityText, { color: PRIORITY_COLORS[action.priority] }]}>
-                                                        {action.priority.toUpperCase()} PRIORITY
+                                    <View style={styles.planTabs}>
+                                        <TouchableOpacity
+                                            style={[styles.planTab, planTab === 'bridge' && styles.planTabActive]}
+                                            onPress={() => setPlanTab('bridge')}
+                                        >
+                                            <Text style={[styles.planTabText, planTab === 'bridge' && styles.planTabTextActive]}>🌉 Bridge</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={[styles.planTab, planTab === 'strategy' && styles.planTabActive]}
+                                            onPress={() => setPlanTab('strategy')}
+                                        >
+                                            <Text style={[styles.planTabText, planTab === 'strategy' && styles.planTabTextActive]}>📋 Strategy</Text>
+                                        </TouchableOpacity>
+                                    </View>
+
+                                    {planTab === 'bridge' && planBridge && (
+                                        <>
+                                            <View style={[styles.assessmentCard, { borderLeftColor: FEASIBILITY_COLORS[planBridge.feasibility] }]}>
+                                                <View style={styles.assessmentHeader}>
+                                                    <Text style={styles.assessmentLabel}>Feasibility Assessment</Text>
+                                                    <View style={[styles.feasibilityBadge, { backgroundColor: FEASIBILITY_COLORS[planBridge.feasibility] + '22', borderColor: FEASIBILITY_COLORS[planBridge.feasibility] }]}>
+                                                        <Text style={[styles.feasibilityText, { color: FEASIBILITY_COLORS[planBridge.feasibility] }]}>
+                                                            {planBridge.feasibility.toUpperCase()}
+                                                        </Text>
+                                                    </View>
+                                                </View>
+
+                                                <View style={styles.assessmentRow}>
+                                                    <Text style={styles.assessmentRowLabel}>Required Monthly Improvement:</Text>
+                                                    <Text style={styles.assessmentRowValue}>{formatGoalMetric(planBridge.requiredMonthlyImprovement, planBridge.goal.type, currency)}</Text>
+                                                </View>
+
+                                                <View style={styles.assessmentRow}>
+                                                    <Text style={styles.assessmentRowLabel}>Realistic Timeline:</Text>
+                                                    <Text style={styles.assessmentRowValue}>{planBridge.achievableTimeline} months</Text>
+                                                    <Text style={styles.timelineNote}>({planBridge.goal.timelineMonths} month target)</Text>
+                                                </View>
+
+                                                <View style={styles.assessmentRow}>
+                                                    <Text style={styles.assessmentRowLabel}>Recommended Approach:</Text>
+                                                    <Text style={[styles.approachBadge, { backgroundColor: Colors.primary + '22' }]}>
+                                                        <Text style={{ color: Colors.primary, fontWeight: '700' }}>
+                                                            {planBridge.recommendedApproach === 'revenue-focused' ? '📈 Revenue-Focused' : planBridge.recommendedApproach === 'expense-focused' ? '💰 Expense-Focused' : '⚖️ Hybrid'}
+                                                        </Text>
                                                     </Text>
                                                 </View>
-                                            </View>
-                                            <Text style={styles.actionTitle}>{action.title}</Text>
-                                            <Text style={styles.actionDetail}>{action.detail}</Text>
-                                            {action.metric && (
-                                                <View style={styles.metricPill}>
-                                                    <Text style={styles.metricText}>{action.metric}</Text>
+
+                                                <View style={styles.assessmentRow}>
+                                                    <Text style={styles.assessmentRowLabel}>Success Probability:</Text>
+                                                    <View style={styles.probabilityContainer}>
+                                                        <View style={styles.probabilityBar}>
+                                                            <View
+                                                                style={[
+                                                                    styles.probabilityFill,
+                                                                    { width: `${planBridge.successProbability * 100}%`, backgroundColor: planBridge.successProbability > 0.6 ? Colors.income : Colors.warning },
+                                                                ]}
+                                                            />
+                                                        </View>
+                                                        <Text style={styles.probabilityPercent}>{(planBridge.successProbability * 100).toFixed(0)}%</Text>
+                                                    </View>
                                                 </View>
-                                            )}
-                                        </View>
-                                    ))}
+                                            </View>
 
-                                    {/* Daily action plan */}
-                                    <DailyActionsSection goal={strategyGoal} transactions={transactions} currency={currency} />
+                                            <Text style={styles.sectionTitle}>🗺️ Tactics Roadmap</Text>
+                                            {planBridge.tactics.map((allocation, idx) => (
+                                                <View key={idx} style={styles.roadmapNode}>
+                                                    <View style={styles.timelineNodeContainer}>
+                                                        <View style={[styles.timelineNode, { backgroundColor: Colors.primary }]} />
+                                                        {idx < planBridge.tactics.length - 1 && <View style={styles.timelineConnector} />}
+                                                    </View>
+                                                    <View style={styles.roadmapCard}>
+                                                        <Text style={styles.roadmapCardTitle}>{allocation.tactic.title}</Text>
+                                                        <Text style={styles.roadmapCardMonth}>Month {Math.round(allocation.monthStart)}-{Math.round(allocation.monthEnd)}</Text>
+                                                        <Text style={[styles.roadmapCardContribution, { color: allocation.tactic.impactType === 'revenue' ? Colors.income : Colors.expense }]}>
+                                                            +{currency}{Math.round(allocation.contributionToGoal).toLocaleString()}
+                                                        </Text>
+                                                    </View>
+                                                </View>
+                                            ))}
 
-                                    <Text style={styles.strategyFooter}>
-                                        Strategy refreshes automatically as your financial data changes.
-                                    </Text>
-                                    <TouchableOpacity style={[styles.modalBtn, { backgroundColor: Colors.primary, marginTop: 8 }]} onPress={() => setStrategyGoalId(null)}>
+                                            <Text style={[styles.sectionTitle, { marginTop: 16 }]}>🏁 Milestones</Text>
+                                            {planBridge.milestones.map((milestone, idx) => (
+                                                <View key={idx} style={styles.milestoneCard}>
+                                                    <View style={styles.milestoneLeft}>
+                                                        <View style={[styles.milestoneDot, { backgroundColor: idx === planBridge.milestones.length - 1 ? Colors.income : Colors.primary }]} />
+                                                        <View style={styles.milestoneContent}>
+                                                            <Text style={styles.milestoneMonth}>Month {milestone.month}</Text>
+                                                            <Text style={styles.milestoneDescription}>{milestone.description}</Text>
+                                                        </View>
+                                                    </View>
+                                                    <Text style={styles.milestoneValue}>{formatGoalMetric(milestone.targetValue, planBridge.goal.type, currency)}</Text>
+                                                </View>
+                                            ))}
+
+                                            <TouchableOpacity style={styles.ctaButton} onPress={() => { setPlanGoalId(null); setCurrentScreen('action-tracker'); }}>
+                                                <Text style={styles.ctaButtonText}>Start Executing This Plan →</Text>
+                                            </TouchableOpacity>
+                                        </>
+                                    )}
+
+                                    {planTab === 'strategy' && strategy && (
+                                        <>
+                                            <Text style={styles.strategyIntro}>
+                                                Based on your live financial data, here is a prioritised action plan to achieve this goal.
+                                            </Text>
+
+                                            {strategy.actions.map((action, i) => (
+                                                <View key={i} style={[styles.actionCard, { borderLeftColor: PRIORITY_COLORS[action.priority] }]}>
+                                                    <View style={styles.actionHeader}>
+                                                        <View style={[styles.priorityBadge, { backgroundColor: PRIORITY_COLORS[action.priority] + '22' }]}>
+                                                            <Text style={[styles.priorityText, { color: PRIORITY_COLORS[action.priority] }]}>
+                                                                {action.priority.toUpperCase()} PRIORITY
+                                                            </Text>
+                                                        </View>
+                                                    </View>
+                                                    <Text style={styles.actionTitle}>{action.title}</Text>
+                                                    <Text style={styles.actionDetail}>{action.detail}</Text>
+                                                    {action.metric && (
+                                                        <View style={styles.metricPill}>
+                                                            <Text style={styles.metricText}>{action.metric}</Text>
+                                                        </View>
+                                                    )}
+                                                </View>
+                                            ))}
+
+                                            {/* Daily action plan */}
+                                            <DailyActionsSection goal={planGoal} transactions={transactions} currency={currency} />
+
+                                            <Text style={styles.strategyFooter}>
+                                                Strategy refreshes automatically as your financial data changes.
+                                            </Text>
+                                        </>
+                                    )}
+
+                                    <TouchableOpacity style={[styles.modalBtn, { backgroundColor: Colors.primary, marginTop: 16 }]} onPress={() => setPlanGoalId(null)}>
                                         <Text style={styles.modalBtnText}>Close</Text>
                                     </TouchableOpacity>
                                 </>
@@ -478,13 +612,12 @@ function DailyActionsSection({ goal, transactions, currency }: { goal: Financial
     );
 }
 
-function GoalCard({ goal, currency, daysRemaining, feasibility, onStrategy, onBridge, onEdit, onDelete, onExecute, onCollect, onSeeFullPicture }: {
+function GoalCard({ goal, currency, daysRemaining, feasibility, onPlan, onEdit, onDelete, onExecute, onCollect, onSeeFullPicture }: {
     goal: FinancialGoal;
     currency: string;
     daysRemaining: string;
     feasibility?: { feasibility: string; requiredMonthlyImprovement: number; successProbability: number };
-    onStrategy: () => void;
-    onBridge: () => void;
+    onPlan: () => void;
     onEdit: () => void;
     onDelete: () => void;
     onExecute?: () => void;
@@ -589,11 +722,8 @@ function GoalCard({ goal, currency, daysRemaining, feasibility, onStrategy, onBr
             </View>
 
             <View style={cardStyles.actions}>
-                <TouchableOpacity style={cardStyles.strategyBtn} onPress={onStrategy}>
-                    <Text style={cardStyles.strategyBtnText}>View Strategy →</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={onBridge} style={{ marginLeft: 12 }}>
-                    <Text style={[cardStyles.deleteText, { color: Colors.primary }]}>🌉 Bridge</Text>
+                <TouchableOpacity style={cardStyles.strategyBtn} onPress={onPlan}>
+                    <Text style={cardStyles.strategyBtnText}>🌉 View Plan →</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={onEdit} style={{ marginLeft: 12 }}>
                     <Text style={[cardStyles.deleteText, { color: Colors.primary }]}>Edit</Text>
@@ -697,4 +827,46 @@ const styles = StyleSheet.create({
     dailyActionNum: { width: 20, height: 20, borderRadius: 10, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
     dailyActionNumText: { fontSize: 10, fontWeight: '700', color: '#fff' },
     dailyActionText: { flex: 1, fontSize: 12, color: Colors.textPrimary, lineHeight: 17 },
+
+    // Plan modal — Bridge tab (adapted from the retired GoalBridgeScreen)
+    planTabs: { flexDirection: 'row', backgroundColor: Colors.bg, borderRadius: 10, padding: 4, marginBottom: 16, gap: 4 },
+    planTab: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
+    planTabActive: { backgroundColor: Colors.primary },
+    planTabText: { fontSize: 12, fontWeight: '700', color: Colors.textMuted },
+    planTabTextActive: { color: '#fff' },
+
+    assessmentCard: { backgroundColor: Colors.bg, borderRadius: 14, borderLeftWidth: 4, padding: 16, marginBottom: 20, gap: 12 },
+    assessmentHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+    assessmentLabel: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
+    feasibilityBadge: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1 },
+    feasibilityText: { fontSize: 10, fontWeight: '700' },
+    assessmentRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    assessmentRowLabel: { fontSize: 12, color: Colors.textSecondary, flex: 1 },
+    assessmentRowValue: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
+    timelineNote: { fontSize: 10, color: Colors.textMuted, marginLeft: 4 },
+    approachBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
+    probabilityContainer: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
+    probabilityBar: { flex: 1, height: 6, backgroundColor: Colors.surface, borderRadius: 3, overflow: 'hidden' },
+    probabilityFill: { height: '100%' },
+    probabilityPercent: { fontSize: 12, fontWeight: '700', color: Colors.textPrimary },
+
+    roadmapNode: { flexDirection: 'row', gap: 12, marginBottom: 8 },
+    timelineNodeContainer: { alignItems: 'center', width: 30 },
+    timelineNode: { width: 12, height: 12, borderRadius: 6 },
+    timelineConnector: { width: 2, height: 30, backgroundColor: Colors.border, marginTop: 4 },
+    roadmapCard: { flex: 1, backgroundColor: Colors.bg, borderRadius: 10, padding: 12, borderLeftWidth: 2, borderLeftColor: Colors.primary },
+    roadmapCardTitle: { fontSize: 12, fontWeight: '700', color: Colors.textPrimary, marginBottom: 4 },
+    roadmapCardMonth: { fontSize: 10, color: Colors.textMuted, marginBottom: 6 },
+    roadmapCardContribution: { fontSize: 12, fontWeight: '700' },
+
+    milestoneCard: { backgroundColor: Colors.bg, borderRadius: 12, padding: 12, marginBottom: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderLeftWidth: 3, borderLeftColor: Colors.primary },
+    milestoneLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+    milestoneDot: { width: 12, height: 12, borderRadius: 6 },
+    milestoneContent: { flex: 1 },
+    milestoneMonth: { fontSize: 10, color: Colors.textMuted, fontWeight: '600', marginBottom: 2 },
+    milestoneDescription: { fontSize: 12, fontWeight: '700', color: Colors.textPrimary },
+    milestoneValue: { fontSize: 13, fontWeight: '800', color: Colors.textPrimary },
+
+    ctaButton: { backgroundColor: Colors.income, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 8, marginBottom: 8 },
+    ctaButtonText: { fontSize: 14, fontWeight: '700', color: '#fff' },
 });

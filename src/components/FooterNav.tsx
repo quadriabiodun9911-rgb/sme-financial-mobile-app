@@ -21,7 +21,6 @@ const ANALYTICS_ITEMS: { label: string; icon: string; screen: Screen; color: str
 
 const FINANCE_ITEMS: { label: string; icon: string; screen: Screen; color: string }[] = [
     { label: 'Goals',       icon: '🎯', screen: 'goals',             color: '#ef4444' },
-    { label: 'Goal Bridge', icon: '🌉', screen: 'goal-bridge',       color: '#06b6d4' },
     { label: 'Budget',      icon: '💰', screen: 'budget',            color: '#10b981' },
     { label: 'Assets',      icon: '🏢', screen: 'assets',            color: '#3b82f6' },
     { label: 'Loans',       icon: '🏦', screen: 'loans',             color: '#f97316' },
