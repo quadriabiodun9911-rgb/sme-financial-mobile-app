@@ -27,7 +27,6 @@ export type Screen =
     | 'onboarding-choice'
     | 'action-tracker'
     | 'financial-assessment'
-    | 'trends'
     | 'tax-filing-readiness'
     | 'financial-health'
     | 'business-passport';

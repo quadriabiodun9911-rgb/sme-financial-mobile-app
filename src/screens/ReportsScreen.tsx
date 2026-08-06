@@ -22,6 +22,7 @@ import AssetProductivityAnalysis from '../components/AssetProductivityAnalysis';
 import CustomerProfitability from '../components/CustomerProfitability';
 import ProductPerformance from '../components/ProductPerformance';
 import GrowthMetrics from '../components/GrowthMetrics';
+import MultiYearTrends from '../components/MultiYearTrends';
 import PricingOptimizer from '../components/PricingOptimizer';
 import NextStepLink from '../components/NextStepLink';
 import CashFlowStatement from '../components/CashFlowStatement';
@@ -50,7 +51,7 @@ type SubTab =
     | 'aging'
     | 'tax'
     | 'budget' | 'cashflow' | 'cashmgmt' | 'debt' | 'assets'
-    | 'growth' | 'customers' | 'products' | 'pricing';
+    | 'growth' | 'history' | 'customers' | 'products' | 'pricing';
 
 const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
     statements: [
@@ -74,6 +75,7 @@ const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
     ],
     growth: [
         { key: 'growth',    label: 'Growth Trends' },
+        { key: 'history',   label: 'Multi-Year History' },
         { key: 'customers', label: 'Best Customers' },
         { key: 'products',  label: 'Best Products' },
         { key: 'pricing',   label: 'Pricing Optimization' },
@@ -575,6 +577,9 @@ export default function ReportsScreen() {
                             finance={allFinance}
                         />
                     )}
+
+                    {/* ── MULTI-YEAR HISTORY ───────────────────────────── */}
+                    {activeTab === 'history' && <MultiYearTrends />}
 
                     {/* ── CUSTOMER PROFITABILITY ───────────────────────── */}
                     {activeTab === 'customers' && (
