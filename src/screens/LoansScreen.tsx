@@ -21,6 +21,7 @@ import FooterNav from '../components/FooterNav';
 import { Loan, LoanStatus } from '../types';
 import DateInput from '../components/DateInput';
 import MerchantFinancingSection from './MerchantFinancingSection';
+import LoanEligibilityModal from '../components/LoanEligibilityModal';
 import { computeDebtOptimiser } from '../utils/finance';
 import NextStepLink from '../components/NextStepLink';
 import ProfitCashImpactCard from '../components/ProfitCashImpactCard';
@@ -68,6 +69,7 @@ export default function LoansScreen() {
     const [activeTab, setActiveTab] = useState<'existing' | 'financing'>(
         navParams?.tab === 'financing' ? 'financing' : 'existing'
     );
+    const [showLoanEligibility, setShowLoanEligibility] = useState(false);
     const [showForm, setShowForm] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [showPayment, setShowPayment] = useState<string | null>(null);
@@ -224,7 +226,7 @@ export default function LoansScreen() {
                     )}
 
                     {/* Loan Eligibility Tool */}
-                    <TouchableOpacity onPress={() => navigate('loan-eligibility')} style={s.featureCard}>
+                    <TouchableOpacity onPress={() => setShowLoanEligibility(true)} style={s.featureCard}>
                         <Text style={s.featureIcon}>💼</Text>
                         <View style={s.featureContent}>
                             <Text style={s.featureTitle}>Loan Eligibility Tracker</Text>
@@ -426,6 +428,8 @@ export default function LoansScreen() {
             )}
 
             <FooterNav />
+
+            <LoanEligibilityModal visible={showLoanEligibility} onClose={() => setShowLoanEligibility(false)} />
         </SafeAreaView>
     );
 }

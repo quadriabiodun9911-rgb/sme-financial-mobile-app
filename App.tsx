@@ -33,7 +33,6 @@ import ReconciliationScreen from './src/screens/ReconciliationScreen';
 import TaxPlanningScreen from './src/screens/TaxPlanningScreen';
 import CreditWorthinessScreen from './src/screens/CreditWorthinessScreen';
 import FinancialHealthScreen from './src/screens/FinancialHealthScreen';
-import LoanEligibilityScreen from './src/screens/LoanEligibilityScreen';
 import BusinessPassportScreen from './src/screens/BusinessPassportScreen';
 import FinancialAssessmentScreen from './src/screens/FinancialAssessmentScreen';
 import ActionTrackerScreen from './src/screens/ActionTrackerScreen';
@@ -126,7 +125,6 @@ function NavigatorContent() {
             {currentScreen === 'tax-planning'   && <TaxPlanningScreen />}
             {currentScreen === 'credit-worthiness' && <CreditWorthinessScreen />}
             {currentScreen === 'financial-health' && <FinancialHealthScreen />}
-            {currentScreen === 'loan-eligibility'  && <LoanEligibilityScreen />}
             {currentScreen === 'business-passport' && <BusinessPassportScreen />}
             {currentScreen === 'financial-assessment' && <FinancialAssessmentScreen />}
             {currentScreen === 'action-tracker' && <ActionTrackerScreen />}
