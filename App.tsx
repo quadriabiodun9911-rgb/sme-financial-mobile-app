@@ -30,14 +30,12 @@ import ImportTransactionsScreen from './src/screens/ImportTransactionsScreen';
 import CashFlowScreen from './src/screens/CashFlowScreen';
 import PayrollScreen from './src/screens/PayrollScreen';
 import ReconciliationScreen from './src/screens/ReconciliationScreen';
-import TaxPlanningScreen from './src/screens/TaxPlanningScreen';
 import CreditWorthinessScreen from './src/screens/CreditWorthinessScreen';
 import FinancialHealthScreen from './src/screens/FinancialHealthScreen';
 import BusinessPassportScreen from './src/screens/BusinessPassportScreen';
 import FinancialAssessmentScreen from './src/screens/FinancialAssessmentScreen';
 import ActionTrackerScreen from './src/screens/ActionTrackerScreen';
 import OnboardingChoiceScreen from './src/screens/OnboardingChoiceScreen';
-import TaxFilingReadinessScreen from './src/screens/TaxFilingReadinessScreen';
 import RestrictedAccessScreen from './src/screens/RestrictedAccessScreen';
 import { isScreenAllowedForRole } from './src/utils/rolePermissions';
 import { UserRole, Screen } from './src/types';
@@ -121,14 +119,12 @@ function NavigatorContent() {
             {currentScreen === 'cashflow'       && <CashFlowScreen />}
             {currentScreen === 'payroll'        && <PayrollScreen />}
             {currentScreen === 'reconciliation' && <ReconciliationScreen />}
-            {currentScreen === 'tax-planning'   && <TaxPlanningScreen />}
             {currentScreen === 'credit-worthiness' && <CreditWorthinessScreen />}
             {currentScreen === 'financial-health' && <FinancialHealthScreen />}
             {currentScreen === 'business-passport' && <BusinessPassportScreen />}
             {currentScreen === 'financial-assessment' && <FinancialAssessmentScreen />}
             {currentScreen === 'action-tracker' && <ActionTrackerScreen />}
             {currentScreen === 'onboarding-choice' && <OnboardingChoiceScreen />}
-            {currentScreen === 'tax-filing-readiness' && <TaxFilingReadinessScreen />}
         </View>
     );
 }
