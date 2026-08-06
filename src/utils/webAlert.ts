@@ -4,11 +4,19 @@ import { Alert, Platform } from 'react-native';
 // every screen falls back the same way instead of each reimplementing (and
 // subtly diverging on) the same Platform.OS branch — six screens had done
 // exactly that independently before this was extracted.
-export function showAlert(title: string, message?: string): void {
+//
+// onAcknowledge covers the "single-button alert that also does something
+// on dismiss" shape (e.g. a save confirmation that navigates away once the
+// user taps OK) — without it, callers were reaching for their own
+// Platform.OS branch again just for that one case.
+export function showAlert(title: string, message?: string, onAcknowledge?: () => void): void {
     if (Platform.OS === 'web') {
         if (typeof window !== 'undefined' && typeof window.alert === 'function') {
             window.alert(message ? `${title}\n\n${message}` : title);
         }
+        onAcknowledge?.();
+    } else if (onAcknowledge) {
+        Alert.alert(title, message, [{ text: 'OK', onPress: onAcknowledge }]);
     } else {
         Alert.alert(title, message);
     }

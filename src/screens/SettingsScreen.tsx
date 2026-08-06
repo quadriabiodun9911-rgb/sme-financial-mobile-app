@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
-    TouchableOpacity, StyleSheet, Alert, Modal, Share, Platform,
+    TouchableOpacity, StyleSheet, Modal, Share, Platform,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors, ColorThemeMode, getColorThemeMode, setColorThemeMode } from '../theme/colors';
@@ -118,17 +118,7 @@ export default function SettingsScreen() {
     const doSave = () => {
         updateSettings(form);
         if (updateProfile && phone !== (user?.phone || '')) updateProfile({ phone: phone.trim() });
-        // Native waits for the alert to be dismissed before navigating; web's
-        // window.alert (inside showAlert) blocks synchronously, so navigating
-        // right after it returns lands at the same "after acknowledgment" point.
-        if (Platform.OS === 'web') {
-            showAlert(t(language, 'success'), 'Settings updated successfully.');
-            setCurrentScreen('dashboard');
-        } else {
-            Alert.alert(t(language, 'success'), 'Settings updated successfully.', [
-                { text: t(language, 'done'), onPress: () => setCurrentScreen('dashboard') },
-            ]);
-        }
+        showAlert(t(language, 'success'), 'Settings updated successfully.', () => setCurrentScreen('dashboard'));
     };
 
     const handleSave = () => {
