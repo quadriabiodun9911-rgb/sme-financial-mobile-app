@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TouchableOpacity, StyleSheet, Animated, Dimensions,
 } from 'react-native';
@@ -11,17 +11,45 @@ import FooterNav from '../components/FooterNav';
 import LowDataNotice from '../components/LowDataNotice';
 import NextStepLink from '../components/NextStepLink';
 import { generatePDF, sharePDF } from '../utils/pdfExport';
-import { buildLenderSummaryExport } from '../utils/lenderSummaryExport';
+import { buildLenderSummaryExport, buildFundingReadinessPackExport } from '../utils/lenderSummaryExport';
 import { computeDSCR, computeRiskScore, computeAssetCurrentValue, computeWorkingCapitalMetrics, RiskScore } from '../utils/finance';
 import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
 import { computeDataQuality } from '../utils/dataQuality';
 import { computeInventoryValue } from '../utils/stockVelocity';
 import { computeLeverageRatios, computeLiveLoanBalance } from '../utils/debtRatios';
 import { buildFiveCsAssessment } from '../utils/fiveCsOfCredit';
+import { buildFundingReadinessPack } from '../utils/fundingReadiness';
+
+const FP_STATUS_DOT: Record<string, string> = { good: '🟢', warning: '🟡', danger: '🔴' };
+const FP_STATUS_LABEL: Record<string, string> = { good: 'Strong', warning: 'Watch', danger: 'High risk' };
+const FP_STATUS_COLOR: Record<string, string> = { good: Colors.income, warning: Colors.warning, danger: Colors.expense };
+const FP_BAND_COLOR: Record<string, string> = {
+    Excellent: Colors.income,
+    Strong: '#10b981',
+    Moderate: Colors.warning,
+    Weak: '#fb923c',
+    Critical: Colors.expense,
+};
+
+function fmtCompact(currency: string, amount: number): string {
+    if (Math.abs(amount) >= 1000000) return `${currency}${(amount / 1000000).toFixed(1)}M`;
+    if (Math.abs(amount) >= 1000) return `${currency}${(amount / 1000).toFixed(0)}K`;
+    return `${currency}${Math.round(amount).toLocaleString()}`;
+}
+
+type PageTab = 'profile' | 'funding-pack';
 
 export default function CreditWorthinessScreen() {
-    const { user, finance, transactions, loans, navigate, settings, inventory, assets } = useApp();
+    const { user, finance, transactions, invoices, loans, navigate, navParams, settings, inventory, assets } = useApp();
     const { currency } = settings;
+    const [tab, setTab] = useState<PageTab>(navParams?.tab === 'funding-pack' ? 'funding-pack' : 'profile');
+
+    // Deep-link from Loans / Business Passport ("See the full Funding
+    // Readiness Pack") — re-applies even if this screen instance stays
+    // mounted across the navigation.
+    useEffect(() => {
+        if (navParams?.tab === 'funding-pack') setTab('funding-pack');
+    }, [navParams]);
 
     // Calculate credit factors
     const creditFactors = useMemo(() => {
@@ -288,6 +316,30 @@ export default function CreditWorthinessScreen() {
         }
     };
 
+    // Funding Pack tab — a document-oriented view built for a specific
+    // funding application (financial profile snapshot, 12-month trend,
+    // supporting-documents checklist), as opposed to the Credit Profile
+    // tab's ongoing "how do I improve my score" framing. Shares the same
+    // canonical risk score via buildFundingReadinessPack -> computeRiskScore.
+    const pack = useMemo(
+        () => buildFundingReadinessPack(transactions, invoices, loans, inventory, assets, finance, settings, user?.businessName || 'Your Business'),
+        [transactions, invoices, loans, inventory, assets, finance, settings, user?.businessName],
+    );
+    const maxTrendRevenue = Math.max(1, ...pack.trend.map(m => Math.max(m.revenue, m.expense)));
+
+    const handleExportFundingPack = async () => {
+        setExporting(true);
+        try {
+            const exportData = buildFundingReadinessPackExport(pack, currency);
+            const filePath = await generatePDF(exportData);
+            await sharePDF(filePath, exportData.title);
+        } catch {
+            showAlert('Export failed', 'Could not generate the Funding Readiness Pack. Please try again.');
+        } finally {
+            setExporting(false);
+        }
+    };
+
     return (
         <SafeAreaView style={s.safe}>
             <Header />
@@ -299,6 +351,17 @@ export default function CreditWorthinessScreen() {
                 <Text style={s.title}>💳 Credit-Worthiness</Text>
                 <Text style={s.subtitle}>How your business looks against what lenders evaluate — not a loan decision, and not a guarantee.</Text>
 
+                <View style={s.tabRow}>
+                    <TouchableOpacity style={[s.tabBtn, tab === 'profile' && s.tabBtnActive]} onPress={() => setTab('profile')}>
+                        <Text style={[s.tabBtnText, tab === 'profile' && s.tabBtnTextActive]}>Credit Profile</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[s.tabBtn, tab === 'funding-pack' && s.tabBtnActive]} onPress={() => setTab('funding-pack')}>
+                        <Text style={[s.tabBtnText, tab === 'funding-pack' && s.tabBtnTextActive]}>Funding Pack</Text>
+                    </TouchableOpacity>
+                </View>
+
+                {tab === 'profile' ? (
+                <>
                 <LowDataNotice transactionCount={transactions.length} label="your credit-worthiness score" />
 
                 <TouchableOpacity style={s.exportButton} onPress={handleExportLenderSummary} disabled={exporting}>
@@ -504,10 +567,124 @@ export default function CreditWorthinessScreen() {
                     <TipItem emoji="📝" text="Document business records - keep receipts and contracts" />
                     <TipItem emoji="🎯" text="Show growth - increase revenue and profitability" />
                 </View>
+                </>
+                ) : (
+                <>
+                <Text style={fp.subtitle}>
+                    Not a loan decision — Quad360 doesn't lend and can't guarantee an outcome. This shows how your
+                    business would look to a lender doing their own assessment, and exactly what to fix first.
+                </Text>
+
+                <LowDataNotice transactionCount={transactions.length} label="your Funding Readiness Pack" />
+
+                <TouchableOpacity style={s.exportButton} onPress={handleExportFundingPack} disabled={exporting}>
+                    <Text style={s.exportButtonText}>{exporting ? 'Preparing…' : '📄 Export Funding Readiness Pack'}</Text>
+                </TouchableOpacity>
+                <Text style={s.exportHint}>A shareable document a lender can actually review.</Text>
+
+                {/* Business Financial Profile */}
+                <View style={fp.card}>
+                    <Text style={fp.cardTitle}>Business Financial Profile</Text>
+                    <Text style={fp.businessName}>{pack.businessName}</Text>
+                    <View style={fp.profileGrid}>
+                        <FpProfileStat label="Revenue (TTM)" value={fmtCompact(currency, pack.profile.revenue)} />
+                        <FpProfileStat label="Gross Profit" value={fmtCompact(currency, pack.profile.grossProfit)} sub={`${pack.profile.grossMargin.toFixed(0)}% margin`} />
+                        <FpProfileStat label="Net Profit" value={fmtCompact(currency, pack.profile.netProfit)} color={pack.profile.netProfit >= 0 ? Colors.income : Colors.expense} />
+                        <FpProfileStat label="Cash" value={fmtCompact(currency, pack.profile.cash)} />
+                        <FpProfileStat label="Receivables" value={fmtCompact(currency, pack.profile.receivables)} />
+                        <FpProfileStat label="Debt" value={fmtCompact(currency, pack.profile.debt)} />
+                    </View>
+                </View>
+
+                {/* Financial performance */}
+                <View style={fp.card}>
+                    <Text style={fp.cardTitle}>Financial Performance — Last 12 Months</Text>
+                    {pack.trend.length === 0 ? (
+                        <Text style={fp.emptyText}>Not enough recorded history yet to show a trend.</Text>
+                    ) : (
+                        <View style={fp.trendChart}>
+                            {pack.trend.map(m => (
+                                <View key={m.month} style={fp.trendCol}>
+                                    <View style={fp.trendBars}>
+                                        <View style={[fp.trendBar, { height: `${Math.max(2, (m.revenue / maxTrendRevenue) * 100)}%`, backgroundColor: Colors.income }]} />
+                                        <View style={[fp.trendBar, { height: `${Math.max(2, (m.expense / maxTrendRevenue) * 100)}%`, backgroundColor: Colors.expense }]} />
+                                    </View>
+                                    <Text style={fp.trendLabel}>{m.month.slice(5)}</Text>
+                                </View>
+                            ))}
+                        </View>
+                    )}
+                    <View style={fp.trendLegend}>
+                        <FpLegendDot color={Colors.income} label="Revenue" />
+                        <FpLegendDot color={Colors.expense} label="Expenses" />
+                    </View>
+                </View>
+
+                {/* Risk profile */}
+                <View style={fp.card}>
+                    <Text style={fp.cardTitle}>Risk Profile</Text>
+                    {pack.riskProfile.map(f => (
+                        <View key={f.name} style={fp.riskRow}>
+                            <Text style={fp.riskDot}>{FP_STATUS_DOT[f.status]}</Text>
+                            <Text style={fp.riskLabel}>{f.name}</Text>
+                            <Text style={[fp.riskStatus, { color: FP_STATUS_COLOR[f.status] }]}>{FP_STATUS_LABEL[f.status]}</Text>
+                        </View>
+                    ))}
+                </View>
+
+                {/* Funding readiness score */}
+                <View style={[fp.scoreCard, { borderTopColor: FP_BAND_COLOR[pack.band] }]}>
+                    <Text style={fp.cardTitle}>Funding Readiness</Text>
+                    <Text style={[fp.scoreValue, { color: FP_BAND_COLOR[pack.band] }]}>{pack.score}/100 — {pack.band}</Text>
+                    <Text style={fp.scoreCaveat}>
+                        This reflects how prepared your records are for a lender's own assessment — not a
+                        pre-approval, and not a promise of funding.
+                    </Text>
+                    <NextStepLink text="See what's holding your score back" onPress={() => navigate('financial-assessment')} />
+                </View>
+
+                {/* Supporting documents */}
+                <View style={fp.card}>
+                    <Text style={fp.cardTitle}>Supporting Documents</Text>
+                    <Text style={fp.docsHint}>
+                        Quad360 doesn't store uploaded files — this shows whether your recorded data is complete
+                        enough to generate each document, not whether a file exists.
+                    </Text>
+                    {pack.documents.map(d => (
+                        <View key={d.id} style={fp.docRow}>
+                            <Text style={fp.docIcon}>{d.ready ? '✅' : '⚠️'}</Text>
+                            <View style={{ flex: 1 }}>
+                                <Text style={fp.docLabel}>{d.label}</Text>
+                                <Text style={fp.docDetail}>{d.detail}</Text>
+                            </View>
+                        </View>
+                    ))}
+                </View>
+                </>
+                )}
             </ScrollView>
 
             <FooterNav />
         </SafeAreaView>
+    );
+}
+
+function FpProfileStat({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
+    return (
+        <View style={fp.profileBox}>
+            <Text style={fp.profileLabel}>{label}</Text>
+            <Text style={[fp.profileValue, color ? { color } : null]}>{value}</Text>
+            {sub ? <Text style={fp.profileSub}>{sub}</Text> : null}
+        </View>
+    );
+}
+
+function FpLegendDot({ color, label }: { color: string; label: string }) {
+    return (
+        <View style={fp.legendRow}>
+            <View style={[fp.legendDot, { backgroundColor: color }]} />
+            <Text style={fp.legendText}>{label}</Text>
+        </View>
     );
 }
 
@@ -542,6 +719,11 @@ const s = StyleSheet.create({
     pad: { padding: 16, paddingBottom: 80 },
     title: { fontSize: 28, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 4 },
     subtitle: { fontSize: 14, color: Colors.textSecondary, marginBottom: 16 },
+    tabRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
+    tabBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
+    tabBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+    tabBtnText: { fontSize: 13, fontWeight: '700', color: Colors.textMuted },
+    tabBtnTextActive: { color: '#fff' },
     exportButton: { backgroundColor: Colors.primary, borderRadius: 10, paddingVertical: 13, alignItems: 'center', marginBottom: 6 },
     exportButtonText: { color: '#fff', fontSize: 14, fontWeight: '700' },
     exportHint: { fontSize: 11.5, color: Colors.textMuted, marginBottom: 20, lineHeight: 16 },
@@ -621,4 +803,41 @@ const s = StyleSheet.create({
     tipsTitle: { fontSize: 14, fontWeight: '600', color: Colors.textPrimary, marginBottom: 12 },
     tipEmoji: { fontSize: 16, marginRight: 8, marginTop: 4 },
     tipText: { fontSize: 12, color: Colors.textPrimary, flex: 1, lineHeight: 18 },
+});
+
+// Funding Pack tab — styles carried over from the retired
+// FundingQualificationScreen, namespaced to avoid colliding with the
+// Credit Profile tab's `s` styles above (e.g. both had a `scoreCard`).
+const fp = StyleSheet.create({
+    subtitle: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18, marginBottom: 16 },
+    card: { backgroundColor: Colors.card, borderRadius: 14, padding: 16, marginBottom: 16 },
+    cardTitle: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginBottom: 10 },
+    businessName: { fontSize: 12, color: Colors.textMuted, marginBottom: 12 },
+    profileGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+    emptyText: { fontSize: 12, color: Colors.textMuted },
+    trendChart: { flexDirection: 'row', alignItems: 'flex-end', height: 100, gap: 4 },
+    trendCol: { flex: 1, alignItems: 'center' },
+    trendBars: { flexDirection: 'row', gap: 2, height: 80, alignItems: 'flex-end' },
+    trendBar: { width: 5, borderRadius: 2, minHeight: 2 },
+    trendLabel: { fontSize: 8, color: Colors.textMuted, marginTop: 4 },
+    trendLegend: { flexDirection: 'row', gap: 16, marginTop: 12, justifyContent: 'center' },
+    riskRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    riskDot: { fontSize: 12, marginRight: 8 },
+    riskLabel: { flex: 1, fontSize: 12.5, color: Colors.textSecondary, fontWeight: '600' },
+    riskStatus: { fontSize: 12.5, fontWeight: '700' },
+    scoreCard: { backgroundColor: Colors.card, borderRadius: 14, borderTopWidth: 4, padding: 16, marginBottom: 16, alignItems: 'center' },
+    scoreValue: { fontSize: 28, fontWeight: '800', marginVertical: 8 },
+    scoreCaveat: { fontSize: 11.5, color: Colors.textMuted, textAlign: 'center', lineHeight: 16, marginBottom: 10 },
+    docsHint: { fontSize: 11, color: Colors.textMuted, marginBottom: 12, lineHeight: 16, fontStyle: 'italic' },
+    docRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border, gap: 10 },
+    docIcon: { fontSize: 14 },
+    docLabel: { fontSize: 12.5, fontWeight: '600', color: Colors.textPrimary },
+    docDetail: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
+    profileBox: { width: '31%', backgroundColor: Colors.bg, borderRadius: 10, padding: 10 },
+    profileLabel: { fontSize: 9.5, color: Colors.textMuted, fontWeight: '600', marginBottom: 4 },
+    profileValue: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary },
+    profileSub: { fontSize: 9, color: Colors.textMuted, marginTop: 2 },
+    legendRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    legendDot: { width: 8, height: 8, borderRadius: 4 },
+    legendText: { fontSize: 11, color: Colors.textMuted },
 });

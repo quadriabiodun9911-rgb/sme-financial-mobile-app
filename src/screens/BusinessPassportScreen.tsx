@@ -182,7 +182,7 @@ export default function BusinessPassportScreen() {
                         {passport.creditReadiness.score}/100 — {passport.creditReadiness.band}
                     </Text>
                     <Row label="Supporting documents" value={`${passport.creditReadiness.documentsReady} of ${passport.creditReadiness.documentsTotal} ready`} />
-                    <TouchableOpacity onPress={() => navigate('funding-qualification')}>
+                    <TouchableOpacity onPress={() => navigate('credit-worthiness', { tab: 'funding-pack' })}>
                         <Text style={s.linkText}>See the full Funding Readiness Pack →</Text>
                     </TouchableOpacity>
                 </Section>

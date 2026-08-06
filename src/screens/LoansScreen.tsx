@@ -233,10 +233,10 @@ export default function LoansScreen() {
                         <Text style={s.featureArrow}>→</Text>
                     </TouchableOpacity>
 
-                    {/* Bank Loan Funding Qualification — moved here from the
-                        now-removed Borrow Money pillar screen, its only
-                        entry point. */}
-                    <TouchableOpacity onPress={() => navigate('funding-qualification')} style={s.featureCard}>
+                    {/* Bank Loan Funding Qualification — the Funding Pack
+                        tab on Credit-Worthiness (folded in from the
+                        now-removed standalone screen). */}
+                    <TouchableOpacity onPress={() => navigate('credit-worthiness', { tab: 'funding-pack' })} style={s.featureCard}>
                         <Text style={s.featureIcon}>🏦</Text>
                         <View style={s.featureContent}>
                             <Text style={s.featureTitle}>Bank Loan Qualification</Text>
