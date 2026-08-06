@@ -11,7 +11,7 @@ import SwotAnalysis from '../components/SwotAnalysis';
 import NextStepLink from '../components/NextStepLink';
 
 export default function FinancialAssessmentScreen() {
-  const { transactions, invoices, finance, settings, setCurrentScreen, loans, inventory } = useApp();
+  const { transactions, invoices, finance, settings, setCurrentScreen, navigate, loans, inventory } = useApp();
   const [selectedDiagnosis, setSelectedDiagnosis] = useState<number>(0);
 
   const diagnosis = useMemo(() => {
@@ -66,7 +66,7 @@ export default function FinancialAssessmentScreen() {
         {/* This whole screen is a current-month snapshot by design — make
             that explicit and point to the real multi-year view so results
             here aren't mistaken for a full history. */}
-        <NextStepLink text="This is a current snapshot — see your multi-year trend" onPress={() => setCurrentScreen('trends')} />
+        <NextStepLink text="This is a current snapshot — see your multi-year trend" onPress={() => navigate('reports', { reportSection: 'growth', reportTab: 'history' })} />
 
         {/* Overall Health Score */}
         <View style={[styles.healthCard, { borderLeftColor: getHealthColor(diagnosis.overallHealth) }]}>
