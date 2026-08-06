@@ -44,11 +44,28 @@ function pctChange(current: number, prior: number): number | null {
     return ((current - prior) / Math.abs(prior)) * 100;
 }
 
+// The scoring model — weights, thresholds and band cutoffs — collected
+// here so the rubric can be read (and tuned) as a single policy rather
+// than as numbers scattered through the scoring logic below.
+const MODEL = {
+    weights: { profit: 0.35, cash: 0.25, receivables: 0.20, debt: 0.20 },
+    bandCutoffs: { excellent: 85, strong: 70, moderate: 50, weak: 30 },
+    profit: { fullCredit: 1, partialCredit: 0.7, flatRevenueMildDeclineFloor: -10 },
+    cash: { mildDeclineFloor: -15 },
+    // How many times faster than revenue growth a balance can grow before
+    // it's flagged as a real problem rather than just "watch it" —
+    // shared by receivables and debt, both scored on the same logic
+    // (growing faster than revenue is tolerable up to a point, beyond
+    // that it's a sign revenue growth is being funded/propped up rather
+    // than earned).
+    toleratedMultiple: 2,
+} as const;
+
 function bandForScore(score: number): QualityBand {
-    if (score >= 85) return 'Excellent';
-    if (score >= 70) return 'Strong';
-    if (score >= 50) return 'Moderate';
-    if (score >= 30) return 'Weak';
+    if (score >= MODEL.bandCutoffs.excellent) return 'Excellent';
+    if (score >= MODEL.bandCutoffs.strong) return 'Strong';
+    if (score >= MODEL.bandCutoffs.moderate) return 'Moderate';
+    if (score >= MODEL.bandCutoffs.weak) return 'Weak';
     return 'Critical';
 }
 
@@ -76,23 +93,32 @@ export function computeQualityOfGrowth(transactions: Transaction[], assets: Asse
     const currentYear = yearly[yearly.length - 1];
     const priorYear = yearly[yearly.length - 2];
 
+    // currentBS/priorBS are guaranteed to exist: bsTrend's yearly keys come
+    // from grouping this exact same `monthly` array by year (same as
+    // computeYearlyTrend above), so every year in `yearly` has a matching
+    // balance-sheet point. Guarded anyway rather than falling back to a
+    // fabricated 0 — a real gap here should read as "unavailable," not as
+    // a business that genuinely has zero cash/receivables/debt.
     const monthKeys = monthly.map(m => m.month);
     const bsTrend = computeBalanceSheetTrend('yearly', monthKeys, transactions, assets, loans);
     const currentBS = bsTrend.find(p => p.key === currentYear.year);
     const priorBS = bsTrend.find(p => p.key === priorYear.year);
+    if (!currentBS || !priorBS) {
+        return UNAVAILABLE('Could not reconstruct balance sheet history for this period.');
+    }
 
     const revenueGrowth = pctChange(currentYear.revenue, priorYear.revenue);
     const profitGrowth = pctChange(currentYear.profit, priorYear.profit);
-    const cashGrowth = (currentBS && priorBS) ? pctChange(currentBS.cashOnHand, priorBS.cashOnHand) : null;
-    const receivablesGrowth = (currentBS && priorBS) ? pctChange(currentBS.accountsReceivable, priorBS.accountsReceivable) : null;
-    const debtGrowth = (currentBS && priorBS) ? pctChange(currentBS.loansOutstanding, priorBS.loansOutstanding) : null;
+    const cashGrowth = pctChange(currentBS.cashOnHand, priorBS.cashOnHand);
+    const receivablesGrowth = pctChange(currentBS.accountsReceivable, priorBS.accountsReceivable);
+    const debtGrowth = pctChange(currentBS.loansOutstanding, priorBS.loansOutstanding);
 
     const signals: GrowthSignal[] = [
         { key: 'revenue', label: 'Revenue', priorValue: priorYear.revenue, currentValue: currentYear.revenue, growthPct: revenueGrowth },
         { key: 'profit', label: 'Profit', priorValue: priorYear.profit, currentValue: currentYear.profit, growthPct: profitGrowth },
-        { key: 'cash', label: 'Cash on Hand', priorValue: priorBS?.cashOnHand ?? 0, currentValue: currentBS?.cashOnHand ?? 0, growthPct: cashGrowth },
-        { key: 'receivables', label: 'Receivables', priorValue: priorBS?.accountsReceivable ?? 0, currentValue: currentBS?.accountsReceivable ?? 0, growthPct: receivablesGrowth },
-        { key: 'debt', label: 'Debt Outstanding', priorValue: priorBS?.loansOutstanding ?? 0, currentValue: currentBS?.loansOutstanding ?? 0, growthPct: debtGrowth },
+        { key: 'cash', label: 'Cash on Hand', priorValue: priorBS.cashOnHand, currentValue: currentBS.cashOnHand, growthPct: cashGrowth },
+        { key: 'receivables', label: 'Receivables', priorValue: priorBS.accountsReceivable, currentValue: currentBS.accountsReceivable, growthPct: receivablesGrowth },
+        { key: 'debt', label: 'Debt Outstanding', priorValue: priorBS.loansOutstanding, currentValue: currentBS.loansOutstanding, growthPct: debtGrowth },
     ];
 
     const flags: string[] = [];
@@ -103,10 +129,10 @@ export function computeQualityOfGrowth(transactions: Transaction[], assets: Asse
     if (profitGrowth === null) {
         profitScore = 50;
     } else if (rg <= 0) {
-        profitScore = profitGrowth >= 0 ? 70 : profitGrowth >= -10 ? 40 : 15;
-    } else if (profitGrowth >= rg) {
+        profitScore = profitGrowth >= 0 ? 70 : profitGrowth >= MODEL.profit.flatRevenueMildDeclineFloor ? 40 : 15;
+    } else if (profitGrowth >= rg * MODEL.profit.fullCredit) {
         profitScore = 100;
-    } else if (profitGrowth >= rg * 0.7) {
+    } else if (profitGrowth >= rg * MODEL.profit.partialCredit) {
         profitScore = 80;
     } else if (profitGrowth >= 0) {
         profitScore = 55;
@@ -122,7 +148,7 @@ export function computeQualityOfGrowth(transactions: Transaction[], assets: Asse
         cashScore = 50;
     } else if (cashGrowth >= 0) {
         cashScore = cashGrowth >= rg ? 100 : 75;
-    } else if (cashGrowth >= -15) {
+    } else if (cashGrowth >= MODEL.cash.mildDeclineFloor) {
         cashScore = 45;
     } else {
         cashScore = 15;
@@ -135,7 +161,7 @@ export function computeQualityOfGrowth(transactions: Transaction[], assets: Asse
         arScore = 50;
     } else if (receivablesGrowth <= rg) {
         arScore = 100;
-    } else if (receivablesGrowth <= rg * 2) {
+    } else if (receivablesGrowth <= rg * MODEL.toleratedMultiple) {
         arScore = 60;
     } else {
         arScore = 20;
@@ -151,14 +177,19 @@ export function computeQualityOfGrowth(transactions: Transaction[], assets: Asse
         debtScore = 100;
     } else if (debtGrowth <= rg) {
         debtScore = 85;
-    } else if (debtGrowth <= rg * 2 || rg <= 0) {
+    } else if (debtGrowth <= rg * MODEL.toleratedMultiple || rg <= 0) {
         debtScore = 55;
     } else {
         debtScore = 20;
         flags.push(`Debt grew ${debtGrowth.toFixed(0)}% — faster than revenue's ${rg.toFixed(0)}% growth — leverage is increasing ahead of the business's ability to support it.`);
     }
 
-    const score = Math.round(profitScore * 0.35 + cashScore * 0.25 + arScore * 0.20 + debtScore * 0.20);
+    const score = Math.round(
+        profitScore * MODEL.weights.profit
+        + cashScore * MODEL.weights.cash
+        + arScore * MODEL.weights.receivables
+        + debtScore * MODEL.weights.debt
+    );
     const band = bandForScore(score);
 
     const verdict = rg <= 0
