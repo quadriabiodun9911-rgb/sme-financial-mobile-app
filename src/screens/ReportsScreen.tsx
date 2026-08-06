@@ -14,6 +14,8 @@ import BalanceSheetComparisonTable from '../components/BalanceSheetComparisonTab
 import CashFlowComparisonTable from '../components/CashFlowComparisonTable';
 import StockSalesComparisonTable from '../components/StockSalesComparisonTable';
 import TaxSummary from '../components/TaxSummary';
+import TaxFilingReadinessTab from '../components/TaxFilingReadinessTab';
+import TaxPlanningTab from '../components/TaxPlanningTab';
 import BudgetForecast from '../components/BudgetForecast';
 import CashManagement from '../components/CashManagement';
 import DebtAnalysis from '../components/DebtAnalysis';
@@ -50,7 +52,7 @@ const SECTIONS: { key: SectionKey; label: string; icon: string; desc: string }[]
 type SubTab =
     | 'balancesheet' | 'pnl' | 'inventory' | 'accrual'
     | 'aging'
-    | 'tax'
+    | 'tax' | 'tax-filing' | 'tax-planning'
     | 'budget' | 'cashflow' | 'cashmgmt' | 'debt' | 'assets'
     | 'growth' | 'history' | 'quality' | 'customers' | 'products' | 'pricing';
 
@@ -65,7 +67,9 @@ const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
         { key: 'aging', label: 'Who Owes Me' },
     ],
     tax: [
-        { key: 'tax', label: 'Tax Summary' },
+        { key: 'tax',          label: 'Tax Summary' },
+        { key: 'tax-filing',   label: 'Filing Readiness' },
+        { key: 'tax-planning', label: 'Tax Planning' },
     ],
     planning: [
         { key: 'budget',   label: 'Growth Scenarios' },
@@ -498,13 +502,24 @@ export default function ReportsScreen() {
                     {/* ── TAX ──────────────────────────────────────────── */}
                     {activeTab === 'tax' && (
                         <>
-                            <TaxSummary periodTransactions={filteredTx} allTransactions={transactions} currency={currency} navigate={navigate} />
+                            <TaxSummary
+                                periodTransactions={filteredTx}
+                                allTransactions={transactions}
+                                currency={currency}
+                                onOpenTaxPlanning={() => setActiveTab('tax-planning')}
+                            />
                             <NextStepLink
                                 text="Check if your records are ready to hand to an accountant"
-                                onPress={() => setCurrentScreen('tax-filing-readiness')}
+                                onPress={() => setActiveTab('tax-filing')}
                             />
                         </>
                     )}
+
+                    {/* ── TAX FILING READINESS ─────────────────────────── */}
+                    {activeTab === 'tax-filing' && <TaxFilingReadinessTab />}
+
+                    {/* ── TAX PLANNING ──────────────────────────────────── */}
+                    {activeTab === 'tax-planning' && <TaxPlanningTab />}
 
                     {/* ── BUDGET FORECAST ──────────────────────────────── */}
                     {activeTab === 'budget' && (

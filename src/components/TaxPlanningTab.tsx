@@ -1,17 +1,15 @@
 import React, { useMemo, useState } from 'react';
 import {
-    SafeAreaView, ScrollView, View, Text, TouchableOpacity, StyleSheet,
+    View, Text, TouchableOpacity, StyleSheet,
     Modal, TextInput, Platform, Share,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
-import Header from '../components/Header';
-import FooterNav from '../components/FooterNav';
-import NextStepLink from '../components/NextStepLink';
+import NextStepLink from './NextStepLink';
 import { getTaxRatePercent } from '../utils/finance';
 import { showAlert } from '../utils/webAlert';
 
-export default function TaxPlanningScreen() {
+export default function TaxPlanningTab() {
     const { transactions, settings, navigate, finance, user } = useApp();
     const { currency } = settings;
     const taxRatePct = getTaxRatePercent(settings.defaultTaxRate);
@@ -176,106 +174,98 @@ NOTES
     };
 
     return (
-        <SafeAreaView style={s.safe}>
-            <Header />
-            <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
-                <TouchableOpacity onPress={() => navigate('dashboard')}>
-                    <Text style={{ color: Colors.primary, fontSize: 14, marginBottom: 12 }}>← Dashboard</Text>
-                </TouchableOpacity>
+        <View>
+            <Text style={s.subtitle}>Track deductions and estimate quarterly tax liability</Text>
 
-                <Text style={s.title}>📋 Tax Planning</Text>
-                <Text style={s.subtitle}>Track deductions and estimate quarterly tax liability</Text>
-
-                {/* Annual Summary */}
-                <View style={s.section}>
-                    <Text style={s.sectionTitle}>Annual Summary</Text>
-                    <View style={s.summaryGrid}>
-                        <SummaryCard
-                            label="Gross Income"
-                            value={`${currency}${annualData.totalIncome.toLocaleString()}`}
-                            color={Colors.income}
-                        />
-                        <SummaryCard
-                            label="Total Expenses"
-                            value={`${currency}${annualData.totalExpenses.toLocaleString()}`}
-                            color={Colors.expense}
-                        />
-                        <SummaryCard
-                            label="Gross Profit"
-                            value={`${currency}${annualData.totalProfit.toLocaleString()}`}
-                            color={Colors.primary}
-                        />
-                        <SummaryCard
-                            label={`Est. Tax (${taxRatePct}%)`}
-                            value={`${currency}${annualData.totalEstimatedTax.toLocaleString()}`}
-                            color={Colors.warning}
-                        />
-                    </View>
-                    {annualData.avgQuarterlyTax > finance.cashBalance && (
-                        <NextStepLink text="Check if your cash can cover this quarter's tax" onPress={() => navigate('cashflow')} />
-                    )}
+            {/* Annual Summary */}
+            <View style={s.section}>
+                <Text style={s.sectionTitle}>Annual Summary</Text>
+                <View style={s.summaryGrid}>
+                    <SummaryCard
+                        label="Gross Income"
+                        value={`${currency}${annualData.totalIncome.toLocaleString()}`}
+                        color={Colors.income}
+                    />
+                    <SummaryCard
+                        label="Total Expenses"
+                        value={`${currency}${annualData.totalExpenses.toLocaleString()}`}
+                        color={Colors.expense}
+                    />
+                    <SummaryCard
+                        label="Gross Profit"
+                        value={`${currency}${annualData.totalProfit.toLocaleString()}`}
+                        color={Colors.primary}
+                    />
+                    <SummaryCard
+                        label={`Est. Tax (${taxRatePct}%)`}
+                        value={`${currency}${annualData.totalEstimatedTax.toLocaleString()}`}
+                        color={Colors.warning}
+                    />
                 </View>
+                {annualData.avgQuarterlyTax > finance.cashBalance && (
+                    <NextStepLink text="Check if your cash can cover this quarter's tax" onPress={() => navigate('cashflow')} />
+                )}
+            </View>
 
-                {/* Quarterly Breakdown */}
-                <View style={s.section}>
-                    <Text style={s.sectionTitle}>Quarterly Breakdown</Text>
-                    {quarterlyData.map(quarter => (
-                        <QuarterlyCard key={quarter.quarter} quarter={quarter} currency={currency} />
-                    ))}
-                </View>
+            {/* Quarterly Breakdown */}
+            <View style={s.section}>
+                <Text style={s.sectionTitle}>Quarterly Breakdown</Text>
+                {quarterlyData.map(quarter => (
+                    <QuarterlyCard key={quarter.quarter} quarter={quarter} currency={currency} />
+                ))}
+            </View>
 
-                {/* Deductions */}
-                <View style={s.section}>
-                    <View style={s.sectionHeader}>
-                        <Text style={s.sectionTitle}>Tax Deductions</Text>
-                        <TouchableOpacity
-                            style={s.addBtn}
-                            onPress={() => setShowDeductionModal(true)}
-                        >
-                            <Text style={s.addBtnText}>+ Add</Text>
-                        </TouchableOpacity>
-                    </View>
-                    {deductions.length === 0 ? (
-                        <Text style={s.emptyText}>No deductions added yet. Tap + to add business deductions.</Text>
-                    ) : (
-                        deductions.map((ded, idx) => (
-                            <View key={idx} style={s.deductionItem}>
-                                <View style={{ flex: 1 }}>
-                                    <Text style={s.deductionName}>{ded.name}</Text>
-                                    <Text style={s.deductionQuarter}>{quarterlyData.find(q => q.quarter === ded.quarter)?.label}</Text>
-                                </View>
-                                <Text style={s.deductionAmount}>{currency}{ded.amount.toLocaleString()}</Text>
-                            </View>
-                        ))
-                    )}
-                </View>
-
-                {/* Tax Filing Checklist */}
-                <View style={s.section}>
-                    <Text style={s.sectionTitle}>📝 Tax Filing Checklist</Text>
-                    <ChecklistItem text="Gather all receipts and invoices" />
-                    <ChecklistItem text="Verify all income entries" />
-                    <ChecklistItem text="Document all business deductions" />
-                    <ChecklistItem text="Reconcile bank statements" />
-                    <ChecklistItem text="Calculate quarterly tax payments" />
-                    <ChecklistItem text="Submit tax payment" />
-                </View>
-
-                {/* Action Buttons */}
-                <View style={s.buttonGroup}>
-                    <TouchableOpacity style={s.primaryBtn} onPress={handleExportTaxReport}>
-                        <Text style={s.primaryBtnText}>📥 Export Tax Report</Text>
+            {/* Deductions */}
+            <View style={s.section}>
+                <View style={s.sectionHeader}>
+                    <Text style={s.sectionTitle}>Tax Deductions</Text>
+                    <TouchableOpacity
+                        style={s.addBtn}
+                        onPress={() => setShowDeductionModal(true)}
+                    >
+                        <Text style={s.addBtnText}>+ Add</Text>
                     </TouchableOpacity>
                 </View>
+                {deductions.length === 0 ? (
+                    <Text style={s.emptyText}>No deductions added yet. Tap + to add business deductions.</Text>
+                ) : (
+                    deductions.map((ded, idx) => (
+                        <View key={idx} style={s.deductionItem}>
+                            <View style={{ flex: 1 }}>
+                                <Text style={s.deductionName}>{ded.name}</Text>
+                                <Text style={s.deductionQuarter}>{quarterlyData.find(q => q.quarter === ded.quarter)?.label}</Text>
+                            </View>
+                            <Text style={s.deductionAmount}>{currency}{ded.amount.toLocaleString()}</Text>
+                        </View>
+                    ))
+                )}
+            </View>
 
-                {/* Info Box */}
-                <View style={s.infoBox}>
-                    <Text style={s.infoIcon}>⚠️</Text>
-                    <Text style={s.infoText}>
-                        This is an estimate based on your configured {taxRatePct}% tax rate (Settings &gt; Tax). Consult with a tax professional for accurate calculations specific to your jurisdiction and business type.
-                    </Text>
-                </View>
-            </ScrollView>
+            {/* Tax Filing Checklist */}
+            <View style={s.section}>
+                <Text style={s.sectionTitle}>📝 Tax Filing Checklist</Text>
+                <ChecklistItem text="Gather all receipts and invoices" />
+                <ChecklistItem text="Verify all income entries" />
+                <ChecklistItem text="Document all business deductions" />
+                <ChecklistItem text="Reconcile bank statements" />
+                <ChecklistItem text="Calculate quarterly tax payments" />
+                <ChecklistItem text="Submit tax payment" />
+            </View>
+
+            {/* Action Buttons */}
+            <View style={s.buttonGroup}>
+                <TouchableOpacity style={s.primaryBtn} onPress={handleExportTaxReport}>
+                    <Text style={s.primaryBtnText}>📥 Export Tax Report</Text>
+                </TouchableOpacity>
+            </View>
+
+            {/* Info Box */}
+            <View style={s.infoBox}>
+                <Text style={s.infoIcon}>⚠️</Text>
+                <Text style={s.infoText}>
+                    This is an estimate based on your configured {taxRatePct}% tax rate (Settings &gt; Tax). Consult with a tax professional for accurate calculations specific to your jurisdiction and business type.
+                </Text>
+            </View>
 
             {/* Add Deduction Modal */}
             <Modal visible={showDeductionModal} animationType="slide" transparent>
@@ -331,9 +321,7 @@ NOTES
                     </View>
                 </View>
             </Modal>
-
-            <FooterNav />
-        </SafeAreaView>
+        </View>
     );
 }
 
@@ -404,11 +392,7 @@ function ChecklistItem({ text }: { text: string }) {
 }
 
 const s = StyleSheet.create({
-    safe: { flex: 1, backgroundColor: Colors.bg },
-    scroll: { flex: 1 },
-    pad: { padding: 16, paddingBottom: 80 },
-    title: { fontSize: 28, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 4 },
-    subtitle: { fontSize: 14, color: Colors.textSecondary, marginBottom: 24 },
+    subtitle: { fontSize: 12, color: Colors.textSecondary, marginBottom: 16, lineHeight: 17 },
     section: { marginBottom: 24, backgroundColor: Colors.surface, borderRadius: 12, padding: 16, borderLeftWidth: 4, borderLeftColor: Colors.primary },
     sectionTitle: { fontSize: 16, fontWeight: '600', color: Colors.textPrimary, marginBottom: 12 },
     sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },

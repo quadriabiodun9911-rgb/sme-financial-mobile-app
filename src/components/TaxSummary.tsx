@@ -18,11 +18,13 @@ interface Props {
     currency: string;
     // Taken as a prop (not read from useApp() itself) so this component has
     // no context dependency at all — every input is explicit, making it
-    // reusable and testable outside a full AppContext tree.
-    navigate: (screen: string, params?: any) => void;
+    // reusable and testable outside a full AppContext tree. Opens the Tax
+    // Planning sub-tab on Reports (a sibling of this one), not a
+    // standalone screen — the caller decides how "open" is implemented.
+    onOpenTaxPlanning: () => void;
 }
 
-export default function TaxSummary({ periodTransactions, allTransactions, currency, navigate }: Props) {
+export default function TaxSummary({ periodTransactions, allTransactions, currency, onOpenTaxPlanning }: Props) {
 
     const taxByCategory = useMemo(() => {
         const map = new Map<string, number>();
@@ -104,7 +106,7 @@ export default function TaxSummary({ periodTransactions, allTransactions, curren
             </View>
 
             {/* Tax Planning Tool */}
-            <TouchableOpacity onPress={() => navigate('tax-planning')}>
+            <TouchableOpacity onPress={onOpenTaxPlanning}>
                 <View style={styles.featureCard}>
                     <Text style={styles.featureIcon}>📊</Text>
                     <View style={styles.featureContent}>

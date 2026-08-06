@@ -119,7 +119,7 @@ export const FEATURE_INDEX: FeatureEntry[] = [
         id: 'tax-filing-readiness', label: 'Tax Filing Readiness', icon: '🧾',
         description: 'Whether your records are clean enough to hand to an accountant — does not file returns itself',
         keywords: ['tax filing', 'file taxes', 'tax return', 'accountant', 'ready'],
-        screen: 'tax-filing-readiness',
+        screen: 'reports', navParams: { reportSection: 'tax', reportTab: 'tax-filing' },
     },
     {
         id: 'business-passport', label: 'Business Passport', icon: '🛂',
@@ -197,7 +197,7 @@ export const FEATURE_INDEX: FeatureEntry[] = [
         id: 'tax-planning', label: 'Tax Planning', icon: '🧮',
         description: 'Plan ahead for upcoming tax obligations',
         keywords: ['tax plan'],
-        screen: 'tax-planning',
+        screen: 'reports', navParams: { reportSection: 'tax', reportTab: 'tax-planning' },
     },
     {
         id: 'goals', label: 'Goals', icon: '🎯',

@@ -22,12 +22,10 @@ export type Screen =
     | 'cashflow'
     | 'payroll'
     | 'reconciliation'
-    | 'tax-planning'
     | 'credit-worthiness'
     | 'onboarding-choice'
     | 'action-tracker'
     | 'financial-assessment'
-    | 'tax-filing-readiness'
     | 'financial-health'
     | 'business-passport';
 
