@@ -23,6 +23,7 @@ import CustomerProfitability from '../components/CustomerProfitability';
 import ProductPerformance from '../components/ProductPerformance';
 import GrowthMetrics from '../components/GrowthMetrics';
 import MultiYearTrends from '../components/MultiYearTrends';
+import QualityOfGrowthTab from '../components/QualityOfGrowthTab';
 import PricingOptimizer from '../components/PricingOptimizer';
 import NextStepLink from '../components/NextStepLink';
 import CashFlowStatement from '../components/CashFlowStatement';
@@ -51,7 +52,7 @@ type SubTab =
     | 'aging'
     | 'tax'
     | 'budget' | 'cashflow' | 'cashmgmt' | 'debt' | 'assets'
-    | 'growth' | 'history' | 'customers' | 'products' | 'pricing';
+    | 'growth' | 'history' | 'quality' | 'customers' | 'products' | 'pricing';
 
 const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
     statements: [
@@ -76,6 +77,7 @@ const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
     growth: [
         { key: 'growth',    label: 'Growth Trends' },
         { key: 'history',   label: 'Multi-Year History' },
+        { key: 'quality',   label: 'Quality of Growth' },
         { key: 'customers', label: 'Best Customers' },
         { key: 'products',  label: 'Best Products' },
         { key: 'pricing',   label: 'Pricing Optimization' },
@@ -580,6 +582,16 @@ export default function ReportsScreen() {
 
                     {/* ── MULTI-YEAR HISTORY ───────────────────────────── */}
                     {activeTab === 'history' && <MultiYearTrends />}
+
+                    {/* ── QUALITY OF GROWTH ────────────────────────────── */}
+                    {activeTab === 'quality' && (
+                        <QualityOfGrowthTab
+                            transactions={transactions}
+                            assets={assets}
+                            loans={loansList}
+                            currency={currency}
+                        />
+                    )}
 
                     {/* ── CUSTOMER PROFITABILITY ───────────────────────── */}
                     {activeTab === 'customers' && (

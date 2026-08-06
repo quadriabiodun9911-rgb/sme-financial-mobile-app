@@ -26,6 +26,12 @@ export const FEATURE_INDEX: FeatureEntry[] = [
         screen: 'dashboard', navParams: { openWeeklyReport: true },
     },
     {
+        id: 'quality-of-growth', label: 'Quality of Growth', icon: '🌱',
+        description: 'Is revenue growth healthy? Compares revenue growth against profit, cash, receivables and debt growth year over year',
+        keywords: ['growth quality', 'healthy growth', 'fragile growth', 'revenue growth', 'year over year', 'yoy'],
+        screen: 'reports', navParams: { reportSection: 'growth', reportTab: 'quality' },
+    },
+    {
         id: 'pricing-optimizer', label: 'Pricing Optimization', icon: '💰',
         description: 'Model price increases, cost cuts, their effect on profit, and the price increase needed to protect margin after a cost rise',
         keywords: ['price', 'margin', 'profit per customer', 'scenario', 'cost increase', 'price adjustment', 'inflation'],
