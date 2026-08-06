@@ -33,6 +33,7 @@ import ReconciliationScreen from './src/screens/ReconciliationScreen';
 import CreditWorthinessScreen from './src/screens/CreditWorthinessScreen';
 import FinancialHealthScreen from './src/screens/FinancialHealthScreen';
 import BusinessPassportScreen from './src/screens/BusinessPassportScreen';
+import MacroAssumptionsScreen from './src/screens/MacroAssumptionsScreen';
 import FinancialAssessmentScreen from './src/screens/FinancialAssessmentScreen';
 import ActionTrackerScreen from './src/screens/ActionTrackerScreen';
 import OnboardingChoiceScreen from './src/screens/OnboardingChoiceScreen';
@@ -122,6 +123,7 @@ function NavigatorContent() {
             {currentScreen === 'credit-worthiness' && <CreditWorthinessScreen />}
             {currentScreen === 'financial-health' && <FinancialHealthScreen />}
             {currentScreen === 'business-passport' && <BusinessPassportScreen />}
+            {currentScreen === 'macro-assumptions' && <MacroAssumptionsScreen />}
             {currentScreen === 'financial-assessment' && <FinancialAssessmentScreen />}
             {currentScreen === 'action-tracker' && <ActionTrackerScreen />}
             {currentScreen === 'onboarding-choice' && <OnboardingChoiceScreen />}

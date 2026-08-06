@@ -27,7 +27,8 @@ export type Screen =
     | 'action-tracker'
     | 'financial-assessment'
     | 'financial-health'
-    | 'business-passport';
+    | 'business-passport'
+    | 'macro-assumptions';
 
 export interface Budget {
     id: string;
@@ -199,6 +200,29 @@ export interface User {
 // who doesn't fit retail or food service, or hasn't set this yet.
 export type Industry = 'general' | 'retail' | 'food-service' | 'manufacturing' | 'professional-services';
 
+// What kind of external, outside-the-business factor this assumption tracks —
+// drives which icon/framing the resulting insight uses (e.g. "Energy Risk"
+// vs "FX Risk") and lets the UI group assumptions sensibly.
+export type MacroDriver = 'energy' | 'fx' | 'interestRate' | 'inflation' | 'commodity' | 'regulation' | 'supplyChain';
+
+// An owner-entered belief about an external factor (e.g. "diesel prices are
+// up 20% this quarter"), manually maintained since this app has no live
+// external data feed. Linking it to specific expense categories is what lets
+// the business-intelligence layer turn "diesel is up nationally" into
+// "your diesel spend is up and here's what that means for you" instead of
+// showing every business owner the same generic headline regardless of
+// whether it actually touches their cost structure.
+export interface MacroAssumption {
+    id: string;
+    driver: MacroDriver;
+    label: string;              // e.g. "Diesel price" or a user-defined label
+    changePct: number;          // % change the owner has observed/expects over periodMonths
+    periodMonths: number;       // the window the changePct applies to, e.g. 3
+    linkedCategories: string[]; // transaction categories this driver affects, e.g. ["Fuel","Utilities"]
+    note?: string;
+    updatedAt: string;          // ISO date, so a stale assumption can be flagged
+}
+
 export interface BusinessSettings {
     businessName?: string;
     businessType: 'product' | 'service' | 'both';
@@ -220,6 +244,7 @@ export interface BusinessSettings {
     coreValues?: string;       // the moral compass — how the team behaves getting there (e.g. "Integrity, reliability, community focus")
     nextTaxDeadline?: string;  // ISO date — next VAT/Corporation Tax (or local equivalent) filing deadline, used by Tax Filing Readiness
     legalEntityType?: LegalEntityType; // drives the generic compliance-obligations checklist on Tax Filing Readiness
+    macroAssumptions?: MacroAssumption[]; // owner-entered external-factor beliefs, see MacroAssumption
 }
 
 export interface NavParams {

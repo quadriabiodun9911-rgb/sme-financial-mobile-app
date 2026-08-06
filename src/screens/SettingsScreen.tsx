@@ -381,6 +381,19 @@ export default function SettingsScreen() {
                             />
                         </Section>
 
+                        <Section title="Macro Assumptions">
+                            <Text style={styles.hint}>
+                                Quad360 has no live feed for energy prices, FX, interest rates, inflation or other external factors — tell it what you're seeing, linked to the expense categories it affects. When a linked category is also rising in your own transactions, Cost Exposure turns that into a specific early warning instead of a generic headline.
+                            </Text>
+                            <TouchableOpacity style={styles.dataBtn} onPress={() => setCurrentScreen('macro-assumptions')}>
+                                <Text style={styles.dataBtnText}>
+                                    {(settings.macroAssumptions?.length ?? 0) > 0
+                                        ? `Manage Assumptions (${settings.macroAssumptions!.length})`
+                                        : 'Add External Factor Assumptions'}
+                                </Text>
+                            </TouchableOpacity>
+                        </Section>
+
                         <Section title={t(language, 'language')}>
                             <View style={styles.optRow}>
                                 {LANGUAGES.map(l => (

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { computeCostExposure, CostCategorySignal, ExposureBand } from '../utils/costExposure';
+import { computeExternalRiskInsights, ExternalRiskInsight } from '../utils/externalRiskInsights';
 
 const BAND_COLOR: Record<ExposureBand, string> = {
     Excellent: Colors.income,
@@ -25,6 +26,10 @@ export default function CostExposureTab() {
     const currency = settings.currency || '₦';
 
     const result = useMemo(() => computeCostExposure(transactions), [transactions]);
+    const externalRisk = useMemo(
+        () => computeExternalRiskInsights(transactions, settings.macroAssumptions ?? []),
+        [transactions, settings.macroAssumptions]
+    );
 
     if (!result.available) {
         return (
@@ -86,6 +91,22 @@ export default function CostExposureTab() {
                 </View>
             )}
 
+            {/* External Risk — turns "why is this rising" from a headline the
+                owner reads elsewhere into a business-specific insight, using
+                whatever macro assumptions they've linked to a category that's
+                actually rising in their own numbers. */}
+            {externalRisk.insights.map((insight, i) => (
+                <ExternalRiskCard key={i} insight={insight} currency={currency} />
+            ))}
+
+            {result.flags.length > 0 && !externalRisk.hasAssumptions && (
+                <TouchableOpacity style={s.macroCta} onPress={() => navigate('macro-assumptions')}>
+                    <Text style={s.macroCtaText}>
+                        Know why? Tell Quad360 what's happening externally (energy prices, FX, inflation...) to turn this into a specific early warning →
+                    </Text>
+                </TouchableOpacity>
+            )}
+
             {/* Signal comparison table */}
             <View style={s.card}>
                 <Text style={s.cardTitle}>Every Category — {result.periodLabel}</Text>
@@ -96,6 +117,40 @@ export default function CostExposureTab() {
                     <Text style={s.th}>Change</Text>
                 </View>
                 {result.signals.map(sig => <SignalRow key={sig.category} signal={sig} />)}
+            </View>
+        </View>
+    );
+}
+
+function ExternalRiskCard({ insight, currency }: { insight: ExternalRiskInsight; currency: string }) {
+    return (
+        <View style={s.externalCard}>
+            <Text style={s.externalTitle}>{insight.title}</Text>
+            <Text style={s.externalText}>{insight.whatChanged}</Text>
+            <Text style={s.externalText}>{insight.whyItMatters}</Text>
+            {insight.projectedImpact && (
+                <Text style={s.externalText}>
+                    At that pace, monthly {insight.projectedImpact.category} spend would move from{' '}
+                    <Text style={s.impactBold}>{fmtCompact(currency, insight.projectedImpact.currentMonthlySpend)}</Text> to{' '}
+                    <Text style={s.impactBold}>{fmtCompact(currency, insight.projectedImpact.projectedNextPeriodMonthlySpend)}</Text>
+                    {' '}— cutting monthly profit from{' '}
+                    <Text style={s.impactBold}>{fmtCompact(currency, insight.projectedImpact.currentMonthlyProfit)}</Text> to roughly{' '}
+                    <Text style={[s.impactBold, { color: Colors.expense }]}>{fmtCompact(currency, insight.projectedImpact.projectedMonthlyProfit)}</Text>.
+                </Text>
+            )}
+            <Text style={s.externalText}>{insight.whatCouldHappenNext}</Text>
+
+            <Text style={s.externalSubhead}>Recommended actions</Text>
+            {insight.recommendedActions.map((action, i) => (
+                <View key={i} style={s.flagRow}>
+                    <Text style={s.flagBullet}>{i + 1}.</Text>
+                    <Text style={s.flagText}>{action}</Text>
+                </View>
+            ))}
+
+            <View style={s.externalFooter}>
+                <Text style={s.externalFooterText}>💳 {insight.creditReadinessImpact}</Text>
+                <Text style={s.externalFooterText}>🌱 {insight.growthImpact}</Text>
             </View>
         </View>
     );
@@ -141,6 +196,16 @@ const s = StyleSheet.create({
 
     card: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14 },
     cardTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: 10 },
+
+    externalCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: Colors.warning },
+    externalTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: 10 },
+    externalText: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 19, marginBottom: 8 },
+    externalSubhead: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', marginTop: 6, marginBottom: 8 },
+    externalFooter: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.border, gap: 6 },
+    externalFooterText: { fontSize: 11.5, color: Colors.textMuted, lineHeight: 16 },
+
+    macroCta: { backgroundColor: Colors.primary + '12', borderRadius: 12, padding: 14, marginBottom: 14 },
+    macroCtaText: { fontSize: 12.5, color: Colors.primary, fontWeight: '700', lineHeight: 18 },
 
     tableHeader: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: Colors.border, paddingBottom: 8, marginBottom: 6 },
     th: { flex: 1, fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase' },

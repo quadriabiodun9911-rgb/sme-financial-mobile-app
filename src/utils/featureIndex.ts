@@ -38,6 +38,12 @@ export const FEATURE_INDEX: FeatureEntry[] = [
         screen: 'reports', navParams: { reportSection: 'growth', reportTab: 'exposure' },
     },
     {
+        id: 'macro-assumptions', label: 'Macro Assumptions', icon: '🌍',
+        description: 'Tell Quad360 what\'s happening with energy prices, FX, interest rates, inflation or other external factors, linked to the expense categories they affect',
+        keywords: ['macro', 'external', 'energy prices', 'fx', 'interest rates', 'inflation', 'commodity', 'regulation', 'supply chain', 'diesel', 'fuel price'],
+        screen: 'macro-assumptions',
+    },
+    {
         id: 'pricing-optimizer', label: 'Pricing Optimization', icon: '💰',
         description: 'Model price increases, cost cuts, their effect on profit, and the price increase needed to protect margin after a cost rise',
         keywords: ['price', 'margin', 'profit per customer', 'scenario', 'cost increase', 'price adjustment', 'inflation'],
