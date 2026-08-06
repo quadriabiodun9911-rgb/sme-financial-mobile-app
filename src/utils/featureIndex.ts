@@ -32,6 +32,12 @@ export const FEATURE_INDEX: FeatureEntry[] = [
         screen: 'reports', navParams: { reportSection: 'growth', reportTab: 'quality' },
     },
     {
+        id: 'cost-exposure', label: 'Cost Exposure', icon: '⚠️',
+        description: 'Which expense category is taking a bigger share of revenue, and the projected profit impact if it keeps rising',
+        keywords: ['cost concentration', 'energy risk', 'rising costs', 'expense category', 'margin erosion', 'early warning'],
+        screen: 'reports', navParams: { reportSection: 'growth', reportTab: 'exposure' },
+    },
+    {
         id: 'pricing-optimizer', label: 'Pricing Optimization', icon: '💰',
         description: 'Model price increases, cost cuts, their effect on profit, and the price increase needed to protect margin after a cost rise',
         keywords: ['price', 'margin', 'profit per customer', 'scenario', 'cost increase', 'price adjustment', 'inflation'],
