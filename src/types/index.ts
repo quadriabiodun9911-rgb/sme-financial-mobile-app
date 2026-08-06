@@ -24,8 +24,6 @@ export type Screen =
     | 'reconciliation'
     | 'tax-planning'
     | 'credit-worthiness'
-    | 'loan-eligibility'
-    | 'bank-statement-import'
     | 'onboarding-choice'
     | 'action-tracker'
     | 'financial-assessment'

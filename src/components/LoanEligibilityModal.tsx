@@ -1,16 +1,19 @@
 import React, { useMemo, useState } from 'react';
 import {
-    SafeAreaView, ScrollView, View, Text, TouchableOpacity, StyleSheet, Modal,
+    Modal, SafeAreaView, ScrollView, View, Text, TouchableOpacity, StyleSheet,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
-import Header from '../components/Header';
-import FooterNav from '../components/FooterNav';
-import NextStepLink from '../components/NextStepLink';
+import NextStepLink from './NextStepLink';
 import { showAlert } from '../utils/webAlert';
 
-export default function LoanEligibilityScreen() {
-    const { user, finance, navigate, financing, applyForMerchantFinancing, settings } = useApp();
+interface Props {
+    visible: boolean;
+    onClose: () => void;
+}
+
+export default function LoanEligibilityModal({ visible, onClose }: Props) {
+    const { user, navigate, financing, settings } = useApp();
     const { currency } = settings;
     const [selectedLoan, setSelectedLoan] = useState<string | null>(null);
 
@@ -136,7 +139,8 @@ export default function LoanEligibilityScreen() {
             } else if (financing?.application) {
                 showAlert('Info', 'Your application is pending approval');
             } else {
-                navigate('loans');
+                onClose();
+                navigate('loans', { tab: 'financing' });
             }
         } else {
             showAlert('Coming Soon', `${loan?.name} applications will be available soon in Quad360 Pro`);
@@ -144,76 +148,73 @@ export default function LoanEligibilityScreen() {
     };
 
     return (
-        <SafeAreaView style={s.safe}>
-            <Header />
-            <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
-                <TouchableOpacity onPress={() => navigate('dashboard')}>
-                    <Text style={{ color: Colors.primary, fontSize: 14, marginBottom: 12 }}>← Dashboard</Text>
-                </TouchableOpacity>
+        <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+            <SafeAreaView style={s.safe}>
+                <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
+                    <TouchableOpacity onPress={onClose}>
+                        <Text style={{ color: Colors.primary, fontSize: 14, marginBottom: 12 }}>✕ Close</Text>
+                    </TouchableOpacity>
 
-                <Text style={s.title}>💰 Loan Options</Text>
-                <Text style={s.subtitle}>Compare and apply for different loan types</Text>
+                    <Text style={s.title}>💰 Loan Options</Text>
+                    <Text style={s.subtitle}>Compare and apply for different loan types</Text>
 
-                {/* Eligibility Summary */}
-                <View style={s.summaryBox}>
-                    <Text style={s.summaryTitle}>Your Eligibility</Text>
-                    <View style={s.summaryStats}>
-                        <View style={s.statBox}>
-                            <Text style={s.statValue}>{eligibleCount}</Text>
-                            <Text style={s.statLabel}>loans eligible</Text>
-                        </View>
-                        <View style={s.statBox}>
-                            <Text style={s.statValue}>{Math.round(user?.financialHealthScore || 0)}</Text>
-                            <Text style={s.statLabel}>health score</Text>
-                        </View>
-                        <View style={s.statBox}>
-                            <Text style={s.statValue}>{Math.round((user?.daysActive || 0) / 30)}</Text>
-                            <Text style={s.statLabel}>months active</Text>
+                    {/* Eligibility Summary */}
+                    <View style={s.summaryBox}>
+                        <Text style={s.summaryTitle}>Your Eligibility</Text>
+                        <View style={s.summaryStats}>
+                            <View style={s.statBox}>
+                                <Text style={s.statValue}>{eligibleCount}</Text>
+                                <Text style={s.statLabel}>loans eligible</Text>
+                            </View>
+                            <View style={s.statBox}>
+                                <Text style={s.statValue}>{Math.round(user?.financialHealthScore || 0)}</Text>
+                                <Text style={s.statLabel}>health score</Text>
+                            </View>
+                            <View style={s.statBox}>
+                                <Text style={s.statValue}>{Math.round((user?.daysActive || 0) / 30)}</Text>
+                                <Text style={s.statLabel}>months active</Text>
+                            </View>
                         </View>
                     </View>
-                </View>
 
-                {/* Loan Options */}
-                {loanOptions.map(loan => (
-                    <LoanCard
-                        key={loan.id}
-                        loan={loan}
-                        onPress={() => {
-                            setSelectedLoan(loan.id);
+                    {/* Loan Options */}
+                    {loanOptions.map(loan => (
+                        <LoanCard
+                            key={loan.id}
+                            loan={loan}
+                            onPress={() => setSelectedLoan(loan.id)}
+                            onApply={() => handleApplyLoan(loan.id)}
+                            currency={currency}
+                            onImprove={() => { onClose(); navigate('financial-assessment'); }}
+                        />
+                    ))}
+
+                    {/* Tips Section */}
+                    <View style={s.section}>
+                        <Text style={s.sectionTitle}>💡 Tips for Loan Applications</Text>
+                        <TipItem emoji="📊" text="Keep your Quad360 data updated - lenders will verify your financials" />
+                        <TipItem emoji="✅" text="Improve your health score - on-time payments are crucial" />
+                        <TipItem emoji="📈" text="Show consistent revenue - trending up is better for approval" />
+                        <TipItem emoji="📝" text="Prepare documentation - have tax returns and bank statements ready" />
+                        <TipItem emoji="⏱️" text="Apply when needed - credit inquiries may temporarily lower your score" />
+                        <TipItem emoji="🎯" text="Start with Quad360 - fastest approval and no collateral needed" />
+                    </View>
+                </ScrollView>
+
+                {/* Loan Details Modal */}
+                {selectedLoan && (
+                    <LoanDetailsModal
+                        loan={loanOptions.find(l => l.id === selectedLoan)!}
+                        onClose={() => setSelectedLoan(null)}
+                        onApply={() => {
+                            handleApplyLoan(selectedLoan);
+                            setSelectedLoan(null);
                         }}
-                        onApply={() => handleApplyLoan(loan.id)}
                         currency={currency}
-                        onImprove={() => navigate('financial-assessment')}
                     />
-                ))}
-
-                {/* Tips Section */}
-                <View style={s.section}>
-                    <Text style={s.sectionTitle}>💡 Tips for Loan Applications</Text>
-                    <TipItem emoji="📊" text="Keep your Quad360 data updated - lenders will verify your financials" />
-                    <TipItem emoji="✅" text="Improve your health score - on-time payments are crucial" />
-                    <TipItem emoji="📈" text="Show consistent revenue - trending up is better for approval" />
-                    <TipItem emoji="📝" text="Prepare documentation - have tax returns and bank statements ready" />
-                    <TipItem emoji="⏱️" text="Apply when needed - credit inquiries may temporarily lower your score" />
-                    <TipItem emoji="🎯" text="Start with Quad360 - fastest approval and no collateral needed" />
-                </View>
-            </ScrollView>
-
-            {/* Loan Details Modal */}
-            {selectedLoan && (
-                <LoanDetailsModal
-                    loan={loanOptions.find(l => l.id === selectedLoan)!}
-                    onClose={() => setSelectedLoan(null)}
-                    onApply={() => {
-                        handleApplyLoan(selectedLoan);
-                        setSelectedLoan(null);
-                    }}
-                    currency={currency}
-                />
-            )}
-
-            <FooterNav />
-        </SafeAreaView>
+                )}
+            </SafeAreaView>
+        </Modal>
     );
 }
 
