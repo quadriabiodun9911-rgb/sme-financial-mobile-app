@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
-    TouchableOpacity, StyleSheet, Modal, Alert, Platform,
+    TouchableOpacity, StyleSheet, Modal,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import DateInput from '../components/DateInput';
+import { showAlert } from '../utils/webAlert';
 
 // ── MAIN SECTION COMPONENT ────────────────────────────────────────────────────
 
@@ -125,9 +126,9 @@ export default function MerchantFinancingSection() {
                     onSubmit={(amount, purpose) => {
                         applyForMerchantFinancing(amount, purpose as any).then(() => {
                             setShowApplyModal(false);
-                            Alert.alert('Success', 'Your application has been submitted');
+                            showAlert('Success', 'Your application has been submitted');
                         }).catch(() => {
-                            Alert.alert('Error', 'Failed to submit application');
+                            showAlert('Error', 'Failed to submit application');
                         });
                     }}
                 />

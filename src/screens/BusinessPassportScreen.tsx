@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
@@ -9,6 +9,7 @@ import MissionVisionCard from '../components/MissionVisionCard';
 import { generatePDF, sharePDF } from '../utils/pdfExport';
 import { buildBusinessPassportExport } from '../utils/lenderSummaryExport';
 import { buildBusinessPassport } from '../utils/businessPassport';
+import { showAlert } from '../utils/webAlert';
 
 const STATUS_DOT: Record<string, string> = { good: '🟢', warning: '🟡', danger: '🔴' };
 const STATUS_LABEL: Record<string, string> = { good: 'Strong', warning: 'Watch', danger: 'High risk' };
@@ -50,7 +51,7 @@ export default function BusinessPassportScreen() {
             const filePath = await generatePDF(exportData);
             await sharePDF(filePath, exportData.title);
         } catch {
-            Alert.alert('Export failed', 'Could not generate the Business Passport. Please try again.');
+            showAlert('Export failed', 'Could not generate the Business Passport. Please try again.');
         } finally {
             setExporting(false);
         }

@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -11,6 +11,7 @@ import { initiateTacticTracking, updateTacticProgress, recordTacticOutcome, meas
 import NextStepLink from '../components/NextStepLink';
 import { computeCashRunway } from '../utils/cashRunway';
 import { getMonthlyExpenseAverage } from '../utils/finance';
+import { showAlert } from '../utils/webAlert';
 
 const EXECUTIONS_KEY = 'quad360_tactic_executions_v1';
 const OUTCOMES_KEY = 'quad360_tactic_outcomes_v1';
@@ -391,7 +392,7 @@ export default function ActionTrackerScreen() {
                         onPress={() => {
                           startTracking(action);
                           const steps = action.steps.map((s, i) => `${i + 1}. ${s}`).join('\n');
-                          Alert.alert(action.title, steps || 'No steps listed for this action.');
+                          showAlert(action.title, steps || 'No steps listed for this action.');
                         }}
                       >
                         <Text style={styles.startButtonText}>▶ Start This Action</Text>

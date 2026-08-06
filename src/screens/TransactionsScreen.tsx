@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
-    TouchableOpacity, Modal, StyleSheet, Alert, Share, Linking, FlatList, Platform,
+    TouchableOpacity, Modal, StyleSheet, Share, Linking, FlatList, Platform,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -12,6 +12,7 @@ import { Transaction, TransactionStatus, RecurringFrequency } from '../types';
 import { transactionsToCSV } from '../utils/finance';
 import RecurringTransactionManager from '../components/RecurringTransactionManager';
 import NextStepLink from '../components/NextStepLink';
+import { showAlert, confirmAction } from '../utils/webAlert';
 
 type FilterType   = 'all' | 'income' | 'expense' | 'collect';
 type StatusFilter = 'all' | 'paid' | 'pending' | 'overdue';
@@ -212,7 +213,7 @@ export default function TransactionsScreen() {
     const handleSave = () => {
         const amt = parseFloat(form.amount);
         if (!form.description.trim() || isNaN(amt) || amt <= 0) {
-            Alert.alert('Almost done', 'Add a description and a valid amount to save this transaction.');
+            showAlert('Almost done', 'Add a description and a valid amount to save this transaction.');
             return;
         }
 
@@ -240,10 +241,7 @@ export default function TransactionsScreen() {
     };
 
     const handleDelete = (id: string, desc: string) => {
-        Alert.alert('Delete Transaction', `Remove "${desc}"?`, [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Delete', style: 'destructive', onPress: () => deleteTransaction(id) },
-        ]);
+        confirmAction('Delete Transaction', `Remove "${desc}"?`, 'Delete', () => deleteTransaction(id));
     };
 
     // If this transaction is linked to an invoice (reference = invoiceNumber),
@@ -278,7 +276,7 @@ export default function TransactionsScreen() {
     const handleImportCSV = () => {
         const rows = parseCSV(csvText);
         if (rows.length === 0) {
-            Alert.alert('No valid rows', 'Could not parse any valid transactions from the CSV. Check the format and try again.');
+            showAlert('No valid rows', 'Could not parse any valid transactions from the CSV. Check the format and try again.');
             return;
         }
         let imported = 0;
@@ -302,7 +300,7 @@ export default function TransactionsScreen() {
         skipped += Math.max(0, total - rows.length);
         setCsvModalOpen(false);
         setCsvText('');
-        Alert.alert('Import Complete', `Imported ${imported} transaction${imported !== 1 ? 's' : ''}${skipped > 0 ? `, skipped ${skipped} row${skipped !== 1 ? 's' : ''}` : ''}.`);
+        showAlert('Import Complete', `Imported ${imported} transaction${imported !== 1 ? 's' : ''}${skipped > 0 ? `, skipped ${skipped} row${skipped !== 1 ? 's' : ''}` : ''}.`);
     };
 
     const statusColor = (s?: TransactionStatus) =>
@@ -572,7 +570,7 @@ export default function TransactionsScreen() {
                             </Text>
                             <TouchableOpacity
                                 style={{ marginBottom: 12 }}
-                                onPress={() => Alert.alert(
+                                onPress={() => showAlert(
                                     'CSV Template',
                                     'date,description,type,amount,category\n2024-01-15,Client Payment,income,5000,Sales\n2024-01-16,Office Rent,expense,1200,Rent',
                                 )}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
-    TouchableOpacity, StyleSheet, Alert, Modal, Share, Platform,
+    TouchableOpacity, StyleSheet, Modal, Share, Platform,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors, ColorThemeMode, getColorThemeMode, setColorThemeMode } from '../theme/colors';
@@ -13,6 +13,7 @@ import { t, LANGUAGES } from '../utils/i18n';
 import { generateAccountantReportCSV } from '../utils/finance';
 import { Config } from '../config';
 import { openSupportChat } from '../utils/whatsappIntegration';
+import { showAlert, confirmAction } from '../utils/webAlert';
 
 const CURRENCIES = [
     { label: 'USD ($)',    value: '$'   },
@@ -117,46 +118,32 @@ export default function SettingsScreen() {
     const doSave = () => {
         updateSettings(form);
         if (updateProfile && phone !== (user?.phone || '')) updateProfile({ phone: phone.trim() });
-        Alert.alert(t(language, 'success'), 'Settings updated successfully.', [
-            { text: t(language, 'done'), onPress: () => setCurrentScreen('dashboard') },
-        ]);
+        showAlert(t(language, 'success'), 'Settings updated successfully.', () => setCurrentScreen('dashboard'));
     };
 
     const handleSave = () => {
         if (isNaN(parseFloat(form.minReserve)) || parseFloat(form.minReserve) < 0) {
-            Alert.alert('Invalid value', 'Minimum reserve must be a non-negative number.'); return;
+            showAlert('Invalid value', 'Minimum reserve must be a non-negative number.'); return;
         }
         if (isNaN(parseFloat(form.targetMargin)) || parseFloat(form.targetMargin) < 0 || parseFloat(form.targetMargin) > 100) {
-            Alert.alert('Invalid value', 'Target margin must be between 0 and 100.'); return;
+            showAlert('Invalid value', 'Target margin must be between 0 and 100.'); return;
         }
         const taxRate = parseFloat(form.defaultTaxRate);
         if (isNaN(taxRate) || taxRate < 0 || taxRate > 100) {
-            Alert.alert('Invalid value', 'Default tax rate must be between 0 and 100.'); return;
+            showAlert('Invalid value', 'Default tax rate must be between 0 and 100.'); return;
         }
         if (form.openingAssets && isNaN(parseFloat(form.openingAssets))) {
-            Alert.alert('Invalid value', 'Opening assets must be a number.'); return;
+            showAlert('Invalid value', 'Opening assets must be a number.'); return;
         }
         if (form.openingLiabilities && isNaN(parseFloat(form.openingLiabilities))) {
-            Alert.alert('Invalid value', 'Opening liabilities must be a number.'); return;
+            showAlert('Invalid value', 'Opening liabilities must be a number.'); return;
         }
         if (phone.trim() && !/^\+?[\d\s\-().]{7,20}$/.test(phone.trim())) {
-            Alert.alert('Invalid phone', 'Enter your number with country code, e.g. +1 555 000 1234 (USA), +44 7700 900123 (UK), +234 801 234 5678 (Nigeria).'); return;
+            showAlert('Invalid phone', 'Enter your number with country code, e.g. +1 555 000 1234 (USA), +44 7700 900123 (UK), +234 801 234 5678 (Nigeria).'); return;
         }
         // Warn if currency changed
         if (form.currency !== settings.currency) {
-            if (Platform.OS === 'web' && typeof window?.confirm === 'function') {
-                const ok = window.confirm(t(language, 'currencyChangeWarning'));
-                if (ok) doSave();
-                return;
-            }
-            Alert.alert(
-                t(language, 'currencyChangeTitle'),
-                t(language, 'currencyChangeWarning'),
-                [
-                    { text: t(language, 'cancel'), style: 'cancel' },
-                    { text: t(language, 'confirm'), onPress: doSave },
-                ],
-            );
+            confirmAction(t(language, 'currencyChangeTitle'), t(language, 'currencyChangeWarning'), t(language, 'confirm'), doSave, false);
             return;
         }
         doSave();
@@ -164,39 +151,39 @@ export default function SettingsScreen() {
 
     const handleSavePaymentKeys = () => {
         if (userRole !== 'owner') {
-            Alert.alert('Permission denied', 'Only the account owner can change payment settings.');
+            showAlert('Permission denied', 'Only the account owner can change payment settings.');
             return;
         }
         const paystackPublicKey = (form.paystackPublicKey ?? '').trim();
         const korapayPublicKey  = (form.korapayPublicKey ?? '').trim();
         updateSettings({ paystackPublicKey, korapayPublicKey });
-        Alert.alert('✅ Saved', 'Payment keys saved. Tap "Create Payment Link →" to charge customers.');
+        showAlert('✅ Saved', 'Payment keys saved. Tap "Create Payment Link →" to charge customers.');
     };
 
     const handleChangePin = async () => {
         if (!/^\d{6}$/.test(newPin)) {
-            Alert.alert('Invalid PIN', 'New PIN must be exactly 6 digits.');
+            showAlert('Invalid PIN', 'New PIN must be exactly 6 digits.');
             return;
         }
         if (newPin !== confirmPin) {
-            Alert.alert('PIN mismatch', 'New PINs do not match.');
+            showAlert('PIN mismatch', 'New PINs do not match.');
             return;
         }
         const result = await changePin(currentPin, newPin);
         if (!result.ok) {
             if (result.lockedUntil) {
                 const mins = Math.ceil((result.lockedUntil - Date.now()) / 60000);
-                Alert.alert('Too Many Attempts', `PIN change locked for ${mins} minute${mins !== 1 ? 's' : ''}. Use "Forgot PIN?" if needed.`);
+                showAlert('Too Many Attempts', `PIN change locked for ${mins} minute${mins !== 1 ? 's' : ''}. Use "Forgot PIN?" if needed.`);
             } else {
-                Alert.alert('Incorrect PIN', 'Your current PIN is wrong. Please try again.');
+                showAlert('Incorrect PIN', 'Your current PIN is wrong. Please try again.');
             }
             return;
         }
         setCurrentPin(''); setNewPin(''); setConfirmPin('');
         if (result.cloudSynced) {
-            Alert.alert('✅ PIN Changed', 'Your PIN has been updated on all devices. You can now log in with your new PIN anywhere.');
+            showAlert('✅ PIN Changed', 'Your PIN has been updated on all devices. You can now log in with your new PIN anywhere.');
         } else {
-            Alert.alert('⚠️ PIN Changed Locally', 'Your PIN was updated on this device but could not sync to the cloud right now.\n\nYou can still use this device normally. To log in on other devices, use "Forgot PIN?" to reset it when you have internet access.');
+            showAlert('⚠️ PIN Changed Locally', 'Your PIN was updated on this device but could not sync to the cloud right now.\n\nYou can still use this device normally. To log in on other devices, use "Forgot PIN?" to reset it when you have internet access.');
         }
     };
 
@@ -215,7 +202,7 @@ export default function SettingsScreen() {
                 await Share.share({ message: json, title: 'Quad360 Backup' });
             }
         } catch {
-            Alert.alert('Export failed', 'Could not export data. Please try again.');
+            showAlert('Export failed', 'Could not export data. Please try again.');
         }
     };
 
@@ -235,45 +222,38 @@ export default function SettingsScreen() {
                 Share.share({ message: csv, title: filename });
             }
         } catch {
-            Alert.alert('Export failed', 'Could not generate report. Please try again.');
+            showAlert('Export failed', 'Could not generate report. Please try again.');
         }
     };
 
     const handleImport = async () => {
         if (!importJson.trim()) {
-            Alert.alert('Empty input', 'Please paste your backup JSON.');
+            showAlert('Empty input', 'Please paste your backup JSON.');
             return;
         }
         try {
             await importData(importJson.trim());
             setImportModal(false);
             setImportJson('');
-            Alert.alert('Imported', 'Data restored successfully.');
+            showAlert('Imported', 'Data restored successfully.');
         } catch (e: any) {
-            Alert.alert('Import failed', e?.message ?? 'Invalid backup file.');
+            showAlert('Import failed', e?.message ?? 'Invalid backup file.');
         }
     };
 
     const handleInvite = async () => {
-        if (!inviteEmail.trim()) { Alert.alert('Required', 'Please enter the member\'s email.'); return; }
+        if (!inviteEmail.trim()) { showAlert('Required', 'Please enter the member\'s email.'); return; }
         try {
             const code = await inviteMember(inviteEmail.trim(), inviteRole);
             setInviteEmail('');
             setPendingCode(code);
         } catch (e: any) {
-            Alert.alert('Invite failed', e?.message ?? 'Could not create invite.');
+            showAlert('Invite failed', e?.message ?? 'Could not create invite.');
         }
     };
 
     const handleRemoveMember = (id: string, email: string) => {
-        if (Platform.OS === 'web') {
-            if (window.confirm(`Remove ${email} from your team?`)) removeMember(id);
-            return;
-        }
-        Alert.alert('Remove member', `Remove ${email} from your team?`, [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Remove', style: 'destructive', onPress: () => removeMember(id) },
-        ]);
+        confirmAction('Remove member', `Remove ${email} from your team?`, 'Remove', () => removeMember(id));
     };
 
     const handleResetBusinessData = () => {
@@ -283,14 +263,7 @@ export default function SettingsScreen() {
 
     const handleClearData = () => {
         const msg = 'This signs you out and clears the local app cache. Your data stays safely in the cloud — sign back in any time to restore everything.';
-        if (Platform.OS === 'web') {
-            if (window.confirm(msg)) { clearData().then(() => logout()); }
-            return;
-        }
-        Alert.alert('Sign Out & Clear Local Cache', msg, [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Sign Out', style: 'destructive', onPress: async () => { await clearData(); logout(); } },
-        ]);
+        confirmAction('Sign Out & Clear Local Cache', msg, 'Sign Out', async () => { await clearData(); logout(); });
     };
 
     const handleDeleteAccount = () => {
@@ -681,7 +654,7 @@ export default function SettingsScreen() {
                             onPress={() => {
                                 const hasKey = (form.paystackPublicKey ?? '').trim() || (form.korapayPublicKey ?? '').trim();
                                 if (!hasKey) {
-                                    Alert.alert('No API Key', 'Add your Paystack or Korapay public key above and tap Save first.');
+                                    showAlert('No API Key', 'Add your Paystack or Korapay public key above and tap Save first.');
                                     return;
                                 }
                                 setCurrentScreen('payment-link');
@@ -773,7 +746,7 @@ export default function SettingsScreen() {
                                     const msg = `Your Quad360 invite code: ${pendingCode}`;
                                     if (Platform.OS === 'web') {
                                         if (navigator.share) { await navigator.share({ text: msg }); }
-                                        else { await navigator.clipboard.writeText(msg); Alert.alert('Copied!', 'Invite code copied to clipboard.'); }
+                                        else { await navigator.clipboard.writeText(msg); showAlert('Copied!', 'Invite code copied to clipboard.'); }
                                     } else {
                                         await Share.share({ message: msg });
                                     }

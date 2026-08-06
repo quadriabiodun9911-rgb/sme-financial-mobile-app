@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TouchableOpacity, StyleSheet,
-    Modal, TextInput, Alert, Platform, Share,
+    Modal, TextInput, Platform, Share,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -9,6 +9,7 @@ import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import NextStepLink from '../components/NextStepLink';
 import { getTaxRatePercent } from '../utils/finance';
+import { showAlert } from '../utils/webAlert';
 
 export default function TaxPlanningScreen() {
     const { transactions, settings, navigate, finance, user } = useApp();
@@ -91,12 +92,12 @@ export default function TaxPlanningScreen() {
 
     const handleAddDeduction = () => {
         if (!deductionName.trim()) {
-            Alert.alert('Error', 'Please enter deduction name');
+            showAlert('Error', 'Please enter deduction name');
             return;
         }
         const amount = parseFloat(deductionAmount);
         if (isNaN(amount) || amount <= 0) {
-            Alert.alert('Error', 'Please enter a valid amount');
+            showAlert('Error', 'Please enter a valid amount');
             return;
         }
         setDeductions([...deductions, { name: deductionName, amount, quarter: selectedQuarter }]);
@@ -170,7 +171,7 @@ NOTES
                 });
             }
         } catch (error) {
-            Alert.alert('Error', 'Failed to export report');
+            showAlert('Error', 'Failed to export report');
         }
     };
 
