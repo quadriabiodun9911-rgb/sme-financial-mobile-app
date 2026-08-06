@@ -23,7 +23,7 @@ export const FEATURE_INDEX: FeatureEntry[] = [
         id: 'weekly-dashboard', label: 'Weekly Dashboard', icon: '🗓️',
         description: 'Wins, problems, revenue/cost, cash position & top priorities for this week',
         keywords: ['week', 'summary', 'priorities', 'wins', 'growth levers'],
-        screen: 'weekly-dashboard',
+        screen: 'dashboard', navParams: { openWeeklyReport: true },
     },
     {
         id: 'pricing-optimizer', label: 'Pricing Optimization', icon: '💰',

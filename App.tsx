@@ -34,13 +34,11 @@ import TaxPlanningScreen from './src/screens/TaxPlanningScreen';
 import CreditWorthinessScreen from './src/screens/CreditWorthinessScreen';
 import FinancialHealthScreen from './src/screens/FinancialHealthScreen';
 import LoanEligibilityScreen from './src/screens/LoanEligibilityScreen';
-import FundingQualificationScreen from './src/screens/FundingQualificationScreen';
 import BusinessPassportScreen from './src/screens/BusinessPassportScreen';
 import FinancialAssessmentScreen from './src/screens/FinancialAssessmentScreen';
 import ActionTrackerScreen from './src/screens/ActionTrackerScreen';
 import OnboardingChoiceScreen from './src/screens/OnboardingChoiceScreen';
 import TrendsScreen from './src/screens/TrendsScreen';
-import WeeklyDashboardScreen from './src/screens/WeeklyDashboardScreen';
 import TaxFilingReadinessScreen from './src/screens/TaxFilingReadinessScreen';
 import RestrictedAccessScreen from './src/screens/RestrictedAccessScreen';
 import { isScreenAllowedForRole } from './src/utils/rolePermissions';
@@ -129,13 +127,11 @@ function NavigatorContent() {
             {currentScreen === 'credit-worthiness' && <CreditWorthinessScreen />}
             {currentScreen === 'financial-health' && <FinancialHealthScreen />}
             {currentScreen === 'loan-eligibility'  && <LoanEligibilityScreen />}
-            {currentScreen === 'funding-qualification' && <FundingQualificationScreen />}
             {currentScreen === 'business-passport' && <BusinessPassportScreen />}
             {currentScreen === 'financial-assessment' && <FinancialAssessmentScreen />}
             {currentScreen === 'action-tracker' && <ActionTrackerScreen />}
             {currentScreen === 'onboarding-choice' && <OnboardingChoiceScreen />}
             {currentScreen === 'trends'              && <TrendsScreen />}
-            {currentScreen === 'weekly-dashboard'    && <WeeklyDashboardScreen />}
             {currentScreen === 'tax-filing-readiness' && <TaxFilingReadinessScreen />}
         </View>
     );

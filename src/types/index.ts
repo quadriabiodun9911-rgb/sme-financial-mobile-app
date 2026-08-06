@@ -27,10 +27,8 @@ export type Screen =
     | 'loan-eligibility'
     | 'bank-statement-import'
     | 'onboarding-choice'
-    | 'weekly-dashboard'
     | 'action-tracker'
     | 'financial-assessment'
-    | 'funding-qualification'
     | 'trends'
     | 'tax-filing-readiness'
     | 'financial-health'
@@ -235,6 +233,7 @@ export interface NavParams {
     tab?: string;              // sub-tab within a screen that manages its own tab state (e.g. CFOScreen, GrowthIntelligenceScreen)
     goalType?: GoalType;
     goalId?: string;           // pass a saved goal into Goal Bridge
+    openWeeklyReport?: boolean; // open the Weekly Dashboard modal on the Dashboard screen
     // Payment link pre-fill from invoice
     amount?: number;
     description?: string;
