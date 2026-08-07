@@ -74,11 +74,15 @@ export default function DashboardScreen() {
     }, []);
 
     useEffect(() => {
-        if (isDemoMode) return;
+        if (isDemoMode || isLoading) return;
+        // Already has real transactions (e.g. just imported a bank statement
+        // from OnboardingChoiceScreen) — asking "what came in/out this week"
+        // right after would just re-ask what the data already answers.
+        if (transactions.length > 0) return;
         AsyncStorage.getItem('@quad360/first_run_done').then(v => {
             if (!v) setShowFirstRun(true);
         }).catch(() => {});
-    }, [isDemoMode]);
+    }, [isDemoMode, isLoading, transactions.length]);
 
     // Deep-link from Global Search
     useEffect(() => {

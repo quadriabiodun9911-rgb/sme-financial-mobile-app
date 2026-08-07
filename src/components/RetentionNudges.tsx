@@ -92,7 +92,7 @@ type Milestone = {
     body: string;
 };
 
-async function detectMilestones(
+export async function detectMilestones(
     transactions: Transaction[],
     currency: string,
     profit: number,
@@ -112,21 +112,44 @@ async function detectMilestones(
         .reduce((s, t) => s + (Number(t.amount) || 0), 0);
     const monthProfit  = monthIncome - monthExpense;
 
-    const candidates: Milestone[] = [
-        totalTx === 1   && { id: 'first_tx',       emoji: '🎯', title: 'First transaction logged!',     body: 'You\'ve taken the first step. Keep it up — consistency is everything.' },
-        totalTx === 10  && { id: 'ten_tx',          emoji: '✅', title: '10 transactions recorded!',    body: 'You\'re building a habit. Your financial picture is getting clearer.' },
-        totalTx === 50  && { id: 'fifty_tx',        emoji: '🏆', title: '50 transactions tracked!',     body: 'Impressive discipline. You now have a real financial history to work with.' },
-        totalTx === 100 && { id: 'hundred_tx',      emoji: '💯', title: '100 transactions recorded!',   body: 'You\'re a power user. Your reports are now highly accurate.' },
-        monthProfit > 0 && thisMonth && { id: `profitable_${thisMonth}`, emoji: '📈', title: 'Profitable month!', body: `You made more than you spent in ${new Date().toLocaleString('default', { month: 'long' })}. That's what it's about.` },
+    // Transaction-count and revenue milestones are each a ladder — crossing
+    // $500k means $100k was already crossed too. A bulk import (or a
+    // backfilled bank statement) can cross several rungs of the same ladder
+    // in one save, which previously queued up a separate popup per rung
+    // right after another. Only the single highest newly-crossed rung of
+    // each ladder is worth surfacing; the rest are marked seen silently.
+    const txCountLadder: Milestone[] = [
+        totalTx >= 1   && { id: 'first_tx',       emoji: '🎯', title: 'First transaction logged!',     body: 'You\'ve taken the first step. Keep it up — consistency is everything.' },
+        totalTx >= 10  && { id: 'ten_tx',          emoji: '✅', title: '10 transactions recorded!',    body: 'You\'re building a habit. Your financial picture is getting clearer.' },
+        totalTx >= 50  && { id: 'fifty_tx',        emoji: '🏆', title: '50 transactions tracked!',     body: 'Impressive discipline. You now have a real financial history to work with.' },
+        totalTx >= 100 && { id: 'hundred_tx',      emoji: '💯', title: '100 transactions recorded!',   body: 'You\'re a power user. Your reports are now highly accurate.' },
+    ].filter(Boolean) as Milestone[];
+
+    const revenueLadder: Milestone[] = [
         totalIncome >= 100000  && { id: 'income_100k',  emoji: '💰', title: `${formatAmount(100000, currency)} revenue milestone!`,  body: 'Your business is generating serious money. Keep the momentum going.' },
         totalIncome >= 500000  && { id: 'income_500k',  emoji: '🚀', title: `${formatAmount(500000, currency)} revenue milestone!`,  body: 'Half a million in revenue. You\'re running a real business.' },
         totalIncome >= 1000000 && { id: 'income_1M',    emoji: '🦁', title: `${formatAmount(1000000, currency)} revenue milestone!`, body: 'You\'ve hit 7 figures. Outstanding work — share this win!' },
     ].filter(Boolean) as Milestone[];
 
-    const unseen = candidates.find(m => !seen.includes(m.id));
+    // Every rung reached this call is seen now, even the ones below the
+    // highest — they'll never be individually shown, reached together or not.
+    const reachedLadderIds = [...txCountLadder, ...revenueLadder].map(m => m.id);
+    const highestUnseen = (ladder: Milestone[]) => {
+        const unseenRungs = ladder.filter(m => !seen.includes(m.id));
+        return unseenRungs[unseenRungs.length - 1] ?? null;
+    };
+
+    const standalone: Milestone[] = [
+        monthProfit > 0 && thisMonth && { id: `profitable_${thisMonth}`, emoji: '📈', title: 'Profitable month!', body: `You made more than you spent in ${new Date().toLocaleString('default', { month: 'long' })}. That's what it's about.` },
+    ].filter(Boolean) as Milestone[];
+
+    // Revenue news is the more meaningful single takeaway when both ladders
+    // advance in the same save (e.g. a bulk-imported statement).
+    const unseen = highestUnseen(revenueLadder) ?? highestUnseen(txCountLadder) ?? standalone.find(m => !seen.includes(m.id)) ?? null;
     if (!unseen) return null;
 
-    await AsyncStorage.setItem(KEYS.milestonesSeen, JSON.stringify([...seen, unseen.id]));
+    const newlySeen = new Set([...seen, ...reachedLadderIds, unseen.id]);
+    await AsyncStorage.setItem(KEYS.milestonesSeen, JSON.stringify([...newlySeen]));
     return unseen;
 }
 
