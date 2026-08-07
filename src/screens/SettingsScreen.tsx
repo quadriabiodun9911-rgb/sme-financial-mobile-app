@@ -14,6 +14,8 @@ import { generateAccountantReportCSV } from '../utils/finance';
 import { Config } from '../config';
 import { openSupportChat } from '../utils/whatsappIntegration';
 import { showAlert, confirmAction } from '../utils/webAlert';
+import Icon, { IconName } from '../components/ui/Icon';
+import { Radius, Shadow, Spacing } from '../theme/tokens';
 
 const CURRENCIES = [
     { label: 'USD ($)',    value: '$'   },
@@ -283,7 +285,7 @@ export default function SettingsScreen() {
                         only happens on a fresh module evaluation, so this
                         reloads the app the same way other global settings
                         changes (reset/clear data) already do. */}
-                    <SectionHeader title="🎨 APPEARANCE" />
+                    <SectionHeader icon="sliders" title="APPEARANCE" />
                     <CollapsibleSection title="Color Theme" defaultOpen={true}>
                         <Section title="Theme">
                             <View style={styles.optRow}>
@@ -316,8 +318,8 @@ export default function SettingsScreen() {
                         </Section>
                     </CollapsibleSection>
 
-                    {/* ⚙️ OPERATIONS */}
-                    <SectionHeader title="⚙️ ACCOUNT & BUSINESS" />
+                    {/* OPERATIONS */}
+                    <SectionHeader icon="settings" title="ACCOUNT & BUSINESS" />
 
                     {/* Business Setup */}
                     <CollapsibleSection title="Business Setup" defaultOpen={true}>
@@ -519,7 +521,10 @@ export default function SettingsScreen() {
                                 disabled={!Config.SUPPORT_WHATSAPP_NUMBER}
                                 onPress={() => openSupportChat(Config.SUPPORT_WHATSAPP_NUMBER)}
                             >
-                                <Text style={styles.dataBtnText}>💬  Chat on WhatsApp</Text>
+                                <View style={styles.btnIconRow}>
+                                    <Icon name="message-circle" size={14} color={Colors.primary} />
+                                    <Text style={styles.dataBtnText}>Chat on WhatsApp</Text>
+                                </View>
                             </TouchableOpacity>
                         </Section>
                     </CollapsibleSection>
@@ -554,8 +559,8 @@ export default function SettingsScreen() {
                         </Section>
                     </CollapsibleSection>
 
-                    {/* 💰 FINANCE */}
-                    <SectionHeader title="💰 FINANCIAL SETUP" />
+                    {/* FINANCE */}
+                    <SectionHeader icon="dollar-sign" title="FINANCIAL SETUP" />
 
                     {/* Profit Goals & Tax */}
                     <CollapsibleSection title="Profit Goals & Tax" defaultOpen={false}>
@@ -673,7 +678,10 @@ export default function SettingsScreen() {
                                 setCurrentScreen('payment-link');
                             }}
                         >
-                            <Text style={styles.dataBtnText}>💳  Create Payment Link →</Text>
+                            <View style={styles.btnIconRow}>
+                                <Icon name="credit-card" size={14} color={Colors.primary} />
+                                <Text style={styles.dataBtnText}>Create Payment Link →</Text>
+                            </View>
                         </TouchableOpacity>
                     </CollapsibleSection>
 
@@ -688,12 +696,15 @@ export default function SettingsScreen() {
                             pending beta, so surfacing it here just offered a button
                             that doesn't do anything yet. */}
                         <TouchableOpacity style={styles.dataBtn} onPress={() => setCurrentScreen('import-transactions')}>
-                            <Text style={styles.dataBtnText}>📂  Import Bank Statement (CSV / Excel / PDF) ✓</Text>
+                            <View style={styles.btnIconRow}>
+                                <Icon name="folder" size={14} color={Colors.primary} />
+                                <Text style={styles.dataBtnText}>Import Bank Statement (CSV / Excel / PDF) ✓</Text>
+                            </View>
                         </TouchableOpacity>
                     </CollapsibleSection>
 
-                    {/* 📊 ANALYTICS */}
-                    <SectionHeader title="📤 DATA & EXPORT" />
+                    {/* ANALYTICS */}
+                    <SectionHeader icon="upload" title="DATA & EXPORT" />
 
                     {/* Data & Backup */}
                     <CollapsibleSection title="Data & Backup" defaultOpen={false}>
@@ -702,10 +713,16 @@ export default function SettingsScreen() {
                                 Export a full JSON backup of all your transactions, goals, and settings. Import to restore on a new device.
                             </Text>
                             <TouchableOpacity style={styles.dataBtn} onPress={handleExport}>
-                                <Text style={styles.dataBtnText}>📦 Export All Data (JSON Backup)</Text>
+                                <View style={styles.btnIconRow}>
+                                    <Icon name="package" size={14} color={Colors.primary} />
+                                    <Text style={styles.dataBtnText}>Export All Data (JSON Backup)</Text>
+                                </View>
                             </TouchableOpacity>
                             <TouchableOpacity style={[styles.dataBtn, { marginTop: 8, backgroundColor: '#10b981' }]} onPress={handleAccountantExport}>
-                                <Text style={styles.dataBtnText}>📊 Export Accountant Report (CSV)</Text>
+                                <View style={styles.btnIconRow}>
+                                    <Icon name="bar-chart-2" size={14} color={Colors.primary} />
+                                    <Text style={styles.dataBtnText}>Export Accountant Report (CSV)</Text>
+                                </View>
                             </TouchableOpacity>
                             <Text style={[styles.hint, { marginTop: 6 }]}>
                                 Includes P&L, Balance Sheet, Cash Flow summary, and full transaction list — ready for your accountant or tax filing.
@@ -719,7 +736,10 @@ export default function SettingsScreen() {
                     {/* Data Safety notice — shown only when user has transactions */}
                     {transactions.length > 0 && (
                         <View style={styles.dataSafetyCard}>
-                            <Text style={styles.dataSafetyTitle}>🔒 Your Data is Safe</Text>
+                            <View style={styles.btnIconRow}>
+                                <Icon name="lock" size={14} color={Colors.textPrimary} />
+                                <Text style={styles.dataSafetyTitle}>Your Data is Safe</Text>
+                            </View>
                             <Text style={styles.dataSafetyBody}>
                                 All your data is backed up to the cloud automatically. Even if you lose your phone, log in from any device to restore it.
                             </Text>
@@ -898,8 +918,13 @@ export default function SettingsScreen() {
     );
 }
 
-function SectionHeader({ title }: { title: string }) {
-    return <Text style={styles.sectionHeaderMain}>{title}</Text>;
+function SectionHeader({ icon, title }: { icon: IconName; title: string }) {
+    return (
+        <View style={styles.sectionHeaderMainRow}>
+            <Icon name={icon} size={13} color={Colors.textPrimary} />
+            <Text style={styles.sectionHeaderMain}>{title}</Text>
+        </View>
+    );
 }
 
 function CollapsibleSection({ title, children, defaultOpen = false }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
@@ -908,7 +933,7 @@ function CollapsibleSection({ title, children, defaultOpen = false }: { title: s
         <View style={styles.section}>
             <TouchableOpacity style={styles.sectionHeader} onPress={() => setOpen(v => !v)}>
                 <Text style={styles.sectionTitle}>{title}</Text>
-                <Text style={styles.sectionChevron}>{open ? '▾' : '▸'}</Text>
+                <Icon name={open ? 'chevron-down' : 'chevron-right'} size={16} color={Colors.textMuted} />
             </TouchableOpacity>
             {open && <View style={styles.sectionBody}>{children}</View>}
         </View>
@@ -937,60 +962,66 @@ function Opt({ label, active, onPress }: { label: string; active: boolean; onPre
 const styles = StyleSheet.create({
     safe:   { flex: 1, backgroundColor: Colors.bg },
     scroll: { flex: 1 },
-    pad:    { padding: 16 },
-    title:  { fontSize: 20, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 20 },
+    pad:    { padding: Spacing.lg },
+    title:  { fontSize: 20, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: Spacing.xl },
 
-    sectionHeaderMain: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: 10, marginTop: 16, letterSpacing: 0.3 },
+    // Shared icon + label row used for section headers and icon-prefixed
+    // buttons throughout this screen.
+    btnIconRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+    sectionHeaderMainRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, marginBottom: Spacing.sm, marginTop: Spacing.lg },
+    sectionHeaderMain: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, letterSpacing: 0.3 },
 
-    section:        { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 16 },
+    section:        {
+        backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.lg, marginBottom: Spacing.lg,
+        borderWidth: 1, borderColor: Colors.border, ...Shadow.sm,
+    },
     sectionHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     sectionTitle:   { fontSize: 15, fontWeight: 'bold', color: Colors.textPrimary },
-    sectionChevron: { fontSize: 16, color: Colors.textMuted },
-    sectionBody:    { marginTop: 12 },
+    sectionBody:    { marginTop: Spacing.md },
 
-    subsection:      { marginBottom: 16 },
-    subsectionTitle: { fontSize: 13, fontWeight: 'bold', color: Colors.textSecondary, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
+    subsection:      { marginBottom: Spacing.lg },
+    subsectionTitle: { fontSize: 13, fontWeight: 'bold', color: Colors.textSecondary, marginBottom: Spacing.sm, textTransform: 'uppercase', letterSpacing: 0.5 },
 
-    hint:  { fontSize: 12, color: Colors.textMuted, lineHeight: 18, marginBottom: 8 },
+    hint:  { fontSize: 12, color: Colors.textMuted, lineHeight: 18, marginBottom: Spacing.sm },
     label: { fontSize: 12, color: Colors.textSecondary, fontWeight: '600', marginBottom: 6, marginTop: 10 },
     input: {
         backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border,
-        borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10,
+        borderRadius: Radius.sm, paddingHorizontal: Spacing.md, paddingVertical: 10,
         color: Colors.textPrimary, fontSize: 14,
     },
-    optRow:    { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-    opt:       { paddingHorizontal: 14, paddingVertical: 8, backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: 8 },
+    optRow:    { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
+    opt:       { paddingHorizontal: 14, paddingVertical: Spacing.sm, backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm },
     optActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
     optText:   { color: Colors.textSecondary, fontSize: 13 },
 
-    saveBtn:     { backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginBottom: 12 },
-    saveBtnText: { color: Colors.textPrimary, fontWeight: 'bold', fontSize: 15 },
-    cancelBtn:   { paddingVertical: 12, alignItems: 'center' },
+    saveBtn:     { backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginBottom: Spacing.md },
+    saveBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
+    cancelBtn:   { paddingVertical: Spacing.md, alignItems: 'center' },
     cancelBtnText: { color: Colors.textMuted, fontSize: 14 },
 
-    dataBtn:     { backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.primary, paddingVertical: 12, borderRadius: 8, alignItems: 'center' },
+    dataBtn:     { backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.primary, paddingVertical: Spacing.md, borderRadius: Radius.sm, alignItems: 'center' },
     dataBtnText: { color: Colors.primary, fontWeight: '600', fontSize: 14 },
 
-    dangerBtn:     { backgroundColor: 'rgba(239,68,68,0.12)', borderWidth: 1, borderColor: Colors.expense, paddingVertical: 12, borderRadius: 8, alignItems: 'center' },
+    dangerBtn:     { backgroundColor: 'rgba(239,68,68,0.12)', borderWidth: 1, borderColor: Colors.expense, paddingVertical: Spacing.md, borderRadius: Radius.sm, alignItems: 'center' },
     dangerBtnText: { color: Colors.expense, fontWeight: '700', fontSize: 14 },
 
-    dataSafetyCard:   { backgroundColor: 'rgba(0,102,204,0.08)', borderWidth: 1, borderColor: Colors.primary, borderRadius: 12, padding: 16, marginBottom: 16 },
-    dataSafetyTitle:  { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 },
-    dataSafetyBody:   { fontSize: 12, color: Colors.textSecondary, lineHeight: 18, marginBottom: 8 },
+    dataSafetyCard:   { backgroundColor: 'rgba(0,102,204,0.08)', borderWidth: 1, borderColor: Colors.primary, borderRadius: Radius.md, padding: Spacing.lg, marginBottom: Spacing.lg },
+    dataSafetyTitle:  { fontSize: 14, fontWeight: '700', color: Colors.textPrimary },
+    dataSafetyBody:   { fontSize: 12, color: Colors.textSecondary, lineHeight: 18, marginBottom: Spacing.sm, marginTop: Spacing.xs },
     dataSafetyStatus: { fontSize: 12, color: Colors.income, fontWeight: '600' },
 
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-    modalCard:    { backgroundColor: Colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 36 },
-    modalTitle:   { fontSize: 17, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 8 },
-    importArea:   { height: 180, marginBottom: 16 },
-    modalBtns:    { flexDirection: 'row', gap: 12, alignItems: 'center' },
+    modalCard:    { backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Spacing.xxl, paddingBottom: 36, ...Shadow.md },
+    modalTitle:   { fontSize: 17, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: Spacing.sm },
+    importArea:   { height: 180, marginBottom: Spacing.lg },
+    modalBtns:    { flexDirection: 'row', gap: Spacing.md, alignItems: 'center' },
 
     memberRow:   { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border },
-    memberEmail: { fontSize: 13, color: Colors.textPrimary, marginBottom: 4 },
+    memberEmail: { fontSize: 13, color: Colors.textPrimary, marginBottom: Spacing.xs },
     memberMeta:  { flexDirection: 'row', gap: 6 },
     roleBadge:   { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
     roleText:    { fontSize: 10, fontWeight: 'bold' },
 
-    codeBox:  { backgroundColor: Colors.bg, borderRadius: 10, padding: 20, alignItems: 'center', marginVertical: 12 },
+    codeBox:  { backgroundColor: Colors.bg, borderRadius: 10, padding: Spacing.xl, alignItems: 'center', marginVertical: Spacing.md },
     codeText: { fontSize: 32, fontWeight: 'bold', color: Colors.primary, letterSpacing: 8 },
 });
