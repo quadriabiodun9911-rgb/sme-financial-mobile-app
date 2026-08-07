@@ -76,7 +76,7 @@ jobs:
           retention-days: 7
 
   deploy-staging:
-    if: github.ref == 'refs/heads/claude/tender-ritchie-9y0iez'
+    if: github.ref == 'refs/heads/claude/tender-ritchie-9y0iez' && secrets.VERCEL_TOKEN != ''
     needs: build-web
     runs-on: ubuntu-latest
     name: Deploy to Staging
@@ -123,7 +123,7 @@ jobs:
             });
 
   deploy-production:
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && secrets.VERCEL_TOKEN != ''
     needs: build-web
     runs-on: ubuntu-latest
     name: Deploy to Production
@@ -176,7 +176,7 @@ jobs:
           prerelease: false
 
   deploy-preview:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && secrets.VERCEL_TOKEN != ''
     needs: build-web
     runs-on: ubuntu-latest
     name: Deploy Preview
