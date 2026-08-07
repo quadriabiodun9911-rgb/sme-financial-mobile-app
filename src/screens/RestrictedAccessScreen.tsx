@@ -4,6 +4,8 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
+import Icon from '../components/ui/Icon';
+import { Spacing } from '../theme/tokens';
 
 export default function RestrictedAccessScreen() {
     const { setCurrentScreen } = useApp();
@@ -12,7 +14,9 @@ export default function RestrictedAccessScreen() {
         <SafeAreaView style={s.safe}>
             <Header />
             <View style={s.body}>
-                <Text style={s.icon}>🔒</Text>
+                <View style={s.iconWrap}>
+                    <Icon name="lock" size={40} color={Colors.textMuted} />
+                </View>
                 <Text style={s.title}>This is for the business owner</Text>
                 <Text style={s.text}>
                     Full financial reports, bank details, and account settings are only visible to the owner and accountant on this account. Ask the owner if you need to see this.
@@ -28,10 +32,10 @@ export default function RestrictedAccessScreen() {
 
 const s = StyleSheet.create({
     safe: { flex: 1, backgroundColor: Colors.bg },
-    body: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
-    icon: { fontSize: 40, marginBottom: 16 },
+    body: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xxxl },
+    iconWrap: { marginBottom: Spacing.lg },
     title: { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 10, textAlign: 'center' },
-    text: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center', lineHeight: 19, marginBottom: 24 },
-    btn: { backgroundColor: Colors.primary, paddingVertical: 12, paddingHorizontal: 24, borderRadius: 10 },
+    text: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center', lineHeight: 19, marginBottom: Spacing.xxl },
+    btn: { backgroundColor: Colors.primary, paddingVertical: Spacing.md, paddingHorizontal: Spacing.xxl, borderRadius: 10 },
     btnText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
 });

@@ -23,16 +23,18 @@ import {
     MonthlySnapshot,
 } from '../utils/profitability';
 import { computeCustomerMetrics } from '../utils/customerMetrics';
+import Icon, { IconName } from '../components/ui/Icon';
+import { Radius, Shadow, Spacing } from '../theme/tokens';
 
 type Tab = 'score' | 'momentum' | 'performers' | 'drivers' | 'breakeven' | 'customers';
 
-const TABS: { key: Tab; icon: string; label: string }[] = [
-    { key: 'score',      icon: '🏆', label: 'Score'      },
-    { key: 'momentum',   icon: '📈', label: 'Momentum'   },
-    { key: 'performers', icon: '⭐', label: 'Top'        },
-    { key: 'customers',  icon: '👥', label: 'Customers'  },
-    { key: 'drivers',    icon: '🔍', label: 'Drivers'    },
-    { key: 'breakeven',  icon: '⚖️',  label: 'Breakeven'  },
+const TABS: { key: Tab; icon: IconName; label: string }[] = [
+    { key: 'score',      icon: 'award',       label: 'Score'      },
+    { key: 'momentum',   icon: 'trending-up', label: 'Momentum'   },
+    { key: 'performers', icon: 'star',        label: 'Top'        },
+    { key: 'customers',  icon: 'users',       label: 'Customers'  },
+    { key: 'drivers',    icon: 'search',      label: 'Drivers'    },
+    { key: 'breakeven',  icon: 'crosshair',   label: 'Breakeven'  },
 ];
 
 function fmt(n: number, currency: string): string {
@@ -111,7 +113,9 @@ function MomentumTab({ currency }: { currency: string }) {
     if (!hasData) {
         return (
             <View style={gs.emptyBox}>
-                <Text style={gs.emptyIcon}>📈</Text>
+                <View style={gs.emptyIconWrap}>
+                    <Icon name="trending-up" size={44} color={Colors.textMuted} />
+                </View>
                 <Text style={gs.emptyTitle}>Not enough data yet</Text>
                 <Text style={gs.emptyBody}>Log transactions for 2+ months to see your momentum.</Text>
             </View>
@@ -200,7 +204,9 @@ function MomentumTab({ currency }: { currency: string }) {
                 <View style={gs.highlightCard}>
                     {m.bestMonth && (
                         <View style={[gs.highlightBox, { borderColor: Colors.income }]}>
-                            <Text style={[gs.highlightIcon]}>🏆</Text>
+                            <View style={gs.highlightIconWrap}>
+                                <Icon name="award" size={22} color={Colors.income} />
+                            </View>
                             <Text style={gs.highlightLabel}>Best Month</Text>
                             <Text style={[gs.highlightMonth]}>{m.bestMonth.label}</Text>
                             <Text style={[gs.highlightVal, { color: Colors.income }]}>{fmt(m.bestMonth.profit, currency)} profit</Text>
@@ -208,7 +214,9 @@ function MomentumTab({ currency }: { currency: string }) {
                     )}
                     {m.worstMonth && m.worstMonth.month !== m.bestMonth?.month && (
                         <View style={[gs.highlightBox, { borderColor: Colors.expense }]}>
-                            <Text style={gs.highlightIcon}>📉</Text>
+                            <View style={gs.highlightIconWrap}>
+                                <Icon name="trending-down" size={22} color={Colors.expense} />
+                            </View>
                             <Text style={gs.highlightLabel}>Weakest Month</Text>
                             <Text style={gs.highlightMonth}>{m.worstMonth.label}</Text>
                             <Text style={[gs.highlightVal, { color: Colors.expense }]}>{fmt(m.worstMonth.profit, currency)} profit</Text>
@@ -230,7 +238,7 @@ function PerformersTab({ currency }: { currency: string }) {
             {/* Focus rec */}
             {p.focusRecommendation ? (
                 <View style={gs.focusCard}>
-                    <Text style={gs.focusIcon}>💡</Text>
+                    <Icon name="zap" size={20} color={Colors.primary} />
                     <Text style={gs.focusText}>{p.focusRecommendation}</Text>
                 </View>
             ) : null}
@@ -238,7 +246,10 @@ function PerformersTab({ currency }: { currency: string }) {
             {/* Concentration risk banner */}
             {p.concentrationRisk && (
                 <View style={[gs.riskBanner, { borderColor: Colors.expense }]}>
-                    <Text style={[gs.riskTitle, { color: Colors.expense }]}>⚠️ Customer Concentration Risk</Text>
+                    <View style={gs.riskTitleRow}>
+                        <Icon name="alert-triangle" size={14} color={Colors.expense} />
+                        <Text style={[gs.riskTitle, { color: Colors.expense }]}>Customer Concentration Risk</Text>
+                    </View>
                     <Text style={gs.riskBody}>{p.concentrationWarning}</Text>
                 </View>
             )}
@@ -261,9 +272,12 @@ function PerformersTab({ currency }: { currency: string }) {
                                 </View>
                                 <View style={{ alignItems: 'flex-end' }}>
                                     <Text style={[gs.perfVal, { color: Colors.income }]}>{fmt(c.revenue, currency)}</Text>
-                                    <Text style={[gs.perfShare, { color: c.isConcentrationRisk ? Colors.expense : Colors.textMuted }]}>
-                                        {Math.round(c.sharePct)}% of revenue{c.isConcentrationRisk ? ' ⚠️' : ''}
-                                    </Text>
+                                    <View style={gs.perfShareRow}>
+                                        <Text style={[gs.perfShare, { color: c.isConcentrationRisk ? Colors.expense : Colors.textMuted }]}>
+                                            {Math.round(c.sharePct)}% of revenue
+                                        </Text>
+                                        {c.isConcentrationRisk && <Icon name="alert-triangle" size={10} color={Colors.expense} />}
+                                    </View>
                                 </View>
                             </View>
                         ))}
@@ -304,7 +318,7 @@ function PerformersTab({ currency }: { currency: string }) {
                     <Text style={gs.drainNote}>These categories spend money but generate no income. Review if they're necessary.</Text>
                     {p.worstCategories.map((c, i) => (
                         <View key={i} style={gs.perfRow}>
-                            <Text style={gs.drainIcon}>💸</Text>
+                            <Icon name="trending-down" size={16} color={Colors.expense} />
                             <Text style={[gs.perfName, { flex: 1 }]}>{c.name}</Text>
                             <Text style={[gs.perfVal, { color: Colors.expense }]}>{fmt(c.cost, currency)}</Text>
                         </View>
@@ -323,7 +337,9 @@ function CustomersTab({ currency }: { currency: string }) {
     if (!m.hasEnoughData) {
         return (
             <View style={gs.emptyBox}>
-                <Text style={gs.emptyIcon}>👥</Text>
+                <View style={gs.emptyIconWrap}>
+                    <Icon name="users" size={44} color={Colors.textMuted} />
+                </View>
                 <Text style={gs.emptyTitle}>Not enough customer data yet</Text>
                 <Text style={gs.emptyBody}>{m.reason}</Text>
             </View>
@@ -375,7 +391,7 @@ function CustomersTab({ currency }: { currency: string }) {
             </View>
 
             <View style={gs.focusCard}>
-                <Text style={gs.focusIcon}>💡</Text>
+                <Icon name="zap" size={20} color={Colors.primary} />
                 <Text style={gs.focusText}>
                     CAC = Marketing-category spend ÷ new customers that month. Churn = customers who bought last month but not this one, as a share of last month's active customers. Add a customer name to sales transactions and tag spend "Marketing" to keep these accurate.
                 </Text>
@@ -413,7 +429,9 @@ export default function GrowthIntelligenceScreen() {
                         style={[gs.tab, activeTab === tab.key && gs.tabActive]}
                         onPress={() => setActiveTab(tab.key)}
                     >
-                        <Text style={gs.tabIcon}>{tab.icon}</Text>
+                        <View style={gs.tabIconWrap}>
+                            <Icon name={tab.icon} size={14} color={activeTab === tab.key ? '#fff' : Colors.textMuted} />
+                        </View>
                         <Text style={[gs.tabText, activeTab === tab.key && gs.tabTextActive]}>{tab.label}</Text>
                     </TouchableOpacity>
                 ))}
@@ -455,71 +473,71 @@ const gs = StyleSheet.create({
     safe:        { flex: 1, backgroundColor: Colors.bg },
     scroll:      { flex: 1 },
     content:     { padding: 14, paddingBottom: 100 },
-    headerRow:   { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
+    headerRow:   { paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm, paddingBottom: Spacing.xs },
     screenTitle: { color: Colors.textPrimary, fontSize: 20, fontWeight: '700' },
 
-    tabBar:       { flexDirection: 'row', paddingHorizontal: 10, paddingVertical: 8, gap: 4, borderBottomWidth: 1, borderBottomColor: Colors.border, backgroundColor: Colors.surface },
-    tab:          { flex: 1, alignItems: 'center', paddingVertical: 6, borderRadius: 8, backgroundColor: Colors.bg },
+    tabBar:       { flexDirection: 'row', paddingHorizontal: 10, paddingVertical: Spacing.sm, gap: Spacing.xs, borderBottomWidth: 1, borderBottomColor: Colors.border, backgroundColor: Colors.surface },
+    tab:          { flex: 1, alignItems: 'center', paddingVertical: 6, borderRadius: Radius.sm, backgroundColor: Colors.bg },
     tabActive:    { backgroundColor: Colors.primary },
-    tabIcon:      { fontSize: 14, marginBottom: 2 },
+    tabIconWrap:  { marginBottom: 2 },
     tabText:      { color: Colors.textMuted, fontSize: 10, fontWeight: '600' },
     tabTextActive:{ color: '#fff' },
 
-    sectionTitle: { fontSize: 10, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.8, marginBottom: 12 },
+    sectionTitle: { fontSize: 10, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.8, marginBottom: Spacing.md },
 
     // Score tab
-    scoreCard:   { backgroundColor: Colors.surface, borderRadius: 14, padding: 20, alignItems: 'center', marginBottom: 12, borderWidth: 1, borderColor: Colors.border },
-    scoreRing:   { width: 100, height: 100, borderRadius: 50, borderWidth: 6, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+    scoreCard:   { backgroundColor: Colors.surface, borderRadius: 14, padding: Spacing.xl, alignItems: 'center', marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
+    scoreRing:   { width: 100, height: 100, borderRadius: 50, borderWidth: 6, alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.md },
     scoreNum:    { fontSize: 32, fontWeight: '900' },
     scoreMax:    { fontSize: 12, color: Colors.textMuted, marginTop: -4 },
     scoreLabel:  { fontSize: 20, fontWeight: '800', marginBottom: 6 },
     scoreVerdict:{ fontSize: 13, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
-    pillarsCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: Colors.border },
+    pillarsCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: 14, marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     pillarRow:   { marginBottom: 14 },
-    pillarTop:   { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
+    pillarTop:   { flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.xs },
     pillarName:  { fontSize: 13, color: Colors.textPrimary, fontWeight: '600' },
     pillarScore: { fontSize: 13, fontWeight: '800' },
     pillarTrack: { height: 7, backgroundColor: Colors.bg, borderRadius: 4, overflow: 'hidden', marginBottom: 3 },
     pillarFill:  { height: 7, borderRadius: 4 },
     pillarNote:  { fontSize: 11, color: Colors.textMuted },
-    nextCard:    { backgroundColor: Colors.surface, borderRadius: 14, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: Colors.border },
-    nextItem:    { fontSize: 13, color: Colors.textSecondary, lineHeight: 22, marginBottom: 4 },
+    nextCard:    { backgroundColor: Colors.surface, borderRadius: 14, padding: 14, marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
+    nextItem:    { fontSize: 13, color: Colors.textSecondary, lineHeight: 22, marginBottom: Spacing.xs },
 
     // Momentum tab
-    momCard:     { backgroundColor: Colors.surface, borderRadius: 14, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: Colors.border },
+    momCard:     { backgroundColor: Colors.surface, borderRadius: 14, padding: 14, marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     momRow:      { flexDirection: 'row' },
     momBox:      { flex: 1, alignItems: 'center' },
-    momLabel:    { fontSize: 10, color: Colors.textMuted, marginBottom: 4, textAlign: 'center' },
+    momLabel:    { fontSize: 10, color: Colors.textMuted, marginBottom: Spacing.xs, textAlign: 'center' },
     momVal:      { fontSize: 15, fontWeight: '800', color: Colors.textPrimary },
-    chartCard:   { backgroundColor: Colors.surface, borderRadius: 14, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: Colors.border },
-    chartLegend: { flexDirection: 'row', gap: 14, marginBottom: 12 },
-    legendItem:  { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    chartCard:   { backgroundColor: Colors.surface, borderRadius: 14, padding: 14, marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
+    chartLegend: { flexDirection: 'row', gap: 14, marginBottom: Spacing.md },
+    legendItem:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
     legendDot:   { width: 8, height: 8, borderRadius: 4 },
     legendText:  { fontSize: 11, color: Colors.textSecondary },
-    barsArea:    { flexDirection: 'row', alignItems: 'flex-end', height: 130, gap: 4 },
+    barsArea:    { flexDirection: 'row', alignItems: 'flex-end', height: 130, gap: Spacing.xs },
     barGroup:    { flex: 1, alignItems: 'center' },
     bars:        { flexDirection: 'row', alignItems: 'flex-end', gap: 2, height: 120 },
     bar:         { flex: 1, borderRadius: 3, minWidth: 4 },
-    barMonthLabel:{ fontSize: 9, color: Colors.textMuted, marginTop: 4 },
-    tableCard:   { backgroundColor: Colors.surface, borderRadius: 14, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: Colors.border },
-    tableHeader: { flexDirection: 'row', paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: Colors.border, marginBottom: 4 },
+    barMonthLabel:{ fontSize: 9, color: Colors.textMuted, marginTop: Spacing.xs },
+    tableCard:   { backgroundColor: Colors.surface, borderRadius: 14, padding: 14, marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
+    tableHeader: { flexDirection: 'row', paddingBottom: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.border, marginBottom: Spacing.xs },
     tableRow:    { flexDirection: 'row', paddingVertical: 7 },
     tableRowAlt: { backgroundColor: Colors.bg, borderRadius: 6 },
     tableCell:   { fontSize: 12, color: Colors.textMuted, fontWeight: '600' },
     tableCellR:  { width: 72, textAlign: 'right' },
-    highlightCard:{ flexDirection: 'row', gap: 10, marginBottom: 12 },
-    highlightBox: { flex: 1, backgroundColor: Colors.surface, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1 },
-    highlightIcon:{ fontSize: 22, marginBottom: 4 },
+    highlightCard:{ flexDirection: 'row', gap: 10, marginBottom: Spacing.md },
+    highlightBox: { flex: 1, backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 14, alignItems: 'center', borderWidth: 1 },
+    highlightIconWrap:{ marginBottom: 4 },
     highlightLabel:{ fontSize: 10, color: Colors.textMuted, marginBottom: 2 },
     highlightMonth:{ fontSize: 16, fontWeight: '800', color: Colors.textPrimary, marginBottom: 2 },
     highlightVal:  { fontSize: 13, fontWeight: '700' },
 
     // Performers tab
-    focusCard:   { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: Colors.surface, borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: Colors.primary + '44' },
-    focusIcon:   { fontSize: 20 },
+    focusCard:   { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 14, marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.primary + '44' },
     focusText:   { flex: 1, fontSize: 13, color: Colors.textPrimary, lineHeight: 20 },
-    riskBanner:  { borderWidth: 1, borderRadius: 10, padding: 12, marginBottom: 12, backgroundColor: Colors.expense + '11' },
-    riskTitle:   { fontSize: 13, fontWeight: '700', marginBottom: 4 },
+    riskBanner:  { borderWidth: 1, borderRadius: 10, padding: Spacing.md, marginBottom: Spacing.md, backgroundColor: Colors.expense + '11' },
+    riskTitleRow:{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, marginBottom: 4 },
+    riskTitle:   { fontSize: 13, fontWeight: '700' },
     riskBody:    { fontSize: 12, color: Colors.textSecondary, lineHeight: 18 },
     perfRow:     { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border },
     rankBadge:   { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border },
@@ -527,14 +545,14 @@ const gs = StyleSheet.create({
     perfName:    { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
     perfMeta:    { fontSize: 11, color: Colors.textMuted, marginTop: 1 },
     perfVal:     { fontSize: 13, fontWeight: '800' },
-    perfShare:   { fontSize: 10, color: Colors.textMuted, marginTop: 1 },
+    perfShareRow:{ flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 1 },
+    perfShare:   { fontSize: 10, color: Colors.textMuted },
     drainNote:   { fontSize: 11, color: Colors.textMuted, marginBottom: 10, lineHeight: 16 },
-    drainIcon:   { fontSize: 16 },
-    emptyHint:   { fontSize: 12, color: Colors.textMuted, paddingVertical: 12, textAlign: 'center' },
+    emptyHint:   { fontSize: 12, color: Colors.textMuted, paddingVertical: Spacing.md, textAlign: 'center' },
 
     // Empty state
-    emptyBox:   { alignItems: 'center', padding: 40 },
-    emptyIcon:  { fontSize: 44, marginBottom: 14 },
-    emptyTitle: { fontSize: 17, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 8 },
-    emptyBody:  { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 20 },
+    emptyBox:      { alignItems: 'center', padding: Spacing.huge },
+    emptyIconWrap: { marginBottom: 14 },
+    emptyTitle:    { fontSize: 17, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: Spacing.sm },
+    emptyBody:     { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 20 },
 });

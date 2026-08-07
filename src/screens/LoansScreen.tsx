@@ -28,6 +28,8 @@ import ProfitCashImpactCard from '../components/ProfitCashImpactCard';
 import { computeProfitCashImpact } from '../utils/impactChain';
 import { monthlyPayment, totalInterest, outstandingLoanBalance } from '../utils/loanMath';
 import { showAlert } from '../utils/webAlert';
+import Icon from '../components/ui/Icon';
+import { Radius, Shadow, Spacing } from '../theme/tokens';
 
 function totalPaid(loan: Loan): number {
     return (loan.payments ?? []).reduce((s, p) => s + p.amount, 0);
@@ -201,12 +203,18 @@ export default function LoansScreen() {
                         with real interest saved, not just a flat list of loans. */}
                     {showDebtStrategy && (
                         <View style={s.strategyCard}>
-                            <Text style={s.strategyTitle}>🎯 Debt Payoff Strategy</Text>
+                            <View style={s.strategyTitleRow}>
+                                <Icon name="target" size={14} color={Colors.textPrimary} />
+                                <Text style={s.strategyTitle}>Debt Payoff Strategy</Text>
+                            </View>
                             <Text style={s.strategyRecommendation}>{debtOpt.recommendation}</Text>
 
                             <View style={s.strategyMethodRow}>
                                 <View style={s.strategyMethod}>
-                                    <Text style={s.strategyMethodLabel}>⚡ Avalanche (lowest total interest)</Text>
+                                    <View style={s.strategyMethodLabelRow}>
+                                        <Icon name="percent" size={11} color={Colors.textPrimary} />
+                                        <Text style={s.strategyMethodLabel}>Avalanche (lowest total interest)</Text>
+                                    </View>
                                     {debtOpt.avalanche.order.map((name, i) => (
                                         <Text key={i} style={s.strategyOrderItem}>{i + 1}. {name}</Text>
                                     ))}
@@ -215,7 +223,10 @@ export default function LoansScreen() {
                                     </Text>
                                 </View>
                                 <View style={s.strategyMethod}>
-                                    <Text style={s.strategyMethodLabel}>❄️ Snowball (fastest wins)</Text>
+                                    <View style={s.strategyMethodLabelRow}>
+                                        <Icon name="zap" size={11} color={Colors.textPrimary} />
+                                        <Text style={s.strategyMethodLabel}>Snowball (fastest wins)</Text>
+                                    </View>
                                     {debtOpt.snowball.order.map((name, i) => (
                                         <Text key={i} style={s.strategyOrderItem}>{i + 1}. {name}</Text>
                                     ))}
@@ -227,7 +238,7 @@ export default function LoansScreen() {
 
                     {/* Loan Eligibility Tool */}
                     <TouchableOpacity onPress={() => setShowLoanEligibility(true)} style={s.featureCard}>
-                        <Text style={s.featureIcon}>💼</Text>
+                        <Icon name="briefcase" size={28} color={Colors.primary} />
                         <View style={s.featureContent}>
                             <Text style={s.featureTitle}>Loan Eligibility Tracker</Text>
                             <Text style={s.featureDesc}>Compare 4 loan types and check your eligibility</Text>
@@ -239,7 +250,7 @@ export default function LoansScreen() {
                         tab on Credit-Worthiness (folded in from the
                         now-removed standalone screen). */}
                     <TouchableOpacity onPress={() => navigate('credit-worthiness', { tab: 'funding-pack' })} style={s.featureCard}>
-                        <Text style={s.featureIcon}>🏦</Text>
+                        <Icon name="home" size={28} color={Colors.primary} />
                         <View style={s.featureContent}>
                             <Text style={s.featureTitle}>Bank Loan Qualification</Text>
                             <Text style={s.featureDesc}>Check your readiness for a larger bank loan</Text>
@@ -250,16 +261,21 @@ export default function LoansScreen() {
                     {/* Overdue alert */}
                     {overdueLoans.length > 0 && (
                         <View style={s.alertBanner}>
-                            <Text style={s.alertText}>
-                                ⚠️ {overdueLoans.length} loan payment{overdueLoans.length > 1 ? 's are' : ' is'} overdue
-                            </Text>
+                            <View style={s.alertTextRow}>
+                                <Icon name="alert-triangle" size={14} color={Colors.expense} />
+                                <Text style={s.alertText}>
+                                    {overdueLoans.length} loan payment{overdueLoans.length > 1 ? 's are' : ' is'} overdue
+                                </Text>
+                            </View>
                             <NextStepLink text="See how this affects your credit score" onPress={() => navigate('credit-worthiness')} />
                         </View>
                     )}
 
                     {loans.length === 0 ? (
                         <View style={s.emptyState}>
-                            <Text style={s.emptyIcon}>🏦</Text>
+                            <View style={s.emptyIcon}>
+                                <Icon name="home" size={48} color={Colors.textMuted} />
+                            </View>
                             <Text style={s.emptyTitle}>No loans recorded yet.</Text>
                             <Text style={s.emptySub}>
                                 Add bank loans, family loans, or any money your business owes. Tracking loans helps you see total repayment obligations and interest costs.
@@ -360,15 +376,21 @@ export default function LoansScreen() {
                                         </Text>
 
                                         {/* Verdict */}
-                                        <View style={[s.verdictBox, { backgroundColor: (!affordable ? Colors.expense : tight ? Colors.warning : Colors.income) + '18', borderColor: (!affordable ? Colors.expense : tight ? Colors.warning : Colors.income) }]}>
-                                            <Text style={[s.verdictText, { color: !affordable ? Colors.expense : tight ? Colors.warning : Colors.income }]}>
-                                                {!affordable
-                                                    ? `⚠ This repayment (${currency}${mPay.toFixed(0)}/mo) exceeds your current monthly profit — it would push you into a monthly loss. Consider a longer term or smaller amount.`
-                                                    : tight
-                                                        ? `⚠ Manageable but heavy: it consumes ${profitShare.toFixed(0)}% of monthly profit, leaving little buffer. A longer term lowers the monthly payment.`
-                                                        : `✓ Affordable: leaves ${currency}${profitAfter.toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo in profit after repayment.`}
-                                            </Text>
-                                        </View>
+                                        {(() => {
+                                            const verdictColor = !affordable ? Colors.expense : tight ? Colors.warning : Colors.income;
+                                            return (
+                                                <View style={[s.verdictBox, { backgroundColor: verdictColor + '18', borderColor: verdictColor }]}>
+                                                    <Icon name={!affordable || tight ? 'alert-triangle' : 'check-circle'} size={14} color={verdictColor} />
+                                                    <Text style={[s.verdictText, { color: verdictColor }]}>
+                                                        {!affordable
+                                                            ? `This repayment (${currency}${mPay.toFixed(0)}/mo) exceeds your current monthly profit — it would push you into a monthly loss. Consider a longer term or smaller amount.`
+                                                            : tight
+                                                                ? `Manageable but heavy: it consumes ${profitShare.toFixed(0)}% of monthly profit, leaving little buffer. A longer term lowers the monthly payment.`
+                                                                : `Affordable: leaves ${currency}${profitAfter.toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo in profit after repayment.`}
+                                                    </Text>
+                                                </View>
+                                            );
+                                        })()}
                                         {(!affordable || tight) && (
                                             <NextStepLink text="See the full effect on your cash forecast before committing" onPress={() => navigate('cashflow')} />
                                         )}
@@ -471,9 +493,16 @@ function LoanCard({ loan, currency, expanded, onToggle, onEdit, onDelete, onAddP
                         {loan.purpose ? <Text style={s.loanPurpose}>{loan.purpose}</Text> : null}
                     </View>
                     <View style={{ alignItems: 'flex-end' }}>
-                        <Text style={[s.statusBadge, { color: statusColor }]}>
-                            {loan.status === 'paid_off' ? '✅ Paid Off' : loan.status === 'defaulted' ? '❌ Defaulted' : overdue ? '⚠️ Overdue' : '🔄 Active'}
-                        </Text>
+                        <View style={[s.badgeRow, { marginBottom: 2 }]}>
+                            <Icon
+                                name={loan.status === 'paid_off' ? 'check-circle' : loan.status === 'defaulted' ? 'x-circle' : overdue ? 'alert-triangle' : 'refresh-cw'}
+                                size={11}
+                                color={statusColor}
+                            />
+                            <Text style={[s.statusBadge, { color: statusColor, marginBottom: 0 }]}>
+                                {loan.status === 'paid_off' ? 'Paid Off' : loan.status === 'defaulted' ? 'Defaulted' : overdue ? 'Overdue' : 'Active'}
+                            </Text>
+                        </View>
                         <Text style={s.balanceText}>{currency}{balance.toLocaleString(undefined, { maximumFractionDigits: 0 })} left</Text>
                     </View>
                 </View>
@@ -565,8 +594,15 @@ function FieldLabel({ text }: { text: string }) {
 const s = StyleSheet.create({
     safe: { flex: 1, backgroundColor: Colors.bg },
     scroll: { flex: 1 },
-    pad: { padding: 16, paddingBottom: 100 },
+    pad: { padding: Spacing.lg, paddingBottom: 100 },
     title: { fontSize: 22, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 14 },
+
+    // Small icon + label row shared by status badges and section titles.
+    badgeRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.xs,
+    },
 
     // Tab Bar
     tabBar: {
@@ -577,8 +613,8 @@ const s = StyleSheet.create({
     },
     tabButton: {
         flex: 1,
-        paddingVertical: 12,
-        paddingHorizontal: 16,
+        paddingVertical: Spacing.md,
+        paddingHorizontal: Spacing.lg,
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -602,37 +638,40 @@ const s = StyleSheet.create({
         backgroundColor: Colors.primary,
     },
 
-    summaryRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
-    strategyCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 14, borderLeftWidth: 3, borderLeftColor: Colors.primary },
-    strategyTitle: { fontSize: 13, fontWeight: '800', color: Colors.textPrimary, marginBottom: 6 },
+    summaryRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: 14 },
+    strategyCard: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.lg, marginBottom: 14, borderLeftWidth: 3, borderLeftColor: Colors.primary },
+    strategyTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, marginBottom: 6 },
+    strategyTitle: { fontSize: 13, fontWeight: '800', color: Colors.textPrimary },
     strategyRecommendation: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17, marginBottom: 12 },
     strategyMethodRow: { flexDirection: 'row', gap: 10 },
     strategyMethod: { flex: 1, backgroundColor: Colors.bg, borderRadius: 10, padding: 10 },
-    strategyMethodLabel: { fontSize: 11, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 },
+    strategyMethodLabelRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, marginBottom: 6 },
+    strategyMethodLabel: { fontSize: 11, fontWeight: '700', color: Colors.textPrimary },
     strategyOrderItem: { fontSize: 11, color: Colors.textSecondary, marginBottom: 3 },
     strategySaved: { fontSize: 11, fontWeight: '800', marginTop: 6 },
-    summaryCard: { flex: 1, backgroundColor: Colors.surface, borderRadius: 10, padding: 12, alignItems: 'center' },
+    summaryCard: { flex: 1, backgroundColor: Colors.surface, borderRadius: 10, padding: Spacing.md, alignItems: 'center' },
     summaryLabel: { fontSize: 10, color: Colors.textMuted, marginBottom: 3, textAlign: 'center' },
     summaryValue: { fontSize: 14, fontWeight: '700' },
 
-    alertBanner: { backgroundColor: 'rgba(239,68,68,0.12)', borderWidth: 1, borderColor: Colors.expense, borderRadius: 10, padding: 12, marginBottom: 12 },
+    alertBanner: { backgroundColor: 'rgba(239,68,68,0.12)', borderWidth: 1, borderColor: Colors.expense, borderRadius: 10, padding: Spacing.md, marginBottom: Spacing.md },
+    alertTextRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm },
     alertText: { color: Colors.expense, fontWeight: '600', fontSize: 13, textAlign: 'center' },
 
     emptyState: { alignItems: 'center', paddingTop: 60 },
-    emptyIcon: { fontSize: 48, marginBottom: 12 },
+    emptyIcon: { marginBottom: Spacing.md },
     emptyTitle: { fontSize: 16, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 },
     emptySub: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 20, paddingHorizontal: 20, marginBottom: 20 },
-    emptyAddBtn: { backgroundColor: Colors.primary, borderRadius: 10, paddingHorizontal: 28, paddingVertical: 12 },
+    emptyAddBtn: { backgroundColor: Colors.primary, borderRadius: 10, paddingHorizontal: 28, paddingVertical: Spacing.md },
     emptyAddBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 
-    card: { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: Colors.border },
+    card: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 14, marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     cardHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 },
     lenderName: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary },
     loanPurpose: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
     statusBadge: { fontSize: 11, fontWeight: '600', marginBottom: 2 },
     balanceText: { fontSize: 16, fontWeight: '800', color: Colors.expense },
 
-    progressBg: { height: 6, backgroundColor: Colors.border, borderRadius: 3, marginBottom: 4 },
+    progressBg: { height: 6, backgroundColor: Colors.border, borderRadius: 3, marginBottom: Spacing.xs },
     progressFill: { height: 6, borderRadius: 3 },
     progressLabel: { fontSize: 10, color: Colors.textMuted, marginBottom: 10 },
 
@@ -645,53 +684,52 @@ const s = StyleSheet.create({
     nextDueLabel: { fontSize: 12, color: Colors.textMuted },
     nextDueDate: { fontSize: 12, fontWeight: '700', color: Colors.textPrimary },
 
-    paymentHistory: { backgroundColor: Colors.bg, borderRadius: 8, padding: 10, marginBottom: 10 },
-    paymentHistoryTitle: { fontSize: 11, fontWeight: '700', color: Colors.textSecondary, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
+    paymentHistory: { backgroundColor: Colors.bg, borderRadius: Radius.sm, padding: 10, marginBottom: 10 },
+    paymentHistoryTitle: { fontSize: 11, fontWeight: '700', color: Colors.textSecondary, marginBottom: Spacing.sm, textTransform: 'uppercase', letterSpacing: 0.5 },
     paymentRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
     paymentDate: { fontSize: 11, color: Colors.textMuted, width: 85 },
     paymentNote: { flex: 1, fontSize: 11, color: Colors.textSecondary },
     paymentAmt: { fontSize: 12, fontWeight: '700' },
     morePayments: { fontSize: 10, color: Colors.textMuted, textAlign: 'center', marginTop: 2 },
 
-    actionRow: { flexDirection: 'row', gap: 8 },
+    actionRow: { flexDirection: 'row', gap: Spacing.sm },
     actionBtn: { flex: 1, paddingVertical: 7, borderRadius: 6, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
     actionBtnText: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary },
 
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-    sheet: { backgroundColor: Colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '92%' },
-    modalTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 16 },
+    sheet: { backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Spacing.xl, maxHeight: '92%', ...Shadow.md },
+    modalTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: Spacing.lg },
 
     fieldLabel: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary, marginBottom: 5, marginTop: 10 },
     input: {
         backgroundColor: Colors.bg, borderColor: Colors.border, borderWidth: 1,
-        borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10,
+        borderRadius: Radius.sm, paddingHorizontal: Spacing.md, paddingVertical: 10,
         color: Colors.textPrimary, fontSize: 14,
     },
 
-    previewBox: { backgroundColor: Colors.bg, borderRadius: 8, padding: 12, marginTop: 12, borderWidth: 1, borderColor: Colors.primary + '44' },
+    previewBox: { backgroundColor: Colors.bg, borderRadius: Radius.sm, padding: Spacing.md, marginTop: Spacing.md, borderWidth: 1, borderColor: Colors.primary + '44' },
     previewTitle: { fontSize: 12, fontWeight: '700', color: Colors.primary, marginBottom: 6 },
     previewLine: { fontSize: 12, color: Colors.textSecondary, marginBottom: 3 },
     previewVal: { fontWeight: '700', color: Colors.textPrimary },
     impactDivider: { height: 1, backgroundColor: Colors.border, marginVertical: 10 },
-    verdictBox: { borderRadius: 8, borderWidth: 1, padding: 10, marginTop: 10 },
-    verdictText: { fontSize: 11, fontWeight: '600', lineHeight: 16 },
+    verdictBox: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm, borderRadius: Radius.sm, borderWidth: 1, padding: 10, marginTop: 10 },
+    verdictText: { flex: 1, fontSize: 11, fontWeight: '600', lineHeight: 16 },
 
-    btnRow: { flexDirection: 'row', gap: 10, marginTop: 20, marginBottom: 10 },
-    btn: { flex: 1, backgroundColor: Colors.primary, paddingVertical: 13, borderRadius: 8, alignItems: 'center' },
+    btnRow: { flexDirection: 'row', gap: 10, marginTop: Spacing.xxl, marginBottom: 10 },
+    btn: { flex: 1, backgroundColor: Colors.primary, paddingVertical: 13, borderRadius: Radius.sm, alignItems: 'center' },
     btnSec: { backgroundColor: 'transparent', borderWidth: 1, borderColor: Colors.border },
-    btnText: { color: Colors.textPrimary, fontWeight: 'bold', fontSize: 14 },
+    btnText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
     btnSecText: { color: Colors.textSecondary, fontWeight: '600', fontSize: 14 },
 
     fab: {
         position: 'absolute', right: 20, bottom: 80,
-        width: 54, height: 54, borderRadius: 27,
+        width: 54, height: 54, borderRadius: Radius.pill,
         backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center',
-        shadowColor: '#000', shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.3, shadowRadius: 6, elevation: 8,
+        ...Shadow.md,
     },
-    fabText: { fontSize: 28, color: Colors.textPrimary, lineHeight: 32 },
+    fabText: { fontSize: 28, color: '#fff', lineHeight: 32 },
 
-    featureCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 14, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: Colors.primary + '40' },
+    featureCard: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.lg, marginBottom: 14, flexDirection: 'row', alignItems: 'center', gap: Spacing.md, borderWidth: 1, borderColor: Colors.primary + '40', ...Shadow.sm },
     featureIcon: { fontSize: 28 },
     featureContent: { flex: 1 },
     featureTitle: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },

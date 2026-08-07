@@ -4,6 +4,8 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
+import Icon from '../components/ui/Icon';
+import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { buildFutureFinancialStatements, NO_ADJUSTMENTS, ForecastAdjustments } from '../utils/futureFinancialStatements';
 import { getEconomicReference } from '../utils/economicContext';
 import { DRIVER_LABEL } from '../utils/externalRiskInsights';
@@ -86,7 +88,10 @@ export default function FutureFinancialStatementsScreen() {
             <Header />
             <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
                 <TouchableOpacity onPress={goBack}><Text style={s.back}>← Back</Text></TouchableOpacity>
-                <Text style={s.title}>🔮 Future Financial Statements</Text>
+                <View style={s.titleRow}>
+                    <Icon name="trending-up" size={22} color={Colors.textPrimary} />
+                    <Text style={s.title}>Future Financial Statements</Text>
+                </View>
                 <Text style={s.subtitle}>
                     A projection, not a guarantee — built from your recent revenue and costs, plus whatever
                     adjustments you enter below.
@@ -127,7 +132,10 @@ export default function FutureFinancialStatementsScreen() {
 
                         {forecast.riskAdjustedCategory && (
                             <View style={s.riskCard}>
-                                <Text style={s.riskTitle}>⚠️ Rising Cost Trend Factored In</Text>
+                                <View style={s.riskTitleRow}>
+                                    <Icon name="alert-triangle" size={14} color={Colors.warning} />
+                                    <Text style={[s.riskTitle, s.riskTitleInRow]}>Rising Cost Trend Factored In</Text>
+                                </View>
                                 <Text style={s.riskText}>
                                     <Text style={s.riskBold}>{forecast.riskAdjustedCategory}</Text> is currently{' '}
                                     {fmt(forecast.riskAdjustedCategoryMonthlySpend)}/mo and has been growing about{' '}
@@ -143,7 +151,10 @@ export default function FutureFinancialStatementsScreen() {
                         )}
 
                         <View style={s.refCard}>
-                            <Text style={s.refTitle}>📍 Reference for {econRef.marketLabel}</Text>
+                            <View style={s.refTitleRow}>
+                                <Icon name="map-pin" size={13} color={Colors.textPrimary} />
+                                <Text style={[s.refTitle, s.refTitleInRow]}>Reference for {econRef.marketLabel}</Text>
+                            </View>
                             <Text style={s.refLine}>Typical inflation: {econRef.inflationBandPct}  ·  Typical SME lending rate: {econRef.lendingRateBandPct}</Text>
                             <Text style={s.refCaveat}>
                                 Illustrative, approximate bands — not live data. Use these to sanity-check the
@@ -282,55 +293,60 @@ export default function FutureFinancialStatementsScreen() {
 const s = StyleSheet.create({
     safe: { flex: 1, backgroundColor: Colors.bg },
     scroll: { flex: 1 },
-    pad: { padding: 16, paddingBottom: 100 },
-    back: { color: Colors.primary, fontSize: 15, marginBottom: 8 },
-    title: { fontSize: 24, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 4 },
-    subtitle: { fontSize: 13, color: Colors.textSecondary, marginBottom: 16, lineHeight: 18 },
+    pad: { padding: Spacing.lg, paddingBottom: 100 },
+    back: { color: Colors.primary, fontSize: 15, marginBottom: Spacing.sm },
+    titleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.xs },
+    title: { fontSize: 24, fontWeight: 'bold', color: Colors.textPrimary },
+    subtitle: { fontSize: 13, color: Colors.textSecondary, marginBottom: Spacing.lg, lineHeight: 18 },
     card: {
-        backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14,
-        borderWidth: 1, borderColor: Colors.border,
+        backgroundColor: Colors.surface, borderRadius: 14, padding: Spacing.lg, marginBottom: 14,
+        borderWidth: 1, borderColor: Colors.border, ...Shadow.sm,
     },
     cardTitle: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, marginBottom: 10 },
     emptyText: { fontSize: 14, color: Colors.textSecondary, lineHeight: 20 },
     baselineNote: { fontSize: 12, color: Colors.textSecondary, marginBottom: 14, lineHeight: 17 },
     refCard: {
-        backgroundColor: Colors.surfaceVariant, borderRadius: 12, padding: 14, marginBottom: 14,
-        borderWidth: 1, borderColor: Colors.border,
+        backgroundColor: Colors.surfaceVariant, borderRadius: Radius.md, padding: 14, marginBottom: 14,
+        borderWidth: 1, borderColor: Colors.border, ...Shadow.sm,
     },
-    riskCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: Colors.warning },
-    riskTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: 8 },
-    riskText: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 19, marginBottom: 8 },
+    riskCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: Spacing.lg, marginBottom: 14, borderWidth: 1, borderColor: Colors.warning, ...Shadow.sm },
+    riskTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm },
+    riskTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary },
+    riskTitleInRow: { marginBottom: 0 },
+    riskText: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 19, marginBottom: Spacing.sm },
     riskBold: { fontWeight: '800', color: Colors.textPrimary },
     riskProjected: { fontSize: 12.5, fontWeight: '700', color: Colors.warning },
 
-    refTitle: { fontSize: 13.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: 4 },
+    refTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.xs },
+    refTitle: { fontSize: 13.5, fontWeight: '700', color: Colors.textPrimary },
+    refTitleInRow: { marginBottom: 0 },
     refLine: { fontSize: 12.5, color: Colors.textPrimary, marginBottom: 6 },
     refCaveat: { fontSize: 11, color: Colors.textSecondary, lineHeight: 15 },
 
     inputRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-    inputLabel: { fontSize: 13, color: Colors.textPrimary, flex: 1, marginRight: 8 },
-    inputWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surfaceVariant, borderRadius: 8, paddingHorizontal: 10, borderWidth: 1, borderColor: Colors.border },
-    input: { color: Colors.textPrimary, fontSize: 14, paddingVertical: 8, width: 70, textAlign: 'right' },
-    inputSuffix: { color: Colors.textSecondary, fontSize: 12, marginLeft: 4 },
+    inputLabel: { fontSize: 13, color: Colors.textPrimary, flex: 1, marginRight: Spacing.sm },
+    inputWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surfaceVariant, borderRadius: Radius.sm, paddingHorizontal: 10, borderWidth: 1, borderColor: Colors.border },
+    input: { color: Colors.textPrimary, fontSize: 14, paddingVertical: Spacing.sm, width: 70, textAlign: 'right' },
+    inputSuffix: { color: Colors.textSecondary, fontSize: 12, marginLeft: Spacing.xs },
 
-    horizonRow: { flexDirection: 'row', gap: 8, marginTop: 6 },
-    horizonBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, backgroundColor: Colors.surfaceVariant, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
+    horizonRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: 6 },
+    horizonBtn: { flex: 1, paddingVertical: Spacing.sm, borderRadius: Radius.sm, backgroundColor: Colors.surfaceVariant, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
     horizonBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
     horizonBtnText: { fontSize: 12.5, color: Colors.textSecondary, fontWeight: '600' },
     horizonBtnTextActive: { color: '#fff' },
 
-    impactCard: { backgroundColor: Colors.primary + '15', borderRadius: 12, padding: 14, marginBottom: 14, borderLeftWidth: 3, borderLeftColor: Colors.primary },
+    impactCard: { backgroundColor: Colors.primary + '15', borderRadius: Radius.md, padding: 14, marginBottom: 14, borderLeftWidth: 3, borderLeftColor: Colors.primary, ...Shadow.sm },
     impactTitle: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 },
     impactLine: { fontSize: 13, color: Colors.textPrimary, marginBottom: 3 },
 
     monthScroll: { marginBottom: 10 },
-    monthScrollContent: { gap: 8, paddingRight: 8 },
-    monthChip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },
+    monthScrollContent: { gap: Spacing.sm, paddingRight: Spacing.sm },
+    monthChip: { paddingVertical: Spacing.sm, paddingHorizontal: 14, borderRadius: Radius.xl, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },
     monthChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
     monthChipText: { fontSize: 12.5, color: Colors.textSecondary, fontWeight: '600' },
     monthChipTextActive: { color: '#fff' },
 
-    tabRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+    tabRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md },
     tab: { flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: Colors.surface, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
     tabActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
     tabText: { fontSize: 12.5, color: Colors.textSecondary, fontWeight: '600' },
@@ -338,12 +354,12 @@ const s = StyleSheet.create({
 
     row: {
         flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-        paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border,
+        paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.border,
     },
     rowLabel: { fontSize: 13.5, color: Colors.textSecondary, flex: 1 },
     rowLabelBold: { color: Colors.textPrimary, fontWeight: '700' },
-    rowValue: { fontSize: 14, fontWeight: '600', color: Colors.textPrimary, textAlign: 'right', flexShrink: 0, marginLeft: 8 },
+    rowValue: { fontSize: 14, fontWeight: '600', color: Colors.textPrimary, textAlign: 'right', flexShrink: 0, marginLeft: Spacing.sm },
     rowValueBold: { fontSize: 15.5, fontWeight: '800' },
 
-    disclaimer: { fontSize: 11.5, color: Colors.textSecondary, lineHeight: 16, marginBottom: 20 },
+    disclaimer: { fontSize: 11.5, color: Colors.textSecondary, lineHeight: 16, marginBottom: Spacing.xl },
 });

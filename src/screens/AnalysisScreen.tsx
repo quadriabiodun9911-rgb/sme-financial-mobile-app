@@ -7,6 +7,8 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
+import Icon, { IconName } from '../components/ui/Icon';
+import { Radius, Shadow, Spacing } from '../theme/tokens';
 import {
     analyseRootCause,
     modelHireStaff,
@@ -242,7 +244,8 @@ function CombineForm({ onRun, currency }: { onRun: (r: CombinedScenarioResult) =
             {/* Revenue / price lever */}
             <TouchableOpacity style={s.leverToggle} onPress={() => setRevenueOn(v => !v)}>
                 <Text style={s.leverCheck}>{revenueOn ? '☑' : '☐'}</Text>
-                <Text style={s.leverLabel}>📈 Change Revenue / Prices (%)</Text>
+                <Icon name="trending-up" size={14} color={Colors.textPrimary} />
+                <Text style={s.leverLabel}>Change Revenue / Prices (%)</Text>
             </TouchableOpacity>
             {revenueOn && (
                 <TextInput style={s.input} placeholder="e.g. 20 for +20%, -10 for -10%" placeholderTextColor={Colors.textMuted} keyboardType="numeric" value={revenuePct} onChangeText={setRevenuePct} />
@@ -251,7 +254,8 @@ function CombineForm({ onRun, currency }: { onRun: (r: CombinedScenarioResult) =
             {/* Cost lever (covers salary cuts, new hires, any cost change) */}
             <TouchableOpacity style={s.leverToggle} onPress={() => setCostOn(v => !v)}>
                 <Text style={s.leverCheck}>{costOn ? '☑' : '☐'}</Text>
-                <Text style={s.leverLabel}>✂️ Change a Cost (e.g. salary)</Text>
+                <Icon name="scissors" size={14} color={Colors.textPrimary} />
+                <Text style={s.leverLabel}>Change a Cost (e.g. salary)</Text>
             </TouchableOpacity>
             {costOn && (
                 <>
@@ -263,7 +267,8 @@ function CombineForm({ onRun, currency }: { onRun: (r: CombinedScenarioResult) =
             {/* Loan lever */}
             <TouchableOpacity style={s.leverToggle} onPress={() => setLoanOn(v => !v)}>
                 <Text style={s.leverCheck}>{loanOn ? '☑' : '☐'}</Text>
-                <Text style={s.leverLabel}>🏦 Take a Loan</Text>
+                <Icon name="briefcase" size={14} color={Colors.textPrimary} />
+                <Text style={s.leverLabel}>Take a Loan</Text>
             </TouchableOpacity>
             {loanOn && (
                 <>
@@ -289,9 +294,12 @@ function ScenarioResultCard({ result, currency }: { result: ScenarioResult | Com
         <View style={s.resultCard}>
             {/* YES / NO banner */}
             <View style={[s.yesNoBanner, { backgroundColor: recommend ? Colors.income + '22' : Colors.expense + '22', borderColor: recommend ? Colors.income : Colors.expense }]}>
-                <Text style={[s.yesNoText, { color: recommend ? Colors.income : Colors.expense }]}>
-                    {recommend ? '✅ GO FOR IT' : '⚠️ THINK TWICE'}
-                </Text>
+                <View style={s.yesNoRow}>
+                    <Icon name={recommend ? 'check-circle' : 'alert-triangle'} size={16} color={recommend ? Colors.income : Colors.expense} />
+                    <Text style={[s.yesNoText, { color: recommend ? Colors.income : Colors.expense }]}>
+                        {recommend ? 'GO FOR IT' : 'THINK TWICE'}
+                    </Text>
+                </View>
                 <Text style={[s.yesNoSub, { color: recommend ? Colors.income : Colors.expense }]}>
                     {recommend ? 'This looks like a good move for your business.' : 'This could hurt your profitability — review the risks.'}
                 </Text>
@@ -357,9 +365,12 @@ function ScenarioResultCard({ result, currency }: { result: ScenarioResult | Com
 
             {/* Verdict */}
             <View style={[s.verdictBox, { borderColor: good ? Colors.income : Colors.expense }]}>
-                <Text style={[s.verdictText, { color: good ? Colors.income : Colors.expense }]}>
-                    {good ? '✓' : '⚠'} {result.verdict}
-                </Text>
+                <View style={s.verdictRow}>
+                    <Icon name={good ? 'check-circle' : 'alert-triangle'} size={14} color={good ? Colors.income : Colors.expense} />
+                    <Text style={[s.verdictText, { color: good ? Colors.income : Colors.expense }]}>
+                        {result.verdict}
+                    </Text>
+                </View>
             </View>
 
             {/* Risks */}
@@ -403,20 +414,30 @@ export default function AnalysisScreen() {
         : analysis.severity === 'critical' ? Colors.expense
         : Colors.textMuted;
 
+    const severityIcon: IconName = analysis.severity === 'positive' ? 'check-circle'
+        : analysis.severity === 'warning' ? 'alert-triangle'
+        : analysis.severity === 'critical' ? 'alert-circle'
+        : 'info';
+
     const PERIODS: { key: ReportPeriod; label: string }[] = [
         { key: 'month', label: 'Monthly' },
         { key: 'quarter', label: 'Quarterly' },
         { key: 'year', label: 'Yearly' },
     ];
 
-    const SCENARIOS: { key: ScenarioType; label: string; icon: string }[] = [
-        { key: 'combine', label: 'Combine Factors',  icon: '🎛️' },
-        { key: 'hire',    label: 'Hire Staff',       icon: '👤' },
-        { key: 'revenue', label: 'Revenue Change',   icon: '📈' },
-        { key: 'loan',    label: 'Take a Loan',      icon: '🏦' },
-        { key: 'price',   label: 'Raise Prices',     icon: '💰' },
-        { key: 'cost',    label: 'Cut Costs',        icon: '✂️' },
-        { key: 'product', label: 'New Product',      icon: '🆕' },
+    const TABS: { key: Tab; label: string; icon: IconName }[] = [
+        { key: 'diagnosis', label: 'Why?', icon: 'search' },
+        { key: 'scenarios', label: 'What if?', icon: 'help-circle' },
+    ];
+
+    const SCENARIOS: { key: ScenarioType; label: string; icon: IconName }[] = [
+        { key: 'combine', label: 'Combine Factors',  icon: 'sliders' },
+        { key: 'hire',    label: 'Hire Staff',       icon: 'user' },
+        { key: 'revenue', label: 'Revenue Change',   icon: 'trending-up' },
+        { key: 'loan',    label: 'Take a Loan',      icon: 'briefcase' },
+        { key: 'price',   label: 'Raise Prices',     icon: 'dollar-sign' },
+        { key: 'cost',    label: 'Cut Costs',        icon: 'scissors' },
+        { key: 'product', label: 'New Product',      icon: 'plus-circle' },
     ];
 
     return (
@@ -431,9 +452,12 @@ export default function AnalysisScreen() {
 
             {/* Tab bar */}
             <View style={s.tabBar}>
-                {([{ key: 'diagnosis', label: '🔍 Why?' }, { key: 'scenarios', label: '🔮 What if?' }] as const).map(t => (
+                {TABS.map(t => (
                     <TouchableOpacity key={t.key} style={[s.tab, tab === t.key && s.tabActive]} onPress={() => setTab(t.key)}>
-                        <Text style={[s.tabText, tab === t.key && s.tabTextActive]}>{t.label}</Text>
+                        <View style={s.tabInner}>
+                            <Icon name={t.icon} size={14} color={tab === t.key ? Colors.primary : Colors.textMuted} />
+                            <Text style={[s.tabText, tab === t.key && s.tabTextActive]}>{t.label}</Text>
+                        </View>
                     </TouchableOpacity>
                 ))}
             </View>
@@ -445,7 +469,9 @@ export default function AnalysisScreen() {
                     <>
                         {!hasData ? (
                             <View style={s.emptyState}>
-                                <Text style={s.emptyIcon}>🔍</Text>
+                                <View style={s.emptyIcon}>
+                                    <Icon name="search" size={48} color={Colors.textMuted} />
+                                </View>
                                 <Text style={s.emptyTitle}>Add transactions to unlock diagnosis</Text>
                                 <Text style={s.emptyBody}>Once you have at least 2 months of data, Quad360 will automatically explain why your profit, revenue, and costs are changing.</Text>
                             </View>
@@ -462,9 +488,10 @@ export default function AnalysisScreen() {
 
                                 {/* Primary cause banner */}
                                 <View style={[s.causeBanner, { borderColor: severityColor }]}>
-                                    <Text style={[s.causeLabel, { color: severityColor }]}>
-                                        {analysis.severity === 'positive' ? '✅' : analysis.severity === 'warning' ? '⚠️' : analysis.severity === 'critical' ? '🔴' : 'ℹ️'} Why is your profit changing?
-                                    </Text>
+                                    <View style={s.causeLabelRow}>
+                                        <Icon name={severityIcon} size={14} color={severityColor} />
+                                        <Text style={[s.causeLabel, { color: severityColor }]}>Why is your profit changing?</Text>
+                                    </View>
                                     <Text style={[s.causeText, { color: severityColor }]}>{analysis.primaryCause}</Text>
                                 </View>
 
@@ -497,7 +524,10 @@ export default function AnalysisScreen() {
 
                                 {/* Diagnosis */}
                                 <View style={s.diagCard}>
-                                    <Text style={s.cardTitle}>📋 What's happening in your business</Text>
+                                    <View style={s.cardTitleRow}>
+                                        <Icon name="clipboard" size={13} color={Colors.textSecondary} />
+                                        <Text style={[s.cardTitle, s.cardTitleInRow]}>What's happening in your business</Text>
+                                    </View>
                                     {analysis.diagnosis.map((d, i) => (
                                         <Text key={i} style={s.diagLine}>{d}</Text>
                                     ))}
@@ -541,7 +571,10 @@ export default function AnalysisScreen() {
 
                                 {/* Recommendations */}
                                 <View style={s.recsCard}>
-                                    <Text style={s.cardTitle}>✅ What you should do</Text>
+                                    <View style={s.cardTitleRow}>
+                                        <Icon name="check-circle" size={13} color={Colors.textSecondary} />
+                                        <Text style={[s.cardTitle, s.cardTitleInRow]}>What you should do</Text>
+                                    </View>
                                     {analysis.recommendations.map((r, i) => (
                                         <View key={i} style={s.recRow}>
                                             <Text style={s.recNum}>{i + 1}</Text>
@@ -568,7 +601,9 @@ export default function AnalysisScreen() {
                                     style={[s.scTab, scenarioType === sc.key && s.scTabActive]}
                                     onPress={() => setScenarioType(sc.key)}
                                 >
-                                    <Text style={s.scTabIcon}>{sc.icon}</Text>
+                                    <View style={s.scTabIcon}>
+                                        <Icon name={sc.icon} size={20} color={scenarioType === sc.key ? '#fff' : Colors.textMuted} />
+                                    </View>
                                     <Text style={[s.scTabText, scenarioType === sc.key && s.scTabTextActive]}>{sc.label}</Text>
                                 </TouchableOpacity>
                             ))}
@@ -599,107 +634,113 @@ export default function AnalysisScreen() {
 const s = StyleSheet.create({
     safe:        { flex: 1, backgroundColor: Colors.bg },
     scroll:      { flex: 1 },
-    pad:         { padding: 16, paddingBottom: 100 },
-    headerRow:   { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, gap: 12 },
+    pad:         { padding: Spacing.lg, paddingBottom: 100 },
+    headerRow:   { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, gap: Spacing.md },
     backBtn:     { color: Colors.primary, fontSize: 14 },
     screenTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary },
 
     tabBar:       { flexDirection: 'row', backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border },
     tab:          { flex: 1, paddingVertical: 13, alignItems: 'center' },
+    tabInner:     { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
     tabActive:    { borderBottomWidth: 3, borderBottomColor: Colors.primary },
     tabText:      { fontSize: 14, color: Colors.textMuted, fontWeight: '600' },
     tabTextActive:{ color: Colors.primary },
 
-    emptyState: { alignItems: 'center', justifyContent: 'center', padding: 40 },
-    emptyIcon:  { fontSize: 48, marginBottom: 16 },
+    emptyState: { alignItems: 'center', justifyContent: 'center', padding: Spacing.huge },
+    emptyIcon:  { marginBottom: Spacing.lg },
     emptyTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary, textAlign: 'center', marginBottom: 10 },
     emptyBody:  { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 20 },
 
-    periodRow:      { flexDirection: 'row', gap: 8, marginBottom: 14 },
-    periodBtn:      { flex: 1, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', backgroundColor: Colors.surface },
+    periodRow:      { flexDirection: 'row', gap: Spacing.sm, marginBottom: 14 },
+    periodBtn:      { flex: 1, paddingVertical: Spacing.sm, borderRadius: Radius.sm, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', backgroundColor: Colors.surface },
     periodActive:   { backgroundColor: Colors.primary, borderColor: Colors.primary },
     periodText:     { fontSize: 13, color: Colors.textMuted, fontWeight: '600' },
     periodTextActive:{ color: '#fff' },
 
-    causeBanner: { borderWidth: 2, borderRadius: 12, padding: 14, marginBottom: 14, backgroundColor: Colors.surface },
-    causeLabel:  { fontSize: 11, fontWeight: '800', letterSpacing: 0.8, marginBottom: 4 },
+    causeBanner: { borderWidth: 2, borderRadius: 12, padding: 14, marginBottom: 14, backgroundColor: Colors.surface, ...Shadow.sm },
+    causeLabelRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.xs },
+    causeLabel:  { fontSize: 11, fontWeight: '800', letterSpacing: 0.8 },
     causeText:   { fontSize: 15, fontWeight: '700', lineHeight: 22 },
 
-    compareCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 12 },
-    cardTitle:   { fontSize: 13, fontWeight: '700', color: Colors.textSecondary, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
+    compareCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: Spacing.lg, marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
+    cardTitle:   { fontSize: 13, fontWeight: '700', color: Colors.textSecondary, marginBottom: Spacing.md, textTransform: 'uppercase', letterSpacing: 0.5 },
+    cardTitleRow:{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.md },
+    cardTitleInRow: { marginBottom: 0 },
     metricsGrid: { flexDirection: 'row' },
     metricCell:       { flex: 1, alignItems: 'center' },
-    metricCellLabel:  { fontSize: 10, color: Colors.textMuted, marginBottom: 4 },
+    metricCellLabel:  { fontSize: 10, color: Colors.textMuted, marginBottom: Spacing.xs },
     metricCellVal:    { fontSize: 15, fontWeight: 'bold' },
     metricCellChange: { fontSize: 11, fontWeight: '700', marginTop: 2 },
     metricCellPrv:    { fontSize: 9, color: Colors.textMuted, marginTop: 1 },
 
-    diagCard:  { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 12 },
-    diagLine:  { fontSize: 14, color: Colors.textPrimary, lineHeight: 22, marginBottom: 8 },
+    diagCard:  { backgroundColor: Colors.surface, borderRadius: 14, padding: Spacing.lg, marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
+    diagLine:  { fontSize: 14, color: Colors.textPrimary, lineHeight: 22, marginBottom: Spacing.sm },
 
-    driverCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 12 },
-    driverRow:  { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    driverCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: Spacing.lg, marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
+    driverRow:  { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.border },
     driverCat:  { fontSize: 13, fontWeight: '600', color: Colors.textPrimary },
     driverCur:  { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
     driverPrv:  { color: Colors.textMuted },
     driverChange:{ fontSize: 13, fontWeight: '700' },
 
-    recsCard:  { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 12 },
-    recRow:    { flexDirection: 'row', gap: 10, marginBottom: 12, alignItems: 'flex-start' },
+    recsCard:  { backgroundColor: Colors.surface, borderRadius: 14, padding: Spacing.lg, marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
+    recRow:    { flexDirection: 'row', gap: 10, marginBottom: Spacing.md, alignItems: 'flex-start' },
     recNum:    { width: 22, height: 22, borderRadius: 11, backgroundColor: Colors.primary, textAlign: 'center', fontSize: 11, fontWeight: '800', color: '#fff', lineHeight: 22 },
     recText:   { flex: 1, fontSize: 13, color: Colors.textPrimary, lineHeight: 20 },
 
     sectionTitle: { fontSize: 20, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 4 },
-    sectionSub:   { fontSize: 13, color: Colors.textMuted, marginBottom: 16, lineHeight: 20 },
+    sectionSub:   { fontSize: 13, color: Colors.textMuted, marginBottom: Spacing.lg, lineHeight: 20 },
 
-    scTab:         { alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, marginRight: 8, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
+    scTab:         { alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, marginRight: Spacing.sm, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
     scTabActive:   { backgroundColor: Colors.primary, borderColor: Colors.primary },
-    scTabIcon:     { fontSize: 20, marginBottom: 4 },
+    scTabIcon:     { marginBottom: Spacing.xs },
     scTabText:     { fontSize: 11, color: Colors.textMuted, fontWeight: '600' },
     scTabTextActive:{ color: '#fff' },
 
-    formCard:  { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 16 },
+    formCard:  { backgroundColor: Colors.surface, borderRadius: 14, padding: Spacing.lg, marginBottom: Spacing.lg, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     formLabel: { fontSize: 12, color: Colors.textMuted, marginBottom: 6, marginTop: 10 },
-    input:     { backgroundColor: Colors.bg, borderColor: Colors.border, borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 11, color: Colors.textPrimary, fontSize: 14, marginBottom: 4 },
-    presetRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
-    preset:    { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.bg },
+    input:     { backgroundColor: Colors.bg, borderColor: Colors.border, borderWidth: 1, borderRadius: Radius.sm, paddingHorizontal: Spacing.md, paddingVertical: 11, color: Colors.textPrimary, fontSize: 14, marginBottom: Spacing.xs },
+    presetRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: 10 },
+    preset:    { paddingHorizontal: Spacing.md, paddingVertical: 6, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.bg },
     presetActive:  { backgroundColor: Colors.primary, borderColor: Colors.primary },
     presetText:    { fontSize: 12, color: Colors.textSecondary },
     presetTextActive:{ color: '#fff', fontWeight: '700' },
-    runBtn:        { backgroundColor: Colors.primary, paddingVertical: 13, borderRadius: 10, alignItems: 'center', marginTop: 14 },
+    runBtn:        { backgroundColor: Colors.primary, paddingVertical: 13, borderRadius: 10, alignItems: 'center', marginTop: 14, ...Shadow.sm },
     runBtnDisabled:{ opacity: 0.4 },
     runBtnText:    { color: '#fff', fontWeight: 'bold', fontSize: 15 },
 
-    resultCard:    { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 16 },
-    yesNoBanner:   { borderWidth: 2, borderRadius: 10, padding: 12, marginBottom: 14, alignItems: 'center' },
+    resultCard:    { backgroundColor: Colors.surface, borderRadius: 14, padding: Spacing.lg, marginBottom: Spacing.lg, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
+    yesNoBanner:   { borderWidth: 2, borderRadius: 10, padding: Spacing.md, marginBottom: 14, alignItems: 'center' },
+    yesNoRow:      { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
     yesNoText:     { fontSize: 16, fontWeight: '800', letterSpacing: 1 },
     yesNoSub:      { fontSize: 12, marginTop: 4, textAlign: 'center' },
     resultLabel:   { fontSize: 16, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 14 },
     impactRow:     { flexDirection: 'row', marginBottom: 14, borderBottomWidth: 1, borderBottomColor: Colors.border, paddingBottom: 14 },
     impactBox:     { flex: 1, alignItems: 'center' },
-    impactLbl:     { fontSize: 10, color: Colors.textMuted, marginBottom: 4 },
+    impactLbl:     { fontSize: 10, color: Colors.textMuted, marginBottom: Spacing.xs },
     impactVal:     { fontSize: 16, fontWeight: 'bold' },
-    compareRow:    { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
-    compareCol:    { flex: 1, alignItems: 'center', backgroundColor: Colors.bg, borderRadius: 8, padding: 10 },
-    compareLbl:    { fontSize: 10, color: Colors.textMuted, marginBottom: 4 },
+    compareRow:    { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginBottom: 14 },
+    compareCol:    { flex: 1, alignItems: 'center', backgroundColor: Colors.bg, borderRadius: Radius.sm, padding: 10 },
+    compareLbl:    { fontSize: 10, color: Colors.textMuted, marginBottom: Spacing.xs },
     compareVal:    { fontSize: 16, fontWeight: 'bold' },
     compareMargin: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
     compareArrow:  { fontSize: 20, color: Colors.textMuted },
-    verdictBox:    { borderWidth: 1, borderRadius: 10, padding: 12, marginBottom: 8 },
-    verdictText:   { fontSize: 13, lineHeight: 20, fontWeight: '600' },
+    verdictBox:    { borderWidth: 1, borderRadius: 10, padding: Spacing.md, marginBottom: Spacing.sm },
+    verdictRow:    { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
+    verdictText:   { flex: 1, fontSize: 13, lineHeight: 20, fontWeight: '600' },
     riskHeader:    { fontSize: 12, fontWeight: '700', color: Colors.expense, marginBottom: 6 },
-    riskItem:      { fontSize: 12, color: Colors.textSecondary, lineHeight: 20, marginBottom: 4 },
+    riskItem:      { fontSize: 12, color: Colors.textSecondary, lineHeight: 20, marginBottom: Spacing.xs },
     oppHeader:     { fontSize: 12, fontWeight: '700', color: Colors.income, marginBottom: 6 },
-    oppItem:       { fontSize: 12, color: Colors.textSecondary, lineHeight: 20, marginBottom: 4 },
+    oppItem:       { fontSize: 12, color: Colors.textSecondary, lineHeight: 20, marginBottom: Spacing.xs },
 
-    combineHint:   { fontSize: 12, color: Colors.textMuted, marginBottom: 12, lineHeight: 18 },
-    leverToggle:   { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, marginTop: 6 },
+    combineHint:   { fontSize: 12, color: Colors.textMuted, marginBottom: Spacing.md, lineHeight: 18 },
+    leverToggle:   { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: 10, marginTop: 6 },
     leverCheck:    { fontSize: 16, color: Colors.primary },
     leverLabel:    { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
 
-    breakdownBox:    { backgroundColor: Colors.bg, borderRadius: 10, padding: 12, marginBottom: 14 },
-    breakdownHeader: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
-    breakdownRow:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 },
-    breakdownLabel:  { flex: 1, fontSize: 12, color: Colors.textSecondary, marginRight: 8 },
+    breakdownBox:    { backgroundColor: Colors.bg, borderRadius: Radius.sm, padding: Spacing.md, marginBottom: 14 },
+    breakdownHeader: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, marginBottom: Spacing.sm, textTransform: 'uppercase', letterSpacing: 0.5 },
+    breakdownRow:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: Spacing.xs },
+    breakdownLabel:  { flex: 1, fontSize: 12, color: Colors.textSecondary, marginRight: Spacing.sm },
     breakdownVal:    { fontSize: 12, fontWeight: '700' },
 });

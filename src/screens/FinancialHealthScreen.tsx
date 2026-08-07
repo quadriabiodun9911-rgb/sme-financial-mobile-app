@@ -14,6 +14,8 @@ import { useApp } from '../contexts/OptimizedContexts';
 import { Colors } from '../theme/colors';
 import { Config } from '../config';
 import NextStepLink from '../components/NextStepLink';
+import Icon from '../components/ui/Icon';
+import { Radius, Shadow, Spacing } from '../theme/tokens';
 
 interface HealthData {
     income:    any | null;
@@ -118,7 +120,10 @@ export default function FinancialHealthScreen() {
                     <Text style={styles.backBtn}>← Back</Text>
                 </TouchableOpacity>
                 <View>
-                    <Text style={styles.title}>📊 Financial Health</Text>
+                    <View style={styles.titleRow}>
+                        <Icon name="bar-chart-2" size={16} color={Colors.textPrimary} />
+                        <Text style={styles.title}>Financial Health</Text>
+                    </View>
                     <Text style={styles.subtitle}>Powered by Pngme · {currencyCode}</Text>
                 </View>
             </View>
@@ -126,9 +131,12 @@ export default function FinancialHealthScreen() {
             {/* Phone warning */}
             {!phone && (
                 <View style={styles.warnCard}>
-                    <Text style={styles.warnText}>
-                        ⚠️ No phone number on your account. Go to Settings → My Business to add one and unlock your financial health score.
-                    </Text>
+                    <View style={styles.warnTextRow}>
+                        <Icon name="alert-triangle" size={14} color="#f59e0b" />
+                        <Text style={styles.warnText}>
+                            No phone number on your account. Go to Settings → My Business to add one and unlock your financial health score.
+                        </Text>
+                    </View>
                     <TouchableOpacity onPress={() => navigate('settings')}>
                         <Text style={styles.warnLink}>Go to Settings →</Text>
                     </TouchableOpacity>
@@ -138,7 +146,9 @@ export default function FinancialHealthScreen() {
             {/* Fetch button */}
             {!data && (
                 <View style={styles.heroCard}>
-                    <Text style={styles.heroIcon}>🏦</Text>
+                    <View style={styles.heroIcon}>
+                        <Icon name="home" size={48} color={Colors.primary} />
+                    </View>
                     <Text style={styles.heroTitle}>Get Your Financial Health Score</Text>
                     <Text style={styles.heroBody}>
                         Pngme analyses your mobile money and bank SMS data to generate an income estimate and financial profile — useful for loan applications and business planning.
@@ -150,7 +160,12 @@ export default function FinancialHealthScreen() {
                     >
                         {loading
                             ? <ActivityIndicator color="#fff" />
-                            : <Text style={styles.primaryBtnText}>🔍  Fetch My Financial Score</Text>
+                            : (
+                                <View style={styles.badgeRow}>
+                                    <Icon name="search" size={15} color="#fff" />
+                                    <Text style={styles.primaryBtnText}>Fetch My Financial Score</Text>
+                                </View>
+                            )
                         }
                     </TouchableOpacity>
                 </View>
@@ -219,8 +234,20 @@ export default function FinancialHealthScreen() {
                         <DataRow label="Phone" value={data.phone ?? '—'} />
                         <DataRow label="Country" value={data.country?.toUpperCase() ?? currencyCode} />
                         {activeAccounts > 0 && <DataRow label="Active Accounts" value={String(activeAccounts)} />}
-                        <DataRow label="Mobile Money Active" value={mobileMoneyActive ? '✓ Yes' : '✗ No'} />
-                        <DataRow label="Active Loan" value={loanFlag ? '⚠️ Yes' : '✓ No'} />
+                        <View style={styles.dataRow}>
+                            <Text style={styles.dataLabel}>Mobile Money Active</Text>
+                            <View style={styles.dataValueRow}>
+                                <Icon name={mobileMoneyActive ? 'check-circle' : 'x-circle'} size={13} color={mobileMoneyActive ? Colors.income : Colors.textMuted} />
+                                <Text style={styles.dataValue}>{mobileMoneyActive ? 'Yes' : 'No'}</Text>
+                            </View>
+                        </View>
+                        <View style={styles.dataRow}>
+                            <Text style={styles.dataLabel}>Active Loan</Text>
+                            <View style={styles.dataValueRow}>
+                                <Icon name={loanFlag ? 'alert-triangle' : 'check-circle'} size={13} color={loanFlag ? Colors.warning : Colors.income} />
+                                <Text style={styles.dataValue}>{loanFlag ? 'Yes' : 'No'}</Text>
+                            </View>
+                        </View>
                         <DataRow label="Last Updated" value={new Date(data.fetchedAt).toLocaleString()} />
                         {loanFlag && (
                             <NextStepLink text="Make sure this loan is recorded in your app" onPress={() => navigate('loans')} />
@@ -230,7 +257,10 @@ export default function FinancialHealthScreen() {
                     {/* Partial errors */}
                     {(data.errors ?? []).length > 0 && (
                         <View style={styles.errorCard}>
-                            <Text style={styles.errorTitle}>⚠️ Some data unavailable</Text>
+                            <View style={[styles.badgeRow, { marginBottom: Spacing.sm }]}>
+                                <Icon name="alert-triangle" size={13} color="#ef4444" />
+                                <Text style={styles.errorTitle}>Some data unavailable</Text>
+                            </View>
                             {(data.errors ?? []).map((e, i) => (
                                 <Text key={i} style={styles.errorText}>• {e}</Text>
                             ))}
@@ -242,14 +272,20 @@ export default function FinancialHealthScreen() {
 
                     {/* Refresh */}
                     <TouchableOpacity style={styles.refreshBtn} onPress={fetchHealth} disabled={loading}>
-                        <Text style={styles.refreshBtnText}>🔄  Refresh Score</Text>
+                        <View style={styles.badgeRow}>
+                            <Icon name="refresh-cw" size={14} color={Colors.primary} />
+                            <Text style={styles.refreshBtnText}>Refresh Score</Text>
+                        </View>
                     </TouchableOpacity>
                 </>
             )}
 
             {/* What this data means */}
             <View style={styles.tipCard}>
-                <Text style={styles.tipTitle}>💡 How to use this</Text>
+                <View style={styles.badgeRow}>
+                    <Icon name="info" size={13} color={Colors.primary} />
+                    <Text style={styles.tipTitle}>How to use this</Text>
+                </View>
                 <Text style={styles.tipBody}>
                     Your financial health score is based on Pngme's analysis of your bank and mobile money SMS history. Use it to:
                     {'\n'}• Support loan applications with income evidence
@@ -261,7 +297,7 @@ export default function FinancialHealthScreen() {
             {/* Feature Cards - Navigation to coaching and credit tools */}
             <TouchableOpacity onPress={() => navigate('credit-worthiness')} style={styles.featureCardContainer}>
                 <View style={styles.featureCard}>
-                    <Text style={styles.featureIcon}>📈</Text>
+                    <Icon name="trending-up" size={28} color={Colors.primary} />
                     <View style={styles.featureContent}>
                         <Text style={styles.featureTitle}>Credit Worthiness</Text>
                         <Text style={styles.featureDesc}>Understand lender requirements & improve your profile</Text>
@@ -272,7 +308,7 @@ export default function FinancialHealthScreen() {
 
             <TouchableOpacity onPress={() => navigate('financial-assessment')} style={styles.featureCardContainer}>
                 <View style={styles.featureCard}>
-                    <Text style={styles.featureIcon}>🎯</Text>
+                    <Icon name="target" size={28} color={Colors.primary} />
                     <View style={styles.featureContent}>
                         <Text style={styles.featureTitle}>Financial Health Coach</Text>
                         <Text style={styles.featureDesc}>Get personalized recommendations & track milestones</Text>
@@ -286,59 +322,66 @@ export default function FinancialHealthScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: Colors.bg },
-    content:   { padding: 16, paddingBottom: 60 },
+    content:   { padding: Spacing.lg, paddingBottom: 60 },
 
-    header:   { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 20 },
+    header:   { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: Spacing.xxl },
     backBtn:  { color: Colors.primary, fontSize: 14, fontWeight: '600' },
+    titleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
     title:    { fontSize: 18, fontWeight: '800', color: Colors.textPrimary },
     subtitle: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
 
-    warnCard: { backgroundColor: 'rgba(251,191,36,0.12)', borderRadius: 12, padding: 14, marginBottom: 16, borderLeftWidth: 3, borderLeftColor: '#f59e0b' },
-    warnText: { fontSize: 13, color: Colors.textSecondary, lineHeight: 19, marginBottom: 8 },
+    // Small icon + label row shared by titles, badges and buttons throughout
+    // this screen.
+    badgeRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+
+    warnCard: { backgroundColor: 'rgba(251,191,36,0.12)', borderRadius: Radius.md, padding: 14, marginBottom: Spacing.lg, borderLeftWidth: 3, borderLeftColor: '#f59e0b' },
+    warnTextRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm, marginBottom: Spacing.sm },
+    warnText: { flex: 1, fontSize: 13, color: Colors.textSecondary, lineHeight: 19 },
     warnLink: { fontSize: 13, color: Colors.primary, fontWeight: '700' },
 
-    heroCard:  { backgroundColor: Colors.surface, borderRadius: 16, padding: 24, marginBottom: 16, alignItems: 'center' },
-    heroIcon:  { fontSize: 48, marginBottom: 12 },
+    heroCard:  { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.xxl, marginBottom: Spacing.lg, alignItems: 'center', borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
+    heroIcon:  { marginBottom: Spacing.md },
     heroTitle: { fontSize: 17, fontWeight: '800', color: Colors.textPrimary, textAlign: 'center', marginBottom: 10 },
-    heroBody:  { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 20, marginBottom: 20 },
+    heroBody:  { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 20, marginBottom: Spacing.xl },
 
-    primaryBtn:     { backgroundColor: Colors.primary, paddingVertical: 14, paddingHorizontal: 24, borderRadius: 12, alignItems: 'center', width: '100%' },
+    primaryBtn:     { backgroundColor: Colors.primary, paddingVertical: 14, paddingHorizontal: Spacing.xxl, borderRadius: Radius.md, alignItems: 'center', width: '100%' },
     primaryBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
     btnDisabled:    { opacity: 0.5 },
 
     loadingCard:  { alignItems: 'center', padding: 40, gap: 16 },
     loadingText:  { fontSize: 13, color: Colors.textMuted, textAlign: 'center' },
 
-    scoreCard: { backgroundColor: Colors.surface, borderRadius: 16, padding: 20, marginBottom: 14 },
-    scoreRow:  { flexDirection: 'row', justifyContent: 'space-around', marginTop: 12 },
+    scoreCard: { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.xl, marginBottom: 14 },
+    scoreRow:  { flexDirection: 'row', justifyContent: 'space-around', marginTop: Spacing.md },
     noScore:   { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 20 },
 
-    sectionTitle: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
+    sectionTitle: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: Spacing.xs },
 
-    infoCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14 },
+    infoCard: { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.lg, marginBottom: 14 },
     bigNumber:      { fontSize: 38, fontWeight: '900', color: Colors.primary, marginTop: 10 },
     bigNumberLabel: { fontSize: 13, color: Colors.textSecondary, fontWeight: '600', marginTop: 2 },
     bigNumberNote:  { fontSize: 11, color: Colors.textMuted, marginTop: 4 },
-    noDataText:     { fontSize: 13, color: Colors.textMuted, lineHeight: 20, marginTop: 8 },
+    noDataText:     { fontSize: 13, color: Colors.textMuted, lineHeight: 20, marginTop: Spacing.sm },
 
-    dataRow:   { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border },
-    dataLabel: { fontSize: 13, color: Colors.textMuted },
-    dataValue: { fontSize: 13, color: Colors.textPrimary, fontWeight: '600' },
+    dataRow:      { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    dataLabel:    { fontSize: 13, color: Colors.textMuted },
+    dataValue:    { fontSize: 13, color: Colors.textPrimary, fontWeight: '600' },
+    dataValueRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
 
-    errorCard:  { backgroundColor: 'rgba(239,68,68,0.08)', borderRadius: 12, padding: 14, marginBottom: 14, borderLeftWidth: 3, borderLeftColor: '#ef4444' },
-    errorTitle: { fontSize: 13, fontWeight: '700', color: '#ef4444', marginBottom: 8 },
-    errorText:  { fontSize: 12, color: Colors.textSecondary, marginBottom: 4 },
+    errorCard:  { backgroundColor: 'rgba(239,68,68,0.08)', borderRadius: Radius.md, padding: 14, marginBottom: 14, borderLeftWidth: 3, borderLeftColor: '#ef4444' },
+    errorTitle: { fontSize: 13, fontWeight: '700', color: '#ef4444' },
+    errorText:  { fontSize: 12, color: Colors.textSecondary, marginBottom: Spacing.xs },
     errorHint:  { fontSize: 11, color: Colors.textMuted, marginTop: 6, lineHeight: 17 },
 
-    refreshBtn:     { backgroundColor: Colors.surface, borderWidth: 1.5, borderColor: Colors.primary, paddingVertical: 13, borderRadius: 12, alignItems: 'center', marginBottom: 16 },
+    refreshBtn:     { backgroundColor: Colors.surface, borderWidth: 1.5, borderColor: Colors.primary, paddingVertical: 13, borderRadius: Radius.md, alignItems: 'center', marginBottom: Spacing.lg },
     refreshBtnText: { color: Colors.primary, fontWeight: '700', fontSize: 14 },
 
-    tipCard:  { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, borderLeftWidth: 3, borderLeftColor: Colors.primary },
-    tipTitle: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 },
-    tipBody:  { fontSize: 12, color: Colors.textMuted, lineHeight: 20 },
+    tipCard:  { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 14, borderLeftWidth: 3, borderLeftColor: Colors.primary },
+    tipTitle: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
+    tipBody:  { fontSize: 12, color: Colors.textMuted, lineHeight: 20, marginTop: Spacing.xs },
 
-    featureCardContainer: { marginBottom: 12 },
-    featureCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: Colors.primary + '40' },
+    featureCardContainer: { marginBottom: Spacing.md },
+    featureCard: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.lg, flexDirection: 'row', alignItems: 'center', gap: Spacing.md, borderWidth: 1, borderColor: Colors.primary + '40', ...Shadow.sm },
     featureIcon: { fontSize: 28 },
     featureContent: { flex: 1 },
     featureTitle: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },

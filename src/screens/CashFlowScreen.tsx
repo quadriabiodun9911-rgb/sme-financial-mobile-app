@@ -12,8 +12,13 @@ import { computeCashFlowForecast } from '../utils/finance';
 import { computeCashRunway } from '../utils/cashRunway';
 import NextStepLink from '../components/NextStepLink';
 import { suggestSolution } from '../utils/impactChain';
+import Icon, { IconName } from '../components/ui/Icon';
+import { Radius, Shadow, Spacing } from '../theme/tokens';
 
 type Tab = 'forecast' | 'runway' | 'ar';
+
+const TAB_ICON: Record<Tab, IconName> = { forecast: 'calendar', runway: 'clock', ar: 'mail' };
+const TAB_LABEL: Record<Tab, string> = { forecast: 'Forecast', runway: 'Runway', ar: 'AR Risk' };
 
 export default function CashFlowScreen() {
     const { transactions, loans, invoices, budgets, finance, settings, setCurrentScreen } = useApp();
@@ -88,9 +93,12 @@ export default function CashFlowScreen() {
                         style={[styles.tab, tab === t && styles.tabActive]}
                         onPress={() => setTab(t)}
                     >
-                        <Text style={[styles.tabLabel, tab === t && styles.tabLabelActive]}>
-                            {t === 'forecast' ? '📅 Forecast' : t === 'runway' ? '⛽ Runway' : '📨 AR Risk'}
-                        </Text>
+                        <View style={styles.tabLabelRow}>
+                            <Icon name={TAB_ICON[t]} size={13} color={tab === t ? Colors.primary : Colors.muted} />
+                            <Text style={[styles.tabLabel, tab === t && styles.tabLabelActive]}>
+                                {TAB_LABEL[t]}
+                            </Text>
+                        </View>
                     </TouchableOpacity>
                 ))}
             </View>
@@ -120,7 +128,7 @@ export default function CashFlowScreen() {
 
                         {alertWeeks > 0 && (
                             <View style={styles.alertBanner}>
-                                <Text style={styles.alertIcon}>⚠️</Text>
+                                <Icon name="alert-triangle" size={16} color={Colors.expense} />
                                 <Text style={styles.alertText}>
                                     {alertWeeks} week{alertWeeks > 1 ? 's' : ''} with negative projected cash flow in the next 90 days. Review your outflows or accelerate collections.
                                 </Text>
@@ -131,7 +139,10 @@ export default function CashFlowScreen() {
                             const solution = suggestSolution('budget');
                             return (
                                 <View style={styles.solutionBanner}>
-                                    <Text style={styles.solutionTitle}>💡 {solution.title}</Text>
+                                    <View style={styles.solutionTitleRow}>
+                                        <Icon name="zap" size={14} color={Colors.primary} />
+                                        <Text style={styles.solutionTitle}>{solution.title}</Text>
+                                    </View>
                                     <Text style={styles.solutionDetail}>{solution.detail}</Text>
                                     <NextStepLink text="See the full profit → cash picture" onPress={() => setCurrentScreen('business-passport')} />
                                 </View>
@@ -176,9 +187,10 @@ export default function CashFlowScreen() {
                             </View>
                         </View>
 
-                        <View style={styles.noteBox}>
+                        <View style={styles.noteBoxRow}>
+                            <Icon name="zap" size={14} color={Colors.primary} />
                             <Text style={styles.noteText}>
-                                💡 Inflows are based on pending invoice due dates. Outflows use your recurring expenses, active loan payments{usesBudget ? ', and this month\'s committed budget' : ''}. Add more transactions to improve accuracy.
+                                Inflows are based on pending invoice due dates. Outflows use your recurring expenses, active loan payments{usesBudget ? ', and this month\'s committed budget' : ''}. Add more transactions to improve accuracy.
                             </Text>
                         </View>
 
@@ -198,13 +210,20 @@ export default function CashFlowScreen() {
                             <Text style={[styles.runwayDays, { color: runwayColor }]}>
                                 {Number.isFinite(runwayDays) ? runwayDays : '∞'} days
                             </Text>
-                            <Text style={styles.runwaySub}>
-                                {runwayDays < 30
-                                    ? '🔴 Critical — less than 30 days of cash remaining'
-                                    : runwayDays < 90
-                                    ? '🟡 Caution — less than 3 months of runway'
-                                    : '🟢 Healthy — more than 3 months of runway'}
-                            </Text>
+                            <View style={styles.runwaySubRow}>
+                                <Icon
+                                    name={runwayDays < 30 ? 'alert-circle' : runwayDays < 90 ? 'alert-triangle' : 'check-circle'}
+                                    size={13}
+                                    color={runwayColor}
+                                />
+                                <Text style={styles.runwaySub}>
+                                    {runwayDays < 30
+                                        ? 'Critical — less than 30 days of cash remaining'
+                                        : runwayDays < 90
+                                        ? 'Caution — less than 3 months of runway'
+                                        : 'Healthy — more than 3 months of runway'}
+                                </Text>
+                            </View>
                         </View>
 
                         <View style={styles.row2}>
@@ -220,10 +239,17 @@ export default function CashFlowScreen() {
 
                         <Text style={styles.sectionTitle}>What Affects Your Runway</Text>
                         <View style={styles.infoCard}>
-                            <Text style={styles.infoRow}>📉 Reduce burn rate by cutting non-essential recurring expenses</Text>
-                            <Text style={styles.infoRow}>📈 Increase inflow by accelerating invoice collections</Text>
-                            <Text style={styles.infoRow}>🏦 Build a minimum 3-month cash reserve as your safety net</Text>
-                            <Text style={styles.infoRow}>🔄 Review loan repayment schedule — refinancing can extend runway</Text>
+                            {([
+                                { icon: 'trending-down' as IconName, text: 'Reduce burn rate by cutting non-essential recurring expenses' },
+                                { icon: 'trending-up' as IconName, text: 'Increase inflow by accelerating invoice collections' },
+                                { icon: 'shield' as IconName, text: 'Build a minimum 3-month cash reserve as your safety net' },
+                                { icon: 'refresh-cw' as IconName, text: 'Review loan repayment schedule — refinancing can extend runway' },
+                            ]).map((item, i) => (
+                                <View key={i} style={styles.infoRowLine}>
+                                    <Icon name={item.icon} size={13} color={Colors.muted} />
+                                    <Text style={styles.infoRow}>{item.text}</Text>
+                                </View>
+                            ))}
                         </View>
 
                         <TouchableOpacity style={styles.actionBtn} onPress={() => setCurrentScreen('invoices')}>
@@ -251,7 +277,9 @@ export default function CashFlowScreen() {
 
                         {arRisk.length === 0 ? (
                             <View style={styles.emptyBox}>
-                                <Text style={styles.emptyIcon}>✅</Text>
+                                <View style={styles.emptyIconWrap}>
+                                    <Icon name="check-circle" size={48} color={Colors.income} />
+                                </View>
                                 <Text style={styles.emptyTitle}>No Outstanding Invoices</Text>
                                 <Text style={styles.emptyText}>All invoices have been paid. Great work on collections!</Text>
                             </View>
@@ -273,10 +301,15 @@ export default function CashFlowScreen() {
                                             <View style={[styles.riskBadge, {
                                                 backgroundColor: risk === 'high' ? 'rgba(239,68,68,0.1)' : risk === 'medium' ? 'rgba(245,158,11,0.1)' : 'rgba(34,197,94,0.1)'
                                             }]}>
+                                                <Icon
+                                                    name={risk === 'high' ? 'alert-circle' : risk === 'medium' ? 'alert-triangle' : 'check-circle'}
+                                                    size={11}
+                                                    color={risk === 'high' ? Colors.expense : risk === 'medium' ? Colors.warning : Colors.income}
+                                                />
                                                 <Text style={[styles.riskText, {
                                                     color: risk === 'high' ? Colors.expense : risk === 'medium' ? Colors.warning : Colors.income
                                                 }]}>
-                                                    {risk === 'high' ? '🔴 High Risk' : risk === 'medium' ? '🟡 Due Soon' : '🟢 On Track'}
+                                                    {risk === 'high' ? 'High Risk' : risk === 'medium' ? 'Due Soon' : 'On Track'}
                                                 </Text>
                                             </View>
                                             <Text style={styles.arDue}>
@@ -305,30 +338,31 @@ export default function CashFlowScreen() {
 
 const styles = StyleSheet.create({
     safe:     { flex: 1, backgroundColor: Colors.bg },
-    scroll:   { padding: 16 },
+    scroll:   { padding: Spacing.lg },
     tabRow:   { flexDirection: 'row', borderBottomWidth: 1, borderColor: Colors.border, backgroundColor: Colors.bg },
-    tab:      { flex: 1, paddingVertical: 12, alignItems: 'center' },
+    tab:      { flex: 1, paddingVertical: Spacing.md, alignItems: 'center' },
     tabActive:{ borderBottomWidth: 2, borderColor: Colors.primary },
+    tabLabelRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
     tabLabel: { fontSize: 13, color: Colors.muted, fontWeight: '600' },
     tabLabelActive: { color: Colors.primary },
 
-    row3:     { flexDirection: 'row', gap: 8, marginBottom: 12 },
-    miniCard: { flex: 1, backgroundColor: Colors.card, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: Colors.border },
-    miniLabel:{ fontSize: 10, color: Colors.muted, marginBottom: 4 },
+    row3:     { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md },
+    miniCard: { flex: 1, backgroundColor: Colors.card, borderRadius: Radius.md, padding: Spacing.md, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
+    miniLabel:{ fontSize: 10, color: Colors.muted, marginBottom: Spacing.xs },
     miniVal:  { fontSize: 14, fontWeight: '800' },
 
-    alertBanner: { flexDirection: 'row', backgroundColor: 'rgba(239,68,68,0.08)', borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)', borderRadius: 10, padding: 12, gap: 8, marginBottom: 16, alignItems: 'flex-start' },
-    alertIcon:   { fontSize: 16 },
+    alertBanner: { flexDirection: 'row', backgroundColor: 'rgba(239,68,68,0.08)', borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)', borderRadius: 10, padding: Spacing.md, gap: Spacing.sm, marginBottom: Spacing.lg, alignItems: 'flex-start' },
     alertText:   { flex: 1, fontSize: 13, color: Colors.muted, lineHeight: 18 },
 
-    solutionBanner: { backgroundColor: Colors.card, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, padding: 12, marginBottom: 16 },
-    solutionTitle:  { fontSize: 13, fontWeight: '700', color: Colors.text, marginBottom: 4 },
+    solutionBanner: { backgroundColor: Colors.card, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, padding: Spacing.md, marginBottom: Spacing.lg, ...Shadow.sm },
+    solutionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, marginBottom: Spacing.xs },
+    solutionTitle:  { fontSize: 13, fontWeight: '700', color: Colors.text },
     solutionDetail: { fontSize: 12, color: Colors.muted, lineHeight: 17 },
 
-    sectionTitle: { fontSize: 14, fontWeight: '700', color: Colors.text, marginBottom: 10, marginTop: 8 },
+    sectionTitle: { fontSize: 14, fontWeight: '700', color: Colors.text, marginBottom: 10, marginTop: Spacing.sm },
 
-    weekRow:      { flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 8 },
-    weekRowAlert: { backgroundColor: 'rgba(239,68,68,0.05)', borderRadius: 8, padding: 4 },
+    weekRow:      { flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: Spacing.sm },
+    weekRowAlert: { backgroundColor: 'rgba(239,68,68,0.05)', borderRadius: Radius.sm, padding: Spacing.xs },
     weekLabel:    { width: 52, fontSize: 11, color: Colors.muted },
     barCol:       { flex: 1, gap: 3 },
     barTrack:     { height: 6, backgroundColor: Colors.border, borderRadius: 3, overflow: 'hidden' },
@@ -337,44 +371,46 @@ const styles = StyleSheet.create({
     weekNet:      { fontSize: 12, fontWeight: '700' },
     weekCumLabel: { fontSize: 10, color: Colors.muted },
 
-    legend:       { flexDirection: 'row', gap: 16, justifyContent: 'center', marginTop: 12, marginBottom: 8 },
+    legend:       { flexDirection: 'row', gap: Spacing.lg, justifyContent: 'center', marginTop: Spacing.md, marginBottom: Spacing.sm },
     legendItem:   { flexDirection: 'row', alignItems: 'center', gap: 6 },
     legendDot:    { width: 10, height: 10, borderRadius: 5 },
     legendLabel:  { fontSize: 12, color: Colors.muted },
 
-    noteBox:  { backgroundColor: Colors.card, borderRadius: 10, padding: 14, borderWidth: 1, borderColor: Colors.border, marginTop: 8 },
-    noteText: { fontSize: 12, color: Colors.muted, lineHeight: 18 },
+    noteBoxRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm, backgroundColor: Colors.card, borderRadius: 10, padding: 14, borderWidth: 1, borderColor: Colors.border, marginTop: Spacing.sm },
+    noteText: { flex: 1, fontSize: 12, color: Colors.muted, lineHeight: 18 },
 
     // Runway
-    runwayCard:   { backgroundColor: Colors.card, borderRadius: 16, padding: 24, borderWidth: 2, marginBottom: 16, alignItems: 'center' },
-    runwayLabel:  { fontSize: 13, color: Colors.muted, marginBottom: 8 },
+    runwayCard:   { backgroundColor: Colors.card, borderRadius: Radius.lg, padding: Spacing.xxl, borderWidth: 2, marginBottom: Spacing.lg, alignItems: 'center', ...Shadow.sm },
+    runwayLabel:  { fontSize: 13, color: Colors.muted, marginBottom: Spacing.sm },
     runwayDays:   { fontSize: 52, fontWeight: '900' },
-    runwaySub:    { fontSize: 13, color: Colors.muted, marginTop: 8, textAlign: 'center' },
+    runwaySubRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, marginTop: Spacing.sm },
+    runwaySub:    { fontSize: 13, color: Colors.muted, textAlign: 'center' },
 
-    row2:  { flexDirection: 'row', gap: 10, marginBottom: 16 },
-    card2: { flex: 1, backgroundColor: Colors.card, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: Colors.border },
-    card2Label: { fontSize: 11, color: Colors.muted, marginBottom: 4 },
+    row2:  { flexDirection: 'row', gap: 10, marginBottom: Spacing.lg },
+    card2: { flex: 1, backgroundColor: Colors.card, borderRadius: Radius.md, padding: 14, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
+    card2Label: { fontSize: 11, color: Colors.muted, marginBottom: Spacing.xs },
     card2Val:   { fontSize: 18, fontWeight: '800' },
 
-    infoCard: { backgroundColor: Colors.card, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: Colors.border, marginBottom: 16, gap: 10 },
-    infoRow:  { fontSize: 13, color: Colors.muted, lineHeight: 18 },
+    infoCard: { backgroundColor: Colors.card, borderRadius: Radius.md, padding: 14, borderWidth: 1, borderColor: Colors.border, marginBottom: Spacing.lg, gap: 10, ...Shadow.sm },
+    infoRowLine: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
+    infoRow:  { flex: 1, fontSize: 13, color: Colors.muted, lineHeight: 18 },
 
-    actionBtn: { backgroundColor: 'rgba(59,130,246,0.12)', borderWidth: 1, borderColor: Colors.primary, borderRadius: 12, padding: 14, alignItems: 'center', marginBottom: 10 },
+    actionBtn: { backgroundColor: 'rgba(59,130,246,0.12)', borderWidth: 1, borderColor: Colors.primary, borderRadius: Radius.md, padding: 14, alignItems: 'center', marginBottom: 10 },
     actionBtnText: { fontSize: 14, fontWeight: '700', color: Colors.primary },
 
     // AR Risk
-    arCard: { backgroundColor: Colors.card, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: Colors.border, borderLeftWidth: 4, marginBottom: 10 },
+    arCard: { backgroundColor: Colors.card, borderRadius: Radius.md, padding: 14, borderWidth: 1, borderColor: Colors.border, borderLeftWidth: 4, marginBottom: 10, ...Shadow.sm },
     arTop:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
     arClient: { fontSize: 14, fontWeight: '700', color: Colors.text, flex: 1 },
     arAmount: { fontSize: 14, fontWeight: '800' },
-    arBottom: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+    arBottom: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flexWrap: 'wrap' },
     arRef:    { fontSize: 11, color: Colors.muted },
-    riskBadge:{ borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+    riskBadge:{ flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 6, paddingHorizontal: Spacing.sm, paddingVertical: 3 },
     riskText: { fontSize: 11, fontWeight: '700' },
     arDue:    { fontSize: 11, color: Colors.muted, marginLeft: 'auto' },
 
-    emptyBox:   { alignItems: 'center', paddingVertical: 40 },
-    emptyIcon:  { fontSize: 48, marginBottom: 12 },
+    emptyBox:      { alignItems: 'center', paddingVertical: Spacing.huge },
+    emptyIconWrap: { marginBottom: Spacing.md },
     emptyTitle: { fontSize: 18, fontWeight: '800', color: Colors.text, marginBottom: 6 },
     emptyText:  { fontSize: 14, color: Colors.muted, textAlign: 'center' },
 });

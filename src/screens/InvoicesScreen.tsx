@@ -14,6 +14,8 @@ import { sendInvoiceReminderViaWhatsApp, sendPaymentRequestViaWhatsApp, isWhatsA
 import NextStepLink from '../components/NextStepLink';
 import ProjectProfitabilityCalculator from '../components/ProjectProfitabilityCalculator';
 import { showAlert } from '../utils/webAlert';
+import Icon from '../components/ui/Icon';
+import { Radius, Shadow, Spacing } from '../theme/tokens';
 
 const STATUS_COLOR: Record<InvoiceStatus, string> = {
     draft:   Colors.textMuted,
@@ -533,11 +535,17 @@ export default function InvoicesScreen() {
                                     <>
                                         <TouchableOpacity style={[styles.draftBtn, { marginTop: 8, backgroundColor: '#25D366' }]}
                                             onPress={() => sendInvoiceReminderViaWhatsApp(viewInv, user?.businessName || 'Business', currency, viewInv.clientPhone || '')}>
-                                            <Text style={styles.draftBtnText}>💬 Send Reminder via WhatsApp</Text>
+                                            <View style={styles.btnIconRow}>
+                                                <Icon name="message-circle" size={14} color="#fff" />
+                                                <Text style={styles.draftBtnText}>Send Reminder via WhatsApp</Text>
+                                            </View>
                                         </TouchableOpacity>
                                         <TouchableOpacity style={[styles.draftBtn, { marginTop: 8, backgroundColor: '#128C7E' }]}
                                             onPress={() => sendPaymentRequestViaWhatsApp(viewInv, user?.businessName || 'Business', currency, viewInv.clientPhone || '')}>
-                                            <Text style={styles.draftBtnText}>💳 Request Payment via WhatsApp</Text>
+                                            <View style={styles.btnIconRow}>
+                                                <Icon name="credit-card" size={14} color="#fff" />
+                                                <Text style={styles.draftBtnText}>Request Payment via WhatsApp</Text>
+                                            </View>
                                         </TouchableOpacity>
                                     </>
                                 )}
@@ -552,7 +560,10 @@ export default function InvoicesScreen() {
                                                 customerEmail: viewInv.clientEmail || '',
                                                 invoiceId: viewInv.id,
                                             }); }}>
-                                            <Text style={styles.draftBtnText}>💳 Collect Payment via Paystack</Text>
+                                            <View style={styles.btnIconRow}>
+                                                <Icon name="credit-card" size={14} color="#fff" />
+                                                <Text style={styles.draftBtnText}>Collect Payment via Paystack</Text>
+                                            </View>
                                         </TouchableOpacity>
                                         <TouchableOpacity style={[styles.draftBtn, { marginTop: 8 }]}
                                             onPress={() => { markInvoiceStatus(viewInv.id, 'paid'); setViewInv(null); }}>
@@ -631,31 +642,34 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
     safe:   { flex: 1, backgroundColor: Colors.bg },
     scroll: { flex: 1 },
-    pad:    { padding: 16 },
+    pad:    { padding: Spacing.lg },
 
-    titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+    titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.lg },
     title:    { fontSize: 20, fontWeight: 'bold', color: Colors.textPrimary },
 
-    newBtn:     { backgroundColor: Colors.primary, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 },
-    newBtnText: { color: Colors.textPrimary, fontWeight: '600', fontSize: 13 },
+    newBtn:     { backgroundColor: Colors.primary, paddingHorizontal: 14, paddingVertical: Spacing.sm, borderRadius: Radius.sm },
+    newBtnText: { color: '#fff', fontWeight: '600', fontSize: 13 },
 
-    summaryRow:   { flexDirection: 'row', gap: 8, marginBottom: 14 },
+    // Icon + label row shared by the WhatsApp/Paystack action buttons below.
+    btnIconRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm },
+
+    summaryRow:   { flexDirection: 'row', gap: Spacing.sm, marginBottom: 14 },
     summaryCard:  { flex: 1, backgroundColor: Colors.surface, borderRadius: 10, padding: 10, alignItems: 'center' },
-    summaryLabel: { fontSize: 9, color: Colors.textMuted, marginBottom: 4, textAlign: 'center' },
+    summaryLabel: { fontSize: 9, color: Colors.textMuted, marginBottom: Spacing.xs, textAlign: 'center' },
     summaryValue: { fontSize: 13, fontWeight: 'bold' },
 
     filterRow:       { flexDirection: 'row', gap: 6, marginBottom: 14, flexWrap: 'wrap' },
-    filterTab:       { paddingHorizontal: 12, paddingVertical: 6, backgroundColor: Colors.surface, borderRadius: 20 },
+    filterTab:       { paddingHorizontal: Spacing.md, paddingVertical: 6, backgroundColor: Colors.surface, borderRadius: Radius.xl },
     filterTabActive: { backgroundColor: Colors.primary },
     filterText:      { fontSize: 12, color: Colors.textMuted },
-    filterTextActive:{ color: Colors.textPrimary, fontWeight: '600' },
+    filterTextActive:{ color: '#fff', fontWeight: '600' },
 
-    card:       { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, marginBottom: 12 },
-    cardTop:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+    card:       { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 14, marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
+    cardTop:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.xs },
     invNum:     { fontSize: 15, fontWeight: 'bold', color: Colors.textPrimary },
     badge:      { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
     badgeText:  { fontSize: 10, fontWeight: 'bold' },
-    client:     { fontSize: 13, color: Colors.textSecondary, marginBottom: 8 },
+    client:     { fontSize: 13, color: Colors.textSecondary, marginBottom: Spacing.sm },
     cardBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
     dueText:    { fontSize: 12, color: Colors.textMuted },
     amount:     { fontSize: 16, fontWeight: 'bold', color: Colors.textPrimary },
@@ -665,19 +679,19 @@ const styles = StyleSheet.create({
     whatsappBtn:    { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, backgroundColor: '#25D366' },
     whatsappBtnText:{ fontSize: 11, fontWeight: '600', color: '#fff' },
 
-    legendRow:  { flexDirection: 'row', gap: 12, marginBottom: 10, flexWrap: 'wrap' },
+    legendRow:  { flexDirection: 'row', gap: Spacing.md, marginBottom: 10, flexWrap: 'wrap' },
     legendItem: { fontSize: 11, fontWeight: '600' },
 
     empty:     { alignItems: 'center', paddingVertical: 60 },
     emptyText: { color: Colors.textMuted, fontSize: 14, textAlign: 'center' },
 
-    section:      { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, marginBottom: 14 },
+    section:      { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     sectionTitle: { fontSize: 14, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 10 },
 
-    flabel: { fontSize: 11, color: Colors.textSecondary, fontWeight: '600', marginBottom: 4, marginTop: 8 },
+    flabel: { fontSize: 11, color: Colors.textSecondary, fontWeight: '600', marginBottom: Spacing.xs, marginTop: Spacing.sm },
     finput: {
         backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border,
-        borderRadius: 8, paddingHorizontal: 10, paddingVertical: 9,
+        borderRadius: Radius.sm, paddingHorizontal: 10, paddingVertical: 9,
         color: Colors.textPrimary, fontSize: 14,
     },
 
@@ -686,17 +700,17 @@ const styles = StyleSheet.create({
     lineNum:    { fontSize: 12, fontWeight: '600', color: Colors.textMuted },
     lineRow:    { flexDirection: 'row' },
 
-    addLineBtn:     { borderWidth: 1, borderColor: Colors.border, borderRadius: 8, padding: 10, alignItems: 'center', marginTop: 10 },
+    addLineBtn:     { borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm, padding: 10, alignItems: 'center', marginTop: 10 },
     addLineBtnText: { color: Colors.primary, fontWeight: '600', fontSize: 13 },
 
-    totalsCard: { backgroundColor: Colors.bg, borderRadius: 10, padding: 12, marginBottom: 14 },
+    totalsCard: { backgroundColor: Colors.bg, borderRadius: 10, padding: Spacing.md, marginBottom: 14 },
     totalRow:   { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 },
     totalLabel: { fontSize: 13, color: Colors.textMuted },
     totalValue: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
 
     saveBtn:     { backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginBottom: 10 },
-    saveBtnText: { color: Colors.textPrimary, fontWeight: 'bold', fontSize: 15 },
-    draftBtn:    { borderWidth: 1, borderColor: Colors.border, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
+    saveBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
+    draftBtn:    { borderWidth: 1, borderColor: Colors.border, paddingVertical: Spacing.md, borderRadius: 10, alignItems: 'center' },
     draftBtnText:{ color: Colors.textMuted, fontSize: 14 },
 
     viewLine:      { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border },

@@ -8,6 +8,8 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
+import Icon from '../components/ui/Icon';
+import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { Transaction } from '../types';
 import { autoDetectColumns, parseCSVWithMapping } from '../utils/flexibleBankStatementParser';
 import { isDuplicateTransaction } from '../utils/transactionDedup';
@@ -297,7 +299,9 @@ export default function ReconciliationScreen() {
                     <>
                         {matched.length === 0 && (
                             <View style={styles.empty}>
-                                <Text style={styles.emptyIcon}>🔗</Text>
+                                <View style={styles.emptyIcon}>
+                                    <Icon name="link" size={40} color={Colors.textMuted} />
+                                </View>
                                 <Text style={styles.emptyText}>No matched transactions yet</Text>
                                 <Text style={styles.emptySubtext}>Import bank data from the Import tab</Text>
                             </View>
@@ -313,7 +317,7 @@ export default function ReconciliationScreen() {
                                     </Text>
                                 </View>
                                 <View style={styles.matchDivider}>
-                                    <Text style={styles.matchLink}>✓</Text>
+                                    <Icon name="link" size={16} color={Colors.income} />
                                 </View>
                                 <View style={styles.matchSide}>
                                     <Text style={styles.matchLabel}>APP</Text>
@@ -333,7 +337,9 @@ export default function ReconciliationScreen() {
                     <>
                         {unmatchedBank.length === 0 && unmatchedApp.length === 0 && (
                             <View style={styles.empty}>
-                                <Text style={styles.emptyIcon}>🎉</Text>
+                                <View style={styles.emptyIcon}>
+                                    <Icon name="check-circle" size={40} color={Colors.income} />
+                                </View>
                                 <Text style={styles.emptyText}>All transactions matched!</Text>
                                 <Text style={styles.emptySubtext}>Your books are reconciled</Text>
                             </View>
@@ -400,7 +406,7 @@ export default function ReconciliationScreen() {
                     <View style={styles.modalHeader}>
                         <Text style={styles.modalTitle}>Add Bank Transaction</Text>
                         <TouchableOpacity onPress={() => setAddManualModal(false)} activeOpacity={0.7}>
-                            <Text style={styles.modalClose}>✕</Text>
+                            <Icon name="x" size={20} color={Colors.textMuted} />
                         </TouchableOpacity>
                     </View>
                     <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
@@ -437,13 +443,13 @@ export default function ReconciliationScreen() {
 const styles = StyleSheet.create({
     safe:    { flex: 1, backgroundColor: Colors.bg },
     scroll:  { flex: 1 },
-    content: { padding: 16, paddingBottom: 24 },
+    content: { padding: Spacing.lg, paddingBottom: Spacing.xxl },
 
-    banner: { flexDirection: 'row', backgroundColor: Colors.surface, padding: 12, borderBottomWidth: 1, borderBottomColor: Colors.border, alignItems: 'center' },
+    banner: { flexDirection: 'row', backgroundColor: Colors.surface, padding: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border, alignItems: 'center' },
     bannerStat: { flex: 1, alignItems: 'center' },
     bannerValue: { fontSize: 20, fontWeight: '800' },
     bannerLabel: { fontSize: 10, color: Colors.textMuted, marginTop: 2 },
-    clearBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: Colors.expense + '22' },
+    clearBtn: { paddingHorizontal: Spacing.md, paddingVertical: 6, borderRadius: Radius.sm, backgroundColor: Colors.expense + '22' },
     clearBtnText: { fontSize: 12, color: Colors.expense, fontWeight: '700' },
 
     tabs: { flexDirection: 'row', backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border },
@@ -452,59 +458,57 @@ const styles = StyleSheet.create({
     tabText:   { fontSize: 12, color: Colors.textMuted, fontWeight: '600' },
     tabTextActive: { color: Colors.primary, fontWeight: '800' },
 
-    card: { backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.border, padding: 16, marginBottom: 14 },
-    cardTitle: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginBottom: 4 },
-    cardSubtitle: { fontSize: 12, color: Colors.textMuted, marginBottom: 12, lineHeight: 17 },
+    card: { backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.border, padding: Spacing.lg, marginBottom: 14, ...Shadow.sm },
+    cardTitle: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginBottom: Spacing.xs },
+    cardSubtitle: { fontSize: 12, color: Colors.textMuted, marginBottom: Spacing.md, lineHeight: 17 },
 
-    csvInput: { backgroundColor: Colors.bg, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, padding: 12, paddingTop: 10, fontSize: 12, color: Colors.textPrimary, height: 140, textAlignVertical: 'top', fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace', marginBottom: 12 },
-    input: { backgroundColor: Colors.bg, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: Colors.textPrimary },
-    primaryBtn: { backgroundColor: Colors.primary, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
+    csvInput: { backgroundColor: Colors.bg, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, padding: Spacing.md, paddingTop: 10, fontSize: 12, color: Colors.textPrimary, height: 140, textAlignVertical: 'top', fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace', marginBottom: Spacing.md },
+    input: { backgroundColor: Colors.bg, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: Spacing.md, paddingVertical: 10, fontSize: 14, color: Colors.textPrimary },
+    primaryBtn: { backgroundColor: Colors.primary, borderRadius: Radius.md, paddingVertical: 12, alignItems: 'center', ...Shadow.sm },
     primaryBtnText: { color: '#fff', fontWeight: '800', fontSize: 14 },
-    secondaryBtn: { borderWidth: 1.5, borderColor: Colors.primary, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
+    secondaryBtn: { borderWidth: 1.5, borderColor: Colors.primary, borderRadius: Radius.md, paddingVertical: 12, alignItems: 'center' },
     secondaryBtnText: { color: Colors.primary, fontWeight: '700', fontSize: 14 },
 
     dividerRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 14, gap: 10 },
     dividerLine: { flex: 1, height: 1, backgroundColor: Colors.border },
     dividerText: { fontSize: 12, color: Colors.textMuted },
 
-    miniRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderTopWidth: 1, borderTopColor: Colors.border, gap: 8 },
+    miniRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderTopWidth: 1, borderTopColor: Colors.border, gap: Spacing.sm },
     miniDate: { fontSize: 11, color: Colors.textMuted, width: 72 },
     miniDesc: { flex: 1, fontSize: 12, color: Colors.textSecondary },
     miniAmt:  { fontSize: 12, fontWeight: '700', minWidth: 70, textAlign: 'right' },
     recordedTag: { fontSize: 9, fontWeight: '700', color: Colors.income, backgroundColor: Colors.income + '22', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' },
-    moreNote: { fontSize: 11, color: Colors.textMuted, marginTop: 8, textAlign: 'center' },
+    moreNote: { fontSize: 11, color: Colors.textMuted, marginTop: Spacing.sm, textAlign: 'center' },
 
     empty: { alignItems: 'center', paddingVertical: 48 },
-    emptyIcon: { fontSize: 40, marginBottom: 12 },
+    emptyIcon: { marginBottom: Spacing.md },
     emptyText: { fontSize: 16, fontWeight: '700', color: Colors.textSecondary },
     emptySubtext: { fontSize: 13, color: Colors.textMuted, marginTop: 4 },
 
-    matchCard: { flexDirection: 'row', backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.income + '44', marginBottom: 10, overflow: 'hidden' },
-    matchSide: { flex: 1, padding: 12 },
-    matchLabel: { fontSize: 10, fontWeight: '800', color: Colors.textMuted, letterSpacing: 1, marginBottom: 4 },
+    matchCard: { flexDirection: 'row', backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.income + '44', marginBottom: 10, overflow: 'hidden', ...Shadow.sm },
+    matchSide: { flex: 1, padding: Spacing.md },
+    matchLabel: { fontSize: 10, fontWeight: '800', color: Colors.textMuted, letterSpacing: 1, marginBottom: Spacing.xs },
     matchDate:  { fontSize: 11, color: Colors.textMuted, marginBottom: 3 },
     matchDesc:  { fontSize: 12, color: Colors.textSecondary, marginBottom: 5 },
     matchAmt:   { fontSize: 14, fontWeight: '800' },
     matchDivider: { width: 30, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.income + '22' },
-    matchLink: { fontSize: 16, color: Colors.income, fontWeight: '800' },
 
-    sectionTitle: { fontSize: 13, fontWeight: '700', color: Colors.textSecondary, marginBottom: 8 },
+    sectionTitle: { fontSize: 13, fontWeight: '700', color: Colors.textSecondary, marginBottom: Spacing.sm },
     sectionNote: { fontSize: 12, color: Colors.textMuted, marginBottom: 10 },
 
-    unmatchCard: { flexDirection: 'row', backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.border, borderLeftWidth: 3, borderLeftColor: Colors.expense, padding: 14, marginBottom: 10, alignItems: 'center', gap: 12 },
+    unmatchCard: { flexDirection: 'row', backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.border, borderLeftWidth: 3, borderLeftColor: Colors.expense, padding: 14, marginBottom: 10, alignItems: 'center', gap: Spacing.md, ...Shadow.sm },
     unmatchInfo: { flex: 1 },
     unmatchDate: { fontSize: 11, color: Colors.textMuted, marginBottom: 3 },
     unmatchDesc: { fontSize: 13, color: Colors.textSecondary, fontWeight: '600', marginBottom: 5 },
     unmatchAmt:  { fontSize: 15, fontWeight: '800' },
-    importBtn: { backgroundColor: Colors.primary + '22', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
+    importBtn: { backgroundColor: Colors.primary + '22', paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: 10 },
     importBtnText: { color: Colors.primary, fontWeight: '700', fontSize: 12 },
 
     modalSafe:    { flex: 1, backgroundColor: Colors.bg },
-    modalHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    modalHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: Spacing.lg, borderBottomWidth: 1, borderBottomColor: Colors.border },
     modalTitle:   { fontSize: 18, fontWeight: '800', color: Colors.textPrimary },
-    modalClose:   { fontSize: 18, color: Colors.textMuted, fontWeight: '700' },
     fieldLabel:   { fontSize: 13, fontWeight: '600', color: Colors.textSecondary, marginBottom: 6 },
-    segmentRow:   { flexDirection: 'row', gap: 8 },
+    segmentRow:   { flexDirection: 'row', gap: Spacing.sm },
     segment:      { flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', backgroundColor: Colors.surface },
     segmentActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + '15' },
     segmentText:   { fontSize: 12, color: Colors.textMuted, fontWeight: '600', textAlign: 'center' },
