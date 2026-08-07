@@ -50,7 +50,7 @@ export interface ExternalRiskResult {
     insights: ExternalRiskInsight[];
 }
 
-const DRIVER_LABEL: Record<MacroDriver, string> = {
+export const DRIVER_LABEL: Record<MacroDriver, string> = {
     energy: 'Energy',
     fx: 'FX',
     interestRate: 'Interest Rate',

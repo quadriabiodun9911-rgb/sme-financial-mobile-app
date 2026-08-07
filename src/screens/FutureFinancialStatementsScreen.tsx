@@ -6,6 +6,7 @@ import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { buildFutureFinancialStatements, NO_ADJUSTMENTS, ForecastAdjustments } from '../utils/futureFinancialStatements';
 import { getEconomicReference } from '../utils/economicContext';
+import { DRIVER_LABEL } from '../utils/externalRiskInsights';
 
 type Statement = 'pnl' | 'cashflow' | 'balance';
 
@@ -63,13 +64,14 @@ export default function FutureFinancialStatementsScreen() {
 
     const hasAdjustments = JSON.stringify(adjustments) !== JSON.stringify(NO_ADJUSTMENTS);
 
+    const macroAssumptions = settings.macroAssumptions ?? [];
     const forecast = useMemo(
-        () => buildFutureFinancialStatements(transactions, loans, finance, adjustments, horizon, staff),
-        [transactions, loans, finance, adjustments, horizon, staff],
+        () => buildFutureFinancialStatements(transactions, loans, finance, adjustments, horizon, staff, macroAssumptions),
+        [transactions, loans, finance, adjustments, horizon, staff, macroAssumptions],
     );
     const baseline = useMemo(
-        () => buildFutureFinancialStatements(transactions, loans, finance, NO_ADJUSTMENTS, horizon, staff),
-        [transactions, loans, finance, horizon, staff],
+        () => buildFutureFinancialStatements(transactions, loans, finance, NO_ADJUSTMENTS, horizon, staff, macroAssumptions),
+        [transactions, loans, finance, horizon, staff, macroAssumptions],
     );
 
     const notEnoughData = forecast.baselineMonthsUsed === 0;
@@ -122,6 +124,23 @@ export default function FutureFinancialStatementsScreen() {
                                 <Row label="Unpaid customer invoices" value={fmt(forecast.knownReceivables)} />
                             )}
                         </View>
+
+                        {forecast.riskAdjustedCategory && (
+                            <View style={s.riskCard}>
+                                <Text style={s.riskTitle}>⚠️ Rising Cost Trend Factored In</Text>
+                                <Text style={s.riskText}>
+                                    <Text style={s.riskBold}>{forecast.riskAdjustedCategory}</Text> is currently{' '}
+                                    {fmt(forecast.riskAdjustedCategoryMonthlySpend)}/mo and has been growing about{' '}
+                                    {forecast.riskAdjustedCategoryGrowthPct.toFixed(0)}% every {forecast.riskAdjustedCategoryWindowMonths} months
+                                    {forecast.riskAdjustedCategoryInsight ? ` — tied to the ${DRIVER_LABEL[forecast.riskAdjustedCategoryInsight.driver]} assumption you noted in Macro Assumptions` : ''}.
+                                    {' '}Rather than blend it into a flat cost-growth %, this forecast projects it forward at its own pace, so the numbers below already reflect it continuing to outrun the rest of your expenses.
+                                </Text>
+                                <Text style={s.riskProjected}>
+                                    Projected by {month.monthLabel}:{' '}
+                                    {fmt(forecast.riskAdjustedCategoryMonthlySpend * Math.pow(1 + forecast.riskAdjustedCategoryGrowthPct / 100, (selectedMonthIdx + 1) / forecast.riskAdjustedCategoryWindowMonths))}/mo
+                                </Text>
+                            </View>
+                        )}
 
                         <View style={s.refCard}>
                             <Text style={s.refTitle}>📍 Reference for {econRef.marketLabel}</Text>
@@ -278,6 +297,12 @@ const s = StyleSheet.create({
         backgroundColor: Colors.surfaceVariant, borderRadius: 12, padding: 14, marginBottom: 14,
         borderWidth: 1, borderColor: Colors.border,
     },
+    riskCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: Colors.warning },
+    riskTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: 8 },
+    riskText: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 19, marginBottom: 8 },
+    riskBold: { fontWeight: '800', color: Colors.textPrimary },
+    riskProjected: { fontSize: 12.5, fontWeight: '700', color: Colors.warning },
+
     refTitle: { fontSize: 13.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: 4 },
     refLine: { fontSize: 12.5, color: Colors.textPrimary, marginBottom: 6 },
     refCaveat: { fontSize: 11, color: Colors.textSecondary, lineHeight: 15 },
