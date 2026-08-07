@@ -7,15 +7,17 @@ import FooterNav from '../components/FooterNav';
 import { generateId } from '../utils/uuid';
 import { MacroAssumption, MacroDriver } from '../types';
 import { showAlert, confirmAction } from '../utils/webAlert';
+import Icon, { IconName } from '../components/ui/Icon';
+import { Radius, Shadow, Spacing } from '../theme/tokens';
 
-const DRIVER_OPTIONS: { value: MacroDriver; label: string; icon: string }[] = [
-    { value: 'energy', label: 'Energy', icon: '⛽' },
-    { value: 'fx', label: 'FX', icon: '💱' },
-    { value: 'interestRate', label: 'Interest Rate', icon: '🏦' },
-    { value: 'inflation', label: 'Inflation', icon: '📈' },
-    { value: 'commodity', label: 'Commodity Price', icon: '📦' },
-    { value: 'regulation', label: 'Regulation', icon: '📜' },
-    { value: 'supplyChain', label: 'Supply Chain', icon: '🚚' },
+const DRIVER_OPTIONS: { value: MacroDriver; label: string; icon: IconName }[] = [
+    { value: 'energy', label: 'Energy', icon: 'zap' },
+    { value: 'fx', label: 'FX', icon: 'repeat' },
+    { value: 'interestRate', label: 'Interest Rate', icon: 'percent' },
+    { value: 'inflation', label: 'Inflation', icon: 'trending-up' },
+    { value: 'commodity', label: 'Commodity Price', icon: 'package' },
+    { value: 'regulation', label: 'Regulation', icon: 'file-text' },
+    { value: 'supplyChain', label: 'Supply Chain', icon: 'truck' },
 ];
 
 const DEFAULT_CATEGORIES = [
@@ -142,7 +144,7 @@ export default function MacroAssumptionsScreen() {
                         return (
                             <TouchableOpacity key={a.id} style={s.card} onPress={() => openEdit(a)}>
                                 <View style={s.cardHeaderRow}>
-                                    <Text style={s.cardIcon}>{meta.icon}</Text>
+                                    <Icon name={meta.icon} size={20} color={Colors.textSecondary} />
                                     <View style={{ flex: 1 }}>
                                         <Text style={s.cardLabel}>{a.label}</Text>
                                         <Text style={s.cardDriver}>{meta.label}</Text>
@@ -179,7 +181,10 @@ export default function MacroAssumptionsScreen() {
                                     style={[s.driverChip, driver === opt.value && s.driverChipActive]}
                                     onPress={() => setDriver(opt.value)}
                                 >
-                                    <Text style={[s.driverChipText, driver === opt.value && s.driverChipTextActive]}>{opt.icon} {opt.label}</Text>
+                                    <View style={s.driverChipInner}>
+                                        <Icon name={opt.icon} size={14} color={driver === opt.value ? Colors.primary : Colors.textSecondary} />
+                                        <Text style={[s.driverChipText, driver === opt.value && s.driverChipTextActive]}>{opt.label}</Text>
+                                    </View>
                                 </TouchableOpacity>
                             ))}
                         </View>
@@ -256,55 +261,59 @@ export default function MacroAssumptionsScreen() {
 const s = StyleSheet.create({
     safe: { flex: 1, backgroundColor: Colors.bg },
     scroll: { flex: 1, backgroundColor: Colors.bg },
-    pad: { padding: 16, paddingBottom: 100 },
+    pad: { padding: Spacing.lg, paddingBottom: 100 },
 
-    headerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, gap: 12 },
+    headerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, gap: Spacing.md },
     backBtn: { color: Colors.primary, fontSize: 14 },
     screenTitle: { flex: 1, fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary },
-    addBtn: { backgroundColor: Colors.primary, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7 },
+    addBtn: { backgroundColor: Colors.primary, borderRadius: Radius.sm, paddingHorizontal: 14, paddingVertical: 7 },
     addBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
 
-    subtitle: { fontSize: 12, color: Colors.textMuted, marginBottom: 16, lineHeight: 17 },
+    subtitle: { fontSize: 12, color: Colors.textMuted, marginBottom: Spacing.lg, lineHeight: 17 },
 
-    emptyState: { alignItems: 'center', padding: 32, backgroundColor: Colors.surface, borderRadius: 14 },
+    emptyState: { alignItems: 'center', padding: Spacing.xxxl, backgroundColor: Colors.surface, borderRadius: 14 },
     emptyTitle: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 },
-    emptySub: { fontSize: 12, color: Colors.textMuted, textAlign: 'center', marginBottom: 16 },
-    emptyBtn: { backgroundColor: Colors.primary, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 12 },
+    emptySub: { fontSize: 12, color: Colors.textMuted, textAlign: 'center', marginBottom: Spacing.lg },
+    emptyBtn: { backgroundColor: Colors.primary, borderRadius: 10, paddingHorizontal: Spacing.xl, paddingVertical: Spacing.md },
     emptyBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 
-    card: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 12 },
-    cardHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
+    card: {
+        backgroundColor: Colors.surface, borderRadius: 14, padding: Spacing.lg, marginBottom: Spacing.md,
+        borderWidth: 1, borderColor: Colors.border, ...Shadow.sm,
+    },
+    cardHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: Spacing.sm },
     cardIcon: { fontSize: 20 },
     cardLabel: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary },
     cardDriver: { fontSize: 11, color: Colors.textMuted },
     cardChange: { fontSize: 13, fontWeight: '700' },
     cardNote: { fontSize: 12, color: Colors.textSecondary, marginTop: 6, lineHeight: 17 },
-    cardUpdated: { fontSize: 10, color: Colors.textMuted, marginTop: 8 },
+    cardUpdated: { fontSize: 10, color: Colors.textMuted, marginTop: Spacing.sm },
 
     chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-    catChip: { backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+    catChip: { backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm, paddingHorizontal: 10, paddingVertical: 6 },
     catChipActive: { backgroundColor: Colors.primary + '20', borderColor: Colors.primary },
     catChipText: { fontSize: 11, color: Colors.textSecondary },
     catChipTextActive: { color: Colors.primary, fontWeight: '700' },
 
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
-    sheet: { backgroundColor: Colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 30, maxHeight: '85%' },
-    sheetHandle: { width: 40, height: 4, backgroundColor: Colors.border, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
-    sheetTitle: { fontSize: 18, fontWeight: '700', color: Colors.textPrimary, marginBottom: 16 },
+    sheet: { backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Spacing.xxl, paddingBottom: 30, maxHeight: '85%' },
+    sheetHandle: { width: 40, height: 4, backgroundColor: Colors.border, borderRadius: 2, alignSelf: 'center', marginBottom: Spacing.lg },
+    sheetTitle: { fontSize: 18, fontWeight: '700', color: Colors.textPrimary, marginBottom: Spacing.lg },
 
-    fieldLabel: { fontSize: 12, fontWeight: '700', color: Colors.textSecondary, marginBottom: 8, marginTop: 4 },
-    driverGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
-    driverChip: { backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
+    fieldLabel: { fontSize: 12, fontWeight: '700', color: Colors.textSecondary, marginBottom: Spacing.sm, marginTop: Spacing.xs },
+    driverGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: 14 },
+    driverChip: { backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm, paddingHorizontal: 10, paddingVertical: Spacing.sm },
     driverChipActive: { backgroundColor: Colors.primary + '20', borderColor: Colors.primary },
+    driverChipInner: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
     driverChipText: { fontSize: 12, color: Colors.textSecondary },
     driverChipTextActive: { color: Colors.primary, fontWeight: '700' },
 
     row2: { flexDirection: 'row', gap: 10 },
-    input: { backgroundColor: Colors.bg, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, padding: 12, color: Colors.textPrimary, marginBottom: 12, fontSize: 14 },
+    input: { backgroundColor: Colors.bg, borderRadius: Radius.sm, borderWidth: 1, borderColor: Colors.border, padding: Spacing.md, color: Colors.textPrimary, marginBottom: Spacing.md, fontSize: 14 },
     noteInput: { minHeight: 60, textAlignVertical: 'top', marginTop: 14 },
 
     saveBtn: { backgroundColor: Colors.primary, borderRadius: 10, padding: 14, alignItems: 'center', marginBottom: 10, marginTop: 6 },
     saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-    deleteBtn: { borderRadius: 10, padding: 12, alignItems: 'center' },
+    deleteBtn: { borderRadius: 10, padding: Spacing.md, alignItems: 'center' },
     deleteBtnText: { color: Colors.expense, fontWeight: '600', fontSize: 14 },
 });

@@ -18,6 +18,8 @@ import NextStepLink from '../components/NextStepLink';
 import ProfitCashImpactCard from '../components/ProfitCashImpactCard';
 import { computeProfitCashImpact } from '../utils/impactChain';
 import { showAlert, confirmAction } from '../utils/webAlert';
+import Icon from '../components/ui/Icon';
+import { Radius, Shadow, Spacing } from '../theme/tokens';
 
 const CATEGORIES: AssetCategory[] = ['equipment', 'vehicle', 'furniture', 'property', 'intangible', 'other'];
 
@@ -192,9 +194,10 @@ export default function AssetsScreen() {
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
                     <Text style={[s.title, { flex: 1, marginBottom: 0 }]}>{t(language, 'assetRegister')}</Text>
                     <TouchableOpacity
-                        style={{ backgroundColor: Colors.surface, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7, borderWidth: 1, borderColor: Colors.border }}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, backgroundColor: Colors.surface, borderRadius: Radius.sm, paddingHorizontal: Spacing.md, paddingVertical: 7, borderWidth: 1, borderColor: Colors.border }}
                         onPress={() => setCurrentScreen('loans')}>
-                        <Text style={{ fontSize: 12, color: Colors.primary, fontWeight: '600' }}>🏦 Loan Register →</Text>
+                        <Icon name="briefcase" size={13} color={Colors.primary} />
+                        <Text style={{ fontSize: 12, color: Colors.primary, fontWeight: '600' }}>Loan Register →</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -214,9 +217,12 @@ export default function AssetsScreen() {
                 {/* Replacement alerts */}
                 {assets.filter(a => a.status === 'active' && computeAssetCurrentValue(a) <= a.purchaseCost * 0.2 && a.purchaseCost > 0).map(a => (
                     <View key={a.id} style={s.replaceAlert}>
-                        <Text style={s.replaceAlertText}>
-                            🔔 <Text style={{ fontWeight: '700' }}>{a.name}</Text> is nearly fully depreciated ({Math.round((computeAssetCurrentValue(a) / a.purchaseCost) * 100)}% remaining value) — plan for replacement.
-                        </Text>
+                        <View style={s.replaceAlertRow}>
+                            <Icon name="bell" size={14} color={Colors.warning} />
+                            <Text style={s.replaceAlertText}>
+                                <Text style={{ fontWeight: '700' }}>{a.name}</Text> is nearly fully depreciated ({Math.round((computeAssetCurrentValue(a) / a.purchaseCost) * 100)}% remaining value) — plan for replacement.
+                            </Text>
+                        </View>
                         <NextStepLink text="Set a replacement-fund goal" onPress={() => navigate('goals')} />
                     </View>
                 ))}
@@ -303,7 +309,10 @@ export default function AssetsScreen() {
                                 const recColor = Colors.primary;
                                 return (
                                     <View style={s.acqCard}>
-                                        <Text style={s.acqTitle}>💡 How should you acquire this?</Text>
+                                        <View style={s.acqTitleRow}>
+                                            <Icon name="zap" size={14} color={Colors.text} />
+                                            <Text style={s.acqTitle}>How should you acquire this?</Text>
+                                        </View>
                                         <View style={s.acqTermRow}>
                                             <View style={{ flex: 1 }}>
                                                 <Label text="Finance term (months)" />
@@ -501,99 +510,102 @@ function Label({ text }: { text: string }) {
 const s = StyleSheet.create({
     safe:  { flex: 1, backgroundColor: Colors.bg },
     scroll: { flex: 1 },
-    pad:   { padding: 16, paddingBottom: 100 },
+    pad:   { padding: Spacing.lg, paddingBottom: 100 },
     title: { fontSize: 22, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 14 },
 
     summaryCard: {
-        backgroundColor: Colors.surface, borderRadius: 12, padding: 16,
+        backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.lg,
         marginBottom: 14, alignItems: 'center',
+        borderWidth: 1, borderColor: Colors.border, ...Shadow.sm,
     },
-    summaryLabel: { fontSize: 12, color: Colors.textMuted, marginBottom: 4 },
+    summaryLabel: { fontSize: 12, color: Colors.textMuted, marginBottom: Spacing.xs },
     summaryValue: { fontSize: 28, fontWeight: 'bold', color: Colors.income },
-    summaryMeta:  { fontSize: 11, color: Colors.textMuted, marginTop: 4 },
+    summaryMeta:  { fontSize: 11, color: Colors.textMuted, marginTop: Spacing.xs },
 
-    tabRow: { flexDirection: 'row', marginBottom: 14, gap: 8 },
-    tab:        { flex: 1, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
+    tabRow: { flexDirection: 'row', marginBottom: 14, gap: Spacing.sm },
+    tab:        { flex: 1, paddingVertical: 7, borderRadius: Radius.sm, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
     tabActive:  { backgroundColor: Colors.primary, borderColor: Colors.primary },
     tabText:    { fontSize: 12, color: Colors.textMuted },
-    tabTextActive: { color: Colors.textPrimary, fontWeight: '600' },
+    tabTextActive: { color: '#fff', fontWeight: '600' },
 
     empty: { color: Colors.textMuted, textAlign: 'center', marginTop: 40, fontSize: 13 },
 
-    groupHeader: { fontSize: 12, fontWeight: '700', color: Colors.textSecondary, marginBottom: 8, marginTop: 4, textTransform: 'uppercase', letterSpacing: 0.8 },
+    groupHeader: { fontSize: 12, fontWeight: '700', color: Colors.textSecondary, marginBottom: Spacing.sm, marginTop: Spacing.xs, textTransform: 'uppercase', letterSpacing: 0.8 },
 
     card: {
-        backgroundColor: Colors.surface, borderRadius: 12, padding: 14,
-        marginBottom: 12, borderWidth: 1, borderColor: Colors.border,
+        backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 14,
+        marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border,
+        ...Shadow.sm,
     },
     cardDisposed: { opacity: 0.65 },
     cardHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 },
     assetName: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary },
     assetDesc: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
-    disposedBadge: { backgroundColor: 'rgba(156,163,175,0.2)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+    disposedBadge: { backgroundColor: 'rgba(156,163,175,0.2)', borderRadius: 6, paddingHorizontal: Spacing.sm, paddingVertical: 3 },
     disposedBadgeText: { fontSize: 10, color: Colors.textMuted, fontWeight: '600' },
 
-    metricsRow: { flexDirection: 'row', marginBottom: 8, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    metricsRow: { flexDirection: 'row', marginBottom: Spacing.sm, paddingBottom: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.border },
     metricLabel: { fontSize: 9, color: Colors.textMuted, textAlign: 'center', marginBottom: 2 },
     metricValue: { fontSize: 12, fontWeight: '700', color: Colors.textPrimary, textAlign: 'center' },
 
     depLine:  { fontSize: 11, color: Colors.textSecondary, marginBottom: 2 },
-    dateLine: { fontSize: 11, color: Colors.textMuted, marginBottom: 8 },
+    dateLine: { fontSize: 11, color: Colors.textMuted, marginBottom: Spacing.sm },
     healthBarBg:   { height: 5, backgroundColor: Colors.border, borderRadius: 3, marginBottom: 3 },
     healthBarFill: { height: 5, borderRadius: 3 },
     healthLabel:   { fontSize: 10, fontWeight: '600', marginBottom: 4 },
-    replaceAlert:  { backgroundColor: 'rgba(245,158,11,0.12)', borderWidth: 1, borderColor: Colors.warning, borderRadius: 10, padding: 12, marginBottom: 10 },
-    replaceAlertText: { fontSize: 12, color: Colors.warning, lineHeight: 18 },
+    replaceAlert:  { backgroundColor: 'rgba(245,158,11,0.12)', borderWidth: 1, borderColor: Colors.warning, borderRadius: 10, padding: Spacing.md, marginBottom: 10 },
+    replaceAlertRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
+    replaceAlertText: { flex: 1, fontSize: 12, color: Colors.warning, lineHeight: 18 },
 
-    actionRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
+    actionRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.xs },
     actionBtn: { flex: 1, paddingVertical: 6, borderRadius: 6, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
     actionBtnText: { fontSize: 11, fontWeight: '600', color: Colors.textSecondary },
 
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
     sheet: {
-        backgroundColor: Colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20,
-        padding: 20, maxHeight: '90%',
+        backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl,
+        padding: Spacing.xxl, maxHeight: '90%',
     },
     modalTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 16 },
 
     label: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary, marginBottom: 5, marginTop: 10 },
     input: {
         backgroundColor: Colors.bg, borderColor: Colors.border, borderWidth: 1,
-        borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10,
+        borderRadius: Radius.sm, paddingHorizontal: Spacing.md, paddingVertical: 10,
         color: Colors.textPrimary, fontSize: 14,
     },
-    chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 4 },
-    chip:         { paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: Colors.border, borderRadius: 16, backgroundColor: Colors.bg },
+    chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: Spacing.xs },
+    chip:         { paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.lg, backgroundColor: Colors.bg },
     chipActive:   { borderColor: Colors.primary, backgroundColor: Colors.primary + '22' },
     chipText:     { fontSize: 11, color: Colors.textMuted },
     chipTextActive: { color: Colors.primary, fontWeight: '600' },
 
-    btnRow: { flexDirection: 'row', gap: 10, marginTop: 20, marginBottom: 10 },
+    btnRow: { flexDirection: 'row', gap: 10, marginTop: Spacing.xxl, marginBottom: 10 },
 
-    acqCard:     { backgroundColor: Colors.primary + '0D', borderRadius: 12, padding: 12, marginTop: 16, borderLeftWidth: 3, borderLeftColor: Colors.primary },
-    acqTitle:    { fontSize: 13, fontWeight: '800', color: Colors.text, marginBottom: 10 },
-    acqTermRow:  { flexDirection: 'row', marginBottom: 8 },
+    acqCard:     { backgroundColor: Colors.primary + '0D', borderRadius: Radius.md, padding: Spacing.md, marginTop: Spacing.lg, borderLeftWidth: 3, borderLeftColor: Colors.primary },
+    acqTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, marginBottom: 10 },
+    acqTitle:    { fontSize: 13, fontWeight: '800', color: Colors.text },
+    acqTermRow:  { flexDirection: 'row', marginBottom: Spacing.sm },
     acqHint:     { fontSize: 10, color: Colors.muted, fontStyle: 'italic', marginBottom: 2 },
-    acqOption:   { backgroundColor: Colors.card, borderRadius: 10, padding: 10, marginTop: 8, borderWidth: 1, borderColor: Colors.border },
+    acqOption:   { backgroundColor: Colors.card, borderRadius: 10, padding: 10, marginTop: Spacing.sm, borderWidth: 1, borderColor: Colors.border },
     acqOptHeader:{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
     acqOptLabel: { fontSize: 12, fontWeight: '800', color: Colors.text },
     acqOptOwns:  { fontSize: 10, color: Colors.muted, fontWeight: '600' },
     acqLine:     { fontSize: 11, color: Colors.textSecondary, marginBottom: 3, lineHeight: 16 },
     acqVal:      { fontWeight: '700', color: Colors.text },
     acqFlag:     { fontSize: 11, fontWeight: '700', marginTop: 4 },
-    acqVerdict:  { borderRadius: 8, borderWidth: 1, padding: 10, marginTop: 12, backgroundColor: Colors.primary + '12' },
+    acqVerdict:  { borderRadius: Radius.sm, borderWidth: 1, padding: 10, marginTop: Spacing.md, backgroundColor: Colors.primary + '12' },
     acqVerdictText: { fontSize: 11, fontWeight: '600', lineHeight: 16 },
-    btn:        { flex: 1, backgroundColor: Colors.primary, paddingVertical: 13, borderRadius: 8, alignItems: 'center' },
+    btn:        { flex: 1, backgroundColor: Colors.primary, paddingVertical: 13, borderRadius: Radius.sm, alignItems: 'center' },
     btnSecondary: { backgroundColor: 'transparent', borderWidth: 1, borderColor: Colors.border },
-    btnText:    { color: Colors.textPrimary, fontWeight: 'bold', fontSize: 14 },
+    btnText:    { color: '#fff', fontWeight: 'bold', fontSize: 14 },
     btnSecText: { color: Colors.textSecondary, fontWeight: '600', fontSize: 14 },
 
     fab: {
         position: 'absolute', right: 20, bottom: 80,
         width: 54, height: 54, borderRadius: 27,
         backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center',
-        shadowColor: '#000', shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.3, shadowRadius: 6, elevation: 8,
+        ...Shadow.md,
     },
-    fabText: { fontSize: 28, color: Colors.textPrimary, lineHeight: 32 },
+    fabText: { fontSize: 28, color: '#fff', lineHeight: 32 },
 });

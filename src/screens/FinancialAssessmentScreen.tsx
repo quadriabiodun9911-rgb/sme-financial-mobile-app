@@ -9,6 +9,8 @@ import { generateActionPlan } from '../utils/actionRecommendationEngine';
 import { getMonthlyExpenseAverage } from '../utils/finance';
 import SwotAnalysis from '../components/SwotAnalysis';
 import NextStepLink from '../components/NextStepLink';
+import Icon, { IconName } from '../components/ui/Icon';
+import { Radius, Shadow, Spacing } from '../theme/tokens';
 
 export default function FinancialAssessmentScreen() {
   const { transactions, invoices, finance, settings, setCurrentScreen, navigate, loans, inventory } = useApp();
@@ -39,9 +41,6 @@ export default function FinancialAssessmentScreen() {
   const categoryStatusColor = (status: 'strong' | 'watch' | 'high-risk') =>
     status === 'strong' ? Colors.income : status === 'watch' ? Colors.warning : Colors.expense;
 
-  const categoryStatusDot = (status: 'strong' | 'watch' | 'high-risk') =>
-    status === 'strong' ? '🟢' : status === 'watch' ? '🟡' : '🔴';
-
   const categoryStatusLabel = (status: 'strong' | 'watch' | 'high-risk') =>
     status === 'strong' ? 'Strong' : status === 'watch' ? 'Watch' : 'High risk';
 
@@ -61,7 +60,10 @@ export default function FinancialAssessmentScreen() {
       <Header />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.pad}>
         {/* Title */}
-        <Text style={styles.title}>🔍 Financial Assessment</Text>
+        <View style={styles.titleIconRow}>
+          <Icon name="search" size={20} color={Colors.textPrimary} />
+          <Text style={styles.title}>Financial Assessment</Text>
+        </View>
         <Text style={styles.subtitle}>AI-powered diagnosis & recommendations</Text>
         {/* This whole screen is a current-month snapshot by design — make
             that explicit and point to the real multi-year view so results
@@ -78,13 +80,20 @@ export default function FinancialAssessmentScreen() {
               </Text>
             </View>
           </View>
-          <Text style={styles.healthDescription}>
-            {diagnosis.healthStatus === 'critical'
-              ? '🚨 Immediate action required to improve financial health'
-              : diagnosis.healthStatus === 'warning'
-              ? '⚠️ Address key issues to prevent deterioration'
-              : '✅ Business in good financial health'}
-          </Text>
+          <View style={styles.healthDescriptionRow}>
+            <Icon
+              name={diagnosis.healthStatus === 'critical' ? 'alert-triangle' : diagnosis.healthStatus === 'warning' ? 'alert-circle' : 'check-circle'}
+              size={14}
+              color={diagnosis.healthStatus === 'critical' ? Colors.expense : diagnosis.healthStatus === 'warning' ? Colors.warning : Colors.income}
+            />
+            <Text style={styles.healthDescription}>
+              {diagnosis.healthStatus === 'critical'
+                ? 'Immediate action required to improve financial health'
+                : diagnosis.healthStatus === 'warning'
+                ? 'Address key issues to prevent deterioration'
+                : 'Business in good financial health'}
+            </Text>
+          </View>
 
           {/* Per-pillar breakdown — Profitability, Liquidity, Working
               Capital, Debt, Efficiency, Inventory, Concentration, each
@@ -94,7 +103,7 @@ export default function FinancialAssessmentScreen() {
           <View style={styles.categoryList}>
             {diagnosis.categories.map(cat => (
               <View key={cat.key} style={styles.categoryRow}>
-                <Text style={styles.categoryDot}>{categoryStatusDot(cat.status)}</Text>
+                <View style={[styles.categoryDot, { backgroundColor: categoryStatusColor(cat.status) }]} />
                 <Text style={styles.categoryLabel}>{cat.label}</Text>
                 <Text style={[styles.categoryStatus, { color: categoryStatusColor(cat.status) }]}>
                   {categoryStatusLabel(cat.status)}
@@ -109,7 +118,10 @@ export default function FinancialAssessmentScreen() {
             actually do about it. */}
         {diagnosis.topOpportunities.length > 0 && (
           <View style={styles.fixFirstCard}>
-            <Text style={styles.fixFirstTitle}>🎯 Here are the {diagnosis.topOpportunities.length} things you should fix first</Text>
+            <View style={styles.titleIconRow}>
+              <Icon name="target" size={15} color={Colors.textPrimary} />
+              <Text style={styles.fixFirstTitle}>Here are the {diagnosis.topOpportunities.length} things you should fix first</Text>
+            </View>
             {diagnosis.topOpportunities.map((opportunity, idx) => (
               <View key={idx} style={styles.fixFirstRow}>
                 <Text style={styles.fixFirstNumber}>{idx + 1}</Text>
@@ -124,7 +136,10 @@ export default function FinancialAssessmentScreen() {
             numbers; margin/runway/growth are derived figures Dashboard
             doesn't show, not a repeat of it. */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📊 What's Driving This Diagnosis</Text>
+          <View style={styles.titleIconRow}>
+            <Icon name="bar-chart-2" size={14} color={Colors.textPrimary} />
+            <Text style={styles.sectionTitle}>What's Driving This Diagnosis</Text>
+          </View>
           <View style={styles.metricsGrid}>
             <View style={styles.metricBox}>
               <Text style={styles.metricLabel}>Revenue</Text>
@@ -162,14 +177,20 @@ export default function FinancialAssessmentScreen() {
             comes together in one flow right after a statement import
             instead of being scattered across separate screens. */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🧭 SWOT Analysis</Text>
+          <View style={styles.titleIconRow}>
+            <Icon name="compass" size={14} color={Colors.textPrimary} />
+            <Text style={styles.sectionTitle}>SWOT Analysis</Text>
+          </View>
           <SwotAnalysis />
         </View>
 
         {/* Diagnoses */}
         <View style={styles.section}>
           <View style={styles.diagnosisHeader}>
-            <Text style={styles.sectionTitle}>🔴 Issues Identified ({diagnosis.diagnoses.length})</Text>
+            <View style={styles.titleIconRow}>
+              <Icon name="alert-octagon" size={14} color={Colors.expense} />
+              <Text style={styles.sectionTitle}>Issues Identified ({diagnosis.diagnoses.length})</Text>
+            </View>
             {diagnosis.diagnoses.length > 0 && (
               <Text style={styles.diagnosisCount}>{selectedDiagnosis + 1} of {diagnosis.diagnoses.length}</Text>
             )}
@@ -226,7 +247,10 @@ export default function FinancialAssessmentScreen() {
             </View>
           ) : (
             <View style={styles.noIssuesBox}>
-              <Text style={styles.noIssuesText}>✅ No major issues identified!</Text>
+              <View style={styles.titleIconRow}>
+                <Icon name="check-circle" size={16} color={Colors.income} />
+                <Text style={styles.noIssuesText}>No major issues identified!</Text>
+              </View>
               <Text style={styles.noIssuesSubtext}>Your finances are in good shape.</Text>
             </View>
           )}
@@ -234,11 +258,17 @@ export default function FinancialAssessmentScreen() {
 
         {/* Action Plan Summary */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>⚡ Recommended Actions</Text>
+          <View style={styles.titleIconRow}>
+            <Icon name="zap" size={14} color={Colors.textPrimary} />
+            <Text style={styles.sectionTitle}>Recommended Actions</Text>
+          </View>
 
           {actionPlan.immediateActions.length > 0 && (
             <View style={styles.actionGroup}>
-              <Text style={styles.actionGroupTitle}>🚨 Do This Week</Text>
+              <View style={styles.titleIconRow}>
+                <Icon name="alert-triangle" size={12} color={Colors.textMuted} />
+                <Text style={styles.actionGroupTitle}>Do This Week</Text>
+              </View>
               {actionPlan.immediateActions.slice(0, 2).map((action, idx) => (
                 <TouchableOpacity
                   key={idx}
@@ -260,7 +290,10 @@ export default function FinancialAssessmentScreen() {
 
           {actionPlan.shortTermActions.length > 0 && (
             <View style={styles.actionGroup}>
-              <Text style={styles.actionGroupTitle}>📅 This Month</Text>
+              <View style={styles.titleIconRow}>
+                <Icon name="calendar" size={12} color={Colors.textMuted} />
+                <Text style={styles.actionGroupTitle}>This Month</Text>
+              </View>
               {actionPlan.shortTermActions.slice(0, 2).map((action, idx) => (
                 <TouchableOpacity
                   key={idx}
@@ -282,7 +315,10 @@ export default function FinancialAssessmentScreen() {
 
         {/* Total Impact */}
         <View style={styles.impactSummary}>
-          <Text style={styles.impactTitle}>💰 Total Potential Impact</Text>
+          <View style={styles.titleIconRow}>
+            <Icon name="dollar-sign" size={14} color={Colors.textPrimary} />
+            <Text style={styles.impactTitle}>Total Potential Impact</Text>
+          </View>
           <View style={styles.impactRow}>
             <View style={styles.impactBox}>
               <Text style={styles.impactLabel}>Revenue</Text>
@@ -307,7 +343,10 @@ export default function FinancialAssessmentScreen() {
             style={styles.budgetButton}
             onPress={() => setCurrentScreen('budget')}
           >
-            <Text style={styles.budgetButtonText}>📊  Turn this into a budget →</Text>
+            <View style={styles.titleIconRow}>
+              <Icon name="bar-chart-2" size={13} color={Colors.textPrimary} />
+              <Text style={styles.budgetButtonText}>Turn this into a budget →</Text>
+            </View>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -319,28 +358,36 @@ export default function FinancialAssessmentScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.bg },
   scroll: { flex: 1 },
-  pad: { padding: 16, paddingBottom: 100 },
+  pad: { padding: Spacing.lg, paddingBottom: 100 },
   title: { fontSize: 24, fontWeight: '700', color: Colors.textPrimary, marginBottom: 4 },
-  subtitle: { fontSize: 13, color: Colors.textMuted, marginBottom: 20 },
+  subtitle: { fontSize: 13, color: Colors.textMuted, marginBottom: Spacing.xl },
+
+  // Shared icon + label row used for section headers, card titles, and
+  // inline status lines throughout this screen.
+  titleIconRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
 
   healthCard: {
     backgroundColor: Colors.surface,
     borderRadius: 14,
     borderLeftWidth: 4,
-    padding: 16,
-    marginBottom: 20,
-    gap: 12,
+    padding: Spacing.lg,
+    marginBottom: Spacing.xl,
+    gap: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Shadow.sm,
   },
   healthHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   healthLabel: { fontSize: 12, color: Colors.textMuted, fontWeight: '600' },
-  healthBadge: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
+  healthBadge: { borderRadius: Radius.sm, paddingHorizontal: Spacing.md, paddingVertical: 6 },
   healthScore: { fontSize: 16, fontWeight: '800' },
   healthStatus: { fontSize: 13, color: Colors.textSecondary },
-  healthDescription: { fontSize: 12, color: Colors.textSecondary, lineHeight: 18 },
+  healthDescriptionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
+  healthDescription: { flex: 1, fontSize: 12, color: Colors.textSecondary, lineHeight: 18 },
 
-  categoryList: { gap: 8, marginTop: 4 },
-  categoryRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  categoryDot: { fontSize: 11 },
+  categoryList: { gap: Spacing.sm, marginTop: Spacing.xs },
+  categoryRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  categoryDot: { width: 8, height: 8, borderRadius: 4 },
   categoryLabel: { flex: 1, fontSize: 12, color: Colors.textSecondary, fontWeight: '600' },
   categoryStatus: { fontSize: 12, fontWeight: '700' },
 
@@ -349,11 +396,14 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderLeftWidth: 4,
     borderLeftColor: Colors.primary,
-    padding: 16,
-    marginBottom: 20,
+    padding: Spacing.lg,
+    marginBottom: Spacing.xl,
     gap: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Shadow.sm,
   },
-  fixFirstTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: 4 },
+  fixFirstTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary },
   fixFirstRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   fixFirstNumber: {
     fontSize: 12, fontWeight: '800', color: Colors.primary,
@@ -362,76 +412,85 @@ const styles = StyleSheet.create({
   },
   fixFirstText: { flex: 1, fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
 
-  section: { marginBottom: 24 },
-  sectionTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: 12 },
+  section: { marginBottom: Spacing.xxl },
+  sectionTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: Spacing.md },
 
   metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   metricBox: {
     width: '48%',
     backgroundColor: Colors.surface,
-    borderRadius: 12,
-    padding: 12,
+    borderRadius: Radius.md,
+    padding: Spacing.md,
     borderWidth: 1,
     borderColor: Colors.border,
     alignItems: 'center',
   },
   metricLabel: { fontSize: 10, color: Colors.textMuted, fontWeight: '600', marginBottom: 6 },
-  metricValue: { fontSize: 18, fontWeight: '800', color: Colors.textPrimary, marginBottom: 4 },
+  metricValue: { fontSize: 18, fontWeight: '800', color: Colors.textPrimary, marginBottom: Spacing.xs },
   metricSubtext: { fontSize: 9, color: Colors.textMuted },
 
-  diagnosisHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  diagnosisHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md },
   diagnosisCount: { fontSize: 11, color: Colors.primary, fontWeight: '700' },
 
   diagnosisCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: Radius.md,
     borderLeftWidth: 4,
     padding: 14,
-    marginBottom: 12,
+    marginBottom: Spacing.md,
     gap: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Shadow.sm,
   },
   diagnosisCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   diagnosisProblem: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6, flex: 1 },
-  severityBadge: { alignSelf: 'flex-start', paddingVertical: 3, paddingHorizontal: 8, borderRadius: 6, backgroundColor: Colors.bg },
+  severityBadge: { alignSelf: 'flex-start', paddingVertical: 3, paddingHorizontal: Spacing.sm, borderRadius: 6, backgroundColor: Colors.bg },
   severityText: { fontSize: 9, fontWeight: '700' },
-  diagnosisLabel: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, marginTop: 4 },
+  diagnosisLabel: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, marginTop: Spacing.xs },
   diagnosisText: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
 
-  navigationButtons: { flexDirection: 'row', gap: 8, marginTop: 12 },
-  navButton: { flex: 1, paddingVertical: 10, backgroundColor: Colors.primary, borderRadius: 8, alignItems: 'center' },
+  navigationButtons: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.md },
+  navButton: { flex: 1, paddingVertical: 10, backgroundColor: Colors.primary, borderRadius: Radius.sm, alignItems: 'center' },
   navButtonDisabled: { opacity: 0.4 },
   navButtonText: { fontSize: 12, fontWeight: '700', color: '#fff' },
 
-  noIssuesBox: { backgroundColor: Colors.income + '15', borderRadius: 12, padding: 16, alignItems: 'center' },
-  noIssuesText: { fontSize: 14, fontWeight: '700', color: Colors.income, marginBottom: 4 },
-  noIssuesSubtext: { fontSize: 12, color: Colors.textSecondary },
+  noIssuesBox: {
+    backgroundColor: Colors.income + '15', borderRadius: Radius.md, padding: Spacing.lg, alignItems: 'center',
+    borderWidth: 1, borderColor: Colors.border, ...Shadow.sm,
+  },
+  noIssuesText: { fontSize: 14, fontWeight: '700', color: Colors.income },
+  noIssuesSubtext: { fontSize: 12, color: Colors.textSecondary, marginTop: Spacing.xs },
 
-  actionGroup: { marginBottom: 16 },
-  actionGroupTitle: { fontSize: 12, fontWeight: '700', color: Colors.textMuted, marginBottom: 8, textTransform: 'uppercase' },
+  actionGroup: { marginBottom: Spacing.lg },
+  actionGroupTitle: { fontSize: 12, fontWeight: '700', color: Colors.textMuted, marginBottom: Spacing.sm, textTransform: 'uppercase' },
   actionCard: {
     flexDirection: 'row',
     backgroundColor: Colors.surface,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 8,
+    borderRadius: Radius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.sm,
     borderLeftWidth: 3,
     borderLeftColor: Colors.primary,
     alignItems: 'center',
   },
   actionCardContent: { flex: 1 },
   actionTitle: { fontSize: 12, fontWeight: '700', color: Colors.textPrimary, marginBottom: 3 },
-  actionDescription: { fontSize: 11, color: Colors.textSecondary, marginBottom: 4 },
+  actionDescription: { fontSize: 11, color: Colors.textSecondary, marginBottom: Spacing.xs },
   actionImpact: { fontSize: 11, fontWeight: '600', color: Colors.income },
   actionArrow: { fontSize: 18, color: Colors.primary },
 
-  impactSummary: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, gap: 12, borderLeftWidth: 4, borderLeftColor: Colors.income },
-  impactTitle: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginBottom: 8 },
+  impactSummary: {
+    backgroundColor: Colors.surface, borderRadius: 14, padding: Spacing.lg, gap: Spacing.md,
+    borderLeftWidth: 4, borderLeftColor: Colors.income, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm,
+  },
+  impactTitle: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary },
   impactRow: { flexDirection: 'row', gap: 10 },
   impactBox: { flex: 1, backgroundColor: Colors.bg, borderRadius: 10, padding: 10, alignItems: 'center' },
-  impactLabel: { fontSize: 10, color: Colors.textMuted, fontWeight: '600', marginBottom: 4 },
+  impactLabel: { fontSize: 10, color: Colors.textMuted, fontWeight: '600', marginBottom: Spacing.xs },
   impactValue: { fontSize: 16, fontWeight: '800', color: Colors.income },
-  actionPlanButton: { backgroundColor: Colors.primary, borderRadius: 8, paddingVertical: 12, alignItems: 'center', marginTop: 8 },
+  actionPlanButton: { backgroundColor: Colors.primary, borderRadius: Radius.sm, paddingVertical: Spacing.md, alignItems: 'center', marginTop: Spacing.sm },
   actionPlanButtonText: { fontSize: 13, fontWeight: '700', color: '#fff' },
-  budgetButton: { backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingVertical: 12, alignItems: 'center', marginTop: 8 },
+  budgetButton: { backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm, paddingVertical: Spacing.md, alignItems: 'center', marginTop: Spacing.sm },
   budgetButtonText: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
 });
