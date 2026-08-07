@@ -76,7 +76,7 @@ jobs:
           retention-days: 7
 
   deploy-staging:
-    if: github.ref == 'refs/heads/claude/tender-ritchie-9y0iez' && secrets.VERCEL_TOKEN != ''
+    if: github.ref == 'refs/heads/claude/tender-ritchie-9y0iez'
     needs: build-web
     runs-on: ubuntu-latest
     name: Deploy to Staging
@@ -101,6 +101,10 @@ jobs:
 
       - name: Deploy to Staging
         run: |
+          if [ -z "${{ secrets.VERCEL_TOKEN }}" ]; then
+            echo "VERCEL_TOKEN secret is not set — skipping staging deploy instead of failing the build."
+            exit 0
+          fi
           vercel deploy \
             --token=${{ secrets.VERCEL_TOKEN }} \
             --prod \
@@ -123,7 +127,7 @@ jobs:
             });
 
   deploy-production:
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && secrets.VERCEL_TOKEN != ''
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     needs: build-web
     runs-on: ubuntu-latest
     name: Deploy to Production
@@ -150,16 +154,24 @@ jobs:
           path: dist
 
       - name: Deploy to Production
+        id: deploy
         run: |
+          if [ -z "${{ secrets.VERCEL_TOKEN }}" ]; then
+            echo "VERCEL_TOKEN secret is not set — skipping production deploy instead of failing the build."
+            echo "deployed=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
           vercel deploy \
             --token=${{ secrets.VERCEL_TOKEN }} \
             --prod \
             dist/
+          echo "deployed=true" >> $GITHUB_OUTPUT
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
       - name: Create Release
+        if: steps.deploy.outputs.deployed == 'true'
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -176,7 +188,7 @@ jobs:
           prerelease: false
 
   deploy-preview:
-    if: github.event_name == 'pull_request' && secrets.VERCEL_TOKEN != ''
+    if: github.event_name == 'pull_request'
     needs: build-web
     runs-on: ubuntu-latest
     name: Deploy Preview
@@ -202,6 +214,11 @@ jobs:
       - name: Deploy Preview
         id: preview
         run: |
+          if [ -z "${{ secrets.VERCEL_TOKEN }}" ]; then
+            echo "VERCEL_TOKEN secret is not set — skipping preview deploy instead of failing the build."
+            echo "preview_url=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
           OUTPUT=$(vercel deploy \
             --token=${{ secrets.VERCEL_TOKEN }} \
             dist/ 2>&1)
@@ -211,6 +228,7 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
 
       - name: Comment PR with preview URL
+        if: steps.preview.outputs.preview_url != ''
         uses: actions/github-script@v7
         with:
           script: |
