@@ -1,0 +1,310 @@
+import React, { useMemo, useState } from 'react';
+import { SafeAreaView, ScrollView, View, Text, TouchableOpacity, StyleSheet, TextInput, Modal } from 'react-native';
+import { useApp } from '../contexts/AppContext';
+import { Colors } from '../theme/colors';
+import Header from '../components/Header';
+import FooterNav from '../components/FooterNav';
+import { generateId } from '../utils/uuid';
+import { MacroAssumption, MacroDriver } from '../types';
+import { showAlert, confirmAction } from '../utils/webAlert';
+
+const DRIVER_OPTIONS: { value: MacroDriver; label: string; icon: string }[] = [
+    { value: 'energy', label: 'Energy', icon: '⛽' },
+    { value: 'fx', label: 'FX', icon: '💱' },
+    { value: 'interestRate', label: 'Interest Rate', icon: '🏦' },
+    { value: 'inflation', label: 'Inflation', icon: '📈' },
+    { value: 'commodity', label: 'Commodity Price', icon: '📦' },
+    { value: 'regulation', label: 'Regulation', icon: '📜' },
+    { value: 'supplyChain', label: 'Supply Chain', icon: '🚚' },
+];
+
+const DEFAULT_CATEGORIES = [
+    'Utilities', 'Fuel', 'Rent', 'Salaries', 'Transport', 'Supplies',
+    'Equipment', 'Software', 'Insurance', 'Professional Fees', 'Maintenance', 'Other',
+];
+
+function driverMeta(driver: MacroDriver) {
+    return DRIVER_OPTIONS.find(d => d.value === driver) ?? DRIVER_OPTIONS[0];
+}
+
+export default function MacroAssumptionsScreen() {
+    const { transactions, settings, updateSettings, navigate } = useApp();
+    const assumptions = settings.macroAssumptions ?? [];
+
+    const knownCategories = useMemo(() => {
+        const fromTxs = Array.from(new Set(transactions.filter(t => t.type === 'expense').map(t => t.category)));
+        return Array.from(new Set([...fromTxs, ...DEFAULT_CATEGORIES])).sort();
+    }, [transactions]);
+
+    const [showForm, setShowForm] = useState(false);
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [driver, setDriver] = useState<MacroDriver>('energy');
+    const [label, setLabel] = useState('');
+    const [changePct, setChangePct] = useState('');
+    const [periodMonths, setPeriodMonths] = useState('3');
+    const [linkedCategories, setLinkedCategories] = useState<string[]>([]);
+    const [note, setNote] = useState('');
+
+    function openAdd() {
+        setEditingId(null);
+        setDriver('energy');
+        setLabel('');
+        setChangePct('');
+        setPeriodMonths('3');
+        setLinkedCategories([]);
+        setNote('');
+        setShowForm(true);
+    }
+
+    function openEdit(a: MacroAssumption) {
+        setEditingId(a.id);
+        setDriver(a.driver);
+        setLabel(a.label);
+        setChangePct(String(a.changePct));
+        setPeriodMonths(String(a.periodMonths));
+        setLinkedCategories(a.linkedCategories);
+        setNote(a.note ?? '');
+        setShowForm(true);
+    }
+
+    function toggleCategory(cat: string) {
+        setLinkedCategories(prev => prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]);
+    }
+
+    function handleSave() {
+        const trimmedLabel = label.trim();
+        const pct = parseFloat(changePct);
+        const months = parseInt(periodMonths, 10);
+
+        if (!trimmedLabel) { showAlert('Error', 'Give this assumption a label, e.g. "Diesel price".'); return; }
+        if (isNaN(pct)) { showAlert('Error', 'Enter the % change you\'ve observed or expect.'); return; }
+        if (!months || months <= 0) { showAlert('Error', 'Enter the number of months that % change applies to.'); return; }
+        if (linkedCategories.length === 0) { showAlert('Error', 'Link at least one expense category so this can be matched against your actual spending.'); return; }
+
+        const next: MacroAssumption = {
+            id: editingId ?? generateId(),
+            driver,
+            label: trimmedLabel,
+            changePct: pct,
+            periodMonths: months,
+            linkedCategories,
+            note: note.trim() || undefined,
+            updatedAt: new Date().toISOString(),
+        };
+
+        const updated = editingId
+            ? assumptions.map(a => a.id === editingId ? next : a)
+            : [...assumptions, next];
+        updateSettings({ macroAssumptions: updated });
+        setShowForm(false);
+    }
+
+    function handleDelete(id: string, lbl: string) {
+        confirmAction('Delete Assumption', `Remove "${lbl}"?`, 'Delete', () => {
+            updateSettings({ macroAssumptions: assumptions.filter(a => a.id !== id) });
+        });
+    }
+
+    return (
+        <SafeAreaView style={s.safe}>
+            <Header />
+            <View style={s.headerRow}>
+                <TouchableOpacity onPress={() => navigate('settings')}>
+                    <Text style={s.backBtn}>← Settings</Text>
+                </TouchableOpacity>
+                <Text style={s.screenTitle}>Macro Assumptions</Text>
+                <TouchableOpacity style={s.addBtn} onPress={openAdd}>
+                    <Text style={s.addBtnText}>+ Add</Text>
+                </TouchableOpacity>
+            </View>
+
+            <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
+                <Text style={s.subtitle}>
+                    Quad360 has no live feed for energy prices, FX, interest rates or inflation — so tell it what
+                    you're seeing. Link an assumption to the expense categories it affects, and when that category
+                    is also rising in your own transactions, Cost Exposure turns the two into a specific, actionable
+                    warning instead of a generic headline.
+                </Text>
+
+                {assumptions.length === 0 ? (
+                    <View style={s.emptyState}>
+                        <Text style={s.emptyTitle}>No assumptions yet</Text>
+                        <Text style={s.emptySub}>
+                            e.g. "Diesel price up 20% this quarter" linked to your Fuel/Utilities category
+                        </Text>
+                        <TouchableOpacity style={s.emptyBtn} onPress={openAdd}>
+                            <Text style={s.emptyBtnText}>+ Add Your First Assumption</Text>
+                        </TouchableOpacity>
+                    </View>
+                ) : (
+                    assumptions.map(a => {
+                        const meta = driverMeta(a.driver);
+                        return (
+                            <TouchableOpacity key={a.id} style={s.card} onPress={() => openEdit(a)}>
+                                <View style={s.cardHeaderRow}>
+                                    <Text style={s.cardIcon}>{meta.icon}</Text>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={s.cardLabel}>{a.label}</Text>
+                                        <Text style={s.cardDriver}>{meta.label}</Text>
+                                    </View>
+                                    <Text style={[s.cardChange, { color: a.changePct >= 0 ? Colors.expense : Colors.income }]}>
+                                        {a.changePct >= 0 ? '+' : ''}{a.changePct}% / {a.periodMonths}mo
+                                    </Text>
+                                </View>
+                                <View style={s.chipRow}>
+                                    {a.linkedCategories.map(c => (
+                                        <View key={c} style={s.catChip}><Text style={s.catChipText}>{c}</Text></View>
+                                    ))}
+                                </View>
+                                {a.note ? <Text style={s.cardNote}>{a.note}</Text> : null}
+                                <Text style={s.cardUpdated}>Updated {new Date(a.updatedAt).toLocaleDateString()}</Text>
+                            </TouchableOpacity>
+                        );
+                    })
+                )}
+            </ScrollView>
+
+            <Modal visible={showForm} transparent animationType="slide" onRequestClose={() => setShowForm(false)}>
+                <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setShowForm(false)} />
+                <View style={s.sheet}>
+                    <ScrollView contentContainerStyle={{ paddingBottom: 8 }}>
+                        <View style={s.sheetHandle} />
+                        <Text style={s.sheetTitle}>{editingId ? 'Edit Assumption' : 'Add Assumption'}</Text>
+
+                        <Text style={s.fieldLabel}>What kind of factor is this?</Text>
+                        <View style={s.driverGrid}>
+                            {DRIVER_OPTIONS.map(opt => (
+                                <TouchableOpacity
+                                    key={opt.value}
+                                    style={[s.driverChip, driver === opt.value && s.driverChipActive]}
+                                    onPress={() => setDriver(opt.value)}
+                                >
+                                    <Text style={[s.driverChipText, driver === opt.value && s.driverChipTextActive]}>{opt.icon} {opt.label}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
+                        <TextInput
+                            style={s.input}
+                            placeholder='Label, e.g. "Diesel price"'
+                            placeholderTextColor={Colors.textMuted}
+                            value={label}
+                            onChangeText={setLabel}
+                        />
+                        <View style={s.row2}>
+                            <TextInput
+                                style={[s.input, { flex: 1 }]}
+                                placeholder="% change"
+                                placeholderTextColor={Colors.textMuted}
+                                keyboardType="numbers-and-punctuation"
+                                value={changePct}
+                                onChangeText={setChangePct}
+                            />
+                            <TextInput
+                                style={[s.input, { flex: 1 }]}
+                                placeholder="Over how many months"
+                                placeholderTextColor={Colors.textMuted}
+                                keyboardType="number-pad"
+                                value={periodMonths}
+                                onChangeText={setPeriodMonths}
+                            />
+                        </View>
+
+                        <Text style={s.fieldLabel}>Which expense categories does this affect?</Text>
+                        <View style={s.chipRow}>
+                            {knownCategories.map(cat => (
+                                <TouchableOpacity
+                                    key={cat}
+                                    style={[s.catChip, linkedCategories.includes(cat) && s.catChipActive]}
+                                    onPress={() => toggleCategory(cat)}
+                                >
+                                    <Text style={[s.catChipText, linkedCategories.includes(cat) && s.catChipTextActive]}>{cat}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
+                        <TextInput
+                            style={[s.input, s.noteInput]}
+                            placeholder="Note (optional)"
+                            placeholderTextColor={Colors.textMuted}
+                            value={note}
+                            onChangeText={setNote}
+                            multiline
+                        />
+
+                        <TouchableOpacity style={s.saveBtn} onPress={handleSave}>
+                            <Text style={s.saveBtnText}>{editingId ? 'Save Changes' : 'Add Assumption'}</Text>
+                        </TouchableOpacity>
+
+                        {editingId && (
+                            <TouchableOpacity style={s.deleteBtn} onPress={() => {
+                                const a = assumptions.find(a => a.id === editingId);
+                                if (a) { setShowForm(false); setTimeout(() => handleDelete(a.id, a.label), 300); }
+                            }}>
+                                <Text style={s.deleteBtnText}>Delete Assumption</Text>
+                            </TouchableOpacity>
+                        )}
+                    </ScrollView>
+                </View>
+            </Modal>
+
+            <FooterNav />
+        </SafeAreaView>
+    );
+}
+
+const s = StyleSheet.create({
+    safe: { flex: 1, backgroundColor: Colors.bg },
+    scroll: { flex: 1, backgroundColor: Colors.bg },
+    pad: { padding: 16, paddingBottom: 100 },
+
+    headerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, gap: 12 },
+    backBtn: { color: Colors.primary, fontSize: 14 },
+    screenTitle: { flex: 1, fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary },
+    addBtn: { backgroundColor: Colors.primary, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7 },
+    addBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+
+    subtitle: { fontSize: 12, color: Colors.textMuted, marginBottom: 16, lineHeight: 17 },
+
+    emptyState: { alignItems: 'center', padding: 32, backgroundColor: Colors.surface, borderRadius: 14 },
+    emptyTitle: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 },
+    emptySub: { fontSize: 12, color: Colors.textMuted, textAlign: 'center', marginBottom: 16 },
+    emptyBtn: { backgroundColor: Colors.primary, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 12 },
+    emptyBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+
+    card: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 12 },
+    cardHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
+    cardIcon: { fontSize: 20 },
+    cardLabel: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary },
+    cardDriver: { fontSize: 11, color: Colors.textMuted },
+    cardChange: { fontSize: 13, fontWeight: '700' },
+    cardNote: { fontSize: 12, color: Colors.textSecondary, marginTop: 6, lineHeight: 17 },
+    cardUpdated: { fontSize: 10, color: Colors.textMuted, marginTop: 8 },
+
+    chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+    catChip: { backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+    catChipActive: { backgroundColor: Colors.primary + '20', borderColor: Colors.primary },
+    catChipText: { fontSize: 11, color: Colors.textSecondary },
+    catChipTextActive: { color: Colors.primary, fontWeight: '700' },
+
+    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
+    sheet: { backgroundColor: Colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 30, maxHeight: '85%' },
+    sheetHandle: { width: 40, height: 4, backgroundColor: Colors.border, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
+    sheetTitle: { fontSize: 18, fontWeight: '700', color: Colors.textPrimary, marginBottom: 16 },
+
+    fieldLabel: { fontSize: 12, fontWeight: '700', color: Colors.textSecondary, marginBottom: 8, marginTop: 4 },
+    driverGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
+    driverChip: { backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
+    driverChipActive: { backgroundColor: Colors.primary + '20', borderColor: Colors.primary },
+    driverChipText: { fontSize: 12, color: Colors.textSecondary },
+    driverChipTextActive: { color: Colors.primary, fontWeight: '700' },
+
+    row2: { flexDirection: 'row', gap: 10 },
+    input: { backgroundColor: Colors.bg, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, padding: 12, color: Colors.textPrimary, marginBottom: 12, fontSize: 14 },
+    noteInput: { minHeight: 60, textAlignVertical: 'top', marginTop: 14 },
+
+    saveBtn: { backgroundColor: Colors.primary, borderRadius: 10, padding: 14, alignItems: 'center', marginBottom: 10, marginTop: 6 },
+    saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+    deleteBtn: { borderRadius: 10, padding: 12, alignItems: 'center' },
+    deleteBtnText: { color: Colors.expense, fontWeight: '600', fontSize: 14 },
+});

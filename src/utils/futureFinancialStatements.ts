@@ -23,11 +23,13 @@
  * guarantee — the UI must keep saying so.
  */
 
-import { Transaction, Loan, FinanceData, StaffMember } from '../types';
+import { Transaction, Loan, FinanceData, StaffMember, MacroAssumption } from '../types';
 import { computeWorkingCapitalMetrics } from './finance';
 import { computeAllTimeMonthlyBuckets } from './trendAnalysis';
 import { monthlyPayment, outstandingLoanBalance } from './loanMath';
 import { monthlySalaryCost } from './structuralSnapshot';
+import { computeCostExposure } from './costExposure';
+import { computeExternalRiskInsights, ExternalRiskInsight } from './externalRiskInsights';
 
 export interface ForecastAdjustments {
     revenueGrowthPctPerMonth: number;  // compounding, can be negative — from a price change, volume change, or new-customer push
@@ -84,6 +86,17 @@ export interface FutureFinancialStatements {
     knownPayables: number;              // all pending/overdue expense transactions (accounts payable) — already driving month-to-month cash flow via the payables estimate
     knownReceivables: number;           // all pending/overdue income transactions (accounts receivable) — already driving month-to-month cash flow via the receivables estimate
     existingLoanMonthlyPayment: number; // current active loans' combined scheduled payment — already amortizing in the projection
+    // Cost Exposure's fastest-growing category, if one is currently rising
+    // fast enough to trigger its own "if this continues" projection — that
+    // category is compounded forward at its own observed pace instead of
+    // being blended into the flat expenseGrowthPctPerMonth adjustment, so
+    // e.g. a business with rising energy costs sees that cost keep outpacing
+    // the rest of its expenses here too, not just on the Cost Exposure tab.
+    riskAdjustedCategory: string | null;
+    riskAdjustedCategoryMonthlySpend: number;   // current baseline monthly spend for that category
+    riskAdjustedCategoryGrowthPct: number;      // its observed growth rate over riskAdjustedCategoryWindowMonths
+    riskAdjustedCategoryWindowMonths: number;   // the window that growth rate applies to, so a caller can recompute the projection at any horizon
+    riskAdjustedCategoryInsight: ExternalRiskInsight | null; // set when a macro assumption is linked and corroborated
     months: ProjectedMonth[];
 }
 
@@ -112,6 +125,7 @@ export function buildFutureFinancialStatements(
     adjustments: ForecastAdjustments,
     horizonMonths: number = 12,
     staff: StaffMember[] = [],
+    macroAssumptions: MacroAssumption[] = [],
 ): FutureFinancialStatements {
     const monthly = computeAllTimeMonthlyBuckets(transactions);
     const recentMonths = monthly.slice(-3);
@@ -181,12 +195,38 @@ export function buildFutureFinancialStatements(
     let prevReceivables = wc.accountsReceivable;
     let prevPayables = wc.accountsPayable;
 
+    // Cost Exposure's own "if this continues" trigger (projectedImpact) is
+    // reused here rather than re-deriving a threshold, so this forecast and
+    // the Cost Exposure tab agree on when a category is rising fast enough
+    // to be worth projecting on its own trajectory instead of blending into
+    // the flat expense-growth adjustment.
+    const costExposure = computeCostExposure(transactions);
+    const riskImpact = costExposure.available ? costExposure.projectedImpact : null;
+    const costExposureWindowMonths = costExposure.available ? costExposure.windowMonths : 3;
+    const riskAdjustedCategory = riskImpact?.category ?? null;
+    const riskAdjustedCategoryMonthlySpend = riskImpact?.currentMonthlySpend ?? 0;
+    const riskAdjustedCategoryGrowthPct = riskImpact?.observedGrowthPct ?? 0;
+    const restOfExpenseBaseline = Math.max(0, baselineMonthlyExpense - riskAdjustedCategoryMonthlySpend);
+    const riskAdjustedCategoryInsight = riskImpact
+        ? computeExternalRiskInsights(transactions, macroAssumptions).insights.find(i => i.category === riskImpact.category) ?? null
+        : null;
+
     const months: ProjectedMonth[] = [];
 
     for (let m = 1; m <= horizonMonths; m++) {
         const revenue = baselineMonthlyRevenue * Math.pow(1 + adjustments.revenueGrowthPctPerMonth / 100, m);
-        const operatingExpenses = baselineMonthlyExpense * Math.pow(1 + adjustments.expenseGrowthPctPerMonth / 100, m)
-            + adjustments.oneOffMonthlyCostAdd + payrollGapIncluded;
+        // The at-risk category compounds at its own observed pace (per
+        // costExposureWindowMonths, not per single month — spendGrowthPct is
+        // defined over that window) instead of being smoothed into the flat
+        // adjustment, so a rising energy or FX-linked cost keeps outpacing
+        // the rest of the business's expenses here the same way it does on
+        // the Cost Exposure tab.
+        const operatingExpenses = riskAdjustedCategory
+            ? restOfExpenseBaseline * Math.pow(1 + adjustments.expenseGrowthPctPerMonth / 100, m)
+                + riskAdjustedCategoryMonthlySpend * Math.pow(1 + riskAdjustedCategoryGrowthPct / 100, m / costExposureWindowMonths)
+                + adjustments.oneOffMonthlyCostAdd + payrollGapIncluded
+            : baselineMonthlyExpense * Math.pow(1 + adjustments.expenseGrowthPctPerMonth / 100, m)
+                + adjustments.oneOffMonthlyCostAdd + payrollGapIncluded;
         const profit = revenue - operatingExpenses;
         const profitMargin = revenue > 0 ? (profit / revenue) * 100 : 0;
 
@@ -248,6 +288,8 @@ export function buildFutureFinancialStatements(
         baselineMonthlyRevenue, baselineMonthlyExpense, baselineMonthsUsed, startingCash, startingLoanBalance,
         activePayrollMonthlyCost, payrollGapIncluded, unpaidInventoryPurchases,
         knownPayables: wc.accountsPayable, knownReceivables: wc.accountsReceivable, existingLoanMonthlyPayment,
+        riskAdjustedCategory, riskAdjustedCategoryMonthlySpend, riskAdjustedCategoryGrowthPct,
+        riskAdjustedCategoryWindowMonths: costExposureWindowMonths, riskAdjustedCategoryInsight,
         months,
     };
 }

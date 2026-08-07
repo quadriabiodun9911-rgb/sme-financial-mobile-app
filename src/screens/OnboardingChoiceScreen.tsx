@@ -1,7 +1,9 @@
 import React from 'react';
 import { SafeAreaView, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
+import { Screen } from '../types';
 
 // Shown once, immediately after a brand-new account is created — the two
 // starting paths the app is built around: upload real data for an instant
@@ -11,6 +13,16 @@ import { Colors } from '../theme/colors';
 // user to discover it (or not) on a busy Dashboard.
 export default function OnboardingChoiceScreen() {
     const { setCurrentScreen, user } = useApp();
+
+    // Any choice here — including Skip — already answers "how do I get my
+    // first data in," so Dashboard's separate FirstRunWizard (which asks the
+    // same thing again via a 3-step "what do you sell / money in / money
+    // out" quick-add) would otherwise pop up right behind this screen. Mark
+    // it done up front, the same flag FirstRunWizard itself sets on completion.
+    const choose = (screen: Screen) => {
+        AsyncStorage.setItem('@quad360/first_run_done', '1').catch(() => {});
+        setCurrentScreen(screen);
+    };
 
     return (
         <SafeAreaView style={s.safe}>
@@ -22,7 +34,7 @@ export default function OnboardingChoiceScreen() {
                     you can always do the other one later.
                 </Text>
 
-                <TouchableOpacity style={s.card} onPress={() => setCurrentScreen('import-transactions')} activeOpacity={0.85}>
+                <TouchableOpacity style={s.card} onPress={() => choose('import-transactions')} activeOpacity={0.85}>
                     <Text style={s.cardIcon}>📄</Text>
                     <Text style={s.cardTitle}>Upload My Bank Statement</Text>
                     <Text style={s.cardDesc}>
@@ -32,7 +44,7 @@ export default function OnboardingChoiceScreen() {
                     <Text style={s.cardCta}>Recommended if you have one handy →</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={s.card} onPress={() => setCurrentScreen('goals')} activeOpacity={0.85}>
+                <TouchableOpacity style={s.card} onPress={() => choose('goals')} activeOpacity={0.85}>
                     <Text style={s.cardIcon}>🎯</Text>
                     <Text style={s.cardTitle}>Set a Financial Goal</Text>
                     <Text style={s.cardDesc}>
@@ -42,7 +54,7 @@ export default function OnboardingChoiceScreen() {
                     <Text style={s.cardCta}>Good starting point either way →</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={s.skip} onPress={() => setCurrentScreen('dashboard')}>
+                <TouchableOpacity style={s.skip} onPress={() => choose('dashboard')}>
                     <Text style={s.skipText}>Skip for now</Text>
                 </TouchableOpacity>
             </View>

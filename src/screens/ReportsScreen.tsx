@@ -26,6 +26,7 @@ import ProductPerformance from '../components/ProductPerformance';
 import GrowthMetrics from '../components/GrowthMetrics';
 import MultiYearTrends from '../components/MultiYearTrends';
 import QualityOfGrowthTab from '../components/QualityOfGrowthTab';
+import CostExposureTab from '../components/CostExposureTab';
 import PricingOptimizer from '../components/PricingOptimizer';
 import NextStepLink from '../components/NextStepLink';
 import CashFlowStatement from '../components/CashFlowStatement';
@@ -54,7 +55,7 @@ type SubTab =
     | 'aging'
     | 'tax' | 'tax-filing' | 'tax-planning'
     | 'budget' | 'cashflow' | 'cashmgmt' | 'debt' | 'assets'
-    | 'growth' | 'history' | 'quality' | 'customers' | 'products' | 'pricing';
+    | 'growth' | 'history' | 'quality' | 'exposure' | 'customers' | 'products' | 'pricing';
 
 const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
     statements: [
@@ -82,6 +83,7 @@ const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
         { key: 'growth',    label: 'Growth Trends' },
         { key: 'history',   label: 'Multi-Year History' },
         { key: 'quality',   label: 'Quality of Growth' },
+        { key: 'exposure',  label: 'Cost Exposure' },
         { key: 'customers', label: 'Best Customers' },
         { key: 'products',  label: 'Best Products' },
         { key: 'pricing',   label: 'Pricing Optimization' },
@@ -607,6 +609,9 @@ export default function ReportsScreen() {
                             currency={currency}
                         />
                     )}
+
+                    {/* ── COST EXPOSURE ────────────────────────────────── */}
+                    {activeTab === 'exposure' && <CostExposureTab />}
 
                     {/* ── CUSTOMER PROFITABILITY ───────────────────────── */}
                     {activeTab === 'customers' && (
