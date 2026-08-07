@@ -10,6 +10,8 @@ import Papa from 'papaparse';
 import ExcelJS from 'exceljs';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
+import Icon from '../components/ui/Icon';
+import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { parsePdfStatement } from '../utils/pdfParser';
 import { filterNewTransactions } from '../utils/transactionDedup';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
@@ -648,17 +650,38 @@ export default function ImportTransactionsScreen() {
 
                 <View style={styles.card}>
                     <Text style={styles.cardTitle}>Supported formats</Text>
-                    <Text style={styles.supportedText}>✅  CSV  (.csv)</Text>
-                    <Text style={styles.supportedText}>✅  Text  (.txt — comma, tab, pipe, or semicolon delimited)</Text>
-                    <Text style={styles.supportedText}>✅  Excel  (.xlsx  ·  .xls)</Text>
-                    <Text style={styles.supportedText}>✅  PDF bank statements  (.pdf)</Text>
-                    <Text style={styles.supportedText}>✅  Works with all Nigerian banks</Text>
-                    <Text style={styles.supportedText}>✅  Processed on your device — never uploaded</Text>
+                    <View style={styles.supportedRow}>
+                        <Icon name="check" size={13} color={Colors.income} />
+                        <Text style={styles.supportedText}>CSV  (.csv)</Text>
+                    </View>
+                    <View style={styles.supportedRow}>
+                        <Icon name="check" size={13} color={Colors.income} />
+                        <Text style={styles.supportedText}>Text  (.txt — comma, tab, pipe, or semicolon delimited)</Text>
+                    </View>
+                    <View style={styles.supportedRow}>
+                        <Icon name="check" size={13} color={Colors.income} />
+                        <Text style={styles.supportedText}>Excel  (.xlsx  ·  .xls)</Text>
+                    </View>
+                    <View style={styles.supportedRow}>
+                        <Icon name="check" size={13} color={Colors.income} />
+                        <Text style={styles.supportedText}>PDF bank statements  (.pdf)</Text>
+                    </View>
+                    <View style={styles.supportedRow}>
+                        <Icon name="check" size={13} color={Colors.income} />
+                        <Text style={styles.supportedText}>Works with all Nigerian banks</Text>
+                    </View>
+                    <View style={styles.supportedRow}>
+                        <Icon name="check" size={13} color={Colors.income} />
+                        <Text style={styles.supportedText}>Processed on your device — never uploaded</Text>
+                    </View>
                 </View>
 
                 {Platform.OS === 'ios' || (Platform.OS === 'web' && /iphone|ipad/i.test(navigator?.userAgent ?? '')) ? (
                     <View style={styles.iosGuideCard}>
-                        <Text style={styles.iosGuideTitle}>📱 iPhone tip</Text>
+                        <View style={styles.iosGuideTitleRow}>
+                            <Icon name="smartphone" size={16} color={Colors.textPrimary} />
+                            <Text style={styles.iosGuideTitle}>iPhone tip</Text>
+                        </View>
                         <Text style={styles.iosGuideText}>
                             1. Open your bank's website or app and download your statement as <Text style={styles.bold}>Excel or CSV</Text>.{'\n'}
                             2. When the file downloads, tap <Text style={styles.bold}>"Files"</Text> to save it to your iPhone Files app.{'\n'}
@@ -670,7 +693,8 @@ export default function ImportTransactionsScreen() {
 
                 {error ? (
                     <View style={styles.errorBox}>
-                        <Text style={styles.errorText}>❌  {error}</Text>
+                        <Icon name="alert-circle" size={15} color="#b91c1c" />
+                        <Text style={styles.errorText}>{error}</Text>
                     </View>
                 ) : null}
 
@@ -681,7 +705,12 @@ export default function ImportTransactionsScreen() {
                 >
                     {loading
                         ? <ActivityIndicator color="#fff" />
-                        : <Text style={styles.primaryBtnText}>📁  Choose file (CSV, TXT, Excel or PDF)</Text>
+                        : (
+                            <View style={styles.primaryBtnContent}>
+                                <Icon name="upload" size={16} color="#fff" />
+                                <Text style={styles.primaryBtnText}>Choose file (CSV, TXT, Excel or PDF)</Text>
+                            </View>
+                        )
                     }
                 </TouchableOpacity>
             </ScrollView>
@@ -699,7 +728,9 @@ export default function ImportTransactionsScreen() {
 
         return (
             <ScrollView style={styles.container} contentContainerStyle={[styles.content, styles.centred]}>
-                <Text style={styles.doneIcon}>✅</Text>
+                <View style={styles.doneIconBadge}>
+                    <Icon name="check" size={32} color={Colors.income} />
+                </View>
                 <Text style={styles.doneTitle}>{imported} transaction{imported !== 1 ? 's' : ''} imported</Text>
                 <Text style={styles.doneSub}>Your dashboard and reports have been updated.</Text>
                 {duplicatesSkipped > 0 && (
@@ -762,10 +793,16 @@ export default function ImportTransactionsScreen() {
                 <View style={{ flex: 1 }}>
                     <Text style={styles.previewTitle}>{rows.length} transactions found</Text>
                     {flaggedRows.length > 0 && (
-                        <Text style={styles.flaggedNote}>⚠️  {flaggedRows.length} need a category — tap to fix</Text>
+                        <View style={styles.noteRow}>
+                            <Icon name="alert-triangle" size={12} color="#f59e0b" />
+                            <Text style={styles.flaggedNote}>{flaggedRows.length} need a category — tap to fix</Text>
+                        </View>
                     )}
                     {!!skippedNote && (
-                        <Text style={styles.skippedNote}>ℹ️  {skippedNote}</Text>
+                        <View style={styles.noteRow}>
+                            <Icon name="info" size={11} color={Colors.textMuted} />
+                            <Text style={styles.skippedNote}>{skippedNote}</Text>
+                        </View>
                     )}
                 </View>
             </View>
@@ -835,8 +872,8 @@ export default function ImportTransactionsScreen() {
                             <Text style={[styles.txAmount, { color: r.type === 'income' ? '#22c55e' : '#ef4444' }]}>
                                 {r.type === 'income' ? '+' : '-'}{fmt(r.amount)}
                             </Text>
-                            <TouchableOpacity onPress={() => removeRow(r.id)}>
-                                <Text style={styles.removeBtn}>✕</Text>
+                            <TouchableOpacity style={styles.removeBtn} onPress={() => removeRow(r.id)}>
+                                <Icon name="x" size={15} color={Colors.textMuted} />
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -879,87 +916,96 @@ export default function ImportTransactionsScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: Colors.bg },
-    content:   { padding: 16, paddingBottom: 60 },
-    centred:   { justifyContent: 'center', alignItems: 'center', padding: 32 },
+    content:   { padding: Spacing.lg, paddingBottom: 60 },
+    centred:   { justifyContent: 'center', alignItems: 'center', padding: Spacing.xxxl },
 
-    header:    { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 20 },
+    header:    { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginBottom: Spacing.xl },
     backBtn:   { color: Colors.primary, fontSize: 14, fontWeight: '600' },
     title:     { fontSize: 18, fontWeight: '800', color: Colors.textPrimary },
 
-    card:      { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14 },
-    cardTitle: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: 12 },
+    card:      { backgroundColor: Colors.surface, borderRadius: 14, padding: Spacing.lg, marginBottom: 14, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
+    cardTitle: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: Spacing.md },
 
     bankRow:   { marginBottom: 10 },
     bankName:  { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
     bankSteps: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
 
-    supportedText: { fontSize: 13, color: Colors.textSecondary, marginBottom: 6 },
+    supportedRow:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: 6 },
+    supportedText: { fontSize: 13, color: Colors.textSecondary },
 
-    iosGuideCard:  { backgroundColor: '#1e3a5f', borderRadius: 14, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: Colors.primary },
-    iosGuideTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: 8 },
+    iosGuideCard:  { backgroundColor: '#1e3a5f', borderRadius: 14, padding: Spacing.lg, marginBottom: 14, borderWidth: 1, borderColor: Colors.primary },
+    iosGuideTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm },
+    iosGuideTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary },
     iosGuideText:  { fontSize: 13, color: Colors.textSecondary, lineHeight: 22 },
     bold:          { fontWeight: '700', color: Colors.textPrimary },
 
-    errorBox:  { backgroundColor: '#fef2f2', borderRadius: 10, padding: 12, marginBottom: 14, borderLeftWidth: 3, borderLeftColor: '#ef4444' },
-    errorText: { fontSize: 13, color: '#b91c1c', lineHeight: 20 },
+    errorBox:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: '#fef2f2', borderRadius: 10, padding: Spacing.md, marginBottom: 14, borderLeftWidth: 3, borderLeftColor: '#ef4444' },
+    errorText: { flex: 1, fontSize: 13, color: '#b91c1c', lineHeight: 20 },
 
-    primaryBtn:     { backgroundColor: Colors.primary, paddingVertical: 15, borderRadius: 12, alignItems: 'center', marginBottom: 12 },
+    primaryBtn:     { backgroundColor: Colors.primary, paddingVertical: 15, borderRadius: Radius.md, alignItems: 'center', marginBottom: Spacing.md, ...Shadow.sm },
+    primaryBtnContent: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
     primaryBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
     btnDisabled:    { opacity: 0.5 },
 
-    ghostBtn:     { paddingVertical: 12, alignItems: 'center' },
+    ghostBtn:     { paddingVertical: Spacing.md, alignItems: 'center' },
     ghostBtnText: { color: Colors.primary, fontWeight: '600', fontSize: 14 },
 
     // Preview header
-    previewHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    previewHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: 14, backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border },
     previewTitle:  { fontSize: 15, fontWeight: '800', color: Colors.textPrimary },
-    flaggedNote:   { fontSize: 12, color: '#f59e0b', marginTop: 2 },
-    skippedNote:   { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
+    noteRow:       { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+    flaggedNote:   { fontSize: 12, color: '#f59e0b' },
+    skippedNote:   { fontSize: 11, color: Colors.textMuted },
 
     // Summary strip
     summaryStrip: { flexDirection: 'row', backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border },
     summaryItem:  { flex: 1, alignItems: 'center', paddingVertical: 10 },
     summaryVal:   { fontSize: 13, fontWeight: '800', color: Colors.primary },
     summaryLabel: { fontSize: 10, color: Colors.textMuted, marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.4 },
-    balanceStrip: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border, paddingHorizontal: 8 },
+    balanceStrip: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border, paddingHorizontal: Spacing.sm },
     balanceArrow: { fontSize: 16, color: Colors.textMuted },
 
     // Transaction rows
-    txRow:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', backgroundColor: Colors.surface, borderRadius: 12, padding: 12, marginBottom: 8 },
+    txRow:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.sm, borderWidth: 1, borderColor: Colors.border },
     txRowFlagged: { borderWidth: 1.5, borderColor: '#f59e0b' },
     txLeft:       { flex: 1, paddingRight: 10 },
     txDate:       { fontSize: 11, color: Colors.textMuted, marginBottom: 2 },
-    txDesc:       { fontSize: 13, fontWeight: '600', color: Colors.textPrimary, marginBottom: 4 },
+    txDesc:       { fontSize: 13, fontWeight: '600', color: Colors.textPrimary, marginBottom: Spacing.xs },
     txCat:        { fontSize: 12, color: Colors.primary },
     txCatFlagged: { color: '#f59e0b' },
-    txRight:      { alignItems: 'flex-end', gap: 8 },
+    txRight:      { alignItems: 'flex-end', gap: Spacing.sm },
     txAmount:     { fontSize: 14, fontWeight: '800' },
-    removeBtn:    { fontSize: 16, color: Colors.textMuted, padding: 2 },
+    removeBtn:    { padding: 2 },
 
     // Fixed import bar
-    importBar: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, backgroundColor: Colors.bg, borderTopWidth: 1, borderTopColor: Colors.border },
-    importBtn:     { backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
+    importBar: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: Spacing.lg, backgroundColor: Colors.bg, borderTopWidth: 1, borderTopColor: Colors.border },
+    importBtn:     { backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: Radius.md, alignItems: 'center', ...Shadow.sm },
     importBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
 
     // Category picker modal
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-    modalSheet:   { backgroundColor: Colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '70%' },
-    modalTitle:   { fontSize: 16, fontWeight: '800', color: Colors.textPrimary, marginBottom: 16 },
+    modalSheet:   { backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Spacing.xl, maxHeight: '70%' },
+    modalTitle:   { fontSize: 16, fontWeight: '800', color: Colors.textPrimary, marginBottom: Spacing.lg },
     catOption:    { paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: Colors.border },
     catOptionText: { fontSize: 14, color: Colors.textPrimary },
 
     // Diagnosis preview on the Done screen
-    diagnosisPreviewCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginTop: 24, width: '100%', maxWidth: 340 },
+    diagnosisPreviewCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: Spacing.lg, marginTop: Spacing.xxl, width: '100%', maxWidth: 340, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     diagnosisPreviewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-    diagnosisPreviewLabel: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', flex: 1, marginRight: 8 },
-    diagnosisPreviewBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+    diagnosisPreviewLabel: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', flex: 1, marginRight: Spacing.sm },
+    diagnosisPreviewBadge: { paddingHorizontal: 10, paddingVertical: Spacing.xs, borderRadius: Radius.sm },
     diagnosisPreviewScore: { fontSize: 13, fontWeight: '800' },
     diagnosisPreviewProblem: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, lineHeight: 20 },
     diagnosisPreviewImpact: { fontSize: 12, color: Colors.textSecondary, marginTop: 6 },
 
     // Done screen
-    doneIcon:  { fontSize: 64, marginBottom: 16 },
+    doneIconBadge: {
+        width: 64, height: 64, borderRadius: Radius.pill,
+        backgroundColor: Colors.income + '18',
+        alignItems: 'center', justifyContent: 'center',
+        marginBottom: Spacing.lg,
+    },
     doneTitle: { fontSize: 22, fontWeight: '800', color: Colors.textPrimary, textAlign: 'center' },
-    doneSub:   { fontSize: 14, color: Colors.textSecondary, textAlign: 'center', marginTop: 8 },
-    doneSkippedNote: { fontSize: 12, color: Colors.textMuted, textAlign: 'center', marginTop: 10, paddingHorizontal: 20 },
+    doneSub:   { fontSize: 14, color: Colors.textSecondary, textAlign: 'center', marginTop: Spacing.sm },
+    doneSkippedNote: { fontSize: 12, color: Colors.textMuted, textAlign: 'center', marginTop: 10, paddingHorizontal: Spacing.xl },
 });

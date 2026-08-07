@@ -6,6 +6,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
+import Icon from '../components/ui/Icon';
+import { Radius, Shadow, Spacing } from '../theme/tokens';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { StaffMember, PayrollItem } from '../types';
@@ -125,7 +127,9 @@ export default function PayrollScreen() {
 
                         {staff.length === 0 && (
                             <View style={styles.empty}>
-                                <Text style={styles.emptyIcon}>👥</Text>
+                                <View style={styles.emptyIconWrap}>
+                                    <Icon name="users" size={34} color={Colors.textMuted} />
+                                </View>
                                 <Text style={styles.emptyText}>No staff added yet</Text>
                                 <Text style={styles.emptySubtext}>Add your first team member above</Text>
                             </View>
@@ -145,10 +149,10 @@ export default function PayrollScreen() {
                                     </View>
                                     <View style={styles.staffActions}>
                                         <TouchableOpacity onPress={() => openEdit(s)} style={styles.iconBtn} activeOpacity={0.7}>
-                                            <Text style={styles.iconBtnText}>✏️</Text>
+                                            <Icon name="edit-2" size={15} color={Colors.textSecondary} />
                                         </TouchableOpacity>
                                         <TouchableOpacity onPress={() => confirmDelete(s.id, s.name)} style={styles.iconBtn} activeOpacity={0.7}>
-                                            <Text style={styles.iconBtnText}>🗑️</Text>
+                                            <Icon name="trash-2" size={15} color={Colors.expense} />
                                         </TouchableOpacity>
                                     </View>
                                 </View>
@@ -381,6 +385,7 @@ const styles = StyleSheet.create({
     addBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
 
     empty: { alignItems: 'center', paddingVertical: 48 },
+    emptyIconWrap: { width: 64, height: 64, borderRadius: Radius.pill, backgroundColor: Colors.surfaceVariant, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
     emptyIcon: { fontSize: 40, marginBottom: 12 },
     emptyText: { fontSize: 16, fontWeight: '700', color: Colors.textSecondary },
     emptySubtext: { fontSize: 13, color: Colors.textMuted, marginTop: 4 },

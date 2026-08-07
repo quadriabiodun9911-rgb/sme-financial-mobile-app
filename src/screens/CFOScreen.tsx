@@ -23,6 +23,8 @@ import {
     computePaymentOptimiser,
 } from '../utils/finance';
 import { computeInventoryValue } from '../utils/stockVelocity';
+import Icon, { IconName } from '../components/ui/Icon';
+import { Radius, Shadow, Spacing } from '../theme/tokens';
 
 type Tab = 'pulse' | 'forecast' | 'finance' | 'risk' | 'growth' | 'questions';
 
@@ -39,11 +41,11 @@ function fmtRunway(days: number): string {
 // the Financial Health Score card) and from CreditWorthinessScreen's
 // lender-focused credit score. Named riskLabel (not healthLabel) so the code
 // doesn't conflate the two.
-function riskLabel(score: number): { label: string; color: string; emoji: string } {
-    if (score >= 80) return { label: 'Low Risk',      color: Colors.income,   emoji: '🟢' };
-    if (score >= 60) return { label: 'Moderate Risk',  color: Colors.income,   emoji: '🟡' };
-    if (score >= 40) return { label: 'Elevated Risk',  color: Colors.warning,  emoji: '🟠' };
-    return               { label: 'High Risk',      color: Colors.expense,  emoji: '🔴' };
+function riskLabel(score: number): { label: string; color: string; icon: IconName } {
+    if (score >= 80) return { label: 'Low Risk',      color: Colors.income,   icon: 'check-circle' };
+    if (score >= 60) return { label: 'Moderate Risk',  color: Colors.income,   icon: 'check-circle' };
+    if (score >= 40) return { label: 'Elevated Risk',  color: Colors.warning,  icon: 'alert-triangle' };
+    return               { label: 'High Risk',      color: Colors.expense,  icon: 'alert-circle' };
 }
 
 function statusColor(status: string) {
@@ -106,12 +108,14 @@ function PulseTab({ onOpenRisk }: { onOpenRisk: () => void }) {
                 engine). Condensed to a one-line teaser pointing at the
                 Risk tab, which already shows this in full. */}
             <TouchableOpacity style={[s.card, { borderLeftWidth: 4, borderLeftColor: riskDisplay.color, flexDirection: 'row', alignItems: 'center' }]} onPress={onOpenRisk}>
-                <Text style={{ fontSize: 32, marginRight: 12 }}>{riskDisplay.emoji}</Text>
+                <View style={{ width: 44, height: 44, borderRadius: Radius.pill, backgroundColor: riskDisplay.color + '18', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                    <Icon name={riskDisplay.icon} size={20} color={riskDisplay.color} />
+                </View>
                 <View style={{ flex: 1 }}>
                     <Text style={s.cardTitle}>Debt & Risk Score: {riskDisplay.label} ({risk.score}/100)</Text>
                     {briefing[0] && <Text style={s.briefingLine}>{briefing[0]}</Text>}
                 </View>
-                <Text style={{ fontSize: 18, color: Colors.primary }}>→</Text>
+                <Icon name="chevron-right" size={18} color={Colors.primary} />
             </TouchableOpacity>
 
             {/* Today's focus */}

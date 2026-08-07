@@ -10,6 +10,8 @@ import FooterNav from '../components/FooterNav';
 import { getTopCategories } from '../utils/finance';
 import { generateSwot } from '../utils/swot';
 import { SwotItem } from '../types';
+import Icon, { IconName } from '../components/ui/Icon';
+import { Radius, Shadow, Spacing } from '../theme/tokens';
 
 if (Platform.OS === 'android') {
     UIManager.setLayoutAnimationEnabledExperimental?.(true);
@@ -103,10 +105,10 @@ export function extractTitle(text: string): string {
     return (lastSpace > 30 ? truncated.slice(0, lastSpace) : truncated) + '…';
 }
 
-const URGENCY_CONFIG = {
-    urgent: { label: 'URGENT', color: Colors.expense, bg: 'rgba(239,68,68,0.1)', icon: '🔴' },
-    important: { label: 'IMPORTANT', color: Colors.warning, bg: 'rgba(245,158,11,0.1)', icon: '🟡' },
-    opportunity: { label: 'OPPORTUNITY', color: Colors.income, bg: 'rgba(16,185,129,0.1)', icon: '🟢' },
+const URGENCY_CONFIG: Record<ActionItem['urgency'], { label: string; color: string; bg: string; icon: IconName }> = {
+    urgent: { label: 'URGENT', color: Colors.expense, bg: 'rgba(239,68,68,0.1)', icon: 'alert-circle' },
+    important: { label: 'IMPORTANT', color: Colors.warning, bg: 'rgba(245,158,11,0.1)', icon: 'alert-triangle' },
+    opportunity: { label: 'OPPORTUNITY', color: Colors.income, bg: 'rgba(16,185,129,0.1)', icon: 'trending-up' },
 };
 
 const SOURCE_LABELS = {
@@ -182,8 +184,9 @@ export default function InsightsScreen() {
                             style={styles.alertBanner}
                             onPress={() => navigate('reports', { reportSection: 'customers', reportTab: 'aging' })}
                         >
+                            <Icon name="alert-triangle" size={14} color={Colors.expense} />
                             <Text style={styles.alertText}>
-                                ⚠ {overdueCount} overdue transaction{overdueCount > 1 ? 's' : ''} — tap to view AR/AP Aging
+                                {overdueCount} overdue transaction{overdueCount > 1 ? 's' : ''} — tap to view AR/AP Aging
                             </Text>
                         </TouchableOpacity>
                     )}
@@ -198,12 +201,15 @@ export default function InsightsScreen() {
                         activeOpacity={0.8}
                     >
                         <View>
-                            <Text style={styles.swotHeaderTitle}>🔍 SWOT Action Plan</Text>
+                            <View style={styles.swotHeaderTitleRow}>
+                                <Icon name="search" size={16} color={Colors.textPrimary} />
+                                <Text style={styles.swotHeaderTitle}>SWOT Action Plan</Text>
+                            </View>
                             <Text style={styles.swotHeaderSub}>
                                 Personalised actions derived from your live financial data
                             </Text>
                         </View>
-                        <Text style={styles.chevron}>{swotExpanded ? '▲' : '▼'}</Text>
+                        <Icon name={swotExpanded ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.textMuted} />
                     </TouchableOpacity>
 
                     {swotExpanded && (
@@ -233,7 +239,9 @@ export default function InsightsScreen() {
                                     >
                                         <View style={styles.actionTop}>
                                             <View style={styles.actionLeft}>
-                                                <Text style={styles.actionIcon}>{cfg.icon}</Text>
+                                                <View style={styles.actionIcon}>
+                                                    <Icon name={cfg.icon} size={16} color={cfg.color} />
+                                                </View>
                                                 <View style={styles.actionTitleBlock}>
                                                     <View style={[styles.urgencyPill, { backgroundColor: cfg.bg }]}>
                                                         <Text style={[styles.urgencyLabel, { color: cfg.color }]}>{cfg.label}</Text>
@@ -253,7 +261,10 @@ export default function InsightsScreen() {
                                                     </View>
                                                 )}
                                                 <View style={styles.sourceRow}>
-                                                    <Text style={styles.sourceLabel}>📌 {SOURCE_LABELS[action.source]}</Text>
+                                                    <View style={styles.sourceLabelRow}>
+                                                        <Icon name="bookmark" size={11} color={Colors.textMuted} />
+                                                        <Text style={styles.sourceLabel}>{SOURCE_LABELS[action.source]}</Text>
+                                                    </View>
                                                     {action.source === 'opportunity' && (
                                                         <TouchableOpacity onPress={() => navigate('goals', { goalType: 'custom' })}>
                                                             <Text style={styles.goalLink}>Set a goal →</Text>
@@ -401,51 +412,55 @@ const styles = StyleSheet.create({
     title: { fontSize: 20, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 16 },
     statRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
     alertBanner: {
+        flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
         backgroundColor: 'rgba(239,68,68,0.12)', borderWidth: 1,
-        borderColor: Colors.expense, borderRadius: 8, padding: 12, marginBottom: 12,
+        borderColor: Colors.expense, borderRadius: Radius.sm, padding: Spacing.md, marginBottom: Spacing.md,
     },
-    alertText: { color: Colors.expense, fontSize: 13, fontWeight: '600', textAlign: 'center' },
+    alertText: { flex: 1, color: Colors.expense, fontSize: 13, fontWeight: '600' },
 
     // SWOT action plan
     swotHeader: {
         flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-        backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 0,
+        backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.lg, marginBottom: 0,
         borderBottomLeftRadius: 0, borderBottomRightRadius: 0,
-        borderBottomWidth: 1, borderBottomColor: Colors.border,
+        borderWidth: 1, borderColor: Colors.border, borderBottomWidth: 1, borderBottomColor: Colors.border,
     },
+    swotHeaderTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     swotHeaderTitle: { fontSize: 16, fontWeight: 'bold', color: Colors.textPrimary },
     swotHeaderSub: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
-    chevron: { fontSize: 12, color: Colors.textMuted },
     swotBody: {
-        backgroundColor: Colors.surface, borderRadius: 12, padding: 14,
+        backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 14,
         borderTopLeftRadius: 0, borderTopRightRadius: 0, marginBottom: 14,
+        borderWidth: 1, borderColor: Colors.border, borderTopWidth: 0,
+        ...Shadow.sm,
     },
-    actionSummaryRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
+    actionSummaryRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.lg },
     actionListTitle: { fontSize: 13, fontWeight: 'bold', color: Colors.textMuted, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
     actionCard: {
-        borderRadius: 10, borderLeftWidth: 4, padding: 12, marginBottom: 8,
+        borderRadius: 10, borderLeftWidth: 4, padding: Spacing.md, marginBottom: Spacing.sm,
     },
     actionTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
     actionLeft: { flexDirection: 'row', flex: 1, gap: 10, alignItems: 'flex-start' },
-    actionIcon: { fontSize: 16, marginTop: 2 },
+    actionIcon: { marginTop: 2 },
     actionTitleBlock: { flex: 1 },
     urgencyPill: { alignSelf: 'flex-start', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, marginBottom: 4 },
     urgencyLabel: { fontSize: 9, fontWeight: 'bold' },
     actionTitle: { fontSize: 13, fontWeight: '600', color: Colors.textPrimary, lineHeight: 18 },
     expandIcon: { fontSize: 20, fontWeight: 'bold', marginLeft: 8 },
     actionExpanded: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.border },
-    actionDetail: { fontSize: 13, color: Colors.textSecondary, lineHeight: 20, marginBottom: 8 },
-    metricPill: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, marginBottom: 8 },
+    actionDetail: { fontSize: 13, color: Colors.textSecondary, lineHeight: 20, marginBottom: Spacing.sm },
+    metricPill: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: Radius.sm, borderWidth: 1, marginBottom: Spacing.sm },
     metricText: { fontSize: 11, fontWeight: '600' },
     sourceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    sourceLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     sourceLabel: { fontSize: 11, color: Colors.textMuted },
     goalLink: { fontSize: 12, color: Colors.primary, fontWeight: '600' },
     fullSwotBtn: { alignItems: 'center', paddingVertical: 12, marginTop: 4 },
     fullSwotText: { color: Colors.primary, fontSize: 13, fontWeight: '600' },
 
     // Shared
-    card: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 14 },
-    cardTitle: { fontSize: 16, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 12 },
+    card: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.lg, marginBottom: 14, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
+    cardTitle: { fontSize: 16, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: Spacing.md },
     green: { color: Colors.income },
     red: { color: Colors.expense },
     blue: { color: Colors.asset },

@@ -8,6 +8,8 @@ import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import DateInput from '../components/DateInput';
+import Icon, { IconName } from '../components/ui/Icon';
+import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { GoalType, FinancialGoal, Transaction } from '../types';
 import { generateStrategy, goalDefaults, buildNewGoal } from '../utils/goals';
 import NextStepLink from '../components/NextStepLink';
@@ -30,13 +32,13 @@ const GOAL_TYPE_SOLUTION: Record<GoalType, ImpactSource> = {
     custom: 'expense',
 };
 
-const GOAL_TYPES: { type: GoalType; label: string; icon: string; description: string }[] = [
-    { type: 'revenue_growth', label: 'Increase Revenue', icon: '📈', description: 'Grow total income to a target amount' },
-    { type: 'margin_improvement', label: 'Improve Margin', icon: '💰', description: 'Raise profit margin to a target percentage' },
-    { type: 'cost_reduction', label: 'Reduce Costs', icon: '✂️', description: 'Cut total operating expenses' },
-    { type: 'cash_reserve', label: 'Build Cash Reserve', icon: '🏦', description: 'Grow cash balance to a target amount' },
-    { type: 'reduce_overdue_ar', label: 'Clear Overdue AR', icon: '📋', description: 'Collect all outstanding receivables' },
-    { type: 'custom', label: 'Custom Goal', icon: '🎯', description: 'Define your own financial milestone' },
+const GOAL_TYPES: { type: GoalType; label: string; icon: IconName; description: string }[] = [
+    { type: 'revenue_growth', label: 'Increase Revenue', icon: 'trending-up', description: 'Grow total income to a target amount' },
+    { type: 'margin_improvement', label: 'Improve Margin', icon: 'percent', description: 'Raise profit margin to a target percentage' },
+    { type: 'cost_reduction', label: 'Reduce Costs', icon: 'scissors', description: 'Cut total operating expenses' },
+    { type: 'cash_reserve', label: 'Build Cash Reserve', icon: 'save', description: 'Grow cash balance to a target amount' },
+    { type: 'reduce_overdue_ar', label: 'Clear Overdue AR', icon: 'clipboard', description: 'Collect all outstanding receivables' },
+    { type: 'custom', label: 'Custom Goal', icon: 'target', description: 'Define your own financial milestone' },
 ];
 
 const STATUS_COLORS: Record<FinancialGoal['status'], string> = {
@@ -250,7 +252,9 @@ export default function GoalsScreen() {
                     {/* Goals list */}
                     {goals.length === 0 ? (
                         <View style={styles.emptyCard}>
-                            <Text style={styles.emptyIcon}>🎯</Text>
+                            <View style={styles.emptyIcon}>
+                                <Icon name="target" size={36} color={Colors.textMuted} />
+                            </View>
                             <Text style={styles.emptyTitle}>No goals yet</Text>
                             <Text style={styles.emptyText}>
                                 Add your first goal below. The app will analyse your financials and generate a step-by-step strategy to help you achieve it.
@@ -303,7 +307,9 @@ export default function GoalsScreen() {
                                 style={styles.typeCard}
                                 onPress={() => { setAddModalOpen(true); openAddModal(gt.type); }}
                             >
-                                <Text style={styles.typeIcon}>{gt.icon}</Text>
+                                <View style={styles.typeIcon}>
+                                    <Icon name={gt.icon} size={22} color={Colors.primary} />
+                                </View>
                                 <Text style={styles.typeLabel}>{gt.label}</Text>
                                 <Text style={styles.typeDesc}>{gt.description}</Text>
                             </TouchableOpacity>
@@ -318,10 +324,12 @@ export default function GoalsScreen() {
                 <View style={styles.overlay}>
                     <ScrollView keyboardShouldPersistTaps="handled">
                         <View style={styles.modal}>
-                            <Text style={styles.modalTitle}>
-                                {GOAL_TYPES.find(g => g.type === selectedType)?.icon}{' '}
-                                {GOAL_TYPES.find(g => g.type === selectedType)?.label}
-                            </Text>
+                            <View style={styles.modalTitleRow}>
+                                {selectedType && <Icon name={GOAL_TYPES.find(g => g.type === selectedType)!.icon} size={18} color={Colors.textPrimary} />}
+                                <Text style={styles.modalTitle}>
+                                    {GOAL_TYPES.find(g => g.type === selectedType)?.label}
+                                </Text>
+                            </View>
 
                             <FieldLabel>Goal Title</FieldLabel>
                             <TextInput style={styles.input} value={form.title} onChangeText={v => setForm(f => ({ ...f, title: v }))} placeholder="e.g. Grow revenue to $200k" placeholderTextColor={Colors.muted} />
@@ -412,13 +420,19 @@ export default function GoalsScreen() {
                                             style={[styles.planTab, planTab === 'bridge' && styles.planTabActive]}
                                             onPress={() => setPlanTab('bridge')}
                                         >
-                                            <Text style={[styles.planTabText, planTab === 'bridge' && styles.planTabTextActive]}>🌉 Bridge</Text>
+                                            <View style={styles.planTabInner}>
+                                                <Icon name="compass" size={13} color={planTab === 'bridge' ? '#fff' : Colors.textMuted} />
+                                                <Text style={[styles.planTabText, planTab === 'bridge' && styles.planTabTextActive]}>Bridge</Text>
+                                            </View>
                                         </TouchableOpacity>
                                         <TouchableOpacity
                                             style={[styles.planTab, planTab === 'strategy' && styles.planTabActive]}
                                             onPress={() => setPlanTab('strategy')}
                                         >
-                                            <Text style={[styles.planTabText, planTab === 'strategy' && styles.planTabTextActive]}>📋 Strategy</Text>
+                                            <View style={styles.planTabInner}>
+                                                <Icon name="clipboard" size={13} color={planTab === 'strategy' ? '#fff' : Colors.textMuted} />
+                                                <Text style={[styles.planTabText, planTab === 'strategy' && styles.planTabTextActive]}>Strategy</Text>
+                                            </View>
                                         </TouchableOpacity>
                                     </View>
 
@@ -470,7 +484,10 @@ export default function GoalsScreen() {
                                                 </View>
                                             </View>
 
-                                            <Text style={styles.sectionTitle}>🗺️ Tactics Roadmap</Text>
+                                            <View style={styles.sectionTitleRow}>
+                                                <Icon name="map" size={15} color={Colors.textPrimary} />
+                                                <Text style={[styles.sectionTitle, styles.sectionTitleInRow]}>Tactics Roadmap</Text>
+                                            </View>
                                             {planBridge.tactics.map((allocation, idx) => (
                                                 <View key={idx} style={styles.roadmapNode}>
                                                     <View style={styles.timelineNodeContainer}>
@@ -487,7 +504,10 @@ export default function GoalsScreen() {
                                                 </View>
                                             ))}
 
-                                            <Text style={[styles.sectionTitle, { marginTop: 16 }]}>🏁 Milestones</Text>
+                                            <View style={[styles.sectionTitleRow, { marginTop: 16 }]}>
+                                                <Icon name="flag" size={15} color={Colors.textPrimary} />
+                                                <Text style={[styles.sectionTitle, styles.sectionTitleInRow]}>Milestones</Text>
+                                            </View>
                                             {planBridge.milestones.map((milestone, idx) => (
                                                 <View key={idx} style={styles.milestoneCard}>
                                                     <View style={styles.milestoneLeft}>
@@ -641,7 +661,7 @@ function GoalCard({ goal, currency, daysRemaining, feasibility, onPlan, onEdit, 
         <View style={[cardStyles.card, { borderTopColor: statusColor }, isAchieved && cardStyles.achievedCard]}>
             <View style={cardStyles.header}>
                 <View style={cardStyles.titleRow}>
-                    {isAchieved && <Text style={cardStyles.trophy}>🏆 </Text>}
+                    {isAchieved && <View style={cardStyles.trophy}><Icon name="award" size={14} color={Colors.income} /></View>}
                     <Text style={cardStyles.title} numberOfLines={2}>{goal.title}</Text>
                 </View>
                 <View style={[cardStyles.statusBadge, { backgroundColor: statusColor + '22' }]}>
@@ -664,7 +684,10 @@ function GoalCard({ goal, currency, daysRemaining, feasibility, onPlan, onEdit, 
 
             {!isAchieved && feasibility?.feasibility === 'difficult' && (
                 <View style={cardStyles.solutionBox}>
-                    <Text style={cardStyles.solutionTitle}>💡 {suggestSolution(GOAL_TYPE_SOLUTION[goal.type]).title}</Text>
+                    <View style={cardStyles.solutionTitleRow}>
+                        <Icon name="zap" size={12} color={Colors.textPrimary} />
+                        <Text style={cardStyles.solutionTitle}>{suggestSolution(GOAL_TYPE_SOLUTION[goal.type]).title}</Text>
+                    </View>
                     <Text style={cardStyles.solutionDetail}>{suggestSolution(GOAL_TYPE_SOLUTION[goal.type]).detail}</Text>
                     {onExecute && <NextStepLink text="See your action plan" onPress={onExecute} />}
                     {onSeeFullPicture && <NextStepLink text="See the full profit → cash picture" onPress={onSeeFullPicture} />}
@@ -723,7 +746,10 @@ function GoalCard({ goal, currency, daysRemaining, feasibility, onPlan, onEdit, 
 
             <View style={cardStyles.actions}>
                 <TouchableOpacity style={cardStyles.strategyBtn} onPress={onPlan}>
-                    <Text style={cardStyles.strategyBtnText}>🌉 View Plan →</Text>
+                    <View style={cardStyles.strategyBtnInner}>
+                        <Icon name="compass" size={13} color="#fff" />
+                        <Text style={cardStyles.strategyBtnText}>View Plan →</Text>
+                    </View>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={onEdit} style={{ marginLeft: 12 }}>
                     <Text style={[cardStyles.deleteText, { color: Colors.primary }]}>Edit</Text>
@@ -741,17 +767,18 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
 }
 
 const cardStyles = StyleSheet.create({
-    card: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 14, borderTopWidth: 3 },
+    card: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.lg, marginBottom: 14, borderWidth: 1, borderColor: Colors.border, borderTopWidth: 3, ...Shadow.sm },
     achievedCard: { backgroundColor: 'rgba(16,185,129,0.06)', borderTopColor: Colors.income },
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 },
-    titleRow: { flexDirection: 'row', flex: 1, alignItems: 'flex-start', marginRight: 8 },
-    trophy: { fontSize: 14 },
+    titleRow: { flexDirection: 'row', flex: 1, alignItems: 'flex-start', marginRight: Spacing.sm },
+    trophy: { marginRight: 4 },
     title: { fontSize: 15, fontWeight: 'bold', color: Colors.textPrimary, flex: 1 },
-    feasRow: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 10 },
+    feasRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, borderWidth: 1, borderRadius: Radius.sm, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 10 },
     feasBadge: { fontSize: 10, fontWeight: '800' },
     feasText: { fontSize: 11, color: Colors.textSecondary, flex: 1 },
-    solutionBox:    { backgroundColor: Colors.primary + '10', borderRadius: 8, padding: 10, marginBottom: 10 },
-    solutionTitle:  { fontSize: 12, fontWeight: '700', color: Colors.textPrimary, marginBottom: 3 },
+    solutionBox:    { backgroundColor: Colors.primary + '10', borderRadius: Radius.sm, padding: 10, marginBottom: 10 },
+    solutionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 },
+    solutionTitle:  { fontSize: 12, fontWeight: '700', color: Colors.textPrimary },
     solutionDetail: { fontSize: 11, color: Colors.textSecondary, lineHeight: 16, marginBottom: 4 },
     bigNumbers: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 12, backgroundColor: Colors.bg, borderRadius: 10, padding: 10 },
     bigNum: { alignItems: 'center' },
@@ -770,24 +797,31 @@ const cardStyles = StyleSheet.create({
     metricLabel: { fontSize: 10, color: Colors.textMuted, marginBottom: 2 },
     metricValue: { fontSize: 11, fontWeight: '600', color: Colors.textPrimary, textAlign: 'center' },
     actions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    strategyBtn: { backgroundColor: Colors.primary, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8 },
-    strategyBtnText: { color: Colors.textPrimary, fontSize: 12, fontWeight: 'bold' },
+    strategyBtn: { backgroundColor: Colors.primary, paddingHorizontal: 14, paddingVertical: 7, borderRadius: Radius.sm },
+    strategyBtnInner: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    // Bug fix: this button sits on a solid Colors.primary background — the
+    // text was using Colors.textPrimary (near-black in the light "Warm
+    // Paper" theme), making it illegible. Same class of bug already fixed
+    // in LoginScreen/ReportsScreen.
+    strategyBtnText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
     deleteText: { color: Colors.expense, fontSize: 12 },
 });
 
 const styles = StyleSheet.create({
     safe: { flex: 1, backgroundColor: Colors.bg },
     scroll: { flex: 1 },
-    pad: { padding: 16 },
-    title: { fontSize: 22, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 8 },
-    subtitle: { fontSize: 13, color: Colors.textMuted, lineHeight: 20, marginBottom: 20 },
+    pad: { padding: Spacing.lg },
+    title: { fontSize: 22, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: Spacing.sm },
+    subtitle: { fontSize: 13, color: Colors.textMuted, lineHeight: 20, marginBottom: Spacing.xl },
     achievedHeader: { fontSize: 13, fontWeight: '700', color: Colors.income, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10, marginTop: 4 },
-    emptyCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: 28, alignItems: 'center', marginBottom: 24 },
-    emptyIcon: { fontSize: 36, marginBottom: 10 },
-    emptyTitle: { fontSize: 16, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 8 },
+    emptyCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: 28, alignItems: 'center', marginBottom: Spacing.xxl },
+    emptyIcon: { alignItems: 'center', marginBottom: 10 },
+    emptyTitle: { fontSize: 16, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: Spacing.sm },
     emptyText: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 20 },
-    sectionTitle: { fontSize: 16, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 12 },
-    typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20 },
+    sectionTitle: { fontSize: 16, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: Spacing.md },
+    sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: Spacing.md },
+    sectionTitleInRow: { marginBottom: 0 },
+    typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: Spacing.xl },
     typeCard: {
         backgroundColor: Colors.surface,
         borderRadius: 10,
@@ -795,71 +829,78 @@ const styles = StyleSheet.create({
         width: '47%',
         borderWidth: 1,
         borderColor: Colors.border,
+        ...Shadow.sm,
     },
-    typeIcon: { fontSize: 24, marginBottom: 6 },
+    typeIcon: { marginBottom: 6 },
     typeLabel: { fontSize: 13, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 4 },
     typeDesc: { fontSize: 11, color: Colors.textMuted, lineHeight: 16 },
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'flex-end' },
-    modal: { backgroundColor: Colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 44 },
-    modalTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary, textAlign: 'center', marginBottom: 16 },
-    label: { fontSize: 12, color: Colors.textSecondary, fontWeight: '600', marginBottom: 6, marginTop: 12 },
+    modal: { backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Spacing.xxl, paddingBottom: 44 },
+    modalTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: Spacing.lg },
+    modalTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary, textAlign: 'center' },
+    label: { fontSize: 12, color: Colors.textSecondary, fontWeight: '600', marginBottom: 6, marginTop: Spacing.md },
     input: {
         backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border,
-        borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10,
+        borderRadius: Radius.sm, paddingHorizontal: Spacing.md, paddingVertical: 10,
         color: Colors.textPrimary, fontSize: 14,
     },
-    modalBtns: { flexDirection: 'row', gap: 12, marginTop: 24 },
-    modalBtn: { flex: 1, paddingVertical: 13, borderRadius: 8, alignItems: 'center' },
-    modalBtnText: { color: Colors.textPrimary, fontWeight: 'bold', fontSize: 14 },
-    strategyIntro: { fontSize: 13, color: Colors.textMuted, marginBottom: 16, lineHeight: 20, textAlign: 'center' },
-    actionCard: { backgroundColor: Colors.bg, borderRadius: 10, padding: 14, marginBottom: 12, borderLeftWidth: 4 },
+    modalBtns: { flexDirection: 'row', gap: Spacing.md, marginTop: Spacing.xxl },
+    modalBtn: { flex: 1, paddingVertical: 13, borderRadius: Radius.sm, alignItems: 'center' },
+    // Bug fix: modalBtn is always given a saturated background (Colors.muted
+    // or Colors.primary) inline — Colors.textPrimary text on top of either
+    // is illegible in the light "Warm Paper" theme. Same fix as
+    // LoginScreen/ReportsScreen.
+    modalBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
+    strategyIntro: { fontSize: 13, color: Colors.textMuted, marginBottom: Spacing.lg, lineHeight: 20, textAlign: 'center' },
+    actionCard: { backgroundColor: Colors.bg, borderRadius: 10, padding: 14, marginBottom: Spacing.md, borderLeftWidth: 4 },
     actionHeader: { marginBottom: 6 },
-    priorityBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+    priorityBadge: { alignSelf: 'flex-start', paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: Radius.sm },
     priorityText: { fontSize: 10, fontWeight: 'bold' },
     actionTitle: { fontSize: 14, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 6 },
     actionDetail: { fontSize: 13, color: Colors.textSecondary, lineHeight: 20 },
-    metricPill: { backgroundColor: Colors.surface, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, marginTop: 8, alignSelf: 'flex-start' },
+    metricPill: { backgroundColor: Colors.surface, borderRadius: Radius.sm, paddingHorizontal: 10, paddingVertical: 5, marginTop: Spacing.sm, alignSelf: 'flex-start' },
     metricText: { fontSize: 11, color: Colors.primary, fontWeight: '600' },
-    strategyFooter: { fontSize: 11, color: Colors.textMuted, textAlign: 'center', marginTop: 16, fontStyle: 'italic' },
-    dailyActionsBox: { backgroundColor: Colors.bg, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, padding: 12, marginTop: 16, marginBottom: 4 },
-    dailyActionsTitle: { fontSize: 9, fontWeight: '700', color: Colors.textMuted, letterSpacing: 1, marginBottom: 8 },
-    dailyActionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 8 },
+    strategyFooter: { fontSize: 11, color: Colors.textMuted, textAlign: 'center', marginTop: Spacing.lg, fontStyle: 'italic' },
+    dailyActionsBox: { backgroundColor: Colors.bg, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, padding: Spacing.md, marginTop: Spacing.lg, marginBottom: 4 },
+    dailyActionsTitle: { fontSize: 9, fontWeight: '700', color: Colors.textMuted, letterSpacing: 1, marginBottom: Spacing.sm },
+    dailyActionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm, marginBottom: Spacing.sm },
     dailyActionNum: { width: 20, height: 20, borderRadius: 10, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
     dailyActionNumText: { fontSize: 10, fontWeight: '700', color: '#fff' },
     dailyActionText: { flex: 1, fontSize: 12, color: Colors.textPrimary, lineHeight: 17 },
 
     // Plan modal — Bridge tab (adapted from the retired GoalBridgeScreen)
-    planTabs: { flexDirection: 'row', backgroundColor: Colors.bg, borderRadius: 10, padding: 4, marginBottom: 16, gap: 4 },
-    planTab: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
+    planTabs: { flexDirection: 'row', backgroundColor: Colors.bg, borderRadius: 10, padding: 4, marginBottom: Spacing.lg, gap: 4 },
+    planTab: { flex: 1, paddingVertical: Spacing.sm, borderRadius: Radius.sm, alignItems: 'center' },
+    planTabInner: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     planTabActive: { backgroundColor: Colors.primary },
     planTabText: { fontSize: 12, fontWeight: '700', color: Colors.textMuted },
     planTabTextActive: { color: '#fff' },
 
-    assessmentCard: { backgroundColor: Colors.bg, borderRadius: 14, borderLeftWidth: 4, padding: 16, marginBottom: 20, gap: 12 },
-    assessmentHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+    assessmentCard: { backgroundColor: Colors.bg, borderRadius: 14, borderLeftWidth: 4, padding: Spacing.lg, marginBottom: Spacing.xl, gap: Spacing.md },
+    assessmentHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.sm },
     assessmentLabel: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
-    feasibilityBadge: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1 },
+    feasibilityBadge: { borderRadius: Radius.sm, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1 },
     feasibilityText: { fontSize: 10, fontWeight: '700' },
-    assessmentRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    assessmentRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
     assessmentRowLabel: { fontSize: 12, color: Colors.textSecondary, flex: 1 },
     assessmentRowValue: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
     timelineNote: { fontSize: 10, color: Colors.textMuted, marginLeft: 4 },
     approachBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
-    probabilityContainer: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
+    probabilityContainer: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flex: 1 },
     probabilityBar: { flex: 1, height: 6, backgroundColor: Colors.surface, borderRadius: 3, overflow: 'hidden' },
     probabilityFill: { height: '100%' },
     probabilityPercent: { fontSize: 12, fontWeight: '700', color: Colors.textPrimary },
 
-    roadmapNode: { flexDirection: 'row', gap: 12, marginBottom: 8 },
+    roadmapNode: { flexDirection: 'row', gap: Spacing.md, marginBottom: Spacing.sm },
     timelineNodeContainer: { alignItems: 'center', width: 30 },
     timelineNode: { width: 12, height: 12, borderRadius: 6 },
     timelineConnector: { width: 2, height: 30, backgroundColor: Colors.border, marginTop: 4 },
-    roadmapCard: { flex: 1, backgroundColor: Colors.bg, borderRadius: 10, padding: 12, borderLeftWidth: 2, borderLeftColor: Colors.primary },
+    roadmapCard: { flex: 1, backgroundColor: Colors.bg, borderRadius: 10, padding: Spacing.md, borderLeftWidth: 2, borderLeftColor: Colors.primary },
     roadmapCardTitle: { fontSize: 12, fontWeight: '700', color: Colors.textPrimary, marginBottom: 4 },
     roadmapCardMonth: { fontSize: 10, color: Colors.textMuted, marginBottom: 6 },
     roadmapCardContribution: { fontSize: 12, fontWeight: '700' },
 
-    milestoneCard: { backgroundColor: Colors.bg, borderRadius: 12, padding: 12, marginBottom: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderLeftWidth: 3, borderLeftColor: Colors.primary },
+    milestoneCard: { backgroundColor: Colors.bg, borderRadius: Radius.md, padding: Spacing.md, marginBottom: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderLeftWidth: 3, borderLeftColor: Colors.primary },
     milestoneLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
     milestoneDot: { width: 12, height: 12, borderRadius: 6 },
     milestoneContent: { flex: 1 },
@@ -867,6 +908,6 @@ const styles = StyleSheet.create({
     milestoneDescription: { fontSize: 12, fontWeight: '700', color: Colors.textPrimary },
     milestoneValue: { fontSize: 13, fontWeight: '800', color: Colors.textPrimary },
 
-    ctaButton: { backgroundColor: Colors.income, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 8, marginBottom: 8 },
+    ctaButton: { backgroundColor: Colors.income, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: Spacing.sm, marginBottom: Spacing.sm },
     ctaButtonText: { fontSize: 14, fontWeight: '700', color: '#fff' },
 });

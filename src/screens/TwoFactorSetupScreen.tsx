@@ -25,6 +25,8 @@ import {
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
+import Icon from '../components/ui/Icon';
+import { Radius, Shadow, Spacing } from '../theme/tokens';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import {
@@ -199,7 +201,9 @@ export default function TwoFactorSetupScreen() {
                     <Text style={styles.title}>Two-Factor Authentication</Text>
 
                     <View style={styles.statusCard}>
-                        <Text style={styles.statusIcon}>✅</Text>
+                        <View style={styles.statusIconWrap}>
+                            <Icon name="check" size={28} color={Colors.income} />
+                        </View>
                         <Text style={styles.statusTitle}>2FA is Enabled</Text>
                         <Text style={styles.statusText}>Your account is protected with two-factor authentication</Text>
                     </View>
@@ -234,7 +238,10 @@ export default function TwoFactorSetupScreen() {
                     <Text style={styles.subtitle}>Add an extra layer of security to your account</Text>
 
                     <View style={styles.benefitsCard}>
-                        <Text style={styles.benefitTitle}>🔐 What is 2FA?</Text>
+                        <View style={styles.benefitTitleRow}>
+                            <Icon name="lock" size={16} color={Colors.textPrimary} />
+                            <Text style={styles.benefitTitle}>What is 2FA?</Text>
+                        </View>
                         <Text style={styles.benefitText}>
                             Two-factor authentication requires you to verify your identity with something you know (your PIN) and something you have (your phone).
                         </Text>
@@ -337,7 +344,7 @@ export default function TwoFactorSetupScreen() {
                 <Text style={styles.subtitle}>Keep these codes in a safe place</Text>
 
                 <View style={styles.warningCard}>
-                    <Text style={styles.warningIcon}>⚠️</Text>
+                    <Icon name="alert-triangle" size={20} color={Colors.warning} />
                     <Text style={styles.warningText}>
                         Save these backup codes. You can use them if you lose access to your authenticator app.
                     </Text>
@@ -351,7 +358,10 @@ export default function TwoFactorSetupScreen() {
                     <Text style={styles.btnText}>View Codes</Text>
                 </TouchableOpacity>
 
-                <Text style={styles.completedLabel}>✅ Setup Complete!</Text>
+                <View style={styles.completedRow}>
+                    <Icon name="check-circle" size={18} color={Colors.income} />
+                    <Text style={styles.completedLabel}>Setup Complete!</Text>
+                </View>
             </ScrollView>
             <FooterNav />
 
@@ -361,7 +371,7 @@ export default function TwoFactorSetupScreen() {
                     <View style={styles.modalHeader}>
                         <Text style={styles.modalTitle}>Backup Codes</Text>
                         <TouchableOpacity onPress={() => setShowBackupCodes(false)}>
-                            <Text style={styles.modalClose}>✕</Text>
+                            <Icon name="x" size={18} color={Colors.textMuted} />
                         </TouchableOpacity>
                     </View>
                     <ScrollView style={styles.modalContent}>
@@ -381,59 +391,65 @@ export default function TwoFactorSetupScreen() {
 const styles = StyleSheet.create({
     safe: { flex: 1, backgroundColor: Colors.bg },
     scroll: { flex: 1 },
-    pad: { padding: 16, paddingBottom: 100 },
+    pad: { padding: Spacing.lg, paddingBottom: 100 },
 
     title: { fontSize: 26, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 4 },
-    subtitle: { fontSize: 14, color: Colors.textMuted, marginBottom: 20 },
+    subtitle: { fontSize: 14, color: Colors.textMuted, marginBottom: Spacing.xl },
 
     statusCard: {
         backgroundColor: 'rgba(16,185,129,0.1)',
         borderWidth: 1,
         borderColor: Colors.income,
-        borderRadius: 12,
-        padding: 20,
+        borderRadius: Radius.md,
+        padding: Spacing.xl,
         alignItems: 'center',
-        marginBottom: 20,
+        marginBottom: Spacing.xl,
     },
-    statusIcon: { fontSize: 40, marginBottom: 8 },
+    statusIconWrap: { marginBottom: Spacing.sm },
     statusTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 4 },
     statusText: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center' },
 
     infoCard: {
         backgroundColor: Colors.surface,
-        borderRadius: 12,
-        padding: 16,
-        marginBottom: 16,
+        borderRadius: Radius.md,
+        padding: Spacing.lg,
+        marginBottom: Spacing.lg,
+        borderWidth: 1,
+        borderColor: Colors.border,
+        ...Shadow.sm,
     },
-    infoLabel: { fontSize: 12, color: Colors.textMuted, marginBottom: 8 },
-    infoValue: { fontSize: 28, fontWeight: 'bold', color: Colors.primary, marginBottom: 8 },
+    infoLabel: { fontSize: 12, color: Colors.textMuted, marginBottom: Spacing.sm },
+    infoValue: { fontSize: 28, fontWeight: 'bold', color: Colors.primary, marginBottom: Spacing.sm },
     infoText: { fontSize: 13, color: Colors.textSecondary, lineHeight: 18 },
 
     benefitsCard: {
         backgroundColor: Colors.surface,
-        borderRadius: 12,
-        padding: 16,
-        marginBottom: 20,
+        borderRadius: Radius.md,
+        padding: Spacing.lg,
+        marginBottom: Spacing.xl,
         borderLeftWidth: 4,
         borderLeftColor: Colors.primary,
     },
-    benefitTitle: { fontSize: 16, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 8 },
+    benefitTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm },
+    benefitTitle: { fontSize: 16, fontWeight: 'bold', color: Colors.textPrimary },
     benefitText: { fontSize: 13, color: Colors.textSecondary, lineHeight: 18 },
 
-    stepsLabel: { fontSize: 14, fontWeight: '600', color: Colors.textPrimary, marginBottom: 12 },
+    stepsLabel: { fontSize: 14, fontWeight: '600', color: Colors.textPrimary, marginBottom: Spacing.md },
     stepItem: {
         flexDirection: 'row',
         backgroundColor: Colors.surface,
         borderRadius: 10,
-        padding: 12,
+        padding: Spacing.md,
         marginBottom: 10,
         alignItems: 'flex-start',
+        borderWidth: 1,
+        borderColor: Colors.border,
     },
     stepNumber: {
         fontSize: 18,
         fontWeight: 'bold',
         color: Colors.primary,
-        marginRight: 12,
+        marginRight: Spacing.md,
         minWidth: 30,
     },
     stepContent: { flex: 1 },
@@ -442,43 +458,52 @@ const styles = StyleSheet.create({
 
     qrCard: {
         backgroundColor: Colors.surface,
-        borderRadius: 12,
-        padding: 20,
-        marginBottom: 16,
+        borderRadius: Radius.md,
+        padding: Spacing.xl,
+        marginBottom: Spacing.lg,
+        borderWidth: 1,
+        borderColor: Colors.border,
+        ...Shadow.sm,
     },
-    qrLabel: { fontSize: 13, color: Colors.textSecondary, marginBottom: 16, textAlign: 'center' },
+    qrLabel: { fontSize: 13, color: Colors.textSecondary, marginBottom: Spacing.lg, textAlign: 'center' },
     qrPlaceholder: {
         backgroundColor: Colors.bg,
-        borderRadius: 8,
+        borderRadius: Radius.sm,
         padding: 40,
         alignItems: 'center',
         justifyContent: 'center',
         minHeight: 250,
     },
-    qrUrl: { fontSize: 10, color: Colors.textMuted, marginTop: 8 },
+    qrUrl: { fontSize: 10, color: Colors.textMuted, marginTop: Spacing.sm },
 
     manualCard: {
         backgroundColor: Colors.surface,
-        borderRadius: 12,
-        padding: 16,
-        marginBottom: 20,
+        borderRadius: Radius.md,
+        padding: Spacing.lg,
+        marginBottom: Spacing.xl,
+        borderWidth: 1,
+        borderColor: Colors.border,
+        ...Shadow.sm,
     },
-    manualLabel: { fontSize: 13, color: Colors.textMuted, marginBottom: 12 },
+    manualLabel: { fontSize: 13, color: Colors.textMuted, marginBottom: Spacing.md },
     manualKey: {
         fontSize: 16,
         fontWeight: 'bold',
         color: Colors.textPrimary,
         fontFamily: 'monospace',
-        marginBottom: 8,
+        marginBottom: Spacing.sm,
     },
     manualHint: { fontSize: 11, color: Colors.textMuted },
 
     verifyCard: {
         backgroundColor: Colors.surface,
-        borderRadius: 12,
-        padding: 20,
-        marginBottom: 20,
+        borderRadius: Radius.md,
+        padding: Spacing.xl,
+        marginBottom: Spacing.xl,
         alignItems: 'center',
+        borderWidth: 1,
+        borderColor: Colors.border,
+        ...Shadow.sm,
     },
     codeInput: {
         fontSize: 28,
@@ -489,12 +514,12 @@ const styles = StyleSheet.create({
         borderBottomWidth: 2,
         borderBottomColor: Colors.primary,
         width: 200,
-        paddingVertical: 12,
+        paddingVertical: Spacing.md,
     },
     errorText: {
         fontSize: 13,
         color: Colors.expense,
-        marginTop: 12,
+        marginTop: Spacing.md,
         textAlign: 'center',
     },
 
@@ -502,29 +527,36 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(245,158,11,0.1)',
         borderWidth: 1,
         borderColor: Colors.warning,
-        borderRadius: 12,
-        padding: 16,
-        marginBottom: 20,
+        borderRadius: Radius.md,
+        padding: Spacing.lg,
+        marginBottom: Spacing.xl,
         flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: Spacing.md,
     },
-    warningIcon: { fontSize: 24, marginRight: 12 },
     warningText: { flex: 1, fontSize: 13, color: Colors.textSecondary, lineHeight: 18 },
 
     codeRow: {
         flexDirection: 'row',
-        padding: 12,
+        padding: Spacing.md,
         borderBottomWidth: 1,
         borderBottomColor: Colors.border,
     },
     codeNum: { fontSize: 14, color: Colors.textMuted, minWidth: 30 },
     codeText: { fontSize: 14, fontFamily: 'monospace', color: Colors.textPrimary, flex: 1 },
 
+    completedRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: Spacing.sm,
+        marginTop: Spacing.xl,
+    },
     completedLabel: {
         fontSize: 18,
         fontWeight: 'bold',
         color: Colors.income,
         textAlign: 'center',
-        marginTop: 20,
     },
 
     btn: {
@@ -532,7 +564,8 @@ const styles = StyleSheet.create({
         paddingVertical: 13,
         borderRadius: 10,
         alignItems: 'center',
-        marginBottom: 12,
+        marginBottom: Spacing.md,
+        ...Shadow.sm,
     },
     btnDisabled: { opacity: 0.6 },
     btnText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
@@ -544,12 +577,11 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
+        paddingHorizontal: Spacing.lg,
+        paddingVertical: Spacing.md,
         borderBottomWidth: 1,
         borderBottomColor: Colors.border,
     },
     modalTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary },
-    modalClose: { fontSize: 20, color: Colors.textMuted },
-    modalContent: { flex: 1, padding: 16 },
+    modalContent: { flex: 1, padding: Spacing.lg },
 });

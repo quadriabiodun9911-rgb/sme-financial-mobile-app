@@ -7,6 +7,8 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import DateInput from '../components/DateInput';
 import { showAlert } from '../utils/webAlert';
+import Icon, { IconName } from '../components/ui/Icon';
+import { Radius, Shadow, Spacing } from '../theme/tokens';
 
 // ── MAIN SECTION COMPONENT ────────────────────────────────────────────────────
 
@@ -50,7 +52,10 @@ export default function MerchantFinancingSection() {
             ) : hasActiveLoan && !financing?.activeLoan ? (
                 /* Fallback: hasActiveLoan is true but activeLoan data is missing */
                 <View style={s.emptyStateContainer}>
-                    <Text style={s.emptyStateTitle}>💰 Active Merchant Loan</Text>
+                    <View style={s.emptyStateIcon}>
+                        <Icon name="dollar-sign" size={40} color={Colors.textMuted} />
+                    </View>
+                    <Text style={s.emptyStateTitle}>Active Merchant Loan</Text>
                     <Text style={s.emptyStateSubtitle}>Your loan details are loading...</Text>
                 </View>
             ) : null}
@@ -160,7 +165,10 @@ function PreQualificationWidget({ maxLoan, minLoan, readinessScore, currency, on
             {/* Header */}
             <View style={s.preQualHeader}>
                 <View>
-                    <Text style={s.preQualBadge}>✅ PRE-QUALIFIED</Text>
+                    <View style={[s.badgeRow, { marginBottom: Spacing.xs }]}>
+                        <Icon name="check-circle" size={12} color={Colors.income} />
+                        <Text style={s.preQualBadge}>PRE-QUALIFIED</Text>
+                    </View>
                     <Text style={s.preQualTitle}>Inventory Financing Available</Text>
                 </View>
                 <Text style={[s.scoreCircle, { backgroundColor: scoreColor }]}>
@@ -193,7 +201,7 @@ function PreQualificationWidget({ maxLoan, minLoan, readinessScore, currency, on
 
             {/* Info Box */}
             <View style={s.infoBox}>
-                <Text style={s.infoIcon}>ℹ️</Text>
+                <Icon name="info" size={16} color={Colors.primary} />
                 <Text style={s.infoText}>
                     We're pre-approving you based on your Quad360 financial data. No collateral required.
                 </Text>
@@ -229,13 +237,19 @@ function ActiveMerchantLoanCard({ loan, currency, expanded, onToggle }: {
                 {/* Header */}
                 <View style={s.activeLoanHeader}>
                     <View>
-                        <Text style={s.loanBadge}>💰 MERCHANT FINANCING</Text>
+                        <View style={[s.badgeRow, { marginBottom: Spacing.xs }]}>
+                            <Icon name="dollar-sign" size={11} color={Colors.primary} />
+                            <Text style={s.loanBadge}>MERCHANT FINANCING</Text>
+                        </View>
                         <Text style={s.activeLoanTitle}>Approved Inventory Loan</Text>
                     </View>
                     <View style={{ alignItems: 'flex-end' }}>
-                        <Text style={[s.statusBadge, { color: Colors.income }]}>
-                            ✅ {loan.status === 'repaying' ? 'Active' : 'Funded'}
-                        </Text>
+                        <View style={[s.badgeRow, { marginBottom: 2 }]}>
+                            <Icon name="check-circle" size={11} color={Colors.income} />
+                            <Text style={[s.statusBadge, { color: Colors.income, marginBottom: 0 }]}>
+                                {loan.status === 'repaying' ? 'Active' : 'Funded'}
+                            </Text>
+                        </View>
                         <Text style={s.balanceText}>
                             {currency}{balance.toLocaleString(undefined, { maximumFractionDigits: 0 })} left
                         </Text>
@@ -335,9 +349,9 @@ function ApplicationStatusCard({ application, currency }: {
     currency: string;
 }) {
     const statusDisplay = {
-        pending: { text: '⏳ Under Review', color: Colors.warning, bg: 'rgba(245,158,11,0.1)' },
-        approved: { text: '✅ Approved', color: Colors.income, bg: 'rgba(34,197,94,0.1)' },
-        rejected: { text: '❌ Declined', color: Colors.expense, bg: 'rgba(239,68,68,0.1)' },
+        pending: { text: 'Under Review', icon: 'clock' as IconName, color: Colors.warning, bg: 'rgba(245,158,11,0.1)' },
+        approved: { text: 'Approved', icon: 'check-circle' as IconName, color: Colors.income, bg: 'rgba(34,197,94,0.1)' },
+        rejected: { text: 'Declined', icon: 'x-circle' as IconName, color: Colors.expense, bg: 'rgba(239,68,68,0.1)' },
     };
 
     const status = statusDisplay[application.status as keyof typeof statusDisplay] || statusDisplay.pending;
@@ -345,9 +359,12 @@ function ApplicationStatusCard({ application, currency }: {
     return (
         <View style={[s.statusCard, { backgroundColor: status.bg }]}>
             <View style={s.statusCardHeader}>
-                <Text style={[s.statusText, { color: status.color, fontSize: 14, fontWeight: '600' }]}>
-                    {status.text}
-                </Text>
+                <View style={s.badgeRow}>
+                    <Icon name={status.icon} size={14} color={status.color} />
+                    <Text style={[s.statusText, { color: status.color, fontSize: 14, fontWeight: '600' }]}>
+                        {status.text}
+                    </Text>
+                </View>
                 <Text style={s.dateText}>Applied {application.appliedDate}</Text>
             </View>
 
@@ -357,15 +374,15 @@ function ApplicationStatusCard({ application, currency }: {
             </View>
 
             {application.status === 'rejected' && application.rejectionReason && (
-                <View style={[s.infoBox, { marginTop: 12 }]}>
-                    <Text style={s.infoIcon}>ℹ️</Text>
+                <View style={[s.infoBox, { marginTop: Spacing.md }]}>
+                    <Icon name="info" size={16} color={Colors.textMuted} />
                     <Text style={s.infoText}>{application.rejectionReason}</Text>
                 </View>
             )}
 
             {application.status === 'approved' && (
-                <View style={[s.infoBox, { marginTop: 12, backgroundColor: 'rgba(34,197,94,0.05)' }]}>
-                    <Text style={[s.infoIcon, { color: Colors.income }]}>✨</Text>
+                <View style={[s.infoBox, { marginTop: Spacing.md, backgroundColor: 'rgba(34,197,94,0.05)' }]}>
+                    <Icon name="star" size={16} color={Colors.income} />
                     <Text style={[s.infoText, { color: Colors.textPrimary }]}>
                         Funds will be transferred within 24 hours.
                     </Text>
@@ -399,9 +416,12 @@ function PastApplicationCard({ application, currency, onReapply }: {
                     <Text style={s.historyAmount}>{currency}{application.requestedAmount.toLocaleString()}</Text>
                     <Text style={s.historyDate}>{application.appliedDate}</Text>
                 </View>
-                <Text style={[s.historyStatus, { color: statusColor }]}>
-                    {application.status === 'rejected' ? '❌ Declined' : '✅ Approved'}
-                </Text>
+                <View style={s.badgeRow}>
+                    <Icon name={application.status === 'rejected' ? 'x-circle' : 'check-circle'} size={12} color={statusColor} />
+                    <Text style={[s.historyStatus, { color: statusColor }]}>
+                        {application.status === 'rejected' ? 'Declined' : 'Approved'}
+                    </Text>
+                </View>
             </View>
         </View>
     );
@@ -463,7 +483,7 @@ function NotQualifiedState({ daysActive, monthlyRevenue, healthScore, currency }
     return (
         <View style={s.emptyStateContainer}>
             <View style={s.emptyStateIcon}>
-                <Text style={s.emptyStateIconText}>🎯</Text>
+                <Icon name="target" size={40} color={Colors.primary} />
             </View>
             <Text style={s.emptyStateTitle}>Almost There!</Text>
             <Text style={s.emptyStateSubtitle}>
@@ -471,8 +491,8 @@ function NotQualifiedState({ daysActive, monthlyRevenue, healthScore, currency }
             </Text>
 
             {estimatedQualificationDate && (
-                <View style={[s.infoBox, { marginBottom: 16, backgroundColor: Colors.primary + '15', borderLeftColor: Colors.primary }]}>
-                    <Text style={s.infoIcon}>📅</Text>
+                <View style={[s.infoBox, { marginBottom: Spacing.lg, backgroundColor: Colors.primary + '15', borderLeftColor: Colors.primary }]}>
+                    <Icon name="calendar" size={16} color={Colors.primary} />
                     <View>
                         <Text style={[s.infoText, { fontWeight: '600', color: Colors.primary }]}>Estimated Qualification Date</Text>
                         <Text style={[s.infoText, { color: Colors.textPrimary, fontSize: 14, marginTop: 4 }]}>{estimatedQualificationDate}</Text>
@@ -485,9 +505,12 @@ function NotQualifiedState({ daysActive, monthlyRevenue, healthScore, currency }
                 return (
                     <View key={idx} style={s.requirementItem}>
                         <View style={s.requirementHeader}>
-                            <Text style={[s.requirementLabel, { color: req.met ? Colors.income : Colors.textSecondary }]}>
-                                {req.met ? '✅' : '📍'} {req.label}
-                            </Text>
+                            <View style={s.badgeRow}>
+                                <Icon name={req.met ? 'check-circle' : 'map-pin'} size={12} color={req.met ? Colors.income : Colors.textSecondary} />
+                                <Text style={[s.requirementLabel, { color: req.met ? Colors.income : Colors.textSecondary }]}>
+                                    {req.label}
+                                </Text>
+                            </View>
                             <Text style={s.requirementValue}>
                                 {req.type === 'days' && `${req.current}/${req.needed} days`}
                                 {req.type === 'currency' && `${currency}${req.current.toLocaleString()}/${req.needed.toLocaleString()}`}
@@ -502,8 +525,8 @@ function NotQualifiedState({ daysActive, monthlyRevenue, healthScore, currency }
                 );
             })}
 
-            <View style={[s.infoBox, { marginTop: 16, borderLeftColor: Colors.primary, borderLeftWidth: 4 }]}>
-                <Text style={s.infoIcon}>💡</Text>
+            <View style={[s.infoBox, { marginTop: Spacing.lg, borderLeftColor: Colors.primary, borderLeftWidth: 4 }]}>
+                <Icon name="zap" size={16} color={Colors.primary} />
                 <View>
                     <Text style={[s.infoText, { fontWeight: '600', marginBottom: 4 }]}>How to improve:</Text>
                     {daysActive < 90 && (
@@ -529,7 +552,7 @@ function QualifiedEmptyState({ onApply }: { onApply: () => void }) {
     return (
         <View style={s.emptyStateContainer}>
             <View style={s.emptyStateIcon}>
-                <Text style={s.emptyStateIconText}>🚀</Text>
+                <Icon name="zap" size={40} color={Colors.primary} />
             </View>
             <Text style={s.emptyStateTitle}>Ready to Scale Your Business?</Text>
             <Text style={s.emptyStateSubtitle}>
@@ -540,8 +563,8 @@ function QualifiedEmptyState({ onApply }: { onApply: () => void }) {
                 <Text style={s.emptyStateCTAText}>Start Application</Text>
             </TouchableOpacity>
 
-            <View style={[s.infoBox, { marginTop: 16 }]}>
-                <Text style={s.infoIcon}>✨</Text>
+            <View style={[s.infoBox, { marginTop: Spacing.lg }]}>
+                <Icon name="star" size={16} color={Colors.income} />
                 <Text style={s.infoText}>
                     Approval takes ~2 hours. Funds arrive within 24 hours. No collateral needed.
                 </Text>
@@ -592,25 +615,28 @@ function RepaymentCapacityGauge({ monthlyProfit, monthlyPayment, capacityRatio, 
 
             {/* Interpretation */}
             {isOnTrack && (
-                <View style={[s.gaugeInterpretation, { backgroundColor: 'rgba(34,197,94,0.1)' }]}>
+                <View style={[s.gaugeInterpretation, s.gaugeInterpretationRow, { backgroundColor: 'rgba(34,197,94,0.1)' }]}>
+                    <Icon name="check-circle" size={14} color={Colors.income} />
                     <Text style={[s.gaugeInterpText, { color: Colors.income }]}>
-                        ✅ Your profit covers this payment {capacityRatio.toFixed(1)}x over. This is a safe loan.
+                        Your profit covers this payment {capacityRatio.toFixed(1)}x over. This is a safe loan.
                     </Text>
                 </View>
             )}
 
             {isTight && (
-                <View style={[s.gaugeInterpretation, { backgroundColor: 'rgba(245,158,11,0.1)' }]}>
+                <View style={[s.gaugeInterpretation, s.gaugeInterpretationRow, { backgroundColor: 'rgba(245,158,11,0.1)' }]}>
+                    <Icon name="alert-triangle" size={14} color={Colors.warning} />
                     <Text style={[s.gaugeInterpText, { color: Colors.warning }]}>
-                        ⚠️ Your profit covers payment {capacityRatio.toFixed(1)}x. If revenue drops, budget carefully.
+                        Your profit covers payment {capacityRatio.toFixed(1)}x. If revenue drops, budget carefully.
                     </Text>
                 </View>
             )}
 
             {!isOnTrack && !isTight && (
-                <View style={[s.gaugeInterpretation, { backgroundColor: 'rgba(239,68,68,0.1)' }]}>
+                <View style={[s.gaugeInterpretation, s.gaugeInterpretationRow, { backgroundColor: 'rgba(239,68,68,0.1)' }]}>
+                    <Icon name="x-circle" size={14} color={Colors.expense} />
                     <Text style={[s.gaugeInterpText, { color: Colors.expense }]}>
-                        ❌ Payment exceeds your available profit. Consider a smaller loan amount.
+                        Payment exceeds your available profit. Consider a smaller loan amount.
                     </Text>
                 </View>
             )}
@@ -656,7 +682,7 @@ function ApplyForFinancingModal({ visible, maxLoan, minLoan, monthlyProfit, curr
                         {/* Header */}
                         <View style={s.modalHeader}>
                             <TouchableOpacity onPress={onClose}>
-                                <Text style={s.modalClose}>✕</Text>
+                                <Icon name="x" size={20} color={Colors.textMuted} />
                             </TouchableOpacity>
                             <Text style={s.modalTitle}>Apply for Financing</Text>
                             <Text style={s.modalStep}>
@@ -728,15 +754,18 @@ function ApplyForFinancingModal({ visible, maxLoan, minLoan, monthlyProfit, curr
                                     </View>
                                     <View style={s.previewRow}>
                                         <Text style={s.previewLabel}>Coverage Ratio:</Text>
-                                        <Text style={[s.previewValue, { color: canAfford ? Colors.income : Colors.expense }]}>
-                                            {capacityRatio.toFixed(1)}x {canAfford ? '✅' : '⚠️'}
-                                        </Text>
+                                        <View style={s.badgeRow}>
+                                            <Text style={[s.previewValue, { color: canAfford ? Colors.income : Colors.expense }]}>
+                                                {capacityRatio.toFixed(1)}x
+                                            </Text>
+                                            <Icon name={canAfford ? 'check-circle' : 'alert-triangle'} size={12} color={canAfford ? Colors.income : Colors.expense} />
+                                        </View>
                                     </View>
                                 </View>
 
                                 {!canAfford && (
                                     <View style={[s.infoBox, { backgroundColor: 'rgba(245,158,11,0.1)' }]}>
-                                        <Text style={s.infoIcon}>⚠️</Text>
+                                        <Icon name="alert-triangle" size={16} color={Colors.warning} />
                                         <Text style={[s.infoText, { color: Colors.warning }]}>
                                             This amount exceeds recommended capacity. You can still apply, but consider a smaller amount.
                                         </Text>
@@ -755,10 +784,10 @@ function ApplyForFinancingModal({ visible, maxLoan, minLoan, monthlyProfit, curr
 
                                 <View style={s.purposeGrid}>
                                     {[
-                                        { id: 'inventory', label: 'Inventory Purchase', icon: '📦' },
-                                        { id: 'equipment', label: 'Equipment', icon: '🔧' },
-                                        { id: 'both', label: 'Both', icon: '📦🔧' },
-                                        { id: 'other', label: 'Other', icon: '❓' },
+                                        { id: 'inventory', label: 'Inventory Purchase', icon: 'package' as IconName },
+                                        { id: 'equipment', label: 'Equipment', icon: 'tool' as IconName },
+                                        { id: 'both', label: 'Both', icon: 'layers' as IconName },
+                                        { id: 'other', label: 'Other', icon: 'help-circle' as IconName },
                                     ].map((opt) => (
                                         <TouchableOpacity
                                             key={opt.id}
@@ -768,7 +797,9 @@ function ApplyForFinancingModal({ visible, maxLoan, minLoan, monthlyProfit, curr
                                             ]}
                                             onPress={() => setPurpose(opt.id)}
                                         >
-                                            <Text style={s.purposeIcon}>{opt.icon}</Text>
+                                            <View style={s.purposeIconWrap}>
+                                                <Icon name={opt.icon} size={26} color={purpose === opt.id ? Colors.primary : Colors.textSecondary} />
+                                            </View>
                                             <Text style={[
                                                 s.purposeLabel,
                                                 purpose === opt.id && s.purposeLabelActive,
@@ -779,8 +810,8 @@ function ApplyForFinancingModal({ visible, maxLoan, minLoan, monthlyProfit, curr
                                     ))}
                                 </View>
 
-                                <View style={[s.infoBox, { marginTop: 16 }]}>
-                                    <Text style={s.infoIcon}>💡</Text>
+                                <View style={[s.infoBox, { marginTop: Spacing.lg }]}>
+                                    <Icon name="zap" size={16} color={Colors.primary} />
                                     <Text style={s.infoText}>
                                         This helps us track how the loan impacts your business performance.
                                     </Text>
@@ -817,7 +848,7 @@ function ApplyForFinancingModal({ visible, maxLoan, minLoan, monthlyProfit, curr
                                 </View>
 
                                 <View style={[s.infoBox, { backgroundColor: 'rgba(34,197,94,0.1)' }]}>
-                                    <Text style={[s.infoIcon, { color: Colors.income }]}>✨</Text>
+                                    <Icon name="star" size={16} color={Colors.income} />
                                     <Text style={[s.infoText, { color: Colors.textPrimary }]}>
                                         By submitting this application, you authorize Quad360 to share your financial data with our lending partners for evaluation.
                                     </Text>
@@ -928,8 +959,16 @@ function calculateMonthlyPayment(principal: number, annualRate: number, termMont
 const s = StyleSheet.create({
     container: {
         padding: 0,
-        paddingBottom: 20,
+        paddingBottom: Spacing.xl,
         width: '100%',
+    },
+
+    // Small icon + label row shared by badges, status pills and inline
+    // interpretation text throughout this screen.
+    badgeRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.xs,
     },
 
     loadingState: {
@@ -948,23 +987,23 @@ const s = StyleSheet.create({
     // ── Pre-Qualification Widget ──────────────────────────────────────────
     preQualCard: {
         backgroundColor: Colors.surface,
-        borderRadius: 16,
-        padding: 16,
-        marginBottom: 20,
+        borderRadius: Radius.lg,
+        padding: Spacing.lg,
+        marginBottom: Spacing.xl,
         borderWidth: 2,
         borderColor: Colors.primary + '44',
+        ...Shadow.sm,
     },
     preQualHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'flex-start',
-        marginBottom: 16,
+        marginBottom: Spacing.lg,
     },
     preQualBadge: {
         fontSize: 11,
         fontWeight: '700',
         color: Colors.income,
-        marginBottom: 4,
     },
     preQualTitle: {
         fontSize: 16,
@@ -987,13 +1026,13 @@ const s = StyleSheet.create({
     rangeLabel: {
         fontSize: 11,
         color: Colors.textMuted,
-        marginBottom: 4,
+        marginBottom: Spacing.xs,
     },
     rangeValue: {
         fontSize: 16,
         fontWeight: '700',
         color: Colors.textPrimary,
-        marginBottom: 8,
+        marginBottom: Spacing.sm,
     },
     rangeBar: {
         height: 8,
@@ -1008,15 +1047,15 @@ const s = StyleSheet.create({
     },
     preQualMetrics: {
         flexDirection: 'row',
-        gap: 8,
+        gap: Spacing.sm,
         marginBottom: 14,
     },
     metricPill: {
         flex: 1,
         borderWidth: 2,
-        borderRadius: 8,
+        borderRadius: Radius.sm,
         paddingHorizontal: 10,
-        paddingVertical: 8,
+        paddingVertical: Spacing.sm,
         alignItems: 'center',
     },
     metricPillLabel: {
@@ -1030,18 +1069,18 @@ const s = StyleSheet.create({
     },
     preQualCTA: {
         backgroundColor: Colors.primary,
-        borderRadius: 12,
+        borderRadius: Radius.md,
         paddingVertical: 14,
         alignItems: 'center',
-        marginBottom: 12,
+        marginBottom: Spacing.md,
     },
     preQualCTAText: {
-        color: Colors.textPrimary,
+        color: '#fff',
         fontWeight: '700',
         fontSize: 14,
     },
     preQualCTASubtext: {
-        color: Colors.textPrimary,
+        color: '#fff',
         fontSize: 10,
         marginTop: 2,
         opacity: 0.8,
@@ -1049,13 +1088,9 @@ const s = StyleSheet.create({
     infoBox: {
         flexDirection: 'row',
         backgroundColor: 'rgba(59,130,246,0.1)',
-        borderRadius: 8,
-        padding: 12,
+        borderRadius: Radius.sm,
+        padding: Spacing.md,
         gap: 10,
-    },
-    infoIcon: {
-        fontSize: 16,
-        width: 20,
     },
     infoText: {
         flex: 1,
@@ -1067,23 +1102,23 @@ const s = StyleSheet.create({
     // ── Active Loan Card ──────────────────────────────────────────────────
     activeLoanCard: {
         backgroundColor: Colors.surface,
-        borderRadius: 12,
+        borderRadius: Radius.md,
         borderWidth: 1,
         borderColor: Colors.border,
         padding: 14,
-        marginBottom: 16,
+        marginBottom: Spacing.lg,
+        ...Shadow.sm,
     },
     activeLoanHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'flex-start',
-        marginBottom: 12,
+        marginBottom: Spacing.md,
     },
     loanBadge: {
         fontSize: 10,
         fontWeight: '700',
         color: Colors.primary,
-        marginBottom: 4,
     },
     activeLoanTitle: {
         fontSize: 15,
@@ -1104,7 +1139,7 @@ const s = StyleSheet.create({
         height: 6,
         backgroundColor: Colors.border,
         borderRadius: 3,
-        marginBottom: 4,
+        marginBottom: Spacing.xs,
         overflow: 'hidden',
     },
     progressFill: {
@@ -1114,7 +1149,7 @@ const s = StyleSheet.create({
     progressLabel: {
         fontSize: 10,
         color: Colors.textMuted,
-        marginBottom: 12,
+        marginBottom: Spacing.md,
     },
     activeLoanMetrics: {
         flexDirection: 'row',
@@ -1138,20 +1173,20 @@ const s = StyleSheet.create({
         borderTopWidth: 1,
         borderTopColor: Colors.border,
         marginTop: 10,
-        paddingTop: 12,
+        paddingTop: Spacing.md,
     },
 
     // ── Repayment Capacity Gauge ──────────────────────────────────────────
     gaugeBox: {
         backgroundColor: Colors.bg,
         borderRadius: 10,
-        padding: 12,
-        marginBottom: 12,
+        padding: Spacing.md,
+        marginBottom: Spacing.md,
     },
     gaugeHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        marginBottom: 8,
+        marginBottom: Spacing.sm,
     },
     gaugeTitle: {
         fontSize: 12,
@@ -1193,10 +1228,16 @@ const s = StyleSheet.create({
         fontWeight: '600',
     },
     gaugeInterpretation: {
-        borderRadius: 8,
+        borderRadius: Radius.sm,
         padding: 10,
     },
+    gaugeInterpretationRow: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: Spacing.sm,
+    },
     gaugeInterpText: {
+        flex: 1,
         fontSize: 11,
         lineHeight: 16,
     },
@@ -1204,9 +1245,9 @@ const s = StyleSheet.create({
     // ── Next Payment Box ──────────────────────────────────────────────────
     nextPaymentBox: {
         backgroundColor: 'rgba(34,197,94,0.1)',
-        borderRadius: 8,
-        padding: 12,
-        marginBottom: 12,
+        borderRadius: Radius.sm,
+        padding: Spacing.md,
+        marginBottom: Spacing.md,
         borderLeftWidth: 4,
         borderLeftColor: Colors.income,
     },
@@ -1230,15 +1271,15 @@ const s = StyleSheet.create({
     // ── Loan Details Box ──────────────────────────────────────────────────
     loanDetailsBox: {
         backgroundColor: Colors.bg,
-        borderRadius: 8,
+        borderRadius: Radius.sm,
         padding: 10,
-        marginBottom: 12,
+        marginBottom: Spacing.md,
     },
     detailsTitle: {
         fontSize: 11,
         fontWeight: '700',
         color: Colors.textSecondary,
-        marginBottom: 8,
+        marginBottom: Spacing.sm,
         textTransform: 'uppercase',
     },
     detailRow: {
@@ -1261,15 +1302,15 @@ const s = StyleSheet.create({
     // ── Payment History Box ───────────────────────────────────────────────
     paymentHistoryBox: {
         backgroundColor: Colors.bg,
-        borderRadius: 8,
+        borderRadius: Radius.sm,
         padding: 10,
-        marginBottom: 12,
+        marginBottom: Spacing.md,
     },
     paymentHistoryTitle: {
         fontSize: 11,
         fontWeight: '700',
         color: Colors.textSecondary,
-        marginBottom: 8,
+        marginBottom: Spacing.sm,
         textTransform: 'uppercase',
     },
     paymentRow: {
@@ -1297,11 +1338,11 @@ const s = StyleSheet.create({
     // ── Action Buttons ────────────────────────────────────────────────────
     actionRow: {
         flexDirection: 'row',
-        gap: 8,
+        gap: Spacing.sm,
     },
     actionBtn: {
         flex: 1,
-        paddingVertical: 8,
+        paddingVertical: Spacing.sm,
         borderRadius: 6,
         borderWidth: 1,
         borderColor: Colors.border,
@@ -1315,14 +1356,15 @@ const s = StyleSheet.create({
 
     // ── Application Status Card ───────────────────────────────────────────
     statusCard: {
-        borderRadius: 12,
+        borderRadius: Radius.md,
         padding: 14,
-        marginBottom: 16,
+        marginBottom: Spacing.lg,
         borderWidth: 1,
         borderColor: Colors.border,
+        ...Shadow.sm,
     },
     statusCardHeader: {
-        marginBottom: 12,
+        marginBottom: Spacing.md,
     },
     statusText: {
         marginBottom: 2,
@@ -1335,21 +1377,21 @@ const s = StyleSheet.create({
         gap: 8,
     },
     reapplyBtn: {
-        marginTop: 12,
+        marginTop: Spacing.md,
         paddingVertical: 10,
         backgroundColor: Colors.primary,
-        borderRadius: 8,
+        borderRadius: Radius.sm,
         alignItems: 'center',
     },
     reapplyBtnText: {
-        color: Colors.textPrimary,
+        color: '#fff',
         fontWeight: '600',
         fontSize: 12,
     },
 
     // ── History Section ───────────────────────────────────────────────────
     historySection: {
-        marginBottom: 20,
+        marginBottom: Spacing.xl,
     },
     sectionTitle: {
         fontSize: 14,
@@ -1360,10 +1402,11 @@ const s = StyleSheet.create({
     historyCard: {
         backgroundColor: Colors.surface,
         borderRadius: 10,
-        padding: 12,
-        marginBottom: 8,
+        padding: Spacing.md,
+        marginBottom: Spacing.sm,
         borderWidth: 1,
         borderColor: Colors.border,
+        ...Shadow.sm,
     },
     historyHeader: {
         flexDirection: 'row',
@@ -1391,10 +1434,7 @@ const s = StyleSheet.create({
         paddingVertical: 60,
     },
     emptyStateIcon: {
-        marginBottom: 12,
-    },
-    emptyStateIconText: {
-        fontSize: 48,
+        marginBottom: Spacing.md,
     },
     emptyStateTitle: {
         fontSize: 18,
@@ -1408,18 +1448,18 @@ const s = StyleSheet.create({
         color: Colors.textMuted,
         textAlign: 'center',
         lineHeight: 20,
-        paddingHorizontal: 20,
-        marginBottom: 20,
+        paddingHorizontal: Spacing.xl,
+        marginBottom: Spacing.xl,
     },
     emptyStateCTA: {
         backgroundColor: Colors.primary,
         borderRadius: 10,
         paddingHorizontal: 28,
-        paddingVertical: 12,
-        marginBottom: 20,
+        paddingVertical: Spacing.md,
+        marginBottom: Spacing.xl,
     },
     emptyStateCTAText: {
-        color: Colors.textPrimary,
+        color: '#fff',
         fontWeight: '700',
         fontSize: 14,
     },
@@ -1456,7 +1496,7 @@ const s = StyleSheet.create({
     requirementHint: {
         fontSize: 11,
         color: Colors.textMuted,
-        marginTop: 4,
+        marginTop: Spacing.xs,
         fontStyle: 'italic',
     },
 
@@ -1471,22 +1511,18 @@ const s = StyleSheet.create({
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
         maxHeight: '95%',
-        paddingBottom: 20,
+        paddingBottom: Spacing.xl,
+        ...Shadow.md,
     },
     modalHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingTop: 16,
-        paddingBottom: 12,
+        paddingHorizontal: Spacing.xl,
+        paddingTop: Spacing.lg,
+        paddingBottom: Spacing.md,
         borderBottomWidth: 1,
         borderBottomColor: Colors.border,
-    },
-    modalClose: {
-        fontSize: 20,
-        color: Colors.textMuted,
-        fontWeight: '600',
     },
     modalTitle: {
         fontSize: 16,
@@ -1501,7 +1537,7 @@ const s = StyleSheet.create({
         fontWeight: '600',
     },
     modalContent: {
-        padding: 20,
+        padding: Spacing.xl,
     },
     stepTitle: {
         fontSize: 18,
@@ -1512,17 +1548,17 @@ const s = StyleSheet.create({
     stepSubtitle: {
         fontSize: 13,
         color: Colors.textMuted,
-        marginBottom: 20,
+        marginBottom: Spacing.xl,
         lineHeight: 18,
     },
 
     // ── Amount Step ───────────────────────────────────────────────────────
     amountDisplay: {
         backgroundColor: Colors.bg,
-        borderRadius: 12,
-        paddingVertical: 20,
+        borderRadius: Radius.md,
+        paddingVertical: Spacing.xl,
         alignItems: 'center',
-        marginBottom: 16,
+        marginBottom: Spacing.lg,
     },
     amountValue: {
         fontSize: 32,
@@ -1530,13 +1566,13 @@ const s = StyleSheet.create({
         color: Colors.primary,
     },
     amountInputContainer: {
-        marginBottom: 16,
+        marginBottom: Spacing.lg,
     },
     amountInput: {
         width: '100%',
-        paddingVertical: 12,
-        paddingHorizontal: 12,
-        borderRadius: 8,
+        paddingVertical: Spacing.md,
+        paddingHorizontal: Spacing.md,
+        borderRadius: Radius.sm,
         borderWidth: 1,
         borderColor: Colors.border,
         color: Colors.textPrimary,
@@ -1546,17 +1582,17 @@ const s = StyleSheet.create({
     slider: {
         width: '100%',
         height: 40,
-        marginBottom: 16,
+        marginBottom: Spacing.lg,
     },
     quickAmountsRow: {
         flexDirection: 'row',
         gap: 10,
-        marginBottom: 16,
+        marginBottom: Spacing.lg,
     },
     quickAmountBtn: {
         flex: 1,
         paddingVertical: 10,
-        borderRadius: 8,
+        borderRadius: Radius.sm,
         borderWidth: 1,
         borderColor: Colors.border,
         alignItems: 'center',
@@ -1571,12 +1607,12 @@ const s = StyleSheet.create({
         color: Colors.textSecondary,
     },
     quickAmountBtnTextActive: {
-        color: Colors.textPrimary,
+        color: '#fff',
     },
     previewBox: {
         backgroundColor: Colors.bg,
         borderRadius: 10,
-        padding: 12,
+        padding: Spacing.md,
         borderWidth: 1,
         borderColor: Colors.primary + '44',
     },
@@ -1584,7 +1620,7 @@ const s = StyleSheet.create({
         fontSize: 11,
         fontWeight: '700',
         color: Colors.primary,
-        marginBottom: 8,
+        marginBottom: Spacing.sm,
     },
     previewRow: {
         flexDirection: 'row',
@@ -1620,9 +1656,8 @@ const s = StyleSheet.create({
         borderColor: Colors.primary,
         backgroundColor: Colors.primary + '11',
     },
-    purposeIcon: {
-        fontSize: 28,
-        marginBottom: 8,
+    purposeIconWrap: {
+        marginBottom: Spacing.sm,
     },
     purposeLabel: {
         fontSize: 12,
@@ -1639,8 +1674,8 @@ const s = StyleSheet.create({
     reviewBox: {
         backgroundColor: Colors.bg,
         borderRadius: 10,
-        padding: 12,
-        marginBottom: 16,
+        padding: Spacing.md,
+        marginBottom: Spacing.lg,
     },
     reviewItem: {
         flexDirection: 'row',
@@ -1659,8 +1694,8 @@ const s = StyleSheet.create({
         color: Colors.textPrimary,
     },
     termsBox: {
-        paddingVertical: 12,
-        marginBottom: 16,
+        paddingVertical: Spacing.md,
+        marginBottom: Spacing.lg,
     },
     termsText: {
         fontSize: 11,
@@ -1672,13 +1707,13 @@ const s = StyleSheet.create({
     modalButtonRow: {
         flexDirection: 'row',
         gap: 10,
-        paddingHorizontal: 20,
+        paddingHorizontal: Spacing.xl,
     },
     btn: {
         flex: 1,
         backgroundColor: Colors.primary,
         paddingVertical: 13,
-        borderRadius: 8,
+        borderRadius: Radius.sm,
         alignItems: 'center',
     },
     btnSecondary: {
@@ -1687,7 +1722,7 @@ const s = StyleSheet.create({
         borderColor: Colors.border,
     },
     btnText: {
-        color: Colors.textPrimary,
+        color: '#fff',
         fontWeight: '700',
         fontSize: 14,
     },

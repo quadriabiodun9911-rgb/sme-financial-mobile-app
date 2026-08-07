@@ -10,8 +10,9 @@ import { generatePDF, sharePDF } from '../utils/pdfExport';
 import { buildBusinessPassportExport } from '../utils/lenderSummaryExport';
 import { buildBusinessPassport } from '../utils/businessPassport';
 import { showAlert } from '../utils/webAlert';
+import Icon, { IconName } from '../components/ui/Icon';
+import { Radius, Shadow, Spacing } from '../theme/tokens';
 
-const STATUS_DOT: Record<string, string> = { good: '🟢', warning: '🟡', danger: '🔴' };
 const STATUS_LABEL: Record<string, string> = { good: 'Strong', warning: 'Watch', danger: 'High risk' };
 const STATUS_COLOR: Record<string, string> = { good: Colors.income, warning: Colors.warning, danger: Colors.expense };
 
@@ -61,7 +62,10 @@ export default function BusinessPassportScreen() {
         <SafeAreaView style={s.safe}>
             <Header />
             <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
-                <Text style={s.title}>🛂 {passport.businessName}</Text>
+                <View style={s.titleRow}>
+                    <Icon name="shield" size={20} color={Colors.textPrimary} />
+                    <Text style={s.title}>{passport.businessName}</Text>
+                </View>
                 <Text style={s.tagline}>Understand your business. Fix what needs fixing. Build your financial track record.</Text>
                 <Text style={s.subtitle}>
                     This updates automatically as you record transactions — nothing here needs to be "prepared."
@@ -71,7 +75,14 @@ export default function BusinessPassportScreen() {
                 <LowDataNotice transactionCount={transactions.length} label="your Business Passport" />
 
                 <TouchableOpacity style={s.exportButton} onPress={handleExport} disabled={exporting}>
-                    <Text style={s.exportButtonText}>{exporting ? 'Preparing…' : '📄 Export Business Passport'}</Text>
+                    {exporting ? (
+                        <Text style={s.exportButtonText}>Preparing…</Text>
+                    ) : (
+                        <>
+                            <Icon name="file-text" size={16} color="#fff" />
+                            <Text style={s.exportButtonText}>Export Business Passport</Text>
+                        </>
+                    )}
                 </TouchableOpacity>
 
                 {/* Track record */}
@@ -101,8 +112,9 @@ export default function BusinessPassportScreen() {
                             <Stat label="Stock on hand (cost)" value={fmtCompact(currency, snapshot.inventoryStockValue)} />
                             <Stat label="Active asset value" value={fmtCompact(currency, snapshot.activeAssetValue)} />
                         </View>
-                        <TouchableOpacity onPress={() => setCurrentScreen('import-transactions')}>
-                            <Text style={s.linkText}>📄 Upload a bank statement to unlock the full Passport →</Text>
+                        <TouchableOpacity style={s.linkRow} onPress={() => setCurrentScreen('import-transactions')}>
+                            <Icon name="file-text" size={13} color={Colors.primary} />
+                            <Text style={[s.linkText, { marginTop: 0 }]}>Upload a bank statement to unlock the full Passport →</Text>
                         </TouchableOpacity>
                     </View>
                 )}
@@ -146,7 +158,7 @@ export default function BusinessPassportScreen() {
                     </Text>
                     {passport.health.categories.map(f => (
                         <View key={f.name} style={s.dotRow}>
-                            <Text style={s.dot}>{STATUS_DOT[f.status]}</Text>
+                            <Icon name="circle" size={10} color={STATUS_COLOR[f.status]} />
                             <Text style={s.dotLabel}>{f.name}</Text>
                             <Text style={[s.dotStatus, { color: STATUS_COLOR[f.status] }]}>{STATUS_LABEL[f.status]}</Text>
                         </View>
@@ -160,11 +172,16 @@ export default function BusinessPassportScreen() {
                     {passport.risk.deviations.length === 0 ? (
                         <Text style={s.emptyText}>No significant recent changes vs. this business's own history.</Text>
                     ) : (
-                        passport.risk.deviations.map((d, i) => (
-                            <Text key={i} style={s.deviationText}>
-                                {d.severity === 'critical' ? '🔴' : d.severity === 'warning' ? '🟡' : 'ℹ️'} {d.changeDescription}
-                            </Text>
-                        ))
+                        passport.risk.deviations.map((d, i) => {
+                            const sevColor = d.severity === 'critical' ? Colors.expense : d.severity === 'warning' ? Colors.warning : Colors.textMuted;
+                            const sevIcon: IconName = d.severity === 'critical' ? 'alert-circle' : d.severity === 'warning' ? 'alert-triangle' : 'info';
+                            return (
+                                <View key={i} style={s.deviationRow}>
+                                    <Icon name={sevIcon} size={12} color={sevColor} />
+                                    <Text style={s.deviationText}>{d.changeDescription}</Text>
+                                </View>
+                            );
+                        })
                     )}
                 </Section>
 
@@ -211,11 +228,17 @@ export default function BusinessPassportScreen() {
 
                     <Text style={s.signalsHeading}>What's already evidenced</Text>
                     {passport.investmentReadiness.availableSignals.map((sig, i) => (
-                        <Text key={i} style={s.signalReady}>✅ {sig}</Text>
+                        <View key={i} style={s.signalRow}>
+                            <Icon name="check" size={12} color={Colors.income} />
+                            <Text style={s.signalReady}>{sig}</Text>
+                        </View>
                     ))}
                     <Text style={s.signalsHeading}>What still needs your input</Text>
                     {passport.investmentReadiness.missingSignals.map((sig, i) => (
-                        <Text key={i} style={s.signalMissing}>⚠️ {sig}</Text>
+                        <View key={i} style={s.signalRow}>
+                            <Icon name="alert-triangle" size={12} color={Colors.warning} />
+                            <Text style={s.signalMissing}>{sig}</Text>
+                        </View>
                     ))}
                 </Section>
 
@@ -287,7 +310,9 @@ function Section({ title, subtitle, teaser, children }: { title: string; subtitl
                         <Text style={s.cardTitle}>{title}</Text>
                         <Text style={s.cardSubtitle}>{subtitle}</Text>
                     </View>
-                    <Text style={s.sectionArrow}>{open ? '▲' : '▼'}</Text>
+                    <View style={s.sectionArrow}>
+                        <Icon name={open ? 'chevron-up' : 'chevron-down'} size={14} color={Colors.textMuted} />
+                    </View>
                 </View>
                 {!open && <Text style={s.teaserText}>{teaser}</Text>}
             </TouchableOpacity>
@@ -319,21 +344,22 @@ const s = StyleSheet.create({
     safe: { flex: 1, backgroundColor: Colors.bg },
     scroll: { flex: 1 },
     pad: { padding: 16, paddingBottom: 100 },
-    title: { fontSize: 22, fontWeight: '700', color: Colors.textPrimary, marginBottom: 4 },
+    titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
+    title: { fontSize: 22, fontWeight: '700', color: Colors.textPrimary },
     tagline: { fontSize: 13, fontWeight: '600', color: Colors.primary, marginBottom: 6 },
     subtitle: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17, marginBottom: 16 },
-    exportButton: { backgroundColor: Colors.primary, borderRadius: 10, paddingVertical: 13, alignItems: 'center', marginBottom: 16 },
+    exportButton: { backgroundColor: Colors.primary, borderRadius: 10, paddingVertical: 13, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.lg, ...Shadow.sm },
     exportButtonText: { color: '#fff', fontWeight: '700', fontSize: 14 },
-    trackRecordCard: { backgroundColor: Colors.card, borderRadius: 12, padding: 14, marginBottom: 16, borderLeftWidth: 4, borderLeftColor: Colors.primary },
+    trackRecordCard: { backgroundColor: Colors.card, borderRadius: Radius.md, padding: 14, marginBottom: Spacing.lg, borderLeftWidth: 4, borderLeftColor: Colors.primary, ...Shadow.sm },
     trackRecordLabel: { fontSize: 11, color: Colors.textMuted, fontWeight: '600', marginBottom: 4 },
     trackRecordValue: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginBottom: 4, textTransform: 'capitalize' },
     trackRecordDetail: { fontSize: 11, color: Colors.textMuted },
-    snapshotCard: { backgroundColor: Colors.card, borderRadius: 14, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: Colors.primary },
-    card: { backgroundColor: Colors.card, borderRadius: 14, padding: 16, marginBottom: 16 },
+    snapshotCard: { backgroundColor: Colors.card, borderRadius: 14, padding: Spacing.lg, marginBottom: Spacing.lg, borderWidth: 1, borderColor: Colors.primary, ...Shadow.sm },
+    card: { backgroundColor: Colors.card, borderRadius: 14, padding: Spacing.lg, marginBottom: Spacing.lg, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     cardTitle: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary },
     cardSubtitle: { fontSize: 11.5, color: Colors.textMuted, marginBottom: 4, fontStyle: 'italic' },
     sectionHeaderRow: { flexDirection: 'row', alignItems: 'flex-start' },
-    sectionArrow: { fontSize: 12, color: Colors.textMuted, marginLeft: 8, marginTop: 2 },
+    sectionArrow: { marginLeft: 8, marginTop: 2 },
     teaserText: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary, marginTop: 6 },
     sectionBody: { marginTop: 10 },
     row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: Colors.border },
@@ -341,26 +367,28 @@ const s = StyleSheet.create({
     rowValue: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary, textTransform: 'capitalize' },
     profileGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 10 },
     scoreValue: { fontSize: 24, fontWeight: '800', marginBottom: 10 },
-    dotRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: Colors.border },
-    dot: { fontSize: 11, marginRight: 8 },
+    dotRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: Colors.border },
     dotLabel: { flex: 1, fontSize: 12, color: Colors.textSecondary, fontWeight: '600' },
     dotStatus: { fontSize: 12, fontWeight: '700' },
     emptyText: { fontSize: 12, color: Colors.textMuted },
-    deviationText: { fontSize: 12, color: Colors.textSecondary, marginBottom: 6, lineHeight: 17 },
+    deviationRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginBottom: 6 },
+    deviationText: { flex: 1, fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
     readinessNote: { fontSize: 11.5, color: Colors.textMuted, lineHeight: 16, marginBottom: 10, fontStyle: 'italic' },
     linkText: { fontSize: 12.5, color: Colors.primary, fontWeight: '700', marginTop: 8 },
+    linkRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: Spacing.sm },
     valuationRange: { fontSize: 20, fontWeight: '800', color: Colors.textPrimary },
     valuationCaption: { fontSize: 10.5, color: Colors.textMuted, marginBottom: 10 },
     signalsHeading: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, marginTop: 10, marginBottom: 6, textTransform: 'uppercase' },
-    signalReady: { fontSize: 12, color: Colors.textSecondary, marginBottom: 4 },
-    signalMissing: { fontSize: 12, color: Colors.textSecondary, marginBottom: 4 },
+    signalRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginBottom: 4 },
+    signalReady: { flex: 1, fontSize: 12, color: Colors.textSecondary },
+    signalMissing: { flex: 1, fontSize: 12, color: Colors.textSecondary },
     trendChart: { flexDirection: 'row', alignItems: 'flex-end', height: 100, gap: 4, marginBottom: 10 },
     trendCol: { flex: 1, alignItems: 'center' },
     trendBars: { flexDirection: 'row', gap: 2, height: 80, alignItems: 'flex-end' },
     trendBar: { width: 5, borderRadius: 2, minHeight: 2 },
     trendLabel: { fontSize: 8, color: Colors.textMuted, marginTop: 4 },
-    actionsCard: { backgroundColor: Colors.card, borderRadius: 14, padding: 16, marginBottom: 16, borderLeftWidth: 4, borderLeftColor: Colors.primary },
-    actionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 8 },
+    actionsCard: { backgroundColor: Colors.card, borderRadius: 14, padding: Spacing.lg, marginBottom: Spacing.lg, borderLeftWidth: 4, borderLeftColor: Colors.primary, ...Shadow.sm },
+    actionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: Spacing.sm },
     actionNumber: {
         fontSize: 12, fontWeight: '800', color: Colors.primary,
         backgroundColor: Colors.primary + '22', borderRadius: 10,

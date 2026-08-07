@@ -7,6 +7,8 @@ import {
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
+import Icon, { IconName } from '../components/ui/Icon';
+import { Radius, Shadow, Spacing } from '../theme/tokens';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import NextStepLink from '../components/NextStepLink';
@@ -216,11 +218,11 @@ export default function InventoryScreen() {
         if (tier === 'slow') return Colors.expense;
         return Colors.textMuted;
     };
-    const velocityEmoji = (tier: ReturnType<typeof computeStockVelocity>['tier']): string => {
-        if (tier === 'fast') return '🐇';
-        if (tier === 'moderate') return '🚶';
-        if (tier === 'slow') return '🐢';
-        return 'ℹ️';
+    const velocityIcon = (tier: ReturnType<typeof computeStockVelocity>['tier']): IconName => {
+        if (tier === 'fast') return 'zap';
+        if (tier === 'moderate') return 'activity';
+        if (tier === 'slow') return 'trending-down';
+        return 'info';
     };
 
     return (
@@ -279,8 +281,9 @@ export default function InventoryScreen() {
                         {/* Low stock alert */}
                         {lowStockItems.length > 0 && (
                             <View style={styles.lowStockBanner}>
+                                <Icon name="alert-triangle" size={14} color={Colors.warning} />
                                 <Text style={styles.lowStockBannerText}>
-                                    ⚠ {lowStockItems.length} item{lowStockItems.length > 1 ? 's' : ''} {lowStockItems.length > 1 ? 'are' : 'is'} running low — reorder soon
+                                    {lowStockItems.length} item{lowStockItems.length > 1 ? 's' : ''} {lowStockItems.length > 1 ? 'are' : 'is'} running low — reorder soon
                                 </Text>
                             </View>
                         )}
@@ -288,7 +291,9 @@ export default function InventoryScreen() {
                         {/* Empty state */}
                         {inventory.length === 0 && (
                             <View style={styles.emptyState}>
-                                <Text style={styles.emptyIcon}>📦</Text>
+                                <View style={styles.emptyIconWrap}>
+                                    <Icon name="package" size={40} color={Colors.textMuted} />
+                                </View>
                                 <Text style={styles.emptyText}>No inventory items yet.</Text>
                                 <Text style={styles.emptySubText}>Tap '+ Add Item' to start tracking your stock.</Text>
                             </View>
@@ -314,10 +319,10 @@ export default function InventoryScreen() {
                                                 <Text style={[styles.actionBtnText, { color: '#fff' }]}>Sell</Text>
                                             </TouchableOpacity>
                                             <TouchableOpacity style={styles.actionBtn} onPress={() => openEdit(item)}>
-                                                <Text style={styles.actionBtnText}>✏</Text>
+                                                <Icon name="edit-2" size={14} color={Colors.textPrimary} />
                                             </TouchableOpacity>
                                             <TouchableOpacity style={[styles.actionBtn, styles.deleteBtn]} onPress={() => confirmDelete(item)}>
-                                                <Text style={styles.actionBtnText}>🗑</Text>
+                                                <Icon name="trash-2" size={14} color={Colors.expense} />
                                             </TouchableOpacity>
                                         </View>
                                     </View>
@@ -351,7 +356,7 @@ export default function InventoryScreen() {
                                     </View>
 
                                     <View style={[styles.velocityRow, { borderColor: velocityColor(velocity.tier) }]}>
-                                        <Text style={styles.velocityEmoji}>{velocityEmoji(velocity.tier)}</Text>
+                                        <Icon name={velocityIcon(velocity.tier)} size={13} color={velocityColor(velocity.tier)} />
                                         <Text style={[styles.velocityText, { color: velocityColor(velocity.tier) }]}>{velocity.summary}</Text>
                                     </View>
                                 </View>
@@ -590,11 +595,14 @@ export default function InventoryScreen() {
                                     <Text style={[styles.marginPreviewVal, { color }]}>{margin.toFixed(1)}%</Text>
                                     {severity !== 'none' && (
                                         <>
-                                            <Text style={[styles.marginPreviewNote, { color }]}>
-                                                {severity === 'harmful'
-                                                    ? '⚠ Selling below cost — every sale loses money.'
-                                                    : '⚠ Thin margin — barely covers overhead.'}
-                                            </Text>
+                                            <View style={styles.marginPreviewNoteRow}>
+                                                <Icon name="alert-triangle" size={12} color={color} />
+                                                <Text style={[styles.marginPreviewNote, { color }]}>
+                                                    {severity === 'harmful'
+                                                        ? 'Selling below cost — every sale loses money.'
+                                                        : 'Thin margin — barely covers overhead.'}
+                                                </Text>
+                                            </View>
                                             <Text style={styles.marginPreviewSolution}>
                                                 💡 {suggestSolution('pricing').title} — {suggestSolution('pricing').detail}
                                             </Text>
@@ -653,63 +661,63 @@ export default function InventoryScreen() {
 const styles = StyleSheet.create({
     safe:   { flex: 1, backgroundColor: Colors.bg },
     scroll: { flex: 1, backgroundColor: Colors.bg },
-    pad:    { padding: 16, paddingBottom: 100 },
+    pad:    { padding: Spacing.lg, paddingBottom: 100 },
     flex:   { flex: 1 },
 
     // Tab bar
     tabBar:         { flexDirection: 'row', backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border },
-    tabBtn:         { flex: 1, paddingVertical: 12, alignItems: 'center' },
+    tabBtn:         { flex: 1, paddingVertical: Spacing.md, alignItems: 'center' },
     tabBtnActive:   { borderBottomWidth: 2, borderBottomColor: Colors.primary },
     tabText:        { fontSize: 13, color: Colors.textMuted, fontWeight: '500' },
     tabTextActive:  { color: Colors.primary, fontWeight: '700' },
 
     titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
     title:    { fontSize: 22, fontWeight: 'bold', color: Colors.textPrimary },
-    addBtn:   { backgroundColor: Colors.primary, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 },
-    addBtnText: { color: Colors.textPrimary, fontWeight: 'bold', fontSize: 13 },
+    addBtn:   { backgroundColor: Colors.primary, paddingHorizontal: 14, paddingVertical: Spacing.sm, borderRadius: Radius.sm, ...Shadow.sm },
+    addBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
 
-    summaryRow:  { flexDirection: 'row', gap: 10, marginBottom: 12 },
-    summaryCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 12, alignItems: 'center' },
-    summaryLabel:{ fontSize: 10, color: Colors.textMuted, marginBottom: 4 },
+    summaryRow:  { flexDirection: 'row', gap: 10, marginBottom: Spacing.md },
+    summaryCard: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.md, alignItems: 'center' },
+    summaryLabel:{ fontSize: 10, color: Colors.textMuted, marginBottom: Spacing.xs },
     summaryVal:  { fontSize: 16, fontWeight: 'bold' },
 
     lowStockBanner: {
+        flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
         backgroundColor: 'rgba(245,158,11,0.12)', borderWidth: 1,
-        borderColor: Colors.warning, borderRadius: 10, padding: 12, marginBottom: 12,
+        borderColor: Colors.warning, borderRadius: 10, padding: Spacing.md, marginBottom: Spacing.md,
     },
-    lowStockBannerText: { color: Colors.warning, fontWeight: '600', fontSize: 13 },
+    lowStockBannerText: { flex: 1, color: Colors.warning, fontWeight: '600', fontSize: 13 },
 
-    emptyState:   { alignItems: 'center', paddingVertical: 60 },
-    emptyIcon:    { fontSize: 48, marginBottom: 16 },
-    emptyText:    { fontSize: 16, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 6 },
-    emptySubText: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', paddingHorizontal: 32 },
+    emptyState:    { alignItems: 'center', paddingVertical: 60 },
+    emptyIconWrap: { marginBottom: Spacing.lg },
+    emptyText:     { fontSize: 16, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 6 },
+    emptySubText:  { fontSize: 13, color: Colors.textMuted, textAlign: 'center', paddingHorizontal: 32 },
 
     itemCard: {
-        backgroundColor: Colors.surface, borderRadius: 12, padding: 14,
-        marginBottom: 12, borderWidth: 1, borderColor: Colors.border,
+        backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 14,
+        marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm,
     },
-    itemHeader:   { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 12 },
+    itemHeader:   { flexDirection: 'row', alignItems: 'flex-start', marginBottom: Spacing.md },
     itemName:     { fontSize: 15, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 2 },
     itemCategory: { fontSize: 11, color: Colors.textMuted },
     itemActions:  { flexDirection: 'row', gap: 6 },
-    actionBtn:    { backgroundColor: Colors.muted, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6 },
+    actionBtn:    { backgroundColor: Colors.muted, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6, alignItems: 'center', justifyContent: 'center' },
     deleteBtn:    { backgroundColor: 'rgba(239,68,68,0.2)' },
     actionBtnText:{ fontSize: 14 },
 
-    metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
+    metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: 10 },
     metricCell:  { minWidth: '45%', flex: 1 },
     metricLabel: { fontSize: 10, color: Colors.textMuted, marginBottom: 2 },
     metricVal:   { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
 
-    itemFooter:    { flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 8 },
+    itemFooter:    { flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.sm },
     stockValLabel: { fontSize: 11, color: Colors.textMuted },
     stockValNum:   { fontSize: 12, fontWeight: 'bold', color: Colors.asset },
-    velocityRow:   { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: 8, borderWidth: 1, borderRadius: 8, padding: 8 },
-    velocityEmoji: { fontSize: 13 },
+    velocityRow:   { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: Spacing.sm, borderWidth: 1, borderRadius: Radius.sm, padding: Spacing.sm },
     velocityText:  { flex: 1, fontSize: 11, lineHeight: 15 },
 
     // Analytics
-    analyticsCard:      { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, marginBottom: 12 },
+    analyticsCard:      { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 14, marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     analyticsCardTitle: { fontSize: 14, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 10 },
     analyticsRow:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: Colors.border },
     analyticsBorderTop: { borderTopWidth: 1, borderTopColor: Colors.textMuted, marginTop: 4, paddingTop: 10, borderBottomWidth: 0 },
@@ -722,40 +730,41 @@ const styles = StyleSheet.create({
     categoryMeta: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
     categoryRight:{ alignItems: 'flex-end' },
 
-    bestItemRow:     { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    bestItemRow:     { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.border },
     bestItemName:    { fontSize: 13, fontWeight: '600', color: Colors.textPrimary },
-    marginBadge:     { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+    marginBadge:     { paddingHorizontal: 10, paddingVertical: Spacing.xs, borderRadius: Radius.md },
     marginBadgeText: { fontSize: 12, fontWeight: 'bold' },
 
-    healthRow:  { flexDirection: 'row', alignItems: 'baseline', marginBottom: 8 },
+    healthRow:  { flexDirection: 'row', alignItems: 'baseline', marginBottom: Spacing.sm },
     healthScore:{ fontSize: 48, fontWeight: 'bold' },
-    healthOutOf:{ fontSize: 18, color: Colors.textMuted, marginLeft: 4 },
+    healthOutOf:{ fontSize: 18, color: Colors.textMuted, marginLeft: Spacing.xs },
     healthNote: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
 
-    reportsBtn:     { backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginTop: 4, marginBottom: 8 },
-    reportsBtnText: { color: Colors.textPrimary, fontWeight: 'bold', fontSize: 15 },
+    reportsBtn:     { backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginTop: 4, marginBottom: Spacing.sm, ...Shadow.sm },
+    reportsBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
 
     // Modal
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' },
     modalSheet: {
-        backgroundColor: Colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20,
-        padding: 24, paddingBottom: 40, maxHeight: '90%',
+        backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl,
+        padding: Spacing.xxl, paddingBottom: Spacing.huge, maxHeight: '90%',
     },
-    modalHandle: { width: 40, height: 4, backgroundColor: Colors.border, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
-    modalTitle:  { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 16 },
+    modalHandle: { width: 40, height: 4, backgroundColor: Colors.border, borderRadius: 2, alignSelf: 'center', marginBottom: Spacing.lg },
+    modalTitle:  { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: Spacing.lg },
     inputRow:    { flexDirection: 'row' },
     input: {
         backgroundColor: Colors.bg, borderColor: Colors.border, borderWidth: 1,
-        borderRadius: 8, paddingHorizontal: 12, paddingVertical: 11,
-        color: Colors.textPrimary, fontSize: 14, marginBottom: 12,
+        borderRadius: Radius.sm, paddingHorizontal: Spacing.md, paddingVertical: 11,
+        color: Colors.textPrimary, fontSize: 14, marginBottom: Spacing.md,
     },
-    submitBtn:     { backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginTop: 4 },
+    submitBtn:     { backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginTop: 4, ...Shadow.sm },
     submitBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
-    marginPreview:      { borderWidth: 1, borderRadius: 10, padding: 12, marginBottom: 12 },
+    marginPreview:      { borderWidth: 1, borderRadius: 10, padding: Spacing.md, marginBottom: Spacing.md },
     marginPreviewLabel: { fontSize: 11, color: Colors.textMuted, marginBottom: 3 },
-    marginPreviewVal:   { fontSize: 18, fontWeight: '800', marginBottom: 4 },
-    marginPreviewNote:  { fontSize: 12, fontWeight: '600', lineHeight: 17, marginBottom: 6 },
+    marginPreviewVal:   { fontSize: 18, fontWeight: '800', marginBottom: Spacing.xs },
+    marginPreviewNoteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginBottom: 6 },
+    marginPreviewNote:  { flex: 1, fontSize: 12, fontWeight: '600', lineHeight: 17 },
     marginPreviewSolution: { fontSize: 11, color: Colors.textSecondary, lineHeight: 16 },
-    cancelBtn:     { paddingVertical: 12, borderRadius: 10, alignItems: 'center', marginTop: 8 },
+    cancelBtn:     { paddingVertical: Spacing.md, borderRadius: 10, alignItems: 'center', marginTop: Spacing.sm },
     cancelBtnText: { color: Colors.textMuted, fontSize: 14 },
 });

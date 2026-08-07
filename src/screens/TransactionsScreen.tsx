@@ -13,6 +13,8 @@ import { transactionsToCSV } from '../utils/finance';
 import RecurringTransactionManager from '../components/RecurringTransactionManager';
 import NextStepLink from '../components/NextStepLink';
 import { showAlert, confirmAction } from '../utils/webAlert';
+import Icon from '../components/ui/Icon';
+import { Radius, Shadow, Spacing } from '../theme/tokens';
 
 type FilterType   = 'all' | 'income' | 'expense' | 'collect';
 type StatusFilter = 'all' | 'paid' | 'pending' | 'overdue';
@@ -344,8 +346,9 @@ export default function TransactionsScreen() {
                             style={[styles.chip, typeFilter === f && (f === 'collect' ? styles.chipCollect : styles.chipActive)]}
                             onPress={() => { setTypeFilter(f); setPage(1); }}
                         >
+                            {f === 'collect' && <Icon name="phone" size={11} color={typeFilter === f ? '#fff' : Colors.textMuted} />}
                             <Text style={[styles.chipText, typeFilter === f && styles.chipTextActive]}>
-                                {f === 'all' ? 'All' : f === 'collect' ? '📞 Collect' : f.charAt(0).toUpperCase() + f.slice(1)}
+                                {f === 'all' ? 'All' : f === 'collect' ? 'Collect' : f.charAt(0).toUpperCase() + f.slice(1)}
                             </Text>
                         </TouchableOpacity>
                     ))}
@@ -526,17 +529,20 @@ export default function TransactionsScreen() {
                                                         style={styles.callBtn}
                                                         onPress={() => Linking.openURL('tel:' + phone)}
                                                     >
-                                                        <Text style={styles.callBtnText}>📞 Call</Text>
+                                                        <Icon name="phone" size={11} color="#fff" />
+                                                        <Text style={styles.callBtnText}>Call</Text>
                                                     </TouchableOpacity>
                                                 );
                                             }
                                             return null;
                                         })()}
                                         <TouchableOpacity
+                                            style={styles.deleteBtn}
                                             onPress={() => handleDelete(tx.id, tx.description)}
                                             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                                         >
-                                            <Text style={styles.deleteText}>🗑 Delete</Text>
+                                            <Icon name="trash-2" size={11} color={Colors.expense} />
+                                            <Text style={styles.deleteText}>Delete</Text>
                                         </TouchableOpacity>
                                     </View>
                                 </View>
@@ -758,7 +764,7 @@ export default function TransactionsScreen() {
                                         style={[styles.toggleBtn, form.isRecurring && styles.toggleBtnOn]}
                                         onPress={() => setForm(f => ({ ...f, isRecurring: !f.isRecurring }))}
                                     >
-                                        <Text style={styles.toggleBtnText}>{form.isRecurring ? 'ON' : 'OFF'}</Text>
+                                        <Text style={[styles.toggleBtnText, form.isRecurring && styles.toggleBtnTextOn]}>{form.isRecurring ? 'ON' : 'OFF'}</Text>
                                     </TouchableOpacity>
                                 </View>
                                 {form.isRecurring && (
@@ -922,14 +928,14 @@ function CategoryChart({
 }
 
 const chartStyles = StyleSheet.create({
-    container:   { backgroundColor: Colors.surface, marginHorizontal: 0, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
-    tabRow:      { flexDirection: 'row', gap: 8, marginBottom: 10 },
-    tabBtn:      { flex: 1, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', backgroundColor: Colors.bg },
+    container:   { backgroundColor: Colors.surface, marginHorizontal: 0, paddingHorizontal: 14, paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    tabRow:      { flexDirection: 'row', gap: Spacing.sm, marginBottom: 10 },
+    tabBtn:      { flex: 1, paddingVertical: 6, borderRadius: Radius.sm, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', backgroundColor: Colors.bg },
     tabBtnText:  { fontSize: 12, fontWeight: '700', color: Colors.textMuted },
     title:       { fontSize: 12, fontWeight: '700', color: Colors.textSecondary, marginBottom: 2 },
     totalLabel:  { fontSize: 10, color: Colors.textMuted, marginBottom: 10 },
-    stackBar:    { flexDirection: 'row', height: 12, borderRadius: 6, overflow: 'hidden', marginBottom: 12, backgroundColor: Colors.bg },
-    row:         { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 },
+    stackBar:    { flexDirection: 'row', height: 12, borderRadius: 6, overflow: 'hidden', marginBottom: Spacing.md, backgroundColor: Colors.bg },
+    row:         { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.sm, gap: 6 },
     dot:         { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
     catName:     { fontSize: 11, color: Colors.textSecondary, width: 90, flexShrink: 0 },
     barTrack:    { flex: 1, height: 8, backgroundColor: Colors.bg, borderRadius: 4, overflow: 'hidden' },
@@ -997,61 +1003,62 @@ function OptionRow({
 const styles = StyleSheet.create({
     safe:    { flex: 1, backgroundColor: Colors.bg },
     scroll:  { flex: 1 },
-    pad:     { padding: 12 },
-    recurringSection: { marginTop: 16, marginBottom: 8 },
+    pad:     { padding: Spacing.md },
+    recurringSection: { marginTop: Spacing.lg, marginBottom: Spacing.sm },
 
-    topBar:  { flexDirection: 'row', padding: 10, gap: 8, backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border },
-    search:  { flex: 1, backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, color: Colors.textPrimary, fontSize: 14 },
-    csvBtn:    { backgroundColor: Colors.muted, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, justifyContent: 'center' },
-    importBtn: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, justifyContent: 'center' },
+    topBar:  { flexDirection: 'row', padding: 10, gap: Spacing.sm, backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    search:  { flex: 1, backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, color: Colors.textPrimary, fontSize: 14 },
+    csvBtn:    { backgroundColor: Colors.muted, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.sm, justifyContent: 'center' },
+    importBtn: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.sm, justifyContent: 'center' },
     csvBtnText: { color: Colors.textPrimary, fontWeight: 'bold', fontSize: 12 },
-    addBtn:  { backgroundColor: Colors.primary, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, justifyContent: 'center' },
-    addBtnText: { color: Colors.textPrimary, fontWeight: 'bold', fontSize: 14 },
+    addBtn:  { backgroundColor: Colors.primary, paddingHorizontal: 14, paddingVertical: Spacing.sm, borderRadius: Radius.sm, justifyContent: 'center' },
+    addBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
 
     filterBar:    { backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border, flexDirection: 'row', alignItems: 'center' },
-    filterScroll: { paddingHorizontal: 10, paddingVertical: 8, gap: 6, alignItems: 'center' },
+    filterScroll: { paddingHorizontal: 10, paddingVertical: Spacing.sm, gap: 6, alignItems: 'center' },
     filterLabel:  { fontSize: 11, color: Colors.textMuted, marginRight: 2 },
-    chip:         { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 14, backgroundColor: Colors.bg },
+    chip:         { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, paddingHorizontal: 10, paddingVertical: Spacing.xs, borderRadius: 14, backgroundColor: Colors.bg },
     chipActive:   { backgroundColor: Colors.primary },
     chipCollect:  { backgroundColor: '#25D366' },
     chipText:     { color: Colors.textMuted, fontSize: 11 },
-    chipTextActive:{ color: Colors.textPrimary, fontWeight: 'bold' },
-    sep:          { width: 1, height: 18, backgroundColor: Colors.border, marginHorizontal: 4 },
+    chipTextActive:{ color: '#fff', fontWeight: 'bold' },
+    sep:          { width: 1, height: 18, backgroundColor: Colors.border, marginHorizontal: Spacing.xs },
     countBadge:   { paddingHorizontal: 10, fontSize: 11, color: Colors.textMuted, fontWeight: '600' },
 
-    totalsRow: { flexDirection: 'row', backgroundColor: Colors.surface, paddingHorizontal: 12, paddingVertical: 8, gap: 8, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    totalsRow: { flexDirection: 'row', backgroundColor: Colors.surface, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, gap: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.border },
 
     // Date group
-    dateHeader:     { flexDirection: 'row', alignItems: 'center', marginBottom: 8, marginTop: 4 },
-    dateHeaderText: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, marginRight: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
+    dateHeader:     { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.sm, marginTop: Spacing.xs },
+    dateHeaderText: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, marginRight: Spacing.sm, textTransform: 'uppercase', letterSpacing: 0.5 },
     dateHeaderLine: { flex: 1, height: 1, backgroundColor: Colors.border },
 
     // Transaction card
-    txCard:    { backgroundColor: Colors.surface, borderRadius: 10, padding: 12, marginBottom: 8, borderLeftWidth: 3 },
+    txCard:    { backgroundColor: Colors.surface, borderRadius: 10, padding: Spacing.md, marginBottom: Spacing.sm, borderLeftWidth: 3, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     incomeCard:  { borderLeftColor: Colors.income },
     expenseCard: { borderLeftColor: Colors.expense },
     overdueCard: { backgroundColor: 'rgba(239,68,68,0.07)', borderLeftColor: Colors.expense },
-    txTop:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+    txTop:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.xs },
     txDesc:    { fontSize: 14, color: Colors.textPrimary, fontWeight: '600', flex: 1, marginRight: 8 },
     incAmt:    { fontSize: 14, fontWeight: 'bold', color: Colors.income },
     expAmt:    { fontSize: 14, fontWeight: 'bold', color: Colors.expense },
-    txRow2:    { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
-    catChip:   { fontSize: 11, color: Colors.primary, backgroundColor: 'rgba(37,99,235,0.15)', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },
+    txRow2:    { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: 6 },
+    catChip:   { fontSize: 11, color: Colors.primary, backgroundColor: 'rgba(37,99,235,0.15)', paddingHorizontal: 7, paddingVertical: 2, borderRadius: Radius.sm },
     metaText:  { fontSize: 11, color: Colors.textMuted },
     txBadges:  { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 6 },
-    statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },
+    statusBadge: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, paddingHorizontal: 7, paddingVertical: 2, borderRadius: Radius.sm },
     statusDot:   { width: 6, height: 6, borderRadius: 3 },
     statusText:  { fontSize: 11, fontWeight: '600' },
-    dueBadge:  { fontSize: 10, color: Colors.warning, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, backgroundColor: 'rgba(245,158,11,0.12)' },
-    taxBadge:  { fontSize: 10, color: Colors.warning, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, backgroundColor: 'rgba(245,158,11,0.12)' },
-    recurBadge:{ fontSize: 10, color: Colors.primary, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, backgroundColor: 'rgba(37,99,235,0.12)' },
+    dueBadge:  { fontSize: 10, color: Colors.warning, paddingHorizontal: 6, paddingVertical: 2, borderRadius: Radius.sm, backgroundColor: 'rgba(245,158,11,0.12)' },
+    taxBadge:  { fontSize: 10, color: Colors.warning, paddingHorizontal: 6, paddingVertical: 2, borderRadius: Radius.sm, backgroundColor: 'rgba(245,158,11,0.12)' },
+    recurBadge:{ fontSize: 10, color: Colors.primary, paddingHorizontal: 6, paddingVertical: 2, borderRadius: Radius.sm, backgroundColor: 'rgba(37,99,235,0.12)' },
     txActions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     editHint:  { fontSize: 10, color: Colors.textMuted, fontStyle: 'italic' },
     actionBtns:{ flexDirection: 'row', gap: 14, alignItems: 'center' },
-    paidBtn:   { paddingHorizontal: 8, paddingVertical: 3, backgroundColor: 'rgba(16,185,129,0.15)', borderRadius: 6 },
+    paidBtn:   { paddingHorizontal: Spacing.sm, paddingVertical: 3, backgroundColor: 'rgba(16,185,129,0.15)', borderRadius: 6 },
     paidBtnText: { fontSize: 11, color: Colors.income, fontWeight: '600' },
-    callBtn:   { paddingHorizontal: 8, paddingVertical: 3, backgroundColor: '#25D366', borderRadius: 6 },
+    callBtn:   { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, paddingHorizontal: Spacing.sm, paddingVertical: 3, backgroundColor: '#25D366', borderRadius: 6 },
     callBtnText: { fontSize: 11, color: '#fff', fontWeight: '600' },
+    deleteBtn: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
     deleteText:  { fontSize: 11, color: Colors.expense },
 
     emptyBox:   { alignItems: 'center', marginTop: 60 },
@@ -1060,46 +1067,47 @@ const styles = StyleSheet.create({
 
     // Modal
     overlay:    { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-    modalSheet: { backgroundColor: Colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 20, paddingBottom: 44, maxHeight: '92%' },
+    modalSheet: { backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, paddingHorizontal: Spacing.xl, paddingBottom: 44, maxHeight: '92%' },
     handle:     { width: 40, height: 4, backgroundColor: Colors.border, borderRadius: 2, alignSelf: 'center', marginTop: 10, marginBottom: 14 },
-    modalTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary, textAlign: 'center', marginBottom: 4 },
+    modalTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary, textAlign: 'center', marginBottom: Spacing.xs },
 
-    input:      { backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, color: Colors.textPrimary, fontSize: 14 },
-    taxPreview: { fontSize: 11, color: Colors.warning, marginTop: 4 },
+    input:      { backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm, paddingHorizontal: Spacing.md, paddingVertical: 10, color: Colors.textPrimary, fontSize: 14 },
+    taxPreview: { fontSize: 11, color: Colors.warning, marginTop: Spacing.xs },
 
-    optRow:        { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-    categoryGrid:  { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-    opt:       { paddingHorizontal: 12, paddingVertical: 7, backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: 6 },
+    optRow:        { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
+    categoryGrid:  { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
+    opt:       { paddingHorizontal: Spacing.md, paddingVertical: 7, backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: 6 },
     optActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
     optText:   { color: Colors.textMuted, fontSize: 12 },
-    optTextActive: { color: Colors.textPrimary, fontWeight: '600' },
+    optTextActive: { color: '#fff', fontWeight: '600' },
 
-    recurringRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+    recurringRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.sm },
     recurringLabel: { fontSize: 14, color: Colors.textSecondary },
-    toggleBtn:     { paddingHorizontal: 14, paddingVertical: 6, backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: 20 },
+    toggleBtn:     { paddingHorizontal: 14, paddingVertical: 6, backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.xl },
     toggleBtnOn:   { backgroundColor: Colors.primary, borderColor: Colors.primary },
     toggleBtnText: { color: Colors.textPrimary, fontSize: 12, fontWeight: 'bold' },
+    toggleBtnTextOn: { color: '#fff' },
 
-    modalBtns:   { flexDirection: 'row', gap: 12, marginTop: 24, marginBottom: 8 },
+    modalBtns:   { flexDirection: 'row', gap: Spacing.md, marginTop: Spacing.xxl, marginBottom: Spacing.sm },
     modalBtn:    { flex: 1, paddingVertical: 13, borderRadius: 10, alignItems: 'center' },
     cancelBtn:   { backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border },
     cancelBtnText: { color: Colors.textMuted, fontWeight: '600' },
     saveBtn:     { backgroundColor: Colors.primary },
-    saveBtnText: { color: Colors.textPrimary, fontWeight: 'bold', fontSize: 15 },
+    saveBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
 });
 
 const pillStyles = StyleSheet.create({
-    pill:  { flex: 1, backgroundColor: Colors.bg, borderRadius: 8, padding: 8, alignItems: 'center' },
+    pill:  { flex: 1, backgroundColor: Colors.bg, borderRadius: Radius.sm, padding: Spacing.sm, alignItems: 'center' },
     label: { fontSize: 10, color: Colors.textMuted, marginBottom: 2 },
     value: { fontSize: 13, fontWeight: '600' },
 });
 
 const sectionStyles = StyleSheet.create({
-    container: { marginTop: 16, marginBottom: 4 },
+    container: { marginTop: Spacing.lg, marginBottom: Spacing.xs },
     label:     { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10, borderBottomWidth: 1, borderBottomColor: Colors.border, paddingBottom: 6 },
 });
 
 const fieldStyles = StyleSheet.create({
-    container: { marginBottom: 12 },
+    container: { marginBottom: Spacing.md },
     label:     { fontSize: 12, color: Colors.textSecondary, fontWeight: '600', marginBottom: 6 },
 });

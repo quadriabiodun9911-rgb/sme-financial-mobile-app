@@ -19,8 +19,9 @@ import { computeInventoryValue } from '../utils/stockVelocity';
 import { computeLeverageRatios, computeLiveLoanBalance } from '../utils/debtRatios';
 import { buildFiveCsAssessment } from '../utils/fiveCsOfCredit';
 import { buildFundingReadinessPack } from '../utils/fundingReadiness';
+import Icon, { IconName } from '../components/ui/Icon';
+import { Radius, Shadow, Spacing } from '../theme/tokens';
 
-const FP_STATUS_DOT: Record<string, string> = { good: '🟢', warning: '🟡', danger: '🔴' };
 const FP_STATUS_LABEL: Record<string, string> = { good: 'Strong', warning: 'Watch', danger: 'High risk' };
 const FP_STATUS_COLOR: Record<string, string> = { good: Colors.income, warning: Colors.warning, danger: Colors.expense };
 const FP_BAND_COLOR: Record<string, string> = {
@@ -625,7 +626,7 @@ export default function CreditWorthinessScreen() {
                     <Text style={fp.cardTitle}>Risk Profile</Text>
                     {pack.riskProfile.map(f => (
                         <View key={f.name} style={fp.riskRow}>
-                            <Text style={fp.riskDot}>{FP_STATUS_DOT[f.status]}</Text>
+                            <View style={[fp.legendDot, { backgroundColor: FP_STATUS_COLOR[f.status], marginRight: 8 }]} />
                             <Text style={fp.riskLabel}>{f.name}</Text>
                             <Text style={[fp.riskStatus, { color: FP_STATUS_COLOR[f.status] }]}>{FP_STATUS_LABEL[f.status]}</Text>
                         </View>
@@ -822,7 +823,6 @@ const fp = StyleSheet.create({
     trendLabel: { fontSize: 8, color: Colors.textMuted, marginTop: 4 },
     trendLegend: { flexDirection: 'row', gap: 16, marginTop: 12, justifyContent: 'center' },
     riskRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border },
-    riskDot: { fontSize: 12, marginRight: 8 },
     riskLabel: { flex: 1, fontSize: 12.5, color: Colors.textSecondary, fontWeight: '600' },
     riskStatus: { fontSize: 12.5, fontWeight: '700' },
     scoreCard: { backgroundColor: Colors.card, borderRadius: 14, borderTopWidth: 4, padding: 16, marginBottom: 16, alignItems: 'center' },
