@@ -38,16 +38,18 @@ import DateInput from '../components/DateInput';
 import { InventoryItem } from '../types';
 import { generatePDF, sharePDF } from '../utils/pdfExport';
 import { computeInventoryValue } from '../utils/stockVelocity';
+import Icon, { IconName } from '../components/ui/Icon';
+import { Radius, Shadow, Spacing } from '../theme/tokens';
 
 // ─── Section groups ────────────────────────────────────────────────────────────
 type SectionKey = 'statements' | 'customers' | 'tax' | 'planning' | 'growth';
 
-const SECTIONS: { key: SectionKey; label: string; icon: string; desc: string }[] = [
-    { key: 'statements', label: '📊 Financial Statements', icon: '📊', desc: 'Balance Sheet, P&L, Inventory, Cash Flow' },
-    { key: 'customers',  label: '💰 Customers & Collections', icon: '💰', desc: 'Who Owes Me - Unpaid Invoices' },
-    { key: 'tax',        label: '🏛️ Tax & Compliance', icon: '🏛️', desc: 'Tax Summary and Obligations' },
-    { key: 'planning',   label: '📈 Planning & Forecasts', icon: '📈', desc: 'Growth Scenarios, Cash Timeline, Loans & Debt' },
-    { key: 'growth',     label: '🚀 Growth Analytics', icon: '🚀', desc: 'Growth Trends, Best Customers & Products' },
+const SECTIONS: { key: SectionKey; label: string; icon: IconName; desc: string }[] = [
+    { key: 'statements', label: 'Financial Statements',    icon: 'bar-chart-2', desc: 'Balance Sheet, P&L, Inventory, Cash Flow' },
+    { key: 'customers',  label: 'Customers & Collections',  icon: 'dollar-sign', desc: 'Who Owes Me - Unpaid Invoices' },
+    { key: 'tax',        label: 'Tax & Compliance',         icon: 'clipboard',   desc: 'Tax Summary and Obligations' },
+    { key: 'planning',   label: 'Planning & Forecasts',     icon: 'trending-up', desc: 'Growth Scenarios, Cash Timeline, Loans & Debt' },
+    { key: 'growth',     label: 'Growth Analytics',         icon: 'zap',         desc: 'Growth Trends, Best Customers & Products' },
 ];
 
 type SubTab =
@@ -197,10 +199,13 @@ export default function ReportsScreen() {
                     <Text style={styles.landingSub}>Tap any report to open it</Text>
 
                     {/* ── MONEY Section ───────────────────────────────────── */}
-                    <Text style={styles.reportGroupHeader}>💰 MONEY</Text>
+                    <View style={styles.sectionTitleRow}>
+                        <Icon name="dollar-sign" size={13} color={Colors.textMuted} />
+                        <Text style={styles.reportGroupHeader}>MONEY</Text>
+                    </View>
                     {[
-                        { icon: '📊', label: 'Profit & Loss', sub: 'Did I make money? Revenue vs costs breakdown', section: 'statements' as SectionKey, tab: 'pnl' as SubTab },
-                        { icon: '💧', label: 'Cash Flow', sub: 'Money coming in and going out over time', section: 'planning' as SectionKey, tab: 'cashflow' as SubTab },
+                        { icon: 'bar-chart-2' as IconName, label: 'Profit & Loss', sub: 'Did I make money? Revenue vs costs breakdown', section: 'statements' as SectionKey, tab: 'pnl' as SubTab },
+                        { icon: 'droplet' as IconName, label: 'Cash Flow', sub: 'Money coming in and going out over time', section: 'planning' as SectionKey, tab: 'cashflow' as SubTab },
                     ].map(item => (
                         <TouchableOpacity
                             key={item.tab}
@@ -211,20 +216,25 @@ export default function ReportsScreen() {
                                 setShowLanding(false);
                             }}
                         >
-                            <Text style={styles.landingCardIcon}>{item.icon}</Text>
+                            <View style={styles.landingCardIconBadge}>
+                                <Icon name={item.icon} size={18} color={Colors.primary} />
+                            </View>
                             <View style={styles.landingCardText}>
                                 <Text style={styles.landingCardLabel}>{item.label}</Text>
                                 <Text style={styles.landingCardSub}>{item.sub}</Text>
                             </View>
-                            <Text style={styles.landingCardArrow}>›</Text>
+                            <Icon name="chevron-right" size={18} color={Colors.textMuted} />
                         </TouchableOpacity>
                     ))}
 
                     {/* ── CUSTOMERS Section ───────────────────────────────── */}
-                    <Text style={styles.reportGroupHeader}>👥 CUSTOMERS</Text>
+                    <View style={styles.sectionTitleRow}>
+                        <Icon name="users" size={13} color={Colors.textMuted} />
+                        <Text style={styles.reportGroupHeader}>CUSTOMERS</Text>
+                    </View>
                     {[
-                        { icon: '💰', label: 'Who Owes Me', sub: 'Unpaid invoices and overdue payments', section: 'customers' as SectionKey, tab: 'aging' as SubTab },
-                        { icon: '📄', label: 'Invoices', sub: 'View all sent invoices and collection status', section: 'customers' as SectionKey, tab: 'aging' as SubTab },
+                        { icon: 'dollar-sign' as IconName, label: 'Who Owes Me', sub: 'Unpaid invoices and overdue payments', section: 'customers' as SectionKey, tab: 'aging' as SubTab },
+                        { icon: 'file-text' as IconName, label: 'Invoices', sub: 'View all sent invoices and collection status', section: 'customers' as SectionKey, tab: 'aging' as SubTab },
                     ].map(item => (
                         <TouchableOpacity
                             key={item.tab + item.label}
@@ -235,20 +245,25 @@ export default function ReportsScreen() {
                                 setShowLanding(false);
                             }}
                         >
-                            <Text style={styles.landingCardIcon}>{item.icon}</Text>
+                            <View style={styles.landingCardIconBadge}>
+                                <Icon name={item.icon} size={18} color={Colors.primary} />
+                            </View>
                             <View style={styles.landingCardText}>
                                 <Text style={styles.landingCardLabel}>{item.label}</Text>
                                 <Text style={styles.landingCardSub}>{item.sub}</Text>
                             </View>
-                            <Text style={styles.landingCardArrow}>›</Text>
+                            <Icon name="chevron-right" size={18} color={Colors.textMuted} />
                         </TouchableOpacity>
                     ))}
 
                     {/* ── BUSINESS Section ────────────────────────────────── */}
-                    <Text style={styles.reportGroupHeader}>⚙️ BUSINESS</Text>
+                    <View style={styles.sectionTitleRow}>
+                        <Icon name="briefcase" size={13} color={Colors.textMuted} />
+                        <Text style={styles.reportGroupHeader}>BUSINESS</Text>
+                    </View>
                     {[
-                        { icon: '📈', label: 'Growth', sub: 'Revenue and profit trend over the past months', section: 'growth' as SectionKey, tab: 'growth' as SubTab },
-                        { icon: '💎', label: 'Business Worth', sub: 'What your business is worth over time', section: 'statements' as SectionKey, tab: 'balancesheet' as SubTab },
+                        { icon: 'trending-up' as IconName, label: 'Growth', sub: 'Revenue and profit trend over the past months', section: 'growth' as SectionKey, tab: 'growth' as SubTab },
+                        { icon: 'award' as IconName, label: 'Business Worth', sub: 'What your business is worth over time', section: 'statements' as SectionKey, tab: 'balancesheet' as SubTab },
                     ].map(item => (
                         <TouchableOpacity
                             key={item.tab + item.label}
@@ -259,12 +274,14 @@ export default function ReportsScreen() {
                                 setShowLanding(false);
                             }}
                         >
-                            <Text style={styles.landingCardIcon}>{item.icon}</Text>
+                            <View style={styles.landingCardIconBadge}>
+                                <Icon name={item.icon} size={18} color={Colors.primary} />
+                            </View>
                             <View style={styles.landingCardText}>
                                 <Text style={styles.landingCardLabel}>{item.label}</Text>
                                 <Text style={styles.landingCardSub}>{item.sub}</Text>
                             </View>
-                            <Text style={styles.landingCardArrow}>›</Text>
+                            <Icon name="chevron-right" size={18} color={Colors.textMuted} />
                         </TouchableOpacity>
                     ))}
                     {/* Business Health & SWOT lives on its own page now (not a
@@ -274,18 +291,23 @@ export default function ReportsScreen() {
                         style={styles.landingCard}
                         onPress={() => setCurrentScreen('financial-assessment')}
                     >
-                        <Text style={styles.landingCardIcon}>🏥</Text>
+                        <View style={styles.landingCardIconBadge}>
+                            <Icon name="activity" size={18} color={Colors.primary} />
+                        </View>
                         <View style={styles.landingCardText}>
                             <Text style={styles.landingCardLabel}>Business Health</Text>
                             <Text style={styles.landingCardSub}>Strengths, weaknesses, risks and opportunities</Text>
                         </View>
-                        <Text style={styles.landingCardArrow}>›</Text>
+                        <Icon name="chevron-right" size={18} color={Colors.textMuted} />
                     </TouchableOpacity>
 
                     {/* ── TAX Section ────────────────────────────────────── */}
-                    <Text style={styles.reportGroupHeader}>🧾 TAX</Text>
+                    <View style={styles.sectionTitleRow}>
+                        <Icon name="clipboard" size={13} color={Colors.textMuted} />
+                        <Text style={styles.reportGroupHeader}>TAX</Text>
+                    </View>
                     {[
-                        { icon: '🧾', label: 'Tax Summary', sub: 'Tax collected, paid and your net tax position', section: 'tax' as SectionKey, tab: 'tax' as SubTab },
+                        { icon: 'clipboard' as IconName, label: 'Tax Summary', sub: 'Tax collected, paid and your net tax position', section: 'tax' as SectionKey, tab: 'tax' as SubTab },
                     ].map(item => (
                         <TouchableOpacity
                             key={item.tab}
@@ -296,12 +318,14 @@ export default function ReportsScreen() {
                                 setShowLanding(false);
                             }}
                         >
-                            <Text style={styles.landingCardIcon}>{item.icon}</Text>
+                            <View style={styles.landingCardIconBadge}>
+                                <Icon name={item.icon} size={18} color={Colors.primary} />
+                            </View>
                             <View style={styles.landingCardText}>
                                 <Text style={styles.landingCardLabel}>{item.label}</Text>
                                 <Text style={styles.landingCardSub}>{item.sub}</Text>
                             </View>
-                            <Text style={styles.landingCardArrow}>›</Text>
+                            <Icon name="chevron-right" size={18} color={Colors.textMuted} />
                         </TouchableOpacity>
                     ))}
                 </ScrollView>
@@ -309,7 +333,8 @@ export default function ReportsScreen() {
             <>
             {/* ── Back to landing ───────────────────────────────────── */}
             <TouchableOpacity style={styles.backToLanding} onPress={() => setShowLanding(true)}>
-                <Text style={styles.backToLandingText}>← All Reports</Text>
+                <Icon name="chevron-left" size={14} color={Colors.primary} />
+                <Text style={styles.backToLandingText}>All Reports</Text>
             </TouchableOpacity>
 
 
@@ -321,6 +346,7 @@ export default function ReportsScreen() {
                         style={[styles.sectionBtn, section === s.key && styles.sectionBtnActive]}
                         onPress={() => handleSectionChange(s.key)}
                     >
+                        <Icon name={s.icon} size={15} color={section === s.key ? Colors.primary : Colors.textMuted} />
                         <Text style={[styles.sectionText, section === s.key && styles.sectionTextActive]}>
                             {s.label}
                         </Text>
@@ -914,8 +940,8 @@ const bsStyles = StyleSheet.create({
     inputWrap:    { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 10 },
     currencyPrefix: { fontSize: 14, color: Colors.textMuted, marginRight: 4 },
     input:        { flex: 1, paddingVertical: 10, fontSize: 14, color: Colors.textPrimary },
-    saveBtn:      { backgroundColor: Colors.primary, borderRadius: 8, paddingVertical: 12, alignItems: 'center', marginTop: 4, marginBottom: 8 },
-    saveBtnText:  { fontSize: 14, color: Colors.textPrimary, fontWeight: 'bold' },
+    saveBtn:      { backgroundColor: Colors.primary, borderRadius: Radius.sm, paddingVertical: 12, alignItems: 'center', marginTop: 4, marginBottom: 8 },
+    saveBtnText:  { fontSize: 14, color: '#fff', fontWeight: 'bold' },
     editNote:     { fontSize: 11, color: Colors.textMuted, fontStyle: 'italic', lineHeight: 16 },
 });
 
@@ -1039,65 +1065,65 @@ const styles = StyleSheet.create({
     redirectText:  { fontSize: 13, color: Colors.textSecondary, lineHeight: 19, marginBottom: 4 },
 
     landingScroll: { flex: 1 },
-    landingPad:    { padding: 16, paddingBottom: 40 },
+    landingPad:    { padding: Spacing.xl, paddingBottom: 40 },
     landingTitle:  { fontSize: 22, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 4 },
     landingSub:    { fontSize: 13, color: Colors.textMuted, marginBottom: 18 },
-    reportGroupHeader: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: 10, marginTop: 16, letterSpacing: 0.3 },
-    landingCard:   { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 14, borderWidth: 1, borderColor: Colors.border },
-    landingCardIcon:  { fontSize: 28 },
+    sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 18, marginBottom: 10 },
+    reportGroupHeader: { fontSize: 12, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.8 },
+    landingCard:   { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.lg, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 14, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
+    landingCardIconBadge: { width: 40, height: 40, borderRadius: Radius.md, backgroundColor: Colors.primary + '18', alignItems: 'center', justifyContent: 'center' },
     landingCardText:  { flex: 1 },
     landingCardLabel: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },
     landingCardSub:   { fontSize: 12, color: Colors.textMuted },
-    landingCardArrow: { fontSize: 22, color: Colors.textMuted },
     exportSection: { marginTop: 20, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 16 },
     exportTitle:   { fontSize: 13, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
-    exportCsvBtn:  { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 14, borderWidth: 1, borderColor: Colors.border },
+    exportCsvBtn:  { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 14, borderWidth: 1, borderColor: Colors.border },
     exportBtnIcon: { fontSize: 24 },
     exportBtnLabel:{ fontSize: 14, fontWeight: '700', color: Colors.primary },
     exportBtnSub:  { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
 
-    backToLanding:     { paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border, backgroundColor: Colors.surface },
+    backToLanding:     { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border, backgroundColor: Colors.surface },
     backToLandingText: { fontSize: 13, color: Colors.primary, fontWeight: '600' },
 
     sectionRow: {
         flexDirection: 'row', backgroundColor: Colors.surface,
         borderBottomWidth: 1, borderBottomColor: Colors.border,
     },
-    sectionBtn:       { flex: 1, paddingVertical: 11, alignItems: 'center' },
+    sectionBtn:       { flex: 1, paddingVertical: 11, alignItems: 'center', gap: 3 },
     sectionBtnActive: { borderBottomWidth: 2, borderBottomColor: Colors.primary },
-    sectionText:      { fontSize: 12, color: Colors.textMuted, fontWeight: '500' },
+    sectionText:      { fontSize: 11, color: Colors.textMuted, fontWeight: '500', textAlign: 'center' },
     sectionTextActive:{ color: Colors.primary, fontWeight: '700' },
 
     subTabBar:     { maxHeight: 46, backgroundColor: Colors.bg, borderBottomWidth: 1, borderBottomColor: Colors.border },
     subTabContent: { paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center', gap: 6 },
-    subTab:        { paddingHorizontal: 14, paddingVertical: 5, backgroundColor: Colors.surface, borderRadius: 20 },
-    subTabActive:  { backgroundColor: Colors.primary },
+    subTab:        { paddingHorizontal: 14, paddingVertical: 5, backgroundColor: Colors.surface, borderRadius: Radius.pill },
+    subTabActive:  { backgroundColor: Colors.primary, ...Shadow.sm },
     subTabText:    { color: Colors.textMuted, fontSize: 12, fontWeight: '500' },
-    subTabTextActive: { color: Colors.textPrimary, fontWeight: 'bold' },
+    subTabTextActive: { color: '#fff', fontWeight: 'bold' },
 
     periodRow:        { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: Colors.bg, gap: 6, borderBottomWidth: 1, borderBottomColor: Colors.border },
-    periodBtn:        { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12, backgroundColor: Colors.surface },
+    periodBtn:        { paddingHorizontal: 12, paddingVertical: 4, borderRadius: Radius.pill, backgroundColor: Colors.surface },
     periodBtnActive:  { backgroundColor: Colors.primary },
     periodText:       { fontSize: 11, color: Colors.textMuted },
-    periodTextActive: { color: Colors.textPrimary, fontWeight: '600' },
+    periodTextActive: { color: '#fff', fontWeight: '600' },
     periodLabel:      { fontSize: 11, color: Colors.textMuted, marginBottom: 8, textAlign: 'right', fontStyle: 'italic' },
 
     exportBar:     { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: Colors.bg, borderBottomWidth: 1, borderBottomColor: Colors.border },
-    exportBtn:     { flex: 1, backgroundColor: Colors.primary, borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
-    exportBtnText: { color: Colors.textPrimary, fontWeight: '700', fontSize: 13 },
+    exportBtn:     { flex: 1, backgroundColor: Colors.primary, borderRadius: Radius.sm, paddingVertical: 10, alignItems: 'center' },
+    exportBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
 
-    card:          { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 16 },
+    card:          { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.lg, marginBottom: 16, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     cardTitle:     { fontSize: 16, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 12 },
     cardHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
     note:          { fontSize: 11, color: Colors.textMuted, fontStyle: 'italic', marginTop: 10, lineHeight: 16 },
-    sizeBadge:     { fontSize: 11, color: Colors.primary, fontWeight: '600', backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.primary, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
+    sizeBadge:     { fontSize: 11, color: Colors.primary, fontWeight: '600', backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.primary, borderRadius: Radius.pill, paddingHorizontal: 8, paddingVertical: 2 },
     exportText:    { fontSize: 11, color: Colors.textPrimary, fontWeight: '600' },
 
     viewToggleRow:        { flexDirection: 'row', backgroundColor: Colors.surface, padding: 8, gap: 6, borderBottomWidth: 1, borderBottomColor: Colors.border },
-    viewToggleBtn:        { flex: 1, paddingVertical: 7, borderRadius: 8, alignItems: 'center', backgroundColor: Colors.bg },
+    viewToggleBtn:        { flex: 1, paddingVertical: 7, borderRadius: Radius.sm, alignItems: 'center', backgroundColor: Colors.bg },
     viewToggleBtnActive:  { backgroundColor: Colors.primary },
     viewToggleText:       { fontSize: 13, fontWeight: '600', color: Colors.textMuted },
-    viewToggleTextActive: { color: Colors.textPrimary },
+    viewToggleTextActive: { color: '#fff' },
     viewToggleHint:       { fontSize: 11, color: Colors.textMuted, textAlign: 'center', paddingHorizontal: 12, paddingBottom: 6, backgroundColor: Colors.surface },
 });
 

@@ -1,4 +1,4 @@
-import { Platform, ViewStyle } from 'react-native';
+import { Platform } from 'react-native';
 
 /**
  * Design tokens — additive to colors.ts, never replacing it. Every existing
@@ -44,7 +44,7 @@ export const Type = {
 // native reads them directly on iOS (Android needs the separate `elevation`
 // prop, included alongside every level here) — one object covers both
 // platforms without a Platform.select at every call site.
-function shadow(elevation: number, opacity: number, radius: number, y: number): ViewStyle {
+function shadow(elevation: number, opacity: number, radius: number, y: number) {
     return {
         shadowColor: '#000',
         shadowOffset: { width: 0, height: y },

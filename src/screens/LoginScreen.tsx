@@ -5,6 +5,8 @@ import {
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
+import { Radius, Shadow, Spacing } from '../theme/tokens';
+import Icon from '../components/ui/Icon';
 import { t, LANGUAGES, Language } from '../utils/i18n';
 import { DEMO_BUSINESSES } from '../utils/demoData';
 import { trackUserLoggedIn, identifyUser } from '../utils/analytics';
@@ -399,7 +401,7 @@ export default function LoginScreen() {
                         <Text style={styles.subtitle}>Sign in with your email and PIN to restore your account on this device.</Text>
 
                         <View style={styles.newDeviceBanner}>
-                            <Text style={styles.newDeviceIcon}>📱</Text>
+                            <Icon name="smartphone" size={18} color={Colors.primary} />
                             <Text style={styles.newDeviceText}>
                                 New device detected. Enter your email and PIN — your data will be restored automatically.
                             </Text>
@@ -461,7 +463,7 @@ export default function LoginScreen() {
                                     <Text style={styles.bizName}>{biz.businessName}</Text>
                                     <Text style={styles.bizDesc}>{biz.description} · {biz.currency}</Text>
                                 </View>
-                                <Text style={styles.bizArrow}>→</Text>
+                                <Icon name="chevron-right" size={18} color={Colors.primary} />
                             </TouchableOpacity>
                         ))}
 
@@ -689,7 +691,7 @@ export default function LoginScreen() {
                                 <Text style={styles.currencySelected}>
                                     {CURRENCIES.find(c => c.value === currency)?.label ?? currency}
                                 </Text>
-                                <Text style={styles.currencyChevron}>▾</Text>
+                                <Icon name="chevron-down" size={16} color={Colors.muted} />
                             </TouchableOpacity>
                         </Field>
 
@@ -707,7 +709,7 @@ export default function LoginScreen() {
                                         <Text style={[styles.industryLabel, industry === ind.value && styles.industryLabelActive]}>{ind.label}</Text>
                                         <Text style={styles.industryHint}>{ind.hint}</Text>
                                     </View>
-                                    {industry === ind.value && <Text style={styles.industryCheck}>✓</Text>}
+                                    {industry === ind.value && <Icon name="check" size={16} color={Colors.primary} />}
                                 </TouchableOpacity>
                             ))}
                         </Field>
@@ -718,7 +720,10 @@ export default function LoginScreen() {
                                 : <Text style={styles.btnText}>{t(setupLang, 'createAccount')}</Text>
                             }
                         </TouchableOpacity>
-                        <Text style={styles.trustNote}>🔒 Your data is encrypted and stored securely. We never share your information.</Text>
+                        <View style={styles.trustNoteRow}>
+                            <Icon name="lock" size={11} color={Colors.textMuted} />
+                            <Text style={styles.trustNote}>Your data is encrypted and stored securely. We never share your information.</Text>
+                        </View>
                         <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('join-team')}>
                             <Text style={styles.switchText}>{t(setupLang, 'joiningTeam')}</Text>
                         </TouchableOpacity>
@@ -726,7 +731,8 @@ export default function LoginScreen() {
                             <Text style={styles.switchText}>Already have an account? Sign In →</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.demoBtn} onPress={() => setMode('demo-pick')}>
-                            <Text style={styles.demoBtnText}>👀 Try Demo (No sign-up needed)</Text>
+                            <Icon name="eye" size={13} color={Colors.primary} />
+                            <Text style={styles.demoBtnText}>Try Demo (No sign-up needed)</Text>
                         </TouchableOpacity>
                     </View>
                 </ScrollView>
@@ -743,7 +749,7 @@ export default function LoginScreen() {
                                         <Text style={[styles.currencyOptionText, currency === c.value && { color: Colors.primary, fontWeight: '700' }]}>
                                             {c.label}
                                         </Text>
-                                        {currency === c.value && <Text style={{ color: Colors.primary }}>✓</Text>}
+                                        {currency === c.value && <Icon name="check" size={16} color={Colors.primary} />}
                                     </TouchableOpacity>
                                 ))}
                             </ScrollView>
@@ -779,25 +785,26 @@ export default function LoginScreen() {
 
                     {isLockedOut && timeRemaining !== null && timeRemaining > 0 && (
                         <View style={styles.lockoutBanner}>
+                            <Icon name="lock" size={14} color={Colors.danger} />
                             <Text style={styles.lockoutText}>
-                                🔒 Too many failed attempts. Try again in {Math.ceil(timeRemaining / 60)}:{String(timeRemaining % 60).padStart(2, '0')}
+                                Too many failed attempts. Try again in {Math.ceil(timeRemaining / 60)}:{String(timeRemaining % 60).padStart(2, '0')}
                             </Text>
                         </View>
                     )}
 
                     {/* Login Method Tabs */}
-                    <View style={{ flexDirection: 'row', marginBottom: 16 }}>
+                    <View style={styles.methodTabRow}>
                         <TouchableOpacity
-                            style={{ flex: 1, paddingVertical: 12, backgroundColor: loginMethod === 'pin' ? '#0066cc' : '#cccccc', borderRadius: 6, marginRight: 8 }}
+                            style={[styles.methodTab, loginMethod === 'pin' && styles.methodTabActive]}
                             onPress={() => setLoginMethod('pin')}
                         >
-                            <Text style={{ textAlign: 'center', color: '#fff', fontWeight: 'bold' }}>PIN</Text>
+                            <Text style={[styles.methodTabText, loginMethod === 'pin' && styles.methodTabTextActive]}>PIN</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
-                            style={{ flex: 1, paddingVertical: 12, backgroundColor: loginMethod === 'email' ? '#0066cc' : '#cccccc', borderRadius: 6 }}
+                            style={[styles.methodTab, loginMethod === 'email' && styles.methodTabActive]}
                             onPress={() => setLoginMethod('email')}
                         >
-                            <Text style={{ textAlign: 'center', color: '#fff', fontWeight: 'bold' }}>Email</Text>
+                            <Text style={[styles.methodTabText, loginMethod === 'email' && styles.methodTabTextActive]}>Email</Text>
                         </TouchableOpacity>
                     </View>
 
@@ -865,7 +872,8 @@ export default function LoginScreen() {
                         <Text style={styles.resetText}>Forgot your PIN? Reset it in 2 minutes →</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.demoBtn} onPress={() => setMode('demo-pick')}>
-                        <Text style={styles.demoBtnText}>👀 Try Demo First (No sign-up needed)</Text>
+                        <Icon name="eye" size={13} color={Colors.primary} />
+                        <Text style={styles.demoBtnText}>Try Demo First (No sign-up needed)</Text>
                     </TouchableOpacity>
                 </View>
             </ScrollView>
@@ -886,10 +894,11 @@ const styles = StyleSheet.create({
     safe:   { flex: 1, backgroundColor: Colors.bg },
     scroll: { flexGrow: 1, justifyContent: 'center', padding: 20 },
     card: {
-        backgroundColor: Colors.surface, borderRadius: 16, padding: 24,
-        shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 10, elevation: 5,
+        backgroundColor: Colors.surface, borderRadius: Radius.xl, padding: Spacing.xxl,
+        borderWidth: 1, borderColor: Colors.border,
+        ...Shadow.lg,
     },
-    logo:     { width: 80, height: 80, alignSelf: 'center', borderRadius: 18, marginBottom: 8 },
+    logo:     { width: 80, height: 80, alignSelf: 'center', borderRadius: Radius.lg, marginBottom: 8, ...Shadow.md },
     title:    { fontSize: 26, fontWeight: 'bold', color: Colors.textPrimary, textAlign: 'center' },
     brandTagline: { fontSize: 12.5, color: Colors.primary, textAlign: 'center', fontStyle: 'italic', lineHeight: 17, marginTop: 2, marginBottom: 6 },
     subtitle: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', marginBottom: 20, marginTop: 4 },
@@ -898,7 +907,7 @@ const styles = StyleSheet.create({
     label: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary, marginBottom: 6 },
     input: {
         backgroundColor: Colors.bg, borderColor: Colors.border, borderWidth: 1,
-        borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10,
+        borderRadius: Radius.md, paddingHorizontal: 12, paddingVertical: 10,
         color: Colors.textPrimary, fontSize: 14,
     },
     codeInput: { fontSize: 20, letterSpacing: 8, textAlign: 'center', fontWeight: 'bold' },
@@ -906,7 +915,7 @@ const styles = StyleSheet.create({
     sectionLabel: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary, marginBottom: 8, marginTop: 4 },
 
     chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
-    chip:         { paddingHorizontal: 12, paddingVertical: 7, borderWidth: 1, borderColor: Colors.border, borderRadius: 20, backgroundColor: Colors.bg },
+    chip:         { paddingHorizontal: 12, paddingVertical: 7, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.pill, backgroundColor: Colors.bg },
     chipActive:   { borderColor: Colors.primary, backgroundColor: Colors.primary + '22' },
     chipText:     { fontSize: 12, color: Colors.textMuted },
     chipTextActive: { color: Colors.primary, fontWeight: '600' },
@@ -917,7 +926,6 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.bg, paddingHorizontal: 14, paddingVertical: 13,
     },
     currencySelected: { fontSize: 14, color: Colors.textPrimary, fontWeight: '600' },
-    currencyChevron:  { fontSize: 16, color: Colors.muted },
 
     flex: { flex: 1 },
     industryOption: {
@@ -929,7 +937,6 @@ const styles = StyleSheet.create({
     industryLabel: { fontSize: 13.5, fontWeight: '600', color: Colors.textPrimary },
     industryLabelActive: { color: Colors.primary },
     industryHint: { fontSize: 11, color: Colors.muted, marginTop: 2, lineHeight: 15 },
-    industryCheck: { fontSize: 16, color: Colors.primary, fontWeight: '700', marginLeft: 8 },
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
     currencyModal: {
         backgroundColor: Colors.surface, borderTopLeftRadius: 18, borderTopRightRadius: 18,
@@ -967,14 +974,15 @@ const styles = StyleSheet.create({
         textAlign: 'center', width: 180,
     },
 
-    btn:        { backgroundColor: Colors.primary, paddingVertical: 13, borderRadius: 8, alignItems: 'center', marginTop: 4 },
+    btn:        { backgroundColor: Colors.primary, paddingVertical: 13, borderRadius: Radius.md, alignItems: 'center', marginTop: 4, ...Shadow.sm },
     btnDisabled: { opacity: 0.6 },
-    btnText:    { color: Colors.textPrimary, fontWeight: 'bold', fontSize: 15 },
+    btnText:    { color: '#fff', fontWeight: 'bold', fontSize: 15 },
     switchBtn:  { paddingVertical: 14, alignItems: 'center' },
     switchText: { color: Colors.primary, fontSize: 13 },
     resetBtn:   { paddingVertical: 10, alignItems: 'center' },
-    resetText:  { color: '#ef4444', fontSize: 12 },
-    trustNote:  { fontSize: 11, color: Colors.textMuted, textAlign: 'center', marginTop: 10, lineHeight: 16 },
+    resetText:  { color: Colors.danger, fontSize: 12 },
+    trustNoteRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, marginTop: 10 },
+    trustNote:  { fontSize: 11, color: Colors.textMuted, textAlign: 'center', lineHeight: 16 },
 
     stepsBox: {
         backgroundColor: Colors.bg, borderRadius: 10, padding: 14, marginBottom: 16,
@@ -994,50 +1002,57 @@ const styles = StyleSheet.create({
     infoNote:     { fontSize: 11, color: Colors.textMuted, textAlign: 'center', fontStyle: 'italic' },
 
     lockoutBanner: {
-        backgroundColor: 'rgba(239,68,68,0.15)', borderWidth: 1, borderColor: '#ef4444',
-        borderRadius: 10, padding: 12, marginBottom: 16,
+        flexDirection: 'row', alignItems: 'center', gap: 8,
+        backgroundColor: Colors.danger + '18', borderWidth: 1, borderColor: Colors.danger,
+        borderRadius: Radius.md, padding: 12, marginBottom: 16,
     },
-    lockoutText: { color: '#ef4444', fontSize: 13, fontWeight: '600', textAlign: 'center' },
+    lockoutText: { flex: 1, color: Colors.danger, fontSize: 13, fontWeight: '600' },
 
-    loginTabs: {
+    // Segmented control — a pill-shaped track with a solid active segment
+    // reads as one deliberate control, unlike the flat two-button row this
+    // replaced (which also happened to hardcode colors outside the theme).
+    methodTabRow: {
         flexDirection: 'row',
-        marginBottom: 20,
-        borderBottomWidth: 1,
-        borderBottomColor: Colors.border,
+        backgroundColor: Colors.bg,
+        borderRadius: Radius.md,
+        borderWidth: 1,
+        borderColor: Colors.border,
+        padding: 4,
+        marginBottom: 16,
+        gap: 4,
     },
-    loginTab: {
+    methodTab: {
         flex: 1,
-        paddingVertical: 12,
-        paddingHorizontal: 8,
+        paddingVertical: 10,
+        borderRadius: Radius.sm,
         alignItems: 'center',
-        borderBottomWidth: 2,
-        borderBottomColor: 'transparent',
     },
-    loginTabActive: {
-        borderBottomColor: Colors.primary,
+    methodTabActive: {
+        backgroundColor: Colors.primary,
+        ...Shadow.sm,
     },
-    loginTabText: {
-        fontSize: 14,
-        fontWeight: '600',
+    methodTabText: {
+        fontSize: 13,
+        fontWeight: '700',
         color: Colors.textMuted,
     },
-    loginTabTextActive: {
-        color: Colors.primary,
+    methodTabTextActive: {
+        color: '#fff',
     },
 
     demoBtn: {
-        marginTop: 12, paddingVertical: 12, borderRadius: 8, alignItems: 'center',
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+        marginTop: 12, paddingVertical: 12, borderRadius: Radius.md,
         borderWidth: 1, borderColor: Colors.primary, backgroundColor: 'transparent',
     },
     demoBtnText: { color: Colors.primary, fontWeight: '600', fontSize: 13 },
 
     newDeviceBanner: {
         flexDirection: 'row', alignItems: 'flex-start',
-        backgroundColor: 'rgba(37,99,235,0.1)', borderWidth: 1,
-        borderColor: Colors.primary, borderRadius: 12,
+        backgroundColor: Colors.primary + '18', borderWidth: 1,
+        borderColor: Colors.primary, borderRadius: Radius.lg,
         padding: 14, marginBottom: 20, gap: 10,
     },
-    newDeviceIcon: { fontSize: 20 },
     newDeviceText: { flex: 1, fontSize: 13, color: Colors.textSecondary, lineHeight: 20 },
 
     socialProof: {
