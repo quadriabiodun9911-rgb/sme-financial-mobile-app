@@ -6,6 +6,8 @@ import {
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { apiFetch } from '../utils/api';
+import Icon from '../components/ui/Icon';
+import { Radius, Shadow, Spacing } from '../theme/tokens';
 
 export default function PaymentLinkScreen() {
     const { settings, user, navigate, goBack, navParams, addTransaction, markInvoiceStatus } = useApp() as any;
@@ -262,7 +264,10 @@ export default function PaymentLinkScreen() {
                     <Text style={styles.backBtn}>← Back</Text>
                 </TouchableOpacity>
                 <View>
-                    <Text style={styles.title}>💳 Collect Payment</Text>
+                    <View style={styles.titleRow}>
+                        <Icon name="credit-card" size={17} color={Colors.textPrimary} />
+                        <Text style={styles.title}>Collect Payment</Text>
+                    </View>
                     <Text style={styles.subtitle}>{currencyCode} · {businessName}</Text>
                 </View>
             </View>
@@ -273,10 +278,25 @@ export default function PaymentLinkScreen() {
                     <Text style={styles.previewLabel}>Payment Amount</Text>
                     <Text style={styles.previewAmount}>{currency}{amountNum.toLocaleString()}</Text>
                     {description  ? <Text style={styles.previewDesc}>{description}</Text>         : null}
-                    {customerName ? <Text style={styles.previewCustomer}>👤 {customerName}</Text> : null}
+                    {customerName ? (
+                        <View style={styles.previewCustomerRow}>
+                            <Icon name="user" size={11} color={Colors.textMuted} />
+                            <Text style={styles.previewCustomer}>{customerName}</Text>
+                        </View>
+                    ) : null}
                     <View style={styles.gatewayBadges}>
-                        {hasPaystack && <Text style={[styles.badge, { backgroundColor: '#00C3F722', color: '#00C3F7' }]}>✓ Paystack</Text>}
-                        {hasKorapay  && <Text style={[styles.badge, { backgroundColor: '#5C2E9122', color: '#a78bfa' }]}>✓ Korapay</Text>}
+                        {hasPaystack && (
+                            <View style={[styles.badge, { backgroundColor: '#00C3F722' }]}>
+                                <Icon name="check" size={11} color="#00C3F7" />
+                                <Text style={[styles.badgeText, { color: '#00C3F7' }]}>Paystack</Text>
+                            </View>
+                        )}
+                        {hasKorapay && (
+                            <View style={[styles.badge, { backgroundColor: '#5C2E9122' }]}>
+                                <Icon name="check" size={11} color="#a78bfa" />
+                                <Text style={[styles.badgeText, { color: '#a78bfa' }]}>Korapay</Text>
+                            </View>
+                        )}
                     </View>
                 </View>
             )}
@@ -311,7 +331,10 @@ export default function PaymentLinkScreen() {
                         Opens a secure payment page in the browser. Customer pays with card, bank transfer, USSD, or mobile money.
                     </Text>
                     {!!loadingMsg && (
-                        <Text style={styles.loadingMsg}>⏳ {loadingMsg}</Text>
+                        <View style={styles.loadingMsgRow}>
+                            <Icon name="clock" size={12} color={Colors.primary} />
+                            <Text style={styles.loadingMsg}>{loadingMsg}</Text>
+                        </View>
                     )}
                     {hasPaystack && (
                         <TouchableOpacity
@@ -319,16 +342,22 @@ export default function PaymentLinkScreen() {
                             onPress={handlePaystack}
                             disabled={loading}
                         >
-                            <Text style={styles.paystackBtnText}>
-                                {loading ? '⏳  Please wait…' : '💳  Pay with Paystack'}
-                            </Text>
+                            <View style={styles.btnIconRow}>
+                                <Icon name={loading ? 'clock' : 'credit-card'} size={15} color="#fff" />
+                                <Text style={styles.paystackBtnText}>
+                                    {loading ? 'Please wait…' : 'Pay with Paystack'}
+                                </Text>
+                            </View>
                             <Text style={styles.gatewaySubtitle}>Cards · Bank Transfer · USSD · MoMo</Text>
                         </TouchableOpacity>
                     )}
                     {hasKorapay && (
                         <View style={[styles.korapayBtn, hasPaystack && { marginTop: 10 }, { opacity: 0.55 }]}>
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                <Text style={styles.korapayBtnText}>💳  Pay with Korapay</Text>
+                                <View style={styles.btnIconRow}>
+                                    <Icon name="credit-card" size={15} color="#fff" />
+                                    <Text style={styles.korapayBtnText}>Pay with Korapay</Text>
+                                </View>
                                 <View style={styles.comingSoonBadge}>
                                     <Text style={styles.comingSoonText}>Coming Soon</Text>
                                 </View>
@@ -342,20 +371,32 @@ export default function PaymentLinkScreen() {
             {/* Share / WhatsApp / Copy */}
             <View style={styles.actions}>
                 <TouchableOpacity style={styles.primaryBtn} onPress={handleShare}>
-                    <Text style={styles.primaryBtnText}>📤  Send Payment Request</Text>
+                    <View style={styles.btnIconRow}>
+                        <Icon name="send" size={15} color="#fff" />
+                        <Text style={styles.primaryBtnText}>Send Payment Request</Text>
+                    </View>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.whatsappBtn} onPress={handleWhatsApp}>
-                    <Text style={styles.whatsappBtnText}>💬  Share via WhatsApp</Text>
+                    <View style={styles.btnIconRow}>
+                        <Icon name="message-circle" size={15} color="#fff" />
+                        <Text style={styles.whatsappBtnText}>Share via WhatsApp</Text>
+                    </View>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.copyBtn} onPress={handleCopy}>
-                    <Text style={styles.copyBtnText}>{copied ? '✓ Copied!' : '📋  Copy to Clipboard'}</Text>
+                    <View style={styles.btnIconRow}>
+                        <Icon name={copied ? 'check' : 'clipboard'} size={15} color={Colors.textSecondary} />
+                        <Text style={styles.copyBtnText}>{copied ? 'Copied!' : 'Copy to Clipboard'}</Text>
+                    </View>
                 </TouchableOpacity>
             </View>
 
             {/* Setup tip */}
             {!hasPaystack && !hasKorapay && (
                 <View style={styles.tipCard}>
-                    <Text style={styles.tipTitle}>💡 Enable online payments</Text>
+                    <View style={[styles.titleRow, { marginBottom: 6 }]}>
+                        <Icon name="zap" size={13} color={Colors.textPrimary} />
+                        <Text style={styles.tipTitle}>Enable online payments</Text>
+                    </View>
                     <Text style={styles.tipBody}>
                         Add your Paystack or Korapay public key in Settings → Payment Gateways to let customers pay online with cards, bank transfer, USSD, or mobile money.
                     </Text>
@@ -370,53 +411,60 @@ export default function PaymentLinkScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: Colors.bg },
-    content:   { padding: 16, paddingBottom: 60 },
+    content:   { padding: Spacing.lg, paddingBottom: 60 },
 
-    header:   { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 20 },
+    header:   { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: Spacing.xl },
     backBtn:  { color: Colors.primary, fontSize: 14, fontWeight: '600' },
     title:    { fontSize: 18, fontWeight: '800', color: Colors.textPrimary },
+    titleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
     subtitle: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
 
     previewCard: {
-        backgroundColor: Colors.primary + '12', borderRadius: 16, padding: 20,
-        marginBottom: 16, alignItems: 'center', borderWidth: 1, borderColor: Colors.primary + '30',
+        backgroundColor: Colors.primary + '12', borderRadius: Radius.lg, padding: Spacing.xl,
+        marginBottom: Spacing.lg, alignItems: 'center', borderWidth: 1, borderColor: Colors.primary + '30',
+        ...Shadow.sm,
     },
     previewLabel:    { fontSize: 11, color: Colors.primary, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 },
     previewAmount:   { fontSize: 40, fontWeight: '900', color: Colors.primary, marginBottom: 6 },
     previewDesc:     { fontSize: 13, color: Colors.textSecondary, marginBottom: 4 },
-    previewCustomer: { fontSize: 12, color: Colors.textMuted, marginBottom: 8 },
-    gatewayBadges:   { flexDirection: 'row', gap: 8, flexWrap: 'wrap', justifyContent: 'center' },
-    badge:           { fontSize: 11, fontWeight: '700', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 20 },
+    previewCustomerRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 8 },
+    previewCustomer: { fontSize: 12, color: Colors.textMuted },
+    gatewayBadges:   { flexDirection: 'row', gap: Spacing.sm, flexWrap: 'wrap', justifyContent: 'center' },
+    badge:           { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 3, borderRadius: Radius.xl },
+    badgeText:       { fontSize: 11, fontWeight: '700' },
 
-    formCard:     { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14 },
+    formCard:     { backgroundColor: Colors.surface, borderRadius: 14, padding: Spacing.lg, marginBottom: 14, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     sectionTitle: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 14 },
-    label:        { fontSize: 12, fontWeight: '600', color: Colors.textSecondary, marginBottom: 6, marginTop: 10 },
-    input:        { backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, color: Colors.textPrimary, fontSize: 14 },
+    label:        { fontSize: 12, fontWeight: '600', color: Colors.textSecondary, marginBottom: Spacing.sm, marginTop: 10 },
+    input:        { backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm, paddingHorizontal: Spacing.md, paddingVertical: 10, color: Colors.textPrimary, fontSize: 14 },
     errorText:    { fontSize: 12, color: '#ef4444', marginTop: 4 },
 
-    gatewayCard:     { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14 },
+    gatewayCard:     { backgroundColor: Colors.surface, borderRadius: 14, padding: Spacing.lg, marginBottom: 14, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     gatewayHint:     { fontSize: 12, color: Colors.textMuted, marginBottom: 14, lineHeight: 18 },
     gatewaySubtitle: { fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 3 },
-    loadingMsg:      { fontSize: 12, color: Colors.primary, textAlign: 'center', marginBottom: 10, fontWeight: '600' },
+    loadingMsgRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, marginBottom: 10 },
+    loadingMsg:      { fontSize: 12, color: Colors.primary, textAlign: 'center', fontWeight: '600' },
 
-    paystackBtn:     { backgroundColor: '#00C3F7', paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
+    btnIconRow:      { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+
+    paystackBtn:     { backgroundColor: '#00C3F7', paddingVertical: 14, borderRadius: Radius.md, alignItems: 'center' },
     paystackBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
 
-    korapayBtn:     { backgroundColor: '#5C2E91', paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
+    korapayBtn:     { backgroundColor: '#5C2E91', paddingVertical: 14, borderRadius: Radius.md, alignItems: 'center' },
     korapayBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
     comingSoonBadge: { backgroundColor: '#ffffff33', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 },
     comingSoonText:  { color: '#fff', fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
 
-    actions:         { gap: 10, marginBottom: 16 },
-    primaryBtn:      { backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
+    actions:         { gap: 10, marginBottom: Spacing.lg },
+    primaryBtn:      { backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: Radius.md, alignItems: 'center' },
     primaryBtnText:  { color: '#fff', fontWeight: '800', fontSize: 15 },
-    whatsappBtn:     { backgroundColor: '#25D366', paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
+    whatsappBtn:     { backgroundColor: '#25D366', paddingVertical: 14, borderRadius: Radius.md, alignItems: 'center' },
     whatsappBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
-    copyBtn:         { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
+    copyBtn:         { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, paddingVertical: 14, borderRadius: Radius.md, alignItems: 'center' },
     copyBtnText:     { color: Colors.textSecondary, fontWeight: '600', fontSize: 15 },
 
-    tipCard:  { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, borderLeftWidth: 3, borderLeftColor: '#f97316' },
-    tipTitle: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 },
+    tipCard:  { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 14, borderLeftWidth: 3, borderLeftColor: '#f97316' },
+    tipTitle: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
     tipBody:  { fontSize: 12, color: Colors.textMuted, lineHeight: 18, marginBottom: 10 },
     tipLink:  { fontSize: 13, color: Colors.primary, fontWeight: '700' },
 });

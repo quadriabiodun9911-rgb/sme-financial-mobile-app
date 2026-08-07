@@ -12,6 +12,8 @@ import NextStepLink from '../components/NextStepLink';
 import { computeCashRunway } from '../utils/cashRunway';
 import { getMonthlyExpenseAverage } from '../utils/finance';
 import { showAlert } from '../utils/webAlert';
+import Icon from '../components/ui/Icon';
+import { Radius, Shadow, Spacing } from '../theme/tokens';
 
 const EXECUTIONS_KEY = 'quad360_tactic_executions_v1';
 const OUTCOMES_KEY = 'quad360_tactic_outcomes_v1';
@@ -176,21 +178,38 @@ export default function ActionTrackerScreen() {
       <Header />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.pad}>
         {/* Title */}
-        <Text style={styles.title}>⚡ Action Tracker</Text>
+        <View style={styles.titleRow}>
+          <Icon name="zap" size={20} color={Colors.textPrimary} />
+          <Text style={styles.title}>Action Tracker</Text>
+        </View>
         <Text style={styles.subtitle}>Prioritized tactics to reach your goals</Text>
 
         {/* Total Impact Banner */}
         <View style={styles.impactBanner}>
-          <Text style={styles.impactBannerText}>
-            💰 {actionPlan.immediateActions.length + actionPlan.shortTermActions.length + actionPlan.strategicActions.length} tactics identified across this week, this month, and this quarter
-          </Text>
+          <View style={styles.impactBannerTextRow}>
+            <Icon name="dollar-sign" size={13} color={Colors.textSecondary} />
+            <Text style={styles.impactBannerText}>
+              {actionPlan.immediateActions.length + actionPlan.shortTermActions.length + actionPlan.strategicActions.length} tactics identified across this week, this month, and this quarter
+            </Text>
+          </View>
           <Text style={styles.impactBannerValue}>
             +{settings.currency}{Math.round(actionPlan.estimatedTotalImpact).toLocaleString()} potential
           </Text>
           {(inProgressCount > 0 || completedCount > 0) && (
-            <Text style={styles.impactBannerTracked}>
-              {completedCount > 0 ? `✅ ${completedCount} completed` : ''}{completedCount > 0 && inProgressCount > 0 ? ' · ' : ''}{inProgressCount > 0 ? `🔵 ${inProgressCount} in progress` : ''}
-            </Text>
+            <View style={styles.impactBannerTrackedRow}>
+              {completedCount > 0 && (
+                <View style={styles.trackedItem}>
+                  <Icon name="check-circle" size={11} color={Colors.textSecondary} />
+                  <Text style={styles.impactBannerTracked}>{completedCount} completed</Text>
+                </View>
+              )}
+              {inProgressCount > 0 && (
+                <View style={styles.trackedItem}>
+                  <View style={styles.progressDot} />
+                  <Text style={styles.impactBannerTracked}>{inProgressCount} in progress</Text>
+                </View>
+              )}
+            </View>
           )}
         </View>
 
@@ -199,13 +218,18 @@ export default function ActionTrackerScreen() {
             been carried through to completion and measured. */}
         {trackRecord.length > 0 && (
           <View style={styles.trackRecordCard}>
-            <Text style={styles.trackRecordTitle}>📈 What's Worked For You Before</Text>
+            <View style={[styles.titleRow, { marginBottom: 3 }]}>
+              <Icon name="trending-up" size={15} color={Colors.textPrimary} />
+              <Text style={styles.trackRecordTitle}>What's Worked For You Before</Text>
+            </View>
             <Text style={styles.trackRecordSub}>
               {succeededOutcomes.length} of {outcomes.length} completed tactic{outcomes.length === 1 ? '' : 's'} hit at least 60% of its target impact.
             </Text>
             {trackRecord.map((o, i) => (
               <View key={o.tacticId + i} style={styles.trackRecordRow}>
-                <Text style={{ fontSize: 16, marginRight: 8 }}>{o.succeeded ? '✅' : '⚠️'}</Text>
+                <View style={{ marginRight: 8, marginTop: 1 }}>
+                  <Icon name={o.succeeded ? 'check-circle' : 'alert-triangle'} size={16} color={o.succeeded ? Colors.income : Colors.warning} />
+                </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.trackRecordTacticTitle}>{o.tacticTitle}</Text>
                   <Text style={styles.trackRecordDetail}>
@@ -232,9 +256,12 @@ export default function ActionTrackerScreen() {
             style={[styles.tab, activeTab === 'immediate' && styles.tabActive]}
             onPress={() => setActiveTab('immediate')}
           >
-            <Text style={[styles.tabLabel, activeTab === 'immediate' && styles.tabLabelActive]}>
-              🚨 Immediate
-            </Text>
+            <View style={styles.tabLabelRow}>
+              <Icon name="alert-circle" size={11} color={activeTab === 'immediate' ? '#fff' : Colors.textSecondary} />
+              <Text style={[styles.tabLabel, activeTab === 'immediate' && styles.tabLabelActive]}>
+                Immediate
+              </Text>
+            </View>
             <Text style={[styles.tabCount, activeTab === 'immediate' && styles.tabCountActive]}>
               {tabData.immediate.actions.length}
             </Text>
@@ -244,9 +271,12 @@ export default function ActionTrackerScreen() {
             style={[styles.tab, activeTab === 'shortterm' && styles.tabActive]}
             onPress={() => setActiveTab('shortterm')}
           >
-            <Text style={[styles.tabLabel, activeTab === 'shortterm' && styles.tabLabelActive]}>
-              📅 This Month
-            </Text>
+            <View style={styles.tabLabelRow}>
+              <Icon name="calendar" size={11} color={activeTab === 'shortterm' ? '#fff' : Colors.textSecondary} />
+              <Text style={[styles.tabLabel, activeTab === 'shortterm' && styles.tabLabelActive]}>
+                This Month
+              </Text>
+            </View>
             <Text style={[styles.tabCount, activeTab === 'shortterm' && styles.tabCountActive]}>
               {tabData.shortterm.actions.length}
             </Text>
@@ -256,9 +286,12 @@ export default function ActionTrackerScreen() {
             style={[styles.tab, activeTab === 'strategic' && styles.tabActive]}
             onPress={() => setActiveTab('strategic')}
           >
-            <Text style={[styles.tabLabel, activeTab === 'strategic' && styles.tabLabelActive]}>
-              🎯 Quarter
-            </Text>
+            <View style={styles.tabLabelRow}>
+              <Icon name="target" size={11} color={activeTab === 'strategic' ? '#fff' : Colors.textSecondary} />
+              <Text style={[styles.tabLabel, activeTab === 'strategic' && styles.tabLabelActive]}>
+                Quarter
+              </Text>
+            </View>
             <Text style={[styles.tabCount, activeTab === 'strategic' && styles.tabCountActive]}>
               {tabData.strategic.actions.length}
             </Text>
@@ -295,15 +328,24 @@ export default function ActionTrackerScreen() {
                         <Text style={styles.timeframeText}>{action.timelineWeeks} weeks</Text>
                         {executions[action.id] && (
                           <View style={[styles.statusBadge, { backgroundColor: (executions[action.id].status === 'completed' ? Colors.income : Colors.primary) + '22' }]}>
-                            <Text style={[styles.statusBadgeText, { color: executions[action.id].status === 'completed' ? Colors.income : Colors.primary }]}>
-                              {executions[action.id].status === 'completed' ? `✅ Completed` : `🔵 ${executions[action.id].progressPercentage}% in progress`}
-                            </Text>
+                            <View style={styles.statusBadgeRow}>
+                              <Icon
+                                name={executions[action.id].status === 'completed' ? 'check-circle' : 'circle'}
+                                size={9}
+                                color={executions[action.id].status === 'completed' ? Colors.income : Colors.primary}
+                              />
+                              <Text style={[styles.statusBadgeText, { color: executions[action.id].status === 'completed' ? Colors.income : Colors.primary }]}>
+                                {executions[action.id].status === 'completed' ? `Completed` : `${executions[action.id].progressPercentage}% in progress`}
+                              </Text>
+                            </View>
                           </View>
                         )}
                       </View>
                     </View>
                   </View>
-                  <Text style={styles.expandIcon}>{expandedActionId === action.id ? '▼' : '▶'}</Text>
+                  <View style={{ marginTop: 4 }}>
+                    <Icon name={expandedActionId === action.id ? 'chevron-down' : 'chevron-right'} size={14} color={Colors.textMuted} />
+                  </View>
                 </View>
 
                 {/* Expanded View */}
@@ -331,9 +373,12 @@ export default function ActionTrackerScreen() {
 
                     {action.pastAttempt && (
                       <View style={[styles.detailSection, { backgroundColor: (action.pastAttempt.succeeded ? Colors.income : Colors.warning) + '12', borderLeftWidth: 3, borderLeftColor: action.pastAttempt.succeeded ? Colors.income : Colors.warning }]}>
-                        <Text style={[styles.detailLabel, { color: action.pastAttempt.succeeded ? Colors.income : Colors.warning }]}>
-                          {action.pastAttempt.succeeded ? '✅ You tried this before' : '⚠️ You tried this before'}
-                        </Text>
+                        <View style={styles.detailLabelRow}>
+                          <Icon name={action.pastAttempt.succeeded ? 'check-circle' : 'alert-triangle'} size={11} color={action.pastAttempt.succeeded ? Colors.income : Colors.warning} />
+                          <Text style={[styles.detailLabel, { color: action.pastAttempt.succeeded ? Colors.income : Colors.warning }]}>
+                            You tried this before
+                          </Text>
+                        </View>
                         <Text style={styles.detailText}>
                           {action.pastAttempt.succeeded
                             ? `It worked — hit ${action.pastAttempt.impactPercentage.toFixed(0)}% of target on ${action.pastAttempt.completionDate}. Bumped up in priority.`
@@ -372,7 +417,10 @@ export default function ActionTrackerScreen() {
 
                     {action.blockers && action.blockers.length > 0 && (
                       <View style={[styles.detailSection, { backgroundColor: Colors.expense + '12', borderLeftWidth: 3, borderLeftColor: Colors.expense }]}>
-                        <Text style={[styles.detailLabel, { color: Colors.expense }]}>⚠️ Potential Blockers</Text>
+                        <View style={styles.detailLabelRow}>
+                          <Icon name="alert-triangle" size={11} color={Colors.expense} />
+                          <Text style={[styles.detailLabel, { color: Colors.expense }]}>Potential Blockers</Text>
+                        </View>
                         {action.blockers.map((blocker, idx) => (
                           <Text key={idx} style={styles.blockerText}>• {blocker}</Text>
                         ))}
@@ -381,7 +429,10 @@ export default function ActionTrackerScreen() {
 
                     {action.prerequisite && (
                       <View style={[styles.detailSection, { backgroundColor: Colors.primary + '12', borderLeftWidth: 3, borderLeftColor: Colors.primary }]}>
-                        <Text style={[styles.detailLabel, { color: Colors.primary }]}>🔗 Prerequisite</Text>
+                        <View style={styles.detailLabelRow}>
+                          <Icon name="link" size={11} color={Colors.primary} />
+                          <Text style={[styles.detailLabel, { color: Colors.primary }]}>Prerequisite</Text>
+                        </View>
                         <Text style={styles.detailText}>Complete this first: {action.prerequisite}</Text>
                       </View>
                     )}
@@ -395,7 +446,10 @@ export default function ActionTrackerScreen() {
                           showAlert(action.title, steps || 'No steps listed for this action.');
                         }}
                       >
-                        <Text style={styles.startButtonText}>▶ Start This Action</Text>
+                        <View style={styles.btnIconRow}>
+                          <Icon name="play" size={12} color="#fff" />
+                          <Text style={styles.startButtonText}>Start This Action</Text>
+                        </View>
                       </TouchableOpacity>
                     ) : executions[action.id].status !== 'completed' ? (
                       <View style={styles.trackRow}>
@@ -403,12 +457,18 @@ export default function ActionTrackerScreen() {
                           <Text style={styles.trackBtnText}>Halfway There</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={[styles.trackBtn, styles.trackBtnComplete]} onPress={() => advanceTracking(action, 100)}>
-                          <Text style={[styles.trackBtnText, { color: '#fff' }]}>✓ Mark Complete</Text>
+                          <View style={styles.btnIconRow}>
+                            <Icon name="check" size={12} color="#fff" />
+                            <Text style={[styles.trackBtnText, { color: '#fff' }]}>Mark Complete</Text>
+                          </View>
                         </TouchableOpacity>
                       </View>
                     ) : (
                       <View style={styles.completedBanner}>
-                        <Text style={styles.completedBannerText}>✅ Completed — nice work.</Text>
+                        <View style={styles.btnIconRow}>
+                          <Icon name="check-circle" size={13} color={Colors.income} />
+                          <Text style={styles.completedBannerText}>Completed — nice work.</Text>
+                        </View>
                       </View>
                     )}
                   </View>
@@ -425,20 +485,29 @@ export default function ActionTrackerScreen() {
 
         {/* Key Metrics to Track */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📊 Key Metrics to Monitor</Text>
+          <View style={[styles.titleRow, { marginBottom: Spacing.md }]}>
+            <Icon name="bar-chart-2" size={14} color={Colors.textPrimary} />
+            <Text style={styles.sectionTitle}>Key Metrics to Monitor</Text>
+          </View>
           <View style={styles.metricsToTrack}>
             <View style={styles.metricToTrackBox}>
-              <Text style={styles.metricToTrackIcon}>💰</Text>
+              <View style={styles.metricToTrackIconWrap}>
+                <Icon name="dollar-sign" size={22} color={Colors.textMuted} />
+              </View>
               <Text style={styles.metricToTrackName}>Cash Position</Text>
               <Text style={styles.metricToTrackValue}>{settings.currency}{Math.round(finance.cashBalance).toLocaleString()}</Text>
             </View>
             <View style={styles.metricToTrackBox}>
-              <Text style={styles.metricToTrackIcon}>📈</Text>
+              <View style={styles.metricToTrackIconWrap}>
+                <Icon name="trending-up" size={22} color={Colors.textMuted} />
+              </View>
               <Text style={styles.metricToTrackName}>Runway</Text>
               <Text style={styles.metricToTrackValue}>{Number.isFinite(cashRunwayDays) ? cashRunwayDays : '∞'} days</Text>
             </View>
             <View style={styles.metricToTrackBox}>
-              <Text style={styles.metricToTrackIcon}>💹</Text>
+              <View style={styles.metricToTrackIconWrap}>
+                <Icon name="bar-chart-2" size={22} color={Colors.textMuted} />
+              </View>
               <Text style={styles.metricToTrackName}>Profit</Text>
               <Text style={[styles.metricToTrackValue, { color: finance.profit > 0 ? Colors.income : Colors.expense }]}>
                 {settings.currency}{Math.round(finance.profit).toLocaleString()}
@@ -456,92 +525,101 @@ export default function ActionTrackerScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.bg },
   scroll: { flex: 1 },
-  pad: { padding: 16, paddingBottom: 100 },
-  title: { fontSize: 24, fontWeight: '700', color: Colors.textPrimary, marginBottom: 4 },
-  subtitle: { fontSize: 13, color: Colors.textMuted, marginBottom: 16 },
+  pad: { padding: Spacing.lg, paddingBottom: 100 },
+  title: { fontSize: 24, fontWeight: '700', color: Colors.textPrimary },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.xs },
+  subtitle: { fontSize: 13, color: Colors.textMuted, marginBottom: Spacing.lg },
 
   impactBanner: {
     backgroundColor: Colors.primary + '15',
-    borderRadius: 12,
+    borderRadius: Radius.md,
     padding: 14,
-    marginBottom: 20,
+    marginBottom: Spacing.xl,
     borderLeftWidth: 3,
     borderLeftColor: Colors.primary,
   },
-  impactBannerText: { fontSize: 12, color: Colors.textSecondary, marginBottom: 4 },
+  impactBannerTextRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.xs, marginBottom: Spacing.xs },
+  impactBannerText: { flex: 1, fontSize: 12, color: Colors.textSecondary },
   impactBannerValue: { fontSize: 18, fontWeight: '800', color: Colors.primary },
-  impactBannerTracked: { fontSize: 11, color: Colors.textSecondary, marginTop: 6, fontWeight: '600' },
+  impactBannerTrackedRow: { flexDirection: 'row', gap: Spacing.md, marginTop: Spacing.sm },
+  trackedItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  progressDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.primary },
+  impactBannerTracked: { fontSize: 11, color: Colors.textSecondary, fontWeight: '600' },
 
   trackRecordCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: Radius.md,
     padding: 14,
-    marginBottom: 20,
+    marginBottom: Spacing.xl,
     borderWidth: 1,
     borderColor: Colors.border,
+    ...Shadow.sm,
   },
-  trackRecordTitle: { fontSize: 14.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: 3 },
+  trackRecordTitle: { fontSize: 14.5, fontWeight: '700', color: Colors.textPrimary },
   trackRecordSub: { fontSize: 12, color: Colors.textSecondary, marginBottom: 10 },
   trackRecordRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 6, borderTopWidth: 1, borderTopColor: Colors.border },
   trackRecordTacticTitle: { fontSize: 13, fontWeight: '600', color: Colors.textPrimary },
   trackRecordDetail: { fontSize: 12, color: Colors.textSecondary, marginTop: 2, lineHeight: 16 },
   trackRecordHealth: { fontSize: 11, fontWeight: '700', marginTop: 3 },
 
-  tabContainer: { flexDirection: 'row', gap: 8, marginBottom: 16 },
-  tab: { flex: 1, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: Colors.surface, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
+  tabContainer: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.lg },
+  tab: { flex: 1, paddingVertical: 10, paddingHorizontal: Spacing.md, borderRadius: 10, backgroundColor: Colors.surface, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
   tabActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  tabLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   tabLabel: { fontSize: 11, fontWeight: '600', color: Colors.textSecondary },
   tabLabelActive: { color: '#fff' },
   tabCount: { fontSize: 16, fontWeight: '800', color: Colors.textPrimary, marginTop: 2 },
   tabCountActive: { color: '#fff' },
 
-  actionsList: { marginBottom: 24 },
-  actionItem: { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, marginBottom: 10, borderLeftWidth: 3, borderLeftColor: Colors.primary },
+  actionsList: { marginBottom: Spacing.xxl },
+  actionItem: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 14, marginBottom: 10, borderLeftWidth: 3, borderLeftColor: Colors.primary, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
   actionItemExpanded: { borderLeftColor: Colors.primary },
   actionItemHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   actionItemLeft: { flex: 1, flexDirection: 'row', gap: 10 },
   priorityDot: { width: 10, height: 10, borderRadius: 5, marginTop: 4 },
   actionItemTitleContainer: { flex: 1 },
   actionItemTitle: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 },
-  actionItemMeta: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  difficultyBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1 },
+  actionItemMeta: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'center' },
+  difficultyBadge: { paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: 6, borderWidth: 1 },
   difficultyText: { fontSize: 9, fontWeight: '700' },
   timeframeText: { fontSize: 10, color: Colors.textMuted },
-  expandIcon: { fontSize: 12, color: Colors.textMuted, marginTop: 4 },
 
-  actionItemDetails: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: Colors.border, gap: 12 },
+  actionItemDetails: { marginTop: Spacing.md, paddingTop: Spacing.md, borderTopWidth: 1, borderTopColor: Colors.border, gap: Spacing.md },
   detailSection: { gap: 4 },
+  detailLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   detailLabel: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase' },
   detailText: { fontSize: 12, color: Colors.textSecondary, lineHeight: 18 },
   detailValue: { fontSize: 18, fontWeight: '800' },
   detailSubtext: { fontSize: 10, color: Colors.textMuted },
-  stepItem: { flexDirection: 'row', paddingVertical: 6, gap: 8 },
+  stepItem: { flexDirection: 'row', paddingVertical: 6, gap: Spacing.sm },
   stepNumber: { fontSize: 11, fontWeight: '700', color: Colors.primary, minWidth: 20 },
   stepText: { fontSize: 12, color: Colors.textSecondary, flex: 1, lineHeight: 17 },
   probabilityBar: { height: 6, backgroundColor: Colors.bg, borderRadius: 3, overflow: 'hidden', marginVertical: 4 },
   probabilityFill: { height: '100%' },
   probabilityText: { fontSize: 10, color: Colors.textMuted },
   blockerText: { fontSize: 11, color: Colors.expense, marginVertical: 3 },
-  startButton: { backgroundColor: Colors.income, borderRadius: 10, paddingVertical: 12, alignItems: 'center', marginTop: 4 },
+  startButton: { backgroundColor: Colors.income, borderRadius: 10, paddingVertical: Spacing.md, alignItems: 'center', marginTop: 4 },
   startButtonText: { fontSize: 13, fontWeight: '700', color: '#fff' },
-  statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  btnIconRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+  statusBadge: { paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: 6 },
+  statusBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   statusBadgeText: { fontSize: 10, fontWeight: '700' },
-  trackRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
-  trackBtn: { flex: 1, borderRadius: 10, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: Colors.primary },
+  trackRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: 4 },
+  trackBtn: { flex: 1, borderRadius: 10, paddingVertical: Spacing.md, alignItems: 'center', borderWidth: 1, borderColor: Colors.primary },
   trackBtnComplete: { backgroundColor: Colors.income, borderColor: Colors.income },
   trackBtnText: { fontSize: 12, fontWeight: '700', color: Colors.primary },
-  completedBanner: { backgroundColor: Colors.income + '18', borderRadius: 10, paddingVertical: 12, alignItems: 'center', marginTop: 4 },
+  completedBanner: { backgroundColor: Colors.income + '18', borderRadius: 10, paddingVertical: Spacing.md, alignItems: 'center', marginTop: 4 },
   completedBannerText: { fontSize: 13, fontWeight: '700', color: Colors.income },
 
   emptyState: { alignItems: 'center', paddingVertical: 40 },
   emptyStateText: { fontSize: 14, fontWeight: '700', color: Colors.textMuted },
   emptyStateSubtext: { fontSize: 12, color: Colors.textMuted, marginTop: 4 },
 
-  section: { marginBottom: 20 },
-  sectionTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: 12 },
+  section: { marginBottom: Spacing.xl },
+  sectionTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary },
   metricsToTrack: { flexDirection: 'row', gap: 10 },
-  metricToTrackBox: { flex: 1, backgroundColor: Colors.surface, borderRadius: 12, padding: 12, alignItems: 'center' },
-  metricToTrackIcon: { fontSize: 24, marginBottom: 6 },
+  metricToTrackBox: { flex: 1, backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.md, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
+  metricToTrackIconWrap: { marginBottom: 6 },
   metricToTrackName: { fontSize: 10, color: Colors.textMuted, fontWeight: '600', marginBottom: 4 },
   metricToTrackValue: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary },
 });

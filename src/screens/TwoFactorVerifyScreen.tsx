@@ -15,6 +15,8 @@ import {
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
+import Icon from '../components/ui/Icon';
+import { Radius, Shadow, Spacing } from '../theme/tokens';
 
 export default function TwoFactorVerifyScreen() {
     const { pendingTwoFactorProfile, completeTwoFactorLogin, cancelTwoFactorLogin } = useApp();
@@ -49,7 +51,9 @@ export default function TwoFactorVerifyScreen() {
     return (
         <SafeAreaView style={s.safe}>
             <View style={s.container}>
-                <Text style={s.icon}>🔒</Text>
+                <View style={s.iconWrap}>
+                    <Icon name="lock" size={40} color={Colors.primary} />
+                </View>
                 <Text style={s.title}>Two-Factor Verification</Text>
                 <Text style={s.subtitle}>
                     {pendingTwoFactorProfile?.email ? `Signing in as ${pendingTwoFactorProfile.email}` : 'Enter the code from your authenticator app'}
@@ -86,17 +90,17 @@ export default function TwoFactorVerifyScreen() {
 
 const s = StyleSheet.create({
     safe: { flex: 1, backgroundColor: Colors.bg },
-    container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
-    icon: { fontSize: 48, marginBottom: 16 },
-    title: { fontSize: 20, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 8, textAlign: 'center' },
+    container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xxxl },
+    iconWrap: { marginBottom: Spacing.lg },
+    title: { fontSize: 20, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: Spacing.sm, textAlign: 'center' },
     subtitle: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 20, marginBottom: 28 },
     input: {
         width: '100%', backgroundColor: Colors.surface, borderRadius: 10, borderWidth: 1, borderColor: Colors.border,
-        paddingHorizontal: 16, paddingVertical: 14, fontSize: 18, color: Colors.textPrimary, textAlign: 'center',
-        letterSpacing: 4, marginBottom: 20,
+        paddingHorizontal: Spacing.lg, paddingVertical: 14, fontSize: 18, color: Colors.textPrimary, textAlign: 'center',
+        letterSpacing: 4, marginBottom: Spacing.xl,
     },
-    errorText: { fontSize: 13, color: Colors.expense, textAlign: 'center', marginTop: -12, marginBottom: 16 },
-    primaryBtn: { width: '100%', backgroundColor: Colors.primary, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginBottom: 16 },
+    errorText: { fontSize: 13, color: Colors.expense, textAlign: 'center', marginTop: -12, marginBottom: Spacing.lg },
+    primaryBtn: { width: '100%', backgroundColor: Colors.primary, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginBottom: Spacing.lg, ...Shadow.sm },
     primaryBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
     link: { fontSize: 13, color: Colors.primary, fontWeight: '600', textAlign: 'center' },
     cancelLink: { fontSize: 13, color: Colors.textMuted, fontWeight: '600' },

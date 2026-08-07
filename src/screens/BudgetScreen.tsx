@@ -17,6 +17,8 @@ import ProfitCashImpactCard from '../components/ProfitCashImpactCard';
 import { computeProfitCashImpact } from '../utils/impactChain';
 import { Budget } from '../types';
 import { showAlert, confirmAction } from '../utils/webAlert';
+import Icon from '../components/ui/Icon';
+import { Radius, Shadow, Spacing } from '../theme/tokens';
 
 const EXPENSE_CATEGORIES = [
     'Office & Admin', 'Salaries', 'Marketing', 'Equipment', 'Software',
@@ -244,14 +246,20 @@ export default function BudgetScreen() {
                         style={[s.autoBtn, adjustMode && { backgroundColor: Colors.primary }]}
                         onPress={() => (adjustMode ? cancelAdjustMode() : openAdjustMode())}
                     >
-                        <Text style={[s.autoBtnText, adjustMode && { color: '#fff' }]}>
-                            {adjustMode ? '✕ Cancel Adjust' : '🎚 Adjust'}
-                        </Text>
+                        <View style={s.btnIconRow}>
+                            <Icon name={adjustMode ? 'x' : 'sliders'} size={13} color={adjustMode ? '#fff' : Colors.primary} />
+                            <Text style={[s.autoBtnText, adjustMode && { color: '#fff' }]}>
+                                {adjustMode ? 'Cancel Adjust' : 'Adjust'}
+                            </Text>
+                        </View>
                     </TouchableOpacity>
                 )}
                 {transactions.length >= 5 && (
                     <TouchableOpacity style={s.autoBtn} onPress={openAutoGen}>
-                        <Text style={s.autoBtnText}>🤖 Auto</Text>
+                        <View style={s.btnIconRow}>
+                            <Icon name="cpu" size={13} color={Colors.primary} />
+                            <Text style={s.autoBtnText}>Auto</Text>
+                        </View>
                     </TouchableOpacity>
                 )}
                 <TouchableOpacity style={s.addBtn} onPress={openAdd}>
@@ -285,7 +293,10 @@ export default function BudgetScreen() {
                         <Text style={s.loanIncludedNote}>Includes {currency}{Math.round(loanBurden).toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo in loan repayments</Text>
                     )}
                     {displayOverCount > 0 && (
-                        <Text style={s.overAlert}>⚠ {displayOverCount} categor{displayOverCount > 1 ? 'ies' : 'y'} over budget</Text>
+                        <View style={s.overAlertRow}>
+                            <Icon name="alert-triangle" size={13} color={Colors.expense} />
+                            <Text style={s.overAlert}>{displayOverCount} categor{displayOverCount > 1 ? 'ies' : 'y'} over budget</Text>
+                        </View>
                     )}
                 </View>
 
@@ -301,10 +312,16 @@ export default function BudgetScreen() {
                     return (
                     <View style={s.strategyCard}>
                         <View style={s.strategyHeaderRow}>
-                            <Text style={s.strategyTitle}>📊 Budget Strategy</Text>
+                            <View style={s.titleIconRow}>
+                                <Icon name="bar-chart-2" size={14} color={Colors.textPrimary} />
+                                <Text style={s.strategyTitle}>Budget Strategy</Text>
+                            </View>
                             {budgets.length > 0 && !adjustMode && (
                                 <TouchableOpacity onPress={openAdjustMode}>
-                                    <Text style={s.adjustToggle}>🎚 Adjust & Simulate</Text>
+                                    <View style={s.btnIconRow}>
+                                        <Icon name="sliders" size={12} color={Colors.primary} />
+                                        <Text style={s.adjustToggle}>Adjust & Simulate</Text>
+                                    </View>
                                 </TouchableOpacity>
                             )}
                         </View>
@@ -362,12 +379,13 @@ export default function BudgetScreen() {
                         </View>
 
                         <View style={[s.strategyVerdict, { backgroundColor: (dOverRevenue ? Colors.expense : dOverSafeCap ? Colors.warning : Colors.income) + '18', borderColor: dOverRevenue ? Colors.expense : dOverSafeCap ? Colors.warning : Colors.income }]}>
+                            <Icon name={dOverRevenue || dOverSafeCap ? 'alert-triangle' : 'check-circle'} size={14} color={dOverRevenue ? Colors.expense : dOverSafeCap ? Colors.warning : Colors.income} />
                             <Text style={[s.strategyVerdictText, { color: dOverRevenue ? Colors.expense : dOverSafeCap ? Colors.warning : Colors.income }]}>
                                 {dOverRevenue
-                                    ? `⚠ Your monthly commitments (${currency}${dCommitments.toLocaleString(undefined, { maximumFractionDigits: 0 })}${loanBurden > 0 ? ', incl. loan repayments' : ''}) exceed monthly revenue — this plans a ${currency}${Math.abs(dProfit).toLocaleString(undefined, { maximumFractionDigits: 0 })} loss and will draw down cash. Cut about ${currency}${(dCommitments - safeCap).toLocaleString(undefined, { maximumFractionDigits: 0 })} to protect profit.`
+                                    ? `Your monthly commitments (${currency}${dCommitments.toLocaleString(undefined, { maximumFractionDigits: 0 })}${loanBurden > 0 ? ', incl. loan repayments' : ''}) exceed monthly revenue — this plans a ${currency}${Math.abs(dProfit).toLocaleString(undefined, { maximumFractionDigits: 0 })} loss and will draw down cash. Cut about ${currency}${(dCommitments - safeCap).toLocaleString(undefined, { maximumFractionDigits: 0 })} to protect profit.`
                                     : dOverSafeCap
-                                        ? `⚠ Commitments are within revenue but above the safe cap (${currency}${safeCap.toLocaleString(undefined, { maximumFractionDigits: 0 })}, 80% of revenue). Leaves a thin ${currency}${dProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })} profit buffer.`
-                                        : `✓ Healthy plan: keeps ${currency}${dProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })} profit (${monthlyRevenue > 0 ? ((dProfit / monthlyRevenue) * 100).toFixed(0) : 0}% margin). Recommended max spend: ${currency}${safeCap.toLocaleString(undefined, { maximumFractionDigits: 0 })}.`}
+                                        ? `Commitments are within revenue but above the safe cap (${currency}${safeCap.toLocaleString(undefined, { maximumFractionDigits: 0 })}, 80% of revenue). Leaves a thin ${currency}${dProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })} profit buffer.`
+                                        : `Healthy plan: keeps ${currency}${dProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })} profit (${monthlyRevenue > 0 ? ((dProfit / monthlyRevenue) * 100).toFixed(0) : 0}% margin). Recommended max spend: ${currency}${safeCap.toLocaleString(undefined, { maximumFractionDigits: 0 })}.`}
                             </Text>
                         </View>
 
@@ -411,7 +429,10 @@ export default function BudgetScreen() {
                 {/* Concrete reduction tactics for your biggest expense categories */}
                 {expenseTactics.length > 0 && (
                     <View style={s.strategyCard}>
-                        <Text style={s.strategyTitle}>✂️ Cost Reduction Tactics</Text>
+                        <View style={s.titleIconRow}>
+                            <Icon name="scissors" size={14} color={Colors.textPrimary} />
+                            <Text style={s.strategyTitle}>Cost Reduction Tactics</Text>
+                        </View>
                         {expenseTactics.map((tac) => (
                             <View key={tac.id} style={s.tacticRow}>
                                 <Text style={s.tacticTitle}>{tac.title}</Text>
@@ -420,8 +441,14 @@ export default function BudgetScreen() {
                                     <Text style={[s.tacticMeta, { color: Colors.income, fontWeight: '700' }]}>
                                         Save ~{currency}{Math.round(tac.expectedImpact).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                     </Text>
-                                    <Text style={s.tacticMeta}>⏱ {tac.timeframe}</Text>
-                                    <Text style={s.tacticMeta}>✓ {(tac.successProbability * 100).toFixed(0)}% likely</Text>
+                                    <View style={s.tacticMetaIconRow}>
+                                        <Icon name="clock" size={10} color={Colors.textMuted} />
+                                        <Text style={s.tacticMeta}>{tac.timeframe}</Text>
+                                    </View>
+                                    <View style={s.tacticMetaIconRow}>
+                                        <Icon name="check" size={10} color={Colors.textMuted} />
+                                        <Text style={s.tacticMeta}>{(tac.successProbability * 100).toFixed(0)}% likely</Text>
+                                    </View>
                                 </View>
                             </View>
                         ))}
@@ -439,7 +466,10 @@ export default function BudgetScreen() {
                         </Text>
                         {transactions.length >= 5 && (
                             <TouchableOpacity style={s.emptyBtn} onPress={openAutoGen}>
-                                <Text style={s.emptyBtnText}>🤖 Auto-Generate Budget</Text>
+                                <View style={s.btnIconRow}>
+                                    <Icon name="cpu" size={14} color="#fff" />
+                                    <Text style={s.emptyBtnText}>Auto-Generate Budget</Text>
+                                </View>
                             </TouchableOpacity>
                         )}
                         <TouchableOpacity style={[s.emptyBtn, transactions.length >= 5 && s.emptyBtnSecondary]} onPress={openAdd}>
@@ -524,7 +554,7 @@ export default function BudgetScreen() {
                         <Text style={[s.catSelectorText, !category && { color: Colors.textMuted }]}>
                             {category || 'Select category...'}
                         </Text>
-                        <Text style={s.catArrow}>{showCatPick ? '▲' : '▼'}</Text>
+                        <Icon name={showCatPick ? 'chevron-up' : 'chevron-down'} size={14} color={Colors.textMuted} />
                     </TouchableOpacity>
                     {showCatPick && (
                         <ScrollView style={s.catList} nestedScrollEnabled>
@@ -557,9 +587,12 @@ export default function BudgetScreen() {
                             style={s.suggestChip}
                             onPress={() => setAmount(String(Math.round(pastSuggestion)))}
                         >
-                            <Text style={s.suggestChipText}>
-                                💡 You spent ~{currency}{Math.round(pastSuggestion).toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo here on average — tap to use
-                            </Text>
+                            <View style={[s.btnIconRow, { alignItems: 'flex-start' }]}>
+                                <Icon name="zap" size={12} color={Colors.primary} />
+                                <Text style={[s.suggestChipText, { flex: 1 }]}>
+                                    You spent ~{currency}{Math.round(pastSuggestion).toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo here on average — tap to use
+                                </Text>
+                            </View>
                         </TouchableOpacity>
                     )}
 
@@ -583,7 +616,10 @@ export default function BudgetScreen() {
                 <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setShowAutoGen(false)} />
                 <View style={s.sheet}>
                     <View style={s.sheetHandle} />
-                    <Text style={s.sheetTitle}>🤖 Auto-Generated Budget</Text>
+                    <View style={s.sheetTitleRow}>
+                        <Icon name="cpu" size={16} color={Colors.textPrimary} />
+                        <Text style={[s.sheetTitle, { marginBottom: 0 }]}>Auto-Generated Budget</Text>
+                    </View>
                     <Text style={s.autoGenSub}>
                         Based on your last 3 months of spending, sized against{' '}
                         {currency}{Math.round(autoBudget.projectedRevenue).toLocaleString(undefined, { maximumFractionDigits: 0 })} projected revenue next month
@@ -592,8 +628,9 @@ export default function BudgetScreen() {
 
                     {autoBudget.scaled && (
                         <View style={s.autoGenScaledNote}>
+                            <Icon name="alert-triangle" size={14} color={Colors.warning} />
                             <Text style={s.autoGenScaledNoteText}>
-                                ⚠ Your recent spending ({currency}{Math.round(autoBudget.totalRaw).toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo) is above what your
+                                Your recent spending ({currency}{Math.round(autoBudget.totalRaw).toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo) is above what your
                                 projected revenue can safely support — every category below has been scaled down to fit within
                                 {' '}{currency}{Math.round(autoBudget.safeCap).toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo.
                             </Text>
@@ -613,7 +650,7 @@ export default function BudgetScreen() {
                                         return next;
                                     })}
                                 >
-                                    <Text style={[s.autoGenCheck, excluded && s.autoGenCheckOff]}>{excluded ? '☐' : '☑'}</Text>
+                                    <Icon name={excluded ? 'square' : 'check-square'} size={16} color={excluded ? Colors.textMuted : Colors.primary} />
                                     <Text style={[s.autoGenCat, excluded && s.autoGenTextExcluded]} numberOfLines={1}>{sug.category}</Text>
                                     <View style={{ alignItems: 'flex-end' }}>
                                         <Text style={[s.autoGenAmt, excluded && s.autoGenTextExcluded]}>
@@ -652,27 +689,30 @@ export default function BudgetScreen() {
 const s = StyleSheet.create({
     safe:         { flex: 1, backgroundColor: Colors.bg },
     scroll:       { flex: 1, backgroundColor: Colors.bg },
-    pad:          { padding: 16, paddingBottom: 100 },
+    pad:          { padding: Spacing.lg, paddingBottom: 100 },
 
-    headerRow:    { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, gap: 12 },
+    headerRow:    { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, gap: Spacing.md },
     backBtn:      { color: Colors.primary, fontSize: 14 },
     screenTitle:  { flex: 1, fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary },
-    addBtn:       { backgroundColor: Colors.primary, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7 },
+    addBtn:       { backgroundColor: Colors.primary, borderRadius: Radius.sm, paddingHorizontal: 14, paddingVertical: 7 },
     addBtnText:   { color: '#fff', fontSize: 13, fontWeight: '700' },
-    autoBtn:      { backgroundColor: Colors.primary + '18', borderWidth: 1, borderColor: Colors.primary, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
+    autoBtn:      { backgroundColor: Colors.primary + '18', borderWidth: 1, borderColor: Colors.primary, borderRadius: Radius.sm, paddingHorizontal: Spacing.md, paddingVertical: 6 },
     autoBtnText:  { color: Colors.primary, fontSize: 13, fontWeight: '700' },
+    btnIconRow:   { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+    titleIconRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
 
-    summaryCard:   { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 16 },
-    summaryMonth:  { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: 12 },
+    summaryCard:   { backgroundColor: Colors.surface, borderRadius: 14, padding: Spacing.lg, marginBottom: Spacing.lg, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
+    summaryMonth:  { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: Spacing.md },
     summaryRow:    { flexDirection: 'row', alignItems: 'center' },
     summaryBox:    { flex: 1, alignItems: 'center' },
     summaryLabel:  { fontSize: 10, color: Colors.textMuted, marginBottom: 4 },
     summaryVal:    { fontSize: 18, fontWeight: 'bold' },
-    summaryDivider:{ width: 1, backgroundColor: Colors.border, alignSelf: 'stretch', marginHorizontal: 8 },
-    overAlert:     { marginTop: 10, fontSize: 13, color: Colors.expense, fontWeight: '600', textAlign: 'center' },
-    loanIncludedNote: { marginTop: 8, fontSize: 11, color: Colors.textMuted, textAlign: 'center' },
+    summaryDivider:{ width: 1, backgroundColor: Colors.border, alignSelf: 'stretch', marginHorizontal: Spacing.sm },
+    overAlertRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs, marginTop: 10 },
+    overAlert:     { fontSize: 13, color: Colors.expense, fontWeight: '600', textAlign: 'center' },
+    loanIncludedNote: { marginTop: Spacing.sm, fontSize: 11, color: Colors.textMuted, textAlign: 'center' },
 
-    strategyCard:  { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 16, borderLeftWidth: 3, borderLeftColor: Colors.primary },
+    strategyCard:  { backgroundColor: Colors.surface, borderRadius: 14, padding: Spacing.lg, marginBottom: Spacing.lg, borderLeftWidth: 3, borderLeftColor: Colors.primary, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     strategyHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
     strategyTitle: { fontSize: 13, fontWeight: '800', color: Colors.textPrimary },
     adjustToggle:  { fontSize: 12, color: Colors.primary, fontWeight: '700' },
@@ -684,20 +724,20 @@ const s = StyleSheet.create({
     adjustCurrency:  { fontSize: 12, color: Colors.textMuted, marginRight: 2 },
     adjustInput:     { width: 90, fontSize: 12, color: Colors.textPrimary, paddingVertical: 6, textAlign: 'right' },
 
-    adjustBtnRow:   { flexDirection: 'row', gap: 10, marginTop: 12 },
-    adjustCancelBtn:{ flex: 1, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, paddingVertical: 12, alignItems: 'center' },
+    adjustBtnRow:   { flexDirection: 'row', gap: 10, marginTop: Spacing.md },
+    adjustCancelBtn:{ flex: 1, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, paddingVertical: Spacing.md, alignItems: 'center' },
     adjustCancelText:{ color: Colors.textSecondary, fontWeight: '700', fontSize: 13 },
-    adjustApplyBtn: { flex: 1, backgroundColor: Colors.primary, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
+    adjustApplyBtn: { flex: 1, backgroundColor: Colors.primary, borderRadius: 10, paddingVertical: Spacing.md, alignItems: 'center' },
     adjustApplyText:{ color: '#fff', fontWeight: '700', fontSize: 13 },
     strategyRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 3 },
     strategyLabel: { fontSize: 12, color: Colors.textSecondary },
     strategyVal:   { fontSize: 12, fontWeight: '700', color: Colors.textPrimary },
-    strategyVerdict:     { marginTop: 12, borderRadius: 8, borderWidth: 1, padding: 10 },
-    strategyVerdictText: { fontSize: 11, fontWeight: '600', lineHeight: 16 },
-    forecastLink:        { marginTop: 10, paddingVertical: 8 },
+    strategyVerdict:     { marginTop: Spacing.md, borderRadius: Radius.sm, borderWidth: 1, padding: 10, flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
+    strategyVerdictText: { flex: 1, fontSize: 11, fontWeight: '600', lineHeight: 16 },
+    forecastLink:        { marginTop: 10, paddingVertical: Spacing.sm },
     forecastLinkText:    { fontSize: 12, color: Colors.primary, fontWeight: '700', textAlign: 'center' },
 
-    suggestChip:     { backgroundColor: Colors.primary + '15', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 10, marginTop: 8, marginBottom: 4 },
+    suggestChip:     { backgroundColor: Colors.primary + '15', borderRadius: Radius.sm, paddingVertical: Spacing.sm, paddingHorizontal: 10, marginTop: Spacing.sm, marginBottom: 4 },
     suggestChipText: { fontSize: 11, color: Colors.primary, fontWeight: '600' },
 
     tacticRow: { paddingVertical: 10, borderTopWidth: 1, borderTopColor: Colors.border },
@@ -705,60 +745,59 @@ const s = StyleSheet.create({
     tacticRationale: { fontSize: 11, color: Colors.textSecondary, lineHeight: 16, marginBottom: 6 },
     tacticMetaRow: { flexDirection: 'row', gap: 12 },
     tacticMeta: { fontSize: 10, color: Colors.textMuted, fontWeight: '600' },
+    tacticMetaIconRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
 
     emptyState:    { alignItems: 'center', paddingVertical: 40 },
-    emptyTitle:    { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 8 },
+    emptyTitle:    { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: Spacing.sm },
     emptySub:      { fontSize: 13, color: Colors.textMuted, textAlign: 'center', marginBottom: 20, lineHeight: 20 },
-    emptyBtn:      { backgroundColor: Colors.primary, borderRadius: 10, paddingHorizontal: 24, paddingVertical: 12, marginBottom: 10 },
+    emptyBtn:      { backgroundColor: Colors.primary, borderRadius: 10, paddingHorizontal: Spacing.xxl, paddingVertical: Spacing.md, marginBottom: 10 },
     emptyBtnText:  { color: '#fff', fontWeight: '700', fontSize: 14 },
     emptyBtnSecondary:     { backgroundColor: 'transparent', borderWidth: 1, borderColor: Colors.border },
     emptyBtnTextSecondary: { color: Colors.textSecondary },
 
-    autoGenSub:        { fontSize: 12, color: Colors.textSecondary, lineHeight: 18, marginBottom: 12 },
-    autoGenScaledNote: { backgroundColor: Colors.warning + '18', borderWidth: 1, borderColor: Colors.warning, borderRadius: 8, padding: 10, marginBottom: 12 },
-    autoGenScaledNoteText: { fontSize: 11, color: Colors.warning, fontWeight: '600', lineHeight: 16 },
-    autoGenList:       { maxHeight: 320, marginBottom: 12 },
+    autoGenSub:        { fontSize: 12, color: Colors.textSecondary, lineHeight: 18, marginBottom: Spacing.md },
+    autoGenScaledNote: { backgroundColor: Colors.warning + '18', borderWidth: 1, borderColor: Colors.warning, borderRadius: Radius.sm, padding: 10, marginBottom: Spacing.md, flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
+    autoGenScaledNoteText: { flex: 1, fontSize: 11, color: Colors.warning, fontWeight: '600', lineHeight: 16 },
+    autoGenList:       { maxHeight: 320, marginBottom: Spacing.md },
     autoGenRow:        { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border, gap: 10 },
     autoGenRowExcluded:{ opacity: 0.45 },
-    autoGenCheck:      { fontSize: 16, color: Colors.primary },
-    autoGenCheckOff:   { color: Colors.textMuted },
     autoGenCat:        { flex: 1, fontSize: 13, fontWeight: '600', color: Colors.textPrimary },
     autoGenAmt:        { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
     autoGenRaw:        { fontSize: 10, color: Colors.textMuted },
     autoGenTextExcluded: { color: Colors.textMuted },
-    autoGenTotalRow:   { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderTopWidth: 1, borderTopColor: Colors.border, marginBottom: 12 },
+    autoGenTotalRow:   { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderTopWidth: 1, borderTopColor: Colors.border, marginBottom: Spacing.md },
     autoGenTotalLabel: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
     autoGenTotalVal:   { fontSize: 15, fontWeight: '800', color: Colors.primary },
 
-    tableHeader:   { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border, paddingLeft: 20 },
+    tableHeader:   { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.border, paddingLeft: Spacing.xl },
     th:            { flex: 1, fontSize: 10, color: Colors.textMuted, fontWeight: '700', textAlign: 'right' },
 
-    tableRow:      { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(51,65,85,0.4)' },
+    tableRow:      { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: 'rgba(51,65,85,0.4)' },
     overRow:       { backgroundColor: 'rgba(239,68,68,0.06)' },
-    statusDot:     { width: 8, height: 8, borderRadius: 4, marginRight: 8, marginLeft: 4 },
+    statusDot:     { width: 8, height: 8, borderRadius: 4, marginRight: Spacing.sm, marginLeft: Spacing.xs },
     td:            { flex: 1, fontSize: 12, textAlign: 'right', color: Colors.textSecondary },
 
-    overCard:      { backgroundColor: 'rgba(239,68,68,0.1)', borderWidth: 1, borderColor: Colors.expense, borderRadius: 10, padding: 12, marginBottom: 10 },
+    overCard:      { backgroundColor: 'rgba(239,68,68,0.1)', borderWidth: 1, borderColor: Colors.expense, borderRadius: 10, padding: Spacing.md, marginBottom: 10 },
     overCardTitle: { fontSize: 13, fontWeight: '700', color: Colors.expense, marginBottom: 4 },
     overCardText:  { fontSize: 12, color: Colors.textSecondary },
 
     overlay:      { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
-    sheet:        { backgroundColor: Colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 },
-    sheetHandle:  { width: 40, height: 4, backgroundColor: Colors.border, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
-    sheetTitle:   { fontSize: 18, fontWeight: '700', color: Colors.textPrimary, marginBottom: 16 },
+    sheet:        { backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Spacing.xl, paddingBottom: Spacing.huge, ...Shadow.md },
+    sheetHandle:  { width: 40, height: 4, backgroundColor: Colors.border, borderRadius: 2, alignSelf: 'center', marginBottom: Spacing.lg },
+    sheetTitle:   { fontSize: 18, fontWeight: '700', color: Colors.textPrimary, marginBottom: Spacing.lg },
+    sheetTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.lg },
 
-    catSelector:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: Colors.bg, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, padding: 12, marginBottom: 10 },
+    catSelector:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: Colors.bg, borderRadius: Radius.sm, borderWidth: 1, borderColor: Colors.border, padding: Spacing.md, marginBottom: 10 },
     catSelectorText: { fontSize: 14, color: Colors.textPrimary },
-    catArrow:      { fontSize: 12, color: Colors.textMuted },
-    catList:       { maxHeight: 180, backgroundColor: Colors.bg, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, marginBottom: 10 },
-    catOption:     { padding: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    catList:       { maxHeight: 180, backgroundColor: Colors.bg, borderRadius: Radius.sm, borderWidth: 1, borderColor: Colors.border, marginBottom: 10 },
+    catOption:     { padding: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border },
     catOptionActive: { backgroundColor: 'rgba(37,99,235,0.15)' },
     catOptionText: { fontSize: 14, color: Colors.textSecondary },
     catOptionTextActive: { color: Colors.primary, fontWeight: '700' },
 
-    input:        { backgroundColor: Colors.bg, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, padding: 12, color: Colors.textPrimary, marginBottom: 12, fontSize: 14 },
+    input:        { backgroundColor: Colors.bg, borderRadius: Radius.sm, borderWidth: 1, borderColor: Colors.border, padding: Spacing.md, color: Colors.textPrimary, marginBottom: Spacing.md, fontSize: 14 },
     saveBtn:      { backgroundColor: Colors.primary, borderRadius: 10, padding: 14, alignItems: 'center', marginBottom: 10 },
     saveBtnText:  { color: '#fff', fontWeight: '700', fontSize: 15 },
-    deleteBtn:    { borderRadius: 10, padding: 12, alignItems: 'center' },
+    deleteBtn:    { borderRadius: 10, padding: Spacing.md, alignItems: 'center' },
     deleteBtnText:{ color: Colors.expense, fontWeight: '600', fontSize: 14 },
 });
