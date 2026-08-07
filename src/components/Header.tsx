@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
+import { Radius, Shadow, Spacing } from '../theme/tokens';
+import Icon from './ui/Icon';
 import GlobalSearch from './GlobalSearch';
 
 export default function Header() {
@@ -15,21 +18,24 @@ export default function Header() {
         <View style={styles.header}>
             <View style={styles.left}>
                 {showBack && (
-                    <TouchableOpacity style={styles.backBtn} onPress={() => { if (!goBack()) setCurrentScreen('dashboard'); }}>
-                        <Text style={styles.backText}>← Back</Text>
+                    <TouchableOpacity style={styles.backBtn} onPress={() => { if (!goBack()) setCurrentScreen('dashboard'); }} activeOpacity={0.7}>
+                        <Icon name="chevron-left" size={16} color={Colors.primary} />
                     </TouchableOpacity>
                 )}
-                <TouchableOpacity onPress={() => setCurrentScreen('dashboard')}>
-                    <Text style={styles.title}>Quad360</Text>
-                    <Text style={styles.subtitle}>{user?.businessName || 'Business Suite'}</Text>
+                <TouchableOpacity style={styles.brandRow} onPress={() => setCurrentScreen('dashboard')} activeOpacity={0.8}>
+                    <LinearGradient colors={[Colors.primary, Colors.secondary]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.mark} />
+                    <View>
+                        <Text style={styles.title}>Quad360</Text>
+                        <Text style={styles.subtitle}>{user?.businessName || 'Business Suite'}</Text>
+                    </View>
                 </TouchableOpacity>
             </View>
             <View style={styles.right}>
-                <TouchableOpacity style={styles.settingsBtn} onPress={() => setShowSearch(true)}>
-                    <Text style={styles.settingsIcon}>🔍</Text>
+                <TouchableOpacity style={styles.iconBtn} onPress={() => setShowSearch(true)} activeOpacity={0.7}>
+                    <Icon name="search" size={16} color={Colors.textSecondary} />
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.settingsBtn} onPress={() => setCurrentScreen('settings')}>
-                    <Text style={styles.settingsIcon}>⚙️</Text>
+                <TouchableOpacity style={styles.iconBtn} onPress={() => setCurrentScreen('settings')} activeOpacity={0.7}>
+                    <Icon name="settings" size={16} color={Colors.textSecondary} />
                 </TouchableOpacity>
                 {!isNarrow && (
                     <View style={styles.userBlock}>
@@ -37,7 +43,7 @@ export default function Header() {
                         <Text style={styles.userRole}>{user?.role || 'Administrator'}</Text>
                     </View>
                 )}
-                <TouchableOpacity style={styles.signOutBtn} onPress={logout}>
+                <TouchableOpacity style={styles.signOutBtn} onPress={logout} activeOpacity={0.8}>
                     <Text style={styles.signOutText}>{isNarrow ? 'Out' : 'Sign Out'}</Text>
                 </TouchableOpacity>
             </View>
@@ -51,32 +57,39 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
+        paddingHorizontal: Spacing.lg,
+        paddingVertical: Spacing.md,
         backgroundColor: Colors.surface,
         borderBottomWidth: 1,
         borderBottomColor: Colors.border,
     },
-    left:     { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    backBtn:  { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border },
-    backText: { fontSize: 12, color: Colors.primary, fontWeight: '600' },
-    title:    { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary },
-    subtitle: { fontSize: 11, color: Colors.textMuted },
-    right:    { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    settingsBtn: {
-        width: 34, height: 34, borderRadius: 17,
+    left:      { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+    brandRow:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+    mark:      { width: 26, height: 26, borderRadius: Radius.sm },
+    backBtn: {
+        width: 30, height: 30, borderRadius: Radius.pill,
         backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border,
         alignItems: 'center', justifyContent: 'center',
     },
-    settingsIcon: { fontSize: 16, color: Colors.textMuted },
-    userBlock:  { alignItems: 'flex-end' },
-    userText:   { fontSize: 12, color: Colors.textPrimary, fontWeight: '600' },
-    userRole:   { fontSize: 10, color: Colors.textMuted },
-    signOutBtn: {
-        backgroundColor: Colors.criticalBorder,
-        paddingHorizontal: 10,
-        paddingVertical: 5,
-        borderRadius: 6,
+    title:    { fontSize: 17, fontWeight: '800', color: Colors.textPrimary, letterSpacing: -0.3 },
+    subtitle: { fontSize: 11, color: Colors.textMuted, fontWeight: '500' },
+    right:    { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+    iconBtn: {
+        width: 34, height: 34, borderRadius: Radius.pill,
+        backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border,
+        alignItems: 'center', justifyContent: 'center',
+        ...Shadow.sm,
     },
-    signOutText: { color: Colors.textPrimary, fontSize: 11, fontWeight: '600' },
+    userBlock:  { alignItems: 'flex-end' },
+    userText:   { fontSize: 12, color: Colors.textPrimary, fontWeight: '700' },
+    userRole:   { fontSize: 10, color: Colors.textMuted, fontWeight: '500' },
+    signOutBtn: {
+        backgroundColor: Colors.surfaceVariant,
+        borderWidth: 1,
+        borderColor: Colors.border,
+        paddingHorizontal: Spacing.md,
+        paddingVertical: 6,
+        borderRadius: Radius.pill,
+    },
+    signOutText: { color: Colors.textSecondary, fontSize: 11, fontWeight: '700' },
 });

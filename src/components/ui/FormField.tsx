@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, TextInputProps, ViewStyle } from 'react-native';
+import { Colors } from '../../theme/colors';
+import { Radius } from '../../theme/tokens';
 
 interface FormFieldProps extends TextInputProps {
   label: string;
@@ -32,7 +34,7 @@ export function FormField({
         <TextInput
           {...inputProps}
           secureTextEntry={secureToggle ? hidden : secureTextEntry}
-          placeholderTextColor="#475569"
+          placeholderTextColor={Colors.muted}
           style={[styles.input, inputProps.style]}
           accessibilityLabel={label}
           accessibilityHint={hint}
@@ -54,26 +56,26 @@ export function FormField({
 
 const styles = StyleSheet.create({
   container: { marginBottom: 16 },
-  label: { fontSize: 13, fontWeight: '600', color: '#cbd5e1', marginBottom: 6 },
-  required: { color: '#ef4444' },
+  label: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary, marginBottom: 6 },
+  required: { color: Colors.danger },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 10,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    backgroundColor: '#0f172a',
+    backgroundColor: Colors.bg,
   },
-  inputNormal: { borderColor: '#334155' },
-  inputError: { borderColor: '#ef4444' },
+  inputNormal: { borderColor: Colors.border },
+  inputError: { borderColor: Colors.danger },
   input: {
     flex: 1,
-    color: '#f1f5f9',
+    color: Colors.textPrimary,
     fontSize: 15,
     paddingHorizontal: 14,
     paddingVertical: 11,
   },
   toggle: { paddingHorizontal: 12 },
   toggleText: { fontSize: 16 },
-  error: { fontSize: 12, color: '#ef4444', marginTop: 5 },
-  hint: { fontSize: 12, color: '#64748b', marginTop: 5 },
+  error: { fontSize: 12, color: Colors.danger, marginTop: 5 },
+  hint: { fontSize: 12, color: Colors.textMuted, marginTop: 5 },
 });

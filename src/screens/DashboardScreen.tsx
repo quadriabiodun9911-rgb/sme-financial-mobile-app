@@ -8,6 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../contexts/AppContext';
 import { computeCashRunway } from '../utils/cashRunway';
 import { Colors } from '../theme/colors';
+import { Radius, Shadow, Spacing } from '../theme/tokens';
 import Header from '../components/Header';
 import { trackDemoConvertTapped, trackScreenViewed } from '../utils/analytics';
 import FooterNav from '../components/FooterNav';
@@ -31,6 +32,8 @@ import TodaysNumbersCard from '../components/TodaysNumbersCard';
 import AlertsWidget from '../components/AlertsWidget';
 import WeeklyReportModal from '../components/WeeklyReportModal';
 import { showAlert } from '../utils/webAlert';
+import Icon from '../components/ui/Icon';
+import StatTile from '../components/ui/StatTile';
 
 const INCOME_CATEGORIES = ['Sales', 'Service', 'Consulting', 'Rental', 'Interest', 'Other Income'];
 const EXPENSE_CATEGORIES = ['Rent', 'Salaries', 'Utilities', 'Marketing', 'Supplies', 'Transport', 'Meals', 'Software', 'Tax', 'Other'];
@@ -256,7 +259,7 @@ export default function DashboardScreen() {
             <ScrollView style={styles.scroll} contentContainerStyle={styles.pad}>
 
                 <TouchableOpacity style={styles.searchTrigger} onPress={() => setShowSearch(true)}>
-                    <Text style={styles.searchTriggerIcon}>🔍</Text>
+                    <Icon name="search" size={14} color={Colors.textMuted} />
                     <Text style={styles.searchTriggerText}>Search transactions, invoices, assets...</Text>
                 </TouchableOpacity>
                 <Text style={styles.title}>{t(language, 'dashboard')}</Text>
@@ -264,7 +267,10 @@ export default function DashboardScreen() {
                 {/* ── Demo banner ──────────────────────────────────────────── */}
                 {isDemoMode && (
                     <View style={styles.demoBanner}>
-                        <Text style={styles.demoBannerText}>👀 Demo Mode — data is not saved</Text>
+                        <View style={styles.demoBannerLeft}>
+                            <Icon name="eye" size={14} color="#fef3c7" />
+                            <Text style={styles.demoBannerText}>Demo Mode — data is not saved</Text>
+                        </View>
                         <TouchableOpacity onPress={() => { trackDemoConvertTapped(); exitDemo(); }} style={styles.demoBannerBtn}>
                             <Text style={styles.demoBannerBtnText}>Create Account →</Text>
                         </TouchableOpacity>
@@ -284,8 +290,9 @@ export default function DashboardScreen() {
                     screen. */}
                 {canViewFinancials && (
                     <TouchableOpacity style={styles.solveBanner} onPress={() => setCurrentScreen('business-passport')} activeOpacity={0.8}>
-                        <Text style={styles.solveBannerText}>🛂 See your Business Passport</Text>
-                        <Text style={styles.solveBannerArrow}>→</Text>
+                        <Icon name="shield" size={16} color="#fff" />
+                        <Text style={styles.solveBannerText}>See your Business Passport</Text>
+                        <Icon name="arrow-right" size={16} color="#fff" />
                     </TouchableOpacity>
                 )}
 
@@ -299,7 +306,10 @@ export default function DashboardScreen() {
                     'staff', unchanged for 'owner'/'accountant'. */}
                 {canViewFinancials && (
                 <View style={styles.operationsSection}>
-                  <Text style={styles.operationsSectionTitle}>💊 VITAL SIGNS</Text>
+                  <View style={styles.sectionTitleRow}>
+                    <Icon name="activity" size={13} color={Colors.textMuted} />
+                    <Text style={styles.operationsSectionTitle}>Vital Signs</Text>
+                  </View>
 
                   {/* Cash Position Card - Most Important */}
                   <View style={styles.vitalCard}>
@@ -335,7 +345,10 @@ export default function DashboardScreen() {
 
                 {/* SECTION 2: TODAY'S PRIORITIES - Action items */}
                 <View style={styles.operationsSection}>
-                  <Text style={styles.operationsSectionTitle}>✋ TODAY'S PRIORITIES</Text>
+                  <View style={styles.sectionTitleRow}>
+                    <Icon name="check-square" size={13} color={Colors.textMuted} />
+                    <Text style={styles.operationsSectionTitle}>Today's Priorities</Text>
+                  </View>
 
                   {/* Collections Alert */}
                   {overdueInvoices.length > 0 && (
@@ -343,14 +356,16 @@ export default function DashboardScreen() {
                       style={[styles.priorityCard, styles.priorityCardAlert]}
                       onPress={() => setCurrentScreen('invoices')}
                     >
-                      <Text style={styles.priorityEmoji}>💰</Text>
+                      <View style={[styles.priorityIconBadge, { backgroundColor: Colors.expense + '22' }]}>
+                        <Icon name="dollar-sign" size={16} color={Colors.expense} />
+                      </View>
                       <View style={styles.priorityContent}>
                         <Text style={styles.priorityTitle}>{overdueInvoices.length} Customer{overdueInvoices.length > 1 ? 's' : ''} Overdue</Text>
                         <Text style={styles.priorityAmount}>
                           {currency}{overdueInvoices.reduce((s, i) => s + i.total, 0).toLocaleString()} to collect
                         </Text>
                       </View>
-                      <Text style={styles.priorityArrow}>→</Text>
+                      <Icon name="chevron-right" size={18} color={Colors.textMuted} />
                     </TouchableOpacity>
                   )}
 
@@ -360,12 +375,14 @@ export default function DashboardScreen() {
                       style={[styles.priorityCard, styles.priorityCardWarning]}
                       onPress={() => setCurrentScreen('inventory')}
                     >
-                      <Text style={styles.priorityEmoji}>📦</Text>
+                      <View style={[styles.priorityIconBadge, { backgroundColor: Colors.warning + '22' }]}>
+                        <Icon name="package" size={16} color={Colors.warning} />
+                      </View>
                       <View style={styles.priorityContent}>
                         <Text style={styles.priorityTitle}>{lowStockItems.length} Item{lowStockItems.length > 1 ? 's' : ''} Low in Stock</Text>
                         <Text style={styles.priorityAmount}>Reorder to avoid stockout</Text>
                       </View>
-                      <Text style={styles.priorityArrow}>→</Text>
+                      <Icon name="chevron-right" size={18} color={Colors.textMuted} />
                     </TouchableOpacity>
                   )}
 
@@ -375,19 +392,23 @@ export default function DashboardScreen() {
                       style={[styles.priorityCard, styles.priorityCardWarning]}
                       onPress={() => setCurrentScreen('budget')}
                     >
-                      <Text style={styles.priorityEmoji}>⚠️</Text>
+                      <View style={[styles.priorityIconBadge, { backgroundColor: Colors.warning + '22' }]}>
+                        <Icon name="alert-triangle" size={16} color={Colors.warning} />
+                      </View>
                       <View style={styles.priorityContent}>
                         <Text style={styles.priorityTitle}>{overspentBudgets.length} Budget{overspentBudgets.length > 1 ? 's' : ''} Exceeded</Text>
                         <Text style={styles.priorityAmount}>{overspentBudgets.map(b => b.category).join(', ')}</Text>
                       </View>
-                      <Text style={styles.priorityArrow}>→</Text>
+                      <Icon name="chevron-right" size={18} color={Colors.textMuted} />
                     </TouchableOpacity>
                   )}
 
                   {/* No Priorities */}
                   {overdueInvoices.length === 0 && lowStockItems.length === 0 && overspentBudgets.length === 0 && (
                     <View style={styles.priorityCard}>
-                      <Text style={styles.priorityEmoji}>✅</Text>
+                      <View style={[styles.priorityIconBadge, { backgroundColor: Colors.success + '22' }]}>
+                        <Icon name="check" size={16} color={Colors.success} />
+                      </View>
                       <View style={styles.priorityContent}>
                         <Text style={styles.priorityTitle}>All Clear for Today</Text>
                         <Text style={styles.priorityAmount}>No alerts — keep up the momentum!</Text>
@@ -399,30 +420,23 @@ export default function DashboardScreen() {
                 {/* SECTION 3: KEY METRICS - Monthly snapshot */}
                 {canViewFinancials && (
                 <View style={styles.operationsSection}>
-                  <Text style={styles.operationsSectionTitle}>📊 MONTHLY SNAPSHOT</Text>
+                  <View style={styles.sectionTitleRow}>
+                    <Icon name="bar-chart-2" size={13} color={Colors.textMuted} />
+                    <Text style={styles.operationsSectionTitle}>Monthly Snapshot</Text>
+                  </View>
                   <View style={styles.metricsGrid}>
-                    <View style={styles.metricBox}>
-                      <Text style={styles.metricEmoji}>📈</Text>
-                      <Text style={styles.metricLabel}>Total Revenue</Text>
-                      <Text style={styles.metricValue}>{currency}{Math.round(finance.income).toLocaleString()}</Text>
-                    </View>
-                    <View style={styles.metricBox}>
-                      <Text style={styles.metricEmoji}>📉</Text>
-                      <Text style={styles.metricLabel}>Total Expenses</Text>
-                      <Text style={styles.metricValue}>{currency}{Math.round(finance.expense).toLocaleString()}</Text>
-                    </View>
-                    <View style={styles.metricBox}>
-                      <Text style={styles.metricEmoji}>💹</Text>
-                      <Text style={styles.metricLabel}>Profit Margin</Text>
-                      <Text style={[styles.metricValue, { color: finance.profit > 0 ? Colors.income : Colors.expense }]}>
-                        {finance.income > 0 ? ((finance.profit / finance.income) * 100).toFixed(1) : 0}%
-                      </Text>
-                    </View>
-                    <View style={styles.metricBox}>
-                      <Text style={styles.metricEmoji}>📝</Text>
-                      <Text style={styles.metricLabel}>Pending Invoices</Text>
-                      <Text style={styles.metricValue}>{invoices.filter(i => i.status !== 'paid').length}</Text>
-                    </View>
+                    <StatTile icon="trending-up" iconColor={Colors.income} label="Total Revenue" value={`${currency}${Math.round(finance.income).toLocaleString()}`} />
+                    <StatTile icon="trending-down" iconColor={Colors.expense} label="Total Expenses" value={`${currency}${Math.round(finance.expense).toLocaleString()}`} />
+                  </View>
+                  <View style={styles.metricsGrid}>
+                    <StatTile
+                        icon="percent"
+                        iconColor={finance.profit > 0 ? Colors.income : Colors.expense}
+                        label="Profit Margin"
+                        value={`${finance.income > 0 ? ((finance.profit / finance.income) * 100).toFixed(1) : 0}%`}
+                        valueColor={finance.profit > 0 ? Colors.income : Colors.expense}
+                    />
+                    <StatTile icon="file-text" iconColor={Colors.primary} label="Pending Invoices" value={String(invoices.filter(i => i.status !== 'paid').length)} />
                   </View>
                 </View>
                 )}
@@ -898,19 +912,20 @@ const styles = StyleSheet.create({
     flex:   { flex: 1 },
 
     demoBanner: {
-        backgroundColor: '#854d0e', borderRadius: 10, padding: 12, marginBottom: 14,
+        backgroundColor: '#854d0e', borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.lg,
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     },
+    demoBannerLeft:    { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flex: 1 },
     demoBannerText:    { color: '#fef3c7', fontWeight: '600', fontSize: 13, flex: 1 },
-    demoBannerBtn:     { backgroundColor: '#fef3c7', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 5, marginLeft: 8 },
+    demoBannerBtn:     { backgroundColor: '#fef3c7', borderRadius: Radius.sm, paddingHorizontal: 10, paddingVertical: 5, marginLeft: 8 },
     demoBannerBtnText: { color: '#854d0e', fontWeight: '700', fontSize: 12 },
 
     solveBanner: {
-        backgroundColor: Colors.primary, borderRadius: 12, padding: 14, marginBottom: 14,
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+        backgroundColor: Colors.primary, borderRadius: Radius.lg, padding: Spacing.lg, marginBottom: Spacing.lg,
+        flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+        ...Shadow.sm,
     },
     solveBannerText: { color: '#fff', fontWeight: '700', fontSize: 14, flex: 1 },
-    solveBannerArrow: { color: '#fff', fontSize: 18, marginLeft: 8 },
 
     betaCard:           { backgroundColor: Colors.surface, borderRadius: 16, padding: 16, marginBottom: 14, borderWidth: 1.5, borderColor: Colors.primary + '55' },
     betaCardHeader:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
@@ -1061,8 +1076,7 @@ const styles = StyleSheet.create({
     eodFab:     { position: 'absolute', right: 20, bottom: 140, backgroundColor: Colors.surface, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: Colors.border, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 5 },
     eodFabText: { fontSize: 12, fontWeight: '700', color: Colors.textPrimary },
 
-    searchTrigger:     { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 14, gap: 8 },
-    searchTriggerIcon: { fontSize: 14, color: Colors.textMuted },
+    searchTrigger:     { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: Spacing.md, paddingVertical: Spacing.md, marginBottom: Spacing.lg, gap: Spacing.sm, ...Shadow.sm },
     searchTriggerText: { fontSize: 13, color: Colors.textMuted, flex: 1 },
 
     deltaRow:   { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
@@ -1075,24 +1089,26 @@ const styles = StyleSheet.create({
     operationsSection: {
       marginBottom: 20,
     },
-    operationsSectionTitle: {
-      fontSize: 14,
-      fontWeight: '800',
-      color: Colors.textPrimary,
+    sectionTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
       marginBottom: 12,
-      letterSpacing: 0.5,
+    },
+    operationsSectionTitle: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: Colors.textMuted,
+      textTransform: 'uppercase',
+      letterSpacing: 0.8,
     },
     vitalCard: {
       backgroundColor: Colors.surface,
-      borderRadius: 14,
-      borderWidth: 2,
+      borderRadius: Radius.lg,
+      borderWidth: 1,
       borderColor: Colors.primary + '33',
       overflow: 'hidden',
-      shadowColor: Colors.primary,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 4,
-      elevation: 3,
+      ...Shadow.sm,
     },
     vitalCardTop: {
       flexDirection: 'row',
@@ -1130,7 +1146,7 @@ const styles = StyleSheet.create({
     runwayBadge: {
       paddingHorizontal: 14,
       paddingVertical: 10,
-      borderRadius: 10,
+      borderRadius: Radius.md,
       borderWidth: 2,
       alignItems: 'center',
       justifyContent: 'center',
@@ -1156,12 +1172,13 @@ const styles = StyleSheet.create({
       flexDirection: 'row',
       alignItems: 'center',
       backgroundColor: Colors.surface,
-      borderRadius: 12,
-      padding: 14,
-      marginBottom: 10,
+      borderRadius: Radius.lg,
+      padding: Spacing.lg,
+      marginBottom: Spacing.sm,
       borderLeftWidth: 4,
       borderLeftColor: Colors.primary,
-      gap: 12,
+      gap: Spacing.md,
+      ...Shadow.sm,
     },
     priorityCardAlert: {
       borderLeftColor: Colors.expense,
@@ -1171,8 +1188,9 @@ const styles = StyleSheet.create({
       borderLeftColor: Colors.warning,
       backgroundColor: Colors.warning + '08',
     },
-    priorityEmoji: {
-      fontSize: 24,
+    priorityIconBadge: {
+      width: 34, height: 34, borderRadius: Radius.sm,
+      alignItems: 'center', justifyContent: 'center',
     },
     priorityContent: {
       flex: 1,
@@ -1188,43 +1206,11 @@ const styles = StyleSheet.create({
       color: Colors.textSecondary,
       fontWeight: '500',
     },
-    priorityArrow: {
-      fontSize: 18,
-      color: Colors.primary,
-      fontWeight: '600',
-    },
 
     metricsGrid: {
       flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 10,
-      justifyContent: 'space-between',
-    },
-    metricBox: {
-      width: '48%',
-      backgroundColor: Colors.surface,
-      borderRadius: 12,
-      padding: 12,
-      alignItems: 'center',
-      borderWidth: 1,
-      borderColor: Colors.border,
-    },
-    metricEmoji: {
-      fontSize: 24,
-      marginBottom: 6,
-    },
-    metricLabel: {
-      fontSize: 10,
-      color: Colors.textMuted,
-      fontWeight: '600',
-      textAlign: 'center',
-      marginBottom: 6,
-    },
-    metricValue: {
-      fontSize: 16,
-      fontWeight: '800',
-      color: Colors.textPrimary,
-      textAlign: 'center',
+      gap: Spacing.md,
+      marginBottom: Spacing.md,
     },
 
     actionsGrid: {

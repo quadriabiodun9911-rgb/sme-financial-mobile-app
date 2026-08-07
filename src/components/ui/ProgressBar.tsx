@@ -1,13 +1,14 @@
 import React, { memo } from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
+import { Colors } from '../../theme/colors';
 
 type ProgressVariant = 'primary' | 'success' | 'warning' | 'danger';
 
 const VARIANT_COLOR: Record<ProgressVariant, string> = {
-  primary: '#3b82f6',
-  success: '#22c55e',
-  warning: '#eab308',
-  danger: '#ef4444',
+  primary: Colors.primary,
+  success: Colors.success,
+  warning: Colors.warning,
+  danger: Colors.danger,
 };
 
 interface ProgressBarProps {
@@ -59,8 +60,8 @@ export const ProgressBar = memo(ProgressBarComponent);
 const styles = StyleSheet.create({
   container: { gap: 6 },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  label: { fontSize: 13, color: '#94a3b8', fontWeight: '500' },
+  label: { fontSize: 13, color: Colors.textMuted, fontWeight: '500' },
   valueLabel: { fontSize: 13, fontWeight: '700' },
-  track: { backgroundColor: '#1e293b', overflow: 'hidden' },
+  track: { backgroundColor: Colors.surfaceVariant, overflow: 'hidden' },
   fill: { height: '100%' },
 });

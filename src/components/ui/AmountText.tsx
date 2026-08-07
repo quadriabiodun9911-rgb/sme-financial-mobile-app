@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
 import { Text, StyleSheet, TextStyle } from 'react-native';
+import { Colors } from '../../theme/colors';
 
 interface AmountTextProps {
   amount: number;
@@ -16,7 +17,7 @@ function AmountTextComponent({ amount, currency = '₦', style, size = 'md', col
   const abs = Math.abs(amount);
   const formatted = abs.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const sign = showSign && amount !== 0 ? (amount > 0 ? '+' : '-') : amount < 0 ? '-' : '';
-  const color = colorize ? (amount >= 0 ? '#22c55e' : '#ef4444') : undefined;
+  const color = colorize ? (amount >= 0 ? Colors.success : Colors.danger) : undefined;
 
   return (
     <Text
@@ -31,5 +32,5 @@ function AmountTextComponent({ amount, currency = '₦', style, size = 'md', col
 export const AmountText = memo(AmountTextComponent);
 
 const styles = StyleSheet.create({
-  base: { color: '#f1f5f9', fontWeight: '700', fontVariant: ['tabular-nums'] as any },
+  base: { color: Colors.textPrimary, fontWeight: '700', fontVariant: ['tabular-nums'] as any },
 });

@@ -1,5 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Animated, StyleSheet, ViewStyle } from 'react-native';
+import { Colors } from '../../theme/colors';
+import { Radius } from '../../theme/tokens';
 
 interface SkeletonProps {
   width?: number | string;
@@ -24,7 +26,7 @@ export function Skeleton({ width = '100%', height = 16, borderRadius = 8, style 
 
   return (
     <Animated.View
-      style={[{ width: width as any, height, borderRadius, backgroundColor: '#334155', opacity }, style]}
+      style={[{ width: width as any, height, borderRadius, backgroundColor: Colors.surfaceVariant, opacity }, style]}
       accessibilityLabel="Loading"
     />
   );
@@ -54,20 +56,20 @@ export function SkeletonListItem({ style }: { style?: ViewStyle }) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#1e293b',
-    borderRadius: 14,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: Colors.border,
     padding: 16,
   },
   listItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#1e293b',
-    borderRadius: 12,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: Colors.border,
     padding: 14,
   },
   gap: { marginTop: 8 },

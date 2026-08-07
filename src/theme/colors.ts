@@ -6,12 +6,17 @@ export type ColorThemeMode = 'dark' | 'warm-paper';
 const THEME_KEY = '@quad360/color_theme';
 
 const DARK_PALETTE = {
-    bg: '#0f172a',
-    surface: '#1e293b',
-    surfaceVariant: '#334155',
-    border: '#334155',
-    muted: '#475569',
-    card: '#1e293b',
+    // Deeper near-black base with more headroom above it than the old
+    // slate-900/800 pairing gave — surface now reads as a distinct layer
+    // floating above bg rather than a barely-different shade of the same
+    // grey, which is what makes card-based layouts read as "designed"
+    // instead of "default dark mode."
+    bg: '#0a0e18',
+    surface: '#141b2d',
+    surfaceVariant: '#1f2840',
+    border: '#232c46',
+    muted: '#4b5875',
+    card: '#141b2d',
 
     textPrimary: '#f8fafc',
     textSecondary: '#cbd5e1',

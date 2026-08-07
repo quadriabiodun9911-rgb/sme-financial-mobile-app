@@ -8,3 +8,6 @@ export { FormField } from './FormField';
 export { ProgressBar } from './ProgressBar';
 export { SectionHeader } from './SectionHeader';
 export { AmountText } from './AmountText';
+export { default as Icon } from './Icon';
+export type { IconName } from './Icon';
+export { default as StatTile } from './StatTile';

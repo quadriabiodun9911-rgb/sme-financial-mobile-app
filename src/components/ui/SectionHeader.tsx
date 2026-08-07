@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
+import { Colors } from '../../theme/colors';
 
 interface SectionHeaderProps {
   title: string;
@@ -25,6 +26,6 @@ export const SectionHeader = memo(SectionHeaderComponent);
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  title: { fontSize: 16, fontWeight: '700', color: '#f1f5f9' },
-  action: { fontSize: 13, color: '#3b82f6', fontWeight: '600' },
+  title: { fontSize: 16, fontWeight: '700', color: Colors.textPrimary },
+  action: { fontSize: 13, color: Colors.primary, fontWeight: '600' },
 });

@@ -1,5 +1,7 @@
 import React, { memo } from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
+import { Colors } from '../../theme/colors';
+import { Radius, Shadow } from '../../theme/tokens';
 
 type Trend = 'up' | 'down' | 'neutral';
 
@@ -13,13 +15,13 @@ interface StatCardProps {
 }
 
 const TREND_COLOR: Record<Trend, string> = {
-  up: '#22c55e',
-  down: '#ef4444',
-  neutral: '#94a3b8',
+  up: Colors.success,
+  down: Colors.danger,
+  neutral: Colors.textMuted,
 };
 const TREND_ICON: Record<Trend, string> = { up: '↑', down: '↓', neutral: '→' };
 
-function StatCardComponent({ label, value, trend, trendLabel, accent = '#3b82f6', style }: StatCardProps) {
+function StatCardComponent({ label, value, trend, trendLabel, accent = Colors.primary, style }: StatCardProps) {
   return (
     <View style={[styles.card, style]}>
       <View style={[styles.accent, { backgroundColor: accent }]} />
@@ -39,16 +41,17 @@ export const StatCard = memo(StatCardComponent);
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#1e293b',
-    borderRadius: 14,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: Colors.border,
     padding: 16,
     overflow: 'hidden',
+    ...Shadow.sm,
   },
-  accent: { position: 'absolute', top: 0, left: 0, right: 0, height: 3, borderTopLeftRadius: 14, borderTopRightRadius: 14 },
-  label: { fontSize: 12, color: '#94a3b8', fontWeight: '500', marginTop: 8 },
-  value: { fontSize: 22, color: '#f1f5f9', fontWeight: '800', marginTop: 4 },
+  accent: { position: 'absolute', top: 0, left: 0, right: 0, height: 3, borderTopLeftRadius: Radius.lg, borderTopRightRadius: Radius.lg },
+  label: { fontSize: 12, color: Colors.textMuted, fontWeight: '500', marginTop: 8 },
+  value: { fontSize: 22, color: Colors.textPrimary, fontWeight: '800', marginTop: 4 },
   trendRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 3 },
   trendIcon: { fontSize: 12, fontWeight: '700' },
   trendLabel: { fontSize: 12, fontWeight: '500' },

@@ -1,16 +1,7 @@
 import React from 'react';
 import { TouchableOpacity, Text, ActivityIndicator, StyleSheet, ViewStyle, TextStyle } from 'react-native';
-
-const Colors = {
-  primary: '#3b82f6',
-  primaryDark: '#2563eb',
-  danger: '#ef4444',
-  dangerDark: '#dc2626',
-  surface: '#1e293b',
-  border: '#334155',
-  text: '#f1f5f9',
-  textMuted: '#94a3b8',
-};
+import { Colors } from '../../theme/colors';
+import { Radius } from '../../theme/tokens';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
 type Size = 'sm' | 'md' | 'lg';
@@ -71,7 +62,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 10,
+    borderRadius: Radius.md,
     borderWidth: 1,
     borderColor: 'transparent',
   },
@@ -81,11 +72,11 @@ const styles = StyleSheet.create({
   primary: { backgroundColor: Colors.primary },
   secondary: { backgroundColor: 'transparent', borderColor: Colors.primary },
   ghost: { backgroundColor: 'transparent', borderColor: 'transparent' },
-  danger: { backgroundColor: Colors.danger },
+  danger: { backgroundColor: Colors.criticalBorder },
 
-  sm: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8 },
+  sm: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: Radius.sm },
   md: { paddingHorizontal: 18, paddingVertical: 11 },
-  lg: { paddingHorizontal: 24, paddingVertical: 15, borderRadius: 12 },
+  lg: { paddingHorizontal: 24, paddingVertical: 15, borderRadius: Radius.lg },
 
   text: { fontWeight: '600' },
   primaryText: { color: '#fff' },

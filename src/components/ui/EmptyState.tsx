@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
 import { Button } from './Button';
+import { Colors } from '../../theme/colors';
 
 interface EmptyStateProps {
   icon: string;
@@ -27,7 +28,7 @@ export function EmptyState({ icon, title, subtitle, actionLabel, onAction, style
 const styles = StyleSheet.create({
   container: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 48, paddingHorizontal: 32 },
   icon: { fontSize: 48, marginBottom: 16 },
-  title: { fontSize: 18, fontWeight: '700', color: '#f1f5f9', textAlign: 'center' },
-  subtitle: { fontSize: 14, color: '#94a3b8', textAlign: 'center', marginTop: 8, lineHeight: 20 },
+  title: { fontSize: 18, fontWeight: '700', color: Colors.textPrimary, textAlign: 'center' },
+  subtitle: { fontSize: 14, color: Colors.textMuted, textAlign: 'center', marginTop: 8, lineHeight: 20 },
   action: { marginTop: 20 },
 });
