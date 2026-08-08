@@ -64,7 +64,7 @@ const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
         { key: 'balancesheet', label: 'What I Own & Owe' },
         { key: 'pnl',          label: 'Profit & Loss' },
         { key: 'inventory',    label: 'Stock' },
-        { key: 'accrual',      label: 'Cash Flow' },
+        { key: 'accrual',      label: 'Accrual vs Cash' },
     ],
     customers: [
         { key: 'aging', label: 'Who Owes Me' },
@@ -76,7 +76,7 @@ const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
     ],
     planning: [
         { key: 'budget',   label: 'Growth Scenarios' },
-        { key: 'cashflow', label: 'Cash Timeline' },
+        { key: 'cashflow', label: 'Cash Flow Statement' },
         { key: 'cashmgmt', label: 'Cash Safety' },
         { key: 'debt',     label: 'Loans & Debt' },
         { key: 'assets',   label: 'Assets' },

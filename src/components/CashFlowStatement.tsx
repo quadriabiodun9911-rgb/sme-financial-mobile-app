@@ -54,7 +54,13 @@ export default function CashFlowStatement({ transactions, assets, currency }: Pr
 
                     {/* Financing Activities */}
                     <SectionCard title="Cash from Loans & Owner Contributions">
-                        <Text style={s.emptyLine}>To track loan repayments, record them as expense transactions. Owner withdrawals can be recorded as expenses too.</Text>
+                        {cf.principalRepayments > 0
+                            ? <CFRow label="Loan Principal Repaid" value={-cf.principalRepayments} currency={currency} />
+                            : <Text style={s.emptyLine}>No loan principal repayments recorded yet — record a loan payment in the Loans tab to see it here.</Text>
+                        }
+                        <Text style={s.hint}>
+                            Only principal repayments show here — the interest portion of a loan payment is already counted in Operating Activities above, as a real cost of doing business. New loan draws and owner contributions aren't tracked as financing yet; record them as income transactions if you want them reflected in cash flow.
+                        </Text>
                         <CFRow label="Total Cash from Financing" value={cf.financingCF} currency={currency} total />
                     </SectionCard>
 

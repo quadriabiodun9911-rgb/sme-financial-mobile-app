@@ -119,11 +119,14 @@ export function calculateFinancialMetrics(
 
   const thisMonthRevenue = thisMonthTransactions.reduce((sum, t) => sum + t.amount, 0);
 
-  // Expense calculations
+  // Expense calculations. Loan principal repayments are excluded from
+  // every P&L figure below (GAAP/IFRS: only interest is a real expense —
+  // principal reduces the loan liability, not profit), matching
+  // computeFinance/computeEnhancedPnL in finance.ts.
   const expenseTransactions = transactions.filter(t => t.type === 'expense');
   const thisMonthExpenses = expenseTransactions
     .filter(t => t.date.startsWith(thisMonth))
-    .reduce((sum, t) => sum + t.amount, 0);
+    .reduce((sum, t) => sum + t.amount - (t.principalPortion || 0), 0);
 
   // Growth comparisons below use a day-capped version of lastMonth — "this
   // month" here means "latest data month" (see comment above), which for
@@ -148,7 +151,7 @@ export function calculateFinancialMetrics(
     .reduce((sum, t) => sum + t.amount, 0);
   const lastMonthExpensesComparable = expenseTransactions
     .filter(t => t.date.startsWith(lastMonth) && parseInt(t.date.slice(8, 10), 10) <= dayCap)
-    .reduce((sum, t) => sum + t.amount, 0);
+    .reduce((sum, t) => sum + t.amount - (t.principalPortion || 0), 0);
 
   const expenseGrowthPct =
     lastMonthExpensesComparable > 0 ? ((thisMonthExpenses - lastMonthExpensesComparable) / lastMonthExpensesComparable) * 100 : 0;
@@ -158,7 +161,7 @@ export function calculateFinancialMetrics(
     .filter(t => t.date.startsWith(thisMonth))
     .forEach(t => {
       const cat = t.category || 'Other';
-      expensesByCategory[cat] = (expensesByCategory[cat] || 0) + t.amount;
+      expensesByCategory[cat] = (expensesByCategory[cat] || 0) + t.amount - (t.principalPortion || 0);
     });
 
   // Profit calculations

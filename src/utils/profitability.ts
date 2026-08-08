@@ -29,8 +29,11 @@ function filterByPeriod(transactions: Transaction[], start: Date, end: Date): Tr
     });
 }
 
+// Loan principal repayments are excluded from expense sums (GAAP/IFRS:
+// only interest is a real P&L cost) so every profit/margin/momentum figure
+// this file produces stays consistent with computeFinance/computeEnhancedPnL.
 function sumByType(txs: Transaction[], type: 'income' | 'expense'): number {
-    return txs.filter(t => t.type === type).reduce((s, t) => s + t.amount, 0);
+    return txs.filter(t => t.type === type).reduce((s, t) => s + t.amount - (type === 'expense' ? (t.principalPortion || 0) : 0), 0);
 }
 
 export function computeProfitWaterfall(transactions: Transaction[]): WaterfallItem[] {
@@ -90,7 +93,7 @@ function buildDimensionItems(
         const key = keyFn(tx) ?? 'Unknown';
         const entry = map.get(key) ?? { revenue: 0, cost: 0 };
         if (tx.type === 'income')  entry.revenue += tx.amount;
-        else                       entry.cost    += tx.amount;
+        else                       entry.cost    += tx.amount - (tx.principalPortion || 0);
         map.set(key, entry);
     }
 
@@ -149,8 +152,9 @@ export function computeBreakeven(transactions: Transaction[], settings: Business
     const currentRevenue = sumByType(currTxs, 'income');
     const expenses = currTxs.filter(t => t.type === 'expense');
 
-    const fixedCosts    = expenses.filter(isFixedCost).reduce((s, t) => s + t.amount, 0);
-    const variableCosts = expenses.filter(t => !isFixedCost(t)).reduce((s, t) => s + t.amount, 0);
+    // Loan principal excluded -- not a real operating cost (GAAP/IFRS).
+    const fixedCosts    = expenses.filter(isFixedCost).reduce((s, t) => s + t.amount - (t.principalPortion || 0), 0);
+    const variableCosts = expenses.filter(t => !isFixedCost(t)).reduce((s, t) => s + t.amount - (t.principalPortion || 0), 0);
 
     const variableCostRatio = currentRevenue > 0 ? variableCosts / currentRevenue : 0;
     const contributionMarginRatio = 1 - variableCostRatio;
@@ -256,13 +260,13 @@ export function identifyProfitDrivers(transactions: Transaction[]): ProfitDriver
     for (const tx of currTxs) {
         if (tx.type === 'expense') {
             const k = tx.category ?? 'Unknown';
-            currCostByCategory.set(k, (currCostByCategory.get(k) ?? 0) + tx.amount);
+            currCostByCategory.set(k, (currCostByCategory.get(k) ?? 0) + tx.amount - (tx.principalPortion || 0));
         }
     }
     for (const tx of prevTxs) {
         if (tx.type === 'expense') {
             const k = tx.category ?? 'Unknown';
-            prevCostByCategory.set(k, (prevCostByCategory.get(k) ?? 0) + tx.amount);
+            prevCostByCategory.set(k, (prevCostByCategory.get(k) ?? 0) + tx.amount - (tx.principalPortion || 0));
         }
     }
 
@@ -470,7 +474,7 @@ export function computeTopPerformers(transactions: Transaction[]): TopPerformers
     transactions.forEach(t => {
         const e = catMap.get(t.category) ?? { revenue: 0, cost: 0 };
         if (t.type === 'income')  e.revenue += t.amount;
-        else                      e.cost    += t.amount;
+        else                      e.cost    += t.amount - (t.principalPortion || 0);
         catMap.set(t.category, e);
     });
 

@@ -280,8 +280,29 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         // Recording a loan payment is a real cash outflow — post the matching
         // expense so the P&L/cash balance reflect it (previously only the
         // loan balance updated, silently diverging from actual cash).
+        //
+        // GAAP/IFRS split: only the interest portion of a debt payment is
+        // an income-statement expense — principal repayment reduces the
+        // loan liability, it never touches profit. Interest for this
+        // installment is estimated the same way loanMonthlyPayment's
+        // amortization schedule does: outstanding balance × monthly rate.
+        // The posted Transaction still carries the FULL cash amount (so
+        // cash balance / bank reconciliation are correct); `principalPortion`
+        // tells every profit/DSCR calculation how much of it to exclude.
+        // Loan.payments, by contrast, stores the PRINCIPAL portion as its
+        // `amount` — every existing consumer (outstanding balance, payoff
+        // %, balance sheet) already reduces principal by summing that
+        // field, so this is the one place that needs to change.
         const loan = loans.find((l) => l.id === loanId);
+        let principalPortion = payment.amount;
+        let interestPortion = 0;
         if (loan) {
+          const priorPrincipalPaid = (loan.payments ?? []).reduce((s, p) => s + p.amount, 0);
+          const balanceBefore = Math.max(0, loan.principal - priorPrincipalPaid);
+          const monthlyRate = (loan.interestRate || 0) / 100 / 12;
+          interestPortion = Math.min(payment.amount, balanceBefore * monthlyRate);
+          principalPortion = Math.max(0, Math.min(balanceBefore, payment.amount - interestPortion));
+
           setTransactions((prev) => [
             {
               id: genId(),
@@ -290,6 +311,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
               type: 'expense',
               category: 'Loan Repayment',
               amount: payment.amount,
+              principalPortion,
               status: 'paid',
             } as Transaction,
             ...prev,
@@ -299,10 +321,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           prev.map((l) => {
             if (l.id !== loanId) return l;
             const prevPays = l.payments ?? [];
-            const newPay = { ...payment, id: `pay-${loanId}-${prevPays.length}-${Date.now()}` };
+            const newPay = { ...payment, id: `pay-${loanId}-${prevPays.length}-${Date.now()}`, amount: principalPortion, interestPortion };
             const payments = [...prevPays, newPay];
-            const totalPaid = payments.reduce((s, p) => s + p.amount, 0);
-            const status: Loan['status'] = totalPaid >= l.principal ? 'paid_off' : l.status;
+            const totalPrincipalPaid = payments.reduce((s, p) => s + p.amount, 0);
+            const status: Loan['status'] = totalPrincipalPaid >= l.principal ? 'paid_off' : l.status;
             return { ...l, payments, status };
           })
         );

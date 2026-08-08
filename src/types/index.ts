@@ -158,6 +158,15 @@ export interface Transaction {
     isRecurring?: boolean;
     recurringFrequency?: RecurringFrequency;
     nextRecurringDate?: string;
+    // Set only on loan-repayment expense transactions: the portion of
+    // `amount` that repaid principal, not interest. GAAP/IFRS only ever
+    // expense the interest portion of a debt payment — principal reduces
+    // the loan liability on the balance sheet, it never touches the income
+    // statement. `amount` stays the full cash paid (so cash balance and
+    // bank reconciliation are unaffected); every P&L/profitability
+    // calculation subtracts `principalPortion` from `amount` before
+    // treating it as a real expense.
+    principalPortion?: number;
 }
 
 export interface FinanceData {
@@ -351,7 +360,13 @@ export type LoanStatus = 'active' | 'paid_off' | 'defaulted';
 export interface LoanPayment {
     id: string;
     date: string;
+    // The principal portion of this installment — every consumer of
+    // Loan.payments (outstanding balance, payoff %, balance sheet) sums
+    // `amount` to find out how much of the original principal remains, so
+    // it must represent principal paid down, not the total cash handed to
+    // the lender. See `interestPortion` for the rest of what was paid.
     amount: number;
+    interestPortion?: number;
     note?: string;
 }
 

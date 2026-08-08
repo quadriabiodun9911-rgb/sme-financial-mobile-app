@@ -535,13 +535,21 @@ function LoanCard({ loan, currency, expanded, onToggle, onEdit, onDelete, onAddP
                     {(loan.payments ?? []).length > 0 && (
                         <View style={s.paymentHistory}>
                             <Text style={s.paymentHistoryTitle}>Payment History</Text>
-                            {[...(loan.payments ?? [])].reverse().slice(0, 5).map(p => (
-                                <View key={p.id} style={s.paymentRow}>
-                                    <Text style={s.paymentDate}>{p.date}</Text>
-                                    <Text style={s.paymentNote}>{p.note || 'Payment'}</Text>
-                                    <Text style={[s.paymentAmt, { color: Colors.income }]}>+{currency}{p.amount.toLocaleString()}</Text>
-                                </View>
-                            ))}
+                            {[...(loan.payments ?? [])].reverse().slice(0, 5).map(p => {
+                                const totalPaid = p.amount + (p.interestPortion || 0);
+                                return (
+                                    <View key={p.id} style={s.paymentRow}>
+                                        <Text style={s.paymentDate}>{p.date}</Text>
+                                        <Text style={s.paymentNote}>{p.note || 'Payment'}</Text>
+                                        <View style={{ alignItems: 'flex-end' }}>
+                                            <Text style={[s.paymentAmt, { color: Colors.income }]}>+{currency}{totalPaid.toLocaleString()}</Text>
+                                            {!!p.interestPortion && (
+                                                <Text style={s.paymentBreakdown}>{currency}{p.amount.toLocaleString()} principal + {currency}{p.interestPortion.toLocaleString()} interest</Text>
+                                            )}
+                                        </View>
+                                    </View>
+                                );
+                            })}
                             {(loan.payments ?? []).length > 5 && (
                                 <Text style={s.morePayments}>+{(loan.payments ?? []).length - 5} more payments</Text>
                             )}
@@ -690,6 +698,7 @@ const s = StyleSheet.create({
     paymentDate: { fontSize: 11, color: Colors.textMuted, width: 85 },
     paymentNote: { flex: 1, fontSize: 11, color: Colors.textSecondary },
     paymentAmt: { fontSize: 12, fontWeight: '700' },
+    paymentBreakdown: { fontSize: 9.5, color: Colors.textMuted, marginTop: 1 },
     morePayments: { fontSize: 10, color: Colors.textMuted, textAlign: 'center', marginTop: 2 },
 
     actionRow: { flexDirection: 'row', gap: Spacing.sm },

@@ -115,7 +115,11 @@ export function computeEnhancedPnL(transactions: Transaction[], assets: Asset[])
     const sgaMap  = new Map<string, number>();
     let cogs = 0, sga = 0;
     for (const t of expenses) {
-        const amt = Number(t.amount) || 0;
+        // Loan principal repayments aren't a P&L expense under GAAP/IFRS —
+        // only the interest portion is. `principalPortion` (set on
+        // loan-repayment transactions, see OptimizedContexts.addLoanPayment)
+        // excludes that part from every cost figure below.
+        const amt = (Number(t.amount) || 0) - (Number(t.principalPortion) || 0);
         if (isCOGS(t.category)) {
             cogs += amt;
             cogsMap.set(t.category, (cogsMap.get(t.category) ?? 0) + amt);
@@ -198,6 +202,7 @@ export interface ProperCashFlow {
     assetDisposals: number;
     investingCF: number;
     financingCF: number;
+    principalRepayments: number;
     netCashChange: number;
     collectedRevenue: number;
     paidExpenses: number;
@@ -206,8 +211,14 @@ export interface ProperCashFlow {
 }
 
 export function computeProperCashFlow(transactions: Transaction[], assets: Asset[]): ProperCashFlow {
-    const collectedRevenue = transactions.filter(t => t.type === 'income'  && t.status === 'paid').reduce((s, t) => s + t.amount, 0);
-    const paidExpenses     = transactions.filter(t => t.type === 'expense' && t.status === 'paid').reduce((s, t) => s + t.amount, 0);
+    const paidExpenseTx = transactions.filter(t => t.type === 'expense' && t.status === 'paid');
+    const collectedRevenue = transactions.filter(t => t.type === 'income' && t.status === 'paid').reduce((s, t) => s + t.amount, 0);
+    // GAAP/IFRS: loan principal repayments aren't an operating expense, so
+    // they're excluded here and surfaced instead as `principalRepayments`,
+    // a Financing outflow below — matching the standard Operating /
+    // Investing / Financing split, not lumped into Operating like every
+    // other paid expense.
+    const paidExpenses  = paidExpenseTx.reduce((s, t) => s + t.amount - (t.principalPortion || 0), 0);
     const netProfit = collectedRevenue - paidExpenses;
 
     const depreciation  = assets.filter(a => a.status === 'active').reduce((s, a) => s + computeAssetAnnualDepreciation(a), 0);
@@ -222,10 +233,11 @@ export function computeProperCashFlow(transactions: Transaction[], assets: Asset
     const assetDisposals = assets.filter(a => a.status === 'disposed').reduce((s, a) => s + (a.disposalValue ?? 0), 0);
     const investingCF    = -(assetPurchases) + assetDisposals;
 
-    const financingCF    = 0;
+    const principalRepayments = paidExpenseTx.reduce((s, t) => s + (t.principalPortion || 0), 0);
+    const financingCF    = -principalRepayments;
     const netCashChange  = operatingCF + investingCF + financingCF;
 
-    return { netProfit, depreciation, changeInAR, changeInAP, operatingCF, assetPurchases, assetDisposals, investingCF, financingCF, netCashChange, collectedRevenue, paidExpenses, uncollectedAR, unpaidAP };
+    return { netProfit, depreciation, changeInAR, changeInAP, operatingCF, assetPurchases, assetDisposals, investingCF, financingCF, principalRepayments, netCashChange, collectedRevenue, paidExpenses, uncollectedAR, unpaidAP };
 }
 
 export function computeAssetCurrentValue(asset: Asset): number {
@@ -282,9 +294,12 @@ export function computeFinance(
         .filter(t => t.type === 'income')
         .reduce((sum, t) => sum + t.amount, 0);
 
+    // Loan principal repayments are excluded here (GAAP/IFRS: only interest
+    // is a P&L expense) but stay in full below in paidExpense/cashBalance,
+    // which is cash-basis and correctly includes them.
     const expense = transactions
         .filter(t => t.type === 'expense')
-        .reduce((sum, t) => sum + t.amount, 0);
+        .reduce((sum, t) => sum + t.amount - (t.principalPortion || 0), 0);
 
     // Annual depreciation prorated to the period covered by transactions
     const annualDepreciation = activeAssets.reduce((s, a) => s + (computeAssetAnnualDepreciation(a) || 0), 0);
@@ -730,8 +745,17 @@ export function computeDSCR(transactions: Transaction[], loans: Loan[]): DSCRRes
     const cutoffStr = cutoff.toISOString().split('T')[0];
     const recent = transactions.filter(t => t.date >= cutoffStr);
 
+    // Net Operating Income must be measured BEFORE debt service — that's
+    // the entire point of the ratio (can income cover the debt payment).
+    // totalDebtService below already represents the full scheduled
+    // principal+interest; if actual loan-repayment transactions were left
+    // in `expense`, debt service would be subtracted here AND divided out
+    // again below, understating DSCR for any business that dutifully
+    // records its payments. Excluded entirely (not just principalPortion)
+    // so neither the principal nor the interest actually paid double-counts
+    // against the theoretical schedule used in the denominator.
     const income = recent.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-    const expense = recent.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+    const expense = recent.filter(t => t.type === 'expense' && t.category !== 'Loan Repayment').reduce((s, t) => s + t.amount, 0);
 
     let netOperatingIncome = income - expense;
     const dates = recent.map(t => t.date).sort();
