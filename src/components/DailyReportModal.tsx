@@ -24,7 +24,8 @@ export default function DailyReportModal({ visible, onClose, transactions, goals
     // Today's numbers
     const todayTxns = transactions.filter(t => t.date === todayStr);
     const todayRevenue = todayTxns.filter(t => t.type === 'income').reduce((s, t) => s + (Number(t.amount) || 0), 0);
-    const todayExpenses = todayTxns.filter(t => t.type === 'expense').reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    // Loan principal excluded -- this feeds a "today's profit" P&L verdict.
+    const todayExpenses = todayTxns.filter(t => t.type === 'expense').reduce((s, t) => s + (Number(t.amount) || 0) - (Number(t.principalPortion) || 0), 0);
     const todayProfit = todayRevenue - todayExpenses;
     const todaySales = todayTxns.length;
 

@@ -34,7 +34,8 @@ export default function DailyTargetCard({ goals, transactions, currency, onSetGo
     const today = new Date().toISOString().split('T')[0];
     const todayTx = transactions.filter(t => t.date === today);
     const todayRevenue = todayTx.filter(t => t.type === 'income').reduce((s, t) => s + (Number(t.amount) || 0), 0);
-    const todayExpenses = todayTx.filter(t => t.type === 'expense').reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    // Loan principal excluded -- this feeds a "today's profit" P&L figure.
+    const todayExpenses = todayTx.filter(t => t.type === 'expense').reduce((s, t) => s + (Number(t.amount) || 0) - (Number(t.principalPortion) || 0), 0);
     const todayProfit = todayRevenue - todayExpenses;
 
     const openEdit = () => {

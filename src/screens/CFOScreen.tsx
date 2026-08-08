@@ -511,11 +511,14 @@ function GrowthTab() {
     const revenueGap10 = finance.income * 0.10;
     const revenueGap20 = finance.income * 0.20;
 
-    // Top expense categories
+    // Top expense categories driving cost-cutting advice below — loan
+    // principal isn't a cuttable operating cost (only the interest is), so
+    // it's excluded the same way computeEnhancedPnL/analysis.ts exclude it,
+    // or a loan repayment could rank as "your top expense to cut".
     const topExpenses = useMemo(() => {
         const map = new Map<string, number>();
         transactions.filter(t => t.type === 'expense').forEach(t => {
-            map.set(t.category || 'Uncategorised', (map.get(t.category || 'Uncategorised') ?? 0) + t.amount);
+            map.set(t.category || 'Uncategorised', (map.get(t.category || 'Uncategorised') ?? 0) + t.amount - (t.principalPortion || 0));
         });
         return Array.from(map.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5);
     }, [transactions]);

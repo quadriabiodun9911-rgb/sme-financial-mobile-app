@@ -24,13 +24,15 @@ const SNAPSHOT_WINDOW_DAYS = 30;
 // would barely move and drown out the real signal. This gives
 // measureActualImpact a trailing-30-day window instead, the same window
 // computeCashRunway already uses elsewhere in the app for "recent" figures.
-function trailingSnapshot(transactions: { type: string; amount: number; date: string; status?: string }[]) {
+function trailingSnapshot(transactions: { type: string; amount: number; date: string; status?: string; principalPortion?: number }[]) {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - SNAPSHOT_WINDOW_DAYS);
   const cutoffStr = cutoff.toISOString().split('T')[0];
   const recent = transactions.filter(t => t.date >= cutoffStr && t.status !== 'pending' && t.status !== 'overdue');
   const income = recent.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-  const expense = recent.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  // Loan principal excluded so a tactic's measured "actual impact" isn't
+  // thrown off by an unrelated loan payment landing inside the window.
+  const expense = recent.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount - (t.principalPortion || 0), 0);
   return { income, expense, profit: income - expense };
 }
 

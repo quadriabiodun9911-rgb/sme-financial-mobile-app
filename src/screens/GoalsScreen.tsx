@@ -578,7 +578,9 @@ function DailyActionsSection({ goal, transactions, currency }: { goal: Financial
     const today = new Date().toISOString().split('T')[0];
     const todayTx = transactions.filter(t => t.date === today);
     const todayRevenue = todayTx.filter(t => t.type === 'income').reduce((s, t) => s + (Number(t.amount) || 0), 0);
-    const todayExpenses = todayTx.filter(t => t.type === 'expense').reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    // Loan principal excluded -- "today's profit"/"spending budget" below are
+    // P&L-style messaging, and principal isn't a cost that can be "paused".
+    const todayExpenses = todayTx.filter(t => t.type === 'expense').reduce((s, t) => s + (Number(t.amount) || 0) - (t.principalPortion || 0), 0);
     const todayProfit = todayRevenue - todayExpenses;
 
     const daysLeft = Math.max(1, Math.ceil((new Date(goal.deadline).getTime() - Date.now()) / 86400000));

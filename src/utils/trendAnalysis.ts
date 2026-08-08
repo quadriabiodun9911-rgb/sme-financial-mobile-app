@@ -83,8 +83,12 @@ export function computeAllTimeMonthlyBuckets(transactions: Transaction[]): Month
         if (!month || month.length !== 7) continue;
         if (!buckets.has(month)) buckets.set(month, { revenue: 0, expense: 0, count: 0 });
         const b = buckets.get(month)!;
+        // Loan principal repayments aren't a P&L expense under GAAP/IFRS —
+        // only interest is (see finance.ts computeEnhancedPnL for the same
+        // exclusion). Every trend/comparison built on this bucket needs to
+        // agree with Reports' P&L card for the same period.
         if (t.type === 'income') b.revenue += t.amount;
-        else b.expense += t.amount;
+        else b.expense += t.amount - (t.principalPortion || 0);
         b.count += 1;
     }
 
@@ -112,8 +116,9 @@ export function computeDailyTrend(transactions: Transaction[]): DailyTrendPoint[
         if (!date || date.length !== 10) continue;
         if (!buckets.has(date)) buckets.set(date, { revenue: 0, expense: 0 });
         const b = buckets.get(date)!;
+        // See computeAllTimeMonthlyBuckets above -- same principal exclusion.
         if (t.type === 'income') b.revenue += t.amount;
-        else b.expense += t.amount;
+        else b.expense += t.amount - (t.principalPortion || 0);
     }
 
     return Array.from(buckets.entries())

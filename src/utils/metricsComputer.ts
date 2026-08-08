@@ -179,15 +179,23 @@ export class MetricsComputer {
             .filter(t => t.type === 'income')
             .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
 
+        // Loan principal isn't a P&L expense under GAAP/IFRS -- only the
+        // interest portion is (see finance.ts computeEnhancedPnL). Without
+        // this, the Dashboard's "This Month" profit tile silently disagreed
+        // with the corrected Reports P&L for the same month.
         const expense = txsThisMonth
             .filter(t => t.type === 'expense')
-            .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+            .reduce((sum, t) => sum + (Number(t.amount) || 0) - (Number(t.principalPortion) || 0), 0);
 
         return income - expense;
     }
 
     private computeTodayProfit(): number {
-        const todayTxs = this.txByMonth.get(this.today) || [];
+        // txByMonth is keyed by 'YYYY-MM' (see buildIndices); this.today is
+        // a full 'YYYY-MM-DD' date, so looking it up in that map always
+        // missed -- "Today's Profit" showed ¥0 regardless of what was
+        // actually logged today. Filter transactions by exact date instead.
+        const todayTxs = this.transactions.filter(t => t.date === this.today);
 
         const income = todayTxs
             .filter(t => t.type === 'income')
@@ -195,7 +203,7 @@ export class MetricsComputer {
 
         const expense = todayTxs
             .filter(t => t.type === 'expense')
-            .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+            .reduce((sum, t) => sum + (Number(t.amount) || 0) - (Number(t.principalPortion) || 0), 0);
 
         return income - expense;
     }

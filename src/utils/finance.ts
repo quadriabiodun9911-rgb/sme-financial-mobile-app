@@ -430,7 +430,11 @@ export function getTopCategories(
     const map = new Map<string, number>();
     transactions
         .filter(t => t.type === type)
-        .forEach(t => map.set(t.category, (map.get(t.category) ?? 0) + t.amount));
+        // Loan principal isn't a P&L expense (see computeEnhancedPnL) -- every
+        // caller of this for 'expense' uses it to name a business's "biggest
+        // cost" for SWOT/goal/insight advice, so a loan repayment must never
+        // outrank a real operating cost here.
+        .forEach(t => map.set(t.category, (map.get(t.category) ?? 0) + t.amount - (type === 'expense' ? (t.principalPortion || 0) : 0)));
 
     return Array.from(map.entries())
         .sort((a, b) => b[1] - a[1])

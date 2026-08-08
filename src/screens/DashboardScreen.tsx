@@ -670,7 +670,10 @@ export default function DashboardScreen() {
                             const cats: Record<string, number> = {};
                             transactions.filter(t => t.type === 'expense').forEach(t => {
                                 const c = t.category || 'Other';
-                                cats[c] = (cats[c] || 0) + (Number(t.amount) || 0);
+                                // Loan principal isn't a cuttable cost (only interest is) --
+                                // excluded so this "biggest cost" callout can't point at a
+                                // loan repayment and suggest reducing it, matching finance.profit above.
+                                cats[c] = (cats[c] || 0) + (Number(t.amount) || 0) - (t.principalPortion || 0);
                             });
                             const top = Object.entries(cats).sort((a, b) => b[1] - a[1])[0];
                             return top ? (

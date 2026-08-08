@@ -192,6 +192,17 @@ describe('getTopCategories', () => {
     it('returns empty for no matching transactions', () => {
         expect(getTopCategories([], 'expense', 3)).toHaveLength(0);
     });
+
+    it('excludes loan principal from expense totals so a loan repayment cannot outrank a real cost', () => {
+        const withLoan: Transaction[] = [
+            ...txs,
+            makeTx({ type: 'expense', category: 'Loan Repayment', amount: 50000, principalPortion: 47000 }),
+        ];
+        const r = getTopCategories(withLoan, 'expense', 5);
+        const loanRow = r.find(c => c.category === 'Loan Repayment');
+        expect(loanRow?.amount).toBe(3000); // interest-only portion
+        expect(r[0]).toEqual({ category: 'Personnel', amount: 10000 }); // still the true top cost
+    });
 });
 
 // ─── computeAgingBuckets ─────────────────────────────────────────────────────
