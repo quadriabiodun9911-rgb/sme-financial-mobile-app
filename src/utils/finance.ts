@@ -82,6 +82,8 @@ export interface EnhancedPnL {
     ebitMargin: number;
     depreciation: number;
     ebitda: number;
+    interestExpense: number;
+    profitBeforeTax: number;
     netProfit: number;
     netMargin: number;
     revenueByCategory: { category: string; amount: number }[];
@@ -113,14 +115,21 @@ export function computeEnhancedPnL(transactions: Transaction[], assets: Asset[])
 
     const cogsMap = new Map<string, number>();
     const sgaMap  = new Map<string, number>();
-    let cogs = 0, sga = 0;
+    let cogs = 0, sga = 0, interestExpense = 0;
     for (const t of expenses) {
         // Loan principal repayments aren't a P&L expense under GAAP/IFRS —
         // only the interest portion is. `principalPortion` (set on
         // loan-repayment transactions, see OptimizedContexts.addLoanPayment)
         // excludes that part from every cost figure below.
         const amt = (Number(t.amount) || 0) - (Number(t.principalPortion) || 0);
-        if (isCOGS(t.category)) {
+        if (t.category === 'Loan Repayment') {
+            // Interest is a distinct below-the-line item in a standard
+            // multi-step income statement (Operating Profit → Interest →
+            // Profit Before Tax), not part of Operating Expenses — folding
+            // it into SG&A would also silently understate EBITDA, which by
+            // definition excludes interest entirely.
+            interestExpense += amt;
+        } else if (isCOGS(t.category)) {
             cogs += amt;
             cogsMap.set(t.category, (cogsMap.get(t.category) ?? 0) + amt);
         } else {
@@ -141,20 +150,30 @@ export function computeEnhancedPnL(transactions: Transaction[], assets: Asset[])
     // already prorated correctly.
     const annualDepreciation = assets.filter(a => a.status === 'active').reduce((s, a) => s + computeAssetAnnualDepreciation(a), 0);
     const depreciation = annualDepreciation * transactionSpanYears(transactions);
-    // EBITDA excludes depreciation by definition; EBIT (and net profit) must
-    // actually deduct it, otherwise EBITDA double-counts a charge that was
-    // never subtracted in the first place.
+    // EBITDA excludes depreciation AND interest by definition (sga no
+    // longer contains interest, see above); EBIT then deducts depreciation
+    // but still excludes interest — interest is deducted separately below
+    // to reach Profit Before Tax, matching a standard multi-step income
+    // statement instead of silently netting interest into EBIT/"Operating
+    // Profit".
     const ebitda = grossProfit - sga;
     const ebit = ebitda - depreciation;
     const ebitMargin = revenue > 0 ? (ebit / revenue) * 100 : 0;
-    const netMargin = revenue > 0 ? (ebit / revenue) * 100 : 0;
+    const profitBeforeTax = ebit - interestExpense;
+    // No income tax provision is modeled (this app tracks transaction-level
+    // sales/VAT tax separately, not income tax on profit) — profitBeforeTax
+    // is the honest bottom line until that's built, not a true after-tax
+    // Net Income.
+    const netProfit = profitBeforeTax;
+    const netMargin = revenue > 0 ? (netProfit / revenue) * 100 : 0;
 
     const sort = (m: Map<string, number>) => Array.from(m.entries()).sort((a, b) => b[1] - a[1]).map(([category, amount]) => ({ category, amount }));
 
     return {
         revenue, cogs, grossProfit, grossMargin,
         sgaExpenses: sga, ebit, ebitMargin, depreciation, ebitda,
-        netProfit: ebit, netMargin,
+        interestExpense, profitBeforeTax,
+        netProfit, netMargin,
         revenueByCategory: getTopCategories(transactions, 'income', 8),
         cogsCategories: sort(cogsMap),
         sgaCategories:  sort(sgaMap),

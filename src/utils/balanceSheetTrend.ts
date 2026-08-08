@@ -29,6 +29,7 @@
  */
 
 import { Transaction, Asset, Loan } from '../types';
+import { loanMonthlyPayment } from './finance';
 
 export interface BalanceSheetTrendPoint {
     key: string;
@@ -43,7 +44,14 @@ export interface BalanceSheetTrendPoint {
     totalAssets: number; // shortTermAssets + equipmentValue + manualEquipment + otherAssets
     accountsPayable: number;
     loansOutstanding: number;
+    // IAS 1.60 / ASC 210-10-45 require separating the portion of long-term
+    // debt due within 12 months (a current liability) from the rest — see
+    // loanCurrentPortionAsOf below for how the split is estimated.
+    loansCurrentPortion: number;
+    loansNonCurrentPortion: number;
     otherLiabilities: number; // current-only, flat
+    currentLiabilities: number; // accountsPayable + loansCurrentPortion + otherLiabilities
+    nonCurrentLiabilities: number; // loansNonCurrentPortion
     totalLiabilities: number; // accountsPayable + loansOutstanding + otherLiabilities
     netWorth: number; // totalAssets - totalLiabilities
     // Actual cash on hand minus what's due to suppliers — how much spare
@@ -119,16 +127,38 @@ function equipmentValueAsOf(assets: Asset[], endDate: string): number {
     return total;
 }
 
-function loansOutstandingAsOf(loans: Loan[], endDate: string): number {
-    let total = 0;
+// Splits each loan's balance as of `endDate` into the portion its
+// amortization schedule would pay off in the following 12 months (a
+// current liability under IAS 1.60 / ASC 210-10-45) and the remainder
+// (non-current). Projected forward from the loan's own terms, not actual
+// future payments (which haven't happened yet as of endDate) — the same
+// kind of estimate loanMonthlyPayment already relies on elsewhere.
+function loanBalanceSplitAsOf(loans: Loan[], endDate: string): { total: number; current: number; nonCurrent: number } {
+    let total = 0, current = 0, nonCurrent = 0;
     for (const l of loans) {
         if (!l.startDate || l.startDate > endDate) continue; // loan not yet taken out
         const paidByThen = (l.payments ?? [])
             .filter(p => p.date && p.date <= endDate)
             .reduce((sum, p) => sum + (p.amount || 0), 0);
-        total += Math.max(0, (l.principal || 0) - paidByThen);
+        const balance = Math.max(0, (l.principal || 0) - paidByThen);
+        total += balance;
+        if (balance <= 0) continue;
+
+        const monthly = loanMonthlyPayment(l.principal, l.interestRate, l.termMonths);
+        const monthlyRate = (l.interestRate || 0) / 100 / 12;
+        let bal = balance;
+        let principalNext12 = 0;
+        for (let i = 0; i < 12 && bal > 0; i++) {
+            const interest = bal * monthlyRate;
+            const principal = Math.min(bal, Math.max(0, monthly - interest));
+            principalNext12 += principal;
+            bal -= principal;
+        }
+        const currentPortion = Math.min(balance, principalNext12);
+        current += currentPortion;
+        nonCurrent += balance - currentPortion;
     }
-    return total;
+    return { total, current, nonCurrent };
 }
 
 const EMPTY_MANUAL: ManualBalances = { stockValue: 0, manualEquipment: 0, otherAssets: 0, otherLiabilities: 0 };
@@ -139,10 +169,13 @@ function buildPoints(periods: PeriodDef[], transactions: Transaction[], assets: 
         const accountsReceivable = accountsReceivableAsOf(transactions, p.endDate);
         const accountsPayable = accountsPayableAsOf(transactions, p.endDate);
         const equipmentValue = equipmentValueAsOf(assets, p.endDate);
-        const loansOutstanding = loansOutstandingAsOf(loans, p.endDate);
+        const loanSplit = loanBalanceSplitAsOf(loans, p.endDate);
+        const loansOutstanding = loanSplit.total;
         const shortTermAssets = cashOnHand + accountsReceivable + manual.stockValue;
         const totalAssets = shortTermAssets + equipmentValue + manual.manualEquipment + manual.otherAssets;
         const totalLiabilities = accountsPayable + loansOutstanding + manual.otherLiabilities;
+        const currentLiabilities = accountsPayable + loanSplit.current + manual.otherLiabilities;
+        const nonCurrentLiabilities = loanSplit.nonCurrent;
         return {
             key: p.key,
             label: p.label,
@@ -156,7 +189,11 @@ function buildPoints(periods: PeriodDef[], transactions: Transaction[], assets: 
             totalAssets,
             accountsPayable,
             loansOutstanding,
+            loansCurrentPortion: loanSplit.current,
+            loansNonCurrentPortion: loanSplit.nonCurrent,
             otherLiabilities: manual.otherLiabilities,
+            currentLiabilities,
+            nonCurrentLiabilities,
             totalLiabilities,
             netWorth: totalAssets - totalLiabilities,
             cashBuffer: cashOnHand - accountsPayable,

@@ -58,8 +58,10 @@ const LIABILITY_ROWS: GroupRow = {
     color: () => Colors.liability,
     children: [
         { label: 'Bills Owed to Suppliers', get: p => p.accountsPayable, color: () => Colors.liability },
-        { label: 'Bank Loans & Other Debt', get: p => p.loansOutstanding, color: () => Colors.liability },
+        { label: 'Loans — Due Within 1 Year', get: p => p.loansCurrentPortion, color: () => Colors.liability, showOnlyIfNonZero: true },
         { label: 'Other Amounts Owed', get: p => p.otherLiabilities, color: () => Colors.liability, showOnlyIfNonZero: true },
+        { label: 'Current Liabilities Total', get: p => p.currentLiabilities, color: () => Colors.liability, bold: true },
+        { label: 'Loans — Due After 1 Year', get: p => p.loansNonCurrentPortion, color: () => Colors.liability, showOnlyIfNonZero: true },
     ],
 };
 
@@ -191,6 +193,7 @@ export default function BalanceSheetComparisonTable({ transactions, assets, loan
             <Text style={s.hint}>As of the end of each {grouping === 'monthly' ? 'month' : grouping === 'quarterly' ? 'quarter' : 'year'}. Tap a bold row to expand it.</Text>
             <Text style={s.hint}>Money Owed to You / Bills You Owe only count what's still unpaid today, so older columns can understate what was actually owed at the time.</Text>
             <Text style={s.hint}>Stock value and manually-entered figures have no date attached, so they show today's total repeated in every column, not a real trend.</Text>
+            <Text style={s.hint}>"Due Within 1 Year" / "Due After 1 Year" is a projection from each loan's own rate and term, not a lender-confirmed schedule.</Text>
             {hasPartial && (
                 <Text style={s.hint}>* still in progress — figures are as of today, not a full {grouping === 'monthly' ? 'month' : grouping === 'quarterly' ? 'quarter' : 'year'}.</Text>
             )}

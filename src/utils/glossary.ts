@@ -6,6 +6,7 @@
 export const GLOSSARY: Record<string, string> = {
     'Gross Margin': 'What is left from a sale after paying only the direct cost of making/getting the product or service — before rent, salaries, or other running costs.',
     'Operating Margin': 'What is left from your revenue after direct costs AND day-to-day running costs (rent, salaries, admin) — before non-cash items like depreciation.',
+    'Profit Before Tax': 'Your operating profit after subtracting loan interest — everything except income tax has now been deducted. This is the app\'s bottom line since it doesn\'t calculate income tax owed.',
     'Cash Profit': 'Your operating profit with one non-cash cost (equipment losing value over time) added back — closer to actual cash generated than the accounting profit figure.',
     'Net Profit': 'What is truly left over after every cost is paid — the final, bottom-line number.',
     'DSCR': 'A simple test: can your monthly profit cover your loan repayments? Above 1x means yes; the higher above 1x, the safer.',
