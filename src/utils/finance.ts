@@ -742,6 +742,29 @@ export function loanMonthlyPayment(principal: number, annualRate: number, termMo
     return principal * (r * factor) / (factor - 1);
 }
 
+// Splits a given outstanding balance into the portion the loan's own
+// amortization schedule would pay off in the next 12 months (a current
+// liability under IAS 1.60 / ASC 210-10-45) and the remainder
+// (non-current). Projected from the loan's terms, not actual future
+// payments (which haven't happened yet) — shared by balanceSheetTrend.ts
+// (per historical period) and generateBalanceSheetCSV below (today only)
+// so the two never derive the split differently.
+export function computeLoanAmortizationSplit(loan: Loan, outstandingBalance: number): { current: number; nonCurrent: number } {
+    if (outstandingBalance <= 0) return { current: 0, nonCurrent: 0 };
+    const monthly = loanMonthlyPayment(loan.principal, loan.interestRate, loan.termMonths);
+    const monthlyRate = (loan.interestRate || 0) / 100 / 12;
+    let balance = outstandingBalance;
+    let principalNext12 = 0;
+    for (let i = 0; i < 12 && balance > 0; i++) {
+        const interest = balance * monthlyRate;
+        const principal = Math.min(balance, Math.max(0, monthly - interest));
+        principalNext12 += principal;
+        balance -= principal;
+    }
+    const current = Math.min(outstandingBalance, principalNext12);
+    return { current, nonCurrent: outstandingBalance - current };
+}
+
 /**
  * DSCR used to divide *all-time cumulative* income/expense by one year of
  * debt service — for a business with two or three years of history, that
@@ -1411,13 +1434,32 @@ export function generateBalanceSheetCSV(finance: FinanceData, assets: Asset[], l
     }
     rows.push(`Total Assets,${finance.assets.toFixed(2)}`);
     rows.push('');
-    rows.push('LIABILITIES');
+    // Current/Non-current split (IAS 1.60 / ASC 210-10-45): the portion of
+    // each loan due within 12 months is a current liability, the rest
+    // non-current — a classified balance sheet must show both.
+    rows.push('CURRENT LIABILITIES');
     rows.push('Item,Amount');
     const activeLoans = loans.filter(l => l.status === 'active');
-    for (const l of activeLoans) {
+    let loansCurrentTotal = 0, loansNonCurrentTotal = 0;
+    const loanSplits = activeLoans.map(l => {
         const balance = Math.max(0, l.principal - (l.payments ?? []).reduce((s, p) => s + p.amount, 0));
-        rows.push(`Loan - ${l.lenderName},${balance.toFixed(2)}`);
+        const split = computeLoanAmortizationSplit(l, balance);
+        loansCurrentTotal += split.current;
+        loansNonCurrentTotal += split.nonCurrent;
+        return { loan: l, ...split };
+    });
+    for (const { loan, current } of loanSplits) {
+        if (current > 0) rows.push(`Loan - ${loan.lenderName} (due within 1 year),${current.toFixed(2)}`);
     }
+    rows.push(`Total Current Liabilities,${loansCurrentTotal.toFixed(2)}`);
+    rows.push('');
+    rows.push('NON-CURRENT LIABILITIES');
+    rows.push('Item,Amount');
+    for (const { loan, nonCurrent } of loanSplits) {
+        if (nonCurrent > 0) rows.push(`Loan - ${loan.lenderName} (due after 1 year),${nonCurrent.toFixed(2)}`);
+    }
+    rows.push(`Total Non-Current Liabilities,${loansNonCurrentTotal.toFixed(2)}`);
+    rows.push('');
     rows.push(`Total Liabilities,${finance.liabilities.toFixed(2)}`);
     rows.push('');
     rows.push('EQUITY');
@@ -1429,13 +1471,28 @@ export function generateBalanceSheetCSV(finance: FinanceData, assets: Asset[], l
 export function generateAccountantReportCSV(finance: FinanceData, transactions: Transaction[], assets: Asset[], loans: Loan[]): string {
     const sections: string[] = [];
 
-    // P&L
+    // P&L — full multi-step statement (Revenue -> COGS -> Gross Profit ->
+    // Operating Expenses -> Operating Profit -> Interest -> Profit Before
+    // Tax), not just the flat total-expense/net-profit summary this used to
+    // export, which hid the same interest-folded-into-expenses issue fixed
+    // elsewhere in the app.
+    const pnl = computeEnhancedPnL(transactions, assets);
     sections.push('=== PROFIT & LOSS STATEMENT ===');
     sections.push('Item,Amount');
-    sections.push(`Total Revenue,${finance.income.toFixed(2)}`);
-    sections.push(`Total Expenses,${finance.expense.toFixed(2)}`);
-    sections.push(`Net Profit,${finance.profit.toFixed(2)}`);
-    sections.push(`Profit Margin,${finance.margin.toFixed(2)}%`);
+    sections.push(`Total Revenue,${pnl.revenue.toFixed(2)}`);
+    sections.push(`Cost of Goods Sold,${pnl.cogs.toFixed(2)}`);
+    sections.push(`Gross Profit,${pnl.grossProfit.toFixed(2)}`);
+    sections.push(`Gross Margin,${pnl.grossMargin.toFixed(2)}%`);
+    sections.push(`Operating Expenses,${pnl.sgaExpenses.toFixed(2)}`);
+    sections.push(`Operating Profit (EBIT),${pnl.ebit.toFixed(2)}`);
+    sections.push(`Operating Margin,${pnl.ebitMargin.toFixed(2)}%`);
+    sections.push(`Interest Expense,${pnl.interestExpense.toFixed(2)}`);
+    sections.push(`Profit Before Tax,${pnl.profitBeforeTax.toFixed(2)}`);
+    sections.push(`Depreciation & Amortization,${pnl.depreciation.toFixed(2)}`);
+    sections.push(`EBITDA,${pnl.ebitda.toFixed(2)}`);
+    sections.push(`Net Profit,${pnl.netProfit.toFixed(2)}`);
+    sections.push(`Net Margin,${pnl.netMargin.toFixed(2)}%`);
+    sections.push('No income tax provision included — this app tracks transaction-level sales/VAT tax, not income tax on profit.');
     sections.push('');
 
     // Balance Sheet

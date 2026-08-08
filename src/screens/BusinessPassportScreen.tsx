@@ -146,7 +146,7 @@ export default function BusinessPassportScreen() {
                         <Stat label="Net Profit" value={fmtCompact(currency, passport.financialIdentity.netProfit)} color={passport.financialIdentity.netProfit >= 0 ? Colors.income : Colors.expense} />
                         <Stat label="Cash" value={fmtCompact(currency, passport.financialIdentity.cash)} />
                         <Stat label="Receivables" value={fmtCompact(currency, passport.financialIdentity.receivables)} />
-                        <Stat label="Debt" value={fmtCompact(currency, passport.financialIdentity.debt)} />
+                        <Stat label="Debt" value={fmtCompact(currency, passport.financialIdentity.debt)} sub={passport.financialIdentity.debtCurrentPortion > 0 ? `${fmtCompact(currency, passport.financialIdentity.debtCurrentPortion)} due within 1yr` : undefined} />
                     </View>
                     <Row label="Revenue predictability" value={passport.financialIdentity.revenueVolatility} />
                 </Section>

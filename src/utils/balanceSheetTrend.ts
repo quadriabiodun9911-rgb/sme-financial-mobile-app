@@ -29,7 +29,7 @@
  */
 
 import { Transaction, Asset, Loan } from '../types';
-import { loanMonthlyPayment } from './finance';
+import { computeLoanAmortizationSplit } from './finance';
 
 export interface BalanceSheetTrendPoint {
     key: string;
@@ -142,21 +142,9 @@ function loanBalanceSplitAsOf(loans: Loan[], endDate: string): { total: number; 
             .reduce((sum, p) => sum + (p.amount || 0), 0);
         const balance = Math.max(0, (l.principal || 0) - paidByThen);
         total += balance;
-        if (balance <= 0) continue;
-
-        const monthly = loanMonthlyPayment(l.principal, l.interestRate, l.termMonths);
-        const monthlyRate = (l.interestRate || 0) / 100 / 12;
-        let bal = balance;
-        let principalNext12 = 0;
-        for (let i = 0; i < 12 && bal > 0; i++) {
-            const interest = bal * monthlyRate;
-            const principal = Math.min(bal, Math.max(0, monthly - interest));
-            principalNext12 += principal;
-            bal -= principal;
-        }
-        const currentPortion = Math.min(balance, principalNext12);
-        current += currentPortion;
-        nonCurrent += balance - currentPortion;
+        const split = computeLoanAmortizationSplit(l, balance);
+        current += split.current;
+        nonCurrent += split.nonCurrent;
     }
     return { total, current, nonCurrent };
 }

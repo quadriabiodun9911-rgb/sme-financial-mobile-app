@@ -593,7 +593,7 @@ export default function CreditWorthinessScreen() {
                         <FpProfileStat label="Net Profit" value={fmtCompact(currency, pack.profile.netProfit)} color={pack.profile.netProfit >= 0 ? Colors.income : Colors.expense} />
                         <FpProfileStat label="Cash" value={fmtCompact(currency, pack.profile.cash)} />
                         <FpProfileStat label="Receivables" value={fmtCompact(currency, pack.profile.receivables)} />
-                        <FpProfileStat label="Debt" value={fmtCompact(currency, pack.profile.debt)} />
+                        <FpProfileStat label="Debt" value={fmtCompact(currency, pack.profile.debt)} sub={pack.profile.debtCurrentPortion > 0 ? `${fmtCompact(currency, pack.profile.debtCurrentPortion)} due within 1yr` : undefined} />
                     </View>
                 </View>
 

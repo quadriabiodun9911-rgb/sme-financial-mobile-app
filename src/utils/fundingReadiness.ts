@@ -8,7 +8,7 @@
  */
 
 import { Transaction, Invoice, Loan, InventoryItem, Asset, FinanceData, BusinessSettings } from '../types';
-import { computeRiskScore, RiskFactor, RiskScore, computeEnhancedPnL, computeWorkingCapitalMetrics } from './finance';
+import { computeRiskScore, RiskFactor, RiskScore, computeEnhancedPnL, computeWorkingCapitalMetrics, computeLoanAmortizationSplit } from './finance';
 import { computeAllTimeMonthlyBuckets, MonthlyTrendPoint } from './trendAnalysis';
 import { computeDataQuality } from './dataQuality';
 import { computeTaxFilingReadiness } from './taxFilingReadiness';
@@ -21,6 +21,10 @@ export interface FundingReadinessProfile {
     cash: number;
     receivables: number;
     debt: number;
+    // Split per IAS 1.60 / ASC 210-10-45 -- a lender's own assessment cares
+    // about debt maturity structure, not just the total outstanding.
+    debtCurrentPortion: number;
+    debtNonCurrentPortion: number;
 }
 
 export interface DocumentReadiness {
@@ -74,9 +78,14 @@ export function buildFundingReadinessPack(
     const pnl = computeEnhancedPnL(ttmTransactions, assets);
     const wc = computeWorkingCapitalMetrics(transactions);
 
-    const activeDebt = loans
-        .filter(l => l.status === 'active')
-        .reduce((sum, l) => sum + Math.max(0, l.principal - (l.payments ?? []).reduce((s, p) => s + (p.amount || 0), 0)), 0);
+    let activeDebt = 0, debtCurrentPortion = 0, debtNonCurrentPortion = 0;
+    for (const l of loans.filter(l => l.status === 'active')) {
+        const balance = Math.max(0, l.principal - (l.payments ?? []).reduce((s, p) => s + (p.amount || 0), 0));
+        activeDebt += balance;
+        const split = computeLoanAmortizationSplit(l, balance);
+        debtCurrentPortion += split.current;
+        debtNonCurrentPortion += split.nonCurrent;
+    }
 
     const risk = computeRiskScore(
         { income: pnl.revenue, profit: pnl.netProfit, cashBalance: finance.cashBalance },
@@ -146,6 +155,8 @@ export function buildFundingReadinessPack(
             cash: finance.cashBalance,
             receivables: wc.accountsReceivable,
             debt: activeDebt,
+            debtCurrentPortion,
+            debtNonCurrentPortion,
         },
         trend,
         riskProfile: risk.factors,

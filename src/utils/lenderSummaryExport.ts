@@ -118,6 +118,8 @@ export function buildBusinessPassportExport(passport: BusinessPassport, currency
                     { label: 'Cash', value: fmt(passport.financialIdentity.cash) },
                     { label: 'Receivables', value: fmt(passport.financialIdentity.receivables) },
                     { label: 'Debt', value: fmt(passport.financialIdentity.debt) },
+                    { label: '  — due within 1 year', value: fmt(passport.financialIdentity.debtCurrentPortion) },
+                    { label: '  — due after 1 year', value: fmt(passport.financialIdentity.debtNonCurrentPortion) },
                     { label: 'Revenue predictability', value: passport.financialIdentity.revenueVolatility },
                 ],
             },
@@ -205,6 +207,8 @@ export function buildFundingReadinessPackExport(pack: FundingReadinessPack, curr
                     { label: 'Cash', value: fmt(pack.profile.cash) },
                     { label: 'Receivables', value: fmt(pack.profile.receivables) },
                     { label: 'Debt (active loans, outstanding principal)', value: fmt(pack.profile.debt) },
+                    { label: '  — due within 1 year', value: fmt(pack.profile.debtCurrentPortion) },
+                    { label: '  — due after 1 year', value: fmt(pack.profile.debtNonCurrentPortion) },
                 ],
             },
             {

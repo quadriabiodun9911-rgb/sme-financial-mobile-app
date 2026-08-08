@@ -70,6 +70,21 @@ describe('buildFundingReadinessPack', () => {
         expect(pack.profile.debt).toBe(400000); // 500000 - 100000 paid; paid_off loan excluded
     });
 
+    it('splits active debt into current (due within 1yr) and non-current portions', () => {
+        // A 24-month loan, half paid off already -- roughly half the
+        // remaining balance amortizes in the next 12 months.
+        const loans: Loan[] = [
+            {
+                id: 'l1', lenderName: 'Bank', purpose: 'wc', principal: 1200000, interestRate: 12, termMonths: 24,
+                startDate: daysAgo(30), status: 'active', payments: [], createdAt: daysAgo(30),
+            },
+        ];
+        const pack = buildFundingReadinessPack([], [], loans, [], [], finance, settings, 'Test Co');
+        expect(pack.profile.debtCurrentPortion).toBeGreaterThan(0);
+        expect(pack.profile.debtNonCurrentPortion).toBeGreaterThan(0);
+        expect(pack.profile.debtCurrentPortion + pack.profile.debtNonCurrentPortion).toBeCloseTo(pack.profile.debt, 6);
+    });
+
     it('produces a 7-factor risk profile matching computeRiskScore', () => {
         const pack = buildFundingReadinessPack([], [], [], [], [], finance, settings, 'Test Co');
         expect(pack.riskProfile.length).toBe(7);
