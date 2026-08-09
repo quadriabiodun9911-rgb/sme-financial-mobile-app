@@ -10,6 +10,7 @@ import { showAlert } from '../utils/webAlert';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { LoanPurpose } from '../types';
+import { computeDSCR } from '../utils/finance';
 
 // Shared between the purpose picker grid and the review step so the label
 // shown for a selection never disagrees with what's actually submitted.
@@ -26,18 +27,28 @@ const PURPOSE_OPTIONS: { id: LoanPurpose; label: string; icon: IconName }[] = [
 // ── MAIN SECTION COMPONENT ────────────────────────────────────────────────────
 
 export default function MerchantFinancingSection() {
-    const { user, financing, applyForMerchantFinancing, settings, navigate } = useApp();
+    const { user, financing, applyForMerchantFinancing, settings, navigate, transactions, loans } = useApp();
     const { currency } = settings;
 
     const [showApplyModal, setShowApplyModal] = useState(false);
     const [expandedId, setExpandedId] = useState<string | null>(null);
 
+    // Same DSCR the Financing Marketplace already gates every third-party
+    // product on -- a business whose current income doesn't cover its
+    // existing debt shouldn't be pre-qualified for Quad360's own financing
+    // either. Without this, the two tabs on this same screen could (and
+    // did) contradict each other: the Marketplace correctly refusing every
+    // product for an over-leveraged business, while this tab still showed
+    // "PRE-QUALIFIED -- Start Application".
+    const dscr = useMemo(() => computeDSCR(transactions, loans), [transactions, loans]);
+
     // Check qualification
     const isQualified = useMemo(() => {
         return (user?.daysActive || 0) >= 90
             && (user?.avgMonthlyRevenue || 0) >= 200000
-            && (user?.financialHealthScore || 0) >= 50;
-    }, [user?.daysActive, user?.avgMonthlyRevenue, user?.financialHealthScore]);
+            && (user?.financialHealthScore || 0) >= 50
+            && dscr.dscr >= 1;
+    }, [user?.daysActive, user?.avgMonthlyRevenue, user?.financialHealthScore, dscr.dscr]);
 
     const hasApplied = financing?.applicationStatus !== null;
     const isApproved = financing?.applicationStatus === 'approved' || financing?.applicationStatus === 'funded';
@@ -113,6 +124,7 @@ export default function MerchantFinancingSection() {
                     daysActive={user?.daysActive || 0}
                     monthlyRevenue={user?.avgMonthlyRevenue || 0}
                     healthScore={user?.financialHealthScore || 0}
+                    dscr={dscr.dscr}
                     currency={currency}
                 />
             ) : null}
@@ -444,10 +456,11 @@ function PastApplicationCard({ application, currency, onReapply }: {
  * NOT QUALIFIED STATE
  * Shows what SME needs to reach qualification
  */
-function NotQualifiedState({ daysActive, monthlyRevenue, healthScore, currency }: {
+function NotQualifiedState({ daysActive, monthlyRevenue, healthScore, dscr, currency }: {
     daysActive: number;
     monthlyRevenue: number;
     healthScore: number;
+    dscr: number;
     currency: string;
 }) {
     const daysRemaining = Math.max(0, 90 - daysActive);
@@ -487,6 +500,19 @@ function NotQualifiedState({ daysActive, monthlyRevenue, healthScore, currency }
             type: 'score',
             hint: healthScore >= 50 ? 'Complete ✅' : `${50 - healthScore} points needed`,
             progress: Math.min(100, (healthScore / 50) * 100),
+        },
+        {
+            met: dscr >= 1,
+            label: 'Debt Coverage',
+            // Stored x100 so the shared percent-bar math (current/needed) still
+            // works unmodified; 'ratio' render divides back down to an "x" figure.
+            current: Math.round(Math.min(dscr, 1) * 100),
+            needed: 100,
+            type: 'ratio',
+            hint: dscr >= 1
+                ? 'Complete ✅'
+                : `Current income doesn't fully cover existing debt payments (${dscr.toFixed(2)}x — needs 1.00x)`,
+            progress: Math.min(100, dscr * 100),
         },
     ];
 
@@ -528,6 +554,7 @@ function NotQualifiedState({ daysActive, monthlyRevenue, healthScore, currency }
                                 {req.type === 'days' && `${req.current}/${req.needed} days`}
                                 {req.type === 'currency' && `${currency}${req.current.toLocaleString()}/${req.needed.toLocaleString()}`}
                                 {req.type === 'score' && `${req.current}/${req.needed}`}
+                                {req.type === 'ratio' && (dscr >= 900 ? 'No existing debt' : `${(req.current / 100).toFixed(2)}x / ${(req.needed / 100).toFixed(2)}x`)}
                             </Text>
                         </View>
                         <View style={s.requirementBar}>
@@ -550,6 +577,9 @@ function NotQualifiedState({ daysActive, monthlyRevenue, healthScore, currency }
                     )}
                     {healthScore < 50 && (
                         <Text style={s.infoText}>• Maintain healthy cash flow and settle due payments on time</Text>
+                    )}
+                    {dscr < 1 && (
+                        <Text style={s.infoText}>• Pay down existing debt or grow operating profit before taking on more</Text>
                     )}
                 </View>
             </View>
