@@ -36,6 +36,7 @@ import BusinessPassportScreen from './src/screens/BusinessPassportScreen';
 import MacroAssumptionsScreen from './src/screens/MacroAssumptionsScreen';
 import FinancialAssessmentScreen from './src/screens/FinancialAssessmentScreen';
 import ActionTrackerScreen from './src/screens/ActionTrackerScreen';
+import FinancingMarketplaceScreen from './src/screens/FinancingMarketplaceScreen';
 import OnboardingChoiceScreen from './src/screens/OnboardingChoiceScreen';
 import RestrictedAccessScreen from './src/screens/RestrictedAccessScreen';
 import { isScreenAllowedForRole } from './src/utils/rolePermissions';
@@ -126,6 +127,7 @@ function NavigatorContent() {
             {currentScreen === 'macro-assumptions' && <MacroAssumptionsScreen />}
             {currentScreen === 'financial-assessment' && <FinancialAssessmentScreen />}
             {currentScreen === 'action-tracker' && <ActionTrackerScreen />}
+            {currentScreen === 'financing-marketplace' && <FinancingMarketplaceScreen />}
             {currentScreen === 'onboarding-choice' && <OnboardingChoiceScreen />}
         </View>
     );

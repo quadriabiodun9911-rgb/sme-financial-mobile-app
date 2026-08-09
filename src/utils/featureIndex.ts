@@ -146,6 +146,12 @@ export const FEATURE_INDEX: FeatureEntry[] = [
         screen: 'credit-worthiness',
     },
     {
+        id: 'financing-marketplace', label: 'Financing Marketplace', icon: '🤝',
+        description: 'Sample financing products matched against your business — fit score, why, and what to improve for each',
+        keywords: ['financing', 'lenders', 'loan marketplace', 'asset financing', 'working capital', 'invoice financing', 'trade finance', 'fit score'],
+        screen: 'financing-marketplace',
+    },
+    {
         id: 'financial-health', label: 'Financial Health (Mobile Money)', icon: '📱',
         description: 'Pulls income and account signals from mobile money data via phone number — requires the backend integration to be deployed',
         keywords: ['mobile money', 'pngme', 'phone', 'income verification'],

@@ -1,0 +1,161 @@
+/**
+ * Sample financing product listings — the "lenders list their requirements"
+ * half of the marketplace idea, before Quad360 has any real lender
+ * integrations. Named generically by lender type + product, not by any real
+ * bank/fintech/DFI, and amount/rate ranges are round, clearly illustrative
+ * figures — never present these as live, currently-applyable offers. This
+ * mirrors the same discipline lendingCapacity.ts already follows ("wide,
+ * clearly-labeled ranges rather than fabricated bank-specific figures").
+ *
+ * Once Quad360 has real lender partners, this becomes the seed for an actual
+ * listings table (lender-managed, not hardcoded) — the matching engine in
+ * financingFit.ts doesn't care where the list comes from.
+ */
+
+import { FinancingProduct } from '../types';
+
+export const SAMPLE_FINANCING_PRODUCTS: FinancingProduct[] = [
+    {
+        id: 'sample-asset-1',
+        lenderName: 'Sample Commercial Bank',
+        lenderType: 'bank',
+        productType: 'asset_financing',
+        productName: 'Equipment & Machinery Financing',
+        description: 'Financing to purchase production equipment, vehicles, or machinery, secured against the asset itself.',
+        minAmount: 5_000_000,
+        maxAmount: 150_000_000,
+        minTermMonths: 12,
+        maxTermMonths: 60,
+        interestRateMinPct: 12,
+        interestRateMaxPct: 20,
+        eligibility: {
+            minMonthlyRevenue: 3_000_000,
+            minBusinessAgeMonths: 24,
+            minDSCR: 1.3,
+            eligibleIndustries: ['manufacturing', 'retail', 'food-service'],
+            minEquityContributionPct: 20,
+            minTransactionHistoryMonths: 6,
+        },
+    },
+    {
+        id: 'sample-workingcapital-1',
+        lenderName: 'Sample Fintech Lender',
+        lenderType: 'fintech',
+        productType: 'working_capital',
+        productName: 'Revenue-Based Working Capital',
+        description: 'Short-term capital for inventory, payroll or day-to-day operating costs, repaid as a percentage of daily revenue.',
+        minAmount: 500_000,
+        maxAmount: 20_000_000,
+        minTermMonths: 3,
+        maxTermMonths: 18,
+        interestRateMinPct: 18,
+        interestRateMaxPct: 32,
+        eligibility: {
+            minMonthlyRevenue: 800_000,
+            minBusinessAgeMonths: 6,
+            minDSCR: 1.1,
+            minTransactionHistoryMonths: 3,
+        },
+    },
+    {
+        id: 'sample-invoice-1',
+        lenderName: 'Sample Trade Finance Fintech',
+        lenderType: 'fintech',
+        productType: 'invoice_financing',
+        productName: 'Invoice / Receivables Financing',
+        description: 'An advance against verified unpaid customer invoices — repaid when the customer pays.',
+        minAmount: 300_000,
+        maxAmount: 50_000_000,
+        minTermMonths: 1,
+        maxTermMonths: 6,
+        interestRateMinPct: 15,
+        interestRateMaxPct: 24,
+        eligibility: {
+            minMonthlyRevenue: 500_000,
+            minBusinessAgeMonths: 3,
+            minTransactionHistoryMonths: 3,
+        },
+    },
+    {
+        id: 'sample-trade-1',
+        lenderName: 'Sample Development Finance Institution',
+        lenderType: 'dfi',
+        productType: 'trade_finance',
+        productName: 'Import/Export Trade Finance',
+        description: 'Financing to bridge the gap between paying a supplier and receiving payment from a buyer, for cross-border trade.',
+        minAmount: 10_000_000,
+        maxAmount: 300_000_000,
+        minTermMonths: 3,
+        maxTermMonths: 12,
+        interestRateMinPct: 9,
+        interestRateMaxPct: 16,
+        eligibility: {
+            minMonthlyRevenue: 5_000_000,
+            minBusinessAgeMonths: 36,
+            minDSCR: 1.4,
+            eligibleIndustries: ['manufacturing', 'retail'],
+            maxDebtToRevenueRatio: 0.6,
+            minTransactionHistoryMonths: 12,
+        },
+    },
+    {
+        id: 'sample-termloan-1',
+        lenderName: 'Sample Commercial Bank',
+        lenderType: 'bank',
+        productType: 'term_loan',
+        productName: 'General Business Term Loan',
+        description: 'A lump-sum loan for general business expansion, repaid in fixed monthly installments.',
+        minAmount: 2_000_000,
+        maxAmount: 80_000_000,
+        minTermMonths: 6,
+        maxTermMonths: 48,
+        interestRateMinPct: 14,
+        interestRateMaxPct: 22,
+        eligibility: {
+            minMonthlyRevenue: 2_000_000,
+            minBusinessAgeMonths: 18,
+            minDSCR: 1.25,
+            maxDebtToRevenueRatio: 0.7,
+            minTransactionHistoryMonths: 6,
+        },
+    },
+    {
+        id: 'sample-microfinance-1',
+        lenderName: 'Sample Microfinance Bank',
+        lenderType: 'microfinance',
+        productType: 'working_capital',
+        productName: 'Emerging Business Working Capital',
+        description: 'Smaller working-capital loans aimed at younger businesses still building a credit track record.',
+        minAmount: 100_000,
+        maxAmount: 3_000_000,
+        minTermMonths: 3,
+        maxTermMonths: 12,
+        interestRateMinPct: 20,
+        interestRateMaxPct: 36,
+        eligibility: {
+            minMonthlyRevenue: 150_000,
+            minBusinessAgeMonths: 1,
+            minTransactionHistoryMonths: 1,
+        },
+    },
+    {
+        id: 'sample-overdraft-1',
+        lenderName: 'Sample Commercial Bank',
+        lenderType: 'bank',
+        productType: 'overdraft',
+        productName: 'Business Overdraft Facility',
+        description: 'A revolving credit line against your business account for short-term cash-flow gaps.',
+        minAmount: 500_000,
+        maxAmount: 25_000_000,
+        minTermMonths: 12,
+        maxTermMonths: 12,
+        interestRateMinPct: 16,
+        interestRateMaxPct: 26,
+        eligibility: {
+            minMonthlyRevenue: 1_000_000,
+            minBusinessAgeMonths: 12,
+            minDSCR: 1.2,
+            minTransactionHistoryMonths: 6,
+        },
+    },
+];

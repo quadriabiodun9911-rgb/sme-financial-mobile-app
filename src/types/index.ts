@@ -28,7 +28,8 @@ export type Screen =
     | 'financial-assessment'
     | 'financial-health'
     | 'business-passport'
-    | 'macro-assumptions';
+    | 'macro-assumptions'
+    | 'financing-marketplace';
 
 export interface Budget {
     id: string;
@@ -381,6 +382,53 @@ export interface Loan {
     status: LoanStatus;
     payments: LoanPayment[];
     createdAt: string;
+}
+
+// ─── Financing Marketplace ──────────────────────────────────────────────────
+// The lender-facing half of the financing-matching idea: a lender "lists"
+// what it's willing to finance (amount/term/rate range + eligibility
+// criteria) and Quad360 scores each business against it using the same
+// figures already computed for Credit-Worthiness/Funding Readiness — never a
+// second, independently-tuned assessment. Quad360 has no live lender
+// integrations yet, so every FinancingProduct in this app is a labeled
+// illustrative sample (see financingProducts.ts) demonstrating the matching
+// engine, not a real, currently-applyable offer — the same "wide, clearly-
+// labeled ranges rather than fabricated bank-specific figures" discipline
+// lendingCapacity.ts already follows.
+export type FinancingProductType =
+    | 'asset_financing'
+    | 'working_capital'
+    | 'invoice_financing'
+    | 'trade_finance'
+    | 'term_loan'
+    | 'overdraft';
+
+export type LenderType = 'bank' | 'fintech' | 'dfi' | 'microfinance';
+
+export interface FinancingEligibility {
+    minMonthlyRevenue?: number;
+    minBusinessAgeMonths?: number;
+    minDSCR?: number;
+    eligibleIndustries?: Industry[]; // undefined/empty = open to all industries
+    minEquityContributionPct?: number; // asset financing: the business's own contribution toward the asset price -- Quad360 doesn't track this, always surfaces as "unknown" rather than assumed pass/fail
+    maxDebtToRevenueRatio?: number; // existing debt ÷ trailing annual revenue, a simple leverage cap
+    minTransactionHistoryMonths?: number;
+}
+
+export interface FinancingProduct {
+    id: string;
+    lenderName: string;
+    lenderType: LenderType;
+    productType: FinancingProductType;
+    productName: string;
+    description: string;
+    minAmount: number;
+    maxAmount: number;
+    minTermMonths: number;
+    maxTermMonths: number;
+    interestRateMinPct: number; // annual %
+    interestRateMaxPct: number;
+    eligibility: FinancingEligibility;
 }
 
 export interface CashPocket {

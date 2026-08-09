@@ -642,6 +642,7 @@ export default function CreditWorthinessScreen() {
                         pre-approval, and not a promise of funding.
                     </Text>
                     <NextStepLink text="See what's holding your score back" onPress={() => navigate('financial-assessment')} />
+                    <NextStepLink text="See which financing products fit your business →" onPress={() => navigate('financing-marketplace')} />
                 </View>
 
                 {/* Supporting documents */}

@@ -27,6 +27,7 @@ const FINANCE_ITEMS: { label: string; icon: IconName; screen: Screen; color: str
     { label: 'Assets',      icon: 'briefcase',    screen: 'assets',            color: '#3b82f6' },
     { label: 'Loans',       icon: 'percent',      screen: 'loans',             color: '#f97316' },
     { label: 'Credit',      icon: 'credit-card',  screen: 'credit-worthiness', color: '#eab308' },
+    { label: 'Financing',   icon: 'search',       screen: 'financing-marketplace', color: '#14b8a6' },
 ];
 
 const OPERATIONS_ITEMS: { label: string; icon: IconName; screen: Screen; color: string; desc: string }[] = [
