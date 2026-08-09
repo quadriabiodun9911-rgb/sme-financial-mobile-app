@@ -29,6 +29,7 @@ import {
   loadCashPockets, saveCashPockets,
   loadCapitalCommitments, saveCapitalCommitments,
   clearLocalFinancialCache,
+  syncFinancingToSupabase,
   saveProfile, loadProfile, savePin, loadPin,
   clearAllData, exportAllData, importAllData,
   inviteTeamMember, removeTeamMember, loadTeamMembers, joinTeamWithCode,
@@ -208,8 +209,15 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { if (hydrated && !isDemoMode) saveCashPockets(cashPockets).catch(() => {}); }, [cashPockets, hydrated, isDemoMode]);
   useEffect(() => { if (hydrated && !isDemoMode) saveCapitalCommitments(capitalCommitments).catch(() => {}); }, [capitalCommitments, hydrated, isDemoMode]);
   useEffect(() => {
-    if (hydrated && !isDemoMode) AsyncStorage.setItem('@quad360/financing', JSON.stringify(financing)).catch(() => {});
-  }, [financing, hydrated, isDemoMode]);
+    if (hydrated && !isDemoMode) {
+      AsyncStorage.setItem('@quad360/financing', JSON.stringify(financing)).catch(() => {});
+      // Restores a Supabase write that existed in the pre-split AppContext.tsx
+      // (syncFinancingToSupabase) but was dropped when this provider replaced
+      // it -- until now, a merchant financing application only ever reached
+      // AsyncStorage on the applicant's own device, never Quad360 itself.
+      if (syncUserId) syncFinancingToSupabase(financing, syncUserId).catch(() => {});
+    }
+  }, [financing, hydrated, isDemoMode, syncUserId]);
 
   // Computed finance - memoized with specific dependency
   const finance = useMemo(() => {

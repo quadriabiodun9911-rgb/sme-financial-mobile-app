@@ -467,7 +467,15 @@ export interface CapitalCommitment {
 
 // ─── Merchant Financing ────────────────────────────────────────────────────────
 export type MerchantFinancingStatus = 'pending' | 'approved' | 'rejected' | 'funded' | 'repaying' | 'paid_off';
-export type LoanPurpose = 'inventory' | 'equipment' | 'both' | 'other';
+export type LoanPurpose =
+    | 'inventory'
+    | 'equipment'
+    | 'both'
+    | 'supplier_payment'
+    | 'invoice_financing'
+    | 'expansion'
+    | 'emergency_working_capital'
+    | 'other';
 
 export interface MerchantFinancingPayment {
     id: string;

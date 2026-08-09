@@ -9,6 +9,19 @@ import DateInput from '../components/DateInput';
 import { showAlert } from '../utils/webAlert';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
+import { LoanPurpose } from '../types';
+
+// Shared between the purpose picker grid and the review step so the label
+// shown for a selection never disagrees with what's actually submitted.
+const PURPOSE_OPTIONS: { id: LoanPurpose; label: string; icon: IconName }[] = [
+    { id: 'inventory', label: 'Inventory Purchase', icon: 'package' },
+    { id: 'equipment', label: 'Equipment', icon: 'tool' },
+    { id: 'supplier_payment', label: 'Supplier Payment', icon: 'truck' },
+    { id: 'invoice_financing', label: 'Invoice Financing', icon: 'file-text' },
+    { id: 'expansion', label: 'Expansion', icon: 'trending-up' },
+    { id: 'emergency_working_capital', label: 'Emergency Working Capital', icon: 'alert-circle' },
+    { id: 'other', label: 'Other', icon: 'help-circle' },
+];
 
 // ── MAIN SECTION COMPONENT ────────────────────────────────────────────────────
 
@@ -655,10 +668,10 @@ function ApplyForFinancingModal({ visible, maxLoan, minLoan, monthlyProfit, curr
     monthlyProfit: number;
     currency: string;
     onClose: () => void;
-    onSubmit: (amount: number, purpose: string) => void;
+    onSubmit: (amount: number, purpose: LoanPurpose) => void;
 }) {
     const [amount, setAmount] = useState(minLoan);
-    const [purpose, setPurpose] = useState('inventory');
+    const [purpose, setPurpose] = useState<LoanPurpose>('inventory');
     const [step, setStep] = useState<'amount' | 'purpose' | 'review'>('amount');
 
     const estimatedMonthlyPayment = calculateMonthlyPayment(amount, 18, 60); // 18% APR, 60 months
@@ -783,12 +796,7 @@ function ApplyForFinancingModal({ visible, maxLoan, minLoan, monthlyProfit, curr
                                 </Text>
 
                                 <View style={s.purposeGrid}>
-                                    {[
-                                        { id: 'inventory', label: 'Inventory Purchase', icon: 'package' as IconName },
-                                        { id: 'equipment', label: 'Equipment', icon: 'tool' as IconName },
-                                        { id: 'both', label: 'Both', icon: 'layers' as IconName },
-                                        { id: 'other', label: 'Other', icon: 'help-circle' as IconName },
-                                    ].map((opt) => (
+                                    {PURPOSE_OPTIONS.map((opt) => (
                                         <TouchableOpacity
                                             key={opt.id}
                                             style={[
@@ -831,7 +839,7 @@ function ApplyForFinancingModal({ visible, maxLoan, minLoan, monthlyProfit, curr
                                     />
                                     <ReviewItem
                                         label="Purpose"
-                                        value={purpose === 'both' ? 'Inventory & Equipment' : purpose.charAt(0).toUpperCase() + purpose.slice(1)}
+                                        value={purpose === 'both' ? 'Inventory & Equipment' : PURPOSE_OPTIONS.find(o => o.id === purpose)?.label ?? purpose}
                                     />
                                     <ReviewItem
                                         label="Estimated Rate"
