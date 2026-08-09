@@ -21,7 +21,6 @@ import FooterNav from '../components/FooterNav';
 import { Loan, LoanStatus } from '../types';
 import DateInput from '../components/DateInput';
 import MerchantFinancingSection from './MerchantFinancingSection';
-import LoanEligibilityModal from '../components/LoanEligibilityModal';
 import { computeDebtOptimiser } from '../utils/finance';
 import NextStepLink from '../components/NextStepLink';
 import ProfitCashImpactCard from '../components/ProfitCashImpactCard';
@@ -71,7 +70,6 @@ export default function LoansScreen() {
     const [activeTab, setActiveTab] = useState<'existing' | 'financing'>(
         navParams?.tab === 'financing' ? 'financing' : 'existing'
     );
-    const [showLoanEligibility, setShowLoanEligibility] = useState(false);
     const [showForm, setShowForm] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [showPayment, setShowPayment] = useState<string | null>(null);
@@ -236,12 +234,18 @@ export default function LoansScreen() {
                         </View>
                     )}
 
-                    {/* Loan Eligibility Tool */}
-                    <TouchableOpacity onPress={() => setShowLoanEligibility(true)} style={s.featureCard}>
-                        <Icon name="briefcase" size={28} color={Colors.primary} />
+                    {/* Financing Marketplace — replaces the old Loan
+                        Eligibility Tracker modal, which hardcoded its own
+                        eligibility thresholds independent of computeRiskScore/
+                        computeDSCR and offered 3 "Apply Now" options that were
+                        never real (always alerted "Coming Soon"). Its one real
+                        option, Quad360's own Merchant Financing, is already
+                        its own tab on this screen (above) — nothing lost. */}
+                    <TouchableOpacity onPress={() => navigate('financing-marketplace')} style={s.featureCard}>
+                        <Icon name="search" size={28} color={Colors.primary} />
                         <View style={s.featureContent}>
-                            <Text style={s.featureTitle}>Loan Eligibility Tracker</Text>
-                            <Text style={s.featureDesc}>Compare 4 loan types and check your eligibility</Text>
+                            <Text style={s.featureTitle}>Financing Marketplace</Text>
+                            <Text style={s.featureDesc}>See which financing products fit your business, and why</Text>
                         </View>
                         <Text style={s.featureArrow}>→</Text>
                     </TouchableOpacity>
@@ -450,8 +454,6 @@ export default function LoansScreen() {
             )}
 
             <FooterNav />
-
-            <LoanEligibilityModal visible={showLoanEligibility} onClose={() => setShowLoanEligibility(false)} />
         </SafeAreaView>
     );
 }
