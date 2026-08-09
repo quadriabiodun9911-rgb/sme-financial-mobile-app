@@ -250,14 +250,18 @@ export default function LoansScreen() {
                         <Text style={s.featureArrow}>→</Text>
                     </TouchableOpacity>
 
-                    {/* Bank Loan Funding Qualification — the Funding Pack
-                        tab on Credit-Worthiness (folded in from the
-                        now-removed standalone screen). */}
+                    {/* Financing Readiness Check — the Funding Pack tab on
+                        Credit-Worthiness (folded in from the now-removed
+                        standalone screen). Renamed from "Bank Loan
+                        Qualification": Quad360 doesn't decide (or predict)
+                        whether a lender approves anyone, so the label
+                        shouldn't imply it does — this is about the business's
+                        own readiness, not a lending decision. */}
                     <TouchableOpacity onPress={() => navigate('credit-worthiness', { tab: 'funding-pack' })} style={s.featureCard}>
                         <Icon name="home" size={28} color={Colors.primary} />
                         <View style={s.featureContent}>
-                            <Text style={s.featureTitle}>Bank Loan Qualification</Text>
-                            <Text style={s.featureDesc}>Check your readiness for a larger bank loan</Text>
+                            <Text style={s.featureTitle}>Financing Readiness Check</Text>
+                            <Text style={s.featureDesc}>Understand how ready your business is for financing — and what to improve before you apply</Text>
                         </View>
                         <Text style={s.featureArrow}>→</Text>
                     </TouchableOpacity>
