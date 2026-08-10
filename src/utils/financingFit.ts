@@ -13,11 +13,12 @@
  * visibility into any lender's actual approval process.
  */
 
-import { Transaction, Loan, BusinessSettings, Industry, FinancingProduct, User } from '../types';
+import { Transaction, Loan, BusinessSettings, Industry, FinancingProduct, FinancingProductType, User, MacroAssumption, MacroDriver } from '../types';
 import { computeDSCR } from './finance';
 import { computeAllTimeMonthlyBuckets } from './trendAnalysis';
 import { computeLiveLoanBalance } from './debtRatios';
 import { computeDataQuality } from './dataQuality';
+import { computeExternalRiskInsights, ExternalRiskInsight, DRIVER_LABEL } from './externalRiskInsights';
 
 export interface FinancingFitInput {
     avgMonthlyRevenue: number;
@@ -28,6 +29,14 @@ export interface FinancingFitInput {
     existingDebt: number;
     transactionHistoryMonths: number;
     requestedAmount?: number;
+    // "Economy data" -- the owner's own recorded macro-factor beliefs
+    // (MacroAssumption, e.g. "diesel up 20% this quarter"), narrowed to only
+    // the ones externalRiskInsights.ts has corroborated against this
+    // business's actual transaction trend. An assumption the owner logged
+    // but that hasn't shown up in their own books yet produces no note --
+    // same "don't speculate past what's evidenced" discipline as everything
+    // else this engine surfaces.
+    economicInsights: ExternalRiskInsight[];
 }
 
 /** Assembles a FinancingFitInput from live app state -- one place so every product is scored against the same numbers. */
@@ -45,6 +54,8 @@ export function buildFinancingFitInput(
     const recent = monthly.slice(-3);
     const avgMonthlyRevenue = recent.length > 0 ? recent.reduce((s, m) => s + m.revenue, 0) / recent.length : 0;
 
+    const riskResult = computeExternalRiskInsights(transactions, settings.macroAssumptions ?? []);
+
     return {
         avgMonthlyRevenue,
         annualRevenue: avgMonthlyRevenue * 12,
@@ -54,7 +65,41 @@ export function buildFinancingFitInput(
         existingDebt: computeLiveLoanBalance(loans),
         transactionHistoryMonths: computeDataQuality(transactions).monthsWithData,
         requestedAmount,
+        economicInsights: riskResult.insights,
     };
+}
+
+// Which product types a given macro driver is actually relevant to -- e.g.
+// an interest-rate insight is worth flagging on a term loan (rate risk over
+// a multi-year commitment) but says nothing useful about invoice financing
+// (repaid in weeks, off a fixed advance rate). Kept deliberately narrow:
+// a driver with no clear financing-decision relevance (e.g. regulation) is
+// omitted rather than force-mapped to something tenuous.
+const DRIVER_RELEVANT_PRODUCTS: Partial<Record<MacroDriver, FinancingProductType[]>> = {
+    interestRate: ['term_loan', 'overdraft', 'asset_financing'],
+    fx: ['trade_finance'],
+    inflation: ['working_capital', 'invoice_financing'],
+    commodity: ['working_capital', 'invoice_financing'],
+    energy: ['working_capital', 'invoice_financing'],
+    supplyChain: ['trade_finance', 'working_capital'],
+};
+
+const DRIVER_FINANCING_NOTE: Partial<Record<MacroDriver, string>> = {
+    interestRate: 'you flagged interest rates rising, and it\'s already showing up in your books — weigh whether a fixed-rate structure protects you better than a variable one right now.',
+    fx: 'you flagged FX volatility already affecting your costs — for cross-border financing, check whether repayments are fixed in your home currency or exposed to further FX swings.',
+    inflation: 'you flagged rising inflation already affecting your costs — a shorter-term facility may suit near-term cash pressure better than locking into a long commitment.',
+    commodity: 'you flagged rising input costs already affecting your margins — factor that squeeze into how much repayment you can actually absorb before committing.',
+    energy: 'you flagged rising energy costs already affecting your margins — factor that squeeze into how much repayment you can actually absorb before committing.',
+    supplyChain: 'you flagged supply-chain disruption already affecting your costs — financing built for timing gaps may suit this better than a fixed-purpose loan.',
+};
+
+/** The single most relevant corroborated economic insight for this product type, if any -- null when nothing the owner has flagged has actually shown up in their own books yet, or nothing they've flagged is relevant to this product type. */
+function pickEconomicNote(product: FinancingProduct, insights: ExternalRiskInsight[]): string | null {
+    const relevant = insights.find(i => (DRIVER_RELEVANT_PRODUCTS[i.driver] ?? []).includes(product.productType));
+    if (!relevant) return null;
+    const note = DRIVER_FINANCING_NOTE[relevant.driver];
+    if (!note) return null;
+    return `${DRIVER_LABEL[relevant.driver]}: ${note}`;
 }
 
 export type CriterionStatus = 'met' | 'unmet' | 'unknown';
@@ -78,6 +123,13 @@ export interface FinancingFitResult {
     unmetCount: number;
     unknownCount: number;
     improvementTips: string[]; // one per unmet criterion, plain language
+    // Advisory only -- never changes fitScore/verdict. A corroborated macro
+    // condition (the owner's own flagged assumption, confirmed showing up in
+    // their transactions) relevant to this product type, e.g. rising rates
+    // for a term loan. Eligibility stays a pure business-data question;
+    // economic conditions are a "here's something worth weighing" note, not
+    // a pass/fail criterion Quad360 has no authority to judge.
+    economicNote: string | null;
 }
 
 function fmtAmt(currency: string, n: number): string {
@@ -194,7 +246,9 @@ export function computeFinancingFit(product: FinancingProduct, input: FinancingF
         .filter(c => c.status === 'unmet')
         .map(c => `${c.label}: currently ${c.businessValue} — this lender wants ${c.required}.`);
 
-    return { product, fitScore, verdict, criteria, metCount, unmetCount, unknownCount, improvementTips };
+    const economicNote = pickEconomicNote(product, input.economicInsights);
+
+    return { product, fitScore, verdict, criteria, metCount, unmetCount, unknownCount, improvementTips, economicNote };
 }
 
 export function rankFinancingProducts(products: FinancingProduct[], input: FinancingFitInput, currency: string): FinancingFitResult[] {

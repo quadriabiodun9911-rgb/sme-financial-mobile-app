@@ -106,6 +106,12 @@ function ProductCard({ result, currency, expanded, onToggle }: { result: Financi
                             Current income doesn't fully cover existing debt obligations — build repayment headroom before taking on more, regardless of this product's individual criteria.
                         </Text>
                     )}
+                    {result.economicNote && (
+                        <View style={s.economicBox}>
+                            <Text style={s.economicTitle}>📊 Worth weighing</Text>
+                            <Text style={s.economicNoteText}>{result.economicNote}</Text>
+                        </View>
+                    )}
                 </View>
             )}
             <Text style={s.tapHint}>{expanded ? 'Tap to collapse ▲' : 'Tap to see why ▼'}</Text>
@@ -278,6 +284,10 @@ const s = StyleSheet.create({
     improveTip: { fontSize: 11.5, color: Colors.textSecondary, lineHeight: 16, marginBottom: 3 },
 
     notEligibleNote: { fontSize: 11.5, color: Colors.expense, marginTop: 6, lineHeight: 16 },
+
+    economicBox: { marginTop: 10, backgroundColor: Colors.warning + '15', borderRadius: 8, padding: 10, borderWidth: 1, borderColor: Colors.warning + '40' },
+    economicTitle: { fontSize: 12, fontWeight: '700', color: Colors.textPrimary, marginBottom: 4 },
+    economicNoteText: { fontSize: 11.5, color: Colors.textSecondary, lineHeight: 16 },
 
     footerNote: { marginTop: 8, marginBottom: 20 },
     footerNoteText: { fontSize: 11, color: Colors.textMuted, lineHeight: 16, textAlign: 'center' },

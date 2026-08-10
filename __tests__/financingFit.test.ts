@@ -35,6 +35,7 @@ const strongInput: FinancingFitInput = {
     industry: 'manufacturing',
     existingDebt: 1_000_000, // ratio 0.083, well under 0.5
     transactionHistoryMonths: 12,
+    economicInsights: [],
 };
 
 describe('computeFinancingFit', () => {
@@ -84,6 +85,42 @@ describe('computeFinancingFit', () => {
         const noRevenue = computeFinancingFit(assetProduct, { ...strongInput, annualRevenue: 0 }, currency);
         const ratioCriterion = noRevenue.criteria.find(c => c.label === 'Debt-to-revenue ratio');
         expect(ratioCriterion?.status).toBe('unknown');
+    });
+
+    it('economicNote is null when there are no corroborated macro insights', () => {
+        const result = computeFinancingFit(assetProduct, strongInput, currency);
+        expect(result.economicNote).toBeNull();
+    });
+
+    it('surfaces a corroborated economic insight relevant to the product type, without changing the fit score', () => {
+        const termLoanProduct: FinancingProduct = { ...assetProduct, id: 'p3', productType: 'term_loan', eligibility: {} };
+        const interestRateInsight = {
+            driver: 'interestRate' as const,
+            title: '⚠️ Interest Rate Risk Increasing',
+            category: 'Loan Repayment',
+            whatChanged: 'test', whyItMatters: 'test', riskCreated: 'test', whatCouldHappenNext: 'test',
+            projectedImpact: null,
+            recommendedActions: [],
+            creditReadinessImpact: 'test',
+            growthImpact: 'test',
+        };
+        const withoutNote = computeFinancingFit(termLoanProduct, strongInput, currency);
+        const withNote = computeFinancingFit(termLoanProduct, { ...strongInput, economicInsights: [interestRateInsight] }, currency);
+        expect(withNote.economicNote).toContain('Interest Rate');
+        // Advisory only -- the score/verdict must be identical with or without the note.
+        expect(withNote.fitScore).toBe(withoutNote.fitScore);
+        expect(withNote.verdict).toBe(withoutNote.verdict);
+    });
+
+    it('does not surface a driver-relevant note on a product type that driver has nothing useful to say about', () => {
+        const invoiceProduct: FinancingProduct = { ...assetProduct, id: 'p4', productType: 'invoice_financing', eligibility: {} };
+        const interestRateInsight = {
+            driver: 'interestRate' as const,
+            title: 'x', category: 'x', whatChanged: 'x', whyItMatters: 'x', riskCreated: 'x', whatCouldHappenNext: 'x',
+            projectedImpact: null, recommendedActions: [], creditReadinessImpact: 'x', growthImpact: 'x',
+        };
+        const result = computeFinancingFit(invoiceProduct, { ...strongInput, economicInsights: [interestRateInsight] }, currency);
+        expect(result.economicNote).toBeNull();
     });
 });
 
