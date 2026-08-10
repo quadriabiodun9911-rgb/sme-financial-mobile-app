@@ -23,6 +23,8 @@ import DateInput from '../components/DateInput';
 import MerchantFinancingSection from './MerchantFinancingSection';
 import { computeDebtOptimiser, computeDSCR, DSCRResult } from '../utils/finance';
 import { computePostFinancingMonitor, PostFinancingStatus } from '../utils/postFinancingMonitor';
+import { buildPostFinancingShareExport } from '../utils/lenderSummaryExport';
+import { generatePDF, sharePDF } from '../utils/pdfExport';
 import NextStepLink from '../components/NextStepLink';
 import ProfitCashImpactCard from '../components/ProfitCashImpactCard';
 import { computeProfitCashImpact } from '../utils/impactChain';
@@ -517,6 +519,30 @@ function LoanCard({ loan, currency, expanded, transactions, readinessHistory, ds
         'at-risk': { label: 'At Risk', color: Colors.expense },
     };
 
+    // Phase 2a: consent lives on the loan itself (updateLoan), and the
+    // business name/currency come from the same context every other export
+    // in the app already reads from -- calling useApp() here directly keeps
+    // this self-contained rather than drilling two more props through the
+    // parent purely for this one button.
+    const { user, updateLoan } = useApp();
+    const [sharing, setSharing] = useState(false);
+    const toggleShareConsent = () => {
+        updateLoan(loan.id, { shareWithLenderConsent: !loan.shareWithLenderConsent, shareConsentUpdatedAt: new Date().toISOString() });
+    };
+    const handleShareStatus = async () => {
+        if (!monitor) return;
+        setSharing(true);
+        try {
+            const exportData = buildPostFinancingShareExport(loan, monitor, user?.businessName || 'Your Business');
+            const filePath = await generatePDF(exportData);
+            await sharePDF(filePath, exportData.title);
+        } catch {
+            showAlert('Share failed', 'Could not generate the status summary. Please try again.');
+        } finally {
+            setSharing(false);
+        }
+    };
+
     return (
         <View style={[s.card, overdue && { borderColor: Colors.warning, borderWidth: 1.5 }]}>
             <TouchableOpacity onPress={onToggle} activeOpacity={0.8}>
@@ -619,6 +645,26 @@ function LoanCard({ loan, currency, expanded, transactions, readinessHistory, ds
                                 <View style={s.monitorTacticsBox}>
                                     {monitor.tactics.map((t, i) => <Text key={i} style={s.monitorTactic}>• {t}</Text>)}
                                 </View>
+                            )}
+
+                            <View style={s.shareDivider} />
+                            <TouchableOpacity style={s.shareToggleRow} onPress={toggleShareConsent} activeOpacity={0.7}>
+                                <View style={[s.checkbox, loan.shareWithLenderConsent && s.checkboxChecked]}>
+                                    {loan.shareWithLenderConsent && <Icon name="check-circle" size={13} color="#fff" />}
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={s.marketplaceToggleLabel}>Share this status with {loan.lenderName}</Text>
+                                    <Text style={s.marketplaceToggleHint}>
+                                        Only the status above (Healthy/Watch/At Risk), the trend, and which signals are flagged — never transaction data, exact figures, or account details. Revocable any time.
+                                    </Text>
+                                </View>
+                            </TouchableOpacity>
+
+                            {loan.shareWithLenderConsent && (
+                                <TouchableOpacity style={s.shareBtn} onPress={handleShareStatus} disabled={sharing}>
+                                    <Icon name="share-2" size={13} color={Colors.primary} />
+                                    <Text style={s.shareBtnText}>{sharing ? 'Preparing…' : 'Share Status Summary'}</Text>
+                                </TouchableOpacity>
                             )}
                         </View>
                     )}
@@ -796,6 +842,10 @@ const s = StyleSheet.create({
     monitorReadiness: { fontSize: 11.5, fontWeight: '600', marginTop: 2, marginBottom: 6 },
     monitorTacticsBox: { backgroundColor: Colors.surface, borderRadius: 8, padding: 9, marginTop: 4 },
     monitorTactic: { fontSize: 11, color: Colors.textSecondary, lineHeight: 16, marginBottom: 3 },
+    shareDivider: { height: 1, backgroundColor: Colors.border, marginTop: 12, marginBottom: 10 },
+    shareToggleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+    shareBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 10, borderWidth: 1, borderColor: Colors.primary, borderRadius: 8, paddingVertical: 9 },
+    shareBtnText: { fontSize: 12, fontWeight: '700', color: Colors.primary },
     input: {
         backgroundColor: Colors.bg, borderColor: Colors.border, borderWidth: 1,
         borderRadius: Radius.sm, paddingHorizontal: Spacing.md, paddingVertical: 10,

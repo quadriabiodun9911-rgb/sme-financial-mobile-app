@@ -1,4 +1,6 @@
-import { buildLenderSummaryExport } from '../src/utils/lenderSummaryExport';
+import { buildLenderSummaryExport, buildPostFinancingShareExport } from '../src/utils/lenderSummaryExport';
+import { Loan } from '../src/types';
+import { PostFinancingMonitor } from '../src/utils/postFinancingMonitor';
 
 const baseInput = {
     businessName: 'Okafor Advisory Ltd',
@@ -49,5 +51,61 @@ describe('buildLenderSummaryExport', () => {
     it('renders the generated date in long form', () => {
         const r = buildLenderSummaryExport(baseInput);
         expect(r.date).toBe('22 July 2026');
+    });
+});
+
+describe('buildPostFinancingShareExport', () => {
+    const loan: Loan = {
+        id: 'l1', lenderName: 'Sample Microfinance Bank', purpose: 'Working capital',
+        principal: 500_000, interestRate: 20, termMonths: 12, startDate: '2026-05-01',
+        status: 'active', payments: [], createdAt: '2026-05-01', fromMarketplace: true,
+    };
+
+    const monitor: PostFinancingMonitor = {
+        status: 'at-risk',
+        signals: [
+            { label: 'Debt-service coverage', tripped: true, detail: 'Current income doesn\'t fully cover total debt service (0.76x) — exact figures that must never leave this device.' },
+            { label: 'Revenue trend since funding', tripped: false, detail: 'No sustained revenue decline.' },
+            { label: 'Repayment pace', tripped: true, detail: '25% of the term has elapsed but only ¥12,345 of principal is repaid.' },
+        ],
+        readinessSinceFunding: { trend: 'declining', scoreDelta: -10, fromScore: 70, toScore: 60, periodLabel: '3 months', improvedFactors: [], worsenedFactors: [] },
+        tactics: ['Review every active loan\'s payment schedule together.'],
+    };
+
+    it('surfaces only status, trend and flagged/clear per signal — never the numeric detail', () => {
+        const r = buildPostFinancingShareExport(loan, monitor, 'Shenzhen BrightTech Manufacturing');
+        const asString = JSON.stringify(r);
+        expect(asString).not.toContain('0.76x');
+        expect(asString).not.toContain('12,345');
+        expect(asString).not.toContain('25%');
+    });
+
+    it('maps each signal to Flagged or Clear by label only', () => {
+        const r = buildPostFinancingShareExport(loan, monitor, 'Shenzhen BrightTech Manufacturing');
+        const signals = r.sections.find(s => s.name === 'Signals Reviewed');
+        expect(signals?.data).toEqual([
+            { label: 'Debt-service coverage', value: 'Flagged' },
+            { label: 'Revenue trend since funding', value: 'Clear' },
+            { label: 'Repayment pace', value: 'Flagged' },
+        ]);
+    });
+
+    it('includes the business name, lender name and status/trend in the summary', () => {
+        const r = buildPostFinancingShareExport(loan, monitor, 'Shenzhen BrightTech Manufacturing');
+        expect(r.title).toContain('Shenzhen BrightTech Manufacturing');
+        expect(r.title).toContain('Sample Microfinance Bank');
+        expect(r.summary?.[0]).toEqual({ label: 'Status', value: 'At Risk' });
+        expect(r.summary?.[1]).toEqual({ label: 'Trend since funding', value: 'Declining' });
+    });
+
+    it('states plainly that this is not a credit reference', () => {
+        const r = buildPostFinancingShareExport(loan, monitor, 'Shenzhen BrightTech Manufacturing');
+        const whatThisIs = r.sections.find(s => s.name === 'What This Is');
+        expect(whatThisIs?.data.some(d => d.label === 'Not a credit reference')).toBe(true);
+    });
+
+    it('falls back to "not enough history yet" when there is no readiness delta since funding', () => {
+        const r = buildPostFinancingShareExport(loan, { ...monitor, readinessSinceFunding: null }, 'Shenzhen BrightTech Manufacturing');
+        expect(r.summary?.[1].value).toBe('Not enough history yet');
     });
 });

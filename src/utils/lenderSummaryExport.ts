@@ -1,6 +1,8 @@
 import { ExportData } from './pdfExport';
 import { FundingReadinessPack } from './fundingReadiness';
 import { BusinessPassport } from './businessPassport';
+import { Loan } from '../types';
+import { PostFinancingMonitor } from './postFinancingMonitor';
 
 export interface LenderSummaryFactor {
     name: string;
@@ -228,6 +230,49 @@ export function buildFundingReadinessPackExport(pack: FundingReadinessPack, curr
                     label: d.label,
                     value: `${d.ready ? 'Ready' : 'Not yet ready'} — ${d.detail}`,
                 })),
+            },
+        ],
+    };
+}
+
+const POST_FINANCING_STATUS_LABEL: Record<string, string> = { healthy: 'Healthy', watch: 'Watch', 'at-risk': 'At Risk' };
+const POST_FINANCING_TREND_LABEL: Record<string, string> = { improving: 'Improving', declining: 'Declining', stable: 'Stable' };
+
+/**
+ * Post-Financing Intelligence, Phase 2a: what a business can choose to hand
+ * the lender who funded a loan, once -- and only once -- they've explicitly
+ * consented. Deliberately the coarsest export in this file: no transaction
+ * data, no exact revenue or DSCR figures, not even the numeric detail
+ * computePostFinancingMonitor's own signals carry -- only whether a category
+ * of concern is flagged or clear. A status update, not a credit reference,
+ * and says so explicitly.
+ */
+export function buildPostFinancingShareExport(
+    loan: Loan,
+    monitor: PostFinancingMonitor,
+    businessName: string,
+    generatedAt: Date = new Date(),
+): ExportData {
+    return {
+        title: `${businessName} — Financing Status Update for ${loan.lenderName}`,
+        date: generatedAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
+        summary: [
+            { label: 'Status', value: POST_FINANCING_STATUS_LABEL[monitor.status] },
+            { label: 'Trend since funding', value: monitor.readinessSinceFunding ? POST_FINANCING_TREND_LABEL[monitor.readinessSinceFunding.trend] : 'Not enough history yet' },
+            { label: 'Loan', value: `${loan.lenderName} — funded ${loan.startDate}` },
+        ],
+        sections: [
+            {
+                name: 'Signals Reviewed',
+                data: monitor.signals.map(s => ({ label: s.label, value: s.tripped ? 'Flagged' : 'Clear' })),
+            },
+            {
+                name: 'What This Is',
+                data: [
+                    { label: 'Scope', value: 'A coarse status signal only — no transaction data, exact revenue figures, or account details are included.' },
+                    { label: 'Not a credit reference', value: "Quad360 doesn't make lending decisions, and this isn't a credit report, a repayment guarantee, or a request for any action." },
+                    { label: 'Shared with consent', value: 'The business shared this directly and can revoke that consent at any time.' },
+                ],
             },
         ],
     };

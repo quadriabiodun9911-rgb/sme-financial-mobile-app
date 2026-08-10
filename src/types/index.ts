@@ -387,6 +387,13 @@ export interface Loan {
     // to independently confirm a marketplace match became a real loan.
     // Enables "This Loan's Impact" monitoring once set.
     fromMarketplace?: boolean;
+    // Phase 2a: explicit, separate consent to share the coarse status from
+    // "This Loan's Impact" with the lender who funded it -- default off,
+    // revocable at any time. Deliberately a second flag, not folded into
+    // fromMarketplace, since "monitor this for me" and "share this with my
+    // lender" are two different decisions with different stakes.
+    shareWithLenderConsent?: boolean;
+    shareConsentUpdatedAt?: string;
 }
 
 // ─── Financing Marketplace ──────────────────────────────────────────────────
