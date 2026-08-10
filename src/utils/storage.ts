@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CryptoJS from 'crypto-js';
-import { Transaction, BusinessSettings, FinancialGoal, Invoice, TeamMember, Language, Asset, InventoryItem, Loan, Budget, StaffMember, PayrollRun, FinancingContextData, CashPocket, CapitalCommitment } from '../types';
+import { Transaction, BusinessSettings, FinancialGoal, Invoice, TeamMember, Language, Asset, InventoryItem, Loan, Budget, StaffMember, PayrollRun, FinancingContextData, CashPocket, CapitalCommitment, ReadinessSnapshot } from '../types';
 import { supabase } from './supabase';
 import { savePinSecurely, loadPinSecurely, clearPinSecurely, clearAllSecureData } from './secureStorage';
 import { enqueue } from './syncQueue';
@@ -643,6 +643,20 @@ export async function saveCapitalCommitments(commitments: CapitalCommitment[]): 
 export async function loadCapitalCommitments(): Promise<CapitalCommitment[] | null> {
     const raw = await AsyncStorage.getItem(CAPITAL_COMMITMENTS_KEY);
     return safeParse<CapitalCommitment[]>(raw);
+}
+
+// ─── Readiness History ───────────────────────────────────────────────────────
+// Local-only, same as Capital Commitments above — no Supabase table exists
+// for this yet, so a business's readiness trend doesn't follow them across
+// devices. Good enough for a v1: the trend still builds correctly as long
+// as they keep using the same device.
+const READINESS_HISTORY_KEY = '@quad360/readinessHistory';
+export async function saveReadinessHistory(history: ReadinessSnapshot[]): Promise<void> {
+    await AsyncStorage.setItem(READINESS_HISTORY_KEY, JSON.stringify(history));
+}
+export async function loadReadinessHistory(): Promise<ReadinessSnapshot[] | null> {
+    const raw = await AsyncStorage.getItem(READINESS_HISTORY_KEY);
+    return safeParse<ReadinessSnapshot[]>(raw);
 }
 
 // ─── PIN (local only — never sent to server) ──────────────────────────────────

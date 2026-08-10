@@ -10,8 +10,9 @@
 
 import React, { createContext, useContext, useState, useMemo, useEffect, useRef, useCallback, ReactNode } from 'react';
 import { Platform } from 'react-native';
-import { User, Invoice, InvoiceStatus, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, MerchantFinancingApplication, LoanPurpose, StaffMember, PayrollRun, PayrollItem, CashPocket, CapitalCommitment, UserRole } from '../types';
-import { computeFinance, computeAssetCurrentValue, countActiveMonths, getMonthlyExpenseAverage } from '../utils/finance';
+import { User, Invoice, InvoiceStatus, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, MerchantFinancingApplication, LoanPurpose, StaffMember, PayrollRun, PayrollItem, CashPocket, CapitalCommitment, ReadinessSnapshot, UserRole } from '../types';
+import { computeFinance, computeAssetCurrentValue, countActiveMonths, getMonthlyExpenseAverage, computeRiskScore } from '../utils/finance';
+import { buildReadinessSnapshot, shouldRecordSnapshot, appendReadinessSnapshot } from '../utils/readinessHistory';
 import { sanitizeStoredGoals, refreshGoal } from '../utils/goals';
 import { DEMO_BUSINESSES } from '../utils/demoData';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -28,6 +29,7 @@ import {
   loadPayrollRuns, savePayrollRuns,
   loadCashPockets, saveCashPockets,
   loadCapitalCommitments, saveCapitalCommitments,
+  loadReadinessHistory, saveReadinessHistory,
   clearLocalFinancialCache,
   syncFinancingToSupabase,
   saveProfile, loadProfile, savePin, loadPin,
@@ -103,6 +105,8 @@ interface FinanceContextValue {
   addCommitment: (c: Omit<CapitalCommitment, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateCommitment: (id: string, patch: Partial<CapitalCommitment>) => void;
   deleteCommitment: (id: string) => void;
+
+  readinessHistory: ReadinessSnapshot[];
 }
 
 const FinanceContext = createContext<FinanceContextValue | undefined>(undefined);
@@ -117,6 +121,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [payrollRuns, setPayrollRuns] = useState<PayrollRun[]>([]);
   const [cashPockets, setCashPockets] = useState<CashPocket[]>([]);
   const [capitalCommitments, setCapitalCommitments] = useState<CapitalCommitment[]>([]);
+  const [readinessHistory, setReadinessHistory] = useState<ReadinessSnapshot[]>([]);
   const [financing, setFinancing] = useState<FinancingContextData>({
     isQualified: false, qualification: undefined, minQualifiedAmount: undefined,
     maxQualifiedAmount: undefined, application: undefined, activeLoan: undefined,
@@ -143,7 +148,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     // otherwise be re-saved into the newly-signed-in user's cloud account.
     setHydrated(false);
     setTransactions([]); setAssets([]); setLoans([]); setBudgets([]); setInventory([]);
-    setStaff([]); setPayrollRuns([]); setCashPockets([]); setCapitalCommitments([]);
+    setStaff([]); setPayrollRuns([]); setCashPockets([]); setCapitalCommitments([]); setReadinessHistory([]);
     setFinancing({
       isQualified: false, qualification: undefined, minQualifiedAmount: undefined,
       maxQualifiedAmount: undefined, application: undefined, activeLoan: undefined,
@@ -176,13 +181,14 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         if (l) setLoans(l.map((x) => ({ ...x, payments: x.payments ?? [] })));
         if (b) setBudgets(b);
         if (inv) setInventory(inv);
-        const [st, pr, cp, cc] = await Promise.all([
-          loadStaff(), loadPayrollRuns(), loadCashPockets(), loadCapitalCommitments(),
+        const [st, pr, cp, cc, rh] = await Promise.all([
+          loadStaff(), loadPayrollRuns(), loadCashPockets(), loadCapitalCommitments(), loadReadinessHistory(),
         ]);
         if (st) setStaff(st);
         if (pr) setPayrollRuns(pr);
         if (cp) setCashPockets(cp);
         if (cc) setCapitalCommitments(cc);
+        if (rh) setReadinessHistory(rh);
         const financingRaw = await AsyncStorage.getItem('@quad360/financing').catch(() => null);
         if (financingRaw) {
           try { setFinancing(JSON.parse(financingRaw)); } catch { /* corrupted cache, keep default */ }
@@ -208,6 +214,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { if (hydrated && !isDemoMode) savePayrollRuns(payrollRuns).catch(() => {}); }, [payrollRuns, hydrated, isDemoMode]);
   useEffect(() => { if (hydrated && !isDemoMode) saveCashPockets(cashPockets).catch(() => {}); }, [cashPockets, hydrated, isDemoMode]);
   useEffect(() => { if (hydrated && !isDemoMode) saveCapitalCommitments(capitalCommitments).catch(() => {}); }, [capitalCommitments, hydrated, isDemoMode]);
+  useEffect(() => { if (hydrated && !isDemoMode) saveReadinessHistory(readinessHistory).catch(() => {}); }, [readinessHistory, hydrated, isDemoMode]);
   useEffect(() => {
     if (hydrated && !isDemoMode) {
       AsyncStorage.setItem('@quad360/financing', JSON.stringify(financing)).catch(() => {});
@@ -251,6 +258,20 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       return computeFinance([], settingsSubset, 0, []);
     }
   }, [transactions, assets, settingsForFinance?.settings]); // Only re-compute if these change
+
+  // Same score every other screen computes on demand -- computed once here
+  // so it can also feed the readiness-history snapshot below, without a
+  // second, possibly-diverging scoring path.
+  const risk = useMemo(() => computeRiskScore(finance, loans, transactions, inventory), [finance, loans, transactions, inventory]);
+
+  // Auto-snapshot: records a readiness data point roughly once a week, once
+  // there's at least some real activity to score. Never in demo mode (nothing
+  // demo persists) and never before hydration finishes (would otherwise
+  // snapshot a moment of empty pre-load state as if it were real).
+  useEffect(() => {
+    if (!hydrated || isDemoMode || transactions.length === 0) return;
+    setReadinessHistory(prev => shouldRecordSnapshot(prev) ? appendReadinessSnapshot(prev, buildReadinessSnapshot(risk)) : prev);
+  }, [hydrated, isDemoMode, transactions.length, risk]);
 
   const value: FinanceContextValue = useMemo(
     () => ({
@@ -427,6 +448,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       ),
       deleteCommitment: (id) => setCapitalCommitments((prev) => prev.filter((c) => c.id !== id)),
 
+      readinessHistory,
+
       financing,
       // Was a no-op stub (`() => Promise.resolve()`) that silently ignored
       // amount/purpose — a user could submit a financing application, see a
@@ -459,7 +482,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         }));
       },
     }),
-    [transactions, assets, loans, budgets, inventory, staff, payrollRuns, cashPockets, capitalCommitments, financing, syncUserId, finance]
+    [transactions, assets, loans, budgets, inventory, staff, payrollRuns, cashPockets, capitalCommitments, readinessHistory, financing, syncUserId, finance]
   );
 
   return (
@@ -1444,6 +1467,7 @@ export function useApp() {
     addCommitment: finance?.addCommitment || (() => {}),
     updateCommitment: finance?.updateCommitment || (() => {}),
     deleteCommitment: finance?.deleteCommitment || (() => {}),
+    readinessHistory: finance?.readinessHistory ?? [],
     // Explicit return type on the fallback so it matches auth.changePin's
     // signature exactly instead of TypeScript inferring a narrower
     // `{ok:false}` literal and unioning the two into an undiscriminated

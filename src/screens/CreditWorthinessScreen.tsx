@@ -14,6 +14,7 @@ import { generatePDF, sharePDF } from '../utils/pdfExport';
 import { buildLenderSummaryExport, buildFundingReadinessPackExport } from '../utils/lenderSummaryExport';
 import { computeDSCR, computeRiskScore, computeAssetCurrentValue, computeWorkingCapitalMetrics, RiskScore } from '../utils/finance';
 import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
+import { computeReadinessDelta } from '../utils/readinessHistory';
 import { computeDataQuality } from '../utils/dataQuality';
 import { computeInventoryValue } from '../utils/stockVelocity';
 import { computeLeverageRatios, computeLiveLoanBalance } from '../utils/debtRatios';
@@ -41,7 +42,7 @@ function fmtCompact(currency: string, amount: number): string {
 type PageTab = 'profile' | 'funding-pack';
 
 export default function CreditWorthinessScreen() {
-    const { user, finance, transactions, invoices, loans, navigate, navParams, settings, inventory, assets } = useApp();
+    const { user, finance, transactions, invoices, loans, navigate, navParams, settings, inventory, assets, readinessHistory } = useApp();
     const { currency } = settings;
     const [tab, setTab] = useState<PageTab>(navParams?.tab === 'funding-pack' ? 'funding-pack' : 'profile');
 
@@ -261,6 +262,10 @@ export default function CreditWorthinessScreen() {
         inventoryValue,
     }), [overallCreditScore, user?.avgMonthlyRevenue, dscrResult.dscr, dataQuality.confidence, inventoryValue]);
 
+    // Readiness trend -- null until there's a second snapshot to compare
+    // against (roughly a week after the first one is recorded).
+    const readinessDelta = useMemo(() => computeReadinessDelta(readinessHistory), [readinessHistory]);
+
     // The Five C's of Credit — the classic framework the canonical score
     // above is often read against. Built from the same already-computed
     // numbers on this screen (DSCR, inventory value) plus leverage/net
@@ -477,6 +482,62 @@ export default function CreditWorthinessScreen() {
                                 Based on {currency}{inventoryValue.toLocaleString()} of stock on hand, at a conservative {lendingCapacity.inventoryBacked.advanceRatePctRange[0]}–{lendingCapacity.inventoryBacked.advanceRatePctRange[1]}% advance rate. {lendingCapacity.inventoryBacked.reason}
                             </Text>
                         </View>
+                    )}
+                </View>
+
+                {/* Readiness Over Time */}
+                <View style={s.section}>
+                    <Text style={s.sectionTitle}>📈 Readiness Over Time</Text>
+                    {readinessHistory.length === 0 && (
+                        <Text style={s.trendEmpty}>
+                            Quad360 starts tracking your readiness trend from today. Check back in about a week to see your first data point.
+                        </Text>
+                    )}
+                    {readinessHistory.length === 1 && (
+                        <Text style={s.trendEmpty}>
+                            First readiness snapshot recorded. Come back in about a week to start seeing a trend.
+                        </Text>
+                    )}
+                    {readinessHistory.length > 1 && (
+                        <>
+                            <View style={s.trendChartArea}>
+                                {readinessHistory.map((snap, i) => {
+                                    const isLast = i === readinessHistory.length - 1;
+                                    const barH = Math.max((snap.score / 100) * 64, 4);
+                                    return (
+                                        <View key={snap.id} style={s.trendBarCol}>
+                                            <View style={s.trendBarTrack}>
+                                                <View style={[s.trendBar, { height: barH, backgroundColor: isLast ? Colors.primary : Colors.primary + '55' }]} />
+                                            </View>
+                                            {isLast && <Text style={s.trendBarValue}>{snap.score}</Text>}
+                                        </View>
+                                    );
+                                })}
+                            </View>
+                            {readinessDelta && (
+                                <>
+                                    <Text style={[
+                                        s.trendSummary,
+                                        { color: readinessDelta.trend === 'improving' ? Colors.income : readinessDelta.trend === 'declining' ? Colors.expense : Colors.textSecondary },
+                                    ]}>
+                                        {readinessDelta.trend === 'improving' && `Your readiness improved from ${readinessDelta.fromScore} → ${readinessDelta.toScore} over ${readinessDelta.periodLabel}.`}
+                                        {readinessDelta.trend === 'declining' && `Your readiness dropped from ${readinessDelta.fromScore} → ${readinessDelta.toScore} over ${readinessDelta.periodLabel}.`}
+                                        {readinessDelta.trend === 'stable' && `Your readiness has stayed roughly steady (${readinessDelta.fromScore} → ${readinessDelta.toScore}) over ${readinessDelta.periodLabel}.`}
+                                    </Text>
+                                    {(readinessDelta.improvedFactors.length > 0 || readinessDelta.worsenedFactors.length > 0) && (
+                                        <View style={s.trendFactorsBox}>
+                                            {readinessDelta.improvedFactors.map(f => (
+                                                <Text key={f.name} style={s.trendFactorGood}>✅ {f.name} improved ({f.from} → {f.to})</Text>
+                                            ))}
+                                            {readinessDelta.worsenedFactors.map(f => (
+                                                <Text key={f.name} style={s.trendFactorBad}>❌ {f.name} weakened ({f.from} → {f.to})</Text>
+                                            ))}
+                                        </View>
+                                    )}
+                                </>
+                            )}
+                            <Text style={s.trendFootnote}>A new data point roughly once a week, based on your recorded activity.</Text>
+                        </>
                     )}
                 </View>
 
@@ -782,6 +843,18 @@ const s = StyleSheet.create({
     breakdownWeight: { fontSize: 11, fontWeight: '600', color: Colors.primary },
     section: { marginBottom: 24, backgroundColor: Colors.surface, borderRadius: 12, padding: 16, borderLeftWidth: 4, borderLeftColor: Colors.primary },
     sectionTitle: { fontSize: 16, fontWeight: '600', color: Colors.textPrimary, marginBottom: 12 },
+
+    trendEmpty: { fontSize: 12.5, color: Colors.textMuted, lineHeight: 18, fontStyle: 'italic' },
+    trendChartArea: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 84, marginBottom: 10 },
+    trendBarCol: { flex: 1, alignItems: 'center' },
+    trendBarTrack: { height: 64, width: '100%', justifyContent: 'flex-end', alignItems: 'center' },
+    trendBar: { width: '55%', borderRadius: 2, minHeight: 4 },
+    trendBarValue: { fontSize: 11, fontWeight: '700', color: Colors.primary, marginTop: 4 },
+    trendSummary: { fontSize: 13, fontWeight: '600', lineHeight: 19, marginBottom: 8 },
+    trendFactorsBox: { backgroundColor: Colors.bg, borderRadius: 8, padding: 10, marginBottom: 8 },
+    trendFactorGood: { fontSize: 12, color: Colors.income, lineHeight: 18 },
+    trendFactorBad: { fontSize: 12, color: Colors.expense, lineHeight: 18 },
+    trendFootnote: { fontSize: 10.5, color: Colors.textMuted, fontStyle: 'italic' },
     improvementCard: { backgroundColor: Colors.bg, borderRadius: 8, padding: 12, marginBottom: 12 },
     improvementHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
     improvementName: { fontSize: 13, fontWeight: '600', color: Colors.textPrimary },

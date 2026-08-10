@@ -475,6 +475,27 @@ export interface CapitalCommitment {
     updatedAt: string;
 }
 
+// ─── Readiness History ─────────────────────────────────────────────────────
+// A periodic snapshot of computeRiskScore's output -- every other score in
+// the app is computed fresh from current state with no memory of where it
+// was last month. This is the one place that memory is kept, so "are you
+// becoming more financeable over time" can be answered with an actual trend
+// instead of a single point-in-time number.
+export interface ReadinessFactorSnapshot {
+    name: string;
+    score: number;
+    status: 'good' | 'warning' | 'danger';
+}
+
+export interface ReadinessSnapshot {
+    id: string;
+    date: string; // ISO date (YYYY-MM-DD)
+    score: number;
+    grade: 'A' | 'B' | 'C' | 'D' | 'F';
+    band: 'Excellent' | 'Strong' | 'Moderate' | 'Weak' | 'Critical';
+    factors: ReadinessFactorSnapshot[];
+}
+
 // ─── Merchant Financing ────────────────────────────────────────────────────────
 export type MerchantFinancingStatus = 'pending' | 'approved' | 'rejected' | 'funded' | 'repaying' | 'paid_off';
 export type LoanPurpose =

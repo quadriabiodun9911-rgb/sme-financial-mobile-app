@@ -8,6 +8,7 @@ import Icon, { IconName } from '../components/ui/Icon';
 import { computeRiskScore, computeDSCR, RiskScore } from '../utils/finance';
 import { buildFinancingFitInput, rankFinancingProducts, FinancingFitResult, FinancingFitVerdict } from '../utils/financingFit';
 import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
+import { computeReadinessDelta } from '../utils/readinessHistory';
 import { computeDataQuality } from '../utils/dataQuality';
 import { computeInventoryValue } from '../utils/stockVelocity';
 import { SAMPLE_FINANCING_PRODUCTS } from '../utils/financingProducts';
@@ -124,7 +125,7 @@ function ProductCard({ result, currency, expanded, onToggle }: { result: Financi
 }
 
 export default function FinancingMarketplaceScreen() {
-    const { user, finance, transactions, loans, inventory, settings, navigate } = useApp();
+    const { user, finance, transactions, loans, inventory, settings, navigate, readinessHistory } = useApp();
     const { currency } = settings;
     const [amountText, setAmountText] = useState('');
     const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -156,6 +157,12 @@ export default function FinancingMarketplaceScreen() {
         hasReliableData: dataQuality.confidence !== 'none' && dataQuality.confidence !== 'limited',
         inventoryValue,
     }), [risk.score, fitInput.avgMonthlyRevenue, dscr.dscr, dataQuality.confidence, inventoryValue]);
+
+    // A single-point score tells a lender nothing about direction -- this is
+    // the same trend Credit-Worthiness shows in full, condensed to one line
+    // for the context lenders actually care about: is this business getting
+    // more or less financeable.
+    const readinessDelta = useMemo(() => computeReadinessDelta(readinessHistory), [readinessHistory]);
 
     // Real, admin-managed listings replace the illustrative sample list the
     // moment there's at least one -- this is the switch from "demo" to a
@@ -215,6 +222,11 @@ export default function FinancingMarketplaceScreen() {
                         Debt-service coverage: {dscr.dscr >= 900 ? 'No existing debt' : `${dscr.dscr.toFixed(2)}x`}
                         {dscr.dscr < 1 && ' — below 1x, existing income doesn\'t cover current debt payments yet.'}
                     </Text>
+                    {readinessDelta && readinessDelta.trend !== 'stable' && (
+                        <Text style={[s.readinessTrend, { color: readinessDelta.trend === 'improving' ? Colors.income : Colors.expense }]}>
+                            {readinessDelta.trend === 'improving' ? `↑ Improved from ${readinessDelta.fromScore} over ${readinessDelta.periodLabel}` : `↓ Down from ${readinessDelta.fromScore} over ${readinessDelta.periodLabel}`}
+                        </Text>
+                    )}
                 </View>
 
                 <View style={s.amountBox}>
@@ -291,6 +303,7 @@ const s = StyleSheet.create({
     readinessScoreOf: { fontSize: 16, color: Colors.textMuted, fontWeight: '600' },
     readinessBand: { fontSize: 14, fontWeight: '700', marginBottom: 8 },
     readinessDetail: { fontSize: 12, color: Colors.textSecondary, textAlign: 'center', lineHeight: 17 },
+    readinessTrend: { fontSize: 11.5, fontWeight: '700', marginTop: 6 },
 
     amountBox: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 20 },
     amountLabel: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: 8 },
