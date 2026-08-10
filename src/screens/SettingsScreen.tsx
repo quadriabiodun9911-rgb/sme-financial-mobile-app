@@ -16,6 +16,7 @@ import { openSupportChat } from '../utils/whatsappIntegration';
 import { showAlert, confirmAction } from '../utils/webAlert';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
+import { isFinancingAdmin } from '../utils/financingAdmin';
 
 const CURRENCIES = [
     { label: 'USD ($)',    value: '$'   },
@@ -755,6 +756,17 @@ export default function SettingsScreen() {
                                     ? 'You have Accountant access — you can view all data and export reports, but cannot modify transactions or settings.'
                                     : 'You have Staff access — you can add transactions. Contact your business owner for full access.'}
                             </Text>
+                        </Section>
+                    )}
+
+                    {/* Only ever visible to Quad360 admins (isFinancingAdmin) --
+                        manages the real financing_products Supabase table that
+                        FinancingMarketplaceScreen shows once it has listings. */}
+                    {isFinancingAdmin(user?.email) && (
+                        <Section title="Platform Admin">
+                            <TouchableOpacity onPress={() => setCurrentScreen('financing-admin')} style={styles.saveBtn}>
+                                <Text style={styles.saveBtnText}>Manage Financing Listings</Text>
+                            </TouchableOpacity>
                         </Section>
                     )}
                 </View>

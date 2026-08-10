@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { SafeAreaView, ScrollView, View, Text, TouchableOpacity, StyleSheet, TextInput } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -8,7 +8,8 @@ import Icon, { IconName } from '../components/ui/Icon';
 import { computeRiskScore, computeDSCR, RiskScore } from '../utils/finance';
 import { buildFinancingFitInput, rankFinancingProducts, FinancingFitResult, FinancingFitVerdict } from '../utils/financingFit';
 import { SAMPLE_FINANCING_PRODUCTS } from '../utils/financingProducts';
-import { FinancingProductType, LenderType } from '../types';
+import { loadActiveFinancingProducts } from '../utils/financingAdmin';
+import { FinancingProduct, FinancingProductType, LenderType } from '../types';
 
 const VERDICT_STYLE: Record<FinancingFitVerdict, { label: string; color: string }> = {
     strong: { label: 'Strong fit', color: Colors.income },
@@ -131,9 +132,24 @@ export default function FinancingMarketplaceScreen() {
         [transactions, loans, settings, user, requestedAmount],
     );
 
+    // Real, admin-managed listings replace the illustrative sample list the
+    // moment there's at least one -- this is the switch from "demo" to a
+    // genuine marketplace. Falls back to the sample list on any failure
+    // (offline, table not yet created) rather than showing a blank screen.
+    const [liveProducts, setLiveProducts] = useState<FinancingProduct[] | null>(null);
+    useEffect(() => {
+        let cancelled = false;
+        loadActiveFinancingProducts().then(products => {
+            if (!cancelled) setLiveProducts(products);
+        });
+        return () => { cancelled = true; };
+    }, []);
+    const usingLiveProducts = !!liveProducts && liveProducts.length > 0;
+    const productSource = usingLiveProducts ? liveProducts! : SAMPLE_FINANCING_PRODUCTS;
+
     const results = useMemo(
-        () => rankFinancingProducts(SAMPLE_FINANCING_PRODUCTS, fitInput, currency),
-        [fitInput, currency],
+        () => rankFinancingProducts(productSource, fitInput, currency),
+        [productSource, fitInput, currency],
     );
 
     const READY_BAND: Record<RiskScore['band'], { label: string; color: string }> = {
@@ -160,7 +176,9 @@ export default function FinancingMarketplaceScreen() {
 
                 <View style={s.disclosureBox}>
                     <Text style={s.disclosureText}>
-                        Sample marketplace — Quad360 doesn't have live lending partners yet. These are illustrative example listings that show how the fit-matching engine works once real lenders are onboarded. Fit scores are estimates based on published criteria and your recorded data — Quad360 does not make lending decisions, and no lender here is a real, currently-applyable offer.
+                        {usingLiveProducts
+                            ? "These are real financing products published by Quad360's lending partners. Fit scores are estimates based on each lender's published criteria and your recorded data — Quad360 does not make lending decisions. Each lender independently evaluates and approves any application."
+                            : "Sample marketplace — Quad360 doesn't have live lending partners yet. These are illustrative example listings that show how the fit-matching engine works once real lenders are onboarded. Fit scores are estimates based on published criteria and your recorded data — Quad360 does not make lending decisions, and no lender here is a real, currently-applyable offer."}
                     </Text>
                 </View>
 

@@ -29,7 +29,8 @@ export type Screen =
     | 'financial-health'
     | 'business-passport'
     | 'macro-assumptions'
-    | 'financing-marketplace';
+    | 'financing-marketplace'
+    | 'financing-admin';
 
 export interface Budget {
     id: string;
@@ -415,6 +416,8 @@ export interface FinancingEligibility {
     minTransactionHistoryMonths?: number;
 }
 
+export type FinancingProductStatus = 'active' | 'inactive';
+
 export interface FinancingProduct {
     id: string;
     lenderName: string;
@@ -429,6 +432,13 @@ export interface FinancingProduct {
     interestRateMinPct: number; // annual %
     interestRateMaxPct: number;
     eligibility: FinancingEligibility;
+    // Set only on real, admin-managed listings (financing_products table) --
+    // the hardcoded SAMPLE_FINANCING_PRODUCTS never populate these.
+    status?: FinancingProductStatus;
+    ownerUserId?: string;    // null/undefined = admin-managed; populated once lender self-service accounts exist
+    createdBy?: string;      // admin email that created/last edited this listing
+    createdAt?: string;
+    updatedAt?: string;
 }
 
 export interface CashPocket {
