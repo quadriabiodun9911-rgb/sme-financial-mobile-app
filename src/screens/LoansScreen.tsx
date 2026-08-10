@@ -18,10 +18,11 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
-import { Loan, LoanStatus } from '../types';
+import { Loan, LoanStatus, Transaction, ReadinessSnapshot } from '../types';
 import DateInput from '../components/DateInput';
 import MerchantFinancingSection from './MerchantFinancingSection';
-import { computeDebtOptimiser } from '../utils/finance';
+import { computeDebtOptimiser, computeDSCR, DSCRResult } from '../utils/finance';
+import { computePostFinancingMonitor, PostFinancingStatus } from '../utils/postFinancingMonitor';
 import NextStepLink from '../components/NextStepLink';
 import ProfitCashImpactCard from '../components/ProfitCashImpactCard';
 import { computeProfitCashImpact } from '../utils/impactChain';
@@ -61,7 +62,7 @@ function isOverdue(loan: Loan): boolean {
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────
 
 export default function LoansScreen() {
-    const { loans, addLoan, updateLoan, deleteLoan, addLoanPayment, settings, navigate, finance, navParams } = useApp();
+    const { loans, addLoan, updateLoan, deleteLoan, addLoanPayment, settings, navigate, finance, navParams, transactions, readinessHistory } = useApp();
     const { currency } = settings;
 
     // Feature flag for merchant financing
@@ -83,6 +84,7 @@ export default function LoansScreen() {
     const [term, setTerm] = useState('');
     const [startDate, setStart] = useState(new Date().toISOString().split('T')[0]);
     const [status, setStatus] = useState<LoanStatus>('active');
+    const [fromMarketplace, setFromMarketplace] = useState(false);
 
     // Payment form
     const [payAmount, setPayAmount] = useState('');
@@ -92,7 +94,7 @@ export default function LoansScreen() {
     const resetForm = () => {
         setLender(''); setPurpose(''); setPrincipal(''); setRate('');
         setTerm(''); setStart(new Date().toISOString().split('T')[0]);
-        setStatus('active'); setEditingId(null);
+        setStatus('active'); setFromMarketplace(false); setEditingId(null);
     };
 
     const openAdd = () => { resetForm(); setShowForm(true); };
@@ -101,7 +103,7 @@ export default function LoansScreen() {
         setLender(l.lenderName); setPurpose(l.purpose);
         setPrincipal(String(l.principal)); setRate(String(l.interestRate));
         setTerm(String(l.termMonths)); setStart(l.startDate);
-        setStatus(l.status); setEditingId(l.id); setShowForm(true);
+        setStatus(l.status); setFromMarketplace(!!l.fromMarketplace); setEditingId(l.id); setShowForm(true);
     };
 
     const handleSave = () => {
@@ -116,7 +118,7 @@ export default function LoansScreen() {
         const payload = {
             lenderName: lender.trim(), purpose: purpose.trim(),
             principal: p, interestRate: r, termMonths: t,
-            startDate, status,
+            startDate, status, fromMarketplace,
         };
         if (editingId) {
             updateLoan(editingId, payload);
@@ -158,6 +160,7 @@ export default function LoansScreen() {
     // Multi-loan payoff strategy (avalanche vs snowball) — only meaningful
     // with 2+ active loans; a single loan has no ordering decision to make.
     const debtOpt = useMemo(() => computeDebtOptimiser(loans), [loans]);
+    const dscr = useMemo(() => computeDSCR(transactions, loans), [transactions, loans]);
     const showDebtStrategy = activeLoans.length >= 2;
 
     return (
@@ -299,6 +302,9 @@ export default function LoansScreen() {
                                 loan={loan}
                                 currency={currency}
                                 expanded={expandedId === loan.id}
+                                transactions={transactions}
+                                readinessHistory={readinessHistory}
+                                dscr={dscr}
                                 onToggle={() => setExpandedId(expandedId === loan.id ? null : loan.id)}
                                 onEdit={() => openEdit(loan)}
                                 onDelete={() => confirmDelete(loan.id)}
@@ -349,6 +355,16 @@ export default function LoansScreen() {
 
                             <FieldLabel text="Start Date" />
                             <DateInput value={startDate} onChange={setStart} />
+
+                            <TouchableOpacity style={s.marketplaceToggleRow} onPress={() => setFromMarketplace(v => !v)} activeOpacity={0.7}>
+                                <View style={[s.checkbox, fromMarketplace && s.checkboxChecked]}>
+                                    {fromMarketplace && <Icon name="check-circle" size={13} color="#fff" />}
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={s.marketplaceToggleLabel}>This loan came through the Financing Marketplace</Text>
+                                    <Text style={s.marketplaceToggleHint}>Unlocks "This Loan's Impact" — Quad360 watches your recorded data since the funded date for early signs the loan isn't working out.</Text>
+                                </View>
+                            </TouchableOpacity>
 
                             {/* Live preview */}
                             {principal && rate && term && !isNaN(parseFloat(principal)) && !isNaN(parseFloat(rate)) && !isNaN(parseInt(term)) && (() => {
@@ -478,8 +494,9 @@ function TabButton({ label, active, onPress }: { label: string; active: boolean;
     );
 }
 
-function LoanCard({ loan, currency, expanded, onToggle, onEdit, onDelete, onAddPayment }: {
+function LoanCard({ loan, currency, expanded, transactions, readinessHistory, dscr, onToggle, onEdit, onDelete, onAddPayment }: {
     loan: Loan; currency: string; expanded: boolean;
+    transactions: Transaction[]; readinessHistory: ReadinessSnapshot[]; dscr: DSCRResult;
     onToggle: () => void; onEdit: () => void; onDelete: () => void; onAddPayment: () => void;
 }) {
     const paid = totalPaid(loan);
@@ -489,6 +506,16 @@ function LoanCard({ loan, currency, expanded, onToggle, onEdit, onDelete, onAddP
     const progress = Math.min(100, (paid / loan.principal) * 100);
     const overdue = isOverdue(loan);
     const statusColor = loan.status === 'paid_off' ? Colors.income : loan.status === 'defaulted' ? Colors.expense : overdue ? Colors.warning : Colors.textMuted;
+
+    const monitor = useMemo(
+        () => loan.fromMarketplace ? computePostFinancingMonitor(loan, transactions, readinessHistory, dscr) : null,
+        [loan, transactions, readinessHistory, dscr],
+    );
+    const MONITOR_STATUS_STYLE: Record<PostFinancingStatus, { label: string; color: string }> = {
+        healthy: { label: 'Healthy', color: Colors.income },
+        watch: { label: 'Watch', color: Colors.warning },
+        'at-risk': { label: 'At Risk', color: Colors.expense },
+    };
 
     return (
         <View style={[s.card, overdue && { borderColor: Colors.warning, borderWidth: 1.5 }]}>
@@ -558,6 +585,40 @@ function LoanCard({ loan, currency, expanded, onToggle, onEdit, onDelete, onAddP
                             })}
                             {(loan.payments ?? []).length > 5 && (
                                 <Text style={s.morePayments}>+{(loan.payments ?? []).length - 5} more payments</Text>
+                            )}
+                        </View>
+                    )}
+
+                    {monitor && (
+                        <View style={s.monitorBox}>
+                            <View style={s.monitorHeaderRow}>
+                                <Text style={s.monitorTitle}>📡 This Loan's Impact</Text>
+                                <View style={[s.monitorBadge, { backgroundColor: MONITOR_STATUS_STYLE[monitor.status].color + '22' }]}>
+                                    <Text style={[s.monitorBadgeText, { color: MONITOR_STATUS_STYLE[monitor.status].color }]}>{MONITOR_STATUS_STYLE[monitor.status].label}</Text>
+                                </View>
+                            </View>
+                            <Text style={s.monitorSub}>Tracked since this loan was funded — visible only to you, never shared with the lender.</Text>
+
+                            {monitor.signals.map(sig => (
+                                <View key={sig.label} style={s.monitorSignalRow}>
+                                    <Text style={[s.monitorSignalIcon, { color: sig.tripped ? Colors.expense : Colors.income }]}>{sig.tripped ? '⚠' : '✓'}</Text>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={s.monitorSignalLabel}>{sig.label}</Text>
+                                        <Text style={s.monitorSignalDetail}>{sig.detail}</Text>
+                                    </View>
+                                </View>
+                            ))}
+
+                            {monitor.readinessSinceFunding && (
+                                <Text style={[s.monitorReadiness, { color: monitor.readinessSinceFunding.trend === 'improving' ? Colors.income : monitor.readinessSinceFunding.trend === 'declining' ? Colors.expense : Colors.textSecondary }]}>
+                                    Readiness since funding: {monitor.readinessSinceFunding.fromScore} → {monitor.readinessSinceFunding.toScore} over {monitor.readinessSinceFunding.periodLabel}
+                                </Text>
+                            )}
+
+                            {monitor.tactics.length > 0 && (
+                                <View style={s.monitorTacticsBox}>
+                                    {monitor.tactics.map((t, i) => <Text key={i} style={s.monitorTactic}>• {t}</Text>)}
+                                </View>
                             )}
                         </View>
                     )}
@@ -716,6 +777,25 @@ const s = StyleSheet.create({
     modalTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: Spacing.lg },
 
     fieldLabel: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary, marginBottom: 5, marginTop: 10 },
+    marketplaceToggleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 14, backgroundColor: Colors.bg, borderRadius: 10, padding: 12 },
+    checkbox: { width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
+    checkboxChecked: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+    marketplaceToggleLabel: { fontSize: 13, fontWeight: '600', color: Colors.textPrimary },
+    marketplaceToggleHint: { fontSize: 11, color: Colors.textMuted, marginTop: 3, lineHeight: 15 },
+
+    monitorBox: { backgroundColor: Colors.bg, borderRadius: 10, padding: 12, marginTop: 12, marginBottom: 4 },
+    monitorHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+    monitorTitle: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
+    monitorBadge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+    monitorBadgeText: { fontSize: 10.5, fontWeight: '700' },
+    monitorSub: { fontSize: 10.5, color: Colors.textMuted, fontStyle: 'italic', marginBottom: 8, lineHeight: 14 },
+    monitorSignalRow: { flexDirection: 'row', marginBottom: 7 },
+    monitorSignalIcon: { fontSize: 13, fontWeight: '800', width: 18 },
+    monitorSignalLabel: { fontSize: 12, fontWeight: '600', color: Colors.textPrimary },
+    monitorSignalDetail: { fontSize: 11, color: Colors.textSecondary, marginTop: 1, lineHeight: 15 },
+    monitorReadiness: { fontSize: 11.5, fontWeight: '600', marginTop: 2, marginBottom: 6 },
+    monitorTacticsBox: { backgroundColor: Colors.surface, borderRadius: 8, padding: 9, marginTop: 4 },
+    monitorTactic: { fontSize: 11, color: Colors.textSecondary, lineHeight: 16, marginBottom: 3 },
     input: {
         backgroundColor: Colors.bg, borderColor: Colors.border, borderWidth: 1,
         borderRadius: Radius.sm, paddingHorizontal: Spacing.md, paddingVertical: 10,

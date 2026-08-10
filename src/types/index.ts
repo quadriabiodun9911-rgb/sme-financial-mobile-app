@@ -383,6 +383,10 @@ export interface Loan {
     status: LoanStatus;
     payments: LoanPayment[];
     createdAt: string;
+    // Post-Financing Intelligence: self-reported, since Quad360 has no way
+    // to independently confirm a marketplace match became a real loan.
+    // Enables "This Loan's Impact" monitoring once set.
+    fromMarketplace?: boolean;
 }
 
 // ─── Financing Marketplace ──────────────────────────────────────────────────
