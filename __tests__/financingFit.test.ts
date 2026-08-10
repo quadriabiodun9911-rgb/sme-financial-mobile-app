@@ -60,9 +60,9 @@ describe('computeFinancingFit', () => {
         const result = computeFinancingFit(assetProduct, weakInput, currency);
         expect(result.verdict).not.toBe('strong');
         expect(result.unmetCount).toBeGreaterThanOrEqual(3);
-        expect(result.improvementTips.some(t => t.startsWith('Monthly revenue'))).toBe(true);
-        expect(result.improvementTips.some(t => t.startsWith('Business age'))).toBe(true);
-        expect(result.improvementTips.some(t => t.startsWith('Industry'))).toBe(true);
+        expect(result.improvementTips.some(t => t.startsWith('Grow monthly revenue'))).toBe(true);
+        expect(result.improvementTips.some(t => t.includes("can't be accelerated"))).toBe(true);
+        expect(result.improvementTips.some(t => t.includes("doesn't cover"))).toBe(true);
     });
 
     it('marks a business unable to cover existing debt service as not_eligible regardless of other criteria', () => {

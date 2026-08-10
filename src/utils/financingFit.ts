@@ -142,41 +142,63 @@ function fmtAmt(currency: string, n: number): string {
 export function computeFinancingFit(product: FinancingProduct, input: FinancingFitInput, currency: string): FinancingFitResult {
     const e = product.eligibility;
     const criteria: FinancingFitCriterion[] = [];
+    // A tactic is only pushed for criteria that actually failed -- it names
+    // the specific gap and a real lever to close it, not just a restatement
+    // of "you don't meet this," so a weak fit reads as a path, not a wall.
+    const tips: string[] = [];
 
     if (e.minMonthlyRevenue !== undefined) {
+        const met = input.avgMonthlyRevenue >= e.minMonthlyRevenue;
         criteria.push({
             label: 'Monthly revenue',
-            status: input.avgMonthlyRevenue >= e.minMonthlyRevenue ? 'met' : 'unmet',
+            status: met ? 'met' : 'unmet',
             businessValue: `${fmtAmt(currency, input.avgMonthlyRevenue)}/mo`,
             required: `≥ ${fmtAmt(currency, e.minMonthlyRevenue)}/mo`,
         });
+        if (!met) {
+            const gap = e.minMonthlyRevenue - input.avgMonthlyRevenue;
+            tips.push(`Grow monthly revenue from ${fmtAmt(currency, input.avgMonthlyRevenue)} to ${fmtAmt(currency, e.minMonthlyRevenue)} (+${fmtAmt(currency, gap)}) to clear this lender's threshold.`);
+        }
     }
 
     if (e.minBusinessAgeMonths !== undefined) {
+        const met = input.businessAgeMonths >= e.minBusinessAgeMonths;
         criteria.push({
             label: 'Business age',
-            status: input.businessAgeMonths >= e.minBusinessAgeMonths ? 'met' : 'unmet',
+            status: met ? 'met' : 'unmet',
             businessValue: `${input.businessAgeMonths} month${input.businessAgeMonths === 1 ? '' : 's'}`,
             required: `≥ ${e.minBusinessAgeMonths} month${e.minBusinessAgeMonths === 1 ? '' : 's'}`,
         });
+        if (!met) {
+            const gap = e.minBusinessAgeMonths - input.businessAgeMonths;
+            tips.push(`Business age can't be accelerated — come back in ${gap} more month${gap === 1 ? '' : 's'}, or look at lenders with a shorter history requirement in the meantime.`);
+        }
     }
 
     if (e.minDSCR !== undefined) {
+        const met = input.dscr >= e.minDSCR;
         criteria.push({
             label: 'Debt-service coverage (DSCR)',
-            status: input.dscr >= e.minDSCR ? 'met' : 'unmet',
+            status: met ? 'met' : 'unmet',
             businessValue: input.dscr >= 900 ? 'No existing debt' : `${input.dscr.toFixed(2)}x`,
             required: `≥ ${e.minDSCR.toFixed(2)}x`,
         });
+        if (!met) {
+            tips.push(`Build repayment headroom — grow operating income or pay down existing debt until DSCR clears ${e.minDSCR.toFixed(2)}x. This is close to a hard floor across most lenders, not unique to this one.`);
+        }
     }
 
     if (e.eligibleIndustries && e.eligibleIndustries.length > 0) {
+        const met = e.eligibleIndustries.includes(input.industry);
         criteria.push({
             label: 'Industry',
-            status: e.eligibleIndustries.includes(input.industry) ? 'met' : 'unmet',
+            status: met ? 'met' : 'unmet',
             businessValue: input.industry,
             required: e.eligibleIndustries.join(', '),
         });
+        if (!met) {
+            tips.push(`${product.lenderName} doesn't cover ${input.industry} for this product — not something to fix, look at other listings instead.`);
+        }
     }
 
     if (e.maxDebtToRevenueRatio !== undefined) {
@@ -190,22 +212,33 @@ export function computeFinancingFit(product: FinancingProduct, input: FinancingF
             });
         } else {
             const ratio = input.existingDebt / input.annualRevenue;
+            const met = ratio <= e.maxDebtToRevenueRatio;
             criteria.push({
                 label: 'Debt-to-revenue ratio',
-                status: ratio <= e.maxDebtToRevenueRatio ? 'met' : 'unmet',
+                status: met ? 'met' : 'unmet',
                 businessValue: `${(ratio * 100).toFixed(0)}%`,
                 required: `≤ ${(e.maxDebtToRevenueRatio * 100).toFixed(0)}%`,
             });
+            if (!met) {
+                const maxDebtAllowed = e.maxDebtToRevenueRatio * input.annualRevenue;
+                const payDown = input.existingDebt - maxDebtAllowed;
+                tips.push(`Pay down about ${fmtAmt(currency, payDown)} of existing debt (or grow revenue) to bring your debt-to-revenue ratio under ${(e.maxDebtToRevenueRatio * 100).toFixed(0)}%.`);
+            }
         }
     }
 
     if (e.minTransactionHistoryMonths !== undefined) {
+        const met = input.transactionHistoryMonths >= e.minTransactionHistoryMonths;
         criteria.push({
             label: 'Recorded transaction history',
-            status: input.transactionHistoryMonths >= e.minTransactionHistoryMonths ? 'met' : 'unmet',
+            status: met ? 'met' : 'unmet',
             businessValue: `${input.transactionHistoryMonths} month${input.transactionHistoryMonths === 1 ? '' : 's'}`,
             required: `≥ ${e.minTransactionHistoryMonths} month${e.minTransactionHistoryMonths === 1 ? '' : 's'}`,
         });
+        if (!met) {
+            const gap = e.minTransactionHistoryMonths - input.transactionHistoryMonths;
+            tips.push(`Keep recording transactions — ${gap} more consistent month${gap === 1 ? '' : 's'} of history clears this requirement.`);
+        }
     }
 
     if (e.minEquityContributionPct !== undefined) {
@@ -219,12 +252,18 @@ export function computeFinancingFit(product: FinancingProduct, input: FinancingF
     }
 
     if (input.requestedAmount !== undefined && input.requestedAmount > 0) {
+        const met = input.requestedAmount >= product.minAmount && input.requestedAmount <= product.maxAmount;
         criteria.push({
             label: 'Requested amount within range',
-            status: input.requestedAmount >= product.minAmount && input.requestedAmount <= product.maxAmount ? 'met' : 'unmet',
+            status: met ? 'met' : 'unmet',
             businessValue: fmtAmt(currency, input.requestedAmount),
             required: `${fmtAmt(currency, product.minAmount)} – ${fmtAmt(currency, product.maxAmount)}`,
         });
+        if (!met) {
+            tips.push(input.requestedAmount < product.minAmount
+                ? `Your ask is below this lender's minimum of ${fmtAmt(currency, product.minAmount)} — raise your request, or this may not be the right fit for a smaller need.`
+                : `Your ask exceeds this lender's maximum of ${fmtAmt(currency, product.maxAmount)} — lower your request, or pair this with another facility to cover the difference.`);
+        }
     }
 
     const metCount = criteria.filter(c => c.status === 'met').length;
@@ -242,9 +281,7 @@ export function computeFinancingFit(product: FinancingProduct, input: FinancingF
     else if (fitScore >= 55) verdict = 'moderate';
     else verdict = 'weak';
 
-    const improvementTips = criteria
-        .filter(c => c.status === 'unmet')
-        .map(c => `${c.label}: currently ${c.businessValue} — this lender wants ${c.required}.`);
+    const improvementTips = tips;
 
     const economicNote = pickEconomicNote(product, input.economicInsights);
 

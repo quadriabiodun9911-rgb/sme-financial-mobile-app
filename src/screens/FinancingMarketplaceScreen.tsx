@@ -7,6 +7,9 @@ import FooterNav from '../components/FooterNav';
 import Icon, { IconName } from '../components/ui/Icon';
 import { computeRiskScore, computeDSCR, RiskScore } from '../utils/finance';
 import { buildFinancingFitInput, rankFinancingProducts, FinancingFitResult, FinancingFitVerdict } from '../utils/financingFit';
+import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
+import { computeDataQuality } from '../utils/dataQuality';
+import { computeInventoryValue } from '../utils/stockVelocity';
 import { SAMPLE_FINANCING_PRODUCTS } from '../utils/financingProducts';
 import { loadActiveFinancingProducts } from '../utils/financingAdmin';
 import { FinancingProduct, FinancingProductType, LenderType } from '../types';
@@ -97,8 +100,9 @@ function ProductCard({ result, currency, expanded, onToggle }: { result: Financi
                     {result.criteria.map((c, i) => <CriterionRow key={i} {...c} />)}
                     {result.improvementTips.length > 0 && (
                         <View style={s.improveBox}>
-                            <Text style={s.improveTitle}>To improve your fit</Text>
+                            <Text style={s.improveTitle}>What would close the gap</Text>
                             {result.improvementTips.map((t, i) => <Text key={i} style={s.improveTip}>• {t}</Text>)}
+                            <Text style={s.improveFootnote}>Fit updates automatically the next time you record transactions — no need to recheck manually.</Text>
                         </View>
                     )}
                     {result.verdict === 'not_eligible' && (
@@ -137,6 +141,21 @@ export default function FinancingMarketplaceScreen() {
         () => buildFinancingFitInput(transactions, loans, settings, user, requestedAmount),
         [transactions, loans, settings, user, requestedAmount],
     );
+
+    // Right-sizing: what the business could realistically support, computed
+    // the same way Credit-Worthiness's Estimated Lending Capacity is, so a
+    // requested amount is checked against actual repayment capacity -- not
+    // just whether some lender's range happens to cover it. A marketplace
+    // has no incentive to volunteer this; Quad360 does.
+    const dataQuality = useMemo(() => computeDataQuality(transactions), [transactions]);
+    const inventoryValue = useMemo(() => computeInventoryValue(inventory), [inventory]);
+    const lendingCapacity = useMemo(() => computeLendingCapacityEstimate({
+        overallCreditScore: risk.score,
+        avgMonthlyRevenue: fitInput.avgMonthlyRevenue,
+        dscr: dscr.dscr,
+        hasReliableData: dataQuality.confidence !== 'none' && dataQuality.confidence !== 'limited',
+        inventoryValue,
+    }), [risk.score, fitInput.avgMonthlyRevenue, dscr.dscr, dataQuality.confidence, inventoryValue]);
 
     // Real, admin-managed listings replace the illustrative sample list the
     // moment there's at least one -- this is the switch from "demo" to a
@@ -209,6 +228,28 @@ export default function FinancingMarketplaceScreen() {
                         onChangeText={setAmountText}
                     />
                     <Text style={s.amountHint}>Narrows the fit score to also check whether each lender's amount range covers what you're asking for.</Text>
+
+                    {lendingCapacity.maxAmount > 0 && (
+                        <View style={s.capacityNote}>
+                            <Text style={s.capacityNoteLabel}>Based on your current numbers</Text>
+                            <Text style={s.capacityNoteRange}>
+                                You could realistically support {fmtAmt(currency, lendingCapacity.minAmount)}–{fmtAmt(currency, lendingCapacity.maxAmount)}
+                            </Text>
+                            {requestedAmount !== undefined && requestedAmount > lendingCapacity.maxAmount && (
+                                <Text style={s.capacityNoteWarn}>
+                                    Your {fmtAmt(currency, requestedAmount)} ask is above that range — lenders may see this as more debt than your current cash flow comfortably supports.
+                                </Text>
+                            )}
+                            <TouchableOpacity onPress={() => navigate('credit-worthiness')}>
+                                <Text style={s.capacityNoteLink}>See the full breakdown on Credit-Worthiness →</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+                    {lendingCapacity.maxAmount === 0 && (
+                        <Text style={s.capacityNoteMuted}>
+                            Not enough reliable history yet to estimate what you could realistically support based on your own numbers.
+                        </Text>
+                    )}
                 </View>
 
                 <Text style={s.sectionTitle}>{results.length} financing products ranked by fit</Text>
@@ -255,6 +296,12 @@ const s = StyleSheet.create({
     amountLabel: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: 8 },
     amountInput: { borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: Colors.textPrimary, backgroundColor: Colors.bg },
     amountHint: { fontSize: 11.5, color: Colors.textMuted, marginTop: 6, lineHeight: 16 },
+    capacityNote: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: Colors.border },
+    capacityNoteLabel: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3 },
+    capacityNoteRange: { fontSize: 14.5, fontWeight: '700', color: Colors.textPrimary, marginTop: 3 },
+    capacityNoteWarn: { fontSize: 12, color: Colors.warning, marginTop: 6, lineHeight: 16 },
+    capacityNoteLink: { fontSize: 12, color: Colors.primary, marginTop: 8, fontWeight: '600' },
+    capacityNoteMuted: { fontSize: 11.5, color: Colors.textMuted, marginTop: 10, fontStyle: 'italic', lineHeight: 16 },
 
     sectionTitle: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, marginBottom: 10 },
 
@@ -282,6 +329,7 @@ const s = StyleSheet.create({
     improveBox: { marginTop: 4, backgroundColor: Colors.bg, borderRadius: 8, padding: 10 },
     improveTitle: { fontSize: 12, fontWeight: '700', color: Colors.textPrimary, marginBottom: 5 },
     improveTip: { fontSize: 11.5, color: Colors.textSecondary, lineHeight: 16, marginBottom: 3 },
+    improveFootnote: { fontSize: 10.5, color: Colors.textMuted, fontStyle: 'italic', marginTop: 4, lineHeight: 14 },
 
     notEligibleNote: { fontSize: 11.5, color: Colors.expense, marginTop: 6, lineHeight: 16 },
 
