@@ -36,6 +36,48 @@ function logSyncError(table: string, op: string, error: unknown) {
     console.error(`[Quad360] Supabase ${op} on "${table}" failed:`, error);
 }
 
+// ─── Delta-sync cache ─────────────────────────────────────────────────────────
+// Per-entity snapshot of "what we last successfully synced to Supabase",
+// keyed by entity name. Lets save*() below upload/encrypt only the records
+// that actually changed since the last successful sync, instead of
+// re-encrypting and re-uploading every record on every single mutation --
+// previously, adding one transaction to a business with thousands of
+// historical ones re-ran AES-encrypt on all of them and re-sent all of them
+// over the network, every time, since the effect that calls saveTransactions
+// fires on any change to the array reference (see OptimizedContexts.tsx).
+//
+// Correctness relies on one property already true of every add*/update*/
+// delete* action in OptimizedContexts.tsx: they build new arrays via
+// .map()/.filter(), which leaves every UNTOUCHED array entry at its
+// original object reference (e.g. updateTransaction's
+// `prev.map(t => t.id === id ? {...t, ...tx} : t)`). A plain `!==` check
+// against the last-synced snapshot is therefore enough to find exactly
+// what changed, with no need to diff field-by-field.
+const lastSyncedByEntity = new Map<string, Map<string, unknown>>();
+
+// Exported (in addition to being called internally by every save* function
+// below) so the diff/record/reset contract can be unit-tested directly
+// without mocking the Supabase client -- see storage.deltaSync.test.ts.
+export function diffChangedRows<T extends { id: string }>(entity: string, current: T[]): T[] {
+    const prev = lastSyncedByEntity.get(entity);
+    if (!prev) return current; // no baseline yet -- everything counts as new
+    return current.filter(item => prev.get(item.id) !== item);
+}
+
+export function recordSyncedRows<T extends { id: string }>(entity: string, current: T[]): void {
+    const snapshot = new Map<string, T>();
+    for (const item of current) snapshot.set(item.id, item);
+    lastSyncedByEntity.set(entity, snapshot);
+}
+
+// Cleared whenever the signed-in identity changes (see
+// clearLocalFinancialCache below) so a newly-signed-in account's data is
+// never diffed against -- and therefore silently under-synced from -- the
+// previous account's snapshot.
+export function resetSyncDiffCache(): void {
+    lastSyncedByEntity.clear();
+}
+
 // ─── Auth helpers ─────────────────────────────────────────────────────────────
 export async function getAuthUserId(): Promise<string | null> {
     try {
@@ -69,9 +111,12 @@ export async function saveTransactions(t: Transaction[]): Promise<void> {
     await AsyncStorage.setItem(KEYS.transactions, JSON.stringify(t));
     const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return;
+    // Only records that changed since the last successful sync get
+    // encrypted and sent — see the "Delta-sync cache" note above.
+    const changed = diffChangedRows('transactions', t);
     try {
         const encKey = await getFieldEncryptionKey(await loadAuthSecret());
-        const rows = t.length > 0 ? t.map(tx => ({
+        const rows = changed.length > 0 ? changed.map(tx => ({
             id: tx.id, user_id: ownerId,
             data: encKey ? encryptTransaction(tx as unknown as Record<string, any>, encKey) : tx,
             updated_at: new Date().toISOString(),
@@ -79,15 +124,34 @@ export async function saveTransactions(t: Transaction[]): Promise<void> {
 
         // Fetch remote IDs in parallel with upsert for optimal performance
         const [upsertResult, { data: remote, error: fetchErr }] = await Promise.all([
-            t.length > 0 ? supabase.from('transactions').upsert(rows, { onConflict: 'id' }) : Promise.resolve({ error: null }),
+            rows.length > 0 ? supabase.from('transactions').upsert(rows, { onConflict: 'id' }) : Promise.resolve({ error: null }),
             supabase.from('transactions').select('id').eq('user_id', ownerId),
         ]);
 
         if (upsertResult.error) {
             logSyncError('transactions', 'upsert', upsertResult.error);
-            if (rows.length > 0) await enqueue({ table: 'transactions', op: 'upsert', rows, userId: ownerId });
+            // Queue the FULL current array, not just the diffed subset that
+            // just failed to upload — the offline queue's enqueue() replaces
+            // (rather than merges) a table's previously-queued rows, so a
+            // partial payload here could permanently drop an earlier
+            // still-unsynced edit. This matches exactly what used to be
+            // sent here before delta-sync (the full array, encrypted).
+            if (t.length > 0) {
+                const fullRows = t.map(tx => ({
+                    id: tx.id, user_id: ownerId,
+                    data: encKey ? encryptTransaction(tx as unknown as Record<string, any>, encKey) : tx,
+                    updated_at: new Date().toISOString(),
+                }));
+                await enqueue({ table: 'transactions', op: 'upsert', rows: fullRows, userId: ownerId });
+            }
             return;
         }
+
+        // Only mark the full current array as "synced" after a confirmed
+        // successful upsert — if this ran after a failed/skipped upsert,
+        // a genuinely-unsynced record could get recorded as synced and
+        // then silently never retried.
+        recordSyncedRows('transactions', t);
 
         if (fetchErr) { logSyncError('transactions', 'select', fetchErr); return; }
 
@@ -183,9 +247,10 @@ export async function saveGoals(g: FinancialGoal[]): Promise<void> {
     await AsyncStorage.setItem(KEYS.goals, JSON.stringify(g));
     const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return;
+    const changed = diffChangedRows('goals', g);
     try {
         const encKey = await getFieldEncryptionKey(await loadAuthSecret());
-        const rows = g.length > 0 ? g.map(goal => ({
+        const rows = changed.length > 0 ? changed.map(goal => ({
             id: goal.id,
             user_id: ownerId,
             data: encKey ? encryptGoal(goal as unknown as Record<string, any>, encKey) : goal,
@@ -198,7 +263,11 @@ export async function saveGoals(g: FinancialGoal[]): Promise<void> {
             supabase.from('goals').select('id').eq('user_id', ownerId),
         ]);
 
-        if (upsertResult.error) logSyncError('goals', 'upsert', upsertResult.error);
+        if (upsertResult.error) {
+            logSyncError('goals', 'upsert', upsertResult.error);
+        } else {
+            recordSyncedRows('goals', g);
+        }
         if (fetchErr) { logSyncError('goals', 'select', fetchErr); return; }
 
         if (remote && remote.length > 0) {
@@ -250,9 +319,10 @@ export async function saveInvoices(invoices: Invoice[]): Promise<void> {
     await AsyncStorage.setItem(KEYS.invoices, JSON.stringify(invoices));
     const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return;
+    const changed = diffChangedRows('invoices', invoices);
     try {
         const encKey = await getFieldEncryptionKey(await loadAuthSecret());
-        const rows = invoices.length > 0 ? invoices.map(inv => ({
+        const rows = changed.length > 0 ? changed.map(inv => ({
             id: inv.id, user_id: ownerId,
             data: encKey ? encryptInvoice(inv as unknown as Record<string, any>, encKey) : inv,
             updated_at: new Date().toISOString(),
@@ -264,7 +334,11 @@ export async function saveInvoices(invoices: Invoice[]): Promise<void> {
             supabase.from('invoices').select('id').eq('user_id', ownerId),
         ]);
 
-        if (upsertResult.error) logSyncError('invoices', 'upsert', upsertResult.error);
+        if (upsertResult.error) {
+            logSyncError('invoices', 'upsert', upsertResult.error);
+        } else {
+            recordSyncedRows('invoices', invoices);
+        }
         if (fetchErr) { logSyncError('invoices', 'select', fetchErr); return; }
 
         if (remote && remote.length > 0) {
@@ -314,9 +388,10 @@ export async function saveAssets(assets: Asset[]): Promise<void> {
     await AsyncStorage.setItem(KEYS.assets, JSON.stringify(assets));
     const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return;
+    const changed = diffChangedRows('assets', assets);
     try {
         const encKey = await getFieldEncryptionKey(await loadAuthSecret());
-        const rows = assets.length > 0 ? assets.map(a => ({
+        const rows = changed.length > 0 ? changed.map(a => ({
             id: a.id, user_id: ownerId,
             data: encKey ? encryptAsset(a as unknown as Record<string, any>, encKey) : a,
             updated_at: new Date().toISOString(),
@@ -328,7 +403,11 @@ export async function saveAssets(assets: Asset[]): Promise<void> {
             supabase.from('assets').select('id').eq('user_id', ownerId),
         ]);
 
-        if (upsertResult.error) logSyncError('assets', 'upsert', upsertResult.error);
+        if (upsertResult.error) {
+            logSyncError('assets', 'upsert', upsertResult.error);
+        } else {
+            recordSyncedRows('assets', assets);
+        }
         if (fetchErr) { logSyncError('assets', 'select', fetchErr); return; }
 
         if (remote && remote.length > 0) {
@@ -378,18 +457,21 @@ export async function saveLoans(loans: Loan[]): Promise<void> {
     await AsyncStorage.setItem(KEYS.loans, JSON.stringify(loans));
     const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return;
+    const changed = diffChangedRows('loans', loans);
     try {
-        if (loans.length > 0) {
+        let upsertOk = true;
+        if (changed.length > 0) {
             const encKey = await getFieldEncryptionKey(await loadAuthSecret());
-            const rows = loans.map(l => ({
+            const rows = changed.map(l => ({
                 id: l.id,
                 user_id: ownerId,
                 data: encKey ? encryptLoan(l as unknown as Record<string, any>, encKey) : l,
                 updated_at: new Date().toISOString(),
             }));
             const { error } = await supabase.from('loans').upsert(rows, { onConflict: 'id' });
-            if (error) logSyncError('loans', 'upsert', error);
+            if (error) { logSyncError('loans', 'upsert', error); upsertOk = false; }
         }
+        if (upsertOk) recordSyncedRows('loans', loans);
         const { data: remote } = await supabase.from('loans').select('id').eq('user_id', ownerId);
         if (remote) {
             const localIds = new Set(loans.map(l => l.id));
@@ -424,18 +506,21 @@ export async function saveBudgets(budgets: Budget[]): Promise<void> {
     await AsyncStorage.setItem('@quad360/budgets', JSON.stringify(budgets));
     const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return;
+    const changed = diffChangedRows('budgets', budgets);
     try {
-        if (budgets.length > 0) {
+        let upsertOk = true;
+        if (changed.length > 0) {
             const encKey = await getFieldEncryptionKey(await loadAuthSecret());
-            const rows = budgets.map(b => ({
+            const rows = changed.map(b => ({
                 id: b.id,
                 user_id: ownerId,
                 data: encKey ? encryptBudget(b as unknown as Record<string, any>, encKey) : b,
                 updated_at: new Date().toISOString(),
             }));
             const { error } = await supabase.from('budgets').upsert(rows, { onConflict: 'id' });
-            if (error) logSyncError('budgets', 'upsert', error);
+            if (error) { logSyncError('budgets', 'upsert', error); upsertOk = false; }
         }
+        if (upsertOk) recordSyncedRows('budgets', budgets);
         const { data: remote } = await supabase.from('budgets').select('id').eq('user_id', ownerId);
         if (remote) {
             const localIds = new Set(budgets.map(b => b.id));
@@ -584,8 +669,9 @@ export async function saveInventory(items: InventoryItem[]): Promise<void> {
     await AsyncStorage.setItem('@quad360/inventory', JSON.stringify(items));
     const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return;
+    const changed = diffChangedRows('inventory', items);
     try {
-        const rows = items.length > 0 ? items.map(item => ({
+        const rows = changed.length > 0 ? changed.map(item => ({
             id: item.id,
             user_id: ownerId,
             name: item.name,
@@ -605,7 +691,11 @@ export async function saveInventory(items: InventoryItem[]): Promise<void> {
             supabase.from('inventory').select('id').eq('user_id', ownerId),
         ]);
 
-        if (upsertResult.error) logSyncError('inventory', 'upsert', upsertResult.error);
+        if (upsertResult.error) {
+            logSyncError('inventory', 'upsert', upsertResult.error);
+        } else {
+            recordSyncedRows('inventory', items);
+        }
         if (fetchErr) { logSyncError('inventory', 'select', fetchErr); return; }
 
         if (remote && remote.length > 0) {
@@ -792,6 +882,12 @@ export async function clearAllData(): Promise<void> {
         'quad360_tactic_executions_v1', 'quad360_tactic_outcomes_v1', '@quad360/financing',
     ]);
     await clearAllSecureData();
+    // Without this, the in-memory delta-sync snapshot (see "Delta-sync
+    // cache" above) would still think the PREVIOUS account's records were
+    // already synced -- if a new/different account happened to reuse any
+    // of the same client-generated ids, their real data could be silently
+    // skipped on upload.
+    resetSyncDiffCache();
 }
 
 // Clears the local cache of financial/business data (everything except the
@@ -805,6 +901,9 @@ export async function clearLocalFinancialCache(): Promise<void> {
         '@quad360/inventory', '@quad360/budgets', CASH_POCKETS_KEY, CAPITAL_COMMITMENTS_KEY,
         'quad360_tactic_executions_v1', 'quad360_tactic_outcomes_v1', '@quad360/financing',
     ]);
+    // See the matching note in clearAllData above -- same reasoning applies
+    // whenever the signed-in identity changes, not just on explicit logout.
+    resetSyncDiffCache();
 }
 
 // ─── Staff ────────────────────────────────────────────────────────────────────
