@@ -9,7 +9,7 @@
  * or import MerchantFinancingSection as a separate component.
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
     TouchableOpacity, StyleSheet, Modal, Alert, Platform,
@@ -64,7 +64,7 @@ function isOverdue(loan: Loan): boolean {
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────
 
 export default function LoansScreen() {
-    const { loans, addLoan, updateLoan, deleteLoan, addLoanPayment, settings, navigate, finance, navParams, transactions, readinessHistory } = useApp();
+    const { loans, addLoan, updateLoan, deleteLoan, addLoanPayment, settings, navigate, finance, navParams, transactions, readinessHistory, user } = useApp();
     const { currency } = settings;
 
     // Feature flag for merchant financing
@@ -101,12 +101,17 @@ export default function LoansScreen() {
 
     const openAdd = () => { resetForm(); setShowForm(true); };
 
-    const openEdit = (l: Loan) => {
+    // useCallback with an empty dep array is safe here: every call inside
+    // is a setState setter, and React guarantees those are referentially
+    // stable across renders. A stable `openEdit` lets it be passed directly
+    // to every LoanCard as the `onEdit` prop without each one wrapping it
+    // in a fresh per-render closure (see the LoanCard React.memo note below).
+    const openEdit = useCallback((l: Loan) => {
         setLender(l.lenderName); setPurpose(l.purpose);
         setPrincipal(String(l.principal)); setRate(String(l.interestRate));
         setTerm(String(l.termMonths)); setStart(l.startDate);
         setStatus(l.status); setFromMarketplace(!!l.fromMarketplace); setEditingId(l.id); setShowForm(true);
-    };
+    }, []);
 
     const handleSave = () => {
         if (!lender.trim()) { showAlert('Error', 'Please enter the lender name.'); return; }
@@ -140,7 +145,7 @@ export default function LoansScreen() {
         setPayDate(new Date().toISOString().split('T')[0]);
     };
 
-    const confirmDelete = (id: string) => {
+    const confirmDelete = useCallback((id: string) => {
         if (Platform.OS === 'web') {
             if (window.confirm('Remove this loan and all its payment history?')) {
                 deleteLoan(id);
@@ -151,7 +156,16 @@ export default function LoansScreen() {
                 { text: 'Delete', style: 'destructive', onPress: () => deleteLoan(id) },
             ]);
         }
-    };
+    }, [deleteLoan]);
+
+    const handleToggleLoan = useCallback((id: string) => {
+        setExpandedId(prev => (prev === id ? null : id));
+    }, []);
+
+    const handleOpenPayment = useCallback((id: string) => {
+        setShowPayment(id);
+        setPayDate(new Date().toISOString().split('T')[0]);
+    }, []);
 
     // Summary stats
     const activeLoans = loans.filter(l => l.status === 'active');
@@ -307,13 +321,12 @@ export default function LoansScreen() {
                                 transactions={transactions}
                                 readinessHistory={readinessHistory}
                                 dscr={dscr}
-                                onToggle={() => setExpandedId(expandedId === loan.id ? null : loan.id)}
-                                onEdit={() => openEdit(loan)}
-                                onDelete={() => confirmDelete(loan.id)}
-                                onAddPayment={() => {
-                                    setShowPayment(loan.id);
-                                    setPayDate(new Date().toISOString().split('T')[0]);
-                                }}
+                                user={user}
+                                updateLoan={updateLoan}
+                                onToggle={handleToggleLoan}
+                                onEdit={openEdit}
+                                onDelete={confirmDelete}
+                                onAddPayment={handleOpenPayment}
                             />
                         ))
                     )}
@@ -496,10 +509,17 @@ function TabButton({ label, active, onPress }: { label: string; active: boolean;
     );
 }
 
-function LoanCard({ loan, currency, expanded, transactions, readinessHistory, dscr, onToggle, onEdit, onDelete, onAddPayment }: {
+// React.memo only pays off if props are referentially stable across
+// re-renders -- the parent now passes the same onToggle/onEdit/onDelete/
+// onAddPayment function on every render (wrapped in useCallback) instead of
+// a fresh per-item closure, so a card whose own loan/expanded state hasn't
+// changed can actually skip re-rendering when a sibling card is toggled or
+// an unrelated part of LoansScreen re-renders.
+const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transactions, readinessHistory, dscr, user, updateLoan, onToggle, onEdit, onDelete, onAddPayment }: {
     loan: Loan; currency: string; expanded: boolean;
     transactions: Transaction[]; readinessHistory: ReadinessSnapshot[]; dscr: DSCRResult;
-    onToggle: () => void; onEdit: () => void; onDelete: () => void; onAddPayment: () => void;
+    user: ReturnType<typeof useApp>['user']; updateLoan: ReturnType<typeof useApp>['updateLoan'];
+    onToggle: (id: string) => void; onEdit: (loan: Loan) => void; onDelete: (id: string) => void; onAddPayment: (id: string) => void;
 }) {
     const paid = totalPaid(loan);
     const balance = outstandingBalance(loan);
@@ -520,11 +540,12 @@ function LoanCard({ loan, currency, expanded, transactions, readinessHistory, ds
     };
 
     // Phase 2a: consent lives on the loan itself (updateLoan), and the
-    // business name/currency come from the same context every other export
-    // in the app already reads from -- calling useApp() here directly keeps
-    // this self-contained rather than drilling two more props through the
-    // parent purely for this one button.
-    const { user, updateLoan } = useApp();
+    // business name comes from `user` -- both now passed down as props
+    // instead of each LoanCard calling useApp() itself. useApp() rebuilds
+    // its whole return value (and, until recently, ran a full financial-
+    // diagnosis scan) on every call; with one loan that's cheap, but with
+    // N loans rendered in a list, N independent useApp() calls per render
+    // multiplied that cost by N. The parent already calls useApp() once.
     const [sharing, setSharing] = useState(false);
     const toggleShareConsent = () => {
         updateLoan(loan.id, { shareWithLenderConsent: !loan.shareWithLenderConsent, shareConsentUpdatedAt: new Date().toISOString() });
@@ -545,7 +566,7 @@ function LoanCard({ loan, currency, expanded, transactions, readinessHistory, ds
 
     return (
         <View style={[s.card, overdue && { borderColor: Colors.warning, borderWidth: 1.5 }]}>
-            <TouchableOpacity onPress={onToggle} activeOpacity={0.8}>
+            <TouchableOpacity onPress={() => onToggle(loan.id)} activeOpacity={0.8}>
                 <View style={s.cardHeader}>
                     <View style={{ flex: 1 }}>
                         <Text style={s.lenderName}>{loan.lenderName}</Text>
@@ -671,14 +692,14 @@ function LoanCard({ loan, currency, expanded, transactions, readinessHistory, ds
 
                     <View style={s.actionRow}>
                         {loan.status === 'active' && (
-                            <TouchableOpacity style={s.actionBtn} onPress={onAddPayment}>
+                            <TouchableOpacity style={s.actionBtn} onPress={() => onAddPayment(loan.id)}>
                                 <Text style={[s.actionBtnText, { color: Colors.income }]}>+ Record Payment</Text>
                             </TouchableOpacity>
                         )}
-                        <TouchableOpacity style={s.actionBtn} onPress={onEdit}>
+                        <TouchableOpacity style={s.actionBtn} onPress={() => onEdit(loan)}>
                             <Text style={s.actionBtnText}>Edit</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={[s.actionBtn, { borderColor: Colors.expense }]} onPress={onDelete}>
+                        <TouchableOpacity style={[s.actionBtn, { borderColor: Colors.expense }]} onPress={() => onDelete(loan.id)}>
                             <Text style={[s.actionBtnText, { color: Colors.expense }]}>Delete</Text>
                         </TouchableOpacity>
                     </View>
@@ -686,7 +707,7 @@ function LoanCard({ loan, currency, expanded, transactions, readinessHistory, ds
             )}
         </View>
     );
-}
+});
 
 function SummaryCard({ label, value, color }: { label: string; value: string; color: string }) {
     return (

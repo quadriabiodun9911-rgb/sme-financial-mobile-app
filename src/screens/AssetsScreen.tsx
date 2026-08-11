@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
     TouchableOpacity, StyleSheet, Modal, Alert, Platform,
@@ -72,12 +72,12 @@ export default function AssetsScreen() {
 
     const openAdd = () => { resetForm(); setShowForm(true); };
 
-    const openEdit = (a: Asset) => {
+    const openEdit = useCallback((a: Asset) => {
         setName(a.name); setCategory(a.category); setDesc(a.description);
         setPDate(a.purchaseDate); setPCost(String(a.purchaseCost));
         setLife(String(a.usefulLifeYears)); setResidual(String(a.residualValue));
         setEditingId(a.id); setShowForm(true);
-    };
+    }, []);
 
     const handleSave = () => {
         if (!name.trim()) { showAlert(t(language, 'error'), t(language, 'missingFields')); return; }
@@ -148,7 +148,7 @@ export default function AssetsScreen() {
         setDispDate(''); setDispVal('0');
     };
 
-    const confirmDelete = (id: string) => {
+    const confirmDelete = useCallback((id: string) => {
         if (Platform.OS === 'web') {
             if (window.confirm(t(language, 'confirm'))) {
                 deleteAsset(id);
@@ -159,16 +159,33 @@ export default function AssetsScreen() {
                 { text: t(language, 'delete'), style: 'destructive', onPress: () => deleteAsset(id) },
             ]);
         }
-    };
+    }, [language, deleteAsset]);
+
+    const handleOpenDispose = useCallback((id: string) => {
+        setShowDispose(id);
+        setDispDate(new Date().toISOString().split('T')[0]);
+    }, []);
 
     const filtered = useMemo(() => {
         if (filter === 'all') return assets;
         return assets.filter(a => a.status === filter);
     }, [assets, filter]);
 
+    // activeAssets/disposedCount/replacementAlerts were each their own
+    // unmemoized `assets.filter(...)` pass run directly in JSX (three
+    // separate O(n) scans -- one of them also calling computeAssetCurrentValue,
+    // a depreciation calculation, per asset) on every render. Memoized once
+    // here and reused everywhere they're read below.
+    const activeAssets = useMemo(() => assets.filter(a => a.status === 'active'), [assets]);
+    const disposedCount = useMemo(() => assets.filter(a => a.status === 'disposed').length, [assets]);
+    const replacementAlerts = useMemo(
+        () => activeAssets.filter(a => computeAssetCurrentValue(a) <= a.purchaseCost * 0.2 && a.purchaseCost > 0),
+        [activeAssets],
+    );
+
     const totalActiveValue = useMemo(
-        () => assets.filter(a => a.status === 'active').reduce((sum, a) => sum + computeAssetCurrentValue(a), 0),
-        [assets],
+        () => activeAssets.reduce((sum, a) => sum + computeAssetCurrentValue(a), 0),
+        [activeAssets],
     );
 
     const grouped = useMemo(() => {
@@ -205,17 +222,17 @@ export default function AssetsScreen() {
                 <View style={s.summaryCard}>
                     <Text style={s.summaryLabel}>{t(language, 'totalActiveValue')}</Text>
                     <Text style={s.summaryValue}>{currency}{totalActiveValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
-                    <Text style={s.summaryMeta}>{assets.filter(a => a.status === 'active').length} active · {assets.filter(a => a.status === 'disposed').length} disposed</Text>
+                    <Text style={s.summaryMeta}>{activeAssets.length} active · {disposedCount} disposed</Text>
                 </View>
 
                 {/* Asset productivity: are these assets actually earning their
                     keep — ROA, turnover, efficiency — not just their book value. */}
-                {assets.filter(a => a.status === 'active').length > 0 && (
+                {activeAssets.length > 0 && (
                     <AssetProductivityAnalysis finance={finance} assets={assets} currency={currency} />
                 )}
 
                 {/* Replacement alerts */}
-                {assets.filter(a => a.status === 'active' && computeAssetCurrentValue(a) <= a.purchaseCost * 0.2 && a.purchaseCost > 0).map(a => (
+                {replacementAlerts.map(a => (
                     <View key={a.id} style={s.replaceAlert}>
                         <View style={s.replaceAlertRow}>
                             <Icon name="bell" size={14} color={Colors.warning} />
@@ -245,9 +262,9 @@ export default function AssetsScreen() {
                         <View key={cat}>
                             <Text style={s.groupHeader}>{categoryLabel(cat, language)}</Text>
                             {items.map(a => <AssetCard key={a.id} asset={a} currency={currency} language={language}
-                                onEdit={() => openEdit(a)}
-                                onDispose={() => { setShowDispose(a.id); setDispDate(new Date().toISOString().split('T')[0]); }}
-                                onDelete={() => confirmDelete(a.id)}
+                                onEdit={openEdit}
+                                onDispose={handleOpenDispose}
+                                onDelete={confirmDelete}
                             />)}
                         </View>
                     ))
@@ -427,9 +444,11 @@ export default function AssetsScreen() {
     );
 }
 
-function AssetCard({ asset, currency, language, onEdit, onDispose, onDelete }: {
+// React.memo + stable (useCallback'd) handlers from the parent -- see the
+// matching note on LoanCard in LoansScreen.tsx for why both halves matter.
+const AssetCard = React.memo(function AssetCard({ asset, currency, language, onEdit, onDispose, onDelete }: {
     asset: Asset; currency: string; language: Parameters<typeof t>[0];
-    onEdit: () => void; onDispose: () => void; onDelete: () => void;
+    onEdit: (asset: Asset) => void; onDispose: (id: string) => void; onDelete: (id: string) => void;
 }) {
     const currentVal  = computeAssetCurrentValue(asset);
     const annualDep   = computeAssetAnnualDepreciation(asset);
@@ -474,25 +493,25 @@ function AssetCard({ asset, currency, language, onEdit, onDispose, onDelete }: {
 
             {!disposed && (
                 <View style={s.actionRow}>
-                    <TouchableOpacity style={s.actionBtn} onPress={onEdit}>
+                    <TouchableOpacity style={s.actionBtn} onPress={() => onEdit(asset)}>
                         <Text style={s.actionBtnText}>{t(language, 'edit')}</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={[s.actionBtn, { borderColor: Colors.warning }]} onPress={onDispose}>
+                    <TouchableOpacity style={[s.actionBtn, { borderColor: Colors.warning }]} onPress={() => onDispose(asset.id)}>
                         <Text style={[s.actionBtnText, { color: Colors.warning }]}>{t(language, 'disposeAsset')}</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={[s.actionBtn, { borderColor: Colors.expense }]} onPress={onDelete}>
+                    <TouchableOpacity style={[s.actionBtn, { borderColor: Colors.expense }]} onPress={() => onDelete(asset.id)}>
                         <Text style={[s.actionBtnText, { color: Colors.expense }]}>{t(language, 'delete')}</Text>
                     </TouchableOpacity>
                 </View>
             )}
             {disposed && (
-                <TouchableOpacity style={[s.actionBtn, { borderColor: Colors.expense }]} onPress={onDelete}>
+                <TouchableOpacity style={[s.actionBtn, { borderColor: Colors.expense }]} onPress={() => onDelete(asset.id)}>
                     <Text style={[s.actionBtnText, { color: Colors.expense }]}>{t(language, 'delete')}</Text>
                 </TouchableOpacity>
             )}
         </View>
     );
-}
+});
 
 function Metric({ label, value, color }: { label: string; value: string; color?: string }) {
     return (

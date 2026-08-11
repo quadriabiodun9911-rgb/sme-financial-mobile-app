@@ -696,29 +696,42 @@ function InventoryReportTab({ inventory, finance, transactions, currency }: {
     transactions: any[];
     currency: string;
 }) {
-    const totalStockCost    = computeInventoryValue(inventory);
-    const potentialRevenue  = inventory.reduce((s, i) => s + i.quantity * i.sellingPrice, 0);
-    const potentialProfit   = potentialRevenue - totalStockCost;
-    const grossMargin       = potentialRevenue > 0 ? (potentialProfit / potentialRevenue) * 100 : 0;
+    // These were plain consts recomputed by scanning the full inventory/
+    // transactions arrays on every render of this tab, unlike the parent
+    // ReportsScreen (which already memoizes its own derived values) --
+    // memoized here too so they only recompute when the underlying data
+    // actually changes.
+    const { totalStockCost, potentialRevenue, potentialProfit, grossMargin } = useMemo(() => {
+        const stockCost = computeInventoryValue(inventory);
+        const revenue = inventory.reduce((s, i) => s + i.quantity * i.sellingPrice, 0);
+        const profit = revenue - stockCost;
+        const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
+        return { totalStockCost: stockCost, potentialRevenue: revenue, potentialProfit: profit, grossMargin: margin };
+    }, [inventory]);
 
-    const totalRevenue = transactions.filter(t => t.type === 'income').reduce((s: number, t: any) => s + t.amount, 0);
+    const totalRevenue = useMemo(
+        () => transactions.filter(t => t.type === 'income').reduce((s: number, t: any) => s + t.amount, 0),
+        [transactions],
+    );
     const stockToRevRatio = totalRevenue > 0 ? (totalStockCost / totalRevenue) * 100 : 0;
     const ratioColor = stockToRevRatio < 30 ? Colors.income : stockToRevRatio < 60 ? Colors.warning : Colors.expense;
 
     // Category table
-    const catMap = new Map<string, { items: InventoryItem[] }>();
-    for (const item of inventory) {
-        const cat = item.category || 'General';
-        if (!catMap.has(cat)) catMap.set(cat, { items: [] });
-        catMap.get(cat)!.items.push(item);
-    }
-    const catRows = Array.from(catMap.entries()).map(([cat, { items }]) => {
-        const units     = items.reduce((s, i) => s + i.quantity, 0);
-        const stockCost = items.reduce((s, i) => s + i.quantity * i.costPrice, 0);
-        const sellVal   = items.reduce((s, i) => s + i.quantity * i.sellingPrice, 0);
-        const margin    = sellVal > 0 ? ((sellVal - stockCost) / sellVal) * 100 : 0;
-        return { cat, count: items.length, units, stockCost, sellVal, margin };
-    });
+    const catRows = useMemo(() => {
+        const catMap = new Map<string, { items: InventoryItem[] }>();
+        for (const item of inventory) {
+            const cat = item.category || 'General';
+            if (!catMap.has(cat)) catMap.set(cat, { items: [] });
+            catMap.get(cat)!.items.push(item);
+        }
+        return Array.from(catMap.entries()).map(([cat, { items }]) => {
+            const units     = items.reduce((s, i) => s + i.quantity, 0);
+            const stockCost = items.reduce((s, i) => s + i.quantity * i.costPrice, 0);
+            const sellVal   = items.reduce((s, i) => s + i.quantity * i.sellingPrice, 0);
+            const margin    = sellVal > 0 ? ((sellVal - stockCost) / sellVal) * 100 : 0;
+            return { cat, count: items.length, units, stockCost, sellVal, margin };
+        });
+    }, [inventory]);
 
     return (
         <View>

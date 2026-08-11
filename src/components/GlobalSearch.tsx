@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
     Modal, View, Text, TextInput, TouchableOpacity,
     StyleSheet, ScrollView, SafeAreaView,
@@ -15,11 +15,23 @@ interface Props {
 export default function GlobalSearch({ visible, onClose }: Props) {
     const { transactions, invoices, assets, settings, setCurrentScreen, navigate } = useApp();
     const [query, setQuery] = useState('');
+    // The TextInput stays bound to `query` directly so typing feels instant;
+    // `debouncedQuery` only catches up ~150ms after the user pauses. Without
+    // this, every single keystroke re-ran three full-array `.filter()`
+    // passes over transactions/invoices/assets synchronously on the JS
+    // thread -- for a business with a large history, typing a short search
+    // term fired that many scans in rapid succession, most of them for
+    // intermediate strings the user never meant to search for.
+    const [debouncedQuery, setDebouncedQuery] = useState('');
+    useEffect(() => {
+        const id = setTimeout(() => setDebouncedQuery(query), 150);
+        return () => clearTimeout(id);
+    }, [query]);
     const currency = settings.currency;
 
-    const q = query.toLowerCase().trim();
+    const q = debouncedQuery.toLowerCase().trim();
 
-    const features = useMemo(() => searchFeatures(query), [query]);
+    const features = useMemo(() => searchFeatures(debouncedQuery), [debouncedQuery]);
 
     const results = useMemo(() => {
         if (q.length < 2) return { transactions: [], invoices: [], assets: [] };
@@ -48,7 +60,7 @@ export default function GlobalSearch({ visible, onClose }: Props) {
         else setCurrentScreen(f.screen);
     };
 
-    const handleClose = () => { setQuery(''); onClose(); };
+    const handleClose = () => { setQuery(''); setDebouncedQuery(''); onClose(); };
 
     return (
         <Modal visible={visible} animationType="slide" onRequestClose={handleClose}>

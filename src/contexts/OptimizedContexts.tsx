@@ -1307,13 +1307,38 @@ export function useApp() {
   const totalRecordedRevenue = financeData?.income ?? 0;
   // Reuses the same root-cause diagnosis engine as the AI Advisor for a
   // consistent, real health score instead of a hardcoded placeholder.
-  const financialHealthScore = transactions.length >= 5 && financeData
-    ? performFinancialDiagnosis(transactions, invoicesArray, financeData.cashBalance, getMonthlyExpenseAverage(financeData.expense ?? 0, transactions), settings?.settings?.currency ?? '₦', loans, inventory).overallHealth
-    : 0;
+  //
+  // performFinancialDiagnosis does many O(n) passes over the full
+  // transaction/invoice/loan/inventory history (DSCR, concentration,
+  // category breakdowns, trend, root-cause diagnoses). useApp() is called
+  // by ~everything (Header, FooterNav, GlobalSearch, every screen, every
+  // list-row card), so without memoization this full engine re-ran on
+  // every one of those renders — including Header/FooterNav, which never
+  // even read financialHealthScore. Memoizing against its actual inputs
+  // means it now only recomputes when the underlying data genuinely
+  // changes, not on every unrelated re-render (a nav change, a keystroke
+  // in search, an unrelated context update).
+  const expenseAvg = getMonthlyExpenseAverage(financeData?.expense ?? 0, transactions);
+  const currencyForHealth = settings?.settings?.currency ?? '₦';
+  const financialHealthScore = useMemo(
+    () => (transactions.length >= 5 && financeData
+      ? performFinancialDiagnosis(transactions, invoicesArray, financeData.cashBalance, expenseAvg, currencyForHealth, loans, inventory).overallHealth
+      : 0),
+    [transactions, invoicesArray, financeData, expenseAvg, currencyForHealth, loans, inventory]
+  );
 
-  const userWithMetrics = auth.user
-    ? { ...auth.user, daysActive, avgMonthlyRevenue, avgMonthlyProfit, totalRecordedRevenue, financialHealthScore }
-    : auth.user;
+  // Memoized so `user` is referentially stable across renders where nothing
+  // about it actually changed. Without this, every downstream `useMemo`
+  // keyed on `user` (e.g. BusinessPassportScreen's) saw a "changed" dependency
+  // on every single render and recomputed regardless of memoization —
+  // financialHealthScore being memoized above only helps if the object it's
+  // spread into doesn't itself get rebuilt from scratch every time.
+  const userWithMetrics = useMemo(
+    () => (auth.user
+      ? { ...auth.user, daysActive, avgMonthlyRevenue, avgMonthlyProfit, totalRecordedRevenue, financialHealthScore }
+      : auth.user),
+    [auth.user, daysActive, avgMonthlyRevenue, avgMonthlyProfit, totalRecordedRevenue, financialHealthScore]
+  );
 
   const resolvedUserRole = (auth.user?.role === 'Accountant' ? 'accountant' : auth.user?.role === 'Staff' ? 'staff' : 'owner') as UserRole;
 

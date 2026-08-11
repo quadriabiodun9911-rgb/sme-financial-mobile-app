@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
     TouchableOpacity, Modal, StyleSheet, Alert, Platform,
@@ -202,7 +202,7 @@ export default function GoalsScreen() {
         setSelectedType(null);
     };
 
-    const handleDelete = (id: string, title: string) => {
+    const handleDelete = useCallback((id: string, title: string) => {
         if (Platform.OS === 'web') {
             if (window.confirm(`Remove "${title}"?`)) {
                 deleteGoal(id);
@@ -213,13 +213,24 @@ export default function GoalsScreen() {
                 { text: 'Delete', style: 'destructive', onPress: () => deleteGoal(id) },
             ]);
         }
-    };
+    }, [deleteGoal]);
 
-    const openEditModal = (goal: FinancialGoal) => {
+    const openEditModal = useCallback((goal: FinancialGoal) => {
         setEditGoal(goal);
         setSelectedType(goal.type);
         setForm({ title: goal.title, description: goal.description, targetValue: String(goal.targetValue), deadline: goal.deadline, percentTarget: String(goal.percentTarget ?? '') });
-    };
+    }, []);
+
+    // Stable, list-index-independent handlers passed to every GoalCard — see
+    // the matching note on LoanCard in LoansScreen.tsx for why this matters:
+    // React.memo only skips re-rendering a card when ALL of its props are
+    // referentially stable, and a fresh `() => doThing(goal.id)` closure
+    // built inline inside `.map()` on every render defeats that regardless
+    // of memoization.
+    const handlePlanGoal = useCallback((id: string) => { setPlanGoalId(id); setPlanTab('bridge'); }, []);
+    const handleExecute = useCallback(() => setCurrentScreen('action-tracker'), [setCurrentScreen]);
+    const handleCollect = useCallback(() => navigate('transactions', { filter: 'collect' }), [navigate]);
+    const handleSeeFullPicture = useCallback(() => setCurrentScreen('business-passport'), [setCurrentScreen]);
 
     const handleEditSave = () => {
         if (!editGoal) return;
@@ -238,6 +249,12 @@ export default function GoalsScreen() {
         if (d === 0) return 'Due today';
         return `${d} day${d !== 1 ? 's' : ''} left`;
     };
+
+    // Was filtered inline in JSX (twice for achieved -- once for the
+    // "any achieved?" length check, once for the actual .map()) on every
+    // render; memoized once here and reused both places.
+    const activeGoals = useMemo(() => goals.filter(g => g.status !== 'achieved'), [goals]);
+    const achievedGoals = useMemo(() => goals.filter(g => g.status === 'achieved'), [goals]);
 
     return (
         <SafeAreaView style={styles.safe}>
@@ -263,34 +280,34 @@ export default function GoalsScreen() {
                     ) : (
                         <>
                             {/* Active goals */}
-                            {goals.filter(g => g.status !== 'achieved').map(goal => (
+                            {activeGoals.map(goal => (
                                 <GoalCard
                                     key={goal.id}
                                     goal={goal}
                                     currency={currency}
                                     daysRemaining={daysRemaining(goal.deadline)}
                                     feasibility={feasibilityByGoalId[goal.id]}
-                                    onPlan={() => { setPlanGoalId(goal.id); setPlanTab('bridge'); }}
-                                    onEdit={() => openEditModal(goal)}
-                                    onDelete={() => handleDelete(goal.id, goal.title)}
-                                    onExecute={() => setCurrentScreen('action-tracker')}
-                                    onCollect={() => navigate('transactions', { filter: 'collect' })}
-                                    onSeeFullPicture={() => setCurrentScreen('business-passport')}
+                                    onPlan={handlePlanGoal}
+                                    onEdit={openEditModal}
+                                    onDelete={handleDelete}
+                                    onExecute={handleExecute}
+                                    onCollect={handleCollect}
+                                    onSeeFullPicture={handleSeeFullPicture}
                                 />
                             ))}
                             {/* Achieved goals */}
-                            {goals.filter(g => g.status === 'achieved').length > 0 && (
+                            {achievedGoals.length > 0 && (
                                 <>
                                     <Text style={styles.achievedHeader}>Achieved Goals</Text>
-                                    {goals.filter(g => g.status === 'achieved').map(goal => (
+                                    {achievedGoals.map(goal => (
                                         <GoalCard
                                             key={goal.id}
                                             goal={goal}
                                             currency={currency}
                                             daysRemaining={daysRemaining(goal.deadline)}
-                                            onPlan={() => { setPlanGoalId(goal.id); setPlanTab('bridge'); }}
-                                            onEdit={() => openEditModal(goal)}
-                                            onDelete={() => handleDelete(goal.id, goal.title)}
+                                            onPlan={handlePlanGoal}
+                                            onEdit={openEditModal}
+                                            onDelete={handleDelete}
                                         />
                                     ))}
                                 </>
@@ -634,14 +651,18 @@ function DailyActionsSection({ goal, transactions, currency }: { goal: Financial
     );
 }
 
-function GoalCard({ goal, currency, daysRemaining, feasibility, onPlan, onEdit, onDelete, onExecute, onCollect, onSeeFullPicture }: {
+// React.memo + stable (useCallback'd, list-index-independent) handlers from
+// the parent means a card whose own goal/feasibility hasn't changed can
+// skip re-rendering entirely when a sibling goal updates or the screen
+// re-renders for an unrelated reason (typing in the add-goal form, etc.).
+const GoalCard = React.memo(function GoalCard({ goal, currency, daysRemaining, feasibility, onPlan, onEdit, onDelete, onExecute, onCollect, onSeeFullPicture }: {
     goal: FinancialGoal;
     currency: string;
     daysRemaining: string;
     feasibility?: { feasibility: string; requiredMonthlyImprovement: number; successProbability: number };
-    onPlan: () => void;
-    onEdit: () => void;
-    onDelete: () => void;
+    onPlan: (id: string) => void;
+    onEdit: (goal: FinancialGoal) => void;
+    onDelete: (id: string, title: string) => void;
     onExecute?: () => void;
     onCollect?: () => void;
     onSeeFullPicture?: () => void;
@@ -747,22 +768,22 @@ function GoalCard({ goal, currency, daysRemaining, feasibility, onPlan, onEdit, 
             </View>
 
             <View style={cardStyles.actions}>
-                <TouchableOpacity style={cardStyles.strategyBtn} onPress={onPlan}>
+                <TouchableOpacity style={cardStyles.strategyBtn} onPress={() => onPlan(goal.id)}>
                     <View style={cardStyles.strategyBtnInner}>
                         <Icon name="compass" size={13} color="#fff" />
                         <Text style={cardStyles.strategyBtnText}>View Plan →</Text>
                     </View>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={onEdit} style={{ marginLeft: 12 }}>
+                <TouchableOpacity onPress={() => onEdit(goal)} style={{ marginLeft: 12 }}>
                     <Text style={[cardStyles.deleteText, { color: Colors.primary }]}>Edit</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={onDelete} style={{ marginLeft: 12 }}>
+                <TouchableOpacity onPress={() => onDelete(goal.id, goal.title)} style={{ marginLeft: 12 }}>
                     <Text style={cardStyles.deleteText}>Delete</Text>
                 </TouchableOpacity>
             </View>
         </View>
     );
-}
+});
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
     return <Text style={styles.label}>{children}</Text>;
