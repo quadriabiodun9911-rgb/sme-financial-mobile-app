@@ -16,8 +16,10 @@
 
 import CryptoJS from 'crypto-js';
 import * as SecureStore from 'expo-secure-store';
+import { generateSecret as generateTOTPSecretKey, generateURI, verifySync } from 'otplib';
 import { supabase } from './supabase';
-import { getAuthUserId } from './storage';
+import { getAuthUserId, loadAuthSecret } from './storage';
+import { getFieldEncryptionKey, encryptValue, decryptValue } from './encryption';
 
 export type TwoFactorMethod = 'totp' | 'sms';
 export type TwoFactorStatus = 'disabled' | 'enabled' | 'pending_verification';
@@ -41,73 +43,27 @@ const BACKUP_CODES_COUNT = 10;
 /**
  * Generate TOTP secret for the user
  * Returns secret and QR code URI
+ *
+ * Uses `otplib` (RFC 6238-compliant, constant-time verification) rather
+ * than a hand-rolled HMAC-SHA1 implementation. Its default plugins
+ * (`NobleCryptoPlugin` / `ScureBase32Plugin`) are pure-JS with no
+ * `crypto.subtle`/WebCrypto dependency, so they work unmodified on
+ * React Native/Hermes as well as web and Node (tests).
  */
-// ─── Cross-platform TOTP implementation using crypto-js ──────────────────────
-
-const BASE32_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-
-function base32ToBytes(base32: string): Uint8Array {
-    const cleaned = base32.toUpperCase().replace(/=+$/, '');
-    const bits: number[] = [];
-    for (const ch of cleaned) {
-        const val = BASE32_CHARS.indexOf(ch);
-        if (val < 0) continue;
-        for (let i = 4; i >= 0; i--) bits.push((val >> i) & 1);
-    }
-    const bytes = new Uint8Array(Math.floor(bits.length / 8));
-    for (let i = 0; i < bytes.length; i++) {
-        for (let j = 0; j < 8; j++) bytes[i] = (bytes[i] << 1) | bits[i * 8 + j];
-    }
-    return bytes;
-}
-
-function generateBase32Secret(byteLength = 20): string {
-    const wordArray = CryptoJS.lib.WordArray.random(byteLength);
-    // Use sigBytes (actual byte count) — WordArray may allocate extra word padding
-    const count = wordArray.sigBytes;
-    const arr = new Uint8Array(count);
-    const words = wordArray.words;
-    for (let i = 0; i < count; i++) arr[i] = (words[i >> 2] >>> (24 - (i % 4) * 8)) & 0xff;
-    let result = '';
-    for (let i = 0; i < count; i += 5) {
-        const chunk = arr.slice(i, i + 5);
-        const pad = 5 - chunk.length;
-        let val = 0n;
-        for (const b of chunk) val = (val << 8n) | BigInt(b);
-        val <<= BigInt(pad * 8);
-        for (let j = 7; j >= 0; j--) result += BASE32_CHARS[Number((val >> BigInt(j * 5)) & 0x1fn)] ?? '';
-    }
-    return result;
-}
-
-function totpCode(secret: string, timeStep?: number): string {
-    const step = timeStep ?? Math.floor(Date.now() / 1000 / 30);
-    const keyBytes = base32ToBytes(secret);
-    const keyHex = Array.from(keyBytes).map(b => b.toString(16).padStart(2, '0')).join('');
-    // 8-byte big-endian time step
-    const msgHex = step.toString(16).padStart(16, '0');
-    const hmac = CryptoJS.HmacSHA1(CryptoJS.enc.Hex.parse(msgHex), CryptoJS.enc.Hex.parse(keyHex));
-    const bytes = new Uint8Array(hmac.words.length * 4);
-    hmac.words.forEach((w, i) => {
-        bytes[i * 4]     = (w >>> 24) & 0xff;
-        bytes[i * 4 + 1] = (w >>> 16) & 0xff;
-        bytes[i * 4 + 2] = (w >>> 8)  & 0xff;
-        bytes[i * 4 + 3] =  w         & 0xff;
-    });
-    const offset = bytes[bytes.length - 1] & 0xf;
-    const code = (((bytes[offset] & 0x7f) << 24) | (bytes[offset + 1] << 16) | (bytes[offset + 2] << 8) | bytes[offset + 3]) % 1_000_000;
-    return code.toString().padStart(6, '0');
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-
 export function generateTOTPSecret(email: string): {
     secret: string;
     qrCodeUrl: string;
     manualEntryKey: string;
 } {
-    const secret = generateBase32Secret(20);
-    const qrCodeUrl = `otpauth://totp/${encodeURIComponent(TOTP_ISSUER)}:${encodeURIComponent(email)}?secret=${secret}&issuer=${encodeURIComponent(TOTP_ISSUER)}&algorithm=SHA1&digits=6&period=30`;
+    const secret = generateTOTPSecretKey();
+    const qrCodeUrl = generateURI({
+        issuer: TOTP_ISSUER,
+        label: email,
+        secret,
+        algorithm: 'sha1',
+        digits: 6,
+        period: 30,
+    });
 
     return {
         secret,
@@ -118,16 +74,14 @@ export function generateTOTPSecret(email: string): {
 
 /**
  * Verify TOTP code
- * Allows for time skew (±30 seconds)
+ * Allows for time skew (±60 seconds), matching the previous implementation's
+ * ±2-window tolerance rather than RFC 6238's stricter past-only default,
+ * since authenticator apps can also run slightly ahead of the server clock.
  */
 export function verifyTOTPCode(secret: string, code: string): boolean {
     try {
-        const step = Math.floor(Date.now() / 1000 / 30);
-        // Check current step ±2 windows (±60 seconds) for clock skew
-        for (let offset = -2; offset <= 2; offset++) {
-            if (totpCode(secret, step + offset) === code) return true;
-        }
-        return false;
+        const result = verifySync({ secret, token: code, epochTolerance: 60 });
+        return result.valid;
     } catch (e) {
         console.error('[Quad360] TOTP verification failed:', e);
         return false;
@@ -176,13 +130,21 @@ export async function saveTwoFactorConfig(config: Omit<TwoFactorConfig, 'userId'
     if (!userId) throw new Error('User not authenticated');
 
     try {
+        // The TOTP secret (and SMS phone number) are exactly what an
+        // attacker would need to generate valid codes for this account, so
+        // they're encrypted before ever leaving the device -- a database-
+        // level compromise or RLS misconfiguration then exposes ciphertext,
+        // not a working bypass. Same derived-key mechanism as every other
+        // encrypted field (see getFieldEncryptionKey), so any device that
+        // already holds this account's auth secret can also decrypt it.
+        const encKey = await getFieldEncryptionKey(await loadAuthSecret());
         const { error } = await supabase.from('two_factor_auth').upsert(
             {
                 user_id: userId,
                 method: config.method,
                 status: config.status,
-                secret: config.secret, // Should be encrypted before sending
-                phone_number: config.phoneNumber,
+                secret: config.secret && encKey ? encryptValue(config.secret, encKey) : config.secret,
+                phone_number: config.phoneNumber && encKey ? encryptValue(config.phoneNumber, encKey) : config.phoneNumber,
                 backup_codes: config.backupCodes,
                 created_at: config.createdAt,
                 verified_at: config.verifiedAt,
@@ -223,12 +185,22 @@ export async function loadTwoFactorConfig(): Promise<TwoFactorConfig | null> {
 
         if (!data) return null;
 
+        const encKey = await getFieldEncryptionKey(await loadAuthSecret());
+        // Decrypt when a key is available, falling back to the raw stored
+        // value if that fails (e.g. a row saved before this field started
+        // being encrypted) rather than surfacing a broken/empty secret.
+        const decryptField = (val: string | null | undefined): string | undefined => {
+            if (!val) return val ?? undefined;
+            if (!encKey) return val;
+            return decryptValue(val, encKey) ?? val;
+        };
+
         return {
             userId: data.user_id,
             method: data.method,
             status: data.status,
-            secret: data.secret,
-            phoneNumber: data.phone_number,
+            secret: decryptField(data.secret),
+            phoneNumber: decryptField(data.phone_number),
             backupCodes: data.backup_codes || [],
             createdAt: data.created_at,
             verifiedAt: data.verified_at,
@@ -308,8 +280,11 @@ export function formatTOTPSecret(secret: string): string {
  * Generate SMS OTP code (would be sent by Supabase SMS service)
  */
 export function generateSMSOTP(): string {
-    // Generate 6-digit code
-    return String(Math.floor(Math.random() * 1000000)).padStart(6, '0');
+    // CryptoJS's CSPRNG, not Math.random() -- same reasoning as
+    // generateBackupCodes above: a predictable PRNG makes a code guessable
+    // faster than its 6-digit space alone would suggest.
+    const n = CryptoJS.lib.WordArray.random(4).words[0] >>> 0;
+    return String(n % 1_000_000).padStart(6, '0');
 }
 
 /**

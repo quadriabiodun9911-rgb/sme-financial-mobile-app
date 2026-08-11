@@ -11,14 +11,8 @@ import { t, LANGUAGES, Language } from '../utils/i18n';
 import { DEMO_BUSINESSES } from '../utils/demoData';
 import { trackUserLoggedIn, identifyUser } from '../utils/analytics';
 import { supabase } from '../utils/supabase';
-import { savePin, saveProfile } from '../utils/storage';
+import { savePin, saveProfile, generateAuthSecret, saveAuthSecret, loadAuthSecret } from '../utils/storage';
 import { Industry } from '../types';
-import CryptoJS from 'crypto-js';
-
-const SALT = 'Q360_SME_2025';
-function hashPin(pin: string): string {
-    return CryptoJS.SHA256(pin + SALT).toString(CryptoJS.enc.Hex) + '_Q360';
-}
 
 const CURRENCIES = [
     { label: 'USD ($)',    value: '$'   },
@@ -235,38 +229,33 @@ export default function LoginScreen() {
 
         setSubmitting(true);
         let navigating = false;
+        const email = emailLoginEmail.trim();
         try {
-            // Always try Supabase first — works on every device
-            const { error } = await supabase.auth.signInWithPassword({
-                email: emailLoginEmail.trim(),
-                password: hashPin(emailLoginPin),
-            });
-            if (error) {
-                const msg = error.message.toLowerCase();
-                if (msg.includes('invalid login') || msg.includes('invalid credentials') || msg.includes('invalid email or password')) {
-                    showAlert('Incorrect Details', 'The email or PIN you entered is incorrect. Please try again.');
-                } else if (msg.includes('email not confirmed')) {
-                    showAlert('Email Not Verified', 'Please check your inbox and confirm your email before signing in.');
-                } else if (msg.includes('too many requests')) {
-                    showAlert('Too Many Attempts', 'Too many login attempts. Please wait a few minutes and try again.');
-                } else {
-                    // Network / offline — fall back to local PIN
-                    const ok = await login(emailLoginPin);
-                    if (ok) { navigating = true; identifyUser(emailLoginEmail.trim()); trackUserLoggedIn('email'); return; }
-                    showAlert('Sign In Failed', 'Could not reach the server. Please check your connection and try again.');
+            // The PIN is never sent to Supabase as a credential — a 6-digit
+            // PIN is far too small a space to be a real remote password (see
+            // login()'s comment in OptimizedContexts.tsx for the full
+            // reasoning). Only a device that already holds this account's
+            // high-entropy secret (from a prior signup/recovery on this
+            // device) can re-establish a session over the network; every
+            // other case falls through to the local PIN check, which itself
+            // handles migrating a legacy pre-secret account.
+            const authSecret = await loadAuthSecret();
+            if (authSecret) {
+                const { error } = await supabase.auth.signInWithPassword({ email, password: authSecret });
+                if (!error) {
+                    await recoverAccount(email, emailLoginPin);
+                    navigating = true;
+                    identifyUser(email);
+                    trackUserLoggedIn('email');
+                    return;
                 }
-            } else {
-                // Supabase session created — restore profile + data and navigate
-                await recoverAccount(emailLoginEmail.trim(), emailLoginPin);
-                navigating = true;
-                identifyUser(emailLoginEmail.trim());
-                trackUserLoggedIn('email');
-                return;
+                // Secret didn't match this email (e.g. a different account was
+                // set up on this device most recently) — fall through below.
             }
-        } catch (e: any) {
-            // Network error — try local PIN as offline fallback
             const ok = await login(emailLoginPin);
-            if (ok) { navigating = true; identifyUser(emailLoginEmail.trim()); trackUserLoggedIn('email'); return; }
+            if (ok) { navigating = true; identifyUser(email); trackUserLoggedIn('email'); return; }
+            showAlert('Sign In Failed', 'This device doesn\'t recognize that email and PIN yet. If this is a new device, use "Forgot PIN?" to verify your email and set it up.');
+        } catch (e: any) {
             showAlert('Sign In Failed', 'Could not connect. Please check your internet connection and try again.');
         } finally {
             if (!navigating) setSubmitting(false);
@@ -330,7 +319,12 @@ export default function LoginScreen() {
                 setResetSubmitting(false);
                 return;
             }
-            const { error } = await supabase.auth.updateUser({ password: hashPin(resetNewPin) });
+            // A password reset is exactly the moment a device (re)establishes
+            // trust with the account — the point to (re)generate this
+            // device's high-entropy secret rather than ever deriving the
+            // real Supabase password from the PIN.
+            const newAuthSecret = generateAuthSecret();
+            const { error } = await supabase.auth.updateUser({ password: newAuthSecret });
             if (error) {
                 showAlert('Reset Failed', error.message + '\n\nPlease request a new reset link.', [
                     { text: 'Try Again', onPress: () => setResetStep('request') }
@@ -338,9 +332,10 @@ export default function LoginScreen() {
                 setResetSubmitting(false);
                 return;
             }
-            // Save PIN locally and auto-login
+            // Save PIN + the new secret locally and auto-login
             const email = session.user.email ?? '';
             await savePin(resetNewPin).catch(() => {});
+            await saveAuthSecret(newAuthSecret).catch(() => {});
             await saveProfile({ email, businessName: '' }).catch(() => {});
             showAlert('PIN Reset Successful', 'Your new PIN is set. You are now logged in.', [
                 { text: 'Continue', onPress: async () => {
@@ -372,14 +367,26 @@ export default function LoginScreen() {
                 setResetSubmitting(false);
                 return;
             }
-            const { error: updateError } = await supabase.auth.updateUser({ password: hashPin(resetNewPin) });
+            // Same reasoning as handleWebResetComplete: this is the point to
+            // (re)generate this device's real secret, never derive it from
+            // the PIN, and save both locally so this device can log in
+            // offline afterwards too.
+            const newAuthSecret = generateAuthSecret();
+            const { error: updateError } = await supabase.auth.updateUser({ password: newAuthSecret });
             if (updateError) {
                 showAlert('Error', 'Could not update PIN: ' + updateError.message);
                 setResetSubmitting(false);
                 return;
             }
-            showAlert('PIN Reset Successful', 'Your PIN has been updated. Please log in with your new PIN.', [
-                { text: 'OK', onPress: () => { setMode('owner-login'); setLoginMethod('email'); setEmailLoginEmail(resetEmail.trim()); setResetStep('request'); setResetOtp(''); setResetNewPin(''); setResetConfirmPin(''); } }
+            const email = resetEmail.trim();
+            await savePin(resetNewPin).catch(() => {});
+            await saveAuthSecret(newAuthSecret).catch(() => {});
+            await saveProfile({ email, businessName: '' }).catch(() => {});
+            showAlert('PIN Reset Successful', 'Your new PIN is set. You are now logged in.', [
+                { text: 'Continue', onPress: async () => {
+                    try { await recoverAccount(email, resetNewPin); } catch {}
+                    setResetStep('request'); setResetOtp(''); setResetNewPin(''); setResetConfirmPin('');
+                }}
             ]);
         } catch (e: any) {
             showAlert('Error', e?.message ?? 'Verification failed.');
@@ -403,7 +410,7 @@ export default function LoginScreen() {
                         <View style={styles.newDeviceBanner}>
                             <Icon name="smartphone" size={18} color={Colors.primary} />
                             <Text style={styles.newDeviceText}>
-                                New device detected. Enter your email and PIN — your data will be restored automatically.
+                                New device detected. If you've signed in here before, your email and PIN will restore your account. If this is the first time on this device, use "Forgot your PIN?" below to verify your email first.
                             </Text>
                         </View>
 

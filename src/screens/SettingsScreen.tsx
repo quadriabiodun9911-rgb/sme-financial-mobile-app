@@ -183,11 +183,7 @@ export default function SettingsScreen() {
             return;
         }
         setCurrentPin(''); setNewPin(''); setConfirmPin('');
-        if (result.cloudSynced) {
-            showAlert('✅ PIN Changed', 'Your PIN has been updated on all devices. You can now log in with your new PIN anywhere.');
-        } else {
-            showAlert('⚠️ PIN Changed Locally', 'Your PIN was updated on this device but could not sync to the cloud right now.\n\nYou can still use this device normally. To log in on other devices, use "Forgot PIN?" to reset it when you have internet access.');
-        }
+        showAlert('✅ PIN Changed', 'Your PIN has been updated on this device. Other devices you\'re signed in on keep using their own PIN — set a new one there separately, or use "Forgot PIN?" if you need to.');
     };
 
     const handleExport = async () => {

@@ -33,6 +33,7 @@ import {
   clearLocalFinancialCache,
   syncFinancingToSupabase,
   saveProfile, loadProfile, savePin, loadPin,
+  generateAuthSecret, saveAuthSecret, loadAuthSecret,
   clearAllData, exportAllData, importAllData,
   inviteTeamMember, removeTeamMember, loadTeamMembers, joinTeamWithCode,
   setWorkspaceOwner, clearWorkspaceOwner,
@@ -899,7 +900,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // fails/is skipped the status would incorrectly read as 'disabled'
         // (fail-open). Awaited here specifically so 2FA can't be bypassed by
         // a slow/dropped cloud sign-in.
-        await supabase.auth.signInWithPassword({ email: profile.email, password: hashPin(pin) }).catch(() => {});
+        //
+        // The PIN itself is never sent to Supabase as a credential — a
+        // 6-digit PIN is far too small a space to be a real remote password
+        // (it was previously derivable and bruteforceable offline against a
+        // hardcoded, globally-shared salt). The real credential is a
+        // high-entropy secret generated once and held only on-device; the
+        // PIN's job is purely to gate whether that stored secret gets used.
+        const authSecret = await loadAuthSecret();
+        if (authSecret) {
+          await supabase.auth.signInWithPassword({ email: profile.email, password: authSecret }).catch(() => {});
+        } else {
+          // Legacy account, created before this migration — its real
+          // Supabase password is still the old PIN-derived hash. Sign in
+          // with it once (this still goes over the network, but only for
+          // accounts that haven't migrated yet, and only after the PIN has
+          // already passed the local check above), then immediately rotate
+          // to a fresh high-entropy secret so this account never needs the
+          // weak scheme again.
+          const { error: legacySignInError } = await supabase.auth.signInWithPassword({ email: profile.email, password: hashPin(pin) }).then(r => ({ error: r.error })).catch(e => ({ error: e }));
+          if (!legacySignInError) {
+            const newSecret = generateAuthSecret();
+            const { error: rotateError } = await supabase.auth.updateUser({ password: newSecret }).catch(e => ({ error: e } as any));
+            if (!rotateError) await saveAuthSecret(newSecret).catch(() => {});
+          }
+        }
         const twoFactorStatus = await getTwoFactorStatus().catch(() => 'disabled' as const);
         if (twoFactorStatus === 'enabled') {
           // PIN was correct, but don't grant access yet — hold the profile
@@ -942,15 +967,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       setupAccount: async (email, businessName, pin, _loadDemo, phone, initialSettings) => {
         // Supabase auth is best-effort — never block local account creation.
+        // The account's real password is a freshly generated high-entropy
+        // secret, never the PIN itself — see login()'s comment for why.
+        const authSecret = generateAuthSecret();
         try {
-          const { error: signUpError } = await supabase.auth.signUp({ email, password: hashPin(pin) });
+          const { error: signUpError } = await supabase.auth.signUp({ email, password: authSecret });
           if (signUpError) {
             const msg = signUpError.message.toLowerCase();
             if (msg.includes('already registered') || msg.includes('already been registered') || msg.includes('user already exists') || msg.includes('email address is already')) {
               throw new Error('User already registered');
             }
           } else {
-            await supabase.auth.signInWithPassword({ email, password: hashPin(pin) }).catch(() => {});
+            await supabase.auth.signInWithPassword({ email, password: authSecret }).catch(() => {});
+            await saveAuthSecret(authSecret).catch(() => {});
           }
         } catch (e: any) {
           if ((e?.message ?? '').includes('already registered')) throw e;
@@ -1004,12 +1033,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setCurrentScreenState('dashboard');
       },
       joinTeam: async (email, pin, inviteCode) => {
-        const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({ email, password: hashPin(pin) });
+        const authSecret = generateAuthSecret();
+        const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({ email, password: authSecret });
         let authUserId = signUpData?.user?.id;
         if (signUpErr) {
+          // Existing account (already joined once, or predates this
+          // migration) — fall back to the legacy PIN-derived password, then
+          // rotate to a fresh secret on success, same as login()'s path.
           const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({ email, password: hashPin(pin) });
           if (signInErr) throw new Error(signInErr.message);
           authUserId = signInData.user?.id;
+          const { error: rotateError } = await supabase.auth.updateUser({ password: authSecret }).catch(e => ({ error: e } as any));
+          if (!rotateError) await saveAuthSecret(authSecret).catch(() => {});
+        } else {
+          await saveAuthSecret(authSecret).catch(() => {});
         }
         if (!authUserId) throw new Error('Could not authenticate.');
         const { ownerId, role } = await joinTeamWithCode(authUserId, inviteCode);
@@ -1042,15 +1079,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // If a PIN exists, verify the current one before changing.
           if (stored && stored !== hash(currentPin)) return { ok: false };
           await savePin(newPin);
-          // Best-effort cloud sync: keeps the PIN usable via Supabase auth on
-          // other devices too — report back whether it actually succeeded so
-          // the UI can tell the user if they'll need "Forgot PIN?" elsewhere.
-          let cloudSynced = false;
-          if (user?.email) {
-            const { error } = await supabase.auth.updateUser({ password: hashPin(newPin) });
-            cloudSynced = !error;
-          }
-          return { ok: true, cloudSynced };
+          // The PIN is a local-only unlock gate now — it's never sent to
+          // Supabase, so changing it doesn't touch (and doesn't need to
+          // touch) the account's real password. cloudSynced is kept in the
+          // return shape for UI compatibility; it's simply true whenever the
+          // local change succeeds, since there's no separate cloud step left
+          // to fail.
+          return { ok: true, cloudSynced: true };
         } catch { return { ok: false }; }
       },
       isDemoMode,

@@ -30,10 +30,26 @@ export const generatePDF = async (data: ExportData): Promise<string> => {
   }
 };
 
+// Every value interpolated into this HTML document ultimately traces back
+// to business-entered data (transaction descriptions, business names, asset
+// names) -- without escaping, a description like
+// `<img src=x onerror="...">` would be preserved verbatim and rendered as
+// real markup/script when the exported file is opened, since generatePDF
+// renders this string as an actual text/html document on web. Every
+// interpolation point below goes through this.
+const escapeHtml = (val: string | number): string => {
+  return String(val)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+};
+
 const generateHTMLContent = (data: ExportData): string => {
   const summaryHTML = data.summary
     ? `<div style="margin-bottom: 20px; padding: 15px; background: #f0f0f0; border-radius: 8px;">
-         ${data.summary.map(item => `<p><strong>${item.label}:</strong> ${item.value}</p>`).join('')}
+         ${data.summary.map(item => `<p><strong>${escapeHtml(item.label)}:</strong> ${escapeHtml(item.value)}</p>`).join('')}
        </div>`
     : '';
 
@@ -41,12 +57,12 @@ const generateHTMLContent = (data: ExportData): string => {
     .map(
       section => `
     <div style="margin-bottom: 20px;">
-      <h3 style="border-bottom: 2px solid #3b82f6; padding-bottom: 10px;">${section.name}</h3>
+      <h3 style="border-bottom: 2px solid #3b82f6; padding-bottom: 10px;">${escapeHtml(section.name)}</h3>
       <table style="width: 100%; border-collapse: collapse;">
         ${section.data.map(item => `
           <tr style="border-bottom: 1px solid #ddd;">
-            <td style="padding: 8px;">${item.label}</td>
-            <td style="padding: 8px; text-align: right;">${item.value}</td>
+            <td style="padding: 8px;">${escapeHtml(item.label)}</td>
+            <td style="padding: 8px; text-align: right;">${escapeHtml(item.value)}</td>
           </tr>
         `).join('')}
       </table>
@@ -60,7 +76,7 @@ const generateHTMLContent = (data: ExportData): string => {
     <html>
     <head>
       <meta charset="UTF-8">
-      <title>${data.title}</title>
+      <title>${escapeHtml(data.title)}</title>
       <style>
         body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
         h1 { color: #0f172a; border-bottom: 3px solid #3b82f6; padding-bottom: 10px; }
@@ -73,8 +89,8 @@ const generateHTMLContent = (data: ExportData): string => {
     </head>
     <body>
       <div class="header">
-        <h1>${data.title}</h1>
-        <p class="date">Generated on ${data.date}</p>
+        <h1>${escapeHtml(data.title)}</h1>
+        <p class="date">Generated on ${escapeHtml(data.date)}</p>
       </div>
       ${summaryHTML}
       ${sectionsHTML}

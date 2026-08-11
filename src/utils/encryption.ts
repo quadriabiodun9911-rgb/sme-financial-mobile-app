@@ -8,7 +8,6 @@
 
 import CryptoJS from 'crypto-js';
 import * as SecureStore from 'expo-secure-store';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
 const ENCRYPTION_KEY_STORAGE = '@quad360/encryption-key';
@@ -39,15 +38,49 @@ export async function generateEncryptionKey(): Promise<string> {
         try {
             await SecureStore.setItemAsync(ENCRYPTION_KEY_STORAGE, key);
             return key;
-        } catch { /* fall through to AsyncStorage */ }
+        } catch { /* fall through to web storage */ }
     }
+    // Browsers have no SecureStore-equivalent secure enclave; sessionStorage
+    // (cleared on tab/browser close) bounds this credential's exposure
+    // window far tighter than localStorage would, at the cost of not
+    // surviving a browser restart on web. See the matching note in
+    // secureStorage.ts for the full reasoning.
     try {
-        await AsyncStorage.setItem(ENCRYPTION_KEY_STORAGE, key);
+        if (typeof window !== 'undefined') window.sessionStorage.setItem(ENCRYPTION_KEY_STORAGE, key);
     } catch {
         console.warn('[Quad360] Could not persist encryption key — encrypted data will be unreadable after restart');
     }
 
     return key;
+}
+
+// A per-device random key (generateEncryptionKey above) can never be the
+// real answer for data that's meant to sync across a business's devices --
+// whichever device saves first would encrypt with a key no other device
+// has, and every other device would see that data silently disappear on
+// decrypt. generateEncryptionKey() was in fact never called anywhere in
+// live app code (only in this module's own tests), so nothing has ever
+// actually been encrypted in production -- this derives a key every device
+// holding the account's real credential (its authSecret, see
+// storage.ts/generateAuthSecret) can reproduce identically, closing that
+// gap without needing any new server-side key storage or distribution.
+export function deriveFieldEncryptionKey(authSecret: string): string {
+    return CryptoJS.SHA256(authSecret + 'quad360-field-encryption-v1').toString(CryptoJS.enc.Hex);
+}
+
+/**
+ * The encryption key to actually use: an explicitly stored/rotated key if
+ * one exists (future-proofing for manual key rotation), otherwise derived
+ * from the account's auth secret. Returns null only when neither is
+ * available (e.g. a device that hasn't completed signup/recovery yet) --
+ * callers already treat a null key as "save/load unencrypted," so this
+ * fails safe rather than blocking.
+ */
+export async function getFieldEncryptionKey(authSecret: string | null): Promise<string | null> {
+    const stored = await getEncryptionKey();
+    if (stored) return stored;
+    if (!authSecret) return null;
+    return deriveFieldEncryptionKey(authSecret);
 }
 
 /**
@@ -61,7 +94,7 @@ export async function getEncryptionKey(): Promise<string | null> {
         } catch { /* fall through */ }
     }
     try {
-        return await AsyncStorage.getItem(ENCRYPTION_KEY_STORAGE);
+        return typeof window !== 'undefined' ? window.sessionStorage.getItem(ENCRYPTION_KEY_STORAGE) : null;
     } catch {
         return null;
     }
@@ -102,8 +135,7 @@ export function encryptTransaction(
     for (const field of fieldsToEncrypt) {
         if (field in encrypted && encrypted[field] != null) {
             encrypted[`${field}_encrypted`] = encryptValue(encrypted[field], key);
-            // Keep original for backward compatibility during transition
-            // delete encrypted[field]; // Uncomment after migration period
+            delete encrypted[field];
         }
     }
 
@@ -152,6 +184,7 @@ export function encryptInvoice(
     for (const field of fieldsToEncrypt) {
         if (field in encrypted && encrypted[field] != null) {
             encrypted[`${field}_encrypted`] = encryptValue(encrypted[field], key);
+            delete encrypted[field];
         }
     }
 
@@ -200,6 +233,7 @@ export function encryptAsset(
     for (const field of fieldsToEncrypt) {
         if (field in encrypted && encrypted[field] != null) {
             encrypted[`${field}_encrypted`] = encryptValue(encrypted[field], key);
+            delete encrypted[field];
         }
     }
 
@@ -248,6 +282,7 @@ export function encryptInventoryItem(
     for (const field of fieldsToEncrypt) {
         if (field in encrypted && encrypted[field] != null) {
             encrypted[`${field}_encrypted`] = encryptValue(encrypted[field], key);
+            delete encrypted[field];
         }
     }
 
@@ -294,6 +329,7 @@ export function encryptGoal(
     for (const field of ENCRYPTED_FIELDS.goals) {
         if (field in encrypted && encrypted[field] != null) {
             encrypted[`${field}_encrypted`] = encryptValue(encrypted[field], key);
+            delete encrypted[field];
         }
     }
     return { ...encrypted, encrypted: true, version: 1, timestamp: Date.now() };
@@ -331,6 +367,7 @@ export function encryptLoan(
     for (const field of ENCRYPTED_FIELDS.loans) {
         if (field in encrypted && encrypted[field] != null) {
             encrypted[`${field}_encrypted`] = encryptValue(encrypted[field], key);
+            delete encrypted[field];
         }
     }
     return { ...encrypted, encrypted: true, version: 1, timestamp: Date.now() };
@@ -368,6 +405,7 @@ export function encryptBudget(
     for (const field of ENCRYPTED_FIELDS.budgets) {
         if (field in encrypted && encrypted[field] != null) {
             encrypted[`${field}_encrypted`] = encryptValue(encrypted[field], key);
+            delete encrypted[field];
         }
     }
     return { ...encrypted, encrypted: true, version: 1, timestamp: Date.now() };

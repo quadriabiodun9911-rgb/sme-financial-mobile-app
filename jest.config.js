@@ -22,4 +22,12 @@ module.exports = {
         'jest-expo/src/preset/setup.js',
         '<rootDir>/jest.setup.js',
     ],
+    // otplib and its default plugins (@otplib/*, @noble/*, @scure/*) ship
+    // ESM-only under node_modules with no CJS build, so jest-expo's default
+    // ignore pattern (which only carves out RN/Expo packages) leaves them
+    // untranspiled and Node's CJS loader chokes on their `export` syntax.
+    transformIgnorePatterns: [
+        '/node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg|otplib|@otplib/.*|@noble/.*|@scure/.*)',
+        '/node_modules/react-native-reanimated/plugin/',
+    ],
 };

@@ -594,6 +594,21 @@ export function computeMonthlyTrend(transactions: Transaction[], months = 6): Mo
     return points;
 }
 
+// Shared CSV cell escaping -- guards both quoting (commas/quotes/newlines)
+// and formula injection (a leading =, +, -, @, tab or CR is how Excel/Sheets
+// decide a cell is a formula to evaluate rather than text). Exported so
+// every CSV builder in this file uses the same guard on free-text values
+// (names entered by the business) rather than reimplementing it per-column.
+export function escapeCsvCell(val: string | number | boolean | undefined, isFreeText = true): string {
+    if (val === undefined || val === null) return '';
+    let s = String(val);
+    if (isFreeText && /^[=+\-@\t\r]/.test(s)) {
+        s = `'${s}`;
+    }
+    return s.includes(',') || s.includes('"') || s.includes('\n')
+        ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
 export function transactionsToCSV(transactions: Transaction[]): string {
     const headers = [
         'ID', 'Date', 'Description', 'Type', 'Category', 'Amount',
@@ -601,12 +616,11 @@ export function transactionsToCSV(transactions: Transaction[]): string {
         'Reference', 'Vendor/Customer', 'Recurring', 'Recurring Frequency',
     ];
 
-    const escape = (val: string | number | boolean | undefined) => {
-        if (val === undefined || val === null) return '';
-        const s = String(val);
-        return s.includes(',') || s.includes('"') || s.includes('\n')
-            ? `"${s.replace(/"/g, '""')}"` : s;
-    };
+    // Numeric fields (amounts) are computed, not user-typed, so a leading
+    // '-' on a negative number is never treated as a formula-injection risk;
+    // everything else (description, category, reference, etc.) is genuine
+    // free text and gets the full guard.
+    const escape = (val: string | number | boolean | undefined) => escapeCsvCell(val, typeof val === 'string');
 
     const rows = transactions.map(t => [
         escape(t.id),
@@ -1434,7 +1448,7 @@ export function generateBalanceSheetCSV(finance: FinanceData, assets: Asset[], l
     rows.push(`Cash & Bank Balance,${finance.cashBalance.toFixed(2)}`);
     for (const a of assets.filter(a => a.status === 'active')) {
         const val = Math.max(a.residualValue, a.purchaseCost);
-        rows.push(`${a.name} (${a.category}),${val.toFixed(2)}`);
+        rows.push(`${escapeCsvCell(a.name)} (${escapeCsvCell(a.category)}),${val.toFixed(2)}`);
     }
     rows.push(`Total Assets,${finance.assets.toFixed(2)}`);
     rows.push('');
@@ -1453,14 +1467,14 @@ export function generateBalanceSheetCSV(finance: FinanceData, assets: Asset[], l
         return { loan: l, ...split };
     });
     for (const { loan, current } of loanSplits) {
-        if (current > 0) rows.push(`Loan - ${loan.lenderName} (due within 1 year),${current.toFixed(2)}`);
+        if (current > 0) rows.push(`Loan - ${escapeCsvCell(loan.lenderName)} (due within 1 year),${current.toFixed(2)}`);
     }
     rows.push(`Total Current Liabilities,${loansCurrentTotal.toFixed(2)}`);
     rows.push('');
     rows.push('NON-CURRENT LIABILITIES');
     rows.push('Item,Amount');
     for (const { loan, nonCurrent } of loanSplits) {
-        if (nonCurrent > 0) rows.push(`Loan - ${loan.lenderName} (due after 1 year),${nonCurrent.toFixed(2)}`);
+        if (nonCurrent > 0) rows.push(`Loan - ${escapeCsvCell(loan.lenderName)} (due after 1 year),${nonCurrent.toFixed(2)}`);
     }
     rows.push(`Total Non-Current Liabilities,${loansNonCurrentTotal.toFixed(2)}`);
     rows.push('');

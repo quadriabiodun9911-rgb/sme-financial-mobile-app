@@ -1,11 +1,29 @@
 /**
- * Certificate Pinning for Quad360
+ * Certificate Pinning for Quad360 — NOT CURRENTLY ACTIVE
  *
- * Prevents Man-in-the-Middle (MITM) attacks by pinning SSL/TLS certificates
- * This ensures the app only communicates with the legitimate Supabase server
+ * IMPORTANT: nothing in this file is wired into the app's actual network
+ * layer. `supabase.ts` calls the stock `@supabase/supabase-js` client
+ * directly over plain `fetch`; it never routes through `pinnedFetch` or
+ * `verifyCertificatePin` here, so no request this app makes is actually
+ * pin-checked today. This file previously had `getCertificatePinningStatus()`
+ * unconditionally return `enabled: true`, which would have told any caller
+ * (or future security review) that protection existed when it didn't — that
+ * has been corrected below to reflect reality.
  *
- * Implementation: React Native Certificate Pinning
- * Uses: Certificate + Public Key pinning
+ * Real certificate pinning on React Native requires a native module
+ * (e.g. `react-native-ssl-pinning`, or Android Network Security Config /
+ * iOS ATS pinning applied at the native layer) — none of which can be added
+ * from a JS/TS-only change, and Expo's managed workflow needs a config
+ * plugin + prebuild to carry native config through. That's a real
+ * infrastructure decision (which library, whether to eject from Expo Go)
+ * that needs to be made deliberately, not bundled into this pass — this
+ * module is kept as a reference/spec for that future work, with its status
+ * reporting now honest about being inactive.
+ *
+ * The pins below are also illustrative placeholders (the second Let's
+ * Encrypt "backup pin" is not a real SPKI hash) — they'd need to be
+ * regenerated from the actual current Supabase project certificate before
+ * any real pinning implementation could use them.
  */
 
 /**
@@ -191,16 +209,23 @@ export function enforceHTTPS(url: string): string {
 
 /**
  * Get current certificate pinning status
+ *
+ * Reports `enabled: false` because nothing in the live app actually routes
+ * requests through this module's verification functions (see the file-level
+ * note above) — reporting `true` here previously made this module claim a
+ * protection that wasn't in effect.
  */
 export async function getCertificatePinningStatus(): Promise<{
     enabled: boolean;
     level: string;
     pinnedHosts: string[];
+    reason?: string;
 }> {
     return {
-        enabled: true,
+        enabled: false,
         level: HTTPS_ENFORCEMENT_LEVEL,
         pinnedHosts: Object.keys(CERTIFICATE_PINS.supabase),
+        reason: 'Certificate pinning requires a native module not yet integrated; only HTTPS enforcement is active today.',
     };
 }
 

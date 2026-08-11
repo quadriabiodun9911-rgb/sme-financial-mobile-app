@@ -2,9 +2,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import CryptoJS from 'crypto-js';
 import { Transaction, BusinessSettings, FinancialGoal, Invoice, TeamMember, Language, Asset, InventoryItem, Loan, Budget, StaffMember, PayrollRun, FinancingContextData, CashPocket, CapitalCommitment, ReadinessSnapshot } from '../types';
 import { supabase } from './supabase';
-import { savePinSecurely, loadPinSecurely, clearPinSecurely, clearAllSecureData } from './secureStorage';
+import { savePinSecurely, loadPinSecurely, clearPinSecurely, clearAllSecureData, saveAuthSecretSecurely, loadAuthSecretSecurely, clearAuthSecretSecurely } from './secureStorage';
 import { enqueue } from './syncQueue';
-import { getEncryptionKey, encryptGoal, decryptGoal, encryptLoan, decryptLoan, encryptBudget, decryptBudget } from './encryption';
+import {
+    getFieldEncryptionKey, encryptGoal, decryptGoal, encryptLoan, decryptLoan, encryptBudget, decryptBudget,
+    encryptTransaction, decryptTransaction, encryptInvoice, decryptInvoice, encryptAsset, decryptAsset,
+    encryptInventoryItem, decryptInventoryItem,
+} from './encryption';
 
 // Corrupt/partial storage must never crash a loader — parse defensively.
 function safeParse<T>(raw: string | null): T | null {
@@ -66,7 +70,12 @@ export async function saveTransactions(t: Transaction[]): Promise<void> {
     const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return;
     try {
-        const rows = t.length > 0 ? t.map(tx => ({ id: tx.id, user_id: ownerId, data: tx, updated_at: new Date().toISOString() })) : [];
+        const encKey = await getFieldEncryptionKey(await loadAuthSecret());
+        const rows = t.length > 0 ? t.map(tx => ({
+            id: tx.id, user_id: ownerId,
+            data: encKey ? encryptTransaction(tx as unknown as Record<string, any>, encKey) : tx,
+            updated_at: new Date().toISOString(),
+        })) : [];
 
         // Fetch remote IDs in parallel with upsert for optimal performance
         const [upsertResult, { data: remote, error: fetchErr }] = await Promise.all([
@@ -113,7 +122,11 @@ export async function loadTransactions(): Promise<Transaction[] | null> {
                 .order('updated_at', { ascending: false });
             if (error) { logSyncError('transactions', 'load', error); }
             else if (data && data.length > 0) {
-                const txs = data.map(r => r.data as Transaction);
+                const encKey = await getFieldEncryptionKey(await loadAuthSecret());
+                const txs = data.map(r => {
+                    const raw = r.data as Record<string, any>;
+                    return (encKey && raw?.encrypted ? decryptTransaction(raw as any, encKey) : raw) as Transaction;
+                });
                 await AsyncStorage.setItem(KEYS.transactions, JSON.stringify(txs));
                 return txs;
             }
@@ -171,7 +184,7 @@ export async function saveGoals(g: FinancialGoal[]): Promise<void> {
     const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return;
     try {
-        const encKey = await getEncryptionKey();
+        const encKey = await getFieldEncryptionKey(await loadAuthSecret());
         const rows = g.length > 0 ? g.map(goal => ({
             id: goal.id,
             user_id: ownerId,
@@ -216,7 +229,7 @@ export async function loadGoals(): Promise<FinancialGoal[] | null> {
                 .eq('user_id', ownerId);
             if (error) { logSyncError('goals', 'load', error); }
             else if (data && data.length > 0) {
-                const encKey = await getEncryptionKey();
+                const encKey = await getFieldEncryptionKey(await loadAuthSecret());
                 const goals = data.map(r => {
                     const raw = r.data as Record<string, any>;
                     return (encKey && raw?.encrypted ? decryptGoal(raw as any, encKey) : raw) as FinancialGoal;
@@ -238,7 +251,12 @@ export async function saveInvoices(invoices: Invoice[]): Promise<void> {
     const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return;
     try {
-        const rows = invoices.length > 0 ? invoices.map(inv => ({ id: inv.id, user_id: ownerId, data: inv, updated_at: new Date().toISOString() })) : [];
+        const encKey = await getFieldEncryptionKey(await loadAuthSecret());
+        const rows = invoices.length > 0 ? invoices.map(inv => ({
+            id: inv.id, user_id: ownerId,
+            data: encKey ? encryptInvoice(inv as unknown as Record<string, any>, encKey) : inv,
+            updated_at: new Date().toISOString(),
+        })) : [];
 
         // Parallel upsert + fetch remote IDs
         const [upsertResult, { data: remote, error: fetchErr }] = await Promise.all([
@@ -275,7 +293,11 @@ export async function loadInvoices(): Promise<Invoice[] | null> {
                 .order('updated_at', { ascending: false });
             if (error) { logSyncError('invoices', 'load', error); }
             else if (data && data.length > 0) {
-                const list = data.map(r => r.data as Invoice);
+                const encKey = await getFieldEncryptionKey(await loadAuthSecret());
+                const list = data.map(r => {
+                    const raw = r.data as Record<string, any>;
+                    return (encKey && raw?.encrypted ? decryptInvoice(raw as any, encKey) : raw) as Invoice;
+                });
                 await AsyncStorage.setItem(KEYS.invoices, JSON.stringify(list));
                 return list;
             }
@@ -293,7 +315,12 @@ export async function saveAssets(assets: Asset[]): Promise<void> {
     const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return;
     try {
-        const rows = assets.length > 0 ? assets.map(a => ({ id: a.id, user_id: ownerId, data: a, updated_at: new Date().toISOString() })) : [];
+        const encKey = await getFieldEncryptionKey(await loadAuthSecret());
+        const rows = assets.length > 0 ? assets.map(a => ({
+            id: a.id, user_id: ownerId,
+            data: encKey ? encryptAsset(a as unknown as Record<string, any>, encKey) : a,
+            updated_at: new Date().toISOString(),
+        })) : [];
 
         // Parallel upsert + fetch remote IDs
         const [upsertResult, { data: remote, error: fetchErr }] = await Promise.all([
@@ -330,7 +357,11 @@ export async function loadAssets(): Promise<Asset[] | null> {
                 .order('updated_at', { ascending: false });
             if (error) { logSyncError('assets', 'load', error); }
             else if (data && data.length > 0) {
-                const list = data.map(r => r.data as Asset);
+                const encKey = await getFieldEncryptionKey(await loadAuthSecret());
+                const list = data.map(r => {
+                    const raw = r.data as Record<string, any>;
+                    return (encKey && raw?.encrypted ? decryptAsset(raw as any, encKey) : raw) as Asset;
+                });
                 await AsyncStorage.setItem(KEYS.assets, JSON.stringify(list));
                 return list;
             }
@@ -349,7 +380,7 @@ export async function saveLoans(loans: Loan[]): Promise<void> {
     if (!ownerId) return;
     try {
         if (loans.length > 0) {
-            const encKey = await getEncryptionKey();
+            const encKey = await getFieldEncryptionKey(await loadAuthSecret());
             const rows = loans.map(l => ({
                 id: l.id,
                 user_id: ownerId,
@@ -374,7 +405,7 @@ export async function loadLoans(): Promise<Loan[] | null> {
         try {
             const { data, error } = await supabase.from('loans').select('data').eq('user_id', ownerId);
             if (!error && data && data.length > 0) {
-                const encKey = await getEncryptionKey();
+                const encKey = await getFieldEncryptionKey(await loadAuthSecret());
                 const loans = data.map(r => {
                     const raw = r.data as Record<string, any>;
                     return (encKey && raw?.encrypted ? decryptLoan(raw as any, encKey) : raw) as Loan;
@@ -395,7 +426,7 @@ export async function saveBudgets(budgets: Budget[]): Promise<void> {
     if (!ownerId) return;
     try {
         if (budgets.length > 0) {
-            const encKey = await getEncryptionKey();
+            const encKey = await getFieldEncryptionKey(await loadAuthSecret());
             const rows = budgets.map(b => ({
                 id: b.id,
                 user_id: ownerId,
@@ -420,7 +451,7 @@ export async function loadBudgets(): Promise<Budget[] | null> {
         try {
             const { data, error } = await supabase.from('budgets').select('data').eq('user_id', ownerId);
             if (!error && data && data.length > 0) {
-                const encKey = await getEncryptionKey();
+                const encKey = await getFieldEncryptionKey(await loadAuthSecret());
                 const budgets = data.map(r => {
                     const raw = r.data as Record<string, any>;
                     return (encKey && raw?.encrypted ? decryptBudget(raw as any, encKey) : raw) as Budget;
@@ -668,6 +699,27 @@ export async function savePin(pin: string): Promise<void> {
 }
 export async function loadPin(): Promise<string | null> {
     return loadPinSecurely();
+}
+
+// ─── Auth secret (the real Supabase Auth password — local only, never sent
+// anywhere except as the password field in Supabase's own sign-in/sign-up
+// calls) ─────────────────────────────────────────────────────────────────
+// A 6-digit PIN is far too small a space to ever be a real remote-auth
+// credential — see OptimizedContexts.tsx's login/setupAccount for why this
+// exists. generateAuthSecret() produces a high-entropy value that is never
+// derived from the PIN, so brute-forcing PINs offline no longer yields a
+// working Supabase password.
+export function generateAuthSecret(): string {
+    return CryptoJS.lib.WordArray.random(32).toString(CryptoJS.enc.Hex);
+}
+export async function saveAuthSecret(secret: string): Promise<void> {
+    await saveAuthSecretSecurely(secret);
+}
+export async function loadAuthSecret(): Promise<string | null> {
+    return loadAuthSecretSecurely();
+}
+export async function clearAuthSecret(): Promise<void> {
+    await clearAuthSecretSecurely();
 }
 
 // ─── Profile ──────────────────────────────────────────────────────────────────
