@@ -54,6 +54,42 @@ function hashPin(pin: string): string {
 const LOCKOUT_KEY = '@quad360/lockoutUntil';
 const ATTEMPTS_KEY = '@quad360/loginAttempts';
 
+// ─── Tab-identity guard ─────────────────────────────────────────────────────
+// Every persisted identity marker this app has (profile, PIN, auth secret,
+// Supabase's own session) lives in AsyncStorage, which on web is backed by
+// localStorage -- shared across every tab and window of the same browser
+// storage partition, not scoped to one tab. If a second tab/window signs
+// into a different account, it silently overwrites all of those for every
+// other tab sharing that storage, including ones that are still open and
+// were rendering a different identity. Reloading one of those other tabs
+// then re-hydrates from the (now different) shared storage and renders as
+// if it had been that account all along -- a silent identity swap with no
+// visible signal that anything changed, which is exactly the kind of thing
+// that lets someone add a transaction to the wrong business without
+// noticing, or (worse) hands a lender session someone else's SME dashboard.
+//
+// sessionStorage, unlike localStorage, genuinely is per-tab even within the
+// same browser profile -- so it's used here purely as a tripwire: each tab
+// records which identity IT last established. On the next mount (a reload
+// of that same tab), if the freshly-loaded shared profile doesn't match
+// what this tab remembers being, that's this exact collision -- sign out
+// cleanly and land on the login screen instead of silently continuing as a
+// different identity. Native builds have no concept of "tabs" sharing one
+// storage partition the way a browser does, so this is a web-only concern;
+// it's a no-op everywhere else.
+const TAB_IDENTITY_KEY = '@quad360/tabIdentity';
+function readTabIdentity(): string | null {
+  if (Platform.OS !== 'web' || typeof window === 'undefined' || !window.sessionStorage) return null;
+  try { return window.sessionStorage.getItem(TAB_IDENTITY_KEY); } catch { return null; }
+}
+function writeTabIdentity(email: string | null): void {
+  if (Platform.OS !== 'web' || typeof window === 'undefined' || !window.sessionStorage) return;
+  try {
+    if (email) window.sessionStorage.setItem(TAB_IDENTITY_KEY, email);
+    else window.sessionStorage.removeItem(TAB_IDENTITY_KEY);
+  } catch {}
+}
+
 // Simple monotonic id generator for records created client-side.
 let _idCounter = 0;
 const genId = () => `id-${Date.now()}-${_idCounter++}`;
@@ -859,8 +895,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           AsyncStorage.getItem(LOCKOUT_KEY),
         ]);
         if (profile) {
-          setUser({ email: profile.email, businessName: profile.businessName, phone: profile.phone, role: 'Administrator', createdAt: profile.createdAt });
-          await routeAfterAuth();
+          const tabIdentity = readTabIdentity();
+          if (tabIdentity && tabIdentity !== profile.email) {
+            // This tab previously established a session for a different
+            // email than what shared storage now holds -- another tab or
+            // window on this same browser signed into a different account
+            // in between, silently overwriting the identity every tab
+            // reads from on reload (see the tab-identity guard comment
+            // above). Don't render the new identity as if this tab had
+            // been it all along; force a clean re-login instead of a
+            // silent account swap.
+            await supabase.auth.signOut().catch(() => {});
+            setUser(null);
+            setIsLenderSession(false);
+            setLenderOrgId(null);
+            setLenderOrgName(null);
+            setIsFirstLaunch(false);
+            setCurrentScreenState('login');
+            writeTabIdentity(null);
+          } else {
+            writeTabIdentity(profile.email);
+            setUser({ email: profile.email, businessName: profile.businessName, phone: profile.phone, role: 'Administrator', createdAt: profile.createdAt });
+            await routeAfterAuth();
+          }
         } else {
           setIsFirstLaunch(true);
         }
@@ -968,6 +1025,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setCurrentScreenState('two-factor-verify');
           return true;
         }
+        writeTabIdentity(profile.email);
         setUser({ email: profile.email, businessName: profile.businessName, phone: profile.phone, role: 'Administrator', createdAt: profile.createdAt });
         await routeAfterAuth();
         return true;
@@ -976,6 +1034,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       completeTwoFactorLogin: async (code: string, method: 'totp' | 'sms' = 'totp'): Promise<boolean> => {
         const ok = await verifyTwoFactorLogin(code, method).catch(() => false);
         if (!ok || !pendingTwoFactorProfile) return false;
+        writeTabIdentity(pendingTwoFactorProfile.email);
         setUser({ email: pendingTwoFactorProfile.email, businessName: pendingTwoFactorProfile.businessName, phone: pendingTwoFactorProfile.phone, role: 'Administrator', createdAt: pendingTwoFactorProfile.createdAt });
         setPendingTwoFactorProfile(null);
         await routeAfterAuth();
@@ -1003,6 +1062,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setLenderOrgId(null);
           setLenderOrgName(null);
           setCurrentScreenState('login');
+          writeTabIdentity(null);
         } finally {
           setIsLoading(false);
         }
@@ -1071,6 +1131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await saveProfile(profile);
         }
         setIsFirstLaunch(false);
+        writeTabIdentity(profile.email);
         setUser({ email: profile.email, businessName: profile.businessName, phone: profile.phone, role: 'Administrator', createdAt: profile.createdAt });
         setCurrentScreenState('dashboard');
       },
@@ -1114,6 +1175,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await savePin(pin);
         await saveProfile({ email, businessName: 'Team Member', createdAt: new Date().toISOString() });
         setIsFirstLaunch(false);
+        writeTabIdentity(email);
         setUser({ email, businessName: 'Team Member', role: role === 'accountant' ? 'Accountant' : 'Staff', createdAt: new Date().toISOString() });
         setCurrentScreenState('dashboard');
       },
@@ -1152,7 +1214,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         if (!authUserId) throw new Error('Could not authenticate.');
         const { lenderOrgId: orgId, lenderOrgName: orgName } = await joinLenderWithCode(authUserId, inviteCode);
+        // Joining as a lender on this device must not carry over any
+        // previous identity's locally-cached financial data -- same
+        // reasoning joinTeam above already applies.
+        await clearLocalFinancialCache().catch(() => {});
         await savePin(pin);
+        // Without this, loadProfile() returns null on every subsequent
+        // page load/reload -- the mount-time session-restore effect below
+        // only calls routeAfterAuth() (the thing that actually checks lender
+        // membership and routes to the pipeline) when a local profile
+        // exists. A lender's real Supabase session is perfectly valid and
+        // persisted across reloads on its own, but without a saved profile
+        // the restore effect never even asks whether this session belongs
+        // to a lender -- it falls straight to "no local account on this
+        // device," treats it as a first launch, and shows the SME signup
+        // screen instead. This is the fix for that: persist the lender's
+        // identity locally exactly the way joinTeam and setupAccount both
+        // already do for their own flows.
+        await saveProfile({ email, businessName: orgName, createdAt: new Date().toISOString() });
+        writeTabIdentity(email);
         setIsFirstLaunch(false);
         setIsLenderSession(true);
         setLenderOrgId(orgId);
