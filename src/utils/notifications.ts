@@ -14,6 +14,7 @@ const KEYS = {
     dailyId:  '@quad360/notif_daily_id',
     weeklyId: '@quad360/notif_weekly_id',
     financingQualifyId: '@quad360/notif_financing_qualify_id',
+    financingOpportunityId: '@quad360/notif_financing_opportunity_id',
 };
 
 export async function requestNotificationPermission(): Promise<boolean> {
@@ -120,6 +121,36 @@ export async function notifyFinancingQualificationProgress(daysActive: number): 
 
         // Mark that we've sent this notification
         await AsyncStorage.setItem(KEYS.financingQualifyId, Date.now().toString());
+    } catch {
+        // Fail silently
+    }
+}
+
+// A strong-confidence entry in financingRecommendation.ts's output --
+// see that file for how "strong" is earned (real outstanding invoices,
+// real aging assets, real DSCR + trend), never a generic "you might want
+// financing" nudge. Throttled to once per 14 days so it can't repeat
+// every app open even though the same real signal often keeps holding
+// true from one day to the next.
+export async function notifyFinancingOpportunity(label: string, reason: string): Promise<void> {
+    try {
+        if (Platform.OS === 'web') return;
+
+        const prevNotified = await AsyncStorage.getItem(KEYS.financingOpportunityId);
+        if (prevNotified) {
+            const daysSinceLastNotif = (Date.now() - parseInt(prevNotified, 10)) / (1000 * 60 * 60 * 24);
+            if (daysSinceLastNotif < 14) return;
+        }
+
+        await Notifications.scheduleNotificationAsync({
+            content: {
+                title: `You may qualify for ${label} 💡`,
+                body: reason,
+            },
+            trigger: null,
+        });
+
+        await AsyncStorage.setItem(KEYS.financingOpportunityId, Date.now().toString());
     } catch {
         // Fail silently
     }

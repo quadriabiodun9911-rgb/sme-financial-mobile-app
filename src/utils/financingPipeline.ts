@@ -211,3 +211,58 @@ export async function loadPipelineListingsForLender(filters: PipelineListingFilt
         return [];
     }
 }
+
+// "Why is this business a good fit for financing" — grounded entirely in
+// fields already stored on the listing (grade/band/score/dscr/sector/
+// revenueBand/purpose), never anything requiring a new column. A lender
+// scanning a long pipeline shouldn't have to reverse-engineer a grade
+// letter and a DSCR number into a judgment themselves every time; this is
+// that judgment made explicit, in the same plain-language style the SME
+// side's financingRecommendation.ts uses, and equally honest about
+// weaker signals (a 'danger' DSCR gets a real caution, not a rephrased
+// positive spin).
+export interface ListingFitSummary {
+    tier: 'strong' | 'moderate' | 'caution';
+    reasons: string[];
+}
+
+function fmtListingAmt(currency: string, n: number): string {
+    const abs = Math.abs(n);
+    if (abs >= 1_000_000) return `${currency}${(n / 1_000_000).toFixed(1)}M`;
+    if (abs >= 1_000) return `${currency}${(n / 1_000).toFixed(0)}K`;
+    return `${currency}${Math.round(n).toLocaleString()}`;
+}
+
+export function describeListingFit(listing: PipelineListing, currency: string): ListingFitSummary {
+    const reasons: string[] = [];
+
+    const highGrade = ['A', 'B'].includes(listing.grade);
+    reasons.push(
+        listing.band
+            ? `Rated ${listing.band} (${listing.grade || '—'}) by Quad360's risk assessment — a composite of profitability, liquidity, debt, and efficiency signals drawn from their own recorded transactions.`
+            : `Quad360 grade: ${listing.grade || 'not yet scored'}.`,
+    );
+
+    if (listing.dscrStatus === 'healthy') {
+        reasons.push(`Debt-service coverage of ${listing.dscr.toFixed(2)}x — income comfortably covers existing obligations, with room for additional repayment.`);
+    } else if (listing.dscrStatus === 'warning') {
+        reasons.push(`Debt-service coverage of ${listing.dscr.toFixed(2)}x — obligations are covered, but headroom is thin; a smaller facility or shorter term may fit better than a large one.`);
+    } else {
+        reasons.push(`Debt-service coverage is below 1x — current income doesn't fully cover existing obligations. Best suited to structures that don't add near-term repayment burden, such as invoice financing against confirmed receivables, rather than new term debt.`);
+    }
+
+    if (listing.sector && listing.revenueBand) {
+        reasons.push(`An established ${listing.sector.toLowerCase()} business generating ${listing.revenueBand} annually.`);
+    } else if (listing.revenueBand) {
+        reasons.push(`Generating ${listing.revenueBand} annually.`);
+    }
+
+    if (listing.requestedAmount !== undefined) {
+        reasons.push(`Seeking ${fmtListingAmt(currency, listing.requestedAmount)}${listing.purpose ? ` for ${listing.purpose.toLowerCase()}` : ''}.`);
+    }
+
+    const tier: ListingFitSummary['tier'] =
+        listing.dscrStatus === 'danger' ? 'caution' : highGrade && listing.dscrStatus === 'healthy' ? 'strong' : 'moderate';
+
+    return { tier, reasons };
+}

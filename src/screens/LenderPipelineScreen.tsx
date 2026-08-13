@@ -22,8 +22,17 @@ import Icon from '../components/ui/Icon';
 import { ChipGroup } from '../components/ui/ChipGroup';
 import { ExpandableCard } from '../components/ui/ExpandableCard';
 import { Radius, Spacing } from '../theme/tokens';
-import { loadPipelineListingsForLender, PipelineListingFilters } from '../utils/financingPipeline';
+import { loadPipelineListingsForLender, PipelineListingFilters, describeListingFit } from '../utils/financingPipeline';
 import { FinancingProductType, PipelineListing } from '../types';
+
+const TIER_LABEL: Record<'strong' | 'moderate' | 'caution', string> = {
+    strong: 'Strong candidate',
+    moderate: 'Worth reviewing',
+    caution: 'Proceed with caution',
+};
+const TIER_COLOR: Record<'strong' | 'moderate' | 'caution', string> = {
+    strong: Colors.income, moderate: Colors.warning, caution: Colors.expense,
+};
 
 const TYPE_LABEL: Record<FinancingProductType, string> = {
     working_capital: 'Working Capital',
@@ -93,6 +102,18 @@ export default function LenderPipelineScreen() {
         return map;
     }, [listings]);
 
+    // "What kinds of businesses are actually in this pipeline" — a lender
+    // scanning for prospects cares about this alongside financing type;
+    // sector is already on every listing, just wasn't summarized anywhere.
+    const bySector = useMemo(() => {
+        const map = new Map<string, number>();
+        for (const l of listings) {
+            const key = l.sector || 'Unspecified';
+            map.set(key, (map.get(key) ?? 0) + 1);
+        }
+        return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
+    }, [listings]);
+
     return (
         <SafeAreaView style={s.safe}>
             <View style={s.topbar}>
@@ -124,6 +145,19 @@ export default function LenderPipelineScreen() {
                             </View>
                         ))}
                     </View>
+                )}
+
+                {bySector.length > 0 && (
+                    <>
+                        <Text style={s.sectorHeading}>Types of businesses in this pipeline</Text>
+                        <View style={s.sectorRow}>
+                            {bySector.map(([sector, count]) => (
+                                <View key={sector} style={s.sectorChip}>
+                                    <Text style={s.sectorChipText}>{sector} ({count})</Text>
+                                </View>
+                            ))}
+                        </View>
+                    </>
                 )}
 
                 <View style={s.filterBox}>
@@ -198,8 +232,22 @@ export default function LenderPipelineScreen() {
                             </>
                         }
                     >
-                        <Text style={s.detailLine}>Band: {l.band || '—'} · Score: {Math.round(l.score)}/100</Text>
-                        {l.purpose && <Text style={s.detailLine}>Purpose: {l.purpose}</Text>}
+                        {(() => {
+                            const fit = describeListingFit(l, '');
+                            return (
+                                <>
+                                    <View style={s.fitHeader}>
+                                        <Text style={s.fitTitle}>Why this is a good fit</Text>
+                                        <View style={[s.tierBadge, { backgroundColor: TIER_COLOR[fit.tier] + '22' }]}>
+                                            <Text style={[s.tierBadgeText, { color: TIER_COLOR[fit.tier] }]}>{TIER_LABEL[fit.tier]}</Text>
+                                        </View>
+                                    </View>
+                                    {fit.reasons.map((reason, i) => (
+                                        <Text key={i} style={s.detailLine}>• {reason}</Text>
+                                    ))}
+                                </>
+                            );
+                        })()}
                         <Text style={s.consentNote}>
                             Shown here because this business opted in — Quad360 shares this readiness summary only, never underlying transactions.
                         </Text>
@@ -230,6 +278,11 @@ const s = StyleSheet.create({
     summaryCount: { fontSize: 20, fontWeight: '800', color: Colors.textPrimary },
     summaryLabel: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
 
+    sectorHeading: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 8 },
+    sectorRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
+    sectorChip: { backgroundColor: Colors.surface, borderRadius: Radius.pill, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: Colors.border },
+    sectorChipText: { fontSize: 11.5, color: Colors.textSecondary, fontWeight: '600' },
+
     filterBox: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: Colors.border },
     filterLabel: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 8 },
     amountRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
@@ -248,6 +301,10 @@ const s = StyleSheet.create({
     rowMetrics: { flexDirection: 'row', gap: 14, marginTop: 10, flexWrap: 'wrap' },
     rowMetric: { fontSize: 12, fontWeight: '600', color: Colors.textPrimary },
 
-    detailLine: { fontSize: 12, color: Colors.textSecondary, marginBottom: 4 },
+    fitHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+    fitTitle: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary },
+    tierBadge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+    tierBadgeText: { fontSize: 10, fontWeight: '700' },
+    detailLine: { fontSize: 12, color: Colors.textSecondary, marginBottom: 6, lineHeight: 17 },
     consentNote: { fontSize: 10.5, color: Colors.textMuted, fontStyle: 'italic', marginTop: 6, lineHeight: 14 },
 });

@@ -11,6 +11,7 @@ import { computeRiskScore, computeDSCR, RiskScore } from '../utils/finance';
 import { buildFinancingFitInput, rankFinancingProducts, FinancingFitResult, FinancingFitVerdict } from '../utils/financingFit';
 import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
 import { computeReadinessDelta } from '../utils/readinessHistory';
+import { recommendFinancingTypes, FinancingRecommendation } from '../utils/financingRecommendation';
 import { computeDataQuality } from '../utils/dataQuality';
 import { computeInventoryValue } from '../utils/stockVelocity';
 import { SAMPLE_FINANCING_PRODUCTS } from '../utils/financingProducts';
@@ -90,6 +91,18 @@ const CATEGORIES: FinancingCategory[] = [
     { id: 'startup_innovation',   label: 'Startup / Innovation',   icon: 'zap',           productTypes: ['term_loan', 'working_capital'], specialized: true },
     { id: 'green_climate',        label: 'Green / Climate Finance', icon: 'wind',         productTypes: ['asset_financing', 'term_loan'], specialized: true },
 ];
+
+// Where a recommended FinancingProductType lands if the owner taps it —
+// the single-purpose category that best represents that product type,
+// not just any category whose productTypes[] happens to include it.
+const RECOMMENDATION_CATEGORY: Record<FinancingProductType, string> = {
+    working_capital: 'working_capital',
+    asset_financing: 'asset_equipment',
+    invoice_financing: 'invoice_finance',
+    term_loan: 'expansion',
+    trade_finance: 'trade_export',
+    overdraft: 'working_capital',
+};
 
 function fmtAmt(currency: string, n: number): string {
     const abs = Math.abs(n);
@@ -175,7 +188,7 @@ function ProductCard({ result, currency, expanded, onToggle }: { result: Financi
 }
 
 export default function FinancingMarketplaceScreen() {
-    const { user, finance, transactions, loans, inventory, settings, navigate, readinessHistory, userRole } = useApp();
+    const { user, finance, transactions, loans, inventory, invoices, assets, settings, navigate, readinessHistory, userRole } = useApp();
     const { currency } = settings;
     const [amountText, setAmountText] = useState('');
     const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -222,6 +235,16 @@ export default function FinancingMarketplaceScreen() {
     // for the context lenders actually care about: is this business getting
     // more or less financeable.
     const readinessDelta = useMemo(() => computeReadinessDelta(readinessHistory), [readinessHistory]);
+
+    // "I'm not sure what kind of financing I need" -- computed unconditionally
+    // (not gated behind a button tap) so the categories screen can lead with
+    // it rather than making the owner dig for it. Always resolves to at
+    // least one recommendation (see financingRecommendation.ts's Working
+    // Capital fallback), so this is never an empty state.
+    const recommendations = useMemo(
+        () => recommendFinancingTypes({ fitInput, invoices, assets, readinessTrend: readinessDelta?.trend ?? null }, currency),
+        [fitInput, invoices, assets, readinessDelta, currency],
+    );
 
     // Real, admin-managed listings replace the illustrative sample list the
     // moment there's at least one -- this is the switch from "demo" to a
@@ -368,6 +391,32 @@ export default function FinancingMarketplaceScreen() {
                     <Text style={s.title}>🤝 Find Financing</Text>
                     <Text style={s.subtitle}>What are you financing?</Text>
 
+                    {recommendations.length > 0 && (
+                        <View style={s.recommendBox}>
+                            <Text style={s.recommendTitle}>Not sure? Here's what fits your business right now</Text>
+                            {recommendations.map(r => (
+                                <TouchableOpacity
+                                    key={r.productType}
+                                    style={s.recommendCard}
+                                    onPress={() => { setSelectedCategoryId(RECOMMENDATION_CATEGORY[r.productType]); setScreenStep('results'); }}
+                                >
+                                    <View style={s.recommendCardHeader}>
+                                        <Text style={s.recommendCardLabel}>{r.label}</Text>
+                                        <View style={[s.recommendConfidenceBadge, r.confidence === 'strong' && s.recommendConfidenceStrong]}>
+                                            <Text style={[s.recommendConfidenceText, r.confidence === 'strong' && s.recommendConfidenceTextStrong]}>
+                                                {r.confidence === 'strong' ? 'Strong match' : 'Worth a look'}
+                                            </Text>
+                                        </View>
+                                    </View>
+                                    {r.reasons.map((reason, i) => (
+                                        <Text key={i} style={s.recommendReason}>{reason}</Text>
+                                    ))}
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    )}
+
+                    <Text style={s.orBrowseLabel}>Or browse by category</Text>
                     <View style={s.categoryGrid}>
                         {CATEGORIES.map(cat => (
                             <TouchableOpacity
@@ -634,6 +683,18 @@ const s = StyleSheet.create({
 
     readinessTrend: { fontSize: 11.5, fontWeight: '700', marginTop: 6 },
 
+    recommendBox: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 18, borderWidth: 1, borderColor: Colors.primary + '40' },
+    recommendTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: 12 },
+    recommendCard: { backgroundColor: Colors.bg, borderRadius: 10, padding: 12, marginBottom: 10 },
+    recommendCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+    recommendCardLabel: { fontSize: 13.5, fontWeight: '700', color: Colors.textPrimary },
+    recommendConfidenceBadge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, backgroundColor: Colors.textMuted + '22' },
+    recommendConfidenceStrong: { backgroundColor: Colors.income + '22' },
+    recommendConfidenceText: { fontSize: 10, fontWeight: '700', color: Colors.textMuted },
+    recommendConfidenceTextStrong: { color: Colors.income },
+    recommendReason: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17, marginBottom: 3 },
+
+    orBrowseLabel: { fontSize: 12, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 10 },
     categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4, marginBottom: 20 },
     categoryCard: {
         width: '47%', backgroundColor: Colors.surface, borderRadius: 12, borderWidth: 1, borderColor: Colors.border,

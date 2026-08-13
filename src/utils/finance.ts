@@ -281,6 +281,15 @@ export function computeAssetAnnualDepreciation(asset: Asset): number {
     return (cost - residual) / life;
 }
 
+// An active asset down to 20% or less of its original cost — same threshold
+// AssetsScreen's replacement-alert banner uses. Pulled out as a reusable
+// util (was inline-only in that screen) so financingRecommendation.ts can
+// use the same real signal ("this business has assets nearing end of life")
+// without re-deriving or duplicating the threshold.
+export function computeAssetsNearingReplacement(assets: Asset[]): Asset[] {
+    return assets.filter(a => a.status === 'active' && a.purchaseCost > 0 && computeAssetCurrentValue(a) <= a.purchaseCost * 0.2);
+}
+
 export interface TaxTotals {
     totalTaxCollected: number;
     totalTaxPaid: number;

@@ -34,12 +34,16 @@ import WeeklyReportModal from '../components/WeeklyReportModal';
 import { showAlert } from '../utils/webAlert';
 import Icon from '../components/ui/Icon';
 import StatTile from '../components/ui/StatTile';
+import { buildFinancingFitInput } from '../utils/financingFit';
+import { recommendFinancingTypes } from '../utils/financingRecommendation';
+import { computeReadinessDelta } from '../utils/readinessHistory';
+import { notifyFinancingOpportunity } from '../utils/notifications';
 
 const INCOME_CATEGORIES = ['Sales', 'Service', 'Consulting', 'Rental', 'Interest', 'Other Income'];
 const EXPENSE_CATEGORIES = ['Rent', 'Salaries', 'Utilities', 'Marketing', 'Supplies', 'Transport', 'Meals', 'Software', 'Tax', 'Other'];
 
 export default function DashboardScreen() {
-    const { finance, settings, goals, transactions, invoices, assets, loans, navigate, setCurrentScreen, navParams, language: rawLanguage, isLoading, addTransaction, isDemoMode, exitDemo, cashPockets, deleteGoal, updateGoal, budgets, inventory, user, financing, canViewFinancials } = useApp();
+    const { finance, settings, goals, transactions, invoices, assets, loans, navigate, setCurrentScreen, navParams, language: rawLanguage, isLoading, addTransaction, isDemoMode, exitDemo, cashPockets, deleteGoal, updateGoal, budgets, inventory, user, financing, canViewFinancials, readinessHistory } = useApp();
     const language = rawLanguage as Language;
 
     const [fabOpen, setFabOpen]           = useState(false);
@@ -150,6 +154,30 @@ export default function DashboardScreen() {
 
     const lowStockItems = useMemo(() => inventory.filter(i => i.quantity <= i.lowStockThreshold), [inventory]);
     const totalCash = useMemo(() => cashPockets.reduce((s, p) => s + p.amount, 0), [cashPockets]);
+
+    // Surface a financing opportunity on the dashboard itself, not just
+    // when the owner happens to visit Financing — but only the strongest
+    // signal, and only one, so this doesn't become noise on every visit
+    // the way a "you could get working capital" card always being true
+    // would. Deliberately excludes the always-available Working Capital
+    // fallback (see financingRecommendation.ts) -- a generic "you might
+    // want financing" card here would just be clutter.
+    const financingOpportunity = useMemo(() => {
+        const fitInput = buildFinancingFitInput(transactions, loans, settings, user);
+        const readinessTrend = computeReadinessDelta(readinessHistory)?.trend ?? null;
+        const recs = recommendFinancingTypes({ fitInput, invoices, assets, readinessTrend }, settings.currency)
+            .filter(r => r.confidence === 'strong' && r.productType !== 'working_capital');
+        return recs[0] ?? null;
+    }, [transactions, loans, settings, user, readinessHistory, invoices, assets]);
+
+    // Best-effort device notification mirroring the dashboard card above —
+    // notifyFinancingOpportunity throttles itself to once per 14 days, so
+    // this effect re-running on every recompute of financingOpportunity
+    // (e.g. after each new transaction) doesn't mean repeat notifications.
+    useEffect(() => {
+        if (isDemoMode || !financingOpportunity) return;
+        notifyFinancingOpportunity(financingOpportunity.label, financingOpportunity.reasons[0]).catch(() => {});
+    }, [isDemoMode, financingOpportunity]);
 
     const openFab = (type: 'income' | 'expense' = 'income') => {
         setQaType(type);
@@ -403,8 +431,26 @@ export default function DashboardScreen() {
                     </TouchableOpacity>
                   )}
 
+                  {/* Financing Opportunity — a positive signal, not a problem,
+                      so it uses the plain (not alert/warning) card style */}
+                  {financingOpportunity && (
+                    <TouchableOpacity
+                      style={styles.priorityCard}
+                      onPress={() => setCurrentScreen('financing-marketplace')}
+                    >
+                      <View style={[styles.priorityIconBadge, { backgroundColor: Colors.primary + '22' }]}>
+                        <Icon name="trending-up" size={16} color={Colors.primary} />
+                      </View>
+                      <View style={styles.priorityContent}>
+                        <Text style={styles.priorityTitle}>You may qualify for {financingOpportunity.label}</Text>
+                        <Text style={styles.priorityAmount}>{financingOpportunity.reasons[0]}</Text>
+                      </View>
+                      <Icon name="chevron-right" size={18} color={Colors.textMuted} />
+                    </TouchableOpacity>
+                  )}
+
                   {/* No Priorities */}
-                  {overdueInvoices.length === 0 && lowStockItems.length === 0 && overspentBudgets.length === 0 && (
+                  {overdueInvoices.length === 0 && lowStockItems.length === 0 && overspentBudgets.length === 0 && !financingOpportunity && (
                     <View style={styles.priorityCard}>
                       <View style={[styles.priorityIconBadge, { backgroundColor: Colors.success + '22' }]}>
                         <Icon name="check" size={16} color={Colors.success} />

@@ -9,7 +9,7 @@ import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { t } from '../utils/i18n';
 import { Asset, AssetCategory } from '../types';
-import { computeAssetCurrentValue, computeAssetAnnualDepreciation } from '../utils/finance';
+import { computeAssetCurrentValue, computeAssetAnnualDepreciation, computeAssetsNearingReplacement } from '../utils/finance';
 import { analyzeAcquisition } from '../utils/assetAcquisitionEngine';
 import AssetProductivityAnalysis from '../components/AssetProductivityAnalysis';
 import { monthlyPayment } from '../utils/loanMath';
@@ -179,7 +179,7 @@ export default function AssetsScreen() {
     const activeAssets = useMemo(() => assets.filter(a => a.status === 'active'), [assets]);
     const disposedCount = useMemo(() => assets.filter(a => a.status === 'disposed').length, [assets]);
     const replacementAlerts = useMemo(
-        () => activeAssets.filter(a => computeAssetCurrentValue(a) <= a.purchaseCost * 0.2 && a.purchaseCost > 0),
+        () => computeAssetsNearingReplacement(activeAssets),
         [activeAssets],
     );
 
