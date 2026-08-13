@@ -370,4 +370,59 @@ export const DEMO_BUSINESSES: DemoBusiness[] = [
             { id: 'keiv1', invoiceNumber: 'INV-KE-018', clientName: 'Riverside Estates Ltd', clientEmail: 'procurement@riversideestates.co.ke', clientAddress: '', notes: '', lineItems: [{ description: 'Cement & rebar — housing estate phase 1', quantity: 1, unitPrice: 420000, taxRate: 0 }], subtotal: 420000, taxTotal: 0, total: 420000, status: 'sent', issueDate: d(20), dueDate: d(-6), createdAt: d(20) },
         ],
     },
+
+    // ─── 9. GHANA ─────────────────────────────────────────────────────────────
+    // Built specifically to demonstrate the "strong" Invoice Financing path
+    // in financingRecommendation.ts -- unpaid invoices here (₵255,000, two
+    // genuinely overdue) exceed this business's own trailing monthly
+    // revenue (₵241,500), unlike Adunola Fashion Store's single ₦95,000
+    // invoice, which never clears even the moderate 0.5x threshold against
+    // its ₦420,000 revenue. A B2B printing/branding studio invoicing
+    // corporate clients on net terms is a realistic setting for real,
+    // sizeable uncollected AR -- unlike the walk-in-trade retail businesses
+    // elsewhere in this file.
+    {
+        id: 'ghana',
+        flag: '🇬🇭',
+        country: 'Ghana',
+        emoji: '🖨️',
+        name: 'Print & Branding Studio',
+        description: 'Corporate printing, signage & branding, Accra',
+        currency: 'GH₵',
+        businessName: 'Kofi Print & Branding',
+        industry: 'professional-services',
+        transactions: [
+            { id: 'gh1',  date: d(1),  description: 'Sale — corporate banners',              type: 'income',  category: 'Sales',        amount: 22000, status: 'paid' },
+            { id: 'gh2',  date: d(2),  description: 'Sale — branded merchandise',             type: 'income',  category: 'Sales',        amount: 15500, status: 'paid' },
+            { id: 'gh3',  date: d(3),  description: 'Printing supplies purchase',              type: 'expense', category: 'Stock/Inventory', amount: 18000, status: 'paid' },
+            { id: 'gh4',  date: d(4),  description: 'Studio rent — monthly',                   type: 'expense', category: 'Rent',         amount: 12000, status: 'paid', isRecurring: true, recurringFrequency: 'monthly' },
+            { id: 'gh5',  date: d(5),  description: 'Sale — event signage package',            type: 'income',  category: 'Sales',        amount: 38000, status: 'paid' },
+            { id: 'gh6',  date: d(7),  description: 'Studio staff wages x3',                   type: 'expense', category: 'Salaries',     amount: 21000, status: 'paid' },
+            { id: 'gh7',  date: d(8),  description: 'Sale — vehicle branding',                 type: 'income',  category: 'Sales',        amount: 26500, status: 'paid' },
+            { id: 'gh8',  date: d(10), description: 'Printer maintenance & ink',                type: 'expense', category: 'Maintenance',  amount: 9500,  status: 'paid' },
+            { id: 'gh9',  date: d(12), description: 'Sale — exhibition booth branding',         type: 'income',  category: 'Sales',        amount: 48000, status: 'paid' },
+            { id: 'gh10', date: d(14), description: 'Vinyl & print material restock',           type: 'expense', category: 'Stock/Inventory', amount: 24000, status: 'paid' },
+            { id: 'gh11', date: d(15), description: 'Sale — office signage, walk-in',           type: 'income',  category: 'Sales',        amount: 12500, status: 'paid' },
+            { id: 'gh12', date: d(18), description: 'Marketing — social media ads',             type: 'expense', category: 'Marketing',    amount: 6000,  status: 'paid' },
+            { id: 'gh13', date: d(20), description: 'Sale — corporate rebrand package',         type: 'income',  category: 'Sales',        amount: 65000, status: 'pending', dueDate: d(-10) },
+            { id: 'gh14', date: d(22), description: 'Delivery van fuel',                        type: 'expense', category: 'Transport',    amount: 7000,  status: 'paid' },
+            { id: 'gh15', date: d(25), description: 'Sale — weekend market stall signage',      type: 'income',  category: 'Sales',        amount: 14000, status: 'paid' },
+        ],
+        assets: [
+            { id: 'gha1', name: 'Large format printer', purchaseCost: 180000, purchaseDate: d(200), category: 'equipment', usefulLifeYears: 5, status: 'active', createdAt: d(200), description: '', residualValue: 0 },
+            { id: 'gha2', name: 'Delivery van', purchaseCost: 220000, purchaseDate: d(300), category: 'vehicle', usefulLifeYears: 7, status: 'active', createdAt: d(300), description: '', residualValue: 0 },
+        ],
+        loans: [
+            { id: 'ghl1', lenderName: 'GCB Bank Ghana', principal: 150000, interestRate: 22, termMonths: 18, startDate: d(150), purpose: 'Printer upgrade', status: 'active', payments: [{ id: 'p1', date: d(120), amount: 10500, note: 'Month 1' }, { id: 'p2', date: d(90), amount: 10500, note: 'Month 2' }], createdAt: d(150) },
+        ],
+        inventory: [
+            { id: 'ghi1', name: 'Vinyl rolls', quantity: 40, unit: 'rolls', costPrice: 450, sellingPrice: 900, category: 'Print Material', lowStockThreshold: 15, createdAt: d(30), updatedAt: d(4) },
+            { id: 'ghi2', name: 'Ink cartridge sets', quantity: 18, unit: 'sets', costPrice: 1200, sellingPrice: 2000, category: 'Print Material', lowStockThreshold: 8, createdAt: d(30), updatedAt: d(6) },
+        ],
+        invoices: [
+            { id: 'ghiv1', invoiceNumber: 'INV-GH-101', clientName: 'Accra Mall Developers', clientEmail: 'accounts@accramalldev.com.gh', clientAddress: '', notes: '', lineItems: [{ description: 'Mall directory & wayfinding signage', quantity: 1, unitPrice: 95000, taxRate: 0 }], subtotal: 95000, taxTotal: 0, total: 95000, status: 'overdue', issueDate: d(45), dueDate: d(15), createdAt: d(45) },
+            { id: 'ghiv2', invoiceNumber: 'INV-GH-102', clientName: 'Kumasi Retail Group', clientEmail: 'finance@kumasiretail.com.gh', clientAddress: '', notes: '', lineItems: [{ description: 'Storefront rebrand — 6 locations', quantity: 1, unitPrice: 68000, taxRate: 0 }], subtotal: 68000, taxTotal: 0, total: 68000, status: 'overdue', issueDate: d(50), dueDate: d(20), createdAt: d(50) },
+            { id: 'ghiv3', invoiceNumber: 'INV-GH-103', clientName: 'Ministry of Trade — Event Services', clientEmail: 'procurement@mot.gov.gh', clientAddress: '', notes: '', lineItems: [{ description: 'Trade fair pavilion branding', quantity: 1, unitPrice: 92000, taxRate: 0 }], subtotal: 92000, taxTotal: 0, total: 92000, status: 'sent', issueDate: d(15), dueDate: d(-3), createdAt: d(15) },
+        ],
+    },
 ];
