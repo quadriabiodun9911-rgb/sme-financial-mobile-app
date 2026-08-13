@@ -452,6 +452,31 @@ export interface FinancingProduct {
     updatedAt?: string;
 }
 
+// The SME-published (opt-in) side of the lender pipeline -- see
+// supabase/migrations/008_lender_pipeline_phase0.sql and
+// src/utils/financingPipeline.ts. Deliberately narrow: every field here is
+// an aggregate/derived output (a score, a band, a bucketed range), never a
+// raw transaction or an exact revenue figure -- the non-negotiable
+// constraint from the Lender Auth & Visibility Scope document.
+export type PipelineListingStatus = 'active' | 'inactive' | 'matched';
+
+export interface PipelineListing {
+    id: string;
+    financingType: FinancingProductType;
+    grade: string;   // computeRiskScore() output, e.g. 'A'
+    band: string;     // computeRiskScore() output, e.g. 'Strong'
+    score: number;
+    dscr: number;
+    dscrStatus: 'healthy' | 'warning' | 'danger';
+    sector?: string;
+    revenueBand?: string;  // bucketed, e.g. "₦10M-50M" -- never the exact figure
+    requestedAmount?: number;
+    purpose?: string;
+    status: PipelineListingStatus;
+    optedInAt: string;
+    expiresAt?: string;
+}
+
 export interface CashPocket {
     id: string;
     name: string;

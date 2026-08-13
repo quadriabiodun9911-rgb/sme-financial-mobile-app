@@ -13,7 +13,16 @@ import { computeDataQuality } from '../utils/dataQuality';
 import { computeInventoryValue } from '../utils/stockVelocity';
 import { SAMPLE_FINANCING_PRODUCTS } from '../utils/financingProducts';
 import { loadActiveFinancingProducts } from '../utils/financingAdmin';
-import { FinancingProduct, FinancingProductType, LenderType } from '../types';
+import { bandRevenue, loadMyPipelineListings, publishPipelineListing, revokePipelineListing } from '../utils/financingPipeline';
+import { FinancingProduct, FinancingProductType, LenderType, PipelineListing } from '../types';
+
+const INDUSTRY_LABEL: Record<string, string> = {
+    general: 'General Business',
+    retail: 'Retail',
+    'food-service': 'Food Service',
+    manufacturing: 'Manufacturing',
+    'professional-services': 'Professional Services',
+};
 
 const VERDICT_STYLE: Record<FinancingFitVerdict, { label: string; color: string }> = {
     strong: { label: 'Strong fit', color: Colors.income },
@@ -125,7 +134,7 @@ function ProductCard({ result, currency, expanded, onToggle }: { result: Financi
 }
 
 export default function FinancingMarketplaceScreen() {
-    const { user, finance, transactions, loans, inventory, settings, navigate, readinessHistory } = useApp();
+    const { user, finance, transactions, loans, inventory, settings, navigate, readinessHistory, userRole } = useApp();
     const { currency } = settings;
     const [amountText, setAmountText] = useState('');
     const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -183,6 +192,91 @@ export default function FinancingMarketplaceScreen() {
         () => rankFinancingProducts(productSource, fitInput, currency),
         [productSource, fitInput, currency],
     );
+
+    // ─── Be Visible to Lenders (Phase 1 of the Lender Auth &
+    // Financing-Visibility Flow) ──────────────────────────────────────────
+    // Publishing is owner-only -- see financingPipeline.ts's header note on
+    // why it keys rows off the signed-in session directly rather than the
+    // shared-workspace owner id every other per-business table uses.
+    const canPublishToLenders = userRole === 'owner';
+
+    const revenueBand = useMemo(() => bandRevenue(fitInput.annualRevenue, currency), [fitInput.annualRevenue, currency]);
+
+    const [pipelineListings, setPipelineListings] = useState<PipelineListing[]>([]);
+    const [selectedTypes, setSelectedTypes] = useState<Set<FinancingProductType>>(new Set());
+    const [purposeText, setPurposeText] = useState('');
+    const [publishing, setPublishing] = useState(false);
+    const [publishMsg, setPublishMsg] = useState<string | null>(null);
+
+    const refreshListings = () => {
+        loadMyPipelineListings().then(setPipelineListings).catch(() => {});
+    };
+    useEffect(() => {
+        if (canPublishToLenders) refreshListings();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [canPublishToLenders]);
+
+    // Default the picker to whichever types this business currently has a
+    // real (strong/moderate) fit for, rather than an empty selection --
+    // matches the "capital suitability" idea directly: don't ask the owner
+    // to guess which financing type fits their situation, suggest it.
+    useEffect(() => {
+        const suggested = new Set<FinancingProductType>();
+        for (const r of results) {
+            if (r.verdict === 'strong' || r.verdict === 'moderate') suggested.add(r.product.productType);
+        }
+        setSelectedTypes(suggested);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [productSource]);
+
+    const activeListingTypes = new Set(pipelineListings.filter(l => l.status !== 'inactive').map(l => l.financingType));
+
+    const toggleType = (t: FinancingProductType) => {
+        setSelectedTypes(prev => {
+            const next = new Set(prev);
+            if (next.has(t)) next.delete(t); else next.add(t);
+            return next;
+        });
+    };
+
+    const handlePublish = async () => {
+        setPublishing(true);
+        setPublishMsg(null);
+        try {
+            const types = Array.from(selectedTypes);
+            if (types.length === 0) {
+                setPublishMsg('Select at least one financing type first.');
+                return;
+            }
+            let failed = 0;
+            for (const financingType of types) {
+                const res = await publishPipelineListing({
+                    financingType,
+                    grade: risk.grade,
+                    band: risk.band,
+                    score: risk.score,
+                    dscr: dscr.dscr,
+                    dscrStatus: dscr.status,
+                    sector: INDUSTRY_LABEL[settings.industry ?? 'general'],
+                    revenueBand,
+                    requestedAmount,
+                    purpose: purposeText.trim() || undefined,
+                });
+                if (!res.ok) failed++;
+            }
+            setPublishMsg(failed === 0
+                ? `You're now visible to lenders for ${types.length} financing type${types.length > 1 ? 's' : ''}.`
+                : `${types.length - failed} of ${types.length} published — the rest failed, try again.`);
+            refreshListings();
+        } finally {
+            setPublishing(false);
+        }
+    };
+
+    const handleRevoke = async (id: string) => {
+        await revokePipelineListing(id);
+        refreshListings();
+    };
 
     const READY_BAND: Record<RiskScore['band'], { label: string; color: string }> = {
         Excellent: { label: 'Excellent', color: Colors.income },
@@ -276,6 +370,106 @@ export default function FinancingMarketplaceScreen() {
                     />
                 ))}
 
+                {canPublishToLenders && (
+                    <View style={s.visibilityBox}>
+                        <Text style={s.visibilityTitle}>Be Visible to Lenders</Text>
+                        <Text style={s.visibilitySubtitle}>
+                            Publish a summary of your readiness — not your raw financial data — so Quad360's
+                            lending partners can find businesses that fit their financing criteria.
+                        </Text>
+
+                        <View style={s.shareGrid}>
+                            <View style={s.shareCol}>
+                                <Text style={s.shareColTitle}>✓ Shared</Text>
+                                <Text style={s.shareColItem}>Grade, band &amp; score</Text>
+                                <Text style={s.shareColItem}>Debt-service capacity</Text>
+                                <Text style={s.shareColItem}>Sector &amp; revenue range</Text>
+                                <Text style={s.shareColItem}>Amount &amp; purpose you enter below</Text>
+                            </View>
+                            <View style={s.shareCol}>
+                                <Text style={[s.shareColTitle, { color: Colors.expense }]}>✕ Never shared</Text>
+                                <Text style={s.shareColItem}>Any individual transaction</Text>
+                                <Text style={s.shareColItem}>Exact revenue or cash balance</Text>
+                                <Text style={s.shareColItem}>Customer/supplier names</Text>
+                                <Text style={s.shareColItem}>Anything you haven't opted into</Text>
+                            </View>
+                        </View>
+
+                        <View style={s.factorSummaryBox}>
+                            <Text style={s.factorSummaryTitle}>What lenders would see — {risk.grade} · {risk.band} ({Math.round(risk.score)}/100)</Text>
+                            {risk.factors.map(f => (
+                                <View key={f.name} style={s.factorRow}>
+                                    <Text style={s.factorRowName}>{f.name}</Text>
+                                    <View style={s.factorRowTrack}>
+                                        <View style={[s.factorRowFill, {
+                                            width: `${f.score}%` as any,
+                                            backgroundColor: f.status === 'good' ? Colors.income : f.status === 'warning' ? Colors.warning : Colors.expense,
+                                        }]} />
+                                    </View>
+                                    <Text style={s.factorRowScore}>{f.score}</Text>
+                                </View>
+                            ))}
+                            <Text style={s.revenueBandNote}>Revenue shown to lenders as: {revenueBand} · Sector: {INDUSTRY_LABEL[settings.industry ?? 'general']}</Text>
+                        </View>
+
+                        <Text style={s.typesLabel}>Which financing types should you be visible for?</Text>
+                        <View style={s.typeChipRow}>
+                            {(Object.keys(PRODUCT_TYPE_LABEL) as FinancingProductType[]).map(t => {
+                                const active = activeListingTypes.has(t);
+                                const selected = selectedTypes.has(t);
+                                return (
+                                    <TouchableOpacity
+                                        key={t}
+                                        style={[s.typeChip, selected && s.typeChipSelected, active && s.typeChipActive]}
+                                        onPress={() => toggleType(t)}
+                                    >
+                                        <Text style={[s.typeChipText, selected && s.typeChipTextSelected]}>
+                                            {active ? '● ' : ''}{PRODUCT_TYPE_LABEL[t]}
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </View>
+
+                        <Text style={s.purposeLabel}>What's this financing for? (optional, shared with lenders)</Text>
+                        <TextInput
+                            style={s.purposeInput}
+                            placeholder="e.g. Stock replenishment ahead of festive season"
+                            placeholderTextColor={Colors.textMuted}
+                            value={purposeText}
+                            onChangeText={setPurposeText}
+                        />
+
+                        <TouchableOpacity style={s.publishBtn} onPress={handlePublish} disabled={publishing}>
+                            <Text style={s.publishBtnText}>{publishing ? 'Publishing…' : 'Publish to Lenders'}</Text>
+                        </TouchableOpacity>
+                        {publishMsg && <Text style={s.publishMsg}>{publishMsg}</Text>}
+
+                        {pipelineListings.filter(l => l.status !== 'inactive').length > 0 && (
+                            <View style={s.activeListingsBox}>
+                                <Text style={s.activeListingsTitle}>Currently visible for</Text>
+                                {pipelineListings.filter(l => l.status !== 'inactive').map(l => (
+                                    <View key={l.id} style={s.activeListingRow}>
+                                        <Text style={s.activeListingType}>
+                                            {PRODUCT_TYPE_LABEL[l.financingType]}
+                                            {l.status === 'matched' ? ' · Matched' : ''}
+                                        </Text>
+                                        <TouchableOpacity onPress={() => handleRevoke(l.id)}>
+                                            <Text style={s.revokeLink}>Stop sharing</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                ))}
+                            </View>
+                        )}
+
+                        <Text style={s.visibilityFootnote}>
+                            No lending partners are live on the pipeline yet — this publishes your readiness
+                            summary so it's ready the moment they are. Listings expire automatically after 90 days;
+                            republish any time your numbers change.
+                        </Text>
+                    </View>
+                )}
+
                 <View style={s.footerNote}>
                     <Text style={s.footerNoteText}>
                         Quad360 helps you understand what financing you're realistically suited for — it does not lend, guarantee approval, or make the lending decision. Each financial institution independently evaluates and approves any application.
@@ -352,4 +546,45 @@ const s = StyleSheet.create({
 
     footerNote: { marginTop: 8, marginBottom: 20 },
     footerNoteText: { fontSize: 11, color: Colors.textMuted, lineHeight: 16, textAlign: 'center' },
+
+    visibilityBox: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginTop: 8, marginBottom: 20, borderWidth: 1, borderColor: Colors.equity + '40' },
+    visibilityTitle: { fontSize: 16, fontWeight: '800', color: Colors.textPrimary, marginBottom: 4 },
+    visibilitySubtitle: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 17, marginBottom: 14 },
+
+    shareGrid: { flexDirection: 'row', gap: 12, marginBottom: 14 },
+    shareCol: { flex: 1, backgroundColor: Colors.bg, borderRadius: 8, padding: 10 },
+    shareColTitle: { fontSize: 11.5, fontWeight: '800', color: Colors.income, marginBottom: 6 },
+    shareColItem: { fontSize: 11, color: Colors.textSecondary, lineHeight: 16, marginBottom: 2 },
+
+    factorSummaryBox: { backgroundColor: Colors.bg, borderRadius: 8, padding: 12, marginBottom: 14 },
+    factorSummaryTitle: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: 10 },
+    factorRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 7, gap: 8 },
+    factorRowName: { fontSize: 11, color: Colors.textSecondary, width: 100 },
+    factorRowTrack: { flex: 1, height: 5, borderRadius: 3, backgroundColor: Colors.border, overflow: 'hidden' },
+    factorRowFill: { height: '100%', borderRadius: 3 },
+    factorRowScore: { fontSize: 10.5, color: Colors.textMuted, width: 26, textAlign: 'right' },
+    revenueBandNote: { fontSize: 11, color: Colors.textMuted, marginTop: 6, fontStyle: 'italic' },
+
+    typesLabel: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: 8 },
+    typeChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
+    typeChip: { borderWidth: 1, borderColor: Colors.border, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: Colors.bg },
+    typeChipSelected: { borderColor: Colors.primary, backgroundColor: Colors.primary + '18' },
+    typeChipActive: { borderColor: Colors.income },
+    typeChipText: { fontSize: 11.5, color: Colors.textSecondary, fontWeight: '600' },
+    typeChipTextSelected: { color: Colors.primary },
+
+    purposeLabel: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: 8 },
+    purposeInput: { borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 13, color: Colors.textPrimary, backgroundColor: Colors.bg, marginBottom: 14 },
+
+    publishBtn: { backgroundColor: Colors.primary, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
+    publishBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+    publishMsg: { fontSize: 12, color: Colors.income, marginTop: 8, textAlign: 'center' },
+
+    activeListingsBox: { marginTop: 16, paddingTop: 14, borderTopWidth: 1, borderTopColor: Colors.border },
+    activeListingsTitle: { fontSize: 11.5, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 8 },
+    activeListingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+    activeListingType: { fontSize: 12.5, color: Colors.textPrimary, fontWeight: '600' },
+    revokeLink: { fontSize: 12, color: Colors.expense, fontWeight: '600' },
+
+    visibilityFootnote: { fontSize: 10.5, color: Colors.textMuted, fontStyle: 'italic', marginTop: 14, lineHeight: 15 },
 });
