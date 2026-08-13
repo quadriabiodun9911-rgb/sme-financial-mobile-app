@@ -54,6 +54,41 @@ const LENDER_TYPE_LABEL: Record<LenderType, string> = {
     microfinance: 'Microfinance Bank',
 };
 
+// ─── "Find Financing" categories (entry step) ───────────────────────────────
+// SME-facing browsing categories, deliberately broader than
+// FinancingProductType (the schema's financing-mechanism enum) -- these are
+// how a business owner actually thinks about their need ("I'm buying
+// equipment", "I need working capital"), not how a lender's product is
+// structured internally. Most map cleanly onto one or two product types;
+// a handful (marked `specialized`) don't have a dedicated product type or
+// eligibility signal in the schema yet -- picking one of those still works,
+// it just shows the closest general-purpose listings with an honest note
+// rather than pretending there's a differentiated result set. An empty
+// `productTypes` array means "no type filter" (Women & Youth Business cuts
+// across every financing type, not one particular structure).
+interface FinancingCategory {
+    id: string;
+    label: string;
+    icon: IconName;
+    productTypes: FinancingProductType[];
+    specialized?: boolean;
+}
+
+const CATEGORIES: FinancingCategory[] = [
+    { id: 'working_capital',      label: 'Working Capital',        icon: 'repeat',        productTypes: ['working_capital'] },
+    { id: 'asset_equipment',      label: 'Asset & Equipment',      icon: 'tool',          productTypes: ['asset_financing'] },
+    { id: 'invoice_finance',      label: 'Invoice Finance',        icon: 'file-text',     productTypes: ['invoice_financing'] },
+    { id: 'trade_export',         label: 'Trade & Export',         icon: 'globe',         productTypes: ['trade_finance'] },
+    { id: 'agriculture',          label: 'Agriculture',            icon: 'package',       productTypes: ['working_capital', 'asset_financing'], specialized: true },
+    { id: 'manufacturing',        label: 'Manufacturing',          icon: 'settings',      productTypes: ['asset_financing', 'working_capital', 'term_loan'] },
+    { id: 'expansion',            label: 'Expansion',              icon: 'trending-up',   productTypes: ['term_loan', 'working_capital'] },
+    { id: 'energy_solar',         label: 'Energy & Solar',         icon: 'sun',           productTypes: ['asset_financing', 'term_loan'], specialized: true },
+    { id: 'purchase_order',       label: 'Purchase Order',         icon: 'shopping-cart', productTypes: ['trade_finance', 'invoice_financing'], specialized: true },
+    { id: 'women_youth',          label: 'Women & Youth Business', icon: 'users',         productTypes: [], specialized: true },
+    { id: 'startup_innovation',   label: 'Startup / Innovation',   icon: 'zap',           productTypes: ['term_loan', 'working_capital'], specialized: true },
+    { id: 'green_climate',        label: 'Green / Climate Finance', icon: 'wind',         productTypes: ['asset_financing', 'term_loan'], specialized: true },
+];
+
 function fmtAmt(currency: string, n: number): string {
     const abs = Math.abs(n);
     if (abs >= 1_000_000) return `${currency}${(n / 1_000_000).toFixed(1)}M`;
@@ -139,6 +174,15 @@ export default function FinancingMarketplaceScreen() {
     const [amountText, setAmountText] = useState('');
     const [expandedId, setExpandedId] = useState<string | null>(null);
 
+    // ─── Find Financing entry step ──────────────────────────────────────────
+    // Starts at the category picker every visit rather than remembering the
+    // last choice -- "what are you financing?" is meant to be asked fresh
+    // each time, and "Browse all financing options" is one tap away for
+    // anyone who'd rather skip straight to the full ranked list.
+    const [screenStep, setScreenStep] = useState<'categories' | 'results'>('categories');
+    const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+    const selectedCategory = CATEGORIES.find(c => c.id === selectedCategoryId) ?? null;
+
     const risk: RiskScore = useMemo(() => computeRiskScore(finance, loans, transactions, inventory), [finance, loans, transactions, inventory]);
     const dscr = useMemo(() => computeDSCR(transactions, loans), [transactions, loans]);
 
@@ -188,10 +232,36 @@ export default function FinancingMarketplaceScreen() {
     const usingLiveProducts = !!liveProducts && liveProducts.length > 0;
     const productSource = usingLiveProducts ? liveProducts! : SAMPLE_FINANCING_PRODUCTS;
 
-    const results = useMemo(
+    // Ranked against every listing regardless of category -- used only to
+    // suggest which types to publish visibility for below (Be Visible to
+    // Lenders shouldn't be narrowed by whatever category the owner happened
+    // to browse in on this visit).
+    const allResults = useMemo(
         () => rankFinancingProducts(productSource, fitInput, currency),
         [productSource, fitInput, currency],
     );
+
+    // Category-filtered listings for the results step. An empty
+    // productTypes array (Women & Youth Business) means no filter at all.
+    // If a category's mapped types happen to match nothing in the current
+    // listing set, fall back to the full list rather than showing "0
+    // results" -- categoryHadNoDirectMatches drives the honest disclosure
+    // instead.
+    const categoryProducts = useMemo(() => {
+        if (!selectedCategory || selectedCategory.productTypes.length === 0) return productSource;
+        const filtered = productSource.filter(p => selectedCategory.productTypes.includes(p.productType));
+        return filtered.length > 0 ? filtered : productSource;
+    }, [selectedCategory, productSource]);
+
+    const categoryHadNoDirectMatches = !!selectedCategory
+        && selectedCategory.productTypes.length > 0
+        && !productSource.some(p => selectedCategory.productTypes.includes(p.productType));
+
+    const results = useMemo(
+        () => rankFinancingProducts(categoryProducts, fitInput, currency),
+        [categoryProducts, fitInput, currency],
+    );
+    const topMatch = results[0];
 
     // ─── Be Visible to Lenders (Phase 1 of the Lender Auth &
     // Financing-Visibility Flow) ──────────────────────────────────────────
@@ -222,7 +292,7 @@ export default function FinancingMarketplaceScreen() {
     // to guess which financing type fits their situation, suggest it.
     useEffect(() => {
         const suggested = new Set<FinancingProductType>();
-        for (const r of results) {
+        for (const r of allResults) {
             if (r.verdict === 'strong' || r.verdict === 'moderate') suggested.add(r.product.productType);
         }
         setSelectedTypes(suggested);
@@ -287,15 +357,54 @@ export default function FinancingMarketplaceScreen() {
     };
     const readyStyle = READY_BAND[risk.band];
 
+    // ── Step 1: "Find Financing" — what are you financing? ──────────────────
+    if (screenStep === 'categories') {
+        return (
+            <SafeAreaView style={s.safe}>
+                <Header />
+                <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
+                    <TouchableOpacity onPress={() => navigate('dashboard')}>
+                        <Text style={{ color: Colors.primary, fontSize: 14, marginBottom: 12 }}>← Dashboard</Text>
+                    </TouchableOpacity>
+
+                    <Text style={s.title}>🤝 Find Financing</Text>
+                    <Text style={s.subtitle}>What are you financing?</Text>
+
+                    <View style={s.categoryGrid}>
+                        {CATEGORIES.map(cat => (
+                            <TouchableOpacity
+                                key={cat.id}
+                                style={s.categoryCard}
+                                onPress={() => { setSelectedCategoryId(cat.id); setScreenStep('results'); }}
+                            >
+                                <Icon name={cat.icon} size={20} color={Colors.primary} />
+                                <Text style={s.categoryLabel}>{cat.label}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+
+                    <TouchableOpacity
+                        style={s.browseAllBtn}
+                        onPress={() => { setSelectedCategoryId(null); setScreenStep('results'); }}
+                    >
+                        <Text style={s.browseAllText}>Browse all financing options →</Text>
+                    </TouchableOpacity>
+                </ScrollView>
+                <FooterNav />
+            </SafeAreaView>
+        );
+    }
+
+    // ── Step 2: assessment + ranked matches ──────────────────────────────────
     return (
         <SafeAreaView style={s.safe}>
             <Header />
             <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
-                <TouchableOpacity onPress={() => navigate('dashboard')}>
-                    <Text style={{ color: Colors.primary, fontSize: 14, marginBottom: 12 }}>← Dashboard</Text>
+                <TouchableOpacity onPress={() => setScreenStep('categories')}>
+                    <Text style={{ color: Colors.primary, fontSize: 14, marginBottom: 12 }}>← What are you financing?</Text>
                 </TouchableOpacity>
 
-                <Text style={s.title}>🤝 Financing Marketplace</Text>
+                <Text style={s.title}>{selectedCategory ? `🤝 ${selectedCategory.label}` : '🤝 All Financing Options'}</Text>
                 <Text style={s.subtitle}>
                     See what financing your business is realistically suited for, and how it compares against what each lender is looking for.
                 </Text>
@@ -308,22 +417,19 @@ export default function FinancingMarketplaceScreen() {
                     </Text>
                 </View>
 
-                <View style={[s.readinessCard, { borderTopColor: readyStyle.color, borderTopWidth: 4 }]}>
-                    <Text style={s.readinessLabel}>Financing Readiness</Text>
-                    <Text style={[s.readinessScore, { color: readyStyle.color }]}>{Math.round(risk.score)}<Text style={s.readinessScoreOf}>/100</Text></Text>
-                    <Text style={[s.readinessBand, { color: readyStyle.color }]}>{readyStyle.label}</Text>
-                    <Text style={s.readinessDetail}>
-                        Debt-service coverage: {dscr.dscr >= 900 ? 'No existing debt' : `${dscr.dscr.toFixed(2)}x`}
-                        {dscr.dscr < 1 && ' — below 1x, existing income doesn\'t cover current debt payments yet.'}
-                    </Text>
-                    {readinessDelta && readinessDelta.trend !== 'stable' && (
-                        <Text style={[s.readinessTrend, { color: readinessDelta.trend === 'improving' ? Colors.income : Colors.expense }]}>
-                            {readinessDelta.trend === 'improving' ? `↑ Improved from ${readinessDelta.fromScore} over ${readinessDelta.periodLabel}` : `↓ Down from ${readinessDelta.fromScore} over ${readinessDelta.periodLabel}`}
+                {selectedCategory?.specialized && (
+                    <View style={s.specializedBox}>
+                        <Text style={s.specializedText}>
+                            {categoryHadNoDirectMatches
+                                ? `Quad360 doesn't yet have lenders with dedicated ${selectedCategory.label.toLowerCase()} criteria — showing the closest general-purpose financing options below instead.`
+                                : `Quad360 doesn't yet track ${selectedCategory.label.toLowerCase()}-specific eligibility (like targeted eligibility criteria) — the listings below are the closest general-purpose match, not a differentiated ${selectedCategory.label.toLowerCase()} product set.`}
                         </Text>
-                    )}
-                </View>
+                    </View>
+                )}
 
-                <View style={s.amountBox}>
+                <View style={s.assessmentBox}>
+                    <Text style={s.assessmentTitle}>Your financing assessment</Text>
+
                     <Text style={s.amountLabel}>How much financing do you need? (optional)</Text>
                     <TextInput
                         style={s.amountInput}
@@ -335,30 +441,82 @@ export default function FinancingMarketplaceScreen() {
                     />
                     <Text style={s.amountHint}>Narrows the fit score to also check whether each lender's amount range covers what you're asking for.</Text>
 
-                    {lendingCapacity.maxAmount > 0 && (
-                        <View style={s.capacityNote}>
-                            <Text style={s.capacityNoteLabel}>Based on your current numbers</Text>
-                            <Text style={s.capacityNoteRange}>
-                                You could realistically support {fmtAmt(currency, lendingCapacity.minAmount)}–{fmtAmt(currency, lendingCapacity.maxAmount)}
-                            </Text>
-                            {requestedAmount !== undefined && requestedAmount > lendingCapacity.maxAmount && (
-                                <Text style={s.capacityNoteWarn}>
-                                    Your {fmtAmt(currency, requestedAmount)} ask is above that range — lenders may see this as more debt than your current cash flow comfortably supports.
-                                </Text>
-                            )}
-                            <TouchableOpacity onPress={() => navigate('credit-worthiness')}>
-                                <Text style={s.capacityNoteLink}>See the full breakdown on Credit-Worthiness →</Text>
-                            </TouchableOpacity>
-                        </View>
-                    )}
-                    {lendingCapacity.maxAmount === 0 && (
-                        <Text style={s.capacityNoteMuted}>
-                            Not enough reliable history yet to estimate what you could realistically support based on your own numbers.
+                    <Text style={[s.amountLabel, { marginTop: 14 }]}>What's this financing for? (optional, shared with lenders if you publish below)</Text>
+                    <TextInput
+                        style={s.purposeInput}
+                        placeholder="e.g. Stock replenishment ahead of festive season"
+                        placeholderTextColor={Colors.textMuted}
+                        value={purposeText}
+                        onChangeText={setPurposeText}
+                    />
+
+                    <View style={s.assessmentDivider} />
+
+                    <View style={s.assessmentRow}>
+                        <Text style={s.assessmentLabel}>Requested</Text>
+                        <Text style={s.assessmentValue}>{requestedAmount !== undefined ? fmtAmt(currency, requestedAmount) : 'Not specified'}</Text>
+                    </View>
+                    <View style={s.assessmentRow}>
+                        <Text style={s.assessmentLabel}>Estimated sustainable capacity</Text>
+                        <Text style={s.assessmentValue}>
+                            {lendingCapacity.maxAmount > 0
+                                ? `${fmtAmt(currency, lendingCapacity.minAmount)}–${fmtAmt(currency, lendingCapacity.maxAmount)}`
+                                : 'Not enough history yet'}
+                        </Text>
+                    </View>
+                    <View style={s.assessmentRow}>
+                        <Text style={s.assessmentLabel}>Purpose</Text>
+                        <Text style={s.assessmentValue}>{purposeText.trim() || '—'}</Text>
+                    </View>
+                    <View style={s.assessmentRow}>
+                        <Text style={s.assessmentLabel}>Recommended structure</Text>
+                        <Text style={s.assessmentValue}>{topMatch ? PRODUCT_TYPE_LABEL[topMatch.product.productType] : '—'}</Text>
+                    </View>
+                    <View style={s.assessmentRow}>
+                        <Text style={s.assessmentLabel}>Readiness</Text>
+                        <Text style={[s.assessmentValue, { color: readyStyle.color }]}>{Math.round(risk.score)}% · {readyStyle.label}</Text>
+                    </View>
+                    {dscr.dscr < 1 && (
+                        <Text style={s.assessmentWarn}>
+                            Debt-service coverage is below 1x — existing income doesn't cover current debt payments yet.
                         </Text>
                     )}
+                    {requestedAmount !== undefined && lendingCapacity.maxAmount > 0 && requestedAmount > lendingCapacity.maxAmount && (
+                        <Text style={s.assessmentWarn}>
+                            Your {fmtAmt(currency, requestedAmount)} ask is above what your current cash flow comfortably supports — lenders may see this as more debt than your numbers can carry.
+                        </Text>
+                    )}
+                    {readinessDelta && readinessDelta.trend !== 'stable' && (
+                        <Text style={[s.readinessTrend, { color: readinessDelta.trend === 'improving' ? Colors.income : Colors.expense }]}>
+                            {readinessDelta.trend === 'improving' ? `↑ Improved from ${readinessDelta.fromScore} over ${readinessDelta.periodLabel}` : `↓ Down from ${readinessDelta.fromScore} over ${readinessDelta.periodLabel}`}
+                        </Text>
+                    )}
+                    <TouchableOpacity onPress={() => navigate('credit-worthiness')}>
+                        <Text style={s.capacityNoteLink}>See the full breakdown on Credit-Worthiness →</Text>
+                    </TouchableOpacity>
                 </View>
 
-                <Text style={s.sectionTitle}>{results.length} financing products ranked by fit</Text>
+                {topMatch && (
+                    <View style={s.beforeApplyingBox}>
+                        <Text style={s.beforeApplyingTitle}>Before applying</Text>
+                        <Text style={s.beforeApplyingSubtitle}>Against your strongest match — {topMatch.product.lenderName}, {topMatch.product.productName}</Text>
+                        {topMatch.criteria.map((c, i) => (
+                            <View key={i} style={s.beforeApplyingRow}>
+                                <Text style={[s.beforeApplyingIcon, {
+                                    color: c.status === 'met' ? Colors.income : c.status === 'unmet' ? Colors.warning : Colors.textMuted,
+                                }]}>
+                                    {c.status === 'met' ? '✓' : c.status === 'unmet' ? '⚠' : '?'}
+                                </Text>
+                                <Text style={s.beforeApplyingLabel}>
+                                    {c.label}
+                                    {c.status !== 'met' ? ` — you: ${c.businessValue}, needs: ${c.required}` : ''}
+                                </Text>
+                            </View>
+                        ))}
+                    </View>
+                )}
+
+                <Text style={s.sectionTitle}>Your strongest matches</Text>
 
                 {results.map(r => (
                     <ProductCard
@@ -384,7 +542,7 @@ export default function FinancingMarketplaceScreen() {
                                 <Text style={s.shareColItem}>Grade, band &amp; score</Text>
                                 <Text style={s.shareColItem}>Debt-service capacity</Text>
                                 <Text style={s.shareColItem}>Sector &amp; revenue range</Text>
-                                <Text style={s.shareColItem}>Amount &amp; purpose you enter below</Text>
+                                <Text style={s.shareColItem}>Amount &amp; purpose you enter above</Text>
                             </View>
                             <View style={s.shareCol}>
                                 <Text style={[s.shareColTitle, { color: Colors.expense }]}>✕ Never shared</Text>
@@ -430,15 +588,6 @@ export default function FinancingMarketplaceScreen() {
                                 );
                             })}
                         </View>
-
-                        <Text style={s.purposeLabel}>What's this financing for? (optional, shared with lenders)</Text>
-                        <TextInput
-                            style={s.purposeInput}
-                            placeholder="e.g. Stock replenishment ahead of festive season"
-                            placeholderTextColor={Colors.textMuted}
-                            value={purposeText}
-                            onChangeText={setPurposeText}
-                        />
 
                         <TouchableOpacity style={s.publishBtn} onPress={handlePublish} disabled={publishing}>
                             <Text style={s.publishBtnText}>{publishing ? 'Publishing…' : 'Publish to Lenders'}</Text>
@@ -491,24 +640,39 @@ const s = StyleSheet.create({
     disclosureBox: { backgroundColor: Colors.warning + '15', borderRadius: 10, padding: 12, marginBottom: 18, borderWidth: 1, borderColor: Colors.warning + '40' },
     disclosureText: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
 
-    readinessCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 16, alignItems: 'center' },
-    readinessLabel: { fontSize: 13, color: Colors.textMuted, fontWeight: '700', marginBottom: 4 },
-    readinessScore: { fontSize: 40, fontWeight: '800' },
-    readinessScoreOf: { fontSize: 16, color: Colors.textMuted, fontWeight: '600' },
-    readinessBand: { fontSize: 14, fontWeight: '700', marginBottom: 8 },
-    readinessDetail: { fontSize: 12, color: Colors.textSecondary, textAlign: 'center', lineHeight: 17 },
     readinessTrend: { fontSize: 11.5, fontWeight: '700', marginTop: 6 },
 
-    amountBox: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 20 },
+    categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4, marginBottom: 20 },
+    categoryCard: {
+        width: '47%', backgroundColor: Colors.surface, borderRadius: 12, borderWidth: 1, borderColor: Colors.border,
+        paddingVertical: 18, paddingHorizontal: 12, alignItems: 'center', gap: 8,
+    },
+    categoryLabel: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary, textAlign: 'center' },
+    browseAllBtn: { alignItems: 'center', paddingVertical: 12, marginBottom: 20 },
+    browseAllText: { fontSize: 13, fontWeight: '700', color: Colors.primary },
+
+    specializedBox: { backgroundColor: Colors.surface, borderRadius: 10, padding: 12, marginBottom: 18, borderWidth: 1, borderColor: Colors.border },
+    specializedText: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17, fontStyle: 'italic' },
+
+    assessmentBox: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 18 },
+    assessmentTitle: { fontSize: 16, fontWeight: '800', color: Colors.textPrimary, marginBottom: 14 },
+    assessmentDivider: { height: 1, backgroundColor: Colors.border, marginTop: 14, marginBottom: 4 },
+    assessmentRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    assessmentLabel: { fontSize: 12.5, color: Colors.textSecondary, flex: 1 },
+    assessmentValue: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, textAlign: 'right' },
+    assessmentWarn: { fontSize: 12, color: Colors.warning, marginTop: 10, lineHeight: 16 },
+
     amountLabel: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: 8 },
     amountInput: { borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: Colors.textPrimary, backgroundColor: Colors.bg },
     amountHint: { fontSize: 11.5, color: Colors.textMuted, marginTop: 6, lineHeight: 16 },
-    capacityNote: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: Colors.border },
-    capacityNoteLabel: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3 },
-    capacityNoteRange: { fontSize: 14.5, fontWeight: '700', color: Colors.textPrimary, marginTop: 3 },
-    capacityNoteWarn: { fontSize: 12, color: Colors.warning, marginTop: 6, lineHeight: 16 },
-    capacityNoteLink: { fontSize: 12, color: Colors.primary, marginTop: 8, fontWeight: '600' },
-    capacityNoteMuted: { fontSize: 11.5, color: Colors.textMuted, marginTop: 10, fontStyle: 'italic', lineHeight: 16 },
+    capacityNoteLink: { fontSize: 12, color: Colors.primary, marginTop: 10, fontWeight: '600' },
+
+    beforeApplyingBox: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 18, borderWidth: 1, borderColor: Colors.equity + '40' },
+    beforeApplyingTitle: { fontSize: 15, fontWeight: '800', color: Colors.textPrimary, marginBottom: 2 },
+    beforeApplyingSubtitle: { fontSize: 11.5, color: Colors.textMuted, marginBottom: 12 },
+    beforeApplyingRow: { flexDirection: 'row', marginBottom: 8 },
+    beforeApplyingIcon: { fontSize: 14, fontWeight: '800', width: 20 },
+    beforeApplyingLabel: { fontSize: 12.5, color: Colors.textSecondary, flex: 1, lineHeight: 17 },
 
     sectionTitle: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, marginBottom: 10 },
 
@@ -573,7 +737,6 @@ const s = StyleSheet.create({
     typeChipText: { fontSize: 11.5, color: Colors.textSecondary, fontWeight: '600' },
     typeChipTextSelected: { color: Colors.primary },
 
-    purposeLabel: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: 8 },
     purposeInput: { borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 13, color: Colors.textPrimary, backgroundColor: Colors.bg, marginBottom: 14 },
 
     publishBtn: { backgroundColor: Colors.primary, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
