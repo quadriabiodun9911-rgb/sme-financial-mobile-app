@@ -1079,12 +1079,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({ email, password: authSecret });
         let authUserId = signUpData?.user?.id;
         if (signUpErr) {
-          // Existing account (already joined once, or predates this
-          // migration) — fall back to the legacy PIN-derived password, then
-          // rotate to a fresh secret on success, same as login()'s path.
-          const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({ email, password: hashPin(pin) });
+          // signUp fails for any email that's already registered — two
+          // different cases look identical here: (a) a genuine legacy
+          // account whose real password is still the PIN-derived hash, or
+          // (b) this exact device already ran this join flow once before
+          // (e.g. the invite code step failed after signUp had already
+          // succeeded) and this account's real password is the authSecret
+          // that got saved locally on that earlier attempt. Try the
+          // locally-stored secret first — it's the more likely case on a
+          // retry — before falling back to the legacy hash, mirroring
+          // login()'s own ordering.
+          const storedSecret = await loadAuthSecret();
+          let signInData: Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>['data'] | undefined;
+          let signInErr: Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>['error'] | undefined;
+          if (storedSecret) {
+            ({ data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({ email, password: storedSecret }));
+          }
+          if (!storedSecret || signInErr) {
+            ({ data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({ email, password: hashPin(pin) }));
+          }
           if (signInErr) throw new Error(signInErr.message);
-          authUserId = signInData.user?.id;
+          authUserId = signInData?.user?.id;
           const { error: rotateError } = await supabase.auth.updateUser({ password: authSecret }).catch(e => ({ error: e } as any));
           if (!rotateError) await saveAuthSecret(authSecret).catch(() => {});
         } else {
@@ -1114,9 +1129,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({ email, password: authSecret });
         let authUserId = signUpData?.user?.id;
         if (signUpErr) {
-          const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({ email, password: hashPin(pin) });
+          // Same retry-safety fix as joinTeam above — try this device's
+          // already-stored authSecret before the legacy PIN-hash fallback,
+          // so a second attempt (e.g. after entering the wrong invite code
+          // once) doesn't fail with "invalid login credentials" against an
+          // account this same device already created moments earlier.
+          const storedSecret = await loadAuthSecret();
+          let signInData: Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>['data'] | undefined;
+          let signInErr: Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>['error'] | undefined;
+          if (storedSecret) {
+            ({ data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({ email, password: storedSecret }));
+          }
+          if (!storedSecret || signInErr) {
+            ({ data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({ email, password: hashPin(pin) }));
+          }
           if (signInErr) throw new Error(signInErr.message);
-          authUserId = signInData.user?.id;
+          authUserId = signInData?.user?.id;
           const { error: rotateError } = await supabase.auth.updateUser({ password: authSecret }).catch(e => ({ error: e } as any));
           if (!rotateError) await saveAuthSecret(authSecret).catch(() => {});
         } else {
