@@ -5,6 +5,8 @@ import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import Icon, { IconName } from '../components/ui/Icon';
+import { ChipGroup } from '../components/ui/ChipGroup';
+import { ExpandableCard } from '../components/ui/ExpandableCard';
 import { computeRiskScore, computeDSCR, RiskScore } from '../utils/finance';
 import { buildFinancingFitInput, rankFinancingProducts, FinancingFitResult, FinancingFitVerdict } from '../utils/financingFit';
 import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
@@ -117,54 +119,58 @@ function ProductCard({ result, currency, expanded, onToggle }: { result: Financi
     const { product } = result;
     const verdict = VERDICT_STYLE[result.verdict];
     return (
-        <TouchableOpacity style={[s.productCard, { borderLeftColor: verdict.color }]} onPress={onToggle} activeOpacity={0.8}>
-            <View style={s.productHeader}>
-                <View style={s.productHeaderLeft}>
-                    <Icon name={LENDER_TYPE_ICON[product.lenderType]} size={16} color={Colors.textMuted} />
-                    <View style={{ marginLeft: 8, flex: 1 }}>
-                        <Text style={s.productName}>{product.productName}</Text>
-                        <Text style={s.productLender}>{product.lenderName} · {PRODUCT_TYPE_LABEL[product.productType]}</Text>
+        <ExpandableCard
+            expanded={expanded}
+            onToggle={onToggle}
+            accentColor={verdict.color}
+            expandedHint="Tap to collapse ▲"
+            collapsedHint="Tap to see why ▼"
+            header={
+                <>
+                    <View style={s.productHeader}>
+                        <View style={s.productHeaderLeft}>
+                            <Icon name={LENDER_TYPE_ICON[product.lenderType]} size={16} color={Colors.textMuted} />
+                            <View style={{ marginLeft: 8, flex: 1 }}>
+                                <Text style={s.productName}>{product.productName}</Text>
+                                <Text style={s.productLender}>{product.lenderName} · {PRODUCT_TYPE_LABEL[product.productType]}</Text>
+                            </View>
+                        </View>
+                        <View style={[s.fitBadge, { backgroundColor: verdict.color + '22' }]}>
+                            <Text style={[s.fitBadgeScore, { color: verdict.color }]}>{result.verdict === 'not_eligible' ? '—' : `${result.fitScore}%`}</Text>
+                            <Text style={[s.fitBadgeLabel, { color: verdict.color }]}>{verdict.label}</Text>
+                        </View>
                     </View>
-                </View>
-                <View style={[s.fitBadge, { backgroundColor: verdict.color + '22' }]}>
-                    <Text style={[s.fitBadgeScore, { color: verdict.color }]}>{result.verdict === 'not_eligible' ? '—' : `${result.fitScore}%`}</Text>
-                    <Text style={[s.fitBadgeLabel, { color: verdict.color }]}>{verdict.label}</Text>
-                </View>
-            </View>
 
-            <Text style={s.productDesc}>{product.description}</Text>
-            <View style={s.productMetaRow}>
-                <Text style={s.productMeta}>{fmtAmt(currency, product.minAmount)}–{fmtAmt(currency, product.maxAmount)}</Text>
-                <Text style={s.productMeta}>{product.minTermMonths}–{product.maxTermMonths} mo</Text>
-                <Text style={s.productMeta}>{product.interestRateMinPct}–{product.interestRateMaxPct}% p.a.</Text>
-            </View>
-
-            {expanded && (
-                <View style={s.criteriaBox}>
-                    <Text style={s.criteriaTitle}>Why this fit score</Text>
-                    {result.criteria.map((c, i) => <CriterionRow key={i} {...c} />)}
-                    {result.improvementTips.length > 0 && (
-                        <View style={s.improveBox}>
-                            <Text style={s.improveTitle}>What would close the gap</Text>
-                            {result.improvementTips.map((t, i) => <Text key={i} style={s.improveTip}>• {t}</Text>)}
-                            <Text style={s.improveFootnote}>Fit updates automatically the next time you record transactions — no need to recheck manually.</Text>
-                        </View>
-                    )}
-                    {result.verdict === 'not_eligible' && (
-                        <Text style={s.notEligibleNote}>
-                            Current income doesn't fully cover existing debt obligations — build repayment headroom before taking on more, regardless of this product's individual criteria.
-                        </Text>
-                    )}
-                    {result.economicNote && (
-                        <View style={s.economicBox}>
-                            <Text style={s.economicTitle}>📊 Worth weighing</Text>
-                            <Text style={s.economicNoteText}>{result.economicNote}</Text>
-                        </View>
-                    )}
+                    <Text style={s.productDesc}>{product.description}</Text>
+                    <View style={s.productMetaRow}>
+                        <Text style={s.productMeta}>{fmtAmt(currency, product.minAmount)}–{fmtAmt(currency, product.maxAmount)}</Text>
+                        <Text style={s.productMeta}>{product.minTermMonths}–{product.maxTermMonths} mo</Text>
+                        <Text style={s.productMeta}>{product.interestRateMinPct}–{product.interestRateMaxPct}% p.a.</Text>
+                    </View>
+                </>
+            }
+        >
+            <Text style={s.criteriaTitle}>Why this fit score</Text>
+            {result.criteria.map((c, i) => <CriterionRow key={i} {...c} />)}
+            {result.improvementTips.length > 0 && (
+                <View style={s.improveBox}>
+                    <Text style={s.improveTitle}>What would close the gap</Text>
+                    {result.improvementTips.map((t, i) => <Text key={i} style={s.improveTip}>• {t}</Text>)}
+                    <Text style={s.improveFootnote}>Fit updates automatically the next time you record transactions — no need to recheck manually.</Text>
                 </View>
             )}
-            <Text style={s.tapHint}>{expanded ? 'Tap to collapse ▲' : 'Tap to see why ▼'}</Text>
-        </TouchableOpacity>
+            {result.verdict === 'not_eligible' && (
+                <Text style={s.notEligibleNote}>
+                    Current income doesn't fully cover existing debt obligations — build repayment headroom before taking on more, regardless of this product's individual criteria.
+                </Text>
+            )}
+            {result.economicNote && (
+                <View style={s.economicBox}>
+                    <Text style={s.economicTitle}>📊 Worth weighing</Text>
+                    <Text style={s.economicNoteText}>{result.economicNote}</Text>
+                </View>
+            )}
+        </ExpandableCard>
     );
 }
 
@@ -300,14 +306,6 @@ export default function FinancingMarketplaceScreen() {
     }, [productSource]);
 
     const activeListingTypes = new Set(pipelineListings.filter(l => l.status !== 'inactive').map(l => l.financingType));
-
-    const toggleType = (t: FinancingProductType) => {
-        setSelectedTypes(prev => {
-            const next = new Set(prev);
-            if (next.has(t)) next.delete(t); else next.add(t);
-            return next;
-        });
-    };
 
     const handlePublish = async () => {
         setPublishing(true);
@@ -570,24 +568,18 @@ export default function FinancingMarketplaceScreen() {
                             <Text style={s.revenueBandNote}>Revenue shown to lenders as: {revenueBand} · Sector: {INDUSTRY_LABEL[settings.industry ?? 'general']}</Text>
                         </View>
 
-                        <Text style={s.typesLabel}>Which financing types should you be visible for?</Text>
-                        <View style={s.typeChipRow}>
-                            {(Object.keys(PRODUCT_TYPE_LABEL) as FinancingProductType[]).map(t => {
-                                const active = activeListingTypes.has(t);
-                                const selected = selectedTypes.has(t);
-                                return (
-                                    <TouchableOpacity
-                                        key={t}
-                                        style={[s.typeChip, selected && s.typeChipSelected, active && s.typeChipActive]}
-                                        onPress={() => toggleType(t)}
-                                    >
-                                        <Text style={[s.typeChipText, selected && s.typeChipTextSelected]}>
-                                            {active ? '● ' : ''}{PRODUCT_TYPE_LABEL[t]}
-                                        </Text>
-                                    </TouchableOpacity>
-                                );
-                            })}
-                        </View>
+                        <ChipGroup<FinancingProductType>
+                            multiple
+                            label="Which financing types should you be visible for?"
+                            style={{ marginBottom: 14 }}
+                            options={(Object.keys(PRODUCT_TYPE_LABEL) as FinancingProductType[]).map(t => ({
+                                value: t,
+                                label: PRODUCT_TYPE_LABEL[t],
+                                indicator: activeListingTypes.has(t),
+                            }))}
+                            value={Array.from(selectedTypes)}
+                            onChange={next => setSelectedTypes(new Set(next))}
+                        />
 
                         <TouchableOpacity style={s.publishBtn} onPress={handlePublish} disabled={publishing}>
                             <Text style={s.publishBtnText}>{publishing ? 'Publishing…' : 'Publish to Lenders'}</Text>
@@ -676,7 +668,6 @@ const s = StyleSheet.create({
 
     sectionTitle: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, marginBottom: 10 },
 
-    productCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, marginBottom: 12, borderLeftWidth: 4 },
     productHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
     productHeaderLeft: { flexDirection: 'row', alignItems: 'flex-start', flex: 1, marginRight: 8 },
     productName: { fontSize: 14.5, fontWeight: '700', color: Colors.textPrimary },
@@ -687,9 +678,7 @@ const s = StyleSheet.create({
     productDesc: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17, marginBottom: 8 },
     productMetaRow: { flexDirection: 'row', gap: 14, marginBottom: 4 },
     productMeta: { fontSize: 11.5, color: Colors.textMuted, fontWeight: '600' },
-    tapHint: { fontSize: 11, color: Colors.primary, marginTop: 6, textAlign: 'right' },
 
-    criteriaBox: { marginTop: 10, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 10 },
     criteriaTitle: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: 8 },
     criterionRow: { flexDirection: 'row', marginBottom: 9 },
     criterionIcon: { fontSize: 14, fontWeight: '800', width: 20 },
@@ -728,14 +717,6 @@ const s = StyleSheet.create({
     factorRowFill: { height: '100%', borderRadius: 3 },
     factorRowScore: { fontSize: 10.5, color: Colors.textMuted, width: 26, textAlign: 'right' },
     revenueBandNote: { fontSize: 11, color: Colors.textMuted, marginTop: 6, fontStyle: 'italic' },
-
-    typesLabel: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: 8 },
-    typeChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
-    typeChip: { borderWidth: 1, borderColor: Colors.border, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: Colors.bg },
-    typeChipSelected: { borderColor: Colors.primary, backgroundColor: Colors.primary + '18' },
-    typeChipActive: { borderColor: Colors.income },
-    typeChipText: { fontSize: 11.5, color: Colors.textSecondary, fontWeight: '600' },
-    typeChipTextSelected: { color: Colors.primary },
 
     purposeInput: { borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 13, color: Colors.textPrimary, backgroundColor: Colors.bg, marginBottom: 14 },
 

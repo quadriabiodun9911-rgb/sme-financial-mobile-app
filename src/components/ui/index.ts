@@ -1,6 +1,9 @@
 export { Button } from './Button';
 export { Card } from './Card';
 export { Badge } from './Badge';
+export { ChipGroup } from './ChipGroup';
+export type { ChipGroupProps, ChipOption } from './ChipGroup';
+export { ExpandableCard } from './ExpandableCard';
 export { StatCard } from './StatCard';
 export { EmptyState } from './EmptyState';
 export { Skeleton, SkeletonCard, SkeletonListItem } from './SkeletonLoader';

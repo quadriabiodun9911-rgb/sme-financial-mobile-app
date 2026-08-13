@@ -5,6 +5,8 @@ import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import Icon, { IconName } from '../components/ui/Icon';
+import { ChipGroup } from '../components/ui/ChipGroup';
+import { ExpandableCard } from '../components/ui/ExpandableCard';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { showAlert, confirmAction } from '../utils/webAlert';
 import { generateId } from '../utils/uuid';
@@ -16,28 +18,28 @@ import {
 } from '../utils/lenderAuth';
 import { FinancingProduct, FinancingProductType, LenderType, Industry, LenderOrganization, LenderMember, LenderOrgType } from '../types';
 
-const LENDER_TYPES: { id: LenderType; label: string }[] = [
-    { id: 'bank', label: 'Bank' },
-    { id: 'fintech', label: 'Fintech' },
-    { id: 'dfi', label: 'DFI' },
-    { id: 'microfinance', label: 'Microfinance' },
+const LENDER_TYPES: { value: LenderType; label: string }[] = [
+    { value: 'bank', label: 'Bank' },
+    { value: 'fintech', label: 'Fintech' },
+    { value: 'dfi', label: 'DFI' },
+    { value: 'microfinance', label: 'Microfinance' },
 ];
 
-const PRODUCT_TYPES: { id: FinancingProductType; label: string }[] = [
-    { id: 'asset_financing', label: 'Asset Financing' },
-    { id: 'working_capital', label: 'Working Capital' },
-    { id: 'invoice_financing', label: 'Invoice Financing' },
-    { id: 'trade_finance', label: 'Trade Finance' },
-    { id: 'term_loan', label: 'Term Loan' },
-    { id: 'overdraft', label: 'Overdraft' },
+const PRODUCT_TYPES: { value: FinancingProductType; label: string }[] = [
+    { value: 'asset_financing', label: 'Asset Financing' },
+    { value: 'working_capital', label: 'Working Capital' },
+    { value: 'invoice_financing', label: 'Invoice Financing' },
+    { value: 'trade_finance', label: 'Trade Finance' },
+    { value: 'term_loan', label: 'Term Loan' },
+    { value: 'overdraft', label: 'Overdraft' },
 ];
 
-const INDUSTRIES: { id: Industry; label: string }[] = [
-    { id: 'general', label: 'General' },
-    { id: 'retail', label: 'Retail' },
-    { id: 'food-service', label: 'Food Service' },
-    { id: 'manufacturing', label: 'Manufacturing' },
-    { id: 'professional-services', label: 'Professional Services' },
+const INDUSTRIES: { value: Industry; label: string }[] = [
+    { value: 'general', label: 'General' },
+    { value: 'retail', label: 'Retail' },
+    { value: 'food-service', label: 'Food Service' },
+    { value: 'manufacturing', label: 'Manufacturing' },
+    { value: 'professional-services', label: 'Professional Services' },
 ];
 
 function emptyForm(): FinancingProduct {
@@ -213,14 +215,6 @@ export default function FinancingAdminScreen() {
         );
     };
 
-    const toggleIndustry = (industry: Industry) => {
-        setForm(f => {
-            const current = f.eligibility.eligibleIndustries ?? [];
-            const next = current.includes(industry) ? current.filter(i => i !== industry) : [...current, industry];
-            return { ...f, eligibility: { ...f.eligibility, eligibleIndustries: next } };
-        });
-    };
-
     return (
         <SafeAreaView style={s.safe}>
             <Header />
@@ -294,9 +288,14 @@ export default function FinancingAdminScreen() {
                             <Field label="Organization name">
                                 <TextInput style={s.input} value={newOrgName} onChangeText={setNewOrgName} placeholder="e.g. First City Bank" placeholderTextColor={Colors.textMuted} />
                             </Field>
-                            <Field label="Type">
-                                <SegmentRow options={LENDER_TYPES} value={newOrgType as LenderType} onChange={v => setNewOrgType(v as LenderOrgType)} />
-                            </Field>
+                            <ChipGroup
+                                label="Type"
+                                style={s.fieldSpacing}
+                                options={LENDER_TYPES}
+                                value={newOrgType as LenderType}
+                                onChange={v => setNewOrgType((v ?? newOrgType) as LenderOrgType)}
+                                allowDeselect={false}
+                            />
                             <TouchableOpacity onPress={handleCreateOrg} disabled={creatingOrg} style={[s.addBtn, creatingOrg && { opacity: 0.6 }]}>
                                 <Text style={s.addBtnText}>{creatingOrg ? 'Creating…' : '+ Create Organization'}</Text>
                             </TouchableOpacity>
@@ -311,55 +310,57 @@ export default function FinancingAdminScreen() {
                             const expanded = expandedOrgId === org.id;
                             const members = orgMembers[org.id] ?? [];
                             return (
-                                <View key={org.id} style={s.card}>
-                                    <TouchableOpacity onPress={() => toggleOrgExpanded(org.id)} style={s.cardHeader}>
-                                        <View style={{ flex: 1 }}>
-                                            <Text style={s.cardTitle}>{org.name}</Text>
-                                            <Text style={s.cardSub}>{org.orgType} · {members.length ? `${members.length} member${members.length === 1 ? '' : 's'}` : (expanded ? 'no members yet' : 'tap to view members')}</Text>
-                                        </View>
-                                        <View style={[s.statusBadge, { backgroundColor: (org.status === 'active' ? Colors.income : Colors.textMuted) + '22' }]}>
-                                            <Text style={[s.statusBadgeText, { color: org.status === 'active' ? Colors.income : Colors.textMuted }]}>{org.status}</Text>
-                                        </View>
-                                    </TouchableOpacity>
-
-                                    {expanded && (
-                                        <View style={{ marginTop: 10 }}>
-                                            {members.map(m => (
-                                                <View key={m.id} style={s.memberRow}>
-                                                    <Text style={s.memberEmail}>{m.memberEmail}</Text>
-                                                    <Text style={s.memberMeta}>{m.role} · {m.status}</Text>
-                                                </View>
-                                            ))}
-
-                                            {lastInviteCode?.orgId === org.id && (
-                                                <View style={s.inviteCodeBox}>
-                                                    <Text style={s.inviteCodeLabel}>Invite code — share this with the invitee, they'll enter it in "Join as Lender":</Text>
-                                                    <Text style={s.inviteCodeText}>{lastInviteCode.code}</Text>
-                                                </View>
-                                            )}
-
-                                            <Text style={s.numFieldLabel}>Invite a member by email</Text>
-                                            <View style={s.row}>
-                                                <TextInput
-                                                    style={[s.input, { flex: 1 }]}
-                                                    value={inviteEmailByOrg[org.id] ?? ''}
-                                                    onChangeText={t => setInviteEmailByOrg(prev => ({ ...prev, [org.id]: t }))}
-                                                    placeholder="name@lender.com"
-                                                    placeholderTextColor={Colors.textMuted}
-                                                    keyboardType="email-address"
-                                                    autoCapitalize="none"
-                                                />
-                                                <TouchableOpacity
-                                                    onPress={() => handleInvite(org.id)}
-                                                    disabled={invitingOrgId === org.id}
-                                                    style={[s.cardActionBtn, { flex: 0, paddingHorizontal: 16 }, invitingOrgId === org.id && { opacity: 0.6 }]}
-                                                >
-                                                    <Text style={s.cardActionText}>{invitingOrgId === org.id ? 'Inviting…' : 'Invite'}</Text>
-                                                </TouchableOpacity>
+                                <ExpandableCard
+                                    key={org.id}
+                                    expanded={expanded}
+                                    onToggle={() => toggleOrgExpanded(org.id)}
+                                    showToggleHint={false}
+                                    header={
+                                        <View style={s.cardHeader}>
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={s.cardTitle}>{org.name}</Text>
+                                                <Text style={s.cardSub}>{org.orgType} · {members.length ? `${members.length} member${members.length === 1 ? '' : 's'}` : (expanded ? 'no members yet' : 'tap to view members')}</Text>
+                                            </View>
+                                            <View style={[s.statusBadge, { backgroundColor: (org.status === 'active' ? Colors.income : Colors.textMuted) + '22' }]}>
+                                                <Text style={[s.statusBadgeText, { color: org.status === 'active' ? Colors.income : Colors.textMuted }]}>{org.status}</Text>
                                             </View>
                                         </View>
+                                    }
+                                >
+                                    {members.map(m => (
+                                        <View key={m.id} style={s.memberRow}>
+                                            <Text style={s.memberEmail}>{m.memberEmail}</Text>
+                                            <Text style={s.memberMeta}>{m.role} · {m.status}</Text>
+                                        </View>
+                                    ))}
+
+                                    {lastInviteCode?.orgId === org.id && (
+                                        <View style={s.inviteCodeBox}>
+                                            <Text style={s.inviteCodeLabel}>Invite code — share this with the invitee, they'll enter it in "Join as Lender":</Text>
+                                            <Text style={s.inviteCodeText}>{lastInviteCode.code}</Text>
+                                        </View>
                                     )}
-                                </View>
+
+                                    <Text style={s.numFieldLabel}>Invite a member by email</Text>
+                                    <View style={s.row}>
+                                        <TextInput
+                                            style={[s.input, { flex: 1 }]}
+                                            value={inviteEmailByOrg[org.id] ?? ''}
+                                            onChangeText={t => setInviteEmailByOrg(prev => ({ ...prev, [org.id]: t }))}
+                                            placeholder="name@lender.com"
+                                            placeholderTextColor={Colors.textMuted}
+                                            keyboardType="email-address"
+                                            autoCapitalize="none"
+                                        />
+                                        <TouchableOpacity
+                                            onPress={() => handleInvite(org.id)}
+                                            disabled={invitingOrgId === org.id}
+                                            style={[s.cardActionBtn, { flex: 0, paddingHorizontal: 16 }, invitingOrgId === org.id && { opacity: 0.6 }]}
+                                        >
+                                            <Text style={s.cardActionText}>{invitingOrgId === org.id ? 'Inviting…' : 'Invite'}</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </ExpandableCard>
                             );
                         })}
                     </>
@@ -380,13 +381,23 @@ export default function FinancingAdminScreen() {
                                 <TextInput style={s.input} value={form.lenderName} onChangeText={t => setForm(f => ({ ...f, lenderName: t }))} placeholder="e.g. First City Bank" placeholderTextColor={Colors.textMuted} />
                             </Field>
 
-                            <Field label="Lender Type">
-                                <SegmentRow options={LENDER_TYPES} value={form.lenderType} onChange={v => setForm(f => ({ ...f, lenderType: v }))} />
-                            </Field>
+                            <ChipGroup
+                                label="Lender Type"
+                                style={s.fieldSpacing}
+                                options={LENDER_TYPES}
+                                value={form.lenderType}
+                                onChange={v => setForm(f => ({ ...f, lenderType: v ?? f.lenderType }))}
+                                allowDeselect={false}
+                            />
 
-                            <Field label="Product Type">
-                                <SegmentRow options={PRODUCT_TYPES} value={form.productType} onChange={v => setForm(f => ({ ...f, productType: v }))} />
-                            </Field>
+                            <ChipGroup
+                                label="Product Type"
+                                style={s.fieldSpacing}
+                                options={PRODUCT_TYPES}
+                                value={form.productType}
+                                onChange={v => setForm(f => ({ ...f, productType: v ?? f.productType }))}
+                                allowDeselect={false}
+                            />
 
                             <Field label="Product Name">
                                 <TextInput style={s.input} value={form.productName} onChangeText={t => setForm(f => ({ ...f, productName: t }))} placeholder="e.g. Equipment Financing" placeholderTextColor={Colors.textMuted} />
@@ -435,26 +446,23 @@ export default function FinancingAdminScreen() {
                                 <TextInput style={s.input} keyboardType="numeric" value={form.eligibility.minTransactionHistoryMonths?.toString() ?? ''} onChangeText={t => setForm(f => ({ ...f, eligibility: { ...f.eligibility, minTransactionHistoryMonths: n(t) } }))} placeholderTextColor={Colors.textMuted} />
                             </Field>
 
-                            <Field label="Eligible industries (none selected = open to all)">
-                                <View style={s.chipRow}>
-                                    {INDUSTRIES.map(ind => {
-                                        const active = (form.eligibility.eligibleIndustries ?? []).includes(ind.id);
-                                        return (
-                                            <TouchableOpacity key={ind.id} onPress={() => toggleIndustry(ind.id)} style={[s.chip, active && s.chipActive]}>
-                                                <Text style={[s.chipText, active && s.chipTextActive]}>{ind.label}</Text>
-                                            </TouchableOpacity>
-                                        );
-                                    })}
-                                </View>
-                            </Field>
+                            <ChipGroup<Industry>
+                                multiple
+                                label="Eligible industries (none selected = open to all)"
+                                style={s.fieldSpacing}
+                                options={INDUSTRIES}
+                                value={form.eligibility.eligibleIndustries ?? []}
+                                onChange={next => setForm(f => ({ ...f, eligibility: { ...f.eligibility, eligibleIndustries: next } }))}
+                            />
 
-                            <Field label="Status">
-                                <SegmentRow
-                                    options={[{ id: 'active', label: 'Active' }, { id: 'inactive', label: 'Inactive' }]}
-                                    value={form.status ?? 'active'}
-                                    onChange={v => setForm(f => ({ ...f, status: v as any }))}
-                                />
-                            </Field>
+                            <ChipGroup
+                                label="Status"
+                                style={s.fieldSpacing}
+                                options={[{ value: 'active' as const, label: 'Active' }, { value: 'inactive' as const, label: 'Inactive' }]}
+                                value={form.status ?? 'active'}
+                                onChange={v => setForm(f => ({ ...f, status: v ?? 'active' }))}
+                                allowDeselect={false}
+                            />
 
                             <TouchableOpacity onPress={handleSave} disabled={saving} style={[s.saveBtn, saving && { opacity: 0.6 }]}>
                                 <Text style={s.saveBtnText}>{saving ? 'Saving…' : (form.id ? 'Save Changes' : 'Create Listing')}</Text>
@@ -488,18 +496,6 @@ function NumField({ label, value, onChange }: { label: string; value: number; on
                 placeholder="0"
                 placeholderTextColor={Colors.textMuted}
             />
-        </View>
-    );
-}
-
-function SegmentRow<T extends string>({ options, value, onChange }: { options: { id: T; label: string }[]; value: T; onChange: (v: T) => void }) {
-    return (
-        <View style={s.chipRow}>
-            {options.map(opt => (
-                <TouchableOpacity key={opt.id} onPress={() => onChange(opt.id)} style={[s.chip, value === opt.id && s.chipActive]}>
-                    <Text style={[s.chipText, value === opt.id && s.chipTextActive]}>{opt.label}</Text>
-                </TouchableOpacity>
-            ))}
         </View>
     );
 }
@@ -554,11 +550,7 @@ const s = StyleSheet.create({
     row: { flexDirection: 'row', gap: 10, marginBottom: 14 },
     sectionLabel: { fontSize: 12, fontWeight: '700', color: Colors.textMuted, marginBottom: 6 },
     sectionTitle: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginTop: 6, marginBottom: 12 },
-    chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-    chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.bg },
-    chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-    chipText: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary },
-    chipTextActive: { color: '#fff' },
+    fieldSpacing: { marginBottom: 14 },
     saveBtn: { backgroundColor: Colors.primary, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
     saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 });

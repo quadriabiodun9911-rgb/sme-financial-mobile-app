@@ -19,7 +19,9 @@ import { SafeAreaView, ScrollView, View, Text, TextInput, TouchableOpacity, Styl
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Icon from '../components/ui/Icon';
-import { Radius, Shadow, Spacing } from '../theme/tokens';
+import { ChipGroup } from '../components/ui/ChipGroup';
+import { ExpandableCard } from '../components/ui/ExpandableCard';
+import { Radius, Spacing } from '../theme/tokens';
 import { loadPipelineListingsForLender, PipelineListingFilters } from '../utils/financingPipeline';
 import { FinancingProductType, PipelineListing } from '../types';
 
@@ -125,29 +127,30 @@ export default function LenderPipelineScreen() {
                 )}
 
                 <View style={s.filterBox}>
-                    <Text style={s.filterLabel}>Financing type</Text>
-                    <View style={s.chipRow}>
-                        <TouchableOpacity style={[s.chip, !typeFilter && s.chipSelected]} onPress={() => setTypeFilter(null)}>
-                            <Text style={[s.chipText, !typeFilter && s.chipTextSelected]}>All</Text>
-                        </TouchableOpacity>
-                        {(Object.keys(TYPE_LABEL) as FinancingProductType[]).map(t => (
-                            <TouchableOpacity key={t} style={[s.chip, typeFilter === t && s.chipSelected]} onPress={() => setTypeFilter(typeFilter === t ? null : t)}>
-                                <Text style={[s.chipText, typeFilter === t && s.chipTextSelected]}>{TYPE_LABEL[t]}</Text>
-                            </TouchableOpacity>
-                        ))}
-                    </View>
+                    <ChipGroup
+                        label="Financing type"
+                        options={[
+                            { value: 'all' as const, label: 'All' },
+                            ...(Object.keys(TYPE_LABEL) as FinancingProductType[]).map(t => ({ value: t, label: TYPE_LABEL[t] })),
+                        ]}
+                        value={typeFilter ?? 'all'}
+                        onChange={v => setTypeFilter(v === 'all' || v === null ? null : v)}
+                        allowDeselect={false}
+                    />
 
-                    <Text style={[s.filterLabel, { marginTop: 12 }]}>Debt-service capacity</Text>
-                    <View style={s.chipRow}>
-                        <TouchableOpacity style={[s.chip, !dscrFilter && s.chipSelected]} onPress={() => setDscrFilter(null)}>
-                            <Text style={[s.chipText, !dscrFilter && s.chipTextSelected]}>Any</Text>
-                        </TouchableOpacity>
-                        {(['healthy', 'warning', 'danger'] as const).map(d => (
-                            <TouchableOpacity key={d} style={[s.chip, dscrFilter === d && s.chipSelected]} onPress={() => setDscrFilter(dscrFilter === d ? null : d)}>
-                                <Text style={[s.chipText, dscrFilter === d && s.chipTextSelected]}>{DSCR_LABEL[d]}</Text>
-                            </TouchableOpacity>
-                        ))}
-                    </View>
+                    <ChipGroup
+                        label="Debt-service capacity"
+                        style={{ marginTop: 12 }}
+                        options={[
+                            { value: 'any' as const, label: 'Any' },
+                            { value: 'healthy' as const, label: DSCR_LABEL.healthy },
+                            { value: 'warning' as const, label: DSCR_LABEL.warning },
+                            { value: 'danger' as const, label: DSCR_LABEL.danger },
+                        ]}
+                        value={dscrFilter ?? 'any'}
+                        onChange={v => setDscrFilter(v === 'any' || v === null ? null : v)}
+                        allowDeselect={false}
+                    />
 
                     <View style={s.amountRow}>
                         <View style={{ flex: 1 }}>
@@ -170,36 +173,38 @@ export default function LenderPipelineScreen() {
                     </View>
                 )}
 
-                {listings.map(l => {
-                    const expanded = expandedId === l.id;
-                    return (
-                        <TouchableOpacity key={l.id} style={s.row} onPress={() => setExpandedId(expanded ? null : l.id)} activeOpacity={0.8}>
-                            <View style={s.rowHeader}>
-                                <View style={{ flex: 1 }}>
-                                    <Text style={s.rowType}>{TYPE_LABEL[l.financingType]}</Text>
-                                    <Text style={s.rowMeta}>{l.sector || 'Sector unknown'}{l.revenueBand ? ` · ${l.revenueBand}` : ''}</Text>
+                {listings.map(l => (
+                    <ExpandableCard
+                        key={l.id}
+                        expanded={expandedId === l.id}
+                        onToggle={() => setExpandedId(expandedId === l.id ? null : l.id)}
+                        showToggleHint={false}
+                        header={
+                            <>
+                                <View style={s.rowHeader}>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={s.rowType}>{TYPE_LABEL[l.financingType]}</Text>
+                                        <Text style={s.rowMeta}>{l.sector || 'Sector unknown'}{l.revenueBand ? ` · ${l.revenueBand}` : ''}</Text>
+                                    </View>
+                                    <View style={[s.gradeBadge, { backgroundColor: (GRADE_COLOR[l.grade] || Colors.textMuted) + '22' }]}>
+                                        <Text style={[s.gradeBadgeText, { color: GRADE_COLOR[l.grade] || Colors.textMuted }]}>{l.grade || '—'}</Text>
+                                    </View>
                                 </View>
-                                <View style={[s.gradeBadge, { backgroundColor: (GRADE_COLOR[l.grade] || Colors.textMuted) + '22' }]}>
-                                    <Text style={[s.gradeBadgeText, { color: GRADE_COLOR[l.grade] || Colors.textMuted }]}>{l.grade || '—'}</Text>
+                                <View style={s.rowMetrics}>
+                                    <Text style={[s.rowMetric, { color: DSCR_COLOR[l.dscrStatus] }]}>{l.dscr.toFixed(1)}x · {DSCR_LABEL[l.dscrStatus]}</Text>
+                                    {l.requestedAmount !== undefined && <Text style={s.rowMetric}>Requested {fmtAmt(l.requestedAmount)}</Text>}
+                                    <Text style={[s.rowMetric, { color: Colors.textMuted }]}>{STATUS_LABEL[l.status] || l.status}</Text>
                                 </View>
-                            </View>
-                            <View style={s.rowMetrics}>
-                                <Text style={[s.rowMetric, { color: DSCR_COLOR[l.dscrStatus] }]}>{l.dscr.toFixed(1)}x · {DSCR_LABEL[l.dscrStatus]}</Text>
-                                {l.requestedAmount !== undefined && <Text style={s.rowMetric}>Requested {fmtAmt(l.requestedAmount)}</Text>}
-                                <Text style={[s.rowMetric, { color: Colors.textMuted }]}>{STATUS_LABEL[l.status] || l.status}</Text>
-                            </View>
-                            {expanded && (
-                                <View style={s.detailBox}>
-                                    <Text style={s.detailLine}>Band: {l.band || '—'} · Score: {Math.round(l.score)}/100</Text>
-                                    {l.purpose && <Text style={s.detailLine}>Purpose: {l.purpose}</Text>}
-                                    <Text style={s.consentNote}>
-                                        Shown here because this business opted in — Quad360 shares this readiness summary only, never underlying transactions.
-                                    </Text>
-                                </View>
-                            )}
-                        </TouchableOpacity>
-                    );
-                })}
+                            </>
+                        }
+                    >
+                        <Text style={s.detailLine}>Band: {l.band || '—'} · Score: {Math.round(l.score)}/100</Text>
+                        {l.purpose && <Text style={s.detailLine}>Purpose: {l.purpose}</Text>}
+                        <Text style={s.consentNote}>
+                            Shown here because this business opted in — Quad360 shares this readiness summary only, never underlying transactions.
+                        </Text>
+                    </ExpandableCard>
+                ))}
             </ScrollView>
         </SafeAreaView>
     );
@@ -227,11 +232,6 @@ const s = StyleSheet.create({
 
     filterBox: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: Colors.border },
     filterLabel: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 8 },
-    chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-    chip: { borderWidth: 1, borderColor: Colors.border, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: Colors.bg },
-    chipSelected: { borderColor: Colors.primary, backgroundColor: Colors.primary + '18' },
-    chipText: { fontSize: 11.5, color: Colors.textSecondary, fontWeight: '600' },
-    chipTextSelected: { color: Colors.primary },
     amountRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
     amountInput: { borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 12.5, color: Colors.textPrimary, backgroundColor: Colors.bg },
 
@@ -240,7 +240,6 @@ const s = StyleSheet.create({
     emptyState: { alignItems: 'center', paddingVertical: 40, gap: 8 },
     emptyText: { fontSize: 12.5, color: Colors.textMuted },
 
-    row: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     rowHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
     rowType: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary },
     rowMeta: { fontSize: 11.5, color: Colors.textMuted, marginTop: 2 },
@@ -249,7 +248,6 @@ const s = StyleSheet.create({
     rowMetrics: { flexDirection: 'row', gap: 14, marginTop: 10, flexWrap: 'wrap' },
     rowMetric: { fontSize: 12, fontWeight: '600', color: Colors.textPrimary },
 
-    detailBox: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: Colors.border },
     detailLine: { fontSize: 12, color: Colors.textSecondary, marginBottom: 4 },
     consentNote: { fontSize: 10.5, color: Colors.textMuted, fontStyle: 'italic', marginTop: 6, lineHeight: 14 },
 });
