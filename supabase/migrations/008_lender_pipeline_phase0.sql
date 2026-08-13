@@ -42,18 +42,11 @@ CREATE POLICY "Only admins can update lender organizations"
     USING (auth.jwt() ->> 'email' IN ('quadriabiodun9911@gmail.com'))
     WITH CHECK (auth.jwt() ->> 'email' IN ('quadriabiodun9911@gmail.com'));
 
--- A lender's own members can read their own organization's row (name,
--- type, status) -- needed so a signed-in lender's own screens can show
--- who they're signed in as. Not needed by anyone else.
-CREATE POLICY "Lender members can read their own organization"
-    ON lender_organizations FOR SELECT
-    USING (
-        EXISTS (
-            SELECT 1 FROM lender_members
-            WHERE lender_members.lender_org_id = lender_organizations.id
-              AND lender_members.member_user_id = auth.uid()
-        )
-    );
+-- The "Lender members can read their own organization" policy is defined
+-- further down, right after lender_members is created below -- its USING
+-- clause references lender_members, and CREATE POLICY validates that
+-- reference against the schema immediately, so it must come after that
+-- table exists or the whole script (this is one transaction) rolls back.
 
 -- ── lender_members ──────────────────────────────────────────────────────
 -- Deliberately mirrors team_members' shape: email at invite time,
@@ -91,6 +84,20 @@ CREATE POLICY "Only admins can update lender members"
 CREATE POLICY "Members can read their own membership"
     ON lender_members FOR SELECT
     USING (member_user_id = auth.uid());
+
+-- Now that lender_members exists, it's safe to create this policy on
+-- lender_organizations -- its USING clause references lender_members,
+-- which is why it's placed here rather than next to that table's other
+-- policies above.
+CREATE POLICY "Lender members can read their own organization"
+    ON lender_organizations FOR SELECT
+    USING (
+        EXISTS (
+            SELECT 1 FROM lender_members
+            WHERE lender_members.lender_org_id = lender_organizations.id
+              AND lender_members.member_user_id = auth.uid()
+        )
+    );
 
 -- ── financing_pipeline_listings ─────────────────────────────────────────
 -- The one surface a lender ever reads. Populated by the app computing
