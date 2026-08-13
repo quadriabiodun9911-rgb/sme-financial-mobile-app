@@ -189,6 +189,12 @@ export interface PipelineListingFilters {
 
 const GRADE_ORDER = ['F', 'D', 'C', 'B', 'A'];
 
+// Capped rather than unbounded: at scale the active-listings table can grow
+// far past what any lender screen renders or a person reviews in one
+// sitting. Most-recent-first ordering means the cap trims the long tail,
+// not what a lender actually wants to see next.
+const LENDER_QUERY_LIMIT = 200;
+
 export async function loadPipelineListingsForLender(filters: PipelineListingFilters = {}): Promise<PipelineListing[]> {
     try {
         let query = supabase.from('financing_pipeline_listings').select('*').eq('status', 'active');
@@ -198,7 +204,7 @@ export async function loadPipelineListingsForLender(filters: PipelineListingFilt
         if (filters.minAmount !== undefined) query = query.gte('requested_amount', filters.minAmount);
         if (filters.maxAmount !== undefined) query = query.lte('requested_amount', filters.maxAmount);
 
-        const { data, error } = await query.order('opted_in_at', { ascending: false });
+        const { data, error } = await query.order('opted_in_at', { ascending: false }).limit(LENDER_QUERY_LIMIT);
         if (error || !data) return [];
         let listings = (data as PipelineListingRow[]).map(rowToListing);
 
