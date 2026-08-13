@@ -477,6 +477,37 @@ export interface PipelineListing {
     expiresAt?: string;
 }
 
+// The lender side of the pipeline -- see
+// supabase/migrations/008_lender_pipeline_phase0.sql and
+// src/utils/lenderAuth.ts. Phase 2: admin-invited only (mirrors
+// financing_products' current admin-managed model); self-serve signup is
+// a later phase per the scope document.
+export type LenderOrgType = 'bank' | 'fintech' | 'dfi' | 'microfinance';
+export type LenderOrgStatus = 'pending' | 'active' | 'suspended';
+
+export interface LenderOrganization {
+    id: string;
+    name: string;
+    orgType: LenderOrgType;
+    verifiedAt: string | null;
+    status: LenderOrgStatus;
+    createdAt: string;
+}
+
+export type LenderMemberRole = 'admin' | 'analyst';
+export type LenderMemberStatus = 'pending' | 'active';
+
+export interface LenderMember {
+    id: string;
+    lenderOrgId: string;
+    memberEmail: string;
+    memberUserId: string | null;
+    role: LenderMemberRole;
+    status: LenderMemberStatus;
+    inviteCode: string | null;
+    invitedAt: string;
+}
+
 export interface CashPocket {
     id: string;
     name: string;

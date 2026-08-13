@@ -11,7 +11,10 @@ import { generateId } from '../utils/uuid';
 import {
     isFinancingAdmin, loadAllFinancingProductsForAdmin, saveFinancingProduct, deleteFinancingProduct,
 } from '../utils/financingAdmin';
-import { FinancingProduct, FinancingProductType, LenderType, Industry } from '../types';
+import {
+    createLenderOrganization, loadLenderOrganizations, inviteLenderMember, loadLenderMembersForOrg,
+} from '../utils/lenderAuth';
+import { FinancingProduct, FinancingProductType, LenderType, Industry, LenderOrganization, LenderMember, LenderOrgType } from '../types';
 
 const LENDER_TYPES: { id: LenderType; label: string }[] = [
     { id: 'bank', label: 'Bank' },
@@ -69,12 +72,72 @@ export default function FinancingAdminScreen() {
     const { user, navigate } = useApp();
     const admin = isFinancingAdmin(user?.email);
 
+    const [tab, setTab] = useState<'listings' | 'lenders'>('listings');
+
     const [products, setProducts] = useState<FinancingProduct[]>([]);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
     const [showForm, setShowForm] = useState(false);
     const [form, setForm] = useState<FinancingProduct>(emptyForm());
     const [saving, setSaving] = useState(false);
+
+    // ─── Lender Accounts (Phase 2 of the Lender Auth & Financing-Visibility
+    // Flow) — admin-only onboarding, mirroring how listings above are
+    // admin-managed: create an organization, invite its first member,
+    // they join with the code on their own device.
+    const [lenderOrgs, setLenderOrgs] = useState<LenderOrganization[]>([]);
+    const [lenderOrgsLoading, setLenderOrgsLoading] = useState(false);
+    const [expandedOrgId, setExpandedOrgId] = useState<string | null>(null);
+    const [orgMembers, setOrgMembers] = useState<Record<string, LenderMember[]>>({});
+    const [newOrgName, setNewOrgName] = useState('');
+    const [newOrgType, setNewOrgType] = useState<LenderOrgType>('bank');
+    const [creatingOrg, setCreatingOrg] = useState(false);
+    const [inviteEmailByOrg, setInviteEmailByOrg] = useState<Record<string, string>>({});
+    const [invitingOrgId, setInvitingOrgId] = useState<string | null>(null);
+    const [lastInviteCode, setLastInviteCode] = useState<{ orgId: string; code: string } | null>(null);
+
+    const reloadLenderOrgs = async () => {
+        setLenderOrgsLoading(true);
+        setLenderOrgs(await loadLenderOrganizations());
+        setLenderOrgsLoading(false);
+    };
+
+    useEffect(() => {
+        if (admin && tab === 'lenders') reloadLenderOrgs();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [admin, tab]);
+
+    const toggleOrgExpanded = async (orgId: string) => {
+        if (expandedOrgId === orgId) { setExpandedOrgId(null); return; }
+        setExpandedOrgId(orgId);
+        if (!orgMembers[orgId]) {
+            const members = await loadLenderMembersForOrg(orgId);
+            setOrgMembers(prev => ({ ...prev, [orgId]: members }));
+        }
+    };
+
+    const handleCreateOrg = async () => {
+        if (!newOrgName.trim()) { showAlert('Missing name', 'Give the organization a name first.'); return; }
+        setCreatingOrg(true);
+        const res = await createLenderOrganization(newOrgName, newOrgType);
+        setCreatingOrg(false);
+        if (!res.ok) { showAlert('Could not create organization', res.error || 'Unknown error'); return; }
+        setNewOrgName('');
+        await reloadLenderOrgs();
+    };
+
+    const handleInvite = async (orgId: string) => {
+        const email = (inviteEmailByOrg[orgId] || '').trim();
+        if (!email) { showAlert('Missing email', "Enter the lender contact's email first."); return; }
+        setInvitingOrgId(orgId);
+        const res = await inviteLenderMember(orgId, email, 'admin');
+        setInvitingOrgId(null);
+        if (!res.ok) { showAlert('Invite failed', res.error || 'Unknown error'); return; }
+        setInviteEmailByOrg(prev => ({ ...prev, [orgId]: '' }));
+        setLastInviteCode({ orgId, code: res.inviteCode! });
+        const members = await loadLenderMembersForOrg(orgId);
+        setOrgMembers(prev => ({ ...prev, [orgId]: members }));
+    };
 
     const reload = async () => {
         setLoading(true);
@@ -166,46 +229,141 @@ export default function FinancingAdminScreen() {
                     <Text style={{ color: Colors.primary, fontSize: 14, marginBottom: 12 }}>← Dashboard</Text>
                 </TouchableOpacity>
 
-                <Text style={s.title}>🏦 Financing Listings (Admin)</Text>
+                <Text style={s.title}>🏦 Financing (Admin)</Text>
                 <Text style={s.subtitle}>
-                    Live listings shown here replace the sample marketplace on the SME-facing Financing Marketplace screen. Only visible to Quad360 admins.
+                    Manage the live product listings SMEs see, and the lender organizations that can view the opted-in pipeline. Only visible to Quad360 admins.
                 </Text>
 
-                <TouchableOpacity onPress={openNew} style={s.addBtn}>
-                    <Text style={s.addBtnText}>+ Add Listing</Text>
-                </TouchableOpacity>
+                <View style={s.tabRow}>
+                    <TouchableOpacity onPress={() => setTab('listings')} style={[s.tabBtn, tab === 'listings' && s.tabBtnActive]}>
+                        <Text style={[s.tabBtnText, tab === 'listings' && s.tabBtnTextActive]}>Listings</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => setTab('lenders')} style={[s.tabBtn, tab === 'lenders' && s.tabBtnActive]}>
+                        <Text style={[s.tabBtnText, tab === 'lenders' && s.tabBtnTextActive]}>Lender Accounts</Text>
+                    </TouchableOpacity>
+                </View>
 
-                {loading && <Text style={s.stateText}>Loading listings…</Text>}
-                {!loading && loadError && <Text style={[s.stateText, { color: Colors.expense }]}>{loadError}</Text>}
-                {!loading && !loadError && products.length === 0 && (
-                    <Text style={s.stateText}>No listings yet — the Marketplace is showing the illustrative sample list. Add a listing to make it real.</Text>
+                {tab === 'listings' && (
+                    <>
+                        <TouchableOpacity onPress={openNew} style={s.addBtn}>
+                            <Text style={s.addBtnText}>+ Add Listing</Text>
+                        </TouchableOpacity>
+
+                        {loading && <Text style={s.stateText}>Loading listings…</Text>}
+                        {!loading && loadError && <Text style={[s.stateText, { color: Colors.expense }]}>{loadError}</Text>}
+                        {!loading && !loadError && products.length === 0 && (
+                            <Text style={s.stateText}>No listings yet — the Marketplace is showing the illustrative sample list. Add a listing to make it real.</Text>
+                        )}
+
+                        {products.map(p => (
+                            <View key={p.id} style={s.card}>
+                                <View style={s.cardHeader}>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={s.cardTitle}>{p.productName}</Text>
+                                        <Text style={s.cardSub}>{p.lenderName} · {p.lenderType} · {p.productType}</Text>
+                                    </View>
+                                    <View style={[s.statusBadge, { backgroundColor: (p.status === 'active' ? Colors.income : Colors.textMuted) + '22' }]}>
+                                        <Text style={[s.statusBadgeText, { color: p.status === 'active' ? Colors.income : Colors.textMuted }]}>{p.status}</Text>
+                                    </View>
+                                </View>
+                                <Text style={s.cardMeta}>{p.minAmount.toLocaleString()}–{p.maxAmount.toLocaleString()} · {p.minTermMonths}–{p.maxTermMonths}mo · {p.interestRateMinPct}–{p.interestRateMaxPct}%</Text>
+                                <View style={s.cardActions}>
+                                    <TouchableOpacity onPress={() => openEdit(p)} style={s.cardActionBtn}>
+                                        <Text style={s.cardActionText}>Edit</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => handleToggleStatus(p)} style={s.cardActionBtn}>
+                                        <Text style={s.cardActionText}>{p.status === 'active' ? 'Deactivate' : 'Activate'}</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => handleDelete(p)} style={s.cardActionBtn}>
+                                        <Text style={[s.cardActionText, { color: Colors.expense }]}>Delete</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        ))}
+                    </>
                 )}
 
-                {products.map(p => (
-                    <View key={p.id} style={s.card}>
-                        <View style={s.cardHeader}>
-                            <View style={{ flex: 1 }}>
-                                <Text style={s.cardTitle}>{p.productName}</Text>
-                                <Text style={s.cardSub}>{p.lenderName} · {p.lenderType} · {p.productType}</Text>
-                            </View>
-                            <View style={[s.statusBadge, { backgroundColor: (p.status === 'active' ? Colors.income : Colors.textMuted) + '22' }]}>
-                                <Text style={[s.statusBadgeText, { color: p.status === 'active' ? Colors.income : Colors.textMuted }]}>{p.status}</Text>
-                            </View>
-                        </View>
-                        <Text style={s.cardMeta}>{p.minAmount.toLocaleString()}–{p.maxAmount.toLocaleString()} · {p.minTermMonths}–{p.maxTermMonths}mo · {p.interestRateMinPct}–{p.interestRateMaxPct}%</Text>
-                        <View style={s.cardActions}>
-                            <TouchableOpacity onPress={() => openEdit(p)} style={s.cardActionBtn}>
-                                <Text style={s.cardActionText}>Edit</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity onPress={() => handleToggleStatus(p)} style={s.cardActionBtn}>
-                                <Text style={s.cardActionText}>{p.status === 'active' ? 'Deactivate' : 'Activate'}</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity onPress={() => handleDelete(p)} style={s.cardActionBtn}>
-                                <Text style={[s.cardActionText, { color: Colors.expense }]}>Delete</Text>
+                {tab === 'lenders' && (
+                    <>
+                        <Text style={s.stateText}>
+                            A lender organization can see only the opted-in, active pipeline listings (financing_pipeline_listings) — never raw transactions, invoices, or exact revenue. Invite codes are shown once here for you to relay out of band (email/call); they aren't emailed automatically.
+                        </Text>
+
+                        <View style={s.card}>
+                            <Text style={s.sectionTitle}>New organization</Text>
+                            <Field label="Organization name">
+                                <TextInput style={s.input} value={newOrgName} onChangeText={setNewOrgName} placeholder="e.g. First City Bank" placeholderTextColor={Colors.textMuted} />
+                            </Field>
+                            <Field label="Type">
+                                <SegmentRow options={LENDER_TYPES} value={newOrgType as LenderType} onChange={v => setNewOrgType(v as LenderOrgType)} />
+                            </Field>
+                            <TouchableOpacity onPress={handleCreateOrg} disabled={creatingOrg} style={[s.addBtn, creatingOrg && { opacity: 0.6 }]}>
+                                <Text style={s.addBtnText}>{creatingOrg ? 'Creating…' : '+ Create Organization'}</Text>
                             </TouchableOpacity>
                         </View>
-                    </View>
-                ))}
+
+                        {lenderOrgsLoading && <Text style={s.stateText}>Loading lender organizations…</Text>}
+                        {!lenderOrgsLoading && lenderOrgs.length === 0 && (
+                            <Text style={s.stateText}>No lender organizations yet — create one above to invite its first member.</Text>
+                        )}
+
+                        {lenderOrgs.map(org => {
+                            const expanded = expandedOrgId === org.id;
+                            const members = orgMembers[org.id] ?? [];
+                            return (
+                                <View key={org.id} style={s.card}>
+                                    <TouchableOpacity onPress={() => toggleOrgExpanded(org.id)} style={s.cardHeader}>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={s.cardTitle}>{org.name}</Text>
+                                            <Text style={s.cardSub}>{org.orgType} · {members.length ? `${members.length} member${members.length === 1 ? '' : 's'}` : (expanded ? 'no members yet' : 'tap to view members')}</Text>
+                                        </View>
+                                        <View style={[s.statusBadge, { backgroundColor: (org.status === 'active' ? Colors.income : Colors.textMuted) + '22' }]}>
+                                            <Text style={[s.statusBadgeText, { color: org.status === 'active' ? Colors.income : Colors.textMuted }]}>{org.status}</Text>
+                                        </View>
+                                    </TouchableOpacity>
+
+                                    {expanded && (
+                                        <View style={{ marginTop: 10 }}>
+                                            {members.map(m => (
+                                                <View key={m.id} style={s.memberRow}>
+                                                    <Text style={s.memberEmail}>{m.memberEmail}</Text>
+                                                    <Text style={s.memberMeta}>{m.role} · {m.status}</Text>
+                                                </View>
+                                            ))}
+
+                                            {lastInviteCode?.orgId === org.id && (
+                                                <View style={s.inviteCodeBox}>
+                                                    <Text style={s.inviteCodeLabel}>Invite code — share this with the invitee, they'll enter it in "Join as Lender":</Text>
+                                                    <Text style={s.inviteCodeText}>{lastInviteCode.code}</Text>
+                                                </View>
+                                            )}
+
+                                            <Text style={s.numFieldLabel}>Invite a member by email</Text>
+                                            <View style={s.row}>
+                                                <TextInput
+                                                    style={[s.input, { flex: 1 }]}
+                                                    value={inviteEmailByOrg[org.id] ?? ''}
+                                                    onChangeText={t => setInviteEmailByOrg(prev => ({ ...prev, [org.id]: t }))}
+                                                    placeholder="name@lender.com"
+                                                    placeholderTextColor={Colors.textMuted}
+                                                    keyboardType="email-address"
+                                                    autoCapitalize="none"
+                                                />
+                                                <TouchableOpacity
+                                                    onPress={() => handleInvite(org.id)}
+                                                    disabled={invitingOrgId === org.id}
+                                                    style={[s.cardActionBtn, { flex: 0, paddingHorizontal: 16 }, invitingOrgId === org.id && { opacity: 0.6 }]}
+                                                >
+                                                    <Text style={s.cardActionText}>{invitingOrgId === org.id ? 'Inviting…' : 'Invite'}</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        </View>
+                                    )}
+                                </View>
+                            );
+                        })}
+                    </>
+                )}
             </ScrollView>
             <FooterNav />
 
@@ -362,6 +520,19 @@ const s = StyleSheet.create({
     addBtn: { backgroundColor: Colors.primary, borderRadius: 10, paddingVertical: 13, alignItems: 'center', marginBottom: 18 },
     addBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
     stateText: { fontSize: 13, color: Colors.textMuted, lineHeight: 18, marginBottom: 12 },
+
+    tabRow: { flexDirection: 'row', gap: 8, marginBottom: 18 },
+    tabBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', backgroundColor: Colors.surface },
+    tabBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+    tabBtnText: { fontSize: 13, fontWeight: '700', color: Colors.textSecondary },
+    tabBtnTextActive: { color: '#fff' },
+
+    memberRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    memberEmail: { fontSize: 12.5, color: Colors.textPrimary, fontWeight: '600' },
+    memberMeta: { fontSize: 11, color: Colors.textMuted },
+    inviteCodeBox: { backgroundColor: Colors.bg, borderRadius: 8, borderWidth: 1, borderColor: Colors.primary, padding: 10, marginVertical: 10 },
+    inviteCodeLabel: { fontSize: 11, color: Colors.textSecondary, marginBottom: 4 },
+    inviteCodeText: { fontSize: 16, fontWeight: '700', color: Colors.primary, letterSpacing: 1 },
 
     card: { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: Colors.border },
     cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 },

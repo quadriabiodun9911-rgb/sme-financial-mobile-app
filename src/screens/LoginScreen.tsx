@@ -54,11 +54,11 @@ function detectLocaleCurrency(): string {
     return '$';
 }
 
-type Mode = 'owner-setup' | 'owner-login' | 'join-team' | 'reset-pin' | 'demo-pick' | 'recover';
+type Mode = 'owner-setup' | 'owner-login' | 'join-team' | 'join-lender' | 'reset-pin' | 'demo-pick' | 'recover';
 type LoginMethod = 'pin' | 'email';
 
 export default function LoginScreen() {
-    const { isFirstLaunch, setupAccount, login, joinTeam, enterDemo, language, setLanguage, updateSettings, resetApp, isLockedOut, lockoutUntil, recoverAccount } = useApp();
+    const { isFirstLaunch, setupAccount, login, joinTeam, joinAsLender, enterDemo, language, setLanguage, updateSettings, resetApp, isLockedOut, lockoutUntil, recoverAccount } = useApp();
     const [mode, setMode] = useState<Mode>(isFirstLaunch ? 'owner-setup' : 'owner-login');
     const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
     const [loginMethod, setLoginMethod] = useState<LoginMethod>('pin');
@@ -128,6 +128,13 @@ export default function LoginScreen() {
     const [joinConfirm, setJoinConfirm] = useState('');
     const [inviteCode, setInviteCode]   = useState('');
     const [joiningTeam, setJoiningTeam] = useState(false);
+
+    // Join as lender (lender-side onboarding — see lenderAuth.ts / joinAsLender)
+    const [lenderEmail, setLenderEmail]     = useState('');
+    const [lenderPin, setLenderPin]         = useState('');
+    const [lenderConfirm, setLenderConfirm] = useState('');
+    const [lenderInviteCode, setLenderInviteCode] = useState('');
+    const [joiningLender, setJoiningLender] = useState(false);
 
     // Reset PIN
     const [resetEmail, setResetEmail]         = useState('');
@@ -274,6 +281,20 @@ export default function LoginScreen() {
         } catch (e: any) {
             showAlert('Join Failed', e?.message ?? 'Invalid invite code or account error.');
             setJoiningTeam(false);
+        }
+    };
+
+    const handleJoinLender = async () => {
+        if (!lenderEmail.trim())        { showAlert(t(language, 'required'), t(language, 'email')); return; }
+        if (!/^\d{6}$/.test(lenderPin)) { showAlert(t(language, 'error'), t(language, 'invalidPin')); return; }
+        if (lenderPin !== lenderConfirm) { showAlert(t(language, 'error'), t(language, 'pinMismatch')); return; }
+        if (!lenderInviteCode.trim())   { showAlert(t(language, 'required'), t(language, 'inviteCode')); return; }
+        setJoiningLender(true);
+        try {
+            await joinAsLender(lenderEmail.trim(), lenderPin, lenderInviteCode.trim());
+        } catch (e: any) {
+            showAlert('Join Failed', e?.message ?? 'Invalid invite code or account error.');
+            setJoiningLender(false);
         }
     };
 
@@ -628,6 +649,54 @@ export default function LoginScreen() {
         );
     }
 
+    // ── Join as Lender ────────────────────────────────────────────────────────
+    if (mode === 'join-lender') {
+        return (
+            <SafeAreaView style={styles.safe}>
+                <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+                    <View style={styles.card}>
+                        <Text style={styles.title}>Join as Lender</Text>
+                        <Text style={styles.subtitle}>
+                            Use the invite code your Quad360 contact gave you to set up access to the financing pipeline for your organization.
+                        </Text>
+
+                        <Field label={t(language, 'yourEmail')}>
+                            <TextInput style={styles.input} value={lenderEmail} onChangeText={setLenderEmail}
+                                placeholder="you@lender.com" placeholderTextColor={Colors.muted}
+                                autoCapitalize="none" keyboardType="email-address" />
+                        </Field>
+                        <Field label={t(language, 'newPin')}>
+                            <TextInput style={styles.input} value={lenderPin} onChangeText={setLenderPin}
+                                placeholder="••••••" placeholderTextColor={Colors.muted}
+                                secureTextEntry keyboardType="number-pad" maxLength={6} />
+                        </Field>
+                        <Field label={t(language, 'confirmPin')}>
+                            <TextInput style={styles.input} value={lenderConfirm} onChangeText={setLenderConfirm}
+                                placeholder="••••••" placeholderTextColor={Colors.muted}
+                                secureTextEntry keyboardType="number-pad" maxLength={6} />
+                        </Field>
+                        <Field label={t(language, 'inviteCode')}>
+                            <TextInput style={[styles.input, styles.codeInput]}
+                                value={lenderInviteCode} onChangeText={v => setLenderInviteCode(v.toUpperCase())}
+                                placeholder="ABC123" placeholderTextColor={Colors.muted}
+                                autoCapitalize="characters" maxLength={6} />
+                        </Field>
+
+                        <TouchableOpacity style={[styles.btn, joiningLender && styles.btnDisabled]} onPress={handleJoinLender} disabled={joiningLender}>
+                            {joiningLender
+                                ? <ActivityIndicator color="#fff" />
+                                : <Text style={styles.btnText}>Join as Lender</Text>
+                            }
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.switchBtn} onPress={() => setMode(isFirstLaunch ? 'owner-setup' : 'owner-login')}>
+                            <Text style={styles.switchText}>{t(language, 'backToSignIn')}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </ScrollView>
+            </SafeAreaView>
+        );
+    }
+
     // ── Owner first-launch setup ──────────────────────────────────────────────
     if (mode === 'owner-setup') {
         return (
@@ -733,6 +802,9 @@ export default function LoginScreen() {
                         </View>
                         <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('join-team')}>
                             <Text style={styles.switchText}>{t(setupLang, 'joiningTeam')}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('join-lender')}>
+                            <Text style={styles.switchText}>Are you a lender? Join with invite code →</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.switchBtn} onPress={() => { setEmailLoginEmail(email); setMode('recover'); }}>
                             <Text style={styles.switchText}>Already have an account? Sign In →</Text>
@@ -871,6 +943,9 @@ export default function LoginScreen() {
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('join-team')}>
                         <Text style={styles.switchText}>{t(language, 'joiningTeam')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('join-lender')}>
+                        <Text style={styles.switchText}>Are you a lender? Join with invite code →</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.resetBtn} onPress={() => {
                         setResetEmail(''); setResetNewPin(''); setResetConfirmPin(''); setResetOtp(''); setResetStep('request');

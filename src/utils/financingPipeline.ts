@@ -171,3 +171,43 @@ export async function revokePipelineListing(id: string): Promise<{ ok: boolean }
         return { ok: false };
     }
 }
+
+// ─── Lender side (Phase 2) ──────────────────────────────────────────────
+// The one read a lender session ever does against this table. No filters
+// are applied here beyond what the caller passes in — access control is
+// entirely RLS's job (migration 008's "Active lenders can read active
+// listings" policy), not this function's. An unverified/pending lender's
+// query simply returns nothing, same result as if the table were empty.
+export interface PipelineListingFilters {
+    financingType?: FinancingProductType;
+    sector?: string;
+    minGrade?: string; // 'A' | 'B' | 'C' | 'D' | 'F' — filters client-side, see GRADE_ORDER below
+    dscrStatus?: 'healthy' | 'warning' | 'danger';
+    minAmount?: number;
+    maxAmount?: number;
+}
+
+const GRADE_ORDER = ['F', 'D', 'C', 'B', 'A'];
+
+export async function loadPipelineListingsForLender(filters: PipelineListingFilters = {}): Promise<PipelineListing[]> {
+    try {
+        let query = supabase.from('financing_pipeline_listings').select('*').eq('status', 'active');
+        if (filters.financingType) query = query.eq('financing_type', filters.financingType);
+        if (filters.sector) query = query.eq('sector', filters.sector);
+        if (filters.dscrStatus) query = query.eq('dscr_status', filters.dscrStatus);
+        if (filters.minAmount !== undefined) query = query.gte('requested_amount', filters.minAmount);
+        if (filters.maxAmount !== undefined) query = query.lte('requested_amount', filters.maxAmount);
+
+        const { data, error } = await query.order('opted_in_at', { ascending: false });
+        if (error || !data) return [];
+        let listings = (data as PipelineListingRow[]).map(rowToListing);
+
+        if (filters.minGrade) {
+            const minIdx = GRADE_ORDER.indexOf(filters.minGrade);
+            listings = listings.filter(l => GRADE_ORDER.indexOf(l.grade) >= minIdx);
+        }
+        return listings;
+    } catch {
+        return [];
+    }
+}

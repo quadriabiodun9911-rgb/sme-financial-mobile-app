@@ -43,6 +43,7 @@ import { supabase } from '../utils/supabase';
 import { getTwoFactorStatus, verifyTwoFactorLogin } from '../utils/twoFactorAuth';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { canViewFinancials as computeCanViewFinancials } from '../utils/rolePermissions';
+import { getMyLenderMembership, joinLenderWithCode } from '../utils/lenderAuth';
 import { Language } from '../utils/i18n';
 import CryptoJS from 'crypto-js';
 
@@ -766,6 +767,13 @@ interface AuthContextValue {
   setupAccount: (email: string, businessName: string, pin: string, loadDemo: boolean, phone?: string, initialSettings?: Partial<BusinessSettings>) => Promise<void>;
   recoverAccount: (email: string, pin: string) => Promise<void>;
   joinTeam: (email: string, pin: string, inviteCode: string) => Promise<void>;
+  // Phase 2 of the Lender Auth & Financing-Visibility Flow — see that scope
+  // document. A lender never shares the SME dashboard/screen family; App.tsx
+  // renders an entirely separate shell whenever isLenderSession is true.
+  isLenderSession: boolean;
+  lenderOrgId: string | null;
+  lenderOrgName: string | null;
+  joinAsLender: (email: string, pin: string, inviteCode: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -781,6 +789,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isFirstLaunch, setIsFirstLaunch] = useState(false);
   const [isLockedOut, setIsLockedOut] = useState(false);
   const [lockoutUntil, setLockoutUntil] = useState<number | null>(null);
+  const [isLenderSession, setIsLenderSession] = useState(false);
+  const [lenderOrgId, setLenderOrgId] = useState<string | null>(null);
+  const [lenderOrgName, setLenderOrgName] = useState<string | null>(null);
   // Holds the profile of a user who passed their PIN but still needs to
   // verify a 2FA code before `user` is actually set — real enforcement:
   // 2FA config was previously saved to Supabase but never checked at login.
@@ -814,6 +825,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // from the now-empty (or restored) state. Web-only reload; safe no-op elsewhere.
   const reloadApp = () => { if (typeof window !== 'undefined' && window.location) window.location.reload(); };
 
+  // Called after every successful sign-in (session restore, login, 2FA
+  // completion, joining as a lender) to decide whether this session lands
+  // on the SME dashboard or the lender pipeline. Fails closed to the
+  // dashboard on any error -- the ~100% of sessions that aren't a lender
+  // see zero behavior change from this check existing.
+  const routeAfterAuth = useCallback(async () => {
+    const membership = await getMyLenderMembership().catch(() => null);
+    if (membership) {
+      setIsLenderSession(true);
+      setLenderOrgId(membership.lenderOrgId);
+      setLenderOrgName(membership.lenderOrgName);
+      setCurrentScreenState('lender-pipeline');
+    } else {
+      // Explicitly reset, not left as-is — without this, a lender who
+      // signs out and a different (non-lender) account signing in on the
+      // same device afterward would inherit stale isLenderSession=true
+      // and get misrouted into the lender pipeline instead of dashboard.
+      setIsLenderSession(false);
+      setLenderOrgId(null);
+      setLenderOrgName(null);
+      setCurrentScreenState('dashboard');
+    }
+  }, []);
+
   // Initialize auth state on mount: restore a saved profile as the logged-in
   // user, or flag first launch so LoginScreen shows account setup, not login.
   useEffect(() => {
@@ -825,7 +860,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ]);
         if (profile) {
           setUser({ email: profile.email, businessName: profile.businessName, phone: profile.phone, role: 'Administrator', createdAt: profile.createdAt });
-          setCurrentScreenState('dashboard');
+          await routeAfterAuth();
         } else {
           setIsFirstLaunch(true);
         }
@@ -840,7 +875,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsLoading(false);
       }
     })();
-  }, []);
+  }, [routeAfterAuth]);
 
   const value: AuthContextValue = useMemo(
     () => ({
@@ -934,7 +969,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return true;
         }
         setUser({ email: profile.email, businessName: profile.businessName, phone: profile.phone, role: 'Administrator', createdAt: profile.createdAt });
-        setCurrentScreenState('dashboard');
+        await routeAfterAuth();
         return true;
       },
       pendingTwoFactorProfile,
@@ -943,7 +978,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!ok || !pendingTwoFactorProfile) return false;
         setUser({ email: pendingTwoFactorProfile.email, businessName: pendingTwoFactorProfile.businessName, phone: pendingTwoFactorProfile.phone, role: 'Administrator', createdAt: pendingTwoFactorProfile.createdAt });
         setPendingTwoFactorProfile(null);
-        setCurrentScreenState('dashboard');
+        await routeAfterAuth();
         return true;
       },
       cancelTwoFactorLogin: () => {
@@ -960,6 +995,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // caches (staff/payroll) have no per-user namespacing.
           await clearLocalFinancialCache().catch(() => {});
           setUser(null);
+          // Explicit reset, not left for the next routeAfterAuth() to
+          // overwrite — between this logout and whatever signs in next,
+          // the app must show the login screen, not linger on the lender
+          // shell if the outgoing session was a lender's.
+          setIsLenderSession(false);
+          setLenderOrgId(null);
+          setLenderOrgName(null);
           setCurrentScreenState('login');
         } finally {
           setIsLoading(false);
@@ -1061,6 +1103,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setCurrentScreenState('dashboard');
       },
 
+      // Mirrors joinTeam above almost exactly -- same authSecret-as-real-
+      // password sign-up, same legacy-account fallback shape -- the only
+      // difference is which invite table gets claimed and where the
+      // session lands afterward. See lenderAuth.ts's joinLenderWithCode
+      // for why the invite_code itself (not an RLS ownership check) is
+      // what authorizes claiming the row.
+      joinAsLender: async (email, pin, inviteCode) => {
+        const authSecret = generateAuthSecret();
+        const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({ email, password: authSecret });
+        let authUserId = signUpData?.user?.id;
+        if (signUpErr) {
+          const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({ email, password: hashPin(pin) });
+          if (signInErr) throw new Error(signInErr.message);
+          authUserId = signInData.user?.id;
+          const { error: rotateError } = await supabase.auth.updateUser({ password: authSecret }).catch(e => ({ error: e } as any));
+          if (!rotateError) await saveAuthSecret(authSecret).catch(() => {});
+        } else {
+          await saveAuthSecret(authSecret).catch(() => {});
+        }
+        if (!authUserId) throw new Error('Could not authenticate.');
+        const { lenderOrgId: orgId, lenderOrgName: orgName } = await joinLenderWithCode(authUserId, inviteCode);
+        await savePin(pin);
+        setIsFirstLaunch(false);
+        setIsLenderSession(true);
+        setLenderOrgId(orgId);
+        setLenderOrgName(orgName);
+        setUser({ email, businessName: orgName, role: 'Administrator', createdAt: new Date().toISOString() });
+        setCurrentScreenState('lender-pipeline');
+      },
+      isLenderSession,
+      lenderOrgId,
+      lenderOrgName,
+
       updateProfile: (patch) => {
         setUser((prev) => (prev ? { ...prev, ...patch } : prev));
         if (user) {
@@ -1136,7 +1211,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setTeamMembers(members);
       },
     }),
-    [user, isLoading, currentScreen, navParams, isDemoMode, demoBusinessId, teamMembers, isFirstLaunch, isLockedOut, lockoutUntil, pendingTwoFactorProfile]
+    [user, isLoading, currentScreen, navParams, isDemoMode, demoBusinessId, teamMembers, isFirstLaunch, isLockedOut, lockoutUntil, pendingTwoFactorProfile, isLenderSession, lenderOrgId, lenderOrgName, routeAfterAuth]
   );
 
   return (
@@ -1506,6 +1581,10 @@ export function useApp() {
     inviteMember: auth.inviteMember || (async () => ''),
     removeMember: auth.removeMember || (() => Promise.resolve()),
     joinTeam: auth.joinTeam,
+    isLenderSession: auth.isLenderSession,
+    lenderOrgId: auth.lenderOrgId,
+    lenderOrgName: auth.lenderOrgName,
+    joinAsLender: auth.joinAsLender,
     refreshTeam: auth.refreshTeam || (() => Promise.resolve()),
 
     // Other missing properties

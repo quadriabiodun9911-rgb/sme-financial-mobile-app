@@ -39,12 +39,13 @@ import ActionTrackerScreen from './src/screens/ActionTrackerScreen';
 import FinancingMarketplaceScreen from './src/screens/FinancingMarketplaceScreen';
 import FinancingAdminScreen from './src/screens/FinancingAdminScreen';
 import OnboardingChoiceScreen from './src/screens/OnboardingChoiceScreen';
+import LenderPipelineScreen from './src/screens/LenderPipelineScreen';
 import RestrictedAccessScreen from './src/screens/RestrictedAccessScreen';
 import { isScreenAllowedForRole } from './src/utils/rolePermissions';
 import { UserRole, Screen } from './src/types';
 
 function NavigatorContent() {
-    const { user, isLoading, currentScreen, setCurrentScreen, goBack } = useAuth();
+    const { user, isLoading, currentScreen, setCurrentScreen, goBack, isLenderSession } = useAuth();
     const userRole = (user?.role === 'Accountant' ? 'accountant' : user?.role === 'Staff' ? 'staff' : 'owner') as UserRole;
 
     useEffect(() => {
@@ -80,6 +81,18 @@ function NavigatorContent() {
         return (
             <View style={{ flex: 1, backgroundColor: '#0f172a', justifyContent: 'center', alignItems: 'center' }}>
                 <ActivityIndicator size="large" color="#3b82f6" />
+            </View>
+        );
+    }
+
+    // A lender session never shares a screen (or the role-gating logic
+    // below, which is entirely about SME roles) with the SME app shell —
+    // checked before anything else so there's no code path where SME
+    // screens or the SME role check ever apply to a lender's session.
+    if (isLenderSession) {
+        return (
+            <View style={{ flex: 1 }}>
+                <LenderPipelineScreen />
             </View>
         );
     }
