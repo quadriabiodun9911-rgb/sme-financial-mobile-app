@@ -23,7 +23,9 @@ import { ChipGroup } from '../components/ui/ChipGroup';
 import { ExpandableCard } from '../components/ui/ExpandableCard';
 import { Radius, Spacing } from '../theme/tokens';
 import { loadPipelineListingsForLender, PipelineListingFilters, describeListingFit } from '../utils/financingPipeline';
+import { loadPortfolioSharesForLender, LoanMonitoringShareRow } from '../utils/loanMonitoringShare';
 import { FinancingProductType, PipelineListing } from '../types';
+import { PostFinancingStatus } from '../utils/postFinancingMonitor';
 
 const TIER_LABEL: Record<'strong' | 'moderate' | 'caution', string> = {
     strong: 'Strong candidate',
@@ -60,6 +62,8 @@ function fmtAmt(n: number): string {
 
 export default function LenderPipelineScreen() {
     const { logout, lenderOrgName } = useApp();
+
+    const [tab, setTab] = useState<'pipeline' | 'portfolio'>('pipeline');
 
     const [listings, setListings] = useState<PipelineListing[]>([]);
     const [loading, setLoading] = useState(true);
@@ -129,6 +133,18 @@ export default function LenderPipelineScreen() {
                 </TouchableOpacity>
             </View>
 
+            <View style={s.tabBar}>
+                <TouchableOpacity style={[s.tabBtn, tab === 'pipeline' && s.tabBtnActive]} onPress={() => setTab('pipeline')}>
+                    <Text style={[s.tabBtnText, tab === 'pipeline' && s.tabBtnTextActive]}>Prospecting Pipeline</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[s.tabBtn, tab === 'portfolio' && s.tabBtnActive]} onPress={() => setTab('portfolio')}>
+                    <Text style={[s.tabBtnText, tab === 'portfolio' && s.tabBtnTextActive]}>Funded Portfolio</Text>
+                </TouchableOpacity>
+            </View>
+
+            {tab === 'portfolio' ? (
+                <PortfolioTab />
+            ) : (
             <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
                 <Text style={s.title}>Financing Pipeline</Text>
                 <Text style={s.subtitle}>
@@ -254,7 +270,128 @@ export default function LenderPipelineScreen() {
                     </ExpandableCard>
                 ))}
             </ScrollView>
+            )}
         </SafeAreaView>
+    );
+}
+
+// ─── Funded Portfolio tab (Phase 2b) ────────────────────────────────────
+// Reads loan_monitoring_shares -- an entirely separate, opt-in-per-loan
+// table from financing_pipeline_listings above. RLS ("Active lenders can
+// read consented shares for their org") already scopes every row to this
+// lender's own org and to loans whose business explicitly kept sharing on,
+// so no additional filtering happens here. Unlike the prospecting pipeline,
+// business names are shown -- these are businesses this lender org already
+// funded and KYC'd, not anonymous prospects.
+const MONITOR_STATUS_STYLE: Record<PostFinancingStatus, { label: string; color: string }> = {
+    healthy: { label: 'Healthy', color: Colors.income },
+    watch: { label: 'Watch', color: Colors.warning },
+    'at-risk': { label: 'At Risk', color: Colors.expense },
+};
+const STATUS_ORDER: PostFinancingStatus[] = ['at-risk', 'watch', 'healthy'];
+const TREND_LABEL: Record<string, string> = { improving: 'Improving', declining: 'Declining', stable: 'Stable' };
+
+const FLAG_LABEL: Record<'dscrFlag' | 'revenueDeclineFlag' | 'repaymentPaceFlag', string> = {
+    dscrFlag: 'Debt-service coverage',
+    revenueDeclineFlag: 'Revenue declining',
+    repaymentPaceFlag: 'Behind on repayment pace',
+};
+
+function PortfolioTab() {
+    const [shares, setShares] = useState<LoanMonitoringShareRow[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [expandedId, setExpandedId] = useState<string | null>(null);
+
+    useEffect(() => {
+        loadPortfolioSharesForLender().then(setShares).finally(() => setLoading(false));
+    }, []);
+
+    const counts = useMemo(() => {
+        const c: Record<PostFinancingStatus, number> = { healthy: 0, watch: 0, 'at-risk': 0 };
+        for (const sh of shares) c[sh.status] = (c[sh.status] ?? 0) + 1;
+        return c;
+    }, [shares]);
+
+    const sorted = useMemo(
+        () => [...shares].sort((a, b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status)),
+        [shares],
+    );
+
+    return (
+        <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
+            <Text style={s.title}>Funded Portfolio</Text>
+            <Text style={s.subtitle}>
+                Ongoing status for businesses you've funded who chose to keep sharing it with you — not a full
+                picture of your book, only what's been opted in below. Never raw transactions, only a status,
+                a trend, and which categories are flagged.
+            </Text>
+
+            {shares.length > 0 && (
+                <View style={s.summaryRow}>
+                    <View style={s.summaryCard}>
+                        <Text style={[s.summaryCount, { color: Colors.expense }]}>{counts['at-risk']}</Text>
+                        <Text style={s.summaryLabel}>At Risk</Text>
+                    </View>
+                    <View style={s.summaryCard}>
+                        <Text style={[s.summaryCount, { color: Colors.warning }]}>{counts.watch}</Text>
+                        <Text style={s.summaryLabel}>Watch</Text>
+                    </View>
+                    <View style={s.summaryCard}>
+                        <Text style={[s.summaryCount, { color: Colors.income }]}>{counts.healthy}</Text>
+                        <Text style={s.summaryLabel}>Healthy</Text>
+                    </View>
+                </View>
+            )}
+            {shares.length > 0 && (
+                <Text style={s.resultCount}>Of {shares.length} loan{shares.length === 1 ? '' : 's'} currently sharing status with you</Text>
+            )}
+
+            {!loading && shares.length === 0 && (
+                <View style={s.emptyState}>
+                    <Icon name="shield" size={28} color={Colors.textMuted} />
+                    <Text style={s.emptyText}>No funded businesses are sharing ongoing status with you yet.</Text>
+                </View>
+            )}
+
+            {sorted.map(sh => (
+                <ExpandableCard
+                    key={sh.id}
+                    expanded={expandedId === sh.id}
+                    onToggle={() => setExpandedId(expandedId === sh.id ? null : sh.id)}
+                    showToggleHint={false}
+                    header={
+                        <>
+                            <View style={s.rowHeader}>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={s.rowType}>{sh.businessName}</Text>
+                                    <Text style={s.rowMeta}>
+                                        {sh.loanPurpose || 'Purpose unspecified'}{sh.principalBand ? ` · ${sh.principalBand}` : ''}
+                                    </Text>
+                                </View>
+                                <View style={[s.gradeBadge, { backgroundColor: MONITOR_STATUS_STYLE[sh.status].color + '22', width: 'auto', paddingHorizontal: 10 }]}>
+                                    <Text style={[s.gradeBadgeText, { color: MONITOR_STATUS_STYLE[sh.status].color, fontSize: 11 }]}>{MONITOR_STATUS_STYLE[sh.status].label}</Text>
+                                </View>
+                            </View>
+                            <View style={s.rowMetrics}>
+                                <Text style={[s.rowMetric, { color: Colors.textMuted }]}>Funded {sh.fundedAt}</Text>
+                                {sh.readinessTrend && <Text style={s.rowMetric}>Trend: {TREND_LABEL[sh.readinessTrend]}</Text>}
+                            </View>
+                        </>
+                    }
+                >
+                    {(['dscrFlag', 'revenueDeclineFlag', 'repaymentPaceFlag'] as const).filter(k => sh[k]).length === 0 ? (
+                        <Text style={s.detailLine}>No flagged categories — this loan is tracking as expected.</Text>
+                    ) : (
+                        (['dscrFlag', 'revenueDeclineFlag', 'repaymentPaceFlag'] as const).filter(k => sh[k]).map(k => (
+                            <Text key={k} style={s.detailLine}>⚠ {FLAG_LABEL[k]}</Text>
+                        ))
+                    )}
+                    <Text style={s.consentNote}>
+                        Last updated {new Date(sh.updatedAt).toLocaleDateString()} — the business can revoke sharing at any time, which removes it from this list on their next update.
+                    </Text>
+                </ExpandableCard>
+            ))}
+        </ScrollView>
     );
 }
 
@@ -267,6 +404,12 @@ const s = StyleSheet.create({
     brandTitle: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary },
     brandSubtitle: { fontSize: 11.5, color: Colors.textMuted },
     signOut: { fontSize: 13, color: Colors.expense, fontWeight: '600' },
+
+    tabBar: { flexDirection: 'row', paddingHorizontal: 16, paddingTop: 10, gap: 8, borderBottomWidth: 1, borderBottomColor: Colors.border, paddingBottom: 10 },
+    tabBtn: { flex: 1, paddingVertical: 9, borderRadius: Radius.md, alignItems: 'center', backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },
+    tabBtnActive: { backgroundColor: Colors.primary + '22', borderColor: Colors.primary },
+    tabBtnText: { fontSize: 12.5, fontWeight: '700', color: Colors.textMuted },
+    tabBtnTextActive: { color: Colors.primary },
 
     scroll: { flex: 1 },
     pad: { padding: 16, paddingBottom: 60 },

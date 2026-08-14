@@ -9,7 +9,7 @@
  * or import MerchantFinancingSection as a separate component.
  */
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
     TouchableOpacity, StyleSheet, Modal, Alert, Platform,
@@ -25,6 +25,8 @@ import { computeDebtOptimiser, computeDSCR, DSCRResult } from '../utils/finance'
 import { computePostFinancingMonitor, PostFinancingStatus } from '../utils/postFinancingMonitor';
 import { buildPostFinancingShareExport } from '../utils/lenderSummaryExport';
 import { generatePDF, sharePDF } from '../utils/pdfExport';
+import { loadActiveLenderOrganizations, LenderDirectoryEntry } from '../utils/lenderDirectory';
+import { publishLoanMonitoringShare, revokeLoanMonitoringShare } from '../utils/loanMonitoringShare';
 import NextStepLink from '../components/NextStepLink';
 import ProfitCashImpactCard from '../components/ProfitCashImpactCard';
 import { computeProfitCashImpact } from '../utils/impactChain';
@@ -77,6 +79,27 @@ export default function LoansScreen() {
     const [editingId, setEditingId] = useState<string | null>(null);
     const [showPayment, setShowPayment] = useState<string | null>(null);
     const [expandedId, setExpandedId] = useState<string | null>(null);
+
+    // Phase 2b: linking a loan to a real lender_organizations row so its
+    // ongoing status can be shared. Directory loads lazily on first open
+    // rather than on screen mount -- most sessions never touch this.
+    const [linkingLoanId, setLinkingLoanId] = useState<string | null>(null);
+    const [lenderDirectory, setLenderDirectory] = useState<LenderDirectoryEntry[] | null>(null);
+    const [directoryQuery, setDirectoryQuery] = useState('');
+
+    const openLinkLender = useCallback((loanId: string) => {
+        setLinkingLoanId(loanId);
+        setDirectoryQuery('');
+        if (lenderDirectory === null) {
+            loadActiveLenderOrganizations().then(setLenderDirectory);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [lenderDirectory]);
+
+    const handlePickLender = useCallback((entry: LenderDirectoryEntry) => {
+        if (linkingLoanId) updateLoan(linkingLoanId, { lenderOrgId: entry.id });
+        setLinkingLoanId(null);
+    }, [linkingLoanId, updateLoan]);
 
     // Loan form
     const [lender, setLender] = useState('');
@@ -327,6 +350,7 @@ export default function LoansScreen() {
                                 onEdit={openEdit}
                                 onDelete={confirmDelete}
                                 onAddPayment={handleOpenPayment}
+                                onLinkLender={openLinkLender}
                             />
                         ))
                     )}
@@ -488,6 +512,54 @@ export default function LoansScreen() {
                 </Modal>
             )}
 
+            {/* Link Loan to Lender Modal (Phase 2b) */}
+            {linkingLoanId && (
+                <Modal visible animationType="slide" transparent>
+                    <View style={s.overlay}>
+                        <View style={[s.sheet, { maxHeight: 480 }]}>
+                            <Text style={s.modalTitle}>Link to Your Lender</Text>
+                            <Text style={s.linkModalHint}>
+                                Pick your lender from Quad360's registered directory to enable ongoing status
+                                sharing. Not listed? You can still track this loan's impact privately — just
+                                nothing will be shared.
+                            </Text>
+                            <TextInput
+                                style={s.input}
+                                value={directoryQuery}
+                                onChangeText={setDirectoryQuery}
+                                placeholder="Search lenders…"
+                                placeholderTextColor={Colors.muted}
+                                autoFocus
+                            />
+                            <ScrollView style={{ maxHeight: 280, marginTop: 8 }} keyboardShouldPersistTaps="handled">
+                                {lenderDirectory === null ? (
+                                    <Text style={s.linkModalEmpty}>Loading…</Text>
+                                ) : lenderDirectory.filter(e => e.name.toLowerCase().includes(directoryQuery.trim().toLowerCase())).length === 0 ? (
+                                    <Text style={s.linkModalEmpty}>No registered lenders match "{directoryQuery}".</Text>
+                                ) : (
+                                    lenderDirectory
+                                        .filter(e => e.name.toLowerCase().includes(directoryQuery.trim().toLowerCase()))
+                                        .map(entry => (
+                                            <TouchableOpacity key={entry.id} style={s.directoryRow} onPress={() => handlePickLender(entry)}>
+                                                <View>
+                                                    <Text style={s.directoryName}>{entry.name}</Text>
+                                                    <Text style={s.directoryType}>{entry.orgType}</Text>
+                                                </View>
+                                                <Icon name="chevron-right" size={16} color={Colors.textMuted} />
+                                            </TouchableOpacity>
+                                        ))
+                                )}
+                            </ScrollView>
+                            <View style={s.btnRow}>
+                                <TouchableOpacity style={[s.btn, s.btnSec]} onPress={() => setLinkingLoanId(null)}>
+                                    <Text style={s.btnSecText}>Cancel</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
+                </Modal>
+            )}
+
             <FooterNav />
         </SafeAreaView>
     );
@@ -515,11 +587,12 @@ function TabButton({ label, active, onPress }: { label: string; active: boolean;
 // a fresh per-item closure, so a card whose own loan/expanded state hasn't
 // changed can actually skip re-rendering when a sibling card is toggled or
 // an unrelated part of LoansScreen re-renders.
-const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transactions, readinessHistory, dscr, user, updateLoan, onToggle, onEdit, onDelete, onAddPayment }: {
+const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transactions, readinessHistory, dscr, user, updateLoan, onToggle, onEdit, onDelete, onAddPayment, onLinkLender }: {
     loan: Loan; currency: string; expanded: boolean;
     transactions: Transaction[]; readinessHistory: ReadinessSnapshot[]; dscr: DSCRResult;
     user: ReturnType<typeof useApp>['user']; updateLoan: ReturnType<typeof useApp>['updateLoan'];
     onToggle: (id: string) => void; onEdit: (loan: Loan) => void; onDelete: (id: string) => void; onAddPayment: (id: string) => void;
+    onLinkLender: (loanId: string) => void;
 }) {
     const paid = totalPaid(loan);
     const balance = outstandingBalance(loan);
@@ -548,8 +621,24 @@ const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transa
     // multiplied that cost by N. The parent already calls useApp() once.
     const [sharing, setSharing] = useState(false);
     const toggleShareConsent = () => {
-        updateLoan(loan.id, { shareWithLenderConsent: !loan.shareWithLenderConsent, shareConsentUpdatedAt: new Date().toISOString() });
+        const next = !loan.shareWithLenderConsent;
+        updateLoan(loan.id, { shareWithLenderConsent: next, shareConsentUpdatedAt: new Date().toISOString() });
+        // Revocation must take effect immediately, not on the next monitor
+        // recompute -- the useEffect below only handles publishing while
+        // consent is active, so turning it off has to be handled here.
+        if (!next) revokeLoanMonitoringShare(loan.id);
     };
+
+    // Phase 2b: keeps the lender's portfolio view current as the monitor's
+    // own signals change over time (not just at the moment consent was
+    // granted) -- re-publishes whenever status/trend/flags actually differ,
+    // guarded so an unlinked loan or withheld consent never writes anything.
+    useEffect(() => {
+        if (!monitor || !loan.lenderOrgId || !loan.shareWithLenderConsent) return;
+        publishLoanMonitoringShare(loan, monitor, user?.businessName || 'Your Business');
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [monitor?.status, monitor?.readinessSinceFunding?.trend, monitor?.signals.map(s => s.tripped).join(','), loan.lenderOrgId, loan.shareWithLenderConsent]);
+
     const handleShareStatus = async () => {
         if (!monitor) return;
         setSharing(true);
@@ -669,22 +758,35 @@ const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transa
                             )}
 
                             <View style={s.shareDivider} />
-                            <TouchableOpacity style={s.shareToggleRow} onPress={toggleShareConsent} activeOpacity={0.7}>
-                                <View style={[s.checkbox, loan.shareWithLenderConsent && s.checkboxChecked]}>
-                                    {loan.shareWithLenderConsent && <Icon name="check-circle" size={13} color="#fff" />}
-                                </View>
-                                <View style={{ flex: 1 }}>
-                                    <Text style={s.marketplaceToggleLabel}>Share this status with {loan.lenderName}</Text>
-                                    <Text style={s.marketplaceToggleHint}>
-                                        Only the status above (Healthy/Watch/At Risk), the trend, and which signals are flagged — never transaction data, exact figures, or account details. Revocable any time.
-                                    </Text>
-                                </View>
-                            </TouchableOpacity>
 
-                            {loan.shareWithLenderConsent && (
+                            {!loan.lenderOrgId ? (
+                                <TouchableOpacity style={s.linkLenderRow} onPress={() => onLinkLender(loan.id)} activeOpacity={0.7}>
+                                    <Icon name="link" size={14} color={Colors.primary} />
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={s.linkLenderLabel}>Link to {loan.lenderName} on Quad360</Text>
+                                        <Text style={s.marketplaceToggleHint}>
+                                            If {loan.lenderName} is registered on Quad360, linking lets you share this status with them on an ongoing basis — not just a one-time export.
+                                        </Text>
+                                    </View>
+                                </TouchableOpacity>
+                            ) : (
+                                <TouchableOpacity style={s.shareToggleRow} onPress={toggleShareConsent} activeOpacity={0.7}>
+                                    <View style={[s.checkbox, loan.shareWithLenderConsent && s.checkboxChecked]}>
+                                        {loan.shareWithLenderConsent && <Icon name="check-circle" size={13} color="#fff" />}
+                                    </View>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={s.marketplaceToggleLabel}>Keep {loan.lenderName} updated on this loan's status</Text>
+                                        <Text style={s.marketplaceToggleHint}>
+                                            Only the status above (Healthy/Watch/At Risk), the trend, and which signals are flagged — never transaction data, exact figures, or account details. Updates automatically as your numbers change. Revocable any time.
+                                        </Text>
+                                    </View>
+                                </TouchableOpacity>
+                            )}
+
+                            {loan.lenderOrgId && loan.shareWithLenderConsent && (
                                 <TouchableOpacity style={s.shareBtn} onPress={handleShareStatus} disabled={sharing}>
                                     <Icon name="share-2" size={13} color={Colors.primary} />
-                                    <Text style={s.shareBtnText}>{sharing ? 'Preparing…' : 'Share Status Summary'}</Text>
+                                    <Text style={s.shareBtnText}>{sharing ? 'Preparing…' : 'Export Status Summary (PDF)'}</Text>
                                 </TouchableOpacity>
                             )}
                         </View>
@@ -865,6 +967,13 @@ const s = StyleSheet.create({
     monitorTactic: { fontSize: 11, color: Colors.textSecondary, lineHeight: 16, marginBottom: 3 },
     shareDivider: { height: 1, backgroundColor: Colors.border, marginTop: 12, marginBottom: 10 },
     shareToggleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+    linkLenderRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+    linkLenderLabel: { fontSize: 13, fontWeight: '600', color: Colors.primary },
+    linkModalHint: { fontSize: 12, color: Colors.textMuted, lineHeight: 17, marginBottom: 12 },
+    linkModalEmpty: { fontSize: 12.5, color: Colors.textMuted, textAlign: 'center', paddingVertical: 20 },
+    directoryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    directoryName: { fontSize: 13.5, fontWeight: '600', color: Colors.textPrimary },
+    directoryType: { fontSize: 11, color: Colors.textMuted, marginTop: 2, textTransform: 'capitalize' },
     shareBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 10, borderWidth: 1, borderColor: Colors.primary, borderRadius: 8, paddingVertical: 9 },
     shareBtnText: { fontSize: 12, fontWeight: '700', color: Colors.primary },
     input: {

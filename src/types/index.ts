@@ -394,6 +394,13 @@ export interface Loan {
     // lender" are two different decisions with different stakes.
     shareWithLenderConsent?: boolean;
     shareConsentUpdatedAt?: string;
+    // Phase 2b: the specific lender_organizations.id this loan is linked
+    // to, set only when the business picks their lender from Quad360's own
+    // registered directory (see lenderDirectory.ts) -- never inferred from
+    // the free-text lenderName above, which can't be trusted to identify a
+    // real account. Required before shareWithLenderConsent can do anything:
+    // without a real linked org there's no lender dashboard to publish to.
+    lenderOrgId?: string;
 }
 
 // ─── Financing Marketplace ──────────────────────────────────────────────────

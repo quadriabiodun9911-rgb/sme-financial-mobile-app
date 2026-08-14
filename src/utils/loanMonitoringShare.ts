@@ -1,0 +1,142 @@
+/**
+ * Post-Financing Intelligence, Phase 2b: turns the one-off Phase 2a export
+ * (lenderSummaryExport.ts's buildPostFinancingShareExport) into an ongoing,
+ * opted-in feed. Same coarsening discipline as that export -- category-level
+ * status and flags only, never the numeric DSCR, revenue figures, or
+ * transaction detail computePostFinancingMonitor's own signals carry -- and
+ * the same "app computes, then upserts only derived output" pattern
+ * financingPipeline.ts's publishPipelineListing already uses.
+ *
+ * Requires the loan to already be linked to a real lender_organizations row
+ * (Loan.lenderOrgId, see lenderDirectory.ts). A loan whose lender isn't a
+ * registered Quad360 lender simply has nothing to publish to -- that's
+ * surfaced as an error the caller shows, not silently swallowed.
+ */
+
+import { getAuthUserId } from './storage';
+import { supabase } from './supabase';
+import { Loan } from '../types';
+import { PostFinancingMonitor, PostFinancingStatus } from './postFinancingMonitor';
+import { ReadinessTrend } from './readinessHistory';
+
+const PRINCIPAL_BANDS: [number, string][] = [
+    [500_000, 'Under 500K'],
+    [2_000_000, '500K–2M'],
+    [10_000_000, '2M–10M'],
+    [50_000_000, '10M–50M'],
+];
+function bandPrincipal(principal: number): string {
+    for (const [ceiling, label] of PRINCIPAL_BANDS) {
+        if (principal < ceiling) return label;
+    }
+    return '50M+';
+}
+
+export async function publishLoanMonitoringShare(
+    loan: Loan,
+    monitor: PostFinancingMonitor,
+    businessName: string,
+): Promise<{ ok: boolean; error?: string }> {
+    if (!loan.lenderOrgId) return { ok: false, error: "This loan isn't linked to a lender on Quad360 yet." };
+    const userId = await getAuthUserId();
+    if (!userId) return { ok: false, error: 'Not signed in.' };
+
+    try {
+        const dscrSignal = monitor.signals.find(s => s.label === 'Debt-service coverage');
+        const revenueSignal = monitor.signals.find(s => s.label === 'Revenue trend since funding');
+        const paceSignal = monitor.signals.find(s => s.label === 'Repayment pace');
+
+        const row = {
+            business_user_id: userId,
+            lender_org_id: loan.lenderOrgId,
+            loan_id: loan.id,
+            business_name: businessName,
+            status: monitor.status,
+            readiness_trend: monitor.readinessSinceFunding?.trend ?? null,
+            dscr_flag: !!dscrSignal?.tripped,
+            revenue_decline_flag: !!revenueSignal?.tripped,
+            repayment_pace_flag: !!paceSignal?.tripped,
+            loan_purpose: loan.purpose || null,
+            principal_band: bandPrincipal(loan.principal),
+            funded_at: loan.startDate,
+            consent_active: true,
+            updated_at: new Date().toISOString(),
+        };
+
+        const { error } = await supabase
+            .from('loan_monitoring_shares')
+            .upsert(row, { onConflict: 'business_user_id,loan_id' });
+        if (error) return { ok: false, error: error.message };
+        return { ok: true };
+    } catch (e: any) {
+        return { ok: false, error: e?.message ?? 'Could not publish status.' };
+    }
+}
+
+// A status flip, not a delete -- same "keep the row, exclude it via RLS"
+// precedent as revokePipelineListing. Immediate: the moment consent_active
+// is false, the lender's own SELECT policy stops matching this row.
+export async function revokeLoanMonitoringShare(loanId: string): Promise<{ ok: boolean }> {
+    try {
+        const userId = await getAuthUserId();
+        if (!userId) return { ok: false };
+        const { error } = await supabase
+            .from('loan_monitoring_shares')
+            .update({ consent_active: false, updated_at: new Date().toISOString() })
+            .eq('business_user_id', userId)
+            .eq('loan_id', loanId);
+        return { ok: !error };
+    } catch {
+        return { ok: false };
+    }
+}
+
+// ─── Lender side (Phase 2b/2c) ──────────────────────────────────────────
+// The one read a lender session does against this table. No lender_org_id
+// filter is applied client-side -- RLS ("Active lenders can read consented
+// shares for their org") already scopes every row to the caller's own
+// lender_members membership, so an explicit filter here would be redundant,
+// not an extra safeguard. Capped, same reasoning as loadPipelineListingsForLender.
+export interface LoanMonitoringShareRow {
+    id: string;
+    loanId: string;
+    businessName: string;
+    status: PostFinancingStatus;
+    readinessTrend: ReadinessTrend | null;
+    dscrFlag: boolean;
+    revenueDeclineFlag: boolean;
+    repaymentPaceFlag: boolean;
+    loanPurpose?: string;
+    principalBand?: string;
+    fundedAt: string;
+    updatedAt: string;
+}
+
+const LENDER_PORTFOLIO_LIMIT = 200;
+
+export async function loadPortfolioSharesForLender(): Promise<LoanMonitoringShareRow[]> {
+    try {
+        const { data, error } = await supabase
+            .from('loan_monitoring_shares')
+            .select('*')
+            .order('updated_at', { ascending: false })
+            .limit(LENDER_PORTFOLIO_LIMIT);
+        if (error || !data) return [];
+        return (data as any[]).map(r => ({
+            id: r.id,
+            loanId: r.loan_id,
+            businessName: r.business_name,
+            status: r.status,
+            readinessTrend: r.readiness_trend,
+            dscrFlag: r.dscr_flag,
+            revenueDeclineFlag: r.revenue_decline_flag,
+            repaymentPaceFlag: r.repayment_pace_flag,
+            loanPurpose: r.loan_purpose ?? undefined,
+            principalBand: r.principal_band ?? undefined,
+            fundedAt: r.funded_at,
+            updatedAt: r.updated_at,
+        }));
+    } catch {
+        return [];
+    }
+}
