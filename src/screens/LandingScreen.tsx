@@ -84,6 +84,40 @@ export default function LandingScreen() {
                     </View>
                 </View>
 
+                {/* Real product screenshot (demo data), not a mockup with
+                    invented numbers -- shows what Quad360 actually looks
+                    like within seconds instead of asking visitors to take
+                    the pitch on faith. */}
+                <View style={[s.previewWrap, isWide && s.previewWrapWide]}>
+                    <View style={s.previewFrame}>
+                        <Image
+                            source={require('../../assets/landing-dashboard-preview.png')}
+                            style={s.previewImage}
+                            resizeMode="cover"
+                        />
+                    </View>
+                    <Text style={s.previewCaption}>A real Quad360 dashboard, shown with sample data.</Text>
+                </View>
+
+                <View style={s.bridgeSection}>
+                    <View style={[s.bridgeInner, isWide && s.bridgeInnerWide]}>
+                        <Text style={s.sectionTitle}>Turn business activity into financial evidence</Text>
+                        <View style={[s.bridgeFlow, isWide && s.bridgeFlowWide]}>
+                            {['Recorded activity', 'Financial history', 'Financial health score', 'Financing readiness', 'Financing opportunities'].map((step, i, arr) => (
+                                <React.Fragment key={step}>
+                                    <View style={s.bridgeStep}><Text style={s.bridgeStepText}>{step}</Text></View>
+                                    {i < arr.length - 1 && <Text style={s.bridgeArrow}>{isWide ? '→' : '↓'}</Text>}
+                                </React.Fragment>
+                            ))}
+                        </View>
+                        <Text style={s.bridgeExplainer}>
+                            A business doesn't become financing-ready simply because it needs money. It becomes
+                            financing-ready when it can demonstrate the financial capacity to support it — that's
+                            what every step above builds toward.
+                        </Text>
+                    </View>
+                </View>
+
                 <View style={s.journeySection}>
                     <Text style={s.sectionTitle}>How Quad360 works</Text>
                     <Text style={s.sectionSubtitle}>Most SME apps just help you record what happened. Quad360 takes it further.</Text>
@@ -168,6 +202,26 @@ const s = StyleSheet.create({
     trustRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     trustChip: { backgroundColor: Colors.surface, borderRadius: Radius.pill, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: Colors.border },
     trustChipText: { fontSize: 11.5, color: Colors.textSecondary, fontWeight: '600' },
+
+    previewWrap: { paddingHorizontal: Spacing.xl, marginBottom: Spacing.huge, alignItems: 'center' },
+    previewWrapWide: { paddingHorizontal: 64 },
+    previewFrame: {
+        width: '100%', maxWidth: 960, aspectRatio: 1280 / 460,
+        borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border,
+        overflow: 'hidden', backgroundColor: Colors.surface, ...Shadow.lg,
+    },
+    previewImage: { width: '100%', height: '100%' },
+    previewCaption: { fontSize: 11.5, color: Colors.textMuted, marginTop: 10, textAlign: 'center' },
+
+    bridgeSection: { paddingHorizontal: Spacing.xl, paddingBottom: Spacing.huge },
+    bridgeInner: { alignItems: 'center' },
+    bridgeInnerWide: { paddingHorizontal: 40 },
+    bridgeFlow: { alignItems: 'center', gap: 8, marginTop: 8, marginBottom: 20 },
+    bridgeFlowWide: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' },
+    bridgeStep: { backgroundColor: Colors.surface, borderRadius: Radius.pill, paddingHorizontal: 16, paddingVertical: 9, borderWidth: 1, borderColor: Colors.border },
+    bridgeStepText: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary },
+    bridgeArrow: { fontSize: 14, color: Colors.textMuted, marginHorizontal: 2 },
+    bridgeExplainer: { fontSize: 13.5, color: Colors.textSecondary, lineHeight: 20, textAlign: 'center', maxWidth: 560 },
 
     journeySection: { paddingHorizontal: Spacing.xl, paddingBottom: Spacing.huge },
     sectionTitle: { fontSize: 22, fontWeight: '800', color: Colors.textPrimary, marginBottom: 6, textAlign: 'center' },
