@@ -24,7 +24,7 @@ type LeafRow = {
     get: (p: BalanceSheetTrendPoint) => number;
     color: (p: BalanceSheetTrendPoint) => string;
     showOnlyIfNonZero?: boolean;
-    bold?: boolean; // nested subtotal, e.g. "Short-Term Assets Total" — not collapsible, just emphasized
+    bold?: boolean; // nested subtotal, e.g. "Total Current Assets" — not collapsible, just emphasized
 };
 
 type GroupRow = {
@@ -37,31 +37,31 @@ type GroupRow = {
 
 const ASSET_ROWS: GroupRow = {
     key: 'assets',
-    label: 'Everything You Own',
+    label: 'Total Assets',
     get: p => p.totalAssets,
     color: () => Colors.asset,
     children: [
-        { label: 'Cash on Hand', get: p => p.cashOnHand, color: p => p.cashOnHand >= 0 ? Colors.income : Colors.expense },
-        { label: 'Money Owed to You by Customers', get: p => p.accountsReceivable, color: () => Colors.income },
-        { label: 'Stock / Inventory Value', get: p => p.stockValue, color: () => Colors.asset, showOnlyIfNonZero: true },
-        { label: 'Short-Term Assets Total', get: p => p.shortTermAssets, color: () => Colors.asset, bold: true },
-        { label: 'Equipment & Property (Asset Register)', get: p => p.equipmentValue, color: () => Colors.asset },
-        { label: 'Equipment & Property (Manual Entry)', get: p => p.manualEquipment, color: () => Colors.asset, showOnlyIfNonZero: true },
-        { label: 'Other Assets You Own', get: p => p.otherAssets, color: () => Colors.asset, showOnlyIfNonZero: true },
+        { label: 'Cash and Cash Equivalents', get: p => p.cashOnHand, color: p => p.cashOnHand >= 0 ? Colors.income : Colors.expense },
+        { label: 'Accounts Receivable', get: p => p.accountsReceivable, color: () => Colors.income },
+        { label: 'Inventory', get: p => p.stockValue, color: () => Colors.asset, showOnlyIfNonZero: true },
+        { label: 'Total Current Assets', get: p => p.shortTermAssets, color: () => Colors.asset, bold: true },
+        { label: 'Property & Equipment', get: p => p.equipmentValue, color: () => Colors.asset },
+        { label: 'Property & Equipment (Manual Entry)', get: p => p.manualEquipment, color: () => Colors.asset, showOnlyIfNonZero: true },
+        { label: 'Other Assets', get: p => p.otherAssets, color: () => Colors.asset, showOnlyIfNonZero: true },
     ],
 };
 
 const LIABILITY_ROWS: GroupRow = {
     key: 'liabilities',
-    label: 'Everything You Owe',
+    label: 'Total Liabilities',
     get: p => p.totalLiabilities,
     color: () => Colors.liability,
     children: [
-        { label: 'Bills Owed to Suppliers', get: p => p.accountsPayable, color: () => Colors.liability },
-        { label: 'Loans — Due Within 1 Year', get: p => p.loansCurrentPortion, color: () => Colors.liability, showOnlyIfNonZero: true },
-        { label: 'Other Amounts Owed', get: p => p.otherLiabilities, color: () => Colors.liability, showOnlyIfNonZero: true },
-        { label: 'Current Liabilities Total', get: p => p.currentLiabilities, color: () => Colors.liability, bold: true },
-        { label: 'Loans — Due After 1 Year', get: p => p.loansNonCurrentPortion, color: () => Colors.liability, showOnlyIfNonZero: true },
+        { label: 'Accounts Payable', get: p => p.accountsPayable, color: () => Colors.liability },
+        { label: 'Current Portion of Loans Payable', get: p => p.loansCurrentPortion, color: () => Colors.liability, showOnlyIfNonZero: true },
+        { label: 'Other Current Liabilities', get: p => p.otherLiabilities, color: () => Colors.liability, showOnlyIfNonZero: true },
+        { label: 'Total Current Liabilities', get: p => p.currentLiabilities, color: () => Colors.liability, bold: true },
+        { label: 'Long-Term Loans Payable', get: p => p.loansNonCurrentPortion, color: () => Colors.liability, showOnlyIfNonZero: true },
     ],
 };
 
@@ -172,7 +172,7 @@ export default function BalanceSheetComparisonTable({ transactions, assets, loan
                     })}
 
                     <View style={[s.row, s.rowShaded]}>
-                        <View style={[s.cell, s.rowLabelCell]}><Text style={[s.rowLabel, s.rowLabelBold]}>Net Worth (Assets − Debts)</Text></View>
+                        <View style={[s.cell, s.rowLabelCell]}><Text style={[s.rowLabel, s.rowLabelBold]}>Owners' Equity (Net Worth)</Text></View>
                         {points.map(p => (
                             <View key={p.key} style={s.cell}>
                                 <Text style={[s.val, s.valBold, { color: p.netWorth >= 0 ? Colors.income : Colors.expense }]}>{fmt(p.netWorth)}</Text>
@@ -181,7 +181,7 @@ export default function BalanceSheetComparisonTable({ transactions, assets, loan
                     </View>
 
                     <View style={[s.row, { borderBottomWidth: 0 }]}>
-                        <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabel}>Day-to-Day Cash Buffer</Text></View>
+                        <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabel}>Working Capital</Text></View>
                         {points.map(p => (
                             <View key={p.key} style={s.cell}>
                                 <Text style={[s.val, { color: p.cashBuffer >= 0 ? Colors.income : Colors.expense }]}>{fmt(p.cashBuffer)}</Text>
@@ -191,9 +191,9 @@ export default function BalanceSheetComparisonTable({ transactions, assets, loan
                 </View>
             </ScrollView>
             <Text style={s.hint}>As of the end of each {grouping === 'monthly' ? 'month' : grouping === 'quarterly' ? 'quarter' : 'year'}. Tap a bold row to expand it.</Text>
-            <Text style={s.hint}>Money Owed to You / Bills You Owe only count what's still unpaid today, so older columns can understate what was actually owed at the time.</Text>
-            <Text style={s.hint}>Stock value and manually-entered figures have no date attached, so they show today's total repeated in every column, not a real trend.</Text>
-            <Text style={s.hint}>"Due Within 1 Year" / "Due After 1 Year" is a projection from each loan's own rate and term, not a lender-confirmed schedule.</Text>
+            <Text style={s.hint}>Accounts Receivable / Accounts Payable only count what's still unpaid today, so older columns can understate what was actually owed at the time.</Text>
+            <Text style={s.hint}>Inventory value and manually-entered figures have no date attached, so they show today's total repeated in every column, not a real trend.</Text>
+            <Text style={s.hint}>"Current Portion" / "Long-Term" is a projection from each loan's own rate and term, not a lender-confirmed schedule.</Text>
             {hasPartial && (
                 <Text style={s.hint}>* still in progress — figures are as of today, not a full {grouping === 'monthly' ? 'month' : grouping === 'quarterly' ? 'quarter' : 'year'}.</Text>
             )}

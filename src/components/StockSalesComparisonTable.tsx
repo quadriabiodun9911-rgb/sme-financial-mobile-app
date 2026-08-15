@@ -46,7 +46,7 @@ export default function StockSalesComparisonTable({ transactions, currency }: Pr
 
     return (
         <View style={s.card}>
-            <Text style={s.title}>Stock Sold Over Time</Text>
+            <Text style={s.title}>Inventory Sales Trend</Text>
             <View style={s.toggleRow}>
                 {GROUPINGS.map(g => (
                     <TouchableOpacity key={g.key} style={[s.toggleBtn, grouping === g.key && s.toggleBtnActive]} onPress={() => setGrouping(g.key)}>
@@ -71,7 +71,7 @@ export default function StockSalesComparisonTable({ transactions, currency }: Pr
                     </View>
 
                     <View style={s.row}>
-                        <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabel}>Stock Sold</Text></View>
+                        <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabel}>Inventory Sold</Text></View>
                         {points.map(p => (
                             <View key={p.key} style={s.cell}><Text style={[s.val, { color: Colors.income }]}>{fmt(p.stockSold)}</Text></View>
                         ))}

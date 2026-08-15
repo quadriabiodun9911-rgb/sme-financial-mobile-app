@@ -59,14 +59,14 @@ export default function CashFlowComparisonTable({ transactions, currency }: Prop
                     </View>
 
                     <View style={s.row}>
-                        <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabel}>Cash In</Text></View>
+                        <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabel}>Cash Receipts</Text></View>
                         {points.map(p => (
                             <View key={p.key} style={s.cell}><Text style={[s.val, { color: Colors.income }]}>{fmt(p.cashIn)}</Text></View>
                         ))}
                     </View>
 
                     <View style={s.row}>
-                        <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabel}>Cash Out</Text></View>
+                        <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabel}>Cash Disbursements</Text></View>
                         {points.map(p => (
                             <View key={p.key} style={s.cell}><Text style={[s.val, { color: Colors.expense }]}>{fmt(p.cashOut)}</Text></View>
                         ))}

@@ -858,11 +858,11 @@ function InventoryReportTab({ inventory, finance, transactions, currency }: {
 
             {/* COGS Analysis */}
             <View style={styles.card}>
-                <Text style={styles.cardTitle}>Stock Profit Analysis</Text>
-                <StatRow label="What Your Stock Cost You"      value={`${currency}${totalStockCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}   color={Colors.expense} />
-                <StatRow label="What You Could Sell It For"    value={`${currency}${potentialRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}  color={Colors.income} />
-                <StatRow label="Potential Profit If All Sold"  value={`${currency}${potentialProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}   color={potentialProfit >= 0 ? Colors.income : Colors.expense} bold />
-                <StatRow label="Profit Margin %"               value={`${grossMargin.toFixed(1)}%`}                                                              color={Colors.textMuted} />
+                <Text style={styles.cardTitle}>Inventory Valuation & Profit Analysis</Text>
+                <StatRow label="Inventory at Cost"                  value={`${currency}${totalStockCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}   color={Colors.expense} />
+                <StatRow label="Inventory at Retail (Selling Price)" value={`${currency}${potentialRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}  color={Colors.income} />
+                <StatRow label="Potential Gross Profit on Stock"    value={`${currency}${potentialProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}   color={potentialProfit >= 0 ? Colors.income : Colors.expense} bold />
+                <StatRow label="Gross Margin %"                     value={`${grossMargin.toFixed(1)}%`}                                                              color={Colors.textMuted} />
                 <Text style={styles.note}>Add stock expenses as transactions to include in P&L</Text>
             </View>
 
@@ -920,10 +920,10 @@ function InventoryReportTab({ inventory, finance, transactions, currency }: {
 
             {/* Inventory-to-Revenue Ratio */}
             <View style={styles.card}>
-                <Text style={styles.cardTitle}>Stock vs Revenue</Text>
-                <StatRow label="Stock Value"    value={`${currency}${totalStockCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}  color={Colors.asset} />
-                <StatRow label="Total Revenue"  value={`${currency}${totalRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}    color={Colors.income} />
-                <StatRow label="Ratio"          value={`${stockToRevRatio.toFixed(1)}%`}                                                        color={ratioColor} bold />
+                <Text style={styles.cardTitle}>Inventory-to-Revenue Ratio</Text>
+                <StatRow label="Inventory at Cost"  value={`${currency}${totalStockCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}  color={Colors.asset} />
+                <StatRow label="Total Revenue"      value={`${currency}${totalRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}    color={Colors.income} />
+                <StatRow label="Ratio"              value={`${stockToRevRatio.toFixed(1)}%`}                                                        color={ratioColor} bold />
                 <Text style={styles.note}>
                     {`For every ${currency}1 of revenue you have ${currency}${(totalRevenue > 0 ? totalStockCost / totalRevenue : 0).toFixed(2)} of stock tied up`}
                 </Text>

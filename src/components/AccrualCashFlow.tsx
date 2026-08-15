@@ -65,16 +65,16 @@ export default function AccrualCashFlow({ transactions, invoices, finance, curre
         <View>
             {/* Section 1 — Accrual Revenue */}
             <SectionCard title="Accrual Revenue">
-                <CFRow label="Cash income received"              value={cashIncome}          currency={currency} />
-                <CFRow label="  Add: Invoices sent but unpaid"   value={unpaidInvoicesTotal} currency={currency} indent />
-                <CFRow label="Total Accrual Revenue"             value={accrualRevenue}      currency={currency} total />
+                <CFRow label="Cash Revenue Received"                        value={cashIncome}          currency={currency} />
+                <CFRow label="  Add: Accounts Receivable (Unpaid Invoices)" value={unpaidInvoicesTotal} currency={currency} indent />
+                <CFRow label="Total Accrual Revenue"                       value={accrualRevenue}      currency={currency} total />
             </SectionCard>
 
             {/* Section 2 — Accrual Expenses */}
             <SectionCard title="Accrual Expenses">
-                <CFRow label="Cash expenses paid"                    value={cashExpenses}   currency={currency} />
-                <CFRow label="  Add: Expenses incurred but unpaid"   value={unpaidExpenses} currency={currency} indent />
-                <CFRow label="Total Accrual Expenses"                value={accrualExpenses} currency={currency} total />
+                <CFRow label="Cash Expenses Paid"                              value={cashExpenses}   currency={currency} />
+                <CFRow label="  Add: Accrued Liabilities (Unpaid Expenses)"   value={unpaidExpenses} currency={currency} indent />
+                <CFRow label="Total Accrual Expenses"                         value={accrualExpenses} currency={currency} total />
             </SectionCard>
 
             {/* Section 3 — Accrual Profit */}
@@ -96,8 +96,8 @@ export default function AccrualCashFlow({ transactions, invoices, finance, curre
 
             {/* Section 4 — Working Capital */}
             <SectionCard title="Working Capital">
-                <CFRow label="Receivables (unpaid invoices)"          value={receivables}      currency={currency} />
-                <CFRow label="Payables (unpaid expense transactions)"  value={payables}         currency={currency} />
+                <CFRow label="Accounts Receivable"          value={receivables}      currency={currency} />
+                <CFRow label="Accounts Payable"              value={payables}         currency={currency} />
                 <CFRow label="Net Working Capital"                     value={netWorkingCapital} currency={currency} total />
                 <View style={s.dsoRow}>
                     <Text style={s.dsoLabel}>Days Sales Outstanding (DSO)</Text>
