@@ -32,7 +32,12 @@ import NextStepLink from '../components/NextStepLink';
 import CashFlowStatement from '../components/CashFlowStatement';
 import DataQualityBadge from '../components/DataQualityBadge';
 import AccrualCashFlow from '../components/AccrualCashFlow';
-import { filterByPeriod, filterByDateRange, getPreviousPeriodRange, computeFinance, computeAssetCurrentValue, computeMonthlyTrend, computeEnhancedPnL, computeWorkingCapitalMetrics, classifyBusinessSize, sizeLabel, transactionsToCSV, ReportPeriod, MonthlyPoint, DateRange } from '../utils/finance';
+import ProfitAndLossStatement from '../components/ProfitAndLossStatement';
+import BalanceSheetStatement from '../components/BalanceSheetStatement';
+import CashFlowFormalStatement from '../components/CashFlowFormalStatement';
+import { computeBalanceSheetTrend } from '../utils/balanceSheetTrend';
+import { computeAllTimeMonthlyBuckets } from '../utils/trendAnalysis';
+import { filterByPeriod, filterByDateRange, getPreviousPeriodRange, computeFinance, computeAssetCurrentValue, computeMonthlyTrend, computeEnhancedPnL, computeProperCashFlow, computeWorkingCapitalMetrics, classifyBusinessSize, sizeLabel, transactionsToCSV, ReportPeriod, MonthlyPoint, DateRange } from '../utils/finance';
 import { FinanceData } from '../types';
 import DateInput from '../components/DateInput';
 import { InventoryItem } from '../types';
@@ -103,14 +108,18 @@ const PERIODS: { key: ReportPeriod; label: string }[] = [
 ];
 
 export default function ReportsScreen() {
-    const { finance: allFinance, settings, updateSettings, transactions, assets, loans: loansList, navParams, inventory, invoices, setCurrentScreen, navigate } = useApp();
+    const { finance: allFinance, settings, updateSettings, transactions, assets, loans: loansList, navParams, inventory, invoices, setCurrentScreen, navigate, user } = useApp();
     const { currency, minReserve, targetMargin } = settings;
+    const businessName = user?.businessName || 'Your Business';
 
     const [showLanding, setShowLanding] = useState(false);
     const [section, setSection]       = useState<SectionKey>('statements');
     const [activeTab, setActiveTab]   = useState<SubTab>('balancesheet');
     const [period, setPeriod]         = useState<ReportPeriod>('all');
     const [showComparison, setShowComparison] = useState(false);
+    const [showFormalPnL, setShowFormalPnL] = useState(false);
+    const [showFormalBS, setShowFormalBS]   = useState(false);
+    const [showFormalCF, setShowFormalCF]   = useState(false);
     const today = new Date().toISOString().split('T')[0];
     const inventoryValue = useMemo(
         () => computeInventoryValue(inventory),
@@ -148,6 +157,62 @@ export default function ReportsScreen() {
         const prevTx = filterByDateRange(transactions, previous);
         return computeFinance(prevTx, settings);
     }, [period, transactions, settings]);
+
+    // Shared with BalanceSheetComparisonTable below (same manual-entry
+    // fields feeding both) so the formal Balance Sheet statement's figures
+    // never drift from what that trend table already shows.
+    const manualBalances = useMemo(() => ({
+        stockValue: inventoryValue,
+        manualEquipment: parseFloat(settings.openingAssets) || 0,
+        otherAssets: parseFloat(settings.openingOtherAssets) || 0,
+        otherLiabilities: parseFloat(settings.openingLiabilities) || 0,
+    }), [inventoryValue, settings.openingAssets, settings.openingOtherAssets, settings.openingLiabilities]);
+
+    // "As of today" snapshot for the formal Balance Sheet -- the most recent
+    // monthly point computeBalanceSheetTrend produces, capped at today.
+    const balanceSheetPoint = useMemo(() => {
+        const monthly = computeAllTimeMonthlyBuckets(transactions);
+        const monthKeys = monthly.map(m => m.month);
+        const points = computeBalanceSheetTrend('monthly', monthKeys, transactions, assets, loansList, manualBalances);
+        return points.length > 0 ? points[points.length - 1] : null;
+    }, [transactions, assets, loansList, manualBalances]);
+
+    // Real calendar dates for the selected period, matching filterByPeriod's
+    // own rolling-window logic -- a lender reading "For the period" wants an
+    // actual date range, not a relative label like "Last 30 days".
+    const periodDateLabel = useMemo(() => {
+        const fmtDate = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+        const todayLabel = fmtDate(today);
+        if (period === 'custom') return `For the period ${fmtDate(customRange.from)} – ${fmtDate(customRange.to)}`;
+        if (period === 'all') {
+            const dates = filteredTx.map(t => t.date).filter(Boolean).sort();
+            if (dates.length === 0) return `As of ${todayLabel}`;
+            return `For the period ${fmtDate(dates[0])} – ${todayLabel}`;
+        }
+        const now = new Date();
+        const cutoff = new Date(now);
+        if (period === 'month') cutoff.setMonth(now.getMonth() - 1);
+        else if (period === 'quarter') cutoff.setMonth(now.getMonth() - 3);
+        else cutoff.setFullYear(now.getFullYear() - 1);
+        return `For the period ${fmtDate(cutoff.toISOString().split('T')[0])} – ${todayLabel}`;
+    }, [period, customRange, filteredTx, today]);
+
+    const asOfLabel = useMemo(
+        () => `As of ${new Date(today + 'T00:00:00').toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}`,
+        [today]
+    );
+
+    // computeProperCashFlow always runs over full history (not the period
+    // filter) -- CashFlowStatement.tsx already calls it this way, and the
+    // formal version reuses that same figure rather than a second one.
+    const properCashFlow = useMemo(() => computeProperCashFlow(transactions, assets), [transactions, assets]);
+    const cashFlowSinceLabel = useMemo(() => {
+        const fmtDate = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+        const dates = transactions.map(t => t.date).filter(Boolean).sort();
+        const todayLabel = fmtDate(today);
+        if (dates.length === 0) return `As of ${todayLabel}`;
+        return `Since records began (${fmtDate(dates[0])}) through ${todayLabel}`;
+    }, [transactions, today]);
 
     // Deep-link from navParams (e.g. from Dashboard or Insights)
     useEffect(() => {
@@ -426,6 +491,22 @@ export default function ReportsScreen() {
                     {/* ── BALANCE SHEET ────────────────────────────────── */}
                     {activeTab === 'balancesheet' && (
                         <View>
+                            <TouchableOpacity style={styles.formalToggleBtn} onPress={() => setShowFormalBS(v => !v)}>
+                                <Icon name={showFormalBS ? 'list' : 'file-text'} size={14} color={Colors.primary} />
+                                <Text style={styles.formalToggleText}>
+                                    {showFormalBS ? 'Show Simple View' : 'Show Formal Statement (for banks/lenders)'}
+                                </Text>
+                            </TouchableOpacity>
+
+                            {showFormalBS && balanceSheetPoint && (
+                                <BalanceSheetStatement
+                                    businessName={businessName}
+                                    asOfLabel={asOfLabel}
+                                    point={balanceSheetPoint}
+                                    currency={currency}
+                                />
+                            )}
+
                             {/* Clicking Monthly/Quarterly/Yearly above should show the Jan-Dec
                                 breakdown right away, not after scrolling past the whole balance
                                 sheet card — so this comes first, not last. Balance sheet figures
@@ -437,12 +518,7 @@ export default function ReportsScreen() {
                                 assets={assets}
                                 loans={loansList}
                                 currency={currency}
-                                manualBalances={{
-                                    stockValue: inventoryValue,
-                                    manualEquipment: parseFloat(settings.openingAssets) || 0,
-                                    otherAssets: parseFloat(settings.openingOtherAssets) || 0,
-                                    otherLiabilities: parseFloat(settings.openingLiabilities) || 0,
-                                }}
+                                manualBalances={manualBalances}
                             />
                             <BalanceSheetTab
                                 finance={finance}
@@ -459,6 +535,22 @@ export default function ReportsScreen() {
                     {/* ── P & L ────────────────────────────────────────── */}
                     {activeTab === 'pnl' && (
                         <View>
+                            <TouchableOpacity style={styles.formalToggleBtn} onPress={() => setShowFormalPnL(v => !v)}>
+                                <Icon name={showFormalPnL ? 'list' : 'file-text'} size={14} color={Colors.primary} />
+                                <Text style={styles.formalToggleText}>
+                                    {showFormalPnL ? 'Show Simple View' : 'Show Formal Statement (for banks/lenders)'}
+                                </Text>
+                            </TouchableOpacity>
+
+                            {showFormalPnL && (
+                                <ProfitAndLossStatement
+                                    businessName={businessName}
+                                    periodLabel={periodDateLabel}
+                                    pnl={enhPnL}
+                                    currency={currency}
+                                />
+                            )}
+
                             {/* Same reasoning as Balance Sheet: clicking Monthly/
                                 Quarterly/Yearly above should show the Jan-Dec
                                 breakdown right away, not after scrolling past the
@@ -566,11 +658,30 @@ export default function ReportsScreen() {
 
                     {/* ── CASH FLOW ────────────────────────────────────── */}
                     {activeTab === 'cashflow' && (
-                        <CashFlowStatement
-                            transactions={transactions}
-                            assets={assets}
-                            currency={currency}
-                        />
+                        <View>
+                            <TouchableOpacity style={styles.formalToggleBtn} onPress={() => setShowFormalCF(v => !v)}>
+                                <Icon name={showFormalCF ? 'list' : 'file-text'} size={14} color={Colors.primary} />
+                                <Text style={styles.formalToggleText}>
+                                    {showFormalCF ? 'Show Simple View' : 'Show Formal Statement (for banks/lenders)'}
+                                </Text>
+                            </TouchableOpacity>
+
+                            {showFormalCF && (
+                                <CashFlowFormalStatement
+                                    businessName={businessName}
+                                    sinceLabel={cashFlowSinceLabel}
+                                    cf={properCashFlow}
+                                    endingCashBalance={allFinance.cashBalance}
+                                    currency={currency}
+                                />
+                            )}
+
+                            <CashFlowStatement
+                                transactions={transactions}
+                                assets={assets}
+                                currency={currency}
+                            />
+                        </View>
                     )}
 
                     {/* ── CASH MGMT ────────────────────────────────────── */}
@@ -1080,6 +1191,13 @@ const styles = StyleSheet.create({
     redirectCard:  { backgroundColor: Colors.surface, borderRadius: 14, padding: 20 },
     redirectTitle: { fontSize: 16, fontWeight: '800', color: Colors.textPrimary, marginBottom: 8 },
     redirectText:  { fontSize: 13, color: Colors.textSecondary, lineHeight: 19, marginBottom: 4 },
+
+    formalToggleBtn: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+        paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: Colors.primary,
+        backgroundColor: Colors.primary + '15', marginBottom: 12,
+    },
+    formalToggleText: { fontSize: 13, fontWeight: '700', color: Colors.primary },
 
     landingScroll: { flex: 1 },
     landingPad:    { padding: Spacing.xl, paddingBottom: 40 },

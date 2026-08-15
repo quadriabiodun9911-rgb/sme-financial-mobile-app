@@ -230,7 +230,8 @@ export interface ProperCashFlow {
 }
 
 export function computeProperCashFlow(transactions: Transaction[], assets: Asset[]): ProperCashFlow {
-    const paidExpenseTx = transactions.filter(t => t.type === 'expense' && t.status === 'paid');
+    const expenseTx = transactions.filter(t => t.type === 'expense');
+    const paidExpenseTx = expenseTx.filter(t => t.status === 'paid');
     const collectedRevenue = transactions.filter(t => t.type === 'income' && t.status === 'paid').reduce((s, t) => s + t.amount, 0);
     // GAAP/IFRS: loan principal repayments aren't an operating expense, so
     // they're excluded here and surfaced instead as `principalRepayments`,
@@ -238,7 +239,16 @@ export function computeProperCashFlow(transactions: Transaction[], assets: Asset
     // Investing / Financing split, not lumped into Operating like every
     // other paid expense.
     const paidExpenses  = paidExpenseTx.reduce((s, t) => s + t.amount - (t.principalPortion || 0), 0);
-    const netProfit = collectedRevenue - paidExpenses;
+    // Accrual-basis, not collectedRevenue - paidExpenses: this is the base
+    // the indirect method's depreciation/AR/AP adjustments below reconcile
+    // to cash from operations, so it has to include revenue/expense
+    // regardless of paid status — a cash-basis figure here would double-
+    // count the AR/AP effect, since uncollected/unpaid amounts would
+    // already be excluded from it before changeInAR/changeInAP subtract
+    // them again.
+    const totalRevenue = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+    const totalExpense = expenseTx.reduce((s, t) => s + t.amount - (t.principalPortion || 0), 0);
+    const netProfit = totalRevenue - totalExpense;
 
     const depreciation  = assets.filter(a => a.status === 'active').reduce((s, a) => s + computeAssetAnnualDepreciation(a), 0);
     const uncollectedAR = transactions.filter(t => t.type === 'income'  && (t.status === 'pending' || t.status === 'overdue')).reduce((s, t) => s + t.amount, 0);
