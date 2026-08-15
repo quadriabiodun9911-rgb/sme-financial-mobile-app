@@ -180,7 +180,6 @@ export default function LandingScreen() {
                     </View>
                 </View>
 
-                <Text style={s.footer}>Quad360 — free forever for SMEs. No credit card required.</Text>
                 <TouchableOpacity onPress={() => Linking.openURL('mailto:hello@quad360financial.com')}>
                     <Text style={s.footerContact}>hello@quad360financial.com</Text>
                 </TouchableOpacity>
@@ -277,6 +276,5 @@ const s = StyleSheet.create({
     lenderDemoLink: { color: Colors.primary, fontWeight: '700', fontSize: 13, marginBottom: 14 },
     lenderDisclaimer: { fontSize: 11.5, color: Colors.textMuted, textAlign: 'center', maxWidth: 420 },
 
-    footer: { textAlign: 'center', fontSize: 11.5, color: Colors.textMuted },
-    footerContact: { textAlign: 'center', fontSize: 11.5, color: Colors.primary, fontWeight: '600', marginTop: 6 },
+    footerContact: { textAlign: 'center', fontSize: 11.5, color: Colors.primary, fontWeight: '600', paddingVertical: Spacing.xl },
 });
