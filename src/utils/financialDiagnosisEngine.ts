@@ -73,6 +73,11 @@ export interface DiagnosisResult {
   metrics: FinancialMetrics;
   diagnoses: RootCauseAnalysis[];
   topOpportunities: string[];
+  // A single connected paragraph tying the trend, the worst root cause, and
+  // the top recommended action together — still built from the same fixed
+  // sentence templates as the rest of this file (no LLM call), just
+  // assembled into prose instead of separate cards. See generateNarrativeSummary.
+  narrativeSummary: string;
 }
 
 const INDUSTRY_BENCHMARKS = {
@@ -542,6 +547,64 @@ function statusFromRiskFactor(status: 'good' | 'warning' | 'danger'): HealthCate
   return status === 'good' ? 'strong' : status === 'warning' ? 'watch' : 'high-risk';
 }
 
+function capitalizeFirst(s: string): string {
+  return s.length === 0 ? s : s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function lowerFirst(s: string): string {
+  return s.length === 0 ? s : s.charAt(0).toLowerCase() + s.slice(1);
+}
+
+/**
+ * Weaves the trend, the worst root cause, and the top recommended action
+ * into one connected paragraph instead of separate cards — e.g. "Your
+ * revenue is up 18% this month, but your 13% margin is under pressure as
+ * costs grow faster than sales. Cost growth is outrunning revenue growth.
+ * Margins will keep compressing month over month if this continues.
+ * Recommended: freeze discretionary spend increases until revenue growth
+ * catches up." Deterministic sentence assembly, not model-generated text —
+ * every clause traces back to a field already on `metrics`/`diagnoses`.
+ */
+export function generateNarrativeSummary(
+  metrics: FinancialMetrics,
+  diagnoses: RootCauseAnalysis[],
+  topOpportunities: string[],
+): string {
+  const parts: string[] = [];
+  const growth = metrics.monthOverMonthGrowth;
+  const growthGap = metrics.expenseGrowthPct - growth;
+  const marginWeak = metrics.profitMargin < INDUSTRY_BENCHMARKS.profitMargin;
+
+  let headline: string;
+  if (Math.abs(growth) < 3) {
+    headline = 'Your revenue has held steady this month';
+  } else if (growth > 0) {
+    headline = `Your revenue is up ${growth.toFixed(0)}% this month`;
+  } else {
+    headline = `Your revenue is down ${Math.abs(growth).toFixed(0)}% this month`;
+  }
+  if (marginWeak || growthGap > 10) {
+    headline += `, but your ${metrics.profitMargin.toFixed(0)}% margin is under pressure${growthGap > 10 ? ' as costs grow faster than sales' : ''}`;
+  } else if (diagnoses.length === 0) {
+    headline += ' and the numbers behind it look healthy';
+  }
+  parts.push(`${headline}.`);
+
+  if (diagnoses.length > 0) {
+    const top = diagnoses[0];
+    parts.push(`${capitalizeFirst(top.rootCause)}. ${capitalizeFirst(top.impact)}.`);
+  }
+
+  if (topOpportunities.length > 0) {
+    const rest = topOpportunities.length > 1 ? `, then ${lowerFirst(topOpportunities[1])}` : '';
+    parts.push(`Recommended: ${lowerFirst(topOpportunities[0])}${rest}.`);
+  } else {
+    parts.push('No urgent risks stand out right now — a good window to invest in growth.');
+  }
+
+  return parts.join(' ');
+}
+
 export function performFinancialDiagnosis(
   transactions: Transaction[],
   invoices: Invoice[],
@@ -619,5 +682,6 @@ export function performFinancialDiagnosis(
     metrics,
     diagnoses: allDiagnoses,
     topOpportunities,
+    narrativeSummary: generateNarrativeSummary(metrics, allDiagnoses, topOpportunities),
   };
 }

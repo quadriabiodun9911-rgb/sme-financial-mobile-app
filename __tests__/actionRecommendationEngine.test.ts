@@ -16,7 +16,7 @@ const makeMetrics = (overrides: Partial<FinancialMetrics> = {}): FinancialMetric
 });
 
 const makeDiagnosis = (metrics: FinancialMetrics): DiagnosisResult => ({
-    overallHealth: 70, healthStatus: 'healthy', band: 'Strong', categories: [], metrics, diagnoses: [], topOpportunities: [],
+    overallHealth: 70, healthStatus: 'healthy', band: 'Strong', categories: [], metrics, diagnoses: [], topOpportunities: [], narrativeSummary: '',
 });
 
 // This tactic's id is deterministic given the two expense categories above:

@@ -90,6 +90,11 @@ export interface BusinessPassport {
         marginTrend: BusinessFinancialDNA['risk']['marginTrendDirection'];
     };
     topActions: string[];
+    // One connected paragraph tying the trend, worst root cause, and top
+    // action together — see generateNarrativeSummary in
+    // financialDiagnosisEngine.ts. Empty when there's not enough
+    // transaction history for a full diagnosis (see structuralSnapshot).
+    narrativeSummary: string;
 }
 
 export function buildBusinessPassport(
@@ -194,5 +199,6 @@ export function buildBusinessPassport(
             marginTrend: dna.risk.marginTrendDirection,
         },
         topActions: diagnosis.topOpportunities,
+        narrativeSummary: hasEnoughDataForDiagnosis ? diagnosis.narrativeSummary : '',
     };
 }

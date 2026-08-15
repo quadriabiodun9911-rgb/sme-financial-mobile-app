@@ -454,7 +454,12 @@ export interface FinancingProduct {
     // the hardcoded SAMPLE_FINANCING_PRODUCTS never populate these.
     status?: FinancingProductStatus;
     ownerUserId?: string;    // null/undefined = admin-managed; populated once lender self-service accounts exist
-    createdBy?: string;      // admin email that created/last edited this listing
+    // null/undefined = Quad360-staff-entered (financingAdmin.ts). Set when a
+    // signed-in lender org member created this listing themselves via the
+    // "My Listings" tab (LenderPipelineScreen.tsx) -- see migration 011,
+    // whose RLS lets any active member of this org manage rows scoped to it.
+    lenderOrgId?: string;
+    createdBy?: string;      // admin email, or the lender member's own email, that created/last edited this listing
     createdAt?: string;
     updatedAt?: string;
 }

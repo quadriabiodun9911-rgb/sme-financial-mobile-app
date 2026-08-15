@@ -662,6 +662,9 @@ export default function LoginScreen() {
                 <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
                     <View style={styles.card}>
                         <Text style={styles.title}>Join as Lender</Text>
+                        <Text style={styles.brandTagline}>
+                            Don't just receive SME loan applications. Understand the businesses behind them.
+                        </Text>
                         <Text style={styles.subtitle}>
                             Use the invite code your Quad360 contact gave you to set up access to the financing pipeline for your organization.
                         </Text>

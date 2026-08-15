@@ -16,59 +16,8 @@ import {
 import {
     createLenderOrganization, loadLenderOrganizations, inviteLenderMember, loadLenderMembersForOrg,
 } from '../utils/lenderAuth';
-import { FinancingProduct, FinancingProductType, LenderType, Industry, LenderOrganization, LenderMember, LenderOrgType } from '../types';
-
-const LENDER_TYPES: { value: LenderType; label: string }[] = [
-    { value: 'bank', label: 'Bank' },
-    { value: 'fintech', label: 'Fintech' },
-    { value: 'dfi', label: 'DFI' },
-    { value: 'microfinance', label: 'Microfinance' },
-];
-
-const PRODUCT_TYPES: { value: FinancingProductType; label: string }[] = [
-    { value: 'asset_financing', label: 'Asset Financing' },
-    { value: 'working_capital', label: 'Working Capital' },
-    { value: 'invoice_financing', label: 'Invoice Financing' },
-    { value: 'trade_finance', label: 'Trade Finance' },
-    { value: 'term_loan', label: 'Term Loan' },
-    { value: 'overdraft', label: 'Overdraft' },
-];
-
-const INDUSTRIES: { value: Industry; label: string }[] = [
-    { value: 'general', label: 'General' },
-    { value: 'retail', label: 'Retail' },
-    { value: 'food-service', label: 'Food Service' },
-    { value: 'manufacturing', label: 'Manufacturing' },
-    { value: 'professional-services', label: 'Professional Services' },
-];
-
-function emptyForm(): FinancingProduct {
-    return {
-        id: '',
-        lenderName: '',
-        lenderType: 'bank',
-        productType: 'working_capital',
-        productName: '',
-        description: '',
-        minAmount: 0,
-        maxAmount: 0,
-        minTermMonths: 0,
-        maxTermMonths: 0,
-        interestRateMinPct: 0,
-        interestRateMaxPct: 0,
-        eligibility: {},
-        status: 'active',
-    };
-}
-
-// n() parses a form text field to a number, treating blank as undefined so
-// optional eligibility criteria genuinely stay unset rather than becoming 0
-// (a 0 minimum would silently mean "no requirement" in most of these
-// fields, which is a real, different meaning from "not specified").
-function n(text: string): number | undefined {
-    const v = parseFloat(text.replace(/[^0-9.]/g, ''));
-    return isNaN(v) ? undefined : v;
-}
+import { FinancingProduct, LenderOrganization, LenderMember, LenderOrgType, LenderType } from '../types';
+import { FinancingProductForm, emptyFinancingProduct, LENDER_TYPES, Field } from '../components/FinancingProductForm';
 
 export default function FinancingAdminScreen() {
     const { user, navigate } = useApp();
@@ -80,7 +29,7 @@ export default function FinancingAdminScreen() {
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
     const [showForm, setShowForm] = useState(false);
-    const [form, setForm] = useState<FinancingProduct>(emptyForm());
+    const [form, setForm] = useState<FinancingProduct>(emptyFinancingProduct());
     const [saving, setSaving] = useState(false);
 
     // ─── Lender Accounts (Phase 2 of the Lender Auth & Financing-Visibility
@@ -176,7 +125,7 @@ export default function FinancingAdminScreen() {
         );
     }
 
-    const openNew = () => { setForm(emptyForm()); setShowForm(true); };
+    const openNew = () => { setForm(emptyFinancingProduct()); setShowForm(true); };
     const openEdit = (p: FinancingProduct) => { setForm(p); setShowForm(true); };
 
     const handleSave = async () => {
@@ -377,92 +326,7 @@ export default function FinancingAdminScreen() {
                             </TouchableOpacity>
                             <Text style={s.formTitle}>{form.id ? 'Edit Listing' : 'New Listing'}</Text>
 
-                            <Field label="Lender Name">
-                                <TextInput style={s.input} value={form.lenderName} onChangeText={t => setForm(f => ({ ...f, lenderName: t }))} placeholder="e.g. First City Bank" placeholderTextColor={Colors.textMuted} />
-                            </Field>
-
-                            <ChipGroup
-                                label="Lender Type"
-                                style={s.fieldSpacing}
-                                options={LENDER_TYPES}
-                                value={form.lenderType}
-                                onChange={v => setForm(f => ({ ...f, lenderType: v ?? f.lenderType }))}
-                                allowDeselect={false}
-                            />
-
-                            <ChipGroup
-                                label="Product Type"
-                                style={s.fieldSpacing}
-                                options={PRODUCT_TYPES}
-                                value={form.productType}
-                                onChange={v => setForm(f => ({ ...f, productType: v ?? f.productType }))}
-                                allowDeselect={false}
-                            />
-
-                            <Field label="Product Name">
-                                <TextInput style={s.input} value={form.productName} onChangeText={t => setForm(f => ({ ...f, productName: t }))} placeholder="e.g. Equipment Financing" placeholderTextColor={Colors.textMuted} />
-                            </Field>
-
-                            <Field label="Description">
-                                <TextInput style={[s.input, { height: 70 }]} value={form.description} onChangeText={t => setForm(f => ({ ...f, description: t }))} multiline placeholder="What this product is for, in one or two sentences" placeholderTextColor={Colors.textMuted} />
-                            </Field>
-
-                            <Text style={s.sectionLabel}>Amount range</Text>
-                            <View style={s.row}>
-                                <NumField label="Min" value={form.minAmount} onChange={v => setForm(f => ({ ...f, minAmount: v ?? 0 }))} />
-                                <NumField label="Max" value={form.maxAmount} onChange={v => setForm(f => ({ ...f, maxAmount: v ?? 0 }))} />
-                            </View>
-
-                            <Text style={s.sectionLabel}>Term (months)</Text>
-                            <View style={s.row}>
-                                <NumField label="Min" value={form.minTermMonths} onChange={v => setForm(f => ({ ...f, minTermMonths: v ?? 0 }))} />
-                                <NumField label="Max" value={form.maxTermMonths} onChange={v => setForm(f => ({ ...f, maxTermMonths: v ?? 0 }))} />
-                            </View>
-
-                            <Text style={s.sectionLabel}>Interest rate (% p.a.)</Text>
-                            <View style={s.row}>
-                                <NumField label="Min" value={form.interestRateMinPct} onChange={v => setForm(f => ({ ...f, interestRateMinPct: v ?? 0 }))} />
-                                <NumField label="Max" value={form.interestRateMaxPct} onChange={v => setForm(f => ({ ...f, interestRateMaxPct: v ?? 0 }))} />
-                            </View>
-
-                            <Text style={s.sectionTitle}>Eligibility (all optional — leave blank for "no requirement")</Text>
-
-                            <Field label="Min monthly revenue">
-                                <TextInput style={s.input} keyboardType="numeric" value={form.eligibility.minMonthlyRevenue?.toString() ?? ''} onChangeText={t => setForm(f => ({ ...f, eligibility: { ...f.eligibility, minMonthlyRevenue: n(t) } }))} placeholderTextColor={Colors.textMuted} />
-                            </Field>
-                            <Field label="Min business age (months)">
-                                <TextInput style={s.input} keyboardType="numeric" value={form.eligibility.minBusinessAgeMonths?.toString() ?? ''} onChangeText={t => setForm(f => ({ ...f, eligibility: { ...f.eligibility, minBusinessAgeMonths: n(t) } }))} placeholderTextColor={Colors.textMuted} />
-                            </Field>
-                            <Field label="Min DSCR (e.g. 1.25)">
-                                <TextInput style={s.input} keyboardType="numeric" value={form.eligibility.minDSCR?.toString() ?? ''} onChangeText={t => setForm(f => ({ ...f, eligibility: { ...f.eligibility, minDSCR: n(t) } }))} placeholderTextColor={Colors.textMuted} />
-                            </Field>
-                            <Field label="Min equity contribution %">
-                                <TextInput style={s.input} keyboardType="numeric" value={form.eligibility.minEquityContributionPct?.toString() ?? ''} onChangeText={t => setForm(f => ({ ...f, eligibility: { ...f.eligibility, minEquityContributionPct: n(t) } }))} placeholderTextColor={Colors.textMuted} />
-                            </Field>
-                            <Field label="Max debt-to-revenue ratio (e.g. 0.5)">
-                                <TextInput style={s.input} keyboardType="numeric" value={form.eligibility.maxDebtToRevenueRatio?.toString() ?? ''} onChangeText={t => setForm(f => ({ ...f, eligibility: { ...f.eligibility, maxDebtToRevenueRatio: n(t) } }))} placeholderTextColor={Colors.textMuted} />
-                            </Field>
-                            <Field label="Min transaction history (months)">
-                                <TextInput style={s.input} keyboardType="numeric" value={form.eligibility.minTransactionHistoryMonths?.toString() ?? ''} onChangeText={t => setForm(f => ({ ...f, eligibility: { ...f.eligibility, minTransactionHistoryMonths: n(t) } }))} placeholderTextColor={Colors.textMuted} />
-                            </Field>
-
-                            <ChipGroup<Industry>
-                                multiple
-                                label="Eligible industries (none selected = open to all)"
-                                style={s.fieldSpacing}
-                                options={INDUSTRIES}
-                                value={form.eligibility.eligibleIndustries ?? []}
-                                onChange={next => setForm(f => ({ ...f, eligibility: { ...f.eligibility, eligibleIndustries: next } }))}
-                            />
-
-                            <ChipGroup
-                                label="Status"
-                                style={s.fieldSpacing}
-                                options={[{ value: 'active' as const, label: 'Active' }, { value: 'inactive' as const, label: 'Inactive' }]}
-                                value={form.status ?? 'active'}
-                                onChange={v => setForm(f => ({ ...f, status: v ?? 'active' }))}
-                                allowDeselect={false}
-                            />
+                            <FinancingProductForm form={form} setForm={setForm} />
 
                             <TouchableOpacity onPress={handleSave} disabled={saving} style={[s.saveBtn, saving && { opacity: 0.6 }]}>
                                 <Text style={s.saveBtnText}>{saving ? 'Saving…' : (form.id ? 'Save Changes' : 'Create Listing')}</Text>
@@ -472,31 +336,6 @@ export default function FinancingAdminScreen() {
                 </View>
             </Modal>
         </SafeAreaView>
-    );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-    return (
-        <View style={{ marginBottom: 14 }}>
-            <Text style={s.fieldLabel}>{label}</Text>
-            {children}
-        </View>
-    );
-}
-
-function NumField({ label, value, onChange }: { label: string; value: number; onChange: (v: number | undefined) => void }) {
-    return (
-        <View style={{ flex: 1 }}>
-            <Text style={s.numFieldLabel}>{label}</Text>
-            <TextInput
-                style={s.input}
-                keyboardType="numeric"
-                value={value ? value.toString() : ''}
-                onChangeText={t => onChange(n(t))}
-                placeholder="0"
-                placeholderTextColor={Colors.textMuted}
-            />
-        </View>
     );
 }
 

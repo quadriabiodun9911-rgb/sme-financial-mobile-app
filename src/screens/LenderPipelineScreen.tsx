@@ -15,17 +15,21 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { SafeAreaView, ScrollView, View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { SafeAreaView, ScrollView, View, Text, TextInput, TouchableOpacity, StyleSheet, Modal } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Icon from '../components/ui/Icon';
 import { ChipGroup } from '../components/ui/ChipGroup';
 import { ExpandableCard } from '../components/ui/ExpandableCard';
-import { Radius, Spacing } from '../theme/tokens';
+import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { loadPipelineListingsForLender, PipelineListingFilters, describeListingFit } from '../utils/financingPipeline';
 import { loadPortfolioSharesForLender, LoanMonitoringShareRow } from '../utils/loanMonitoringShare';
-import { FinancingProductType, PipelineListing } from '../types';
+import { FinancingProductType, PipelineListing, FinancingProduct } from '../types';
 import { PostFinancingStatus } from '../utils/postFinancingMonitor';
+import { loadFinancingProductsForLenderOrg, saveFinancingProduct, deleteFinancingProduct } from '../utils/financingAdmin';
+import { FinancingProductForm, emptyFinancingProduct } from '../components/FinancingProductForm';
+import { showAlert, confirmAction } from '../utils/webAlert';
+import { generateId } from '../utils/uuid';
 
 const TIER_LABEL: Record<'strong' | 'moderate' | 'caution', string> = {
     strong: 'Strong candidate',
@@ -61,9 +65,9 @@ function fmtAmt(n: number): string {
 }
 
 export default function LenderPipelineScreen() {
-    const { logout, lenderOrgName } = useApp();
+    const { logout, lenderOrgName, lenderOrgId, user } = useApp();
 
-    const [tab, setTab] = useState<'pipeline' | 'portfolio'>('pipeline');
+    const [tab, setTab] = useState<'pipeline' | 'portfolio' | 'listings'>('pipeline');
 
     const [listings, setListings] = useState<PipelineListing[]>([]);
     const [loading, setLoading] = useState(true);
@@ -133,6 +137,10 @@ export default function LenderPipelineScreen() {
                 </TouchableOpacity>
             </View>
 
+            <View style={s.hookBanner}>
+                <Text style={s.hookText}>Don't just receive SME loan applications. Understand the businesses behind them.</Text>
+            </View>
+
             <View style={s.tabBar}>
                 <TouchableOpacity style={[s.tabBtn, tab === 'pipeline' && s.tabBtnActive]} onPress={() => setTab('pipeline')}>
                     <Text style={[s.tabBtnText, tab === 'pipeline' && s.tabBtnTextActive]}>Prospecting Pipeline</Text>
@@ -140,16 +148,23 @@ export default function LenderPipelineScreen() {
                 <TouchableOpacity style={[s.tabBtn, tab === 'portfolio' && s.tabBtnActive]} onPress={() => setTab('portfolio')}>
                     <Text style={[s.tabBtnText, tab === 'portfolio' && s.tabBtnTextActive]}>Funded Portfolio</Text>
                 </TouchableOpacity>
+                <TouchableOpacity style={[s.tabBtn, tab === 'listings' && s.tabBtnActive]} onPress={() => setTab('listings')}>
+                    <Text style={[s.tabBtnText, tab === 'listings' && s.tabBtnTextActive]}>My Listings</Text>
+                </TouchableOpacity>
             </View>
 
             {tab === 'portfolio' ? (
                 <PortfolioTab />
+            ) : tab === 'listings' ? (
+                <ListingsTab lenderOrgId={lenderOrgId} createdByEmail={user?.email ?? 'unknown'} />
             ) : (
             <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
                 <Text style={s.title}>Financing Pipeline</Text>
                 <Text style={s.subtitle}>
-                    Businesses that opted in to being visible to lending partners, grouped by financing type they're
-                    seeking. Every field here is an aggregate readiness signal — never a raw transaction.
+                    Quad360 helps financial institutions discover, match, assess, and monitor SMEs using structured
+                    financial intelligence — a more informed pipeline from business activity to financing, not a
+                    stack of blind applications. Every field below is an aggregate readiness signal, never a raw
+                    transaction, and every underwriting and credit decision remains entirely yours.
                 </Text>
 
                 {byType.size > 0 && (
@@ -395,6 +410,145 @@ function PortfolioTab() {
     );
 }
 
+// ─── My Listings tab (Phase 2 self-service, migration 011) ─────────────────
+// Lets any active member of this lender org publish and manage their own
+// financing_products rows directly -- previously every real listing needed
+// a Quad360 admin to enter it by hand via FinancingAdminScreen. Reuses the
+// same FinancingProductForm as that admin screen; the RLS policies added in
+// migration 011 are what actually scope writes to this org, not anything
+// enforced here.
+function ListingsTab({ lenderOrgId, createdByEmail }: { lenderOrgId: string | null; createdByEmail: string }) {
+    const [products, setProducts] = useState<FinancingProduct[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
+    const [showForm, setShowForm] = useState(false);
+    const [form, setForm] = useState<FinancingProduct>(emptyFinancingProduct());
+    const [saving, setSaving] = useState(false);
+
+    const reload = async () => {
+        if (!lenderOrgId) return;
+        setLoading(true);
+        const rows = await loadFinancingProductsForLenderOrg(lenderOrgId);
+        if (rows === null) {
+            setLoadError("Couldn't reach the financing_products table — check this device is online and try again.");
+            setProducts([]);
+        } else {
+            setLoadError(null);
+            setProducts(rows);
+        }
+        setLoading(false);
+    };
+
+    useEffect(() => {
+        reload();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [lenderOrgId]);
+
+    const openNew = () => { setForm({ ...emptyFinancingProduct(), lenderOrgId: lenderOrgId ?? undefined }); setShowForm(true); };
+    const openEdit = (p: FinancingProduct) => { setForm(p); setShowForm(true); };
+
+    const handleSave = async () => {
+        if (!form.lenderName.trim() || !form.productName.trim()) {
+            showAlert('Missing fields', 'Lender name and product name are required.');
+            return;
+        }
+        setSaving(true);
+        const toSave: FinancingProduct = { ...form, id: form.id || generateId(), lenderOrgId: lenderOrgId ?? undefined };
+        const { error } = await saveFinancingProduct(toSave, createdByEmail);
+        setSaving(false);
+        if (error) { showAlert('Save failed', error); return; }
+        setShowForm(false);
+        await reload();
+    };
+
+    const handleToggleStatus = async (p: FinancingProduct) => {
+        const { error } = await saveFinancingProduct({ ...p, status: p.status === 'active' ? 'inactive' : 'active' }, createdByEmail);
+        if (error) { showAlert('Update failed', error); return; }
+        await reload();
+    };
+
+    const handleDelete = (p: FinancingProduct) => {
+        confirmAction(
+            'Delete listing?',
+            `This permanently removes "${p.productName}". This can't be undone.`,
+            'Delete',
+            async () => {
+                const { error } = await deleteFinancingProduct(p.id);
+                if (error) { showAlert('Delete failed', error); return; }
+                await reload();
+            },
+        );
+    };
+
+    return (
+        <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
+            <Text style={s.title}>My Listings</Text>
+            <Text style={s.subtitle}>
+                Products your org publishes directly to the Quad360 Financing Marketplace — SMEs see these
+                alongside listings Quad360 staff manage. Only your org can edit or remove them.
+            </Text>
+
+            <TouchableOpacity onPress={openNew} style={s.addBtn}>
+                <Text style={s.addBtnText}>+ Add Listing</Text>
+            </TouchableOpacity>
+
+            {loading && <Text style={s.resultCount}>Loading your listings…</Text>}
+            {!loading && loadError && <Text style={[s.resultCount, { color: Colors.expense }]}>{loadError}</Text>}
+            {!loading && !loadError && products.length === 0 && (
+                <View style={s.emptyState}>
+                    <Icon name="search" size={28} color={Colors.textMuted} />
+                    <Text style={s.emptyText}>No listings yet — add one above to publish it to the Marketplace.</Text>
+                </View>
+            )}
+
+            {products.map(p => (
+                <View key={p.id} style={s.listingCard}>
+                    <View style={s.rowHeader}>
+                        <View style={{ flex: 1 }}>
+                            <Text style={s.rowType}>{p.productName}</Text>
+                            <Text style={s.rowMeta}>{p.lenderName} · {p.lenderType} · {p.productType}</Text>
+                        </View>
+                        <View style={[s.gradeBadge, { width: 'auto', paddingHorizontal: 10, backgroundColor: (p.status === 'active' ? Colors.income : Colors.textMuted) + '22' }]}>
+                            <Text style={[s.gradeBadgeText, { color: p.status === 'active' ? Colors.income : Colors.textMuted, fontSize: 11 }]}>{p.status}</Text>
+                        </View>
+                    </View>
+                    <Text style={s.detailLine}>{p.minAmount.toLocaleString()}–{p.maxAmount.toLocaleString()} · {p.minTermMonths}–{p.maxTermMonths}mo · {p.interestRateMinPct}–{p.interestRateMaxPct}%</Text>
+                    <View style={s.listingActions}>
+                        <TouchableOpacity onPress={() => openEdit(p)} style={s.listingActionBtn}>
+                            <Text style={s.listingActionText}>Edit</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => handleToggleStatus(p)} style={s.listingActionBtn}>
+                            <Text style={s.listingActionText}>{p.status === 'active' ? 'Deactivate' : 'Activate'}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => handleDelete(p)} style={s.listingActionBtn}>
+                            <Text style={[s.listingActionText, { color: Colors.expense }]}>Delete</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            ))}
+
+            <Modal visible={showForm} animationType="slide" transparent>
+                <View style={s.overlay}>
+                    <View style={s.sheet}>
+                        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: Spacing.xl, paddingBottom: 60 }}>
+                            <TouchableOpacity onPress={() => setShowForm(false)}>
+                                <Text style={{ color: Colors.primary, fontSize: 14, marginBottom: 12 }}>✕ Close</Text>
+                            </TouchableOpacity>
+                            <Text style={s.formTitle}>{form.id ? 'Edit Listing' : 'New Listing'}</Text>
+
+                            <FinancingProductForm form={form} setForm={setForm} hideStatusForNew />
+
+                            <TouchableOpacity onPress={handleSave} disabled={saving} style={[s.saveBtn, saving && { opacity: 0.6 }]}>
+                                <Text style={s.saveBtnText}>{saving ? 'Saving…' : (form.id ? 'Save Changes' : 'Publish Listing')}</Text>
+                            </TouchableOpacity>
+                        </ScrollView>
+                    </View>
+                </View>
+            </Modal>
+        </ScrollView>
+    );
+}
+
 const s = StyleSheet.create({
     safe: { flex: 1, backgroundColor: Colors.bg },
     topbar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
@@ -404,6 +558,9 @@ const s = StyleSheet.create({
     brandTitle: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary },
     brandSubtitle: { fontSize: 11.5, color: Colors.textMuted },
     signOut: { fontSize: 13, color: Colors.expense, fontWeight: '600' },
+
+    hookBanner: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 2 },
+    hookText: { fontSize: 12.5, fontWeight: '700', color: Colors.primary, lineHeight: 17 },
 
     tabBar: { flexDirection: 'row', paddingHorizontal: 16, paddingTop: 10, gap: 8, borderBottomWidth: 1, borderBottomColor: Colors.border, paddingBottom: 10 },
     tabBtn: { flex: 1, paddingVertical: 9, borderRadius: Radius.md, alignItems: 'center', backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },
@@ -450,4 +607,18 @@ const s = StyleSheet.create({
     tierBadgeText: { fontSize: 10, fontWeight: '700' },
     detailLine: { fontSize: 12, color: Colors.textSecondary, marginBottom: 6, lineHeight: 17 },
     consentNote: { fontSize: 10.5, color: Colors.textMuted, fontStyle: 'italic', marginTop: 6, lineHeight: 14 },
+
+    addBtn: { backgroundColor: Colors.primary, borderRadius: 10, paddingVertical: 13, alignItems: 'center', marginBottom: 18 },
+    addBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+
+    listingCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: Colors.border },
+    listingActions: { flexDirection: 'row', gap: 8, marginTop: 4 },
+    listingActionBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
+    listingActionText: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary },
+
+    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+    sheet: { backgroundColor: Colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '92%', ...Shadow.md },
+    formTitle: { fontSize: 18, fontWeight: '700', color: Colors.textPrimary, marginBottom: 16 },
+    saveBtn: { backgroundColor: Colors.primary, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
+    saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 });

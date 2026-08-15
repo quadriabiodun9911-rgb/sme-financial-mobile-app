@@ -276,6 +276,9 @@ export default function BusinessPassportScreen() {
                 <View style={s.actionsCard}>
                     <Text style={s.cardTitle}>Actions</Text>
                     <Text style={s.cardSubtitle}>What should you do next?</Text>
+                    {passport.narrativeSummary !== '' && (
+                        <Text style={s.narrativeText}>{passport.narrativeSummary}</Text>
+                    )}
                     {passport.topActions.length === 0 ? (
                         <Text style={s.emptyText}>No urgent actions identified right now.</Text>
                     ) : (
@@ -358,6 +361,7 @@ const s = StyleSheet.create({
     card: { backgroundColor: Colors.card, borderRadius: 14, padding: Spacing.lg, marginBottom: Spacing.lg, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     cardTitle: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary },
     cardSubtitle: { fontSize: 11.5, color: Colors.textMuted, marginBottom: 4, fontStyle: 'italic' },
+    narrativeText: { fontSize: 13.5, color: Colors.textPrimary, lineHeight: 20, marginBottom: 12 },
     sectionHeaderRow: { flexDirection: 'row', alignItems: 'flex-start' },
     sectionArrow: { marginLeft: 8, marginTop: 2 },
     teaserText: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary, marginTop: 6 },

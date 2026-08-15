@@ -42,6 +42,7 @@ interface FinancingProductRow {
     eligibility: FinancingProduct['eligibility'];
     status: string;
     owner_user_id: string | null;
+    lender_org_id: string | null;
     created_by: string | null;
     created_at: string;
     updated_at: string;
@@ -64,6 +65,7 @@ function rowToProduct(row: FinancingProductRow): FinancingProduct {
         eligibility: row.eligibility ?? {},
         status: (row.status as FinancingProduct['status']) ?? 'active',
         ownerUserId: row.owner_user_id ?? undefined,
+        lenderOrgId: row.lender_org_id ?? undefined,
         createdBy: row.created_by ?? undefined,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
@@ -87,6 +89,7 @@ function productToRow(product: FinancingProduct, createdBy: string): Omit<Financ
         eligibility: product.eligibility,
         status: product.status ?? 'active',
         owner_user_id: product.ownerUserId ?? null,
+        lender_org_id: product.lenderOrgId ?? null,
         created_by: product.createdBy ?? createdBy,
     };
 }
@@ -112,6 +115,28 @@ export async function loadAllFinancingProductsForAdmin(): Promise<FinancingProdu
         const { data, error } = await supabase
             .from('financing_products')
             .select('*')
+            .order('updated_at', { ascending: false });
+        if (error || !data) return null;
+        return (data as FinancingProductRow[]).map(rowToProduct);
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * A lender org's own listings (active + inactive) — what the "My Listings"
+ * tab in LenderPipelineScreen.tsx shows. Scoped by lender_org_id at the
+ * query level for a fast, readable list here; the real security boundary
+ * is migration 011's RLS ("active members of an org can manage its own
+ * listings"), which is what actually stops one lender org from editing
+ * another's rows regardless of what this function queries for.
+ */
+export async function loadFinancingProductsForLenderOrg(lenderOrgId: string): Promise<FinancingProduct[] | null> {
+    try {
+        const { data, error } = await supabase
+            .from('financing_products')
+            .select('*')
+            .eq('lender_org_id', lenderOrgId)
             .order('updated_at', { ascending: false });
         if (error || !data) return null;
         return (data as FinancingProductRow[]).map(rowToProduct);

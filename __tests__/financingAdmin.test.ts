@@ -19,7 +19,7 @@ jest.mock('../src/utils/supabase', () => ({
 
 import {
     isFinancingAdmin, loadActiveFinancingProducts, loadAllFinancingProductsForAdmin,
-    saveFinancingProduct, deleteFinancingProduct,
+    loadFinancingProductsForLenderOrg, saveFinancingProduct, deleteFinancingProduct,
 } from '../src/utils/financingAdmin';
 
 describe('isFinancingAdmin', () => {
@@ -58,6 +58,7 @@ const sampleRow = {
     eligibility: { minMonthlyRevenue: 50000 },
     status: 'active',
     owner_user_id: null,
+    lender_org_id: null,
     created_by: 'quadriabiodun9911@gmail.com',
     created_at: '2026-01-01T00:00:00.000Z',
     updated_at: '2026-01-02T00:00:00.000Z',
@@ -83,6 +84,20 @@ describe('loadActiveFinancingProducts / loadAllFinancingProductsForAdmin', () =>
         mockResponse = { data: null, error: { message: 'relation "financing_products" does not exist' } };
         expect(await loadActiveFinancingProducts()).toBeNull();
         expect(await loadAllFinancingProductsForAdmin()).toBeNull();
+    });
+});
+
+describe('loadFinancingProductsForLenderOrg', () => {
+    it('maps this org\'s rows, tagging lenderOrgId through from lender_org_id', async () => {
+        mockResponse = { data: [{ ...sampleRow, lender_org_id: 'org-1', created_by: 'lender@bank.com' }], error: null };
+        const result = await loadFinancingProductsForLenderOrg('org-1');
+        expect(result).toHaveLength(1);
+        expect(result![0]).toMatchObject({ id: 'p1', lenderOrgId: 'org-1', createdBy: 'lender@bank.com' });
+    });
+
+    it('returns null (not an empty array) on a query error, same fallback contract as the admin loaders', async () => {
+        mockResponse = { data: null, error: { message: 'permission denied' } };
+        expect(await loadFinancingProductsForLenderOrg('org-1')).toBeNull();
     });
 });
 
