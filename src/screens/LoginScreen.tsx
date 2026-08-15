@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
-    TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Image, Modal, Platform,
+    TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Image, Modal, Platform, useWindowDimensions,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -59,6 +59,12 @@ type LoginMethod = 'pin' | 'email';
 
 export default function LoginScreen() {
     const { isFirstLaunch, setupAccount, login, joinTeam, joinAsLender, enterDemo, language, setLanguage, updateSettings, resetApp, isLockedOut, lockoutUntil, recoverAccount } = useApp();
+    // The split-screen setup layout only applies on wide web viewports --
+    // narrow/native rendering is untouched, so the primary mobile
+    // experience carries zero risk from this. 900px comfortably fits the
+    // two-column layout without cramping the brand panel.
+    const { width: windowWidth } = useWindowDimensions();
+    const isWideWebSetup = Platform.OS === 'web' && windowWidth >= 900;
     const [mode, setMode] = useState<Mode>(isFirstLaunch ? 'owner-setup' : 'owner-login');
     const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
     const [loginMethod, setLoginMethod] = useState<LoginMethod>('pin');
@@ -699,6 +705,171 @@ export default function LoginScreen() {
 
     // ── Owner first-launch setup ──────────────────────────────────────────────
     if (mode === 'owner-setup') {
+        // Shared across both layouts below -- the exact same fields, state,
+        // and handlers either way, only the surrounding chrome differs.
+        const languagePicker = (
+            <>
+                <Text style={styles.sectionLabel}>{t(setupLang, 'preferredLanguage')}</Text>
+                <View style={styles.chipRow}>
+                    {LANGUAGES.map(l => (
+                        <TouchableOpacity key={l.code}
+                            style={[styles.chip, setupLang === l.code && styles.chipActive]}
+                            onPress={() => setSetupLang(l.code)}>
+                            <Text style={[styles.chipText, setupLang === l.code && styles.chipTextActive]}>
+                                {l.nativeLabel}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+            </>
+        );
+
+        const formFields = (
+            <>
+                <Field label={t(setupLang, 'email')}>
+                    <TextInput style={styles.input} value={email} onChangeText={setEmail}
+                        placeholder="admin@yourbusiness.com" placeholderTextColor={Colors.muted}
+                        autoCapitalize="none" keyboardType="email-address" />
+                </Field>
+                <Field label="Phone Number (for financial health score)">
+                    <TextInput style={styles.input} value={phone} onChangeText={setPhone}
+                        placeholder="+1 555 000 1234" placeholderTextColor={Colors.muted}
+                        keyboardType="phone-pad" />
+                </Field>
+                <Field label={t(setupLang, 'businessName')}>
+                    <TextInput style={styles.input} value={business} onChangeText={setBusiness}
+                        placeholder="Acme Corp" placeholderTextColor={Colors.muted} />
+                </Field>
+                <Field label={t(setupLang, 'createPin')}>
+                    <TextInput style={styles.input} value={pin} onChangeText={setPin}
+                        placeholder="••••••" placeholderTextColor={Colors.muted}
+                        secureTextEntry keyboardType="number-pad" maxLength={6} />
+                </Field>
+                <Field label={t(setupLang, 'confirmPin')}>
+                    <TextInput style={styles.input} value={confirmPin} onChangeText={setConfirm}
+                        placeholder="••••••" placeholderTextColor={Colors.muted}
+                        secureTextEntry keyboardType="number-pad" maxLength={6} />
+                </Field>
+
+                {/* Currency picker — compact single row */}
+                <Field label={t(setupLang, 'preferredCurrency')}>
+                    <TouchableOpacity style={styles.currencyRow} onPress={() => setCurrencyModalOpen(true)}>
+                        <Text style={styles.currencySelected}>
+                            {CURRENCIES.find(c => c.value === currency)?.label ?? currency}
+                        </Text>
+                        <Icon name="chevron-down" size={16} color={Colors.muted} />
+                    </TouchableOpacity>
+                </Field>
+
+                {/* Industry — drives which industry-specific tools show up later
+                    (e.g. Recipe/Menu Item Costing only for Food Service), so it
+                    doesn't clutter a retailer's or consultant's app. */}
+                <Field label="What kind of business is this?">
+                    {INDUSTRIES.map(ind => (
+                        <TouchableOpacity
+                            key={ind.value}
+                            style={[styles.industryOption, industry === ind.value && styles.industryOptionActive]}
+                            onPress={() => setIndustry(ind.value)}
+                        >
+                            <View style={styles.flex}>
+                                <Text style={[styles.industryLabel, industry === ind.value && styles.industryLabelActive]}>{ind.label}</Text>
+                                <Text style={styles.industryHint}>{ind.hint}</Text>
+                            </View>
+                            {industry === ind.value && <Icon name="check" size={16} color={Colors.primary} />}
+                        </TouchableOpacity>
+                    ))}
+                </Field>
+
+                <TouchableOpacity style={[styles.btn, submitting && styles.btnDisabled]} onPress={handleSetup} disabled={submitting}>
+                    {submitting
+                        ? <ActivityIndicator color="#fff" />
+                        : <Text style={styles.btnText}>{t(setupLang, 'createAccount')}</Text>
+                    }
+                </TouchableOpacity>
+                <View style={styles.trustNoteRow}>
+                    <Icon name="lock" size={11} color={Colors.textMuted} />
+                    <Text style={styles.trustNote}>Your data is encrypted and stored securely. We never share your information.</Text>
+                </View>
+                <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('join-team')}>
+                    <Text style={styles.switchText}>{t(setupLang, 'joiningTeam')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('join-lender')}>
+                    <Text style={styles.switchText}>Are you a lender? Join with invite code →</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.switchBtn} onPress={() => { setEmailLoginEmail(email); setMode('recover'); }}>
+                    <Text style={styles.switchText}>Already have an account? Sign In →</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.demoBtn} onPress={() => setMode('demo-pick')}>
+                    <Icon name="eye" size={13} color={Colors.primary} />
+                    <Text style={styles.demoBtnText}>Try Demo (No sign-up needed)</Text>
+                </TouchableOpacity>
+            </>
+        );
+
+        const currencyModal = (
+            <Modal visible={currencyModalOpen} transparent animationType="slide" onRequestClose={() => setCurrencyModalOpen(false)}>
+                <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setCurrencyModalOpen(false)}>
+                    <View style={styles.currencyModal}>
+                        <Text style={styles.currencyModalTitle}>Select Currency</Text>
+                        <ScrollView>
+                            {CURRENCIES.map(c => (
+                                <TouchableOpacity key={c.value} style={[styles.currencyOption, currency === c.value && styles.currencyOptionActive]}
+                                    onPress={() => { setCurrency(c.value); setCurrencyModalOpen(false); }}>
+                                    <Text style={[styles.currencyOptionText, currency === c.value && { color: Colors.primary, fontWeight: '700' }]}>
+                                        {c.label}
+                                    </Text>
+                                    {currency === c.value && <Icon name="check" size={16} color={Colors.primary} />}
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                    </View>
+                </TouchableOpacity>
+            </Modal>
+        );
+
+        // Wide web only -- narrow/native rendering (below) is completely
+        // untouched by this branch.
+        if (isWideWebSetup) {
+            return (
+                <SafeAreaView style={styles.safe}>
+                    <View style={styles.splitShell}>
+                        <View style={styles.splitBrand}>
+                            <View style={styles.splitBrandMid}>
+                                <Image source={require('../../assets/icon.png')} style={styles.splitLogo} />
+                                <Text style={styles.splitHeadline}>
+                                    The financial operating system every business trusts more than their bank balance.
+                                </Text>
+                                <Text style={styles.splitSub}>
+                                    Turn your cash flow, invoices, and debt into a real financing case — then find financing built for what your business can prove.
+                                </Text>
+                            </View>
+                            <View style={styles.socialProofSetup}>
+                                <View style={styles.socialProofPill}>
+                                    <Text style={styles.socialProofPillText}>Free forever · No credit card</Text>
+                                </View>
+                                <View style={styles.socialProofPill}>
+                                    <Text style={styles.socialProofPillText}>Built for SMEs across Africa & beyond</Text>
+                                </View>
+                                <View style={styles.socialProofPill}>
+                                    <Text style={styles.socialProofPillText}>Your data stays private</Text>
+                                </View>
+                            </View>
+                        </View>
+
+                        <ScrollView style={styles.splitFormPanel} contentContainerStyle={styles.splitFormPanelContent} keyboardShouldPersistTaps="handled">
+                            <View style={styles.splitFormCard}>
+                                <Text style={styles.splitFormTitle}>{t(setupLang, 'createAccount')}</Text>
+                                <Text style={[styles.subtitle, styles.splitFormSubtitle]}>{t(setupLang, 'setupSubtitle')}</Text>
+                                {languagePicker}
+                                {formFields}
+                            </View>
+                        </ScrollView>
+                    </View>
+                    {currencyModal}
+                </SafeAreaView>
+            );
+        }
+
         return (
             <SafeAreaView style={styles.safe}>
                 <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
@@ -722,119 +893,11 @@ export default function LoginScreen() {
                             </View>
                         </View>
 
-                        {/* Language picker — shown first so the rest renders in chosen language */}
-                        <Text style={styles.sectionLabel}>{t(setupLang, 'preferredLanguage')}</Text>
-                        <View style={styles.chipRow}>
-                            {LANGUAGES.map(l => (
-                                <TouchableOpacity key={l.code}
-                                    style={[styles.chip, setupLang === l.code && styles.chipActive]}
-                                    onPress={() => setSetupLang(l.code)}>
-                                    <Text style={[styles.chipText, setupLang === l.code && styles.chipTextActive]}>
-                                        {l.nativeLabel}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-
-                        <Field label={t(setupLang, 'email')}>
-                            <TextInput style={styles.input} value={email} onChangeText={setEmail}
-                                placeholder="admin@yourbusiness.com" placeholderTextColor={Colors.muted}
-                                autoCapitalize="none" keyboardType="email-address" />
-                        </Field>
-                        <Field label="Phone Number (for financial health score)">
-                            <TextInput style={styles.input} value={phone} onChangeText={setPhone}
-                                placeholder="+1 555 000 1234" placeholderTextColor={Colors.muted}
-                                keyboardType="phone-pad" />
-                        </Field>
-                        <Field label={t(setupLang, 'businessName')}>
-                            <TextInput style={styles.input} value={business} onChangeText={setBusiness}
-                                placeholder="Acme Corp" placeholderTextColor={Colors.muted} />
-                        </Field>
-                        <Field label={t(setupLang, 'createPin')}>
-                            <TextInput style={styles.input} value={pin} onChangeText={setPin}
-                                placeholder="••••••" placeholderTextColor={Colors.muted}
-                                secureTextEntry keyboardType="number-pad" maxLength={6} />
-                        </Field>
-                        <Field label={t(setupLang, 'confirmPin')}>
-                            <TextInput style={styles.input} value={confirmPin} onChangeText={setConfirm}
-                                placeholder="••••••" placeholderTextColor={Colors.muted}
-                                secureTextEntry keyboardType="number-pad" maxLength={6} />
-                        </Field>
-
-                        {/* Currency picker — compact single row */}
-                        <Field label={t(setupLang, 'preferredCurrency')}>
-                            <TouchableOpacity style={styles.currencyRow} onPress={() => setCurrencyModalOpen(true)}>
-                                <Text style={styles.currencySelected}>
-                                    {CURRENCIES.find(c => c.value === currency)?.label ?? currency}
-                                </Text>
-                                <Icon name="chevron-down" size={16} color={Colors.muted} />
-                            </TouchableOpacity>
-                        </Field>
-
-                        {/* Industry — drives which industry-specific tools show up later
-                            (e.g. Recipe/Menu Item Costing only for Food Service), so it
-                            doesn't clutter a retailer's or consultant's app. */}
-                        <Field label="What kind of business is this?">
-                            {INDUSTRIES.map(ind => (
-                                <TouchableOpacity
-                                    key={ind.value}
-                                    style={[styles.industryOption, industry === ind.value && styles.industryOptionActive]}
-                                    onPress={() => setIndustry(ind.value)}
-                                >
-                                    <View style={styles.flex}>
-                                        <Text style={[styles.industryLabel, industry === ind.value && styles.industryLabelActive]}>{ind.label}</Text>
-                                        <Text style={styles.industryHint}>{ind.hint}</Text>
-                                    </View>
-                                    {industry === ind.value && <Icon name="check" size={16} color={Colors.primary} />}
-                                </TouchableOpacity>
-                            ))}
-                        </Field>
-
-                        <TouchableOpacity style={[styles.btn, submitting && styles.btnDisabled]} onPress={handleSetup} disabled={submitting}>
-                            {submitting
-                                ? <ActivityIndicator color="#fff" />
-                                : <Text style={styles.btnText}>{t(setupLang, 'createAccount')}</Text>
-                            }
-                        </TouchableOpacity>
-                        <View style={styles.trustNoteRow}>
-                            <Icon name="lock" size={11} color={Colors.textMuted} />
-                            <Text style={styles.trustNote}>Your data is encrypted and stored securely. We never share your information.</Text>
-                        </View>
-                        <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('join-team')}>
-                            <Text style={styles.switchText}>{t(setupLang, 'joiningTeam')}</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('join-lender')}>
-                            <Text style={styles.switchText}>Are you a lender? Join with invite code →</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.switchBtn} onPress={() => { setEmailLoginEmail(email); setMode('recover'); }}>
-                            <Text style={styles.switchText}>Already have an account? Sign In →</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.demoBtn} onPress={() => setMode('demo-pick')}>
-                            <Icon name="eye" size={13} color={Colors.primary} />
-                            <Text style={styles.demoBtnText}>Try Demo (No sign-up needed)</Text>
-                        </TouchableOpacity>
+                        {languagePicker}
+                        {formFields}
                     </View>
                 </ScrollView>
-
-                {/* Currency picker modal */}
-                <Modal visible={currencyModalOpen} transparent animationType="slide" onRequestClose={() => setCurrencyModalOpen(false)}>
-                    <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setCurrencyModalOpen(false)}>
-                        <View style={styles.currencyModal}>
-                            <Text style={styles.currencyModalTitle}>Select Currency</Text>
-                            <ScrollView>
-                                {CURRENCIES.map(c => (
-                                    <TouchableOpacity key={c.value} style={[styles.currencyOption, currency === c.value && styles.currencyOptionActive]}
-                                        onPress={() => { setCurrency(c.value); setCurrencyModalOpen(false); }}>
-                                        <Text style={[styles.currencyOptionText, currency === c.value && { color: Colors.primary, fontWeight: '700' }]}>
-                                            {c.label}
-                                        </Text>
-                                        {currency === c.value && <Icon name="check" size={16} color={Colors.primary} />}
-                                    </TouchableOpacity>
-                                ))}
-                            </ScrollView>
-                        </View>
-                    </TouchableOpacity>
-                </Modal>
+                {currencyModal}
             </SafeAreaView>
         );
     }
@@ -984,6 +1047,26 @@ const styles = StyleSheet.create({
     title:    { fontSize: 26, fontWeight: 'bold', color: Colors.textPrimary, textAlign: 'center' },
     brandTagline: { fontSize: 12.5, color: Colors.primary, textAlign: 'center', fontStyle: 'italic', lineHeight: 17, marginTop: 2, marginBottom: 6 },
     subtitle: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', marginBottom: 20, marginTop: 4 },
+
+    // Wide-web-only split layout for owner-setup (see isWideWebSetup) --
+    // reuses the same Colors tokens as the rest of the app, so it follows
+    // whichever theme (dark / warm-paper) the device already has set,
+    // rather than a fixed palette of its own.
+    splitShell: { flex: 1, flexDirection: 'row' },
+    splitBrand: {
+        width: '42%', maxWidth: 480, minWidth: 360,
+        backgroundColor: Colors.surface, borderRightWidth: 1, borderRightColor: Colors.border,
+        padding: 48, justifyContent: 'space-between',
+    },
+    splitBrandMid: { flex: 1, justifyContent: 'center' },
+    splitLogo: { width: 56, height: 56, borderRadius: Radius.lg, marginBottom: 28, ...Shadow.md },
+    splitHeadline: { fontSize: 32, fontWeight: '800', color: Colors.textPrimary, lineHeight: 40, marginBottom: 16 },
+    splitSub: { fontSize: 15, color: Colors.textSecondary, lineHeight: 23, maxWidth: 420 },
+    splitFormPanel: { flex: 1, backgroundColor: Colors.bg },
+    splitFormPanelContent: { flexGrow: 1, justifyContent: 'center', padding: 56 },
+    splitFormCard: { maxWidth: 440, width: '100%', alignSelf: 'center' },
+    splitFormTitle: { fontSize: 25, fontWeight: '800', color: Colors.textPrimary, marginBottom: 2 },
+    splitFormSubtitle: { textAlign: 'left', marginTop: 0, marginBottom: 24 },
 
     group: { marginBottom: 14 },
     label: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary, marginBottom: 6 },
