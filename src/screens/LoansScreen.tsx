@@ -636,7 +636,7 @@ const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transa
     // guarded so an unlinked loan or withheld consent never writes anything.
     useEffect(() => {
         if (!monitor || !loan.lenderOrgId || !loan.shareWithLenderConsent) return;
-        publishLoanMonitoringShare(loan, monitor, user?.businessName || 'Your Business');
+        publishLoanMonitoringShare(loan, monitor, user?.businessName || 'Your Business', currency);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [monitor?.status, monitor?.readinessSinceFunding?.trend, monitor?.signals.map(s => s.tripped).join(','), loan.lenderOrgId, loan.shareWithLenderConsent]);
 

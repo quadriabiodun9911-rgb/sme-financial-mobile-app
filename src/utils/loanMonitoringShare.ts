@@ -36,6 +36,7 @@ export async function publishLoanMonitoringShare(
     loan: Loan,
     monitor: PostFinancingMonitor,
     businessName: string,
+    currency: string,
 ): Promise<{ ok: boolean; error?: string }> {
     if (!loan.lenderOrgId) return { ok: false, error: "This loan isn't linked to a lender on Quad360 yet." };
     const userId = await getAuthUserId();
@@ -58,6 +59,10 @@ export async function publishLoanMonitoringShare(
             repayment_pace_flag: !!paceSignal?.tripped,
             loan_purpose: loan.purpose || null,
             principal_band: bandPrincipal(loan.principal),
+            // Needed so a lender's portfolio total (estimateOutstandingByCurrency
+            // below) never sums bands from different currencies into one
+            // meaningless number -- see migration 012.
+            currency,
             funded_at: loan.startDate,
             consent_active: true,
             updated_at: new Date().toISOString(),
@@ -108,8 +113,48 @@ export interface LoanMonitoringShareRow {
     repaymentPaceFlag: boolean;
     loanPurpose?: string;
     principalBand?: string;
+    currency?: string;
     fundedAt: string;
     updatedAt: string;
+}
+
+// Rough midpoint of each band, for an ESTIMATED portfolio total only --
+// never a substitute for a business's real principal, which this table
+// deliberately never stores or shares (see file header). '50M+' is
+// open-ended, so its "midpoint" is really just the band floor -- a
+// portfolio with several large loans will under-, never over-, estimate.
+// Any total built from this is explicitly a rough estimate, not a real
+// sum, and callers must present it that way (e.g. an "~" prefix).
+const PRINCIPAL_BAND_MIDPOINT: Record<string, number> = {
+    'Under 500K': 250_000,
+    '500K–2M': 1_250_000,
+    '2M–10M': 6_000_000,
+    '10M–50M': 30_000_000,
+    '50M+': 50_000_000,
+};
+
+export interface CurrencyOutstandingEstimate {
+    currency: string;
+    total: number;
+    businessCount: number;
+}
+
+// Grouped by currency, not summed across them -- a lender's funded
+// businesses can span multiple currencies (Quad360 is multi-currency per
+// business), and adding a Naira band midpoint to a Dollar one would produce
+// a number with no real meaning. Rows published before migration 012
+// (no currency recorded) are excluded from every total rather than guessed
+// into a currency they were never confirmed to be in.
+export function estimateOutstandingByCurrency(rows: LoanMonitoringShareRow[]): CurrencyOutstandingEstimate[] {
+    const byCurrency = new Map<string, CurrencyOutstandingEstimate>();
+    for (const r of rows) {
+        if (!r.currency || !r.principalBand) continue;
+        const amount = PRINCIPAL_BAND_MIDPOINT[r.principalBand] ?? 0;
+        const existing = byCurrency.get(r.currency);
+        if (existing) { existing.total += amount; existing.businessCount += 1; }
+        else byCurrency.set(r.currency, { currency: r.currency, total: amount, businessCount: 1 });
+    }
+    return Array.from(byCurrency.values()).sort((a, b) => b.total - a.total);
 }
 
 const LENDER_PORTFOLIO_LIMIT = 200;
@@ -133,6 +178,7 @@ export async function loadPortfolioSharesForLender(): Promise<LoanMonitoringShar
             repaymentPaceFlag: r.repayment_pace_flag,
             loanPurpose: r.loan_purpose ?? undefined,
             principalBand: r.principal_band ?? undefined,
+            currency: r.currency ?? undefined,
             fundedAt: r.funded_at,
             updatedAt: r.updated_at,
         }));

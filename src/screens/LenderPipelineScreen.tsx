@@ -23,7 +23,7 @@ import { ChipGroup } from '../components/ui/ChipGroup';
 import { ExpandableCard } from '../components/ui/ExpandableCard';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { loadPipelineListingsForLender, PipelineListingFilters, describeListingFit } from '../utils/financingPipeline';
-import { loadPortfolioSharesForLender, LoanMonitoringShareRow } from '../utils/loanMonitoringShare';
+import { loadPortfolioSharesForLender, estimateOutstandingByCurrency, LoanMonitoringShareRow } from '../utils/loanMonitoringShare';
 import { FinancingProductType, PipelineListing, FinancingProduct } from '../types';
 import { PostFinancingStatus } from '../utils/postFinancingMonitor';
 import { loadFinancingProductsForLenderOrg, saveFinancingProduct, deleteFinancingProduct } from '../utils/financingAdmin';
@@ -327,6 +327,14 @@ function PortfolioTab() {
         return c;
     }, [shares]);
 
+    // Estimated only -- built from each loan's coarse principal BAND, never
+    // the real amount (loanMonitoringShare.ts never stores or shares that) --
+    // and grouped by currency rather than summed across them, since a
+    // lender's funded businesses can be on different currencies. Presented
+    // with a "~" and a caption saying so, on purpose.
+    const estimatedByCurrency = useMemo(() => estimateOutstandingByCurrency(shares), [shares]);
+    const pct = (n: number) => shares.length > 0 ? Math.round((n / shares.length) * 100) : 0;
+
     const sorted = useMemo(
         () => [...shares].sort((a, b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status)),
         [shares],
@@ -342,20 +350,30 @@ function PortfolioTab() {
             </Text>
 
             {shares.length > 0 && (
-                <View style={s.summaryRow}>
-                    <View style={s.summaryCard}>
-                        <Text style={[s.summaryCount, { color: Colors.expense }]}>{counts['at-risk']}</Text>
-                        <Text style={s.summaryLabel}>At Risk</Text>
+                <>
+                    <Text style={s.dashboardHeadline}>
+                        {shares.length} business{shares.length === 1 ? '' : 'es'} financed
+                        {estimatedByCurrency.length > 0 && ' · ~' + estimatedByCurrency.map(e => `${e.currency}${fmtAmt(e.total)}`).join(' + ') + ' outstanding (estimated)'}
+                    </Text>
+                    <Text style={s.dashboardCaption}>
+                        Estimated from coarse principal bands, not exact figures — Quad360 never shares a business's real
+                        outstanding balance or a numeric health score with lenders, only status and trend.
+                    </Text>
+                    <View style={s.summaryRow}>
+                        <View style={s.summaryCard}>
+                            <Text style={[s.summaryCount, { color: Colors.expense }]}>{counts['at-risk']}</Text>
+                            <Text style={s.summaryLabel}>At Risk · {pct(counts['at-risk'])}%</Text>
+                        </View>
+                        <View style={s.summaryCard}>
+                            <Text style={[s.summaryCount, { color: Colors.warning }]}>{counts.watch}</Text>
+                            <Text style={s.summaryLabel}>Watch · {pct(counts.watch)}%</Text>
+                        </View>
+                        <View style={s.summaryCard}>
+                            <Text style={[s.summaryCount, { color: Colors.income }]}>{counts.healthy}</Text>
+                            <Text style={s.summaryLabel}>Healthy · {pct(counts.healthy)}%</Text>
+                        </View>
                     </View>
-                    <View style={s.summaryCard}>
-                        <Text style={[s.summaryCount, { color: Colors.warning }]}>{counts.watch}</Text>
-                        <Text style={s.summaryLabel}>Watch</Text>
-                    </View>
-                    <View style={s.summaryCard}>
-                        <Text style={[s.summaryCount, { color: Colors.income }]}>{counts.healthy}</Text>
-                        <Text style={s.summaryLabel}>Healthy</Text>
-                    </View>
-                </View>
+                </>
             )}
             {shares.length > 0 && (
                 <Text style={s.resultCount}>Of {shares.length} loan{shares.length === 1 ? '' : 's'} currently sharing status with you</Text>
@@ -572,6 +590,9 @@ const s = StyleSheet.create({
     pad: { padding: 16, paddingBottom: 60 },
     title: { fontSize: 22, fontWeight: '800', color: Colors.textPrimary, marginBottom: 4 },
     subtitle: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 17, marginBottom: 16 },
+
+    dashboardHeadline: { fontSize: 15, fontWeight: '800', color: Colors.textPrimary, marginBottom: 4 },
+    dashboardCaption: { fontSize: 11, color: Colors.textMuted, lineHeight: 15, marginBottom: 14 },
 
     summaryRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
     summaryCard: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 12, minWidth: 100, borderWidth: 1, borderColor: Colors.border },
