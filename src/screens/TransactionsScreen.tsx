@@ -15,6 +15,7 @@ import NextStepLink from '../components/NextStepLink';
 import { showAlert, confirmAction } from '../utils/webAlert';
 import Icon from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
+import { t } from '../utils/i18n';
 
 type FilterType   = 'all' | 'income' | 'expense' | 'collect';
 type StatusFilter = 'all' | 'paid' | 'pending' | 'overdue';
@@ -121,7 +122,7 @@ function formatDateHeader(iso: string): string {
 }
 
 export default function TransactionsScreen() {
-    const { transactions, addTransaction, deleteTransaction, updateTransaction, settings, setCurrentScreen, navParams, invoices, markInvoiceStatus, navigate } = useApp();
+    const { transactions, addTransaction, deleteTransaction, updateTransaction, settings, setCurrentScreen, navParams, invoices, markInvoiceStatus, navigate, language } = useApp();
     const { currency, defaultTaxRate } = settings;
 
     const [modalOpen, setModalOpen]   = useState(false);
@@ -320,26 +321,26 @@ export default function TransactionsScreen() {
             <View style={styles.topBar}>
                 <TextInput
                     style={styles.search}
-                    placeholder="Search..."
+                    placeholder={t(language, 'searchPlaceholder')}
                     placeholderTextColor={Colors.muted}
                     value={search}
                     onChangeText={v => { setSearch(v); setPage(1); }}
                 />
                 <TouchableOpacity style={styles.csvBtn} onPress={handleExportCSV}>
-                    <Text style={styles.csvBtnText}>Export</Text>
+                    <Text style={styles.csvBtnText}>{t(language, 'export')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.importBtn} onPress={() => { setCsvText(''); setCsvModalOpen(true); }}>
-                    <Text style={styles.csvBtnText}>Import CSV</Text>
+                    <Text style={styles.csvBtnText}>{t(language, 'importCsv')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.addBtn} onPress={openNew}>
-                    <Text style={styles.addBtnText}>+ New</Text>
+                    <Text style={styles.addBtnText}>{t(language, 'newEntry')}</Text>
                 </TouchableOpacity>
             </View>
 
             {/* ── Filter row ───────────────────────────────────────────── */}
             <View style={styles.filterBar}>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
-                    <Text style={styles.filterLabel}>Type:</Text>
+                    <Text style={styles.filterLabel}>{t(language, 'typeColon')}</Text>
                     {(['all', 'income', 'expense', 'collect'] as FilterType[]).map(f => (
                         <TouchableOpacity
                             key={f}
@@ -348,12 +349,12 @@ export default function TransactionsScreen() {
                         >
                             {f === 'collect' && <Icon name="phone" size={11} color={typeFilter === f ? '#fff' : Colors.textMuted} />}
                             <Text style={[styles.chipText, typeFilter === f && styles.chipTextActive]}>
-                                {f === 'all' ? 'All' : f === 'collect' ? 'Collect' : f.charAt(0).toUpperCase() + f.slice(1)}
+                                {f === 'all' ? t(language, 'all') : f === 'collect' ? t(language, 'collect') : t(language, f as 'income' | 'expense')}
                             </Text>
                         </TouchableOpacity>
                     ))}
                     <View style={styles.sep} />
-                    <Text style={styles.filterLabel}>Status:</Text>
+                    <Text style={styles.filterLabel}>{t(language, 'statusColon')}</Text>
                     {(['all', 'paid', 'pending', 'overdue'] as StatusFilter[]).map(f => (
                         <TouchableOpacity
                             key={f}
@@ -361,7 +362,7 @@ export default function TransactionsScreen() {
                             onPress={() => { setStatusFilter(f); setPage(1); }}
                         >
                             <Text style={[styles.chipText, statusFilter === f && styles.chipTextActive]}>
-                                {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
+                                {f === 'all' ? t(language, 'all') : t(language, f as 'paid' | 'pending' | 'overdue')}
                             </Text>
                         </TouchableOpacity>
                     ))}
@@ -371,10 +372,10 @@ export default function TransactionsScreen() {
 
             {/* ── Totals strip ─────────────────────────────────────────── */}
             <View style={styles.totalsRow}>
-                <TotalPill label="Income"  value={`+${currency}${totals.income.toLocaleString()}`}  color={Colors.income} />
-                <TotalPill label="Expense" value={`-${currency}${totals.expense.toLocaleString()}`} color={Colors.expense} />
+                <TotalPill label={t(language, 'income')}  value={`+${currency}${totals.income.toLocaleString()}`}  color={Colors.income} />
+                <TotalPill label={t(language, 'expense')} value={`-${currency}${totals.expense.toLocaleString()}`} color={Colors.expense} />
                 <TotalPill
-                    label="Net"
+                    label={t(language, 'net')}
                     value={`${totals.net >= 0 ? '+' : ''}${currency}${totals.net.toLocaleString()}`}
                     color={totals.net >= 0 ? Colors.income : Colors.expense}
                     bold
@@ -391,6 +392,7 @@ export default function TransactionsScreen() {
                         totalExpense={categoryBreakdown.totalExpense}
                         currency={currency}
                         typeFilter={typeFilter}
+                        language={language}
                     />
                     {(() => {
                         const { expenseMap, totalExpense } = categoryBreakdown;
@@ -441,11 +443,11 @@ export default function TransactionsScreen() {
                 onEndReachedThreshold={0.3}
                 ListEmptyComponent={
                     <View style={styles.emptyBox}>
-                        <Text style={styles.emptyTitle}>No transactions</Text>
+                        <Text style={styles.emptyTitle}>{t(language, 'noTransactions')}</Text>
                         <Text style={styles.emptyHint}>
                             {search || typeFilter !== 'all' || statusFilter !== 'all'
-                                ? 'Try clearing your filters.'
-                                : 'Tap "+ New" to log your first entry.'}
+                                ? t(language, 'tryClearingFilters')
+                                : t(language, 'tapNewToLog')}
                         </Text>
                     </View>
                 }
@@ -488,7 +490,7 @@ export default function TransactionsScreen() {
                                     <View style={[styles.statusBadge, { backgroundColor: statusColor(tx.status) + '22' }]}>
                                         <View style={[styles.statusDot, { backgroundColor: statusColor(tx.status) }]} />
                                         <Text style={[styles.statusText, { color: statusColor(tx.status) }]}>
-                                            {tx.status ?? 'paid'}
+                                            {t(language, (tx.status ?? 'paid') as 'paid' | 'pending' | 'overdue')}
                                         </Text>
                                     </View>
                                     {tx.status === 'pending' && tx.dueDate && new Date(tx.dueDate + 'T00:00:00') < new Date() ? (
@@ -508,7 +510,7 @@ export default function TransactionsScreen() {
 
                                 {/* Action row */}
                                 <View style={styles.txActions}>
-                                    <Text style={styles.editHint}>Tap to edit</Text>
+                                    <Text style={styles.editHint}>{t(language, 'tapToEdit')}</Text>
                                     <View
                                         style={styles.actionBtns}
                                         onStartShouldSetResponder={() => true}
@@ -518,7 +520,7 @@ export default function TransactionsScreen() {
                                                 style={styles.paidBtn}
                                                 onPress={() => handleMarkPaid(tx.id)}
                                             >
-                                                <Text style={styles.paidBtnText}>Mark Paid</Text>
+                                                <Text style={styles.paidBtnText}>{t(language, 'markPaid')}</Text>
                                             </TouchableOpacity>
                                         )}
                                         {(() => {
@@ -530,7 +532,7 @@ export default function TransactionsScreen() {
                                                         onPress={() => Linking.openURL('tel:' + phone)}
                                                     >
                                                         <Icon name="phone" size={11} color="#fff" />
-                                                        <Text style={styles.callBtnText}>Call</Text>
+                                                        <Text style={styles.callBtnText}>{t(language, 'callLabel')}</Text>
                                                     </TouchableOpacity>
                                                 );
                                             }
@@ -542,7 +544,7 @@ export default function TransactionsScreen() {
                                             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                                         >
                                             <Icon name="trash-2" size={11} color={Colors.expense} />
-                                            <Text style={styles.deleteText}>Delete</Text>
+                                            <Text style={styles.deleteText}>{t(language, 'delete')}</Text>
                                         </TouchableOpacity>
                                     </View>
                                 </View>
@@ -564,7 +566,7 @@ export default function TransactionsScreen() {
                 <View style={styles.overlay}>
                     <View style={styles.modalSheet}>
                         <View style={styles.handle} />
-                        <Text style={styles.modalTitle}>Import Transactions from CSV</Text>
+                        <Text style={styles.modalTitle}>{t(language, 'importTransactionsTitle')}</Text>
                         <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
                             <Text style={{ fontSize: 11, color: Colors.textMuted, marginBottom: 8, lineHeight: 16 }}>
                                 Paste CSV text below. Expected format:{'\n'}
@@ -581,14 +583,14 @@ export default function TransactionsScreen() {
                                     'date,description,type,amount,category\n2024-01-15,Client Payment,income,5000,Sales\n2024-01-16,Office Rent,expense,1200,Rent',
                                 )}
                             >
-                                <Text style={{ fontSize: 12, color: Colors.primary, fontWeight: '600' }}>Download Template (view format)</Text>
+                                <Text style={{ fontSize: 12, color: Colors.primary, fontWeight: '600' }}>{t(language, 'downloadTemplate')}</Text>
                             </TouchableOpacity>
                             <TextInput
                                 style={[styles.input, { height: 200, textAlignVertical: 'top', fontFamily: 'monospace', fontSize: 12 }]}
                                 multiline
                                 value={csvText}
                                 onChangeText={setCsvText}
-                                placeholder="Paste your CSV here..."
+                                placeholder={t(language, 'pasteCsvPlaceholder')}
                                 placeholderTextColor={Colors.muted}
                             />
                             <View style={styles.modalBtns}>
@@ -596,13 +598,13 @@ export default function TransactionsScreen() {
                                     style={[styles.modalBtn, styles.cancelBtn]}
                                     onPress={() => setCsvModalOpen(false)}
                                 >
-                                    <Text style={styles.cancelBtnText}>Cancel</Text>
+                                    <Text style={styles.cancelBtnText}>{t(language, 'cancel')}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     style={[styles.modalBtn, styles.saveBtn]}
                                     onPress={handleImportCSV}
                                 >
-                                    <Text style={styles.saveBtnText}>Import</Text>
+                                    <Text style={styles.saveBtnText}>{t(language, 'importBtn')}</Text>
                                 </TouchableOpacity>
                             </View>
                         </ScrollView>
@@ -623,23 +625,23 @@ export default function TransactionsScreen() {
                         <View style={styles.handle} />
 
                         <Text style={styles.modalTitle}>
-                            {editingId ? 'Edit Transaction' : 'New Transaction'}
+                            {editingId ? t(language, 'editTransaction') : t(language, 'newTransaction')}
                         </Text>
 
                         <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
                             {/* ── Core fields ───────────────────────────── */}
-                            <Section label="Core Details">
-                                <Field label="Description *">
+                            <Section label={t(language, 'coreDetails')}>
+                                <Field label={t(language, 'descriptionLabel')}>
                                     <TextInput
                                         style={styles.input}
-                                        placeholder="e.g. Client invoice, Rent payment"
+                                        placeholder={t(language, 'descriptionPlaceholder')}
                                         placeholderTextColor={Colors.muted}
                                         value={form.description}
                                         onChangeText={v => setForm(f => ({ ...f, description: v }))}
                                     />
                                 </Field>
 
-                                <Field label={`Amount (${currency}) *`}>
+                                <Field label={`${t(language, 'amountLabel')} (${currency}) *`}>
                                     <TextInput
                                         style={styles.input}
                                         placeholder="0.00"
@@ -650,18 +652,18 @@ export default function TransactionsScreen() {
                                     />
                                 </Field>
 
-                                <Field label="Date">
+                                <Field label={t(language, 'dateLabel')}>
                                     <DateInput
                                         value={form.date}
                                         onChange={v => setForm(f => ({ ...f, date: v }))}
                                     />
                                 </Field>
 
-                                <Field label="Type">
+                                <Field label={t(language, 'typeFieldLabel')}>
                                     <OptionRow
                                         options={[
-                                            { key: 'income',  label: 'Income' },
-                                            { key: 'expense', label: 'Expense' },
+                                            { key: 'income',  label: t(language, 'income') },
+                                            { key: 'expense', label: t(language, 'expense') },
                                         ]}
                                         value={form.type}
                                         onChange={v => setForm(f => ({ ...f, type: v as 'income' | 'expense' }))}
@@ -671,17 +673,17 @@ export default function TransactionsScreen() {
                             </Section>
 
                             {/* ── Status ────────────────────────────────── */}
-                            <Section label="Status & Payment">
-                                <Field label="Payment Status">
+                            <Section label={t(language, 'statusPaymentSection')}>
+                                <Field label={t(language, 'paymentStatusLabel')}>
                                     <OptionRow
-                                        options={STATUSES.map(s => ({ key: s, label: s.charAt(0).toUpperCase() + s.slice(1) }))}
+                                        options={STATUSES.map(s => ({ key: s, label: t(language, s) }))}
                                         value={form.status}
                                         onChange={v => setForm(f => ({ ...f, status: v as TransactionStatus }))}
                                     />
                                 </Field>
 
                                 {form.status !== 'paid' && (
-                                    <Field label="Due Date">
+                                    <Field label={t(language, 'dueDate')}>
                                         <DateInput
                                             value={form.dueDate}
                                             onChange={v => setForm(f => ({ ...f, dueDate: v }))}
@@ -691,7 +693,7 @@ export default function TransactionsScreen() {
                             </Section>
 
                             {/* ── Category ──────────────────────────────── */}
-                            <Section label="Category">
+                            <Section label={t(language, 'categoryLabel')}>
                                 <View style={styles.categoryGrid}>
                                     {CATEGORIES.map(c => (
                                         <TouchableOpacity
@@ -706,8 +708,8 @@ export default function TransactionsScreen() {
                             </Section>
 
                             {/* ── Tax ───────────────────────────────────── */}
-                            <Section label="Tax">
-                                <Field label="Tax Rate (%)">
+                            <Section label={t(language, 'taxSectionLabel')}>
+                                <Field label={t(language, 'taxRateLabel')}>
                                     <TextInput
                                         style={styles.input}
                                         placeholder="0"
@@ -725,8 +727,8 @@ export default function TransactionsScreen() {
                             </Section>
 
                             {/* ── Optional details ──────────────────────── */}
-                            <Section label="Optional Details">
-                                <Field label="Reference / Invoice No.">
+                            <Section label={t(language, 'optionalDetails')}>
+                                <Field label={t(language, 'referenceLabel')}>
                                     <TextInput
                                         style={styles.input}
                                         placeholder="INV-001"
@@ -735,7 +737,7 @@ export default function TransactionsScreen() {
                                         onChangeText={v => setForm(f => ({ ...f, reference: v }))}
                                     />
                                 </Field>
-                                <Field label="Vendor / Customer name">
+                                <Field label={t(language, 'vendorCustomerLabel')}>
                                     <TextInput
                                         style={styles.input}
                                         placeholder="Name"
@@ -744,7 +746,7 @@ export default function TransactionsScreen() {
                                         onChangeText={v => setForm(f => ({ ...f, vendorCustomer: v }))}
                                     />
                                 </Field>
-                                <Field label="Phone number (optional — for calling customer)">
+                                <Field label={t(language, 'phoneOptionalLabel')}>
                                     <TextInput
                                         style={styles.input}
                                         placeholder="e.g. 08012345678"
@@ -757,18 +759,18 @@ export default function TransactionsScreen() {
                             </Section>
 
                             {/* ── Recurring ─────────────────────────────── */}
-                            <Section label="Recurring">
+                            <Section label={t(language, 'recurringSectionLabel')}>
                                 <View style={styles.recurringRow}>
-                                    <Text style={styles.recurringLabel}>Repeat this transaction</Text>
+                                    <Text style={styles.recurringLabel}>{t(language, 'repeatTransactionLabel')}</Text>
                                     <TouchableOpacity
                                         style={[styles.toggleBtn, form.isRecurring && styles.toggleBtnOn]}
                                         onPress={() => setForm(f => ({ ...f, isRecurring: !f.isRecurring }))}
                                     >
-                                        <Text style={[styles.toggleBtnText, form.isRecurring && styles.toggleBtnTextOn]}>{form.isRecurring ? 'ON' : 'OFF'}</Text>
+                                        <Text style={[styles.toggleBtnText, form.isRecurring && styles.toggleBtnTextOn]}>{form.isRecurring ? t(language, 'onLabel') : t(language, 'offLabel')}</Text>
                                     </TouchableOpacity>
                                 </View>
                                 {form.isRecurring && (
-                                    <Field label="Frequency">
+                                    <Field label={t(language, 'frequencyLabel')}>
                                         <OptionRow
                                             options={FREQUENCIES.map(fr => ({ key: fr, label: fr.charAt(0).toUpperCase() + fr.slice(1) }))}
                                             value={form.recurringFrequency}
@@ -784,14 +786,14 @@ export default function TransactionsScreen() {
                                     style={[styles.modalBtn, styles.cancelBtn]}
                                     onPress={() => setModalOpen(false)}
                                 >
-                                    <Text style={styles.cancelBtnText}>Cancel</Text>
+                                    <Text style={styles.cancelBtnText}>{t(language, 'cancel')}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     style={[styles.modalBtn, styles.saveBtn]}
                                     onPress={handleSave}
                                 >
                                     <Text style={styles.saveBtnText}>
-                                        {editingId ? 'Save Changes' : 'Add Transaction'}
+                                        {editingId ? t(language, 'saveChanges') : t(language, 'addTransactionBtn')}
                                     </Text>
                                 </TouchableOpacity>
                             </View>
@@ -832,7 +834,7 @@ const CHART_COLORS = [
 ];
 
 function CategoryChart({
-    incomeMap, expenseMap, totalIncome, totalExpense, currency, typeFilter,
+    incomeMap, expenseMap, totalIncome, totalExpense, currency, typeFilter, language,
 }: {
     incomeMap: Map<string, number>;
     expenseMap: Map<string, number>;
@@ -840,6 +842,7 @@ function CategoryChart({
     totalExpense: number;
     currency: string;
     typeFilter: FilterType;
+    language: import('../utils/i18n').Language;
 }) {
     const [activeTab, setActiveTab] = useState<'income' | 'expense'>(
         typeFilter === 'expense' ? 'expense' : 'income'
@@ -866,14 +869,14 @@ function CategoryChart({
             {/* Tab toggle — only show if both types are present */}
             {showIncome && showExpense && (
                 <View style={chartStyles.tabRow}>
-                    {(['income', 'expense'] as const).map(t => (
+                    {(['income', 'expense'] as const).map(kind => (
                         <TouchableOpacity
-                            key={t}
-                            style={[chartStyles.tabBtn, activeTab === t && { backgroundColor: t === 'income' ? Colors.income : Colors.expense }]}
-                            onPress={() => setActiveTab(t)}
+                            key={kind}
+                            style={[chartStyles.tabBtn, activeTab === kind && { backgroundColor: kind === 'income' ? Colors.income : Colors.expense }]}
+                            onPress={() => setActiveTab(kind)}
                         >
-                            <Text style={[chartStyles.tabBtnText, activeTab === t && { color: '#fff' }]}>
-                                {t === 'income' ? 'Income' : 'Expenses'}
+                            <Text style={[chartStyles.tabBtnText, activeTab === kind && { color: '#fff' }]}>
+                                {kind === 'income' ? t(language, 'income') : t(language, 'expense')}
                             </Text>
                         </TouchableOpacity>
                     ))}
@@ -881,10 +884,10 @@ function CategoryChart({
             )}
 
             <Text style={chartStyles.title}>
-                {tab === 'income' ? 'Where money comes from' : 'Where money is going'}
+                {tab === 'income' ? t(language, 'whereMoneyComesFrom') : t(language, 'whereMoneyGoingTo')}
             </Text>
             <Text style={chartStyles.totalLabel}>
-                Total: {currency}{total.toLocaleString()}
+                {t(language, 'totalColon')} {currency}{total.toLocaleString()}
             </Text>
 
             {/* Stacked percentage bar */}
@@ -919,7 +922,7 @@ function CategoryChart({
             {entries.length > 5 && (
                 <TouchableOpacity onPress={() => setExpanded(v => !v)} style={chartStyles.showMore}>
                     <Text style={chartStyles.showMoreText}>
-                        {expanded ? '▲ Show less' : `▼ Show ${entries.length - 5} more categories`}
+                        {expanded ? t(language, 'showLess') : `${t(language, 'showMorePrefix')} ${entries.length - 5} ${t(language, 'moreCategories')}`}
                     </Text>
                 </TouchableOpacity>
             )}
