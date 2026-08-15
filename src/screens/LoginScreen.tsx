@@ -836,6 +836,7 @@ export default function LoginScreen() {
                         <View style={styles.splitBrand}>
                             <View style={styles.splitBrandMid}>
                                 <Image source={require('../../assets/icon.png')} style={styles.splitLogo} />
+                                <Text style={styles.splitTagline}>The Financial Intelligence & Financing Platform for African SMEs</Text>
                                 <Text style={styles.splitHeadline}>
                                     The financial operating system every business trusts more than their bank balance.
                                 </Text>
@@ -1059,7 +1060,8 @@ const styles = StyleSheet.create({
         padding: 48, justifyContent: 'space-between',
     },
     splitBrandMid: { flex: 1, justifyContent: 'center' },
-    splitLogo: { width: 56, height: 56, borderRadius: Radius.lg, marginBottom: 28, ...Shadow.md },
+    splitLogo: { width: 56, height: 56, borderRadius: Radius.lg, marginBottom: 12, ...Shadow.md },
+    splitTagline: { fontSize: 12.5, fontWeight: '600', color: Colors.textMuted, marginBottom: 16 },
     splitHeadline: { fontSize: 32, fontWeight: '800', color: Colors.textPrimary, lineHeight: 40, marginBottom: 16 },
     splitSub: { fontSize: 15, color: Colors.textSecondary, lineHeight: 23, maxWidth: 420 },
     splitFormPanel: { flex: 1, backgroundColor: Colors.bg },
