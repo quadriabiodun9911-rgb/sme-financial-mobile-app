@@ -12,7 +12,7 @@
  * same honest ones LoginScreen's split-setup panel already uses.
  */
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity, Image, useWindowDimensions, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity, Image, useWindowDimensions, Platform, Linking } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
@@ -103,6 +103,9 @@ export default function LandingScreen() {
                 </View>
 
                 <Text style={s.footer}>Quad360 — free forever for SMEs. No credit card required.</Text>
+                <TouchableOpacity onPress={() => Linking.openURL('mailto:hello@quad360financial.com')}>
+                    <Text style={s.footerContact}>hello@quad360financial.com</Text>
+                </TouchableOpacity>
             </ScrollView>
         </SafeAreaView>
     );
@@ -156,4 +159,5 @@ const s = StyleSheet.create({
     lenderBannerLink: { fontSize: 13.5, fontWeight: '700', color: Colors.primary },
 
     footer: { textAlign: 'center', fontSize: 11.5, color: Colors.textMuted },
+    footerContact: { textAlign: 'center', fontSize: 11.5, color: Colors.primary, fontWeight: '600', marginTop: 6 },
 });
