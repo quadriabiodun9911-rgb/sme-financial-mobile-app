@@ -50,19 +50,32 @@ function ExpandableCardInner({
   collapsedHint = 'Tap for details ▼',
   style,
 }: ExpandableCardProps) {
+  // The toggle TouchableOpacity wraps ONLY the header (+ hint), never
+  // `children` — on React Native Web, a tap on an interactive element
+  // inside the detail region (a TextInput, a nested TouchableOpacity)
+  // bubbles up through a wrapping TouchableOpacity's onPress, so the card
+  // used to re-collapse the instant you tapped into e.g. the "invite a
+  // member by email" field, making it impossible to type into. Plain View
+  // for the outer card and the detail region fixes that; only the header
+  // and hint stay tappable to toggle.
   return (
-    <TouchableOpacity
-      onPress={onToggle}
-      activeOpacity={0.8}
-      accessibilityRole="button"
-      accessibilityState={{ expanded }}
-      accessibilityHint={expanded ? 'Collapses this card' : 'Expands this card for more detail'}
-      style={[s.card, accentColor ? { borderLeftWidth: 4, borderLeftColor: accentColor } : null, style]}
-    >
-      {header}
+    <View style={[s.card, accentColor ? { borderLeftWidth: 4, borderLeftColor: accentColor } : null, style]}>
+      <TouchableOpacity
+        onPress={onToggle}
+        activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        accessibilityHint={expanded ? 'Collapses this card' : 'Expands this card for more detail'}
+      >
+        {header}
+      </TouchableOpacity>
       {expanded && <View style={s.detail}>{children}</View>}
-      {showToggleHint && <Text style={s.hint}>{expanded ? expandedHint : collapsedHint}</Text>}
-    </TouchableOpacity>
+      {showToggleHint && (
+        <TouchableOpacity onPress={onToggle} activeOpacity={0.8}>
+          <Text style={s.hint}>{expanded ? expandedHint : collapsedHint}</Text>
+        </TouchableOpacity>
+      )}
+    </View>
   );
 }
 
