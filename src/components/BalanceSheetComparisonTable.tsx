@@ -4,8 +4,10 @@ import { Colors } from '../theme/colors';
 import { Transaction, Asset, Loan } from '../types';
 import { computeAllTimeMonthlyBuckets } from '../utils/trendAnalysis';
 import { computeBalanceSheetTrend, BalancePeriodGrouping, BalanceSheetTrendPoint, ManualBalances } from '../utils/balanceSheetTrend';
+import { StatementCard } from './FormalStatement';
 
 interface Props {
+    businessName: string;
     transactions: Transaction[];
     assets: Asset[];
     loans: Loan[];
@@ -72,7 +74,11 @@ const GROUPS = [ASSET_ROWS, LIABILITY_ROWS];
 // limits. Stock/inventory value is the one line left out entirely: this app
 // only tracks its current total, with no dated history of stock movements,
 // so a trend for it would just be today's number repeated under old dates.
-export default function BalanceSheetComparisonTable({ transactions, assets, loans, currency, manualBalances }: Props) {
+//
+// Styled as a formal statement (StatementCard header + ruled ledger rows)
+// rather than a generic app card, so it reads as the same kind of document
+// as the Balance Sheet above it, just spread across periods instead of one.
+export default function BalanceSheetComparisonTable({ businessName, transactions, assets, loans, currency, manualBalances }: Props) {
     const [grouping, setGrouping] = useState<BalancePeriodGrouping>('monthly');
     const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
@@ -92,6 +98,8 @@ export default function BalanceSheetComparisonTable({ transactions, assets, loan
     }, [grouping]);
 
     const fmt = (n: number) => `${n < 0 ? '-' : ''}${currency}${Math.round(Math.abs(n)).toLocaleString()}`;
+
+    const groupingLabel = GROUPINGS.find(g => g.key === grouping)!.label;
 
     if (points.length === 0) {
         return (
@@ -115,24 +123,27 @@ export default function BalanceSheetComparisonTable({ transactions, assets, loan
     const expandAll = () => setExpanded(allExpanded ? new Set() : new Set(GROUPS.map(g => g.key)));
 
     return (
-        <View style={s.card}>
-            <View style={s.headRow}>
-                <Text style={s.title}>Balance Sheet Over Time</Text>
+        <StatementCard
+            businessName={businessName}
+            title="Balance Sheet Trend"
+            subtitle={`${groupingLabel} Breakdown, All Recorded History`}
+        >
+            <View style={s.controlRow}>
+                <View style={s.toggleRow}>
+                    {GROUPINGS.map(g => (
+                        <TouchableOpacity key={g.key} style={[s.toggleBtn, grouping === g.key && s.toggleBtnActive]} onPress={() => setGrouping(g.key)}>
+                            <Text style={[s.toggleText, grouping === g.key && s.toggleTextActive]}>{g.label}</Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
                 <TouchableOpacity onPress={expandAll}>
-                    <Text style={s.expandAll}>{allExpanded ? '↕ Collapse all' : '↕ Expand all'}</Text>
+                    <Text style={s.expandAll}>{allExpanded ? 'Collapse all' : 'Expand all'}</Text>
                 </TouchableOpacity>
-            </View>
-            <View style={s.toggleRow}>
-                {GROUPINGS.map(g => (
-                    <TouchableOpacity key={g.key} style={[s.toggleBtn, grouping === g.key && s.toggleBtnActive]} onPress={() => setGrouping(g.key)}>
-                        <Text style={[s.toggleText, grouping === g.key && s.toggleTextActive]}>{g.label}</Text>
-                    </TouchableOpacity>
-                ))}
             </View>
 
             <ScrollView horizontal showsHorizontalScrollIndicator={true}>
                 <View>
-                    <View style={s.row}>
+                    <View style={s.headerRow}>
                         <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabelHeader}>Breakdown</Text></View>
                         {points.map(p => (
                             <View key={p.key} style={s.cell}><Text style={s.colHeader}>{p.label}{p.key === currentKey ? ' *' : ''}</Text></View>
@@ -144,7 +155,7 @@ export default function BalanceSheetComparisonTable({ transactions, assets, loan
                         const visibleChildren = group.children.filter(c => !c.showOnlyIfNonZero || points.some(p => c.get(p) !== 0));
                         return (
                             <React.Fragment key={group.key}>
-                                <TouchableOpacity style={[s.row, s.rowShaded]} onPress={() => toggleGroup(group.key)} activeOpacity={0.6}>
+                                <TouchableOpacity style={s.row} onPress={() => toggleGroup(group.key)} activeOpacity={0.6}>
                                     <View style={[s.cell, s.rowLabelCell]}>
                                         <Text style={[s.rowLabel, s.rowLabelBold]}>{isOpen ? '⌄' : '›'} {group.label}</Text>
                                     </View>
@@ -156,7 +167,7 @@ export default function BalanceSheetComparisonTable({ transactions, assets, loan
                                 </TouchableOpacity>
 
                                 {isOpen && visibleChildren.map(child => (
-                                    <View key={child.label} style={[s.row, child.bold && s.rowShaded]}>
+                                    <View key={child.label} style={[s.row, child.bold && s.subtotalRow]}>
                                         <View style={[s.cell, s.rowLabelCell, s.rowLabelIndent]}>
                                             <Text style={[s.rowLabel, child.bold && s.rowLabelBold]}>{child.label}</Text>
                                         </View>
@@ -171,7 +182,7 @@ export default function BalanceSheetComparisonTable({ transactions, assets, loan
                         );
                     })}
 
-                    <View style={[s.row, s.rowShaded]}>
+                    <View style={[s.row, s.totalRow]}>
                         <View style={[s.cell, s.rowLabelCell]}><Text style={[s.rowLabel, s.rowLabelBold]}>Owners' Equity (Net Worth)</Text></View>
                         {points.map(p => (
                             <View key={p.key} style={s.cell}>
@@ -181,10 +192,10 @@ export default function BalanceSheetComparisonTable({ transactions, assets, loan
                     </View>
 
                     <View style={[s.row, { borderBottomWidth: 0 }]}>
-                        <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabel}>Working Capital</Text></View>
+                        <View style={[s.cell, s.rowLabelCell]}><Text style={[s.rowLabel, s.rowLabelMuted]}>Working Capital</Text></View>
                         {points.map(p => (
                             <View key={p.key} style={s.cell}>
-                                <Text style={[s.val, { color: p.cashBuffer >= 0 ? Colors.income : Colors.expense }]}>{fmt(p.cashBuffer)}</Text>
+                                <Text style={[s.val, s.valMuted, { color: p.cashBuffer >= 0 ? Colors.income : Colors.expense }]}>{fmt(p.cashBuffer)}</Text>
                             </View>
                         ))}
                     </View>
@@ -197,32 +208,34 @@ export default function BalanceSheetComparisonTable({ transactions, assets, loan
             {hasPartial && (
                 <Text style={s.hint}>* still in progress — figures are as of today, not a full {grouping === 'monthly' ? 'month' : grouping === 'quarterly' ? 'quarter' : 'year'}.</Text>
             )}
-        </View>
+        </StatementCard>
     );
 }
 
 const s = StyleSheet.create({
-    card: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14 },
-    headRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 },
-    title: { fontSize: 15, fontWeight: '800', color: Colors.textPrimary },
+    controlRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 },
     expandAll: { fontSize: 12, fontWeight: '700', color: Colors.primary },
-    toggleRow: { flexDirection: 'row', flexWrap: 'wrap', backgroundColor: Colors.bg, borderRadius: 9, padding: 3, marginBottom: 14, alignSelf: 'flex-start', gap: 2 },
+    toggleRow: { flexDirection: 'row', flexWrap: 'wrap', backgroundColor: Colors.bg, borderRadius: 9, padding: 3, alignSelf: 'flex-start', gap: 2 },
     toggleBtn: { paddingVertical: 6, paddingHorizontal: 11, borderRadius: 7 },
     toggleBtnActive: { backgroundColor: Colors.primary },
     toggleText: { fontSize: 11.5, fontWeight: '700', color: Colors.textMuted },
     toggleTextActive: { color: '#fff' },
 
+    headerRow: { flexDirection: 'row', borderBottomWidth: 2, borderBottomColor: Colors.textPrimary },
     row: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: Colors.border },
-    rowShaded: { backgroundColor: Colors.bg },
+    subtotalRow: { borderTopWidth: 1, borderTopColor: Colors.border },
+    totalRow: { borderTopWidth: 2, borderTopColor: Colors.textPrimary, marginTop: 2 },
     cell: { width: 112, paddingVertical: 9, paddingHorizontal: 6, alignItems: 'flex-end', justifyContent: 'center' },
     rowLabelCell: { width: 210, alignItems: 'flex-start' },
     rowLabelIndent: { paddingLeft: 16 },
     rowLabelHeader: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase' },
     rowLabel: { fontSize: 12.5, color: Colors.textSecondary },
     rowLabelBold: { fontWeight: '700', color: Colors.textPrimary },
+    rowLabelMuted: { color: Colors.textMuted, fontStyle: 'italic', fontSize: 11.5 },
     colHeader: { fontSize: 10.5, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', textAlign: 'right' },
     val: { fontSize: 12.5, color: Colors.textPrimary, fontVariant: ['tabular-nums'] },
     valBold: { fontWeight: '700' },
+    valMuted: { color: Colors.textMuted, fontStyle: 'italic', fontSize: 11.5 },
 
     empty: { backgroundColor: Colors.surface, borderRadius: 14, padding: 20 },
     emptyText: { fontSize: 13, color: Colors.textMuted, textAlign: 'center' },

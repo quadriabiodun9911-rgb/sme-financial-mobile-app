@@ -3,8 +3,10 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-nati
 import { Colors } from '../theme/colors';
 import { Transaction } from '../types';
 import { computeCashFlowTrend, CashFlowPeriodGrouping } from '../utils/cashFlowTrend';
+import { StatementCard } from './FormalStatement';
 
 interface Props {
+    businessName: string;
     transactions: Transaction[];
     currency: string;
 }
@@ -15,7 +17,7 @@ const GROUPINGS: { key: CashFlowPeriodGrouping; label: string }[] = [
     { key: 'yearly', label: 'Yearly' },
 ];
 
-export default function CashFlowComparisonTable({ transactions, currency }: Props) {
+export default function CashFlowComparisonTable({ businessName, transactions, currency }: Props) {
     const [grouping, setGrouping] = useState<CashFlowPeriodGrouping>('monthly');
     const points = useMemo(() => computeCashFlowTrend(grouping, transactions), [grouping, transactions]);
 
@@ -39,8 +41,11 @@ export default function CashFlowComparisonTable({ transactions, currency }: Prop
     const hasPartial = points.some(p => p.key === currentKey);
 
     return (
-        <View style={s.card}>
-            <Text style={s.title}>Cash Flow Over Time</Text>
+        <StatementCard
+            businessName={businessName}
+            title="Cash Flow Trend"
+            subtitle={`${GROUPINGS.find(g => g.key === grouping)!.label} Breakdown, All Recorded History`}
+        >
             <View style={s.toggleRow}>
                 {GROUPINGS.map(g => (
                     <TouchableOpacity key={g.key} style={[s.toggleBtn, grouping === g.key && s.toggleBtnActive]} onPress={() => setGrouping(g.key)}>
@@ -51,7 +56,7 @@ export default function CashFlowComparisonTable({ transactions, currency }: Prop
 
             <ScrollView horizontal showsHorizontalScrollIndicator={true}>
                 <View>
-                    <View style={s.row}>
+                    <View style={s.headerRow}>
                         <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabelHeader}>Breakdown</Text></View>
                         {points.map(p => (
                             <View key={p.key} style={s.cell}><Text style={s.colHeader}>{p.label}{p.key === currentKey ? ' *' : ''}</Text></View>
@@ -72,7 +77,7 @@ export default function CashFlowComparisonTable({ transactions, currency }: Prop
                         ))}
                     </View>
 
-                    <View style={[s.row, { borderBottomWidth: 0 }]}>
+                    <View style={[s.row, s.totalRow, { borderBottomWidth: 0 }]}>
                         <View style={[s.cell, s.rowLabelCell]}><Text style={[s.rowLabel, s.rowLabelBold]}>Net Cash Flow</Text></View>
                         {points.map(p => (
                             <View key={p.key} style={s.cell}>
@@ -86,20 +91,20 @@ export default function CashFlowComparisonTable({ transactions, currency }: Prop
             {hasPartial && (
                 <Text style={s.hint}>* still in progress — not a full {grouping === 'monthly' ? 'month' : grouping === 'quarterly' ? 'quarter' : 'year'} yet, so it's not a fair comparison against earlier columns.</Text>
             )}
-        </View>
+        </StatementCard>
     );
 }
 
 const s = StyleSheet.create({
-    card: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14 },
-    title: { fontSize: 15, fontWeight: '800', color: Colors.textPrimary, marginBottom: 10 },
     toggleRow: { flexDirection: 'row', flexWrap: 'wrap', backgroundColor: Colors.bg, borderRadius: 9, padding: 3, marginBottom: 14, alignSelf: 'flex-start', gap: 2 },
     toggleBtn: { paddingVertical: 6, paddingHorizontal: 11, borderRadius: 7 },
     toggleBtnActive: { backgroundColor: Colors.primary },
     toggleText: { fontSize: 11.5, fontWeight: '700', color: Colors.textMuted },
     toggleTextActive: { color: '#fff' },
 
+    headerRow: { flexDirection: 'row', borderBottomWidth: 2, borderBottomColor: Colors.textPrimary },
     row: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: Colors.border },
+    totalRow: { borderTopWidth: 2, borderTopColor: Colors.textPrimary, marginTop: 2 },
     cell: { width: 98, paddingVertical: 10, paddingHorizontal: 6, alignItems: 'flex-end', justifyContent: 'center' },
     rowLabelCell: { width: 120, alignItems: 'flex-start' },
     rowLabelHeader: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase' },

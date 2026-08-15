@@ -3,8 +3,10 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-nati
 import { Colors } from '../theme/colors';
 import { Transaction } from '../types';
 import { computeInventorySalesTrend, InventorySalesGrouping } from '../utils/inventorySalesTrend';
+import { StatementCard } from './FormalStatement';
 
 interface Props {
+    businessName: string;
     transactions: Transaction[];
     currency: string;
 }
@@ -19,7 +21,7 @@ const GROUPINGS: { key: InventorySalesGrouping; label: string }[] = [
 // time" can't be shown honestly (see inventorySalesTrend.ts). What's here
 // instead: sales actually recorded through the Sell button, which ARE
 // dated facts — a genuinely new slice of revenue, not a repeat of P&L.
-export default function StockSalesComparisonTable({ transactions, currency }: Props) {
+export default function StockSalesComparisonTable({ businessName, transactions, currency }: Props) {
     const [grouping, setGrouping] = useState<InventorySalesGrouping>('monthly');
     const points = useMemo(() => computeInventorySalesTrend(grouping, transactions), [grouping, transactions]);
 
@@ -45,8 +47,11 @@ export default function StockSalesComparisonTable({ transactions, currency }: Pr
     const hasPartial = points.some(p => p.key === currentKey);
 
     return (
-        <View style={s.card}>
-            <Text style={s.title}>Inventory Sales Trend</Text>
+        <StatementCard
+            businessName={businessName}
+            title="Inventory Sales Trend"
+            subtitle={`${GROUPINGS.find(g => g.key === grouping)!.label} Breakdown, All Recorded History`}
+        >
             <View style={s.toggleRow}>
                 {GROUPINGS.map(g => (
                     <TouchableOpacity key={g.key} style={[s.toggleBtn, grouping === g.key && s.toggleBtnActive]} onPress={() => setGrouping(g.key)}>
@@ -63,7 +68,7 @@ export default function StockSalesComparisonTable({ transactions, currency }: Pr
 
             <ScrollView horizontal showsHorizontalScrollIndicator={true}>
                 <View>
-                    <View style={s.row}>
+                    <View style={s.headerRow}>
                         <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabelHeader}>Breakdown</Text></View>
                         {points.map(p => (
                             <View key={p.key} style={s.cell}><Text style={s.colHeader}>{p.label}{p.key === currentKey ? ' *' : ''}</Text></View>
@@ -78,7 +83,7 @@ export default function StockSalesComparisonTable({ transactions, currency }: Pr
                     </View>
 
                     <View style={[s.row, { borderBottomWidth: 0 }]}>
-                        <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabel}>% of Total Revenue</Text></View>
+                        <View style={[s.cell, s.rowLabelCell]}><Text style={[s.rowLabel, s.rowLabelMuted]}>% of Total Revenue</Text></View>
                         {points.map(p => (
                             <View key={p.key} style={s.cell}><Text style={s.valMuted}>{p.pctOfRevenue.toFixed(0)}%</Text></View>
                         ))}
@@ -89,24 +94,24 @@ export default function StockSalesComparisonTable({ transactions, currency }: Pr
             {hasPartial && (
                 <Text style={s.hint}>* still in progress — not a full {grouping === 'monthly' ? 'month' : grouping === 'quarterly' ? 'quarter' : 'year'} yet, so it's not a fair comparison against earlier columns.</Text>
             )}
-        </View>
+        </StatementCard>
     );
 }
 
 const s = StyleSheet.create({
-    card: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14 },
-    title: { fontSize: 15, fontWeight: '800', color: Colors.textPrimary, marginBottom: 10 },
     toggleRow: { flexDirection: 'row', flexWrap: 'wrap', backgroundColor: Colors.bg, borderRadius: 9, padding: 3, marginBottom: 14, alignSelf: 'flex-start', gap: 2 },
     toggleBtn: { paddingVertical: 6, paddingHorizontal: 11, borderRadius: 7 },
     toggleBtnActive: { backgroundColor: Colors.primary },
     toggleText: { fontSize: 11.5, fontWeight: '700', color: Colors.textMuted },
     toggleTextActive: { color: '#fff' },
 
+    headerRow: { flexDirection: 'row', borderBottomWidth: 2, borderBottomColor: Colors.textPrimary },
     row: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: Colors.border },
     cell: { width: 98, paddingVertical: 10, paddingHorizontal: 6, alignItems: 'flex-end', justifyContent: 'center' },
     rowLabelCell: { width: 140, alignItems: 'flex-start' },
     rowLabelHeader: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase' },
     rowLabel: { fontSize: 12.5, color: Colors.textSecondary },
+    rowLabelMuted: { color: Colors.textMuted, fontStyle: 'italic', fontSize: 11.5 },
     colHeader: { fontSize: 10.5, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', textAlign: 'right' },
     val: { fontSize: 12.5, color: Colors.textPrimary, fontVariant: ['tabular-nums'] },
     valMuted: { fontSize: 12.5, color: Colors.textMuted, fontVariant: ['tabular-nums'] },

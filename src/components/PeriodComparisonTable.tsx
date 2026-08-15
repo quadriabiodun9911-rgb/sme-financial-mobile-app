@@ -4,6 +4,7 @@ import { Colors } from '../theme/colors';
 import { Transaction } from '../types';
 import { computeDailyTrend, computeWeeklyTrend, computeAllTimeMonthlyBuckets, computeQuarterlyTrend, computeYearlyTrend, isoWeekKey } from '../utils/trendAnalysis';
 import { projectionFactor } from '../utils/periodProjection';
+import { StatementCard } from './FormalStatement';
 
 interface Props {
     transactions: Transaction[];
@@ -11,6 +12,10 @@ interface Props {
     // Screens that only care about short-term pace (Transactions, Inventory)
     // can skip straight to Daily/Weekly instead of defaulting to Monthly.
     defaultGrouping?: Grouping;
+    // Only set from Reports, where this sits alongside the formal statements —
+    // it renders as a StatementCard there. Left unset on Inventory's "daily
+    // sales pace" widget, which keeps the plain card look.
+    businessName?: string;
 }
 
 export type Grouping = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
@@ -22,6 +27,8 @@ const GROUPINGS: { key: Grouping; label: string }[] = [
     { key: 'quarterly', label: 'Quarterly' },
     { key: 'yearly', label: 'Yearly' },
 ];
+
+const PERIOD_NOUN: Record<Grouping, string> = { daily: 'day', weekly: 'week', monthly: 'month', quarterly: 'quarter', yearly: 'year' };
 
 const MONTH_LABEL = (m: string) => {
     const [y, mo] = m.split('-');
@@ -37,7 +44,7 @@ const DAY_LABEL = (d: string) => {
 // Revenue, Expenses, Profit and Margin are exactly what a Jan-Dec
 // comparison is for: spotting a bad month or a seasonal pattern that a
 // single "This Month" snapshot can never show on its own.
-export default function PeriodComparisonTable({ transactions, currency, defaultGrouping = 'monthly' }: Props) {
+export default function PeriodComparisonTable({ transactions, currency, defaultGrouping = 'monthly', businessName }: Props) {
     const [grouping, setGrouping] = useState<Grouping>(defaultGrouping);
 
     const daily = useMemo(() => computeDailyTrend(transactions), [transactions]);
@@ -97,9 +104,8 @@ export default function PeriodComparisonTable({ transactions, currency, defaultG
         );
     }
 
-    return (
-        <View style={s.card}>
-            <Text style={s.title}>Period Comparison</Text>
+    const table = (
+        <>
             <View style={s.toggleRow}>
                 {GROUPINGS.map(g => (
                     <TouchableOpacity key={g.key} style={[s.toggleBtn, grouping === g.key && s.toggleBtnActive]} onPress={() => setGrouping(g.key)}>
@@ -111,7 +117,7 @@ export default function PeriodComparisonTable({ transactions, currency, defaultG
             <ScrollView horizontal showsHorizontalScrollIndicator={true}>
                 <View>
                     {/* Column headers */}
-                    <View style={s.row}>
+                    <View style={s.headerRow}>
                         <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabelHeader}></Text></View>
                         {columns.map(c => (
                             <View key={c.key} style={s.cell}><Text style={s.colHeader}>{c.label}{c.partial ? ' *' : ''}</Text></View>
@@ -145,11 +151,11 @@ export default function PeriodComparisonTable({ transactions, currency, defaultG
                     </View>
 
                     {/* Profit */}
-                    <View style={s.row}>
-                        <View style={[s.cell, s.rowLabelCell]}><Text style={[s.rowLabel, { fontWeight: '700' }]}>Profit</Text></View>
+                    <View style={[s.row, s.subtotalRow]}>
+                        <View style={[s.cell, s.rowLabelCell]}><Text style={[s.rowLabel, s.rowLabelBold]}>Profit</Text></View>
                         {columns.map(c => (
                             <View key={c.key} style={s.cell}>
-                                <Text style={[s.val, { fontWeight: '700', color: c.profit >= 0 ? Colors.income : Colors.expense }]}>{fmt(c.profit)}</Text>
+                                <Text style={[s.val, s.valBold, { color: c.profit >= 0 ? Colors.income : Colors.expense }]}>{fmt(c.profit)}</Text>
                                 {c.partial && showEstimate && (
                                     <Text style={s.estimate}>≈{fmt(c.profit * factor!)}</Text>
                                 )}
@@ -159,20 +165,39 @@ export default function PeriodComparisonTable({ transactions, currency, defaultG
 
                     {/* Margin */}
                     <View style={[s.row, { borderBottomWidth: 0 }]}>
-                        <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabel}>Margin</Text></View>
+                        <View style={[s.cell, s.rowLabelCell]}><Text style={[s.rowLabel, s.rowLabelMuted]}>Margin</Text></View>
                         {columns.map(c => (
                             <View key={c.key} style={s.cell}><Text style={s.valMuted}>{c.margin.toFixed(0)}%</Text></View>
                         ))}
                     </View>
                 </View>
             </ScrollView>
-            <Text style={s.hint}>Scroll sideways to see every {grouping === 'daily' ? 'day' : grouping === 'weekly' ? 'week' : grouping === 'monthly' ? 'month' : grouping === 'quarterly' ? 'quarter' : 'year'} you have data for.</Text>
+            <Text style={s.hint}>Scroll sideways to see every {PERIOD_NOUN[grouping]} you have data for.</Text>
             {hasPartial && (
-                <Text style={s.hint}>* still in progress — not a full {grouping === 'daily' ? 'day' : grouping === 'weekly' ? 'week' : grouping === 'monthly' ? 'month' : grouping === 'quarterly' ? 'quarter' : 'year'} yet, so it's not a fair comparison against earlier columns.</Text>
+                <Text style={s.hint}>* still in progress — not a full {PERIOD_NOUN[grouping]} yet, so it's not a fair comparison against earlier columns.</Text>
             )}
             {showEstimate && (
                 <Text style={s.hint}>≈ estimated full {grouping === 'weekly' ? 'week' : grouping === 'monthly' ? 'month' : grouping === 'quarterly' ? 'quarter' : 'year'} at the current daily pace — a projection, not an actual.</Text>
             )}
+        </>
+    );
+
+    if (businessName) {
+        return (
+            <StatementCard
+                businessName={businessName}
+                title="Revenue, Expenses & Profit Trend"
+                subtitle={`${GROUPINGS.find(g => g.key === grouping)!.label} Breakdown, All Recorded History`}
+            >
+                {table}
+            </StatementCard>
+        );
+    }
+
+    return (
+        <View style={s.card}>
+            <Text style={s.title}>Period Comparison</Text>
+            {table}
         </View>
     );
 }
@@ -186,14 +211,19 @@ const s = StyleSheet.create({
     toggleText: { fontSize: 11.5, fontWeight: '700', color: Colors.textMuted },
     toggleTextActive: { color: '#fff' },
 
+    headerRow: { flexDirection: 'row', borderBottomWidth: 2, borderBottomColor: Colors.textPrimary },
     row: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: Colors.border },
+    subtotalRow: { borderTopWidth: 1, borderTopColor: Colors.border },
     cell: { width: 98, paddingVertical: 10, paddingHorizontal: 6, alignItems: 'flex-end', justifyContent: 'center' },
     rowLabelCell: { width: 84, alignItems: 'flex-start' },
     rowLabelHeader: { fontSize: 10 },
     rowLabel: { fontSize: 12.5, color: Colors.textSecondary },
+    rowLabelBold: { fontWeight: '700', color: Colors.textPrimary },
+    rowLabelMuted: { color: Colors.textMuted, fontStyle: 'italic', fontSize: 11.5 },
     colHeader: { fontSize: 10.5, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', textAlign: 'right' },
     val: { fontSize: 12.5, color: Colors.textPrimary, fontVariant: ['tabular-nums'] },
-    valMuted: { fontSize: 12.5, color: Colors.textMuted, fontVariant: ['tabular-nums'] },
+    valBold: { fontWeight: '700' },
+    valMuted: { fontSize: 12.5, color: Colors.textMuted, fontVariant: ['tabular-nums'], fontStyle: 'italic' },
     estimate: { fontSize: 10.5, color: Colors.textMuted, fontStyle: 'italic', fontVariant: ['tabular-nums'], marginTop: 2 },
 
     empty: { backgroundColor: Colors.surface, borderRadius: 14, padding: 20 },

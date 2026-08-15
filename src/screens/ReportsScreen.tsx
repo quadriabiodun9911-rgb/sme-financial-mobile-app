@@ -517,6 +517,7 @@ export default function ReportsScreen() {
                                 table that belongs on P&L — see BalanceSheetComparisonTable for
                                 what's a real per-period trend vs. a flat current-only figure. */}
                             <BalanceSheetComparisonTable
+                                businessName={businessName}
                                 transactions={transactions}
                                 assets={assets}
                                 loans={loansList}
@@ -559,7 +560,7 @@ export default function ReportsScreen() {
                                 Quarterly/Yearly above should show the Jan-Dec
                                 breakdown right away, not after scrolling past the
                                 whole P&L card and chart. */}
-                            <PeriodComparisonTable transactions={transactions} currency={currency} />
+                            <PeriodComparisonTable businessName={businessName} transactions={transactions} currency={currency} />
 
                             <View style={styles.card}>
                                 <Text style={styles.cardTitle}>Money Owed To / By You</Text>
@@ -578,7 +579,7 @@ export default function ReportsScreen() {
                     {/* ── INVENTORY ────────────────────────────────────── */}
                     {activeTab === 'inventory' && (
                         <View>
-                            <StockSalesComparisonTable transactions={transactions} currency={currency} />
+                            <StockSalesComparisonTable businessName={businessName} transactions={transactions} currency={currency} />
                             <InventoryReportTab inventory={inventory} finance={allFinance} transactions={transactions} currency={currency} />
                         </View>
                     )}
@@ -586,7 +587,7 @@ export default function ReportsScreen() {
                     {/* ── ACCRUAL ──────────────────────────────────────── */}
                     {activeTab === 'accrual' && (
                         <View>
-                            <CashFlowComparisonTable transactions={transactions} currency={currency} />
+                            <CashFlowComparisonTable businessName={businessName} transactions={transactions} currency={currency} />
                             <AccrualCashFlow
                                 transactions={transactions}
                                 invoices={invoices}
