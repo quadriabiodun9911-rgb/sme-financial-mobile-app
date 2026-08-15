@@ -239,6 +239,26 @@ function fmtListingAmt(currency: string, n: number): string {
     return `${currency}${Math.round(n).toLocaleString()}`;
 }
 
+// Synthetic pipeline for the landing page's "Preview as Lender (Demo)" mode
+// -- a visitor previewing the lender product with no real lender account.
+// Same shape loadPipelineListingsForLender returns, but generated client-side
+// with clearly-labeled sample figures instead of a real Supabase read.
+// PipelineListing carries no business name (see file header), so nothing
+// here needs to be flagged as fictional beyond the numbers themselves.
+export function getDemoPipelineListings(): PipelineListing[] {
+    const now = new Date();
+    const daysAgo = (n: number) => new Date(now.getTime() - n * 86400000).toISOString();
+    const daysFromNow = (n: number) => new Date(now.getTime() + n * 86400000).toISOString();
+    return [
+        { id: 'demo-1', financingType: 'working_capital', grade: 'A', band: 'Excellent', score: 91, dscr: 2.1, dscrStatus: 'healthy', sector: 'Retail & Trade', revenueBand: '₦10M–50M', requestedAmount: 4_500_000, purpose: 'Inventory restock', status: 'active', optedInAt: daysAgo(3), expiresAt: daysFromNow(87) },
+        { id: 'demo-2', financingType: 'invoice_financing', grade: 'B', band: 'Good', score: 78, dscr: 1.4, dscrStatus: 'warning', sector: 'Manufacturing', revenueBand: '₦50M–100M', requestedAmount: 12_000_000, purpose: 'Bridge outstanding receivables', status: 'active', optedInAt: daysAgo(9), expiresAt: daysFromNow(81) },
+        { id: 'demo-3', financingType: 'asset_financing', grade: 'A', band: 'Excellent', score: 88, dscr: 1.9, dscrStatus: 'healthy', sector: 'Logistics & Transport', revenueBand: '₦5M–10M', requestedAmount: 3_200_000, purpose: 'Delivery vehicle purchase', status: 'active', optedInAt: daysAgo(1), expiresAt: daysFromNow(89) },
+        { id: 'demo-4', financingType: 'term_loan', grade: 'C', band: 'Fair', score: 61, dscr: 0.9, dscrStatus: 'danger', sector: 'Food & Beverage', revenueBand: '₦1M–5M', requestedAmount: 1_800_000, purpose: 'Equipment upgrade', status: 'active', optedInAt: daysAgo(14), expiresAt: daysFromNow(76) },
+        { id: 'demo-5', financingType: 'trade_finance', grade: 'B', band: 'Good', score: 74, dscr: 1.3, dscrStatus: 'warning', sector: 'Import & Export', revenueBand: '₦10M–50M', requestedAmount: 8_000_000, purpose: 'Import letter of credit', status: 'active', optedInAt: daysAgo(6), expiresAt: daysFromNow(84) },
+        { id: 'demo-6', financingType: 'overdraft', grade: 'A', band: 'Excellent', score: 85, dscr: 2.4, dscrStatus: 'healthy', sector: 'Retail & Trade', revenueBand: '₦5M–10M', requestedAmount: 2_000_000, purpose: 'Seasonal cash-flow buffer', status: 'active', optedInAt: daysAgo(20), expiresAt: daysFromNow(70) },
+    ];
+}
+
 export function describeListingFit(listing: PipelineListing, currency: string): ListingFitSummary {
     const reasons: string[] = [];
 

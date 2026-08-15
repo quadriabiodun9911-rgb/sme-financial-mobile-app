@@ -33,7 +33,7 @@ const LENDER_STEPS: { icon: string; title: string; desc: string }[] = [
 ];
 
 export default function LandingScreen() {
-    const { navigate } = useApp();
+    const { navigate, enterLenderDemo } = useApp();
     const { width } = useWindowDimensions();
     const isWide = Platform.OS === 'web' && width >= 900;
 
@@ -41,6 +41,7 @@ export default function LandingScreen() {
     const goSignup = () => navigate('login', { mode: 'owner-setup' });
     const goDemo = () => navigate('login', { mode: 'demo-pick' });
     const goLender = () => navigate('login', { mode: 'join-lender' });
+    const goLenderDemo = () => enterLenderDemo();
 
     return (
         <SafeAreaView style={s.safe}>
@@ -154,8 +155,24 @@ export default function LandingScreen() {
                             ))}
                         </View>
 
+                        {/* Real product screenshot of the lender pipeline
+                            (captured from the "Preview as Lender" demo mode
+                            below, same honesty standard as the SME hero
+                            screenshot above) -- not a mockup. */}
+                        <View style={s.lenderPreviewFrame}>
+                            <Image
+                                source={require('../../assets/landing-lender-preview.png')}
+                                style={s.lenderPreviewImage}
+                                resizeMode="cover"
+                            />
+                        </View>
+                        <Text style={s.lenderPreviewCaption}>A real Quad360 lender view, shown with sample data.</Text>
+
                         <TouchableOpacity onPress={goLender} style={s.lenderCtaBtn}>
                             <Text style={s.lenderCtaText}>Join as Lender →</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={goLenderDemo}>
+                            <Text style={s.lenderDemoLink}>Preview as Lender (Demo) →</Text>
                         </TouchableOpacity>
                         <Text style={s.lenderDisclaimer}>
                             Underwriting, credit policy, and approval decisions always remain entirely yours.
@@ -247,8 +264,17 @@ const s = StyleSheet.create({
     lenderStepCard: { backgroundColor: Colors.bg, borderRadius: Radius.lg, padding: 18, borderWidth: 1, borderColor: Colors.border },
     lenderStepCardWide: { width: 220 },
 
+    lenderPreviewFrame: {
+        width: '100%', maxWidth: 720, aspectRatio: 1280 / 470,
+        borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border,
+        overflow: 'hidden', backgroundColor: Colors.bg, ...Shadow.lg, marginBottom: 8,
+    },
+    lenderPreviewImage: { width: '100%', height: '100%' },
+    lenderPreviewCaption: { fontSize: 11.5, color: Colors.textMuted, marginBottom: 22, textAlign: 'center' },
+
     lenderCtaBtn: { backgroundColor: Colors.primary, borderRadius: Radius.pill, paddingHorizontal: 28, paddingVertical: 15, ...Shadow.sm, marginBottom: 12 },
     lenderCtaText: { color: '#fff', fontWeight: '800', fontSize: 15 },
+    lenderDemoLink: { color: Colors.primary, fontWeight: '700', fontSize: 13, marginBottom: 14 },
     lenderDisclaimer: { fontSize: 11.5, color: Colors.textMuted, textAlign: 'center', maxWidth: 420 },
 
     footer: { textAlign: 'center', fontSize: 11.5, color: Colors.textMuted },

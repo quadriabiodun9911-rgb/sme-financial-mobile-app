@@ -22,8 +22,8 @@ import Icon from '../components/ui/Icon';
 import { ChipGroup } from '../components/ui/ChipGroup';
 import { ExpandableCard } from '../components/ui/ExpandableCard';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
-import { loadPipelineListingsForLender, PipelineListingFilters, describeListingFit } from '../utils/financingPipeline';
-import { loadPortfolioSharesForLender, estimateOutstandingByCurrency, LoanMonitoringShareRow } from '../utils/loanMonitoringShare';
+import { loadPipelineListingsForLender, PipelineListingFilters, describeListingFit, getDemoPipelineListings } from '../utils/financingPipeline';
+import { loadPortfolioSharesForLender, estimateOutstandingByCurrency, LoanMonitoringShareRow, getDemoPortfolioShares } from '../utils/loanMonitoringShare';
 import { FinancingProductType, PipelineListing, FinancingProduct } from '../types';
 import { PostFinancingStatus } from '../utils/postFinancingMonitor';
 import { loadFinancingProductsForLenderOrg, saveFinancingProduct, deleteFinancingProduct } from '../utils/financingAdmin';
@@ -65,7 +65,7 @@ function fmtAmt(n: number): string {
 }
 
 export default function LenderPipelineScreen() {
-    const { logout, lenderOrgName, lenderOrgId, user } = useApp();
+    const { logout, lenderOrgName, lenderOrgId, user, isLenderDemo, exitDemo } = useApp();
 
     const [tab, setTab] = useState<'pipeline' | 'portfolio' | 'listings'>('pipeline');
 
@@ -90,6 +90,12 @@ export default function LenderPipelineScreen() {
     }, [typeFilter, dscrFilter, minAmtText, maxAmtText]);
 
     const refresh = () => {
+        if (isLenderDemo) {
+            setLoading(true);
+            setListings(getDemoPipelineListings());
+            setLoading(false);
+            return;
+        }
         setLoading(true);
         loadPipelineListingsForLender(filters)
             .then(setListings)
@@ -99,7 +105,7 @@ export default function LenderPipelineScreen() {
     useEffect(() => {
         refresh();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [filters]);
+    }, [filters, isLenderDemo]);
 
     const byType = useMemo(() => {
         const map = new Map<FinancingProductType, PipelineListing[]>();
@@ -137,6 +143,18 @@ export default function LenderPipelineScreen() {
                 </TouchableOpacity>
             </View>
 
+            {isLenderDemo && (
+                <View style={s.demoBanner}>
+                    <View style={s.demoBannerLeft}>
+                        <Icon name="eye" size={14} color="#fef3c7" />
+                        <Text style={s.demoBannerText}>Demo Mode — sample data, nothing here is a real business</Text>
+                    </View>
+                    <TouchableOpacity onPress={() => exitDemo()} style={s.demoBannerBtn}>
+                        <Text style={s.demoBannerBtnText}>Exit Demo</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
+
             <View style={s.hookBanner}>
                 <Text style={s.hookText}>Don't just receive SME loan applications. Understand the businesses behind them.</Text>
             </View>
@@ -148,13 +166,15 @@ export default function LenderPipelineScreen() {
                 <TouchableOpacity style={[s.tabBtn, tab === 'portfolio' && s.tabBtnActive]} onPress={() => setTab('portfolio')}>
                     <Text style={[s.tabBtnText, tab === 'portfolio' && s.tabBtnTextActive]}>Funded Portfolio</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[s.tabBtn, tab === 'listings' && s.tabBtnActive]} onPress={() => setTab('listings')}>
-                    <Text style={[s.tabBtnText, tab === 'listings' && s.tabBtnTextActive]}>My Listings</Text>
-                </TouchableOpacity>
+                {!isLenderDemo && (
+                    <TouchableOpacity style={[s.tabBtn, tab === 'listings' && s.tabBtnActive]} onPress={() => setTab('listings')}>
+                        <Text style={[s.tabBtnText, tab === 'listings' && s.tabBtnTextActive]}>My Listings</Text>
+                    </TouchableOpacity>
+                )}
             </View>
 
             {tab === 'portfolio' ? (
-                <PortfolioTab />
+                <PortfolioTab isLenderDemo={isLenderDemo} />
             ) : tab === 'listings' ? (
                 <ListingsTab lenderOrgId={lenderOrgId} createdByEmail={user?.email ?? 'unknown'} />
             ) : (
@@ -312,14 +332,19 @@ const FLAG_LABEL: Record<'dscrFlag' | 'revenueDeclineFlag' | 'repaymentPaceFlag'
     repaymentPaceFlag: 'Behind on repayment pace',
 };
 
-function PortfolioTab() {
+function PortfolioTab({ isLenderDemo }: { isLenderDemo: boolean }) {
     const [shares, setShares] = useState<LoanMonitoringShareRow[]>([]);
     const [loading, setLoading] = useState(true);
     const [expandedId, setExpandedId] = useState<string | null>(null);
 
     useEffect(() => {
+        if (isLenderDemo) {
+            setShares(getDemoPortfolioShares());
+            setLoading(false);
+            return;
+        }
         loadPortfolioSharesForLender().then(setShares).finally(() => setLoading(false));
-    }, []);
+    }, [isLenderDemo]);
 
     const counts = useMemo(() => {
         const c: Record<PostFinancingStatus, number> = { healthy: 0, watch: 0, 'at-risk': 0 };
@@ -579,6 +604,15 @@ const s = StyleSheet.create({
 
     hookBanner: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 2 },
     hookText: { fontSize: 12.5, fontWeight: '700', color: Colors.primary, lineHeight: 17 },
+
+    demoBanner: {
+        backgroundColor: '#854d0e', marginHorizontal: 16, marginTop: 10, borderRadius: Radius.md, padding: Spacing.md,
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    },
+    demoBannerLeft:    { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flex: 1 },
+    demoBannerText:    { color: '#fef3c7', fontWeight: '600', fontSize: 13, flex: 1 },
+    demoBannerBtn:     { backgroundColor: '#fef3c7', borderRadius: Radius.sm, paddingHorizontal: 10, paddingVertical: 5, marginLeft: 8 },
+    demoBannerBtnText: { color: '#854d0e', fontWeight: '700', fontSize: 12 },
 
     tabBar: { flexDirection: 'row', paddingHorizontal: 16, paddingTop: 10, gap: 8, borderBottomWidth: 1, borderBottomColor: Colors.border, paddingBottom: 10 },
     tabBtn: { flex: 1, paddingVertical: 9, borderRadius: Radius.md, alignItems: 'center', backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },

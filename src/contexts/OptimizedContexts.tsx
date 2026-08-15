@@ -810,6 +810,12 @@ interface AuthContextValue {
   lenderOrgId: string | null;
   lenderOrgName: string | null;
   joinAsLender: (email: string, pin: string, inviteCode: string) => Promise<void>;
+  // Client-side-only preview mode for the landing page — mirrors
+  // isDemoMode/enterDemo above but for a lender session, so a visitor can
+  // see the real lender screens (with synthetic data) without a real
+  // lenderAuth membership.
+  isLenderDemo: boolean;
+  enterLenderDemo: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -828,6 +834,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLenderSession, setIsLenderSession] = useState(false);
   const [lenderOrgId, setLenderOrgId] = useState<string | null>(null);
   const [lenderOrgName, setLenderOrgName] = useState<string | null>(null);
+  const [isLenderDemo, setIsLenderDemo] = useState(false);
   // Holds the profile of a user who passed their PIN but still needs to
   // verify a 2FA code before `user` is actually set — real enforcement:
   // 2FA config was previously saved to Supabase but never checked at login.
@@ -1243,6 +1250,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isLenderSession,
       lenderOrgId,
       lenderOrgName,
+      isLenderDemo,
+      // Client-side only, mirrors enterDemo below — no Supabase call, no
+      // real lender_members row. Lets a landing-page visitor see the real
+      // lender screens with synthetic data instead of an admin having to
+      // fabricate a screenshot.
+      enterLenderDemo: () => {
+        setUser({
+          email: 'demo-lender@quad360.demo',
+          businessName: 'Demo Bank (Preview)',
+          role: 'Administrator',
+          createdAt: new Date(Date.now() - 400 * 86400000).toISOString(),
+        });
+        setIsLenderSession(true);
+        setLenderOrgId('demo-lender-org');
+        setLenderOrgName('Demo Bank (Preview)');
+        setIsLenderDemo(true);
+        setCurrentScreenState('lender-pipeline');
+      },
 
       updateProfile: (patch) => {
         setUser((prev) => (prev ? { ...prev, ...patch } : prev));
@@ -1296,6 +1321,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       exitDemo: () => {
         setIsDemoMode(false);
         setDemoBusinessId(null);
+        // Also clears a lender preview session, if one was active — same
+        // exit button is reused by LenderPipelineScreen's demo banner.
+        setIsLenderDemo(false);
+        setIsLenderSession(false);
+        setLenderOrgId(null);
+        setLenderOrgName(null);
         setUser(null);
         setCurrentScreenState('login');
       },
@@ -1319,7 +1350,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setTeamMembers(members);
       },
     }),
-    [user, isLoading, currentScreen, navParams, isDemoMode, demoBusinessId, teamMembers, isFirstLaunch, isLockedOut, lockoutUntil, pendingTwoFactorProfile, isLenderSession, lenderOrgId, lenderOrgName, routeAfterAuth]
+    [user, isLoading, currentScreen, navParams, isDemoMode, demoBusinessId, teamMembers, isFirstLaunch, isLockedOut, lockoutUntil, pendingTwoFactorProfile, isLenderSession, lenderOrgId, lenderOrgName, isLenderDemo, routeAfterAuth]
   );
 
   return (
@@ -1693,6 +1724,8 @@ export function useApp() {
     lenderOrgId: auth.lenderOrgId,
     lenderOrgName: auth.lenderOrgName,
     joinAsLender: auth.joinAsLender,
+    isLenderDemo: auth.isLenderDemo ?? false,
+    enterLenderDemo: auth.enterLenderDemo || (() => {}),
     refreshTeam: auth.refreshTeam || (() => Promise.resolve()),
 
     // Other missing properties
