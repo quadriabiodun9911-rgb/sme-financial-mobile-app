@@ -922,6 +922,151 @@ export default function LoginScreen() {
     }
 
     // ── Owner return login ────────────────────────────────────────────────────
+    const loginFormFields = (
+        <>
+            {isLockedOut && timeRemaining !== null && timeRemaining > 0 && (
+                <View style={styles.lockoutBanner}>
+                    <Icon name="lock" size={14} color={Colors.danger} />
+                    <Text style={styles.lockoutText}>
+                        Too many failed attempts. Try again in {Math.ceil(timeRemaining / 60)}:{String(timeRemaining % 60).padStart(2, '0')}
+                    </Text>
+                </View>
+            )}
+
+            {/* Login Method Tabs */}
+            <View style={styles.methodTabRow}>
+                <TouchableOpacity
+                    style={[styles.methodTab, loginMethod === 'pin' && styles.methodTabActive]}
+                    onPress={() => setLoginMethod('pin')}
+                >
+                    <Text style={[styles.methodTabText, loginMethod === 'pin' && styles.methodTabTextActive]}>PIN</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={[styles.methodTab, loginMethod === 'email' && styles.methodTabActive]}
+                    onPress={() => setLoginMethod('email')}
+                >
+                    <Text style={[styles.methodTabText, loginMethod === 'email' && styles.methodTabTextActive]}>Email</Text>
+                </TouchableOpacity>
+            </View>
+
+            {loginMethod === 'pin' ? (
+                // PIN Login Form
+                <>
+                    <View style={styles.pinContainer}>
+                        <TextInput style={styles.pinInput}
+                            placeholder="••••••" placeholderTextColor={Colors.muted}
+                            secureTextEntry keyboardType="number-pad" maxLength={6}
+                            value={returnPin} onChangeText={setReturnPin}
+                            onSubmitEditing={handleLogin} autoFocus />
+                    </View>
+                    <TouchableOpacity style={styles.btn} onPress={handleLogin}>
+                        <Text style={styles.btnText}>{t(language, 'unlock')}</Text>
+                    </TouchableOpacity>
+                    <Text style={{ textAlign: 'center', color: Colors.muted, fontSize: 12, marginTop: 8 }}>
+                        New device or browser? Use the <Text style={{ color: Colors.primary }} onPress={() => setLoginMethod('email')}>Email tab</Text> instead.
+                    </Text>
+                </>
+            ) : (
+                // Email Login Form
+                <>
+                    <Field label="Email Address">
+                        <TextInput style={styles.input}
+                            placeholder="your@email.com"
+                            placeholderTextColor={Colors.muted}
+                            autoCapitalize="none"
+                            keyboardType="email-address"
+                            value={emailLoginEmail}
+                            onChangeText={setEmailLoginEmail}
+                        />
+                    </Field>
+                    <Field label="PIN">
+                        <TextInput style={styles.input}
+                            placeholder="••••••"
+                            placeholderTextColor={Colors.muted}
+                            secureTextEntry
+                            keyboardType="number-pad"
+                            maxLength={6}
+                            value={emailLoginPin}
+                            onChangeText={setEmailLoginPin}
+                            onSubmitEditing={handleEmailLogin}
+                        />
+                    </Field>
+                    <TouchableOpacity style={[styles.btn, submitting && styles.btnDisabled]} onPress={handleEmailLogin} disabled={submitting}>
+                        {submitting
+                            ? <ActivityIndicator color="#fff" />
+                            : <Text style={styles.btnText}>Unlock</Text>
+                        }
+                    </TouchableOpacity>
+                </>
+            )}
+
+            <TouchableOpacity style={styles.switchBtn} onPress={() => { setEmail(''); setBusiness(''); setPin(''); setConfirm(''); setMode('owner-setup'); }}>
+                <Text style={styles.switchText}>Don't have an account? Sign Up →</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('join-team')}>
+                <Text style={styles.switchText}>{t(language, 'joiningTeam')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('join-lender')}>
+                <Text style={styles.switchText}>Are you a lender? Join with invite code →</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.resetBtn} onPress={() => {
+                setResetEmail(''); setResetNewPin(''); setResetConfirmPin(''); setResetOtp(''); setResetStep('request');
+                setMode('reset-pin');
+            }}>
+                <Text style={styles.resetText}>Forgot your PIN? Reset it in 2 minutes →</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.demoBtn} onPress={() => setMode('demo-pick')}>
+                <Icon name="eye" size={13} color={Colors.primary} />
+                <Text style={styles.demoBtnText}>Try Demo First (No sign-up needed)</Text>
+            </TouchableOpacity>
+        </>
+    );
+
+    // Wide web only -- narrow/native rendering (below) is completely
+    // untouched by this branch. Mirrors the owner-setup split layout above
+    // so Log In carries the same brand panel as Sign Up instead of falling
+    // back to a plain centered card just because this mode has no explicit
+    // wide-web branch of its own.
+    if (isWideWebSetup) {
+        return (
+            <SafeAreaView style={styles.safe}>
+                <View style={styles.splitShell}>
+                    <View style={styles.splitBrand}>
+                        <View style={styles.splitBrandMid}>
+                            <Image source={require('../../assets/icon.png')} style={styles.splitLogo} />
+                            <Text style={styles.splitTagline}>The Financial Intelligence Layer Between African Businesses and Capital</Text>
+                            <Text style={styles.splitHeadline}>
+                                From business data to better decisions to better capital.
+                            </Text>
+                            <Text style={styles.splitSub}>
+                                Understand your business. Improve your financial health. Become financing-ready. Find the right capital.
+                            </Text>
+                        </View>
+                        <View style={styles.socialProofSetup}>
+                            <View style={styles.socialProofPill}>
+                                <Text style={styles.socialProofPillText}>Free forever · No credit card</Text>
+                            </View>
+                            <View style={styles.socialProofPill}>
+                                <Text style={styles.socialProofPillText}>Built for SMEs across Africa & beyond</Text>
+                            </View>
+                            <View style={styles.socialProofPill}>
+                                <Text style={styles.socialProofPillText}>Your data stays private</Text>
+                            </View>
+                        </View>
+                    </View>
+
+                    <ScrollView style={styles.splitFormPanel} contentContainerStyle={styles.splitFormPanelContent} keyboardShouldPersistTaps="handled">
+                        <View style={styles.splitFormCard}>
+                            <Text style={styles.splitFormTitle}>Welcome Back</Text>
+                            <Text style={[styles.subtitle, styles.splitFormSubtitle]}>{t(language, 'loginSubtitle')}</Text>
+                            {loginFormFields}
+                        </View>
+                    </ScrollView>
+                </View>
+            </SafeAreaView>
+        );
+    }
+
     return (
         <SafeAreaView style={styles.safe}>
             <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
@@ -944,101 +1089,7 @@ export default function LoginScreen() {
                         <Text style={styles.socialProofText}>Built for SMEs across Africa & beyond</Text>
                     </View>
 
-                    {isLockedOut && timeRemaining !== null && timeRemaining > 0 && (
-                        <View style={styles.lockoutBanner}>
-                            <Icon name="lock" size={14} color={Colors.danger} />
-                            <Text style={styles.lockoutText}>
-                                Too many failed attempts. Try again in {Math.ceil(timeRemaining / 60)}:{String(timeRemaining % 60).padStart(2, '0')}
-                            </Text>
-                        </View>
-                    )}
-
-                    {/* Login Method Tabs */}
-                    <View style={styles.methodTabRow}>
-                        <TouchableOpacity
-                            style={[styles.methodTab, loginMethod === 'pin' && styles.methodTabActive]}
-                            onPress={() => setLoginMethod('pin')}
-                        >
-                            <Text style={[styles.methodTabText, loginMethod === 'pin' && styles.methodTabTextActive]}>PIN</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={[styles.methodTab, loginMethod === 'email' && styles.methodTabActive]}
-                            onPress={() => setLoginMethod('email')}
-                        >
-                            <Text style={[styles.methodTabText, loginMethod === 'email' && styles.methodTabTextActive]}>Email</Text>
-                        </TouchableOpacity>
-                    </View>
-
-                    {loginMethod === 'pin' ? (
-                        // PIN Login Form
-                        <>
-                            <View style={styles.pinContainer}>
-                                <TextInput style={styles.pinInput}
-                                    placeholder="••••••" placeholderTextColor={Colors.muted}
-                                    secureTextEntry keyboardType="number-pad" maxLength={6}
-                                    value={returnPin} onChangeText={setReturnPin}
-                                    onSubmitEditing={handleLogin} autoFocus />
-                            </View>
-                            <TouchableOpacity style={styles.btn} onPress={handleLogin}>
-                                <Text style={styles.btnText}>{t(language, 'unlock')}</Text>
-                            </TouchableOpacity>
-                            <Text style={{ textAlign: 'center', color: Colors.muted, fontSize: 12, marginTop: 8 }}>
-                                New device or browser? Use the <Text style={{ color: Colors.primary }} onPress={() => setLoginMethod('email')}>Email tab</Text> instead.
-                            </Text>
-                        </>
-                    ) : (
-                        // Email Login Form
-                        <>
-                            <Field label="Email Address">
-                                <TextInput style={styles.input}
-                                    placeholder="your@email.com"
-                                    placeholderTextColor={Colors.muted}
-                                    autoCapitalize="none"
-                                    keyboardType="email-address"
-                                    value={emailLoginEmail}
-                                    onChangeText={setEmailLoginEmail}
-                                />
-                            </Field>
-                            <Field label="PIN">
-                                <TextInput style={styles.input}
-                                    placeholder="••••••"
-                                    placeholderTextColor={Colors.muted}
-                                    secureTextEntry
-                                    keyboardType="number-pad"
-                                    maxLength={6}
-                                    value={emailLoginPin}
-                                    onChangeText={setEmailLoginPin}
-                                    onSubmitEditing={handleEmailLogin}
-                                />
-                            </Field>
-                            <TouchableOpacity style={[styles.btn, submitting && styles.btnDisabled]} onPress={handleEmailLogin} disabled={submitting}>
-                                {submitting
-                                    ? <ActivityIndicator color="#fff" />
-                                    : <Text style={styles.btnText}>Unlock</Text>
-                                }
-                            </TouchableOpacity>
-                        </>
-                    )}
-
-                    <TouchableOpacity style={styles.switchBtn} onPress={() => { setEmail(''); setBusiness(''); setPin(''); setConfirm(''); setMode('owner-setup'); }}>
-                        <Text style={styles.switchText}>Don't have an account? Sign Up →</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('join-team')}>
-                        <Text style={styles.switchText}>{t(language, 'joiningTeam')}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('join-lender')}>
-                        <Text style={styles.switchText}>Are you a lender? Join with invite code →</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.resetBtn} onPress={() => {
-                        setResetEmail(''); setResetNewPin(''); setResetConfirmPin(''); setResetOtp(''); setResetStep('request');
-                        setMode('reset-pin');
-                    }}>
-                        <Text style={styles.resetText}>Forgot your PIN? Reset it in 2 minutes →</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.demoBtn} onPress={() => setMode('demo-pick')}>
-                        <Icon name="eye" size={13} color={Colors.primary} />
-                        <Text style={styles.demoBtnText}>Try Demo First (No sign-up needed)</Text>
-                    </TouchableOpacity>
+                    {loginFormFields}
                 </View>
             </ScrollView>
         </SafeAreaView>
