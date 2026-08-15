@@ -864,9 +864,6 @@ export default function LoginScreen() {
                             </View>
                             <View style={styles.socialProofSetup}>
                                 <View style={styles.socialProofPill}>
-                                    <Text style={styles.socialProofPillText}>Free forever · No credit card</Text>
-                                </View>
-                                <View style={styles.socialProofPill}>
                                     <Text style={styles.socialProofPillText}>Built for SMEs across Africa & beyond</Text>
                                 </View>
                                 <View style={styles.socialProofPill}>
@@ -901,9 +898,6 @@ export default function LoginScreen() {
 
                         {/* Social proof strip */}
                         <View style={styles.socialProofSetup}>
-                            <View style={styles.socialProofPill}>
-                                <Text style={styles.socialProofPillText}>Free forever · No credit card</Text>
-                            </View>
                             <View style={styles.socialProofPill}>
                                 <Text style={styles.socialProofPillText}>Built for SMEs across Africa & beyond</Text>
                             </View>
@@ -1043,9 +1037,6 @@ export default function LoginScreen() {
                             </Text>
                         </View>
                         <View style={styles.socialProofSetup}>
-                            <View style={styles.socialProofPill}>
-                                <Text style={styles.socialProofPillText}>Free forever · No credit card</Text>
-                            </View>
                             <View style={styles.socialProofPill}>
                                 <Text style={styles.socialProofPillText}>Built for SMEs across Africa & beyond</Text>
                             </View>

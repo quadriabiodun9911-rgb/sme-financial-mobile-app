@@ -25,6 +25,13 @@ const JOURNEY_STEPS: { icon: string; title: string; desc: string }[] = [
     { icon: '🤝', title: 'Fund', desc: 'Financing matched to what the business can prove, not what it asks for.' },
 ];
 
+const LENDER_STEPS: { icon: string; title: string; desc: string }[] = [
+    { icon: '📋', title: 'Discover', desc: 'Publish your financing products directly — reach businesses actively seeking relevant capital.' },
+    { icon: '🎯', title: 'Match', desc: "Only see businesses that fit your criteria, not every applicant with every loan you don't offer." },
+    { icon: '📊', title: 'Assess', desc: 'A structured readiness profile per business — revenue, DSCR, history — before you ever open a file.' },
+    { icon: '📡', title: 'Monitor', desc: "Ongoing status on what you've funded — a status, a trend, and what's flagged, for consenting borrowers." },
+];
+
 export default function LandingScreen() {
     const { navigate } = useApp();
     const { width } = useWindowDimensions();
@@ -72,7 +79,6 @@ export default function LandingScreen() {
                     </View>
 
                     <View style={s.trustRow}>
-                        <View style={s.trustChip}><Text style={s.trustChipText}>Free forever · No credit card</Text></View>
                         <View style={s.trustChip}><Text style={s.trustChipText}>Built for SMEs across Africa & beyond</Text></View>
                         <View style={s.trustChip}><Text style={s.trustChipText}>Your data stays private</Text></View>
                     </View>
@@ -92,14 +98,35 @@ export default function LandingScreen() {
                     </View>
                 </View>
 
-                <View style={s.lenderBanner}>
-                    <Text style={s.lenderBannerTitle}>Financial institution?</Text>
-                    <Text style={s.lenderBannerText}>
-                        Don't just receive SME loan applications. Understand the businesses behind them.
-                    </Text>
-                    <TouchableOpacity onPress={goLender}>
-                        <Text style={s.lenderBannerLink}>Join as Lender →</Text>
-                    </TouchableOpacity>
+                <View style={s.lenderSection}>
+                    <View style={[s.lenderInner, isWide && s.lenderInnerWide]}>
+                        <Text style={s.lenderEyebrow}>FOR BANKS · MFBS · FUNDS · DFIS</Text>
+                        <Text style={[s.lenderHeadline, isWide && s.lenderHeadlineWide]}>
+                            Don't just receive SME loan applications. Understand the businesses behind them.
+                        </Text>
+                        <Text style={s.lenderSubhead}>
+                            Quad360 helps financial institutions discover, match, assess, and monitor SMEs using
+                            structured financial intelligence — a more informed pipeline from business activity to
+                            financing, not a stack of blind applications.
+                        </Text>
+
+                        <View style={[s.lenderStepRow, isWide && s.lenderStepRowWide]}>
+                            {LENDER_STEPS.map(step => (
+                                <View key={step.title} style={[s.lenderStepCard, isWide && s.lenderStepCardWide]}>
+                                    <Text style={s.journeyIcon}>{step.icon}</Text>
+                                    <Text style={s.journeyTitle}>{step.title}</Text>
+                                    <Text style={s.journeyDesc}>{step.desc}</Text>
+                                </View>
+                            ))}
+                        </View>
+
+                        <TouchableOpacity onPress={goLender} style={s.lenderCtaBtn}>
+                            <Text style={s.lenderCtaText}>Join as Lender →</Text>
+                        </TouchableOpacity>
+                        <Text style={s.lenderDisclaimer}>
+                            Underwriting, credit policy, and approval decisions always remain entirely yours.
+                        </Text>
+                    </View>
                 </View>
 
                 <Text style={s.footer}>Quad360 — free forever for SMEs. No credit card required.</Text>
@@ -153,10 +180,22 @@ const s = StyleSheet.create({
     journeyTitle: { fontSize: 15.5, fontWeight: '800', color: Colors.textPrimary, marginBottom: 6 },
     journeyDesc: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
 
-    lenderBanner: { marginHorizontal: Spacing.xl, backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: 24, borderWidth: 1, borderColor: Colors.border, alignItems: 'flex-start', marginBottom: 32 },
-    lenderBannerTitle: { fontSize: 17, fontWeight: '800', color: Colors.textPrimary, marginBottom: 8 },
-    lenderBannerText: { fontSize: 13.5, color: Colors.textSecondary, lineHeight: 19, marginBottom: 14, maxWidth: 480 },
-    lenderBannerLink: { fontSize: 13.5, fontWeight: '700', color: Colors.primary },
+    lenderSection: { backgroundColor: Colors.surface, borderTopWidth: 1, borderBottomWidth: 1, borderColor: Colors.border, paddingVertical: Spacing.huge, marginBottom: 32 },
+    lenderInner: { paddingHorizontal: Spacing.xl, alignItems: 'flex-start' },
+    lenderInnerWide: { paddingHorizontal: 64, alignItems: 'center' },
+    lenderEyebrow: { fontSize: 11.5, fontWeight: '700', color: Colors.textMuted, letterSpacing: 0.6, marginBottom: 14 },
+    lenderHeadline: { fontSize: 24, fontWeight: '800', color: Colors.textPrimary, lineHeight: 31, marginBottom: 14, maxWidth: 640 },
+    lenderHeadlineWide: { fontSize: 30, lineHeight: 38, textAlign: 'center' },
+    lenderSubhead: { fontSize: 14, color: Colors.textSecondary, lineHeight: 21, marginBottom: 28, maxWidth: 640 },
+
+    lenderStepRow: { gap: 14, width: '100%', marginBottom: 28 },
+    lenderStepRowWide: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' },
+    lenderStepCard: { backgroundColor: Colors.bg, borderRadius: Radius.lg, padding: 18, borderWidth: 1, borderColor: Colors.border },
+    lenderStepCardWide: { width: 220 },
+
+    lenderCtaBtn: { backgroundColor: Colors.primary, borderRadius: Radius.pill, paddingHorizontal: 28, paddingVertical: 15, ...Shadow.sm, marginBottom: 12 },
+    lenderCtaText: { color: '#fff', fontWeight: '800', fontSize: 15 },
+    lenderDisclaimer: { fontSize: 11.5, color: Colors.textMuted, textAlign: 'center', maxWidth: 420 },
 
     footer: { textAlign: 'center', fontSize: 11.5, color: Colors.textMuted },
     footerContact: { textAlign: 'center', fontSize: 11.5, color: Colors.primary, fontWeight: '600', marginTop: 6 },
