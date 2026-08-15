@@ -11,13 +11,12 @@
  * badges) — Quad360 has no such partners yet. The trust chips here are the
  * same honest ones LoginScreen's split-setup panel already uses.
  */
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity, Image, TextInput, useWindowDimensions, Platform, Linking } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity, Image, useWindowDimensions, Platform } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import Icon, { IconName } from '../components/ui/Icon';
-import { showAlert } from '../utils/webAlert';
 
 // Feather icons (via Icon.tsx), not emoji -- emoji renders inconsistently
 // across OS/browser combinations and reads as an unpolished, hobbyist
@@ -47,25 +46,7 @@ export default function LandingScreen() {
     const goDemo = () => navigate('login', { mode: 'demo-pick' });
     const goLender = () => navigate('login', { mode: 'join-lender' });
     const goLenderDemo = () => enterLenderDemo();
-
-    const [contactName, setContactName] = useState('');
-    const [contactEmail, setContactEmail] = useState('');
-    const [contactMessage, setContactMessage] = useState('');
-
-    // No backend to receive submissions -- this opens the visitor's own
-    // mail client with the fields pre-filled, same as the plain mailto
-    // link elsewhere on this page, just personalized. Real functionality,
-    // not a fake "message sent" confirmation for a form that goes nowhere.
-    const sendContactMessage = () => {
-        if (!contactName.trim() || !contactMessage.trim()) {
-            showAlert('Missing info', 'Please add your name and a message before sending.');
-            return;
-        }
-        const subject = encodeURIComponent(`Message from ${contactName.trim()}`);
-        const bodyLines = [contactMessage.trim(), '', contactEmail.trim() ? `Reply to: ${contactEmail.trim()}` : ''].filter(Boolean);
-        const body = encodeURIComponent(bodyLines.join('\n'));
-        Linking.openURL(`mailto:hello@quad360financial.com?subject=${subject}&body=${body}`);
-    };
+    const goContact = () => navigate('contact');
 
     return (
         <SafeAreaView style={s.safe}>
@@ -76,6 +57,9 @@ export default function LandingScreen() {
                         <Text style={s.navBrand}>Quad360</Text>
                     </View>
                     <View style={s.navActions}>
+                        <TouchableOpacity onPress={goContact} style={s.navContactBtn}>
+                            <Text style={s.navContactText}>Contact</Text>
+                        </TouchableOpacity>
                         <TouchableOpacity onPress={goLogin} style={s.navLoginBtn}>
                             <Text style={s.navLoginText}>Log In</Text>
                         </TouchableOpacity>
@@ -208,60 +192,12 @@ export default function LandingScreen() {
                     </View>
                 </View>
 
-                <View style={s.contactSection}>
-                    <View style={s.contactIconBadge}>
-                        <Icon name="message-circle" size={26} color={Colors.primary} />
-                    </View>
-                    <Text style={s.contactHeading}>Get in Touch</Text>
-                    <Text style={s.contactSubtext}>
-                        Questions about Quad360 — as an SME or a lender? Reach us directly and we'll respond by email.
-                    </Text>
-                    <TouchableOpacity onPress={() => Linking.openURL('mailto:hello@quad360financial.com')} style={s.contactEmailBtn}>
-                        <Icon name="mail" size={15} color={Colors.primary} />
-                        <Text style={s.footerContact}>hello@quad360financial.com</Text>
+                <View style={s.footer}>
+                    <Text style={s.footerText}>Quad360 — financial intelligence for SMEs and their lenders.</Text>
+                    <TouchableOpacity onPress={goContact} style={s.footerContactLink}>
+                        <Icon name="message-circle" size={13} color={Colors.primary} />
+                        <Text style={s.footerContactLinkText}>Contact Us →</Text>
                     </TouchableOpacity>
-
-                    <View style={s.contactFormCard}>
-                        <Text style={s.contactFormTitle}>Send a Message</Text>
-                        <Text style={s.contactFormSubtitle}>
-                            Fill in the form below — it opens in your email app with everything pre-filled, ready to send.
-                        </Text>
-
-                        <Text style={s.formLabel}>Name</Text>
-                        <TextInput
-                            style={s.formInput}
-                            value={contactName}
-                            onChangeText={setContactName}
-                            placeholder="Your name"
-                            placeholderTextColor={Colors.textMuted}
-                        />
-
-                        <Text style={s.formLabel}>Email (optional)</Text>
-                        <TextInput
-                            style={s.formInput}
-                            value={contactEmail}
-                            onChangeText={setContactEmail}
-                            placeholder="you@company.com"
-                            placeholderTextColor={Colors.textMuted}
-                            keyboardType="email-address"
-                            autoCapitalize="none"
-                        />
-
-                        <Text style={s.formLabel}>Message</Text>
-                        <TextInput
-                            style={[s.formInput, s.formTextarea]}
-                            value={contactMessage}
-                            onChangeText={setContactMessage}
-                            placeholder="How can we help?"
-                            placeholderTextColor={Colors.textMuted}
-                            multiline
-                            numberOfLines={4}
-                        />
-
-                        <TouchableOpacity onPress={sendContactMessage} style={s.formSubmitBtn}>
-                            <Text style={s.formSubmitText}>Send Message →</Text>
-                        </TouchableOpacity>
-                    </View>
                 </View>
             </ScrollView>
         </SafeAreaView>
@@ -276,7 +212,9 @@ const s = StyleSheet.create({
     brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     navLogo: { width: 32, height: 32, borderRadius: Radius.sm },
     navBrand: { fontSize: 16, fontWeight: '800', color: Colors.textPrimary },
-    navActions: { flexDirection: 'row', gap: 10 },
+    navActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    navContactBtn: { paddingHorizontal: 10, paddingVertical: 9 },
+    navContactText: { fontSize: 13, fontWeight: '700', color: Colors.textSecondary },
     navLoginBtn: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: Radius.pill, borderWidth: 1, borderColor: Colors.border },
     navLoginText: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
     navSignupBtn: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: Radius.pill, backgroundColor: Colors.primary },
@@ -359,31 +297,11 @@ const s = StyleSheet.create({
     lenderDemoLink: { color: Colors.primary, fontWeight: '700', fontSize: 13, marginBottom: 14 },
     lenderDisclaimer: { fontSize: 11.5, color: Colors.textMuted, textAlign: 'center', maxWidth: 420 },
 
-    contactSection: {
-        paddingHorizontal: Spacing.xl, paddingVertical: Spacing.huge, alignItems: 'center',
-        borderTopWidth: 1, borderTopColor: Colors.border,
+    footer: {
+        paddingHorizontal: Spacing.xl, paddingVertical: Spacing.xxl, alignItems: 'center',
+        borderTopWidth: 1, borderTopColor: Colors.border, gap: 10,
     },
-    contactIconBadge: {
-        width: 56, height: 56, borderRadius: Radius.lg, backgroundColor: Colors.primary + '18',
-        alignItems: 'center', justifyContent: 'center', marginBottom: 16,
-    },
-    contactHeading: { fontSize: 22, fontWeight: '800', color: Colors.textPrimary, marginBottom: 8 },
-    contactSubtext: { fontSize: 13.5, color: Colors.textMuted, textAlign: 'center', maxWidth: 460, lineHeight: 19, marginBottom: 18 },
-    contactEmailBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 40 },
-    footerContact: { fontSize: 14, color: Colors.primary, fontWeight: '700' },
-
-    contactFormCard: {
-        width: '100%', maxWidth: 480, backgroundColor: Colors.surface, borderRadius: Radius.lg,
-        borderWidth: 1, borderColor: Colors.border, padding: 24, ...Shadow.sm,
-    },
-    contactFormTitle: { fontSize: 16, fontWeight: '800', color: Colors.textPrimary, marginBottom: 4 },
-    contactFormSubtitle: { fontSize: 12, color: Colors.textMuted, lineHeight: 17, marginBottom: 6 },
-    formLabel: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 14, marginBottom: 6 },
-    formInput: {
-        borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm, paddingHorizontal: 12,
-        paddingVertical: 10, fontSize: 13.5, color: Colors.textPrimary, backgroundColor: Colors.bg,
-    },
-    formTextarea: { minHeight: 90, textAlignVertical: 'top' },
-    formSubmitBtn: { backgroundColor: Colors.primary, borderRadius: Radius.pill, paddingVertical: 13, alignItems: 'center', marginTop: 22 },
-    formSubmitText: { color: '#fff', fontWeight: '800', fontSize: 14 },
+    footerText: { fontSize: 12, color: Colors.textMuted, textAlign: 'center' },
+    footerContactLink: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    footerContactLinkText: { fontSize: 13, color: Colors.primary, fontWeight: '700' },
 });

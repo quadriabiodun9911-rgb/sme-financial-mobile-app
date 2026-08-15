@@ -8,6 +8,7 @@ import { trackScreenViewed } from './src/utils/analytics';
 import { initSentry, setSentryUser } from './src/utils/sentry';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import LandingScreen from './src/screens/LandingScreen';
+import ContactScreen from './src/screens/ContactScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
 import ReportsScreen from './src/screens/ReportsScreen';
@@ -114,6 +115,7 @@ function NavigatorContent() {
     return (
         <View style={{ flex: 1 }}>
             {currentScreen === 'landing'      && <LandingScreen />}
+            {currentScreen === 'contact'      && <ContactScreen />}
             {currentScreen === 'login'        && <LoginScreen />}
             {currentScreen === 'dashboard'    && <DashboardScreen />}
             {currentScreen === 'reports'      && <ReportsScreen />}

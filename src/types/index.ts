@@ -31,7 +31,8 @@ export type Screen =
     | 'business-passport'
     | 'macro-assumptions'
     | 'financing-marketplace'
-    | 'financing-admin';
+    | 'financing-admin'
+    | 'contact';
 
 export interface Budget {
     id: string;
