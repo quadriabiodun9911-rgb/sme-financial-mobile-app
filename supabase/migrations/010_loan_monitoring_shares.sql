@@ -10,6 +10,11 @@
 -- the ONLY new surface a lender reads -- populated by the SME's own device
 -- upserting a coarse, derived snapshot (computePostFinancingMonitor's
 -- output), never by a live query against the loans table.
+--
+-- Safe to re-run: every CREATE POLICY is preceded by a matching
+-- DROP POLICY IF EXISTS, since Postgres has no CREATE POLICY IF NOT
+-- EXISTS. Re-running this after a partial or full prior run (e.g. after an
+-- earlier failure partway through) won't error on "policy already exists."
 
 -- A loan's lenderName has always been free text (self-reported, since
 -- Quad360 has no live lender integrations) -- it can't be trusted to
@@ -18,6 +23,7 @@
 -- couldn't previously look up their funding lender to link a loan to a
 -- real account. This opens a narrow, directory-style read (any signed-in
 -- user, Quad360-verified orgs only) -- nothing on this table is sensitive.
+DROP POLICY IF EXISTS "Any signed-in user can read active lender organizations" ON lender_organizations;
 CREATE POLICY "Any signed-in user can read active lender organizations"
     ON lender_organizations FOR SELECT
     USING (status = 'active');
@@ -49,6 +55,7 @@ CREATE INDEX IF NOT EXISTS loan_monitoring_shares_lender_idx ON loan_monitoring_
 
 ALTER TABLE loan_monitoring_shares ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "SMEs manage their own loan monitoring shares" ON loan_monitoring_shares;
 CREATE POLICY "SMEs manage their own loan monitoring shares"
     ON loan_monitoring_shares FOR ALL
     USING (business_user_id = auth.uid())
@@ -59,6 +66,7 @@ CREATE POLICY "SMEs manage their own loan monitoring shares"
 -- revocation is immediate: the moment consent_active flips to false, this
 -- USING clause excludes the row from every subsequent query, not just
 -- future writes.
+DROP POLICY IF EXISTS "Active lenders can read consented shares for their org" ON loan_monitoring_shares;
 CREATE POLICY "Active lenders can read consented shares for their org"
     ON loan_monitoring_shares FOR SELECT
     USING (
