@@ -165,11 +165,16 @@ export function estimateOutstandingByCurrency(rows: LoanMonitoringShareRow[]): C
 export function getDemoPortfolioShares(): LoanMonitoringShareRow[] {
     const now = new Date();
     const daysAgo = (n: number) => new Date(now.getTime() - n * 86400000).toISOString();
+    // fundedAt is rendered raw as "Funded {fundedAt}" (no Date formatting at
+    // the call site) -- matches Loan.startDate's real format (date-only,
+    // see demoData.ts's own `d()` helper) rather than a full ISO timestamp,
+    // which would otherwise print the literal "T21:00:...Z" suffix.
+    const daysAgoDate = (n: number) => daysAgo(n).split('T')[0];
     return [
-        { id: 'demo-p1', loanId: 'demo-loan-1', businessName: 'Sample Foods Co. (Demo)', status: 'healthy', readinessTrend: 'improving', dscrFlag: false, revenueDeclineFlag: false, repaymentPaceFlag: false, loanPurpose: 'Working capital', principalBand: '2M–10M', currency: '₦', fundedAt: daysAgo(210), updatedAt: daysAgo(2) },
-        { id: 'demo-p2', loanId: 'demo-loan-2', businessName: 'Demo Textiles Ltd.', status: 'watch', readinessTrend: 'stable', dscrFlag: true, revenueDeclineFlag: false, repaymentPaceFlag: false, loanPurpose: 'Asset financing', principalBand: '500K–2M', currency: '₦', fundedAt: daysAgo(140), updatedAt: daysAgo(5) },
-        { id: 'demo-p3', loanId: 'demo-loan-3', businessName: 'Sample Logistics (Demo)', status: 'at-risk', readinessTrend: 'declining', dscrFlag: true, revenueDeclineFlag: true, repaymentPaceFlag: true, loanPurpose: 'Fleet expansion', principalBand: '10M–50M', currency: '₦', fundedAt: daysAgo(300), updatedAt: daysAgo(1) },
-        { id: 'demo-p4', loanId: 'demo-loan-4', businessName: 'Demo Home Goods Co.', status: 'healthy', readinessTrend: 'improving', dscrFlag: false, revenueDeclineFlag: false, repaymentPaceFlag: false, loanPurpose: 'Inventory restock', principalBand: '500K–2M', currency: '₦', fundedAt: daysAgo(95), updatedAt: daysAgo(3) },
+        { id: 'demo-p1', loanId: 'demo-loan-1', businessName: 'Sample Foods Co. (Demo)', status: 'healthy', readinessTrend: 'improving', dscrFlag: false, revenueDeclineFlag: false, repaymentPaceFlag: false, loanPurpose: 'Working capital', principalBand: '2M–10M', currency: '₦', fundedAt: daysAgoDate(210), updatedAt: daysAgo(2) },
+        { id: 'demo-p2', loanId: 'demo-loan-2', businessName: 'Demo Textiles Ltd.', status: 'watch', readinessTrend: 'stable', dscrFlag: true, revenueDeclineFlag: false, repaymentPaceFlag: false, loanPurpose: 'Asset financing', principalBand: '500K–2M', currency: '₦', fundedAt: daysAgoDate(140), updatedAt: daysAgo(5) },
+        { id: 'demo-p3', loanId: 'demo-loan-3', businessName: 'Sample Logistics (Demo)', status: 'at-risk', readinessTrend: 'declining', dscrFlag: true, revenueDeclineFlag: true, repaymentPaceFlag: true, loanPurpose: 'Fleet expansion', principalBand: '10M–50M', currency: '₦', fundedAt: daysAgoDate(300), updatedAt: daysAgo(1) },
+        { id: 'demo-p4', loanId: 'demo-loan-4', businessName: 'Demo Home Goods Co.', status: 'healthy', readinessTrend: 'improving', dscrFlag: false, revenueDeclineFlag: false, repaymentPaceFlag: false, loanPurpose: 'Inventory restock', principalBand: '500K–2M', currency: '₦', fundedAt: daysAgoDate(95), updatedAt: daysAgo(3) },
     ];
 }
 

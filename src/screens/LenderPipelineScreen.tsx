@@ -92,7 +92,18 @@ export default function LenderPipelineScreen() {
     const refresh = () => {
         if (isLenderDemo) {
             setLoading(true);
-            setListings(getDemoPipelineListings());
+            // getDemoPipelineListings() is a static client-side array, unlike
+            // loadPipelineListingsForLender() below which applies filters
+            // server-side -- without this, the filter chips would visibly
+            // toggle "selected" while the listings underneath never changed.
+            const filtered = getDemoPipelineListings().filter(l => {
+                if (filters.financingType && l.financingType !== filters.financingType) return false;
+                if (filters.dscrStatus && l.dscrStatus !== filters.dscrStatus) return false;
+                if (filters.minAmount !== undefined && (l.requestedAmount ?? 0) < filters.minAmount) return false;
+                if (filters.maxAmount !== undefined && (l.requestedAmount ?? Infinity) > filters.maxAmount) return false;
+                return true;
+            });
+            setListings(filtered);
             setLoading(false);
             return;
         }
