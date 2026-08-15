@@ -7,6 +7,7 @@ import { AuthProvider, SettingsProvider, FinanceProvider, GoalProvider, InvoiceP
 import { trackScreenViewed } from './src/utils/analytics';
 import { initSentry, setSentryUser } from './src/utils/sentry';
 import ErrorBoundary from './src/components/ErrorBoundary';
+import LandingScreen from './src/screens/LandingScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
 import ReportsScreen from './src/screens/ReportsScreen';
@@ -61,7 +62,7 @@ function NavigatorContent() {
     useEffect(() => {
         if (Platform.OS !== 'android') return;
         const handler = BackHandler.addEventListener('hardwareBackPress', () => {
-            if (currentScreen === 'dashboard' || currentScreen === 'login') {
+            if (currentScreen === 'dashboard' || currentScreen === 'login' || currentScreen === 'landing') {
                 Alert.alert('Exit App', 'Are you sure you want to exit?', [
                     { text: 'Cancel', style: 'cancel' },
                     { text: 'Exit', style: 'destructive', onPress: () => BackHandler.exitApp() },
@@ -112,6 +113,7 @@ function NavigatorContent() {
 
     return (
         <View style={{ flex: 1 }}>
+            {currentScreen === 'landing'      && <LandingScreen />}
             {currentScreen === 'login'        && <LoginScreen />}
             {currentScreen === 'dashboard'    && <DashboardScreen />}
             {currentScreen === 'reports'      && <ReportsScreen />}

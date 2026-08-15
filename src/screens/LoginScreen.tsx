@@ -58,20 +58,35 @@ type Mode = 'owner-setup' | 'owner-login' | 'join-team' | 'join-lender' | 'reset
 type LoginMethod = 'pin' | 'email';
 
 export default function LoginScreen() {
-    const { isFirstLaunch, setupAccount, login, joinTeam, joinAsLender, enterDemo, language, setLanguage, updateSettings, resetApp, isLockedOut, lockoutUntil, recoverAccount } = useApp();
+    const { isFirstLaunch, setupAccount, login, joinTeam, joinAsLender, enterDemo, language, setLanguage, updateSettings, resetApp, isLockedOut, lockoutUntil, recoverAccount, navParams } = useApp();
     // The split-screen setup layout only applies on wide web viewports --
     // narrow/native rendering is untouched, so the primary mobile
     // experience carries zero risk from this. 900px comfortably fits the
     // two-column layout without cramping the brand panel.
     const { width: windowWidth } = useWindowDimensions();
     const isWideWebSetup = Platform.OS === 'web' && windowWidth >= 900;
-    const [mode, setMode] = useState<Mode>(isFirstLaunch ? 'owner-setup' : 'owner-login');
+    // LandingScreen's Login/Sign Up/Try Demo/Join as Lender buttons pass an
+    // explicit starting mode via navParams so each button opens the form it
+    // promised, rather than this screen guessing from isFirstLaunch (which
+    // reflects "does this device have a saved profile," not what the
+    // visitor just clicked).
+    const initialMode: Mode = (navParams?.mode as Mode | undefined) ?? (isFirstLaunch ? 'owner-setup' : 'owner-login');
+    const [mode, setMode] = useState<Mode>(initialMode);
     const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
     const [loginMethod, setLoginMethod] = useState<LoginMethod>('pin');
 
     useEffect(() => {
+        // Skip when an explicit mode was requested (LandingScreen's
+        // Login/Sign Up/Try Demo/Join as Lender buttons) -- this effect
+        // existed to keep `mode` in sync with isFirstLaunch for the
+        // no-params entry path, but it ran unconditionally on every mount
+        // and silently clobbered any explicitly-requested mode back to
+        // owner-setup/owner-login a moment after render, which is why
+        // e.g. "Try Demo" and "Join as Lender" from the landing page
+        // always landed on the Create Account form instead.
+        if (navParams?.mode) return;
         setMode(isFirstLaunch ? 'owner-setup' : 'owner-login');
-    }, [isFirstLaunch]);
+    }, [isFirstLaunch, navParams]);
 
     // On web: detect Supabase recovery callback (access_token in URL hash)
     useEffect(() => {

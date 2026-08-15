@@ -1,4 +1,5 @@
 export type Screen =
+    | 'landing'
     | 'login'
     | 'dashboard'
     | 'reports'

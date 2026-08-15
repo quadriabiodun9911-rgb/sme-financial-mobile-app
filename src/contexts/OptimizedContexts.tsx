@@ -817,7 +817,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [currentScreen, setCurrentScreenState] = useState('login');
+  const [currentScreen, setCurrentScreenState] = useState('landing');
   const [navParams, setNavParams] = useState<any>(null);
   const [isDemoMode, setIsDemoMode] = useState(false);
   const [demoBusinessId, setDemoBusinessId] = useState<string | null>(null);
