@@ -195,6 +195,7 @@ const T = {
         noRegisteredLendersMatch: 'No registered lenders match',
         linkToYourLenderTitle: 'Link to Your Lender',
         linkModalHintText: "Pick your lender from Quad360's registered directory to enable ongoing status sharing. Not listed? You can still track this loan's impact privately — just nothing will be shared.",
+        savesPrefix: 'Saves', inInterestSuffix: 'in interest', paymentWord: 'Payment',
     },
 
     zh: {
@@ -361,6 +362,7 @@ const T = {
         noRegisteredLendersMatch: '没有匹配的注册贷款机构',
         linkToYourLenderTitle: '关联您的贷款机构',
         linkModalHintText: '从Quad360的注册名录中选择您的贷款机构，以启用持续状态共享。未列出？您仍可私下跟踪此贷款的影响——只是不会分享任何信息。',
+        savesPrefix: '节省', inInterestSuffix: '利息', paymentWord: '付款',
     },
 
     ha: {
@@ -528,6 +530,7 @@ const T = {
         noRegisteredLendersMatch: 'Babu wanda ya dace daga cikin masu bin bashi da aka yi rijista',
         linkToYourLenderTitle: 'Hada da Mai Bin Bashin Ku',
         linkModalHintText: "Zabi mai bin bashin ku daga jerin sunayen da Quad360 ya tantance don kunna ci gaba da raba matsayi. Ba a jera shi ba? Har yanzu za ku iya bin diddigin tasirin wannan bashi a asirce — kawai ba za a raba komai ba.",
+        savesPrefix: 'Yana Ceton', inInterestSuffix: 'a cikin ruwa', paymentWord: 'Biya',
     },
 
     yo: {
@@ -695,6 +698,7 @@ const T = {
         noRegisteredLendersMatch: 'Kò sí olùyánilówó tí a forúkọsílẹ̀ tí ó bá a mu',
         linkToYourLenderTitle: 'So mọ́ Olùyánilówó Rẹ',
         linkModalHintText: "Yan olùyánilówó rẹ láti inú àwọn tí Quad360 ti forúkọsílẹ̀ láti mú kí o lè máa pín ipò lọ́wọ́lọ́wọ́. Kò sí nínú àkójọ? O ṣì lè tọpinpin ipa gbèsè yìí ní àdáni — kò sí ohun tí a óò pín rárá.",
+        savesPrefix: 'Ó Fi Pamọ́', inInterestSuffix: 'nínú owó orí', paymentWord: 'Ìsanwó',
     },
 
     ig: {
@@ -862,6 +866,7 @@ const T = {
         noRegisteredLendersMatch: 'Enweghị onye na-agbazi ego edebanyere aha dabara',
         linkToYourLenderTitle: 'Jikọọ na Onye Gbaziri Gị Ego',
         linkModalHintText: "Họrọ onye gbaziri ego gị site na ndekọ Quad360 ka i nwee ike ịkesa ọnọdụ mgbe niile. Ọ dịghị na ndepụta? Ị ka nwere ike ịsochi mmetụta ihe ji a naanị gị — ọ dịghị ihe a ga-ekesa.",
+        savesPrefix: 'Na-echekwa', inInterestSuffix: "n'ọnụego", paymentWord: 'Ịkwụ Ụgwọ',
     },
 } as const;
 

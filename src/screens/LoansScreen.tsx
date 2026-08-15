@@ -34,6 +34,7 @@ import { monthlyPayment, totalInterest, outstandingLoanBalance } from '../utils/
 import { showAlert } from '../utils/webAlert';
 import Icon from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
+import { t } from '../utils/i18n';
 
 function totalPaid(loan: Loan): number {
     return (loan.payments ?? []).reduce((s, p) => s + p.amount, 0);
@@ -66,7 +67,7 @@ function isOverdue(loan: Loan): boolean {
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────
 
 export default function LoansScreen() {
-    const { loans, addLoan, updateLoan, deleteLoan, addLoanPayment, settings, navigate, finance, navParams, transactions, readinessHistory, user } = useApp();
+    const { loans, addLoan, updateLoan, deleteLoan, addLoanPayment, settings, navigate, finance, navParams, transactions, readinessHistory, user, language } = useApp();
     const { currency } = settings;
 
     // Feature flag for merchant financing
@@ -214,13 +215,13 @@ export default function LoansScreen() {
             {/* TAB BAR */}
             <View style={s.tabBar}>
                 <TabButton
-                    label="Loan Register"
+                    label={t(language, 'loanRegisterTitle')}
                     active={activeTab === 'existing'}
                     onPress={() => setActiveTab('existing')}
                 />
                 {enableFinancing && (
                     <TabButton
-                        label="Merchant Financing"
+                        label={t(language, 'merchantFinancingTab')}
                         active={activeTab === 'financing'}
                         onPress={() => setActiveTab('financing')}
                     />
@@ -230,13 +231,13 @@ export default function LoansScreen() {
             {/* TAB CONTENT */}
             {(activeTab === 'existing' || !enableFinancing) ? (
                 <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
-                    <Text style={s.title}>Loan Register</Text>
+                    <Text style={s.title}>{t(language, 'loanRegisterTitle')}</Text>
 
                     {/* Summary */}
                     <View style={s.summaryRow}>
-                        <SummaryCard label="Total Outstanding" value={`${currency}${totalDebt.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} color={Colors.expense} />
-                        <SummaryCard label="Monthly Repayment" value={`${currency}${totalMonthly.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} color={Colors.warning} />
-                        <SummaryCard label="Active Loans" value={String(activeLoans.length)} color={Colors.textPrimary} />
+                        <SummaryCard label={t(language, 'totalOutstandingLabel')} value={`${currency}${totalDebt.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} color={Colors.expense} />
+                        <SummaryCard label={t(language, 'monthlyRepaymentLabel')} value={`${currency}${totalMonthly.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} color={Colors.warning} />
+                        <SummaryCard label={t(language, 'activeLoansLabel')} value={String(activeLoans.length)} color={Colors.textPrimary} />
                     </View>
 
                     {/* Debt Payoff Strategy — which loan to attack first and why,
@@ -245,7 +246,7 @@ export default function LoansScreen() {
                         <View style={s.strategyCard}>
                             <View style={s.strategyTitleRow}>
                                 <Icon name="target" size={14} color={Colors.textPrimary} />
-                                <Text style={s.strategyTitle}>Debt Payoff Strategy</Text>
+                                <Text style={s.strategyTitle}>{t(language, 'debtPayoffStrategyTitle')}</Text>
                             </View>
                             <Text style={s.strategyRecommendation}>{debtOpt.recommendation}</Text>
 
@@ -253,24 +254,24 @@ export default function LoansScreen() {
                                 <View style={s.strategyMethod}>
                                     <View style={s.strategyMethodLabelRow}>
                                         <Icon name="percent" size={11} color={Colors.textPrimary} />
-                                        <Text style={s.strategyMethodLabel}>Avalanche (lowest total interest)</Text>
+                                        <Text style={s.strategyMethodLabel}>{t(language, 'avalancheLabel')}</Text>
                                     </View>
                                     {debtOpt.avalanche.order.map((name, i) => (
                                         <Text key={i} style={s.strategyOrderItem}>{i + 1}. {name}</Text>
                                     ))}
                                     <Text style={[s.strategySaved, { color: Colors.income }]}>
-                                        Saves {currency}{Math.abs(debtOpt.avalanche.totalInterestSaved).toLocaleString(undefined, { maximumFractionDigits: 0 })} in interest
+                                        {t(language, 'savesPrefix')} {currency}{Math.abs(debtOpt.avalanche.totalInterestSaved).toLocaleString(undefined, { maximumFractionDigits: 0 })} {t(language, 'inInterestSuffix')}
                                     </Text>
                                 </View>
                                 <View style={s.strategyMethod}>
                                     <View style={s.strategyMethodLabelRow}>
                                         <Icon name="zap" size={11} color={Colors.textPrimary} />
-                                        <Text style={s.strategyMethodLabel}>Snowball (fastest wins)</Text>
+                                        <Text style={s.strategyMethodLabel}>{t(language, 'snowballLabel')}</Text>
                                     </View>
                                     {debtOpt.snowball.order.map((name, i) => (
                                         <Text key={i} style={s.strategyOrderItem}>{i + 1}. {name}</Text>
                                     ))}
-                                    <Text style={s.strategyOrderItem}>Clears smallest balance first for momentum</Text>
+                                    <Text style={s.strategyOrderItem}>{t(language, 'clearsSmallestFirst')}</Text>
                                 </View>
                             </View>
                         </View>
@@ -286,8 +287,8 @@ export default function LoansScreen() {
                     <TouchableOpacity onPress={() => navigate('financing-marketplace')} style={s.featureCard}>
                         <Icon name="search" size={28} color={Colors.primary} />
                         <View style={s.featureContent}>
-                            <Text style={s.featureTitle}>Financing Marketplace</Text>
-                            <Text style={s.featureDesc}>See which financing products fit your business, and why</Text>
+                            <Text style={s.featureTitle}>{t(language, 'financingMarketplaceTitle')}</Text>
+                            <Text style={s.featureDesc}>{t(language, 'financingMarketplaceDesc')}</Text>
                         </View>
                         <Text style={s.featureArrow}>→</Text>
                     </TouchableOpacity>
@@ -302,8 +303,8 @@ export default function LoansScreen() {
                     <TouchableOpacity onPress={() => navigate('credit-worthiness', { tab: 'funding-pack' })} style={s.featureCard}>
                         <Icon name="home" size={28} color={Colors.primary} />
                         <View style={s.featureContent}>
-                            <Text style={s.featureTitle}>Financing Readiness Check</Text>
-                            <Text style={s.featureDesc}>Understand how ready your business is for financing — and what to improve before you apply</Text>
+                            <Text style={s.featureTitle}>{t(language, 'financingReadinessCheckTitle')}</Text>
+                            <Text style={s.featureDesc}>{t(language, 'financingReadinessCheckDesc')}</Text>
                         </View>
                         <Text style={s.featureArrow}>→</Text>
                     </TouchableOpacity>
@@ -317,7 +318,7 @@ export default function LoansScreen() {
                                     {overdueLoans.length} loan payment{overdueLoans.length > 1 ? 's are' : ' is'} overdue
                                 </Text>
                             </View>
-                            <NextStepLink text="See how this affects your credit score" onPress={() => navigate('credit-worthiness')} />
+                            <NextStepLink text={t(language, 'seeCreditScoreEffect')} onPress={() => navigate('credit-worthiness')} />
                         </View>
                     )}
 
@@ -326,9 +327,9 @@ export default function LoansScreen() {
                             <View style={s.emptyIcon}>
                                 <Icon name="home" size={48} color={Colors.textMuted} />
                             </View>
-                            <Text style={s.emptyTitle}>No loans recorded yet.</Text>
+                            <Text style={s.emptyTitle}>{t(language, 'noLoansYetTitle')}</Text>
                             <Text style={s.emptySub}>
-                                Add bank loans, family loans, or any money your business owes. Tracking loans helps you see total repayment obligations and interest costs.
+                                {t(language, 'noLoansYetSub')}
                             </Text>
                             <TouchableOpacity style={s.emptyAddBtn} onPress={openAdd}>
                                 <Text style={s.emptyAddBtnText}>+ Add Loan</Text>
@@ -351,6 +352,7 @@ export default function LoansScreen() {
                                 onDelete={confirmDelete}
                                 onAddPayment={handleOpenPayment}
                                 onLinkLender={openLinkLender}
+                                language={language}
                             />
                         ))
                     )}
@@ -370,29 +372,29 @@ export default function LoansScreen() {
                 <View style={s.overlay}>
                     <View style={s.sheet}>
                         <ScrollView keyboardShouldPersistTaps="handled">
-                            <Text style={s.modalTitle}>{editingId ? 'Edit Loan' : 'Add Loan'}</Text>
+                            <Text style={s.modalTitle}>{editingId ? t(language, 'editLoanTitle') : t(language, 'addLoanTitle')}</Text>
 
-                            <FieldLabel text="Lender Name" />
+                            <FieldLabel text={t(language, 'lenderNameLabel')} />
                             <TextInput style={s.input} value={lender} onChangeText={setLender}
                                 placeholder="e.g. GTBank, Family Friend" placeholderTextColor={Colors.muted} />
 
-                            <FieldLabel text="Purpose (optional)" />
+                            <FieldLabel text={t(language, 'purposeOptionalLabel')} />
                             <TextInput style={s.input} value={purpose} onChangeText={setPurpose}
                                 placeholder="e.g. Equipment purchase" placeholderTextColor={Colors.muted} />
 
-                            <FieldLabel text={`Loan Amount (${currency})`} />
+                            <FieldLabel text={`${t(language, 'loanAmountLabel')} (${currency})`} />
                             <TextInput style={s.input} value={principal} onChangeText={setPrincipal}
                                 placeholder="0" placeholderTextColor={Colors.muted} keyboardType="decimal-pad" />
 
-                            <FieldLabel text="Annual Interest Rate (%)" />
+                            <FieldLabel text={t(language, 'annualInterestRateLabel')} />
                             <TextInput style={s.input} value={rate} onChangeText={setRate}
                                 placeholder="e.g. 15 for 15% (enter 0 if interest-free)" placeholderTextColor={Colors.muted} keyboardType="decimal-pad" />
 
-                            <FieldLabel text="Loan Term (months)" />
+                            <FieldLabel text={t(language, 'loanTermLabel')} />
                             <TextInput style={s.input} value={term} onChangeText={setTerm}
                                 placeholder="e.g. 12 for 1 year, 24 for 2 years" placeholderTextColor={Colors.muted} keyboardType="number-pad" />
 
-                            <FieldLabel text="Start Date" />
+                            <FieldLabel text={t(language, 'startDateLabel')} />
                             <DateInput value={startDate} onChange={setStart} />
 
                             <TouchableOpacity style={s.marketplaceToggleRow} onPress={() => setFromMarketplace(v => !v)} activeOpacity={0.7}>
@@ -400,8 +402,8 @@ export default function LoansScreen() {
                                     {fromMarketplace && <Icon name="check-circle" size={13} color="#fff" />}
                                 </View>
                                 <View style={{ flex: 1 }}>
-                                    <Text style={s.marketplaceToggleLabel}>This loan came through the Financing Marketplace</Text>
-                                    <Text style={s.marketplaceToggleHint}>Unlocks "This Loan's Impact" — Quad360 watches your recorded data since the funded date for early signs the loan isn't working out.</Text>
+                                    <Text style={s.marketplaceToggleLabel}>{t(language, 'cameFromMarketplaceLabel')}</Text>
+                                    <Text style={s.marketplaceToggleHint}>{t(language, 'unlocksImpactHint')}</Text>
                                 </View>
                             </TouchableOpacity>
 
@@ -470,10 +472,10 @@ export default function LoansScreen() {
 
                             <View style={s.btnRow}>
                                 <TouchableOpacity style={[s.btn, s.btnSec]} onPress={() => { setShowForm(false); resetForm(); }}>
-                                    <Text style={s.btnSecText}>Cancel</Text>
+                                    <Text style={s.btnSecText}>{t(language, 'cancel')}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity style={s.btn} onPress={handleSave}>
-                                    <Text style={s.btnText}>Save</Text>
+                                    <Text style={s.btnText}>{t(language, 'save')}</Text>
                                 </TouchableOpacity>
                             </View>
                         </ScrollView>
@@ -486,25 +488,25 @@ export default function LoansScreen() {
                 <Modal visible animationType="slide" transparent>
                     <View style={s.overlay}>
                         <View style={[s.sheet, { maxHeight: 380 }]}>
-                            <Text style={s.modalTitle}>Record Payment</Text>
+                            <Text style={s.modalTitle}>{t(language, 'recordPaymentTitle')}</Text>
 
-                            <FieldLabel text={`Amount Paid (${currency})`} />
+                            <FieldLabel text={`${t(language, 'amountPaidLabel')} (${currency})`} />
                             <TextInput style={s.input} value={payAmount} onChangeText={setPayAmount}
                                 placeholder="0" placeholderTextColor={Colors.muted} keyboardType="decimal-pad" autoFocus />
 
-                            <FieldLabel text="Payment Date" />
+                            <FieldLabel text={t(language, 'paymentDateLabel')} />
                             <DateInput value={payDate} onChange={setPayDate} />
 
-                            <FieldLabel text="Note (optional)" />
+                            <FieldLabel text={t(language, 'noteOptionalLabel')} />
                             <TextInput style={s.input} value={payNote} onChangeText={setPayNote}
                                 placeholder="e.g. Monthly installment" placeholderTextColor={Colors.muted} />
 
                             <View style={s.btnRow}>
                                 <TouchableOpacity style={[s.btn, s.btnSec]} onPress={() => setShowPayment(null)}>
-                                    <Text style={s.btnSecText}>Cancel</Text>
+                                    <Text style={s.btnSecText}>{t(language, 'cancel')}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity style={s.btn} onPress={() => handleAddPayment(showPayment)}>
-                                    <Text style={s.btnText}>Record</Text>
+                                    <Text style={s.btnText}>{t(language, 'recordBtn')}</Text>
                                 </TouchableOpacity>
                             </View>
                         </View>
@@ -517,25 +519,23 @@ export default function LoansScreen() {
                 <Modal visible animationType="slide" transparent>
                     <View style={s.overlay}>
                         <View style={[s.sheet, { maxHeight: 480 }]}>
-                            <Text style={s.modalTitle}>Link to Your Lender</Text>
+                            <Text style={s.modalTitle}>{t(language, 'linkToYourLenderTitle')}</Text>
                             <Text style={s.linkModalHint}>
-                                Pick your lender from Quad360's registered directory to enable ongoing status
-                                sharing. Not listed? You can still track this loan's impact privately — just
-                                nothing will be shared.
+                                {t(language, 'linkModalHintText')}
                             </Text>
                             <TextInput
                                 style={s.input}
                                 value={directoryQuery}
                                 onChangeText={setDirectoryQuery}
-                                placeholder="Search lenders…"
+                                placeholder={t(language, 'searchLendersPlaceholder')}
                                 placeholderTextColor={Colors.muted}
                                 autoFocus
                             />
                             <ScrollView style={{ maxHeight: 280, marginTop: 8 }} keyboardShouldPersistTaps="handled">
                                 {lenderDirectory === null ? (
-                                    <Text style={s.linkModalEmpty}>Loading…</Text>
+                                    <Text style={s.linkModalEmpty}>{t(language, 'loadingEllipsis')}</Text>
                                 ) : lenderDirectory.filter(e => e.name.toLowerCase().includes(directoryQuery.trim().toLowerCase())).length === 0 ? (
-                                    <Text style={s.linkModalEmpty}>No registered lenders match "{directoryQuery}".</Text>
+                                    <Text style={s.linkModalEmpty}>{t(language, 'noRegisteredLendersMatch')} "{directoryQuery}".</Text>
                                 ) : (
                                     lenderDirectory
                                         .filter(e => e.name.toLowerCase().includes(directoryQuery.trim().toLowerCase()))
@@ -552,7 +552,7 @@ export default function LoansScreen() {
                             </ScrollView>
                             <View style={s.btnRow}>
                                 <TouchableOpacity style={[s.btn, s.btnSec]} onPress={() => setLinkingLoanId(null)}>
-                                    <Text style={s.btnSecText}>Cancel</Text>
+                                    <Text style={s.btnSecText}>{t(language, 'cancel')}</Text>
                                 </TouchableOpacity>
                             </View>
                         </View>
@@ -587,12 +587,13 @@ function TabButton({ label, active, onPress }: { label: string; active: boolean;
 // a fresh per-item closure, so a card whose own loan/expanded state hasn't
 // changed can actually skip re-rendering when a sibling card is toggled or
 // an unrelated part of LoansScreen re-renders.
-const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transactions, readinessHistory, dscr, user, updateLoan, onToggle, onEdit, onDelete, onAddPayment, onLinkLender }: {
+const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transactions, readinessHistory, dscr, user, updateLoan, onToggle, onEdit, onDelete, onAddPayment, onLinkLender, language }: {
     loan: Loan; currency: string; expanded: boolean;
     transactions: Transaction[]; readinessHistory: ReadinessSnapshot[]; dscr: DSCRResult;
     user: ReturnType<typeof useApp>['user']; updateLoan: ReturnType<typeof useApp>['updateLoan'];
     onToggle: (id: string) => void; onEdit: (loan: Loan) => void; onDelete: (id: string) => void; onAddPayment: (id: string) => void;
     onLinkLender: (loanId: string) => void;
+    language: import('../utils/i18n').Language;
 }) {
     const paid = totalPaid(loan);
     const balance = outstandingBalance(loan);
@@ -607,9 +608,9 @@ const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transa
         [loan, transactions, readinessHistory, dscr],
     );
     const MONITOR_STATUS_STYLE: Record<PostFinancingStatus, { label: string; color: string }> = {
-        healthy: { label: 'Healthy', color: Colors.income },
-        watch: { label: 'Watch', color: Colors.warning },
-        'at-risk': { label: 'At Risk', color: Colors.expense },
+        healthy: { label: t(language, 'healthyLabel'), color: Colors.income },
+        watch: { label: t(language, 'watchLabel'), color: Colors.warning },
+        'at-risk': { label: t(language, 'atRiskLabel'), color: Colors.expense },
     };
 
     // Phase 2a: consent lives on the loan itself (updateLoan), and the
@@ -669,10 +670,10 @@ const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transa
                                 color={statusColor}
                             />
                             <Text style={[s.statusBadge, { color: statusColor, marginBottom: 0 }]}>
-                                {loan.status === 'paid_off' ? 'Paid Off' : loan.status === 'defaulted' ? 'Defaulted' : overdue ? 'Overdue' : 'Active'}
+                                {loan.status === 'paid_off' ? t(language, 'statusPaidOff') : loan.status === 'defaulted' ? t(language, 'statusDefaulted') : overdue ? t(language, 'overdue') : t(language, 'statusActive')}
                             </Text>
                         </View>
-                        <Text style={s.balanceText}>{currency}{balance.toLocaleString(undefined, { maximumFractionDigits: 0 })} left</Text>
+                        <Text style={s.balanceText}>{currency}{balance.toLocaleString(undefined, { maximumFractionDigits: 0 })} {t(language, 'balanceLeftSuffix')}</Text>
                     </View>
                 </View>
 
@@ -684,10 +685,10 @@ const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transa
 
                 {/* Key metrics row */}
                 <View style={s.metricsRow}>
-                    <Metric label="Monthly" value={`${currency}${monthly.toFixed(0)}`} />
-                    <Metric label="Rate" value={`${loan.interestRate}% p.a.`} />
-                    <Metric label="Total Interest" value={`${currency}${interest.toFixed(0)}`} color={Colors.expense} />
-                    <Metric label="Payoff Date" value={payoffDate(loan)} />
+                    <Metric label={t(language, 'monthlyMetricLabel')} value={`${currency}${monthly.toFixed(0)}`} />
+                    <Metric label={t(language, 'rateMetricLabel')} value={`${loan.interestRate}% p.a.`} />
+                    <Metric label={t(language, 'totalInterestMetricLabel')} value={`${currency}${interest.toFixed(0)}`} color={Colors.expense} />
+                    <Metric label={t(language, 'payoffDateMetricLabel')} value={payoffDate(loan)} />
                 </View>
             </TouchableOpacity>
 
@@ -696,20 +697,20 @@ const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transa
                 <View style={s.expanded}>
                     {loan.status === 'active' && (
                         <View style={s.nextDueRow}>
-                            <Text style={s.nextDueLabel}>Next payment due:</Text>
+                            <Text style={s.nextDueLabel}>{t(language, 'nextPaymentDueLabel')}</Text>
                             <Text style={[s.nextDueDate, overdue && { color: Colors.warning }]}>{nextDueDate(loan)}</Text>
                         </View>
                     )}
 
                     {(loan.payments ?? []).length > 0 && (
                         <View style={s.paymentHistory}>
-                            <Text style={s.paymentHistoryTitle}>Payment History</Text>
+                            <Text style={s.paymentHistoryTitle}>{t(language, 'paymentHistoryTitle')}</Text>
                             {[...(loan.payments ?? [])].reverse().slice(0, 5).map(p => {
                                 const totalPaid = p.amount + (p.interestPortion || 0);
                                 return (
                                     <View key={p.id} style={s.paymentRow}>
                                         <Text style={s.paymentDate}>{p.date}</Text>
-                                        <Text style={s.paymentNote}>{p.note || 'Payment'}</Text>
+                                        <Text style={s.paymentNote}>{p.note || t(language, 'paymentWord')}</Text>
                                         <View style={{ alignItems: 'flex-end' }}>
                                             <Text style={[s.paymentAmt, { color: Colors.income }]}>+{currency}{totalPaid.toLocaleString()}</Text>
                                             {!!p.interestPortion && (
@@ -728,12 +729,12 @@ const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transa
                     {monitor && (
                         <View style={s.monitorBox}>
                             <View style={s.monitorHeaderRow}>
-                                <Text style={s.monitorTitle}>📡 This Loan's Impact</Text>
+                                <Text style={s.monitorTitle}>📡 {t(language, 'thisLoansImpactTitle')}</Text>
                                 <View style={[s.monitorBadge, { backgroundColor: MONITOR_STATUS_STYLE[monitor.status].color + '22' }]}>
                                     <Text style={[s.monitorBadgeText, { color: MONITOR_STATUS_STYLE[monitor.status].color }]}>{MONITOR_STATUS_STYLE[monitor.status].label}</Text>
                                 </View>
                             </View>
-                            <Text style={s.monitorSub}>Tracked since this loan was funded — visible only to you, never shared with the lender.</Text>
+                            <Text style={s.monitorSub}>{t(language, 'trackedSinceFunded')}</Text>
 
                             {monitor.signals.map(sig => (
                                 <View key={sig.label} style={s.monitorSignalRow}>
@@ -786,7 +787,7 @@ const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transa
                             {loan.lenderOrgId && loan.shareWithLenderConsent && (
                                 <TouchableOpacity style={s.shareBtn} onPress={handleShareStatus} disabled={sharing}>
                                     <Icon name="share-2" size={13} color={Colors.primary} />
-                                    <Text style={s.shareBtnText}>{sharing ? 'Preparing…' : 'Export Status Summary (PDF)'}</Text>
+                                    <Text style={s.shareBtnText}>{sharing ? t(language, 'preparingEllipsis') : t(language, 'exportStatusSummaryBtn')}</Text>
                                 </TouchableOpacity>
                             )}
                         </View>
@@ -795,14 +796,14 @@ const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transa
                     <View style={s.actionRow}>
                         {loan.status === 'active' && (
                             <TouchableOpacity style={s.actionBtn} onPress={() => onAddPayment(loan.id)}>
-                                <Text style={[s.actionBtnText, { color: Colors.income }]}>+ Record Payment</Text>
+                                <Text style={[s.actionBtnText, { color: Colors.income }]}>{t(language, 'recordPaymentBtn')}</Text>
                             </TouchableOpacity>
                         )}
                         <TouchableOpacity style={s.actionBtn} onPress={() => onEdit(loan)}>
-                            <Text style={s.actionBtnText}>Edit</Text>
+                            <Text style={s.actionBtnText}>{t(language, 'edit')}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={[s.actionBtn, { borderColor: Colors.expense }]} onPress={() => onDelete(loan.id)}>
-                            <Text style={[s.actionBtnText, { color: Colors.expense }]}>Delete</Text>
+                            <Text style={[s.actionBtnText, { color: Colors.expense }]}>{t(language, 'delete')}</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
