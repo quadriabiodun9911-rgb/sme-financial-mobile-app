@@ -16,20 +16,24 @@ import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity, Ima
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
+import Icon, { IconName } from '../components/ui/Icon';
 
-const JOURNEY_STEPS: { icon: string; title: string; desc: string }[] = [
-    { icon: '🏃', title: 'Run', desc: 'Sales, expenses, invoices, payments — the everyday record of the business.' },
-    { icon: '🔍', title: 'Understand', desc: "What's really happening — profit, cash flow, who owes you, what's slipping." },
-    { icon: '📈', title: 'Improve', desc: 'What to fix first, ranked by financial impact, not guesswork.' },
-    { icon: '✅', title: 'Qualify', desc: 'How financing-ready the business actually is, and exactly why.' },
-    { icon: '🤝', title: 'Fund', desc: 'Financing matched to what the business can prove, not what it asks for.' },
+// Feather icons (via Icon.tsx), not emoji -- emoji renders inconsistently
+// across OS/browser combinations and reads as an unpolished, hobbyist
+// choice on a marketing page. Same icon set the rest of the app uses.
+const JOURNEY_STEPS: { icon: IconName; title: string; desc: string }[] = [
+    { icon: 'activity', title: 'Run', desc: 'Sales, expenses, invoices, payments — the everyday record of the business.' },
+    { icon: 'search', title: 'Understand', desc: "What's really happening — profit, cash flow, who owes you, what's slipping." },
+    { icon: 'trending-up', title: 'Improve', desc: 'What to fix first, ranked by financial impact, not guesswork.' },
+    { icon: 'check-circle', title: 'Qualify', desc: 'How financing-ready the business actually is, and exactly why.' },
+    { icon: 'dollar-sign', title: 'Fund', desc: 'Financing matched to what the business can prove, not what it asks for.' },
 ];
 
-const LENDER_STEPS: { icon: string; title: string; desc: string }[] = [
-    { icon: '📋', title: 'Discover', desc: 'Publish your financing products directly — reach businesses actively seeking relevant capital.' },
-    { icon: '🎯', title: 'Match', desc: "Only see businesses that fit your criteria, not every applicant with every loan you don't offer." },
-    { icon: '📊', title: 'Assess', desc: 'A structured readiness profile per business — revenue, DSCR, history — before you ever open a file.' },
-    { icon: '📡', title: 'Monitor', desc: "Ongoing status on what you've funded — a status, a trend, and what's flagged, for consenting borrowers." },
+const LENDER_STEPS: { icon: IconName; title: string; desc: string }[] = [
+    { icon: 'compass', title: 'Discover', desc: 'Publish your financing products directly — reach businesses actively seeking relevant capital.' },
+    { icon: 'target', title: 'Match', desc: "Only see businesses that fit your criteria, not every applicant with every loan you don't offer." },
+    { icon: 'bar-chart-2', title: 'Assess', desc: 'A structured readiness profile per business — revenue, DSCR, history — before you ever open a file.' },
+    { icon: 'radio', title: 'Monitor', desc: "Ongoing status on what you've funded — a status, a trend, and what's flagged, for consenting borrowers." },
 ];
 
 export default function LandingScreen() {
@@ -125,7 +129,9 @@ export default function LandingScreen() {
                     <View style={[s.journeyRow, isWide && s.journeyRowWide]}>
                         {JOURNEY_STEPS.map(step => (
                             <View key={step.title} style={[s.journeyCard, isWide && s.journeyCardWide]}>
-                                <Text style={s.journeyIcon}>{step.icon}</Text>
+                                <View style={s.stepIconBadge}>
+                                    <Icon name={step.icon} size={20} color={Colors.primary} />
+                                </View>
                                 <Text style={s.journeyTitle}>{step.title}</Text>
                                 <Text style={s.journeyDesc}>{step.desc}</Text>
                             </View>
@@ -148,7 +154,9 @@ export default function LandingScreen() {
                         <View style={[s.lenderStepRow, isWide && s.lenderStepRowWide]}>
                             {LENDER_STEPS.map(step => (
                                 <View key={step.title} style={[s.lenderStepCard, isWide && s.lenderStepCardWide]}>
-                                    <Text style={s.journeyIcon}>{step.icon}</Text>
+                                    <View style={s.stepIconBadge}>
+                                        <Icon name={step.icon} size={20} color={Colors.primary} />
+                                    </View>
                                     <Text style={s.journeyTitle}>{step.title}</Text>
                                     <Text style={s.journeyDesc}>{step.desc}</Text>
                                 </View>
@@ -180,9 +188,15 @@ export default function LandingScreen() {
                     </View>
                 </View>
 
-                <TouchableOpacity onPress={() => Linking.openURL('mailto:hello@quad360financial.com')}>
-                    <Text style={s.footerContact}>hello@quad360financial.com</Text>
-                </TouchableOpacity>
+                <View style={s.contactSection}>
+                    <Text style={s.contactHeading}>Get in Touch</Text>
+                    <Text style={s.contactSubtext}>
+                        Questions about Quad360 — as an SME or a lender? Reach us directly and we'll respond by email.
+                    </Text>
+                    <TouchableOpacity onPress={() => Linking.openURL('mailto:hello@quad360financial.com')}>
+                        <Text style={s.footerContact}>hello@quad360financial.com</Text>
+                    </TouchableOpacity>
+                </View>
             </ScrollView>
         </SafeAreaView>
     );
@@ -246,7 +260,10 @@ const s = StyleSheet.create({
     journeyRowWide: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' },
     journeyCard: { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: 20, borderWidth: 1, borderColor: Colors.border },
     journeyCardWide: { width: 220 },
-    journeyIcon: { fontSize: 26, marginBottom: 10 },
+    stepIconBadge: {
+        width: 40, height: 40, borderRadius: Radius.md, backgroundColor: Colors.primary + '18',
+        alignItems: 'center', justifyContent: 'center', marginBottom: 12,
+    },
     journeyTitle: { fontSize: 15.5, fontWeight: '800', color: Colors.textPrimary, marginBottom: 6 },
     journeyDesc: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
 
@@ -276,5 +293,11 @@ const s = StyleSheet.create({
     lenderDemoLink: { color: Colors.primary, fontWeight: '700', fontSize: 13, marginBottom: 14 },
     lenderDisclaimer: { fontSize: 11.5, color: Colors.textMuted, textAlign: 'center', maxWidth: 420 },
 
-    footerContact: { textAlign: 'center', fontSize: 11.5, color: Colors.primary, fontWeight: '600', paddingVertical: Spacing.xl },
+    contactSection: {
+        paddingHorizontal: Spacing.xl, paddingVertical: Spacing.huge, alignItems: 'center',
+        borderTopWidth: 1, borderTopColor: Colors.border,
+    },
+    contactHeading: { fontSize: 18, fontWeight: '800', color: Colors.textPrimary, marginBottom: 8 },
+    contactSubtext: { fontSize: 12.5, color: Colors.textMuted, textAlign: 'center', maxWidth: 420, lineHeight: 18, marginBottom: 14 },
+    footerContact: { textAlign: 'center', fontSize: 14, color: Colors.primary, fontWeight: '700' },
 });
