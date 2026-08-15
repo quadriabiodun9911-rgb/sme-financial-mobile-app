@@ -16,6 +16,7 @@ import ProjectProfitabilityCalculator from '../components/ProjectProfitabilityCa
 import { showAlert } from '../utils/webAlert';
 import Icon from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
+import { t } from '../utils/i18n';
 
 const STATUS_COLOR: Record<InvoiceStatus, string> = {
     draft:   Colors.textMuted,
@@ -116,7 +117,7 @@ ${inv.notes ? `<div class="notes" style="clear:both;margin-top:60px"><b>Notes:</
 
 
 export default function InvoicesScreen() {
-    const { invoices, addInvoice, updateInvoice, deleteInvoice, markInvoiceStatus, settings, user, navigate } = useApp();
+    const { invoices, addInvoice, updateInvoice, deleteInvoice, markInvoiceStatus, settings, user, navigate, language } = useApp();
     const currency = settings.currency;
 
     const [filter, setFilter]       = useState<InvoiceStatus | 'all'>('all');
@@ -278,18 +279,18 @@ export default function InvoicesScreen() {
             <ScrollView style={styles.scroll}>
                 <View style={styles.pad}>
                     <View style={styles.titleRow}>
-                        <Text style={styles.title}>Invoices</Text>
+                        <Text style={styles.title}>{t(language, 'invoices')}</Text>
                         <TouchableOpacity style={styles.newBtn} onPress={openNew}>
-                            <Text style={styles.newBtnText}>+ New Invoice</Text>
+                            <Text style={styles.newBtnText}>{t(language, 'newInvoice')}</Text>
                         </TouchableOpacity>
                     </View>
 
                     {/* Summary strip */}
                     <View style={styles.summaryRow}>
-                        <SummaryCard label="Outstanding" value={`${currency}${summary.outstanding.toLocaleString()}`} color={Colors.warning} />
-                        <SummaryCard label="Sent" value={String(summary.sent)} color={Colors.primary} />
-                        <SummaryCard label="Paid" value={String(summary.paid)} color={Colors.income} />
-                        <SummaryCard label="Overdue" value={String(summary.overdue)} color={Colors.expense} />
+                        <SummaryCard label={t(language, 'outstanding')} value={`${currency}${summary.outstanding.toLocaleString()}`} color={Colors.warning} />
+                        <SummaryCard label={t(language, 'sent')} value={String(summary.sent)} color={Colors.primary} />
+                        <SummaryCard label={t(language, 'paid')} value={String(summary.paid)} color={Colors.income} />
+                        <SummaryCard label={t(language, 'overdue')} value={String(summary.overdue)} color={Colors.expense} />
                     </View>
 
                     {summary.overdue > 0 && (
@@ -300,7 +301,7 @@ export default function InvoicesScreen() {
                     )}
                     {summary.paid > 0 && (
                         <NextStepLink
-                            text="See how paid invoices affect your cash forecast"
+                            text={t(language, 'seeHowPaidAffectsCashForecast')}
                             onPress={() => navigate('cashflow')}
                         />
                     )}
@@ -322,7 +323,7 @@ export default function InvoicesScreen() {
                                 onPress={() => setFilter(f)}
                             >
                                 <Text style={[styles.filterText, filter === f && styles.filterTextActive]}>
-                                    {f.charAt(0).toUpperCase() + f.slice(1)}
+                                    {t(language, f)}
                                 </Text>
                             </TouchableOpacity>
                         ))}
@@ -330,16 +331,16 @@ export default function InvoicesScreen() {
 
                     {/* Status color legend */}
                     <View style={styles.legendRow}>
-                        <Text style={[styles.legendItem, { color: Colors.textMuted }]}>● Draft</Text>
-                        <Text style={[styles.legendItem, { color: Colors.primary }]}>● Sent</Text>
-                        <Text style={[styles.legendItem, { color: Colors.income }]}>● Paid</Text>
-                        <Text style={[styles.legendItem, { color: Colors.expense }]}>● Overdue</Text>
+                        <Text style={[styles.legendItem, { color: Colors.textMuted }]}>● {t(language, 'draft')}</Text>
+                        <Text style={[styles.legendItem, { color: Colors.primary }]}>● {t(language, 'sent')}</Text>
+                        <Text style={[styles.legendItem, { color: Colors.income }]}>● {t(language, 'paid')}</Text>
+                        <Text style={[styles.legendItem, { color: Colors.expense }]}>● {t(language, 'overdue')}</Text>
                     </View>
 
                     {/* Invoice list */}
                     {filtered.length === 0 ? (
                         <View style={styles.empty}>
-                            <Text style={styles.emptyText}>No invoices yet. Tap + New Invoice to create one.</Text>
+                            <Text style={styles.emptyText}>{t(language, 'noInvoicesYet')}</Text>
                         </View>
                     ) : (
                         filtered.map(inv => (
@@ -348,37 +349,37 @@ export default function InvoicesScreen() {
                                     <Text style={styles.invNum}>{inv.invoiceNumber}</Text>
                                     <View style={[styles.badge, { backgroundColor: STATUS_COLOR[inv.status] + '22' }]}>
                                         <Text style={[styles.badgeText, { color: STATUS_COLOR[inv.status] }]}>
-                                            {inv.status.toUpperCase()}
+                                            {t(language, inv.status).toUpperCase()}
                                         </Text>
                                     </View>
                                 </View>
                                 <Text style={styles.client}>{inv.clientName}</Text>
                                 <View style={styles.cardBottom}>
-                                    <Text style={styles.dueText}>Due {inv.dueDate}</Text>
+                                    <Text style={styles.dueText}>{t(language, 'duePrefix')} {inv.dueDate}</Text>
                                     <Text style={styles.amount}>{currency}{(inv.total ?? 0).toLocaleString()}</Text>
                                 </View>
                                 <View style={styles.actions}>
-                                    <ActionBtn label="Edit"   onPress={() => openEdit(inv)} color={Colors.primary} />
-                                    <ActionBtn label="Share"  onPress={() => handleShare(inv)} color={Colors.income} />
+                                    <ActionBtn label={t(language, 'edit')}   onPress={() => openEdit(inv)} color={Colors.primary} />
+                                    <ActionBtn label={t(language, 'share')}  onPress={() => handleShare(inv)} color={Colors.income} />
                                     <TouchableOpacity style={styles.whatsappBtn} onPress={() => handleWhatsApp(inv)}>
                                         <Text style={styles.whatsappBtnText}>WhatsApp</Text>
                                     </TouchableOpacity>
                                     {inv.status !== 'paid' && (
                                         <>
-                                            <ActionBtn label="Collect Payment" onPress={() => navigate('payment-link', {
+                                            <ActionBtn label={t(language, 'collectPayment')} onPress={() => navigate('payment-link', {
                                                 amount: inv.total,
                                                 description: `Invoice ${inv.invoiceNumber}`,
                                                 customerName: inv.clientName,
                                                 customerEmail: inv.clientEmail || '',
                                                 invoiceId: inv.id,
                                             })} color="#00C3F7" />
-                                            <ActionBtn label="Mark Paid" onPress={() => markInvoiceStatus(inv.id, 'paid')} color={Colors.income} />
+                                            <ActionBtn label={t(language, 'markPaid')} onPress={() => markInvoiceStatus(inv.id, 'paid')} color={Colors.income} />
                                         </>
                                     )}
                                     {inv.status === 'draft' && (
-                                        <ActionBtn label="Send" onPress={() => markInvoiceStatus(inv.id, 'sent')} color={Colors.warning} />
+                                        <ActionBtn label={t(language, 'sendAction')} onPress={() => markInvoiceStatus(inv.id, 'sent')} color={Colors.warning} />
                                     )}
-                                    <ActionBtn label="Delete" onPress={() => handleDelete(inv)} color={Colors.expense} />
+                                    <ActionBtn label={t(language, 'delete')} onPress={() => handleDelete(inv)} color={Colors.expense} />
                                 </View>
                             </TouchableOpacity>
                         ))
@@ -393,76 +394,76 @@ export default function InvoicesScreen() {
                     <ScrollView keyboardShouldPersistTaps="handled">
                         <View style={styles.pad}>
                             <View style={styles.titleRow}>
-                                <Text style={styles.title}>{editId ? 'Edit Invoice' : 'New Invoice'}</Text>
+                                <Text style={styles.title}>{editId ? t(language, 'editInvoiceTitle') : t(language, 'newInvoiceTitle')}</Text>
                                 <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }}>
-                                    <Text style={{ color: Colors.textMuted, fontSize: 15 }}>Cancel</Text>
+                                    <Text style={{ color: Colors.textMuted, fontSize: 15 }}>{t(language, 'cancel')}</Text>
                                 </TouchableOpacity>
                             </View>
 
-                            <Section title="Client Details">
-                                <FLabel>Client Name *</FLabel>
+                            <Section title={t(language, 'clientDetailsSection')}>
+                                <FLabel>{t(language, 'clientName')} *</FLabel>
                                 <FInput value={clientName} onChangeText={setClientName} placeholder="Acme Corp" />
-                                <FLabel>Client Email</FLabel>
+                                <FLabel>{t(language, 'clientEmail')}</FLabel>
                                 <FInput value={clientEmail} onChangeText={setClientEmail} placeholder="billing@acme.com" keyboard="email-address" />
-                                <FLabel>Client Phone (for WhatsApp reminders)</FLabel>
+                                <FLabel>{t(language, 'clientPhoneLabel')}</FLabel>
                                 <FInput value={clientPhone} onChangeText={setClientPhone} placeholder="+44 7700 900000" keyboard="phone-pad" />
-                                <FLabel>Client Address</FLabel>
+                                <FLabel>{t(language, 'clientAddress')}</FLabel>
                                 <FInput value={clientAddress} onChangeText={setClientAddress} placeholder="123 Main St, City" />
                             </Section>
 
-                            <Section title="Invoice Details">
-                                <FLabel>Due Date *</FLabel>
+                            <Section title={t(language, 'invoiceDetailsSection')}>
+                                <FLabel>{t(language, 'dueDate')} *</FLabel>
                                 <DateInput value={dueDate} onChange={setDueDate} />
-                                <FLabel>Notes</FLabel>
+                                <FLabel>{t(language, 'notes')}</FLabel>
                                 <FInput value={notes} onChangeText={setNotes} placeholder="Payment terms, bank details…" multiline />
                             </Section>
 
-                            <Section title="Line Items">
+                            <Section title={t(language, 'lineItems')}>
                                 {lineItems.map((li, idx) => (
                                     <View key={idx} style={styles.lineItem}>
                                         <View style={styles.lineHeader}>
-                                            <Text style={styles.lineNum}>Item {idx + 1}</Text>
+                                            <Text style={styles.lineNum}>{t(language, 'itemLabel')} {idx + 1}</Text>
                                             {lineItems.length > 1 && (
                                                 <TouchableOpacity onPress={() => setLineItems(prev => prev.filter((_, i) => i !== idx))}>
-                                                    <Text style={{ color: Colors.expense, fontSize: 12 }}>Remove</Text>
+                                                    <Text style={{ color: Colors.expense, fontSize: 12 }}>{t(language, 'removeLabel')}</Text>
                                                 </TouchableOpacity>
                                             )}
                                         </View>
-                                        <FLabel>Description *</FLabel>
+                                        <FLabel>{t(language, 'descriptionLabel')}</FLabel>
                                         <FInput value={li.description} onChangeText={v => updateLine(idx, { description: v })} placeholder="Service or product description" />
                                         <View style={styles.lineRow}>
                                             <View style={{ flex: 1 }}>
-                                                <FLabel>Qty</FLabel>
+                                                <FLabel>{t(language, 'qtyLabel')}</FLabel>
                                                 <FInput value={String(li.quantity)} onChangeText={v => updateLine(idx, { quantity: parseFloat(v) || 0 })} keyboard="numeric" placeholder="1" />
                                             </View>
                                             <View style={{ flex: 1, marginLeft: 8 }}>
-                                                <FLabel>Unit Price ({currency})</FLabel>
+                                                <FLabel>{t(language, 'unitPriceLabel')} ({currency})</FLabel>
                                                 <FInput value={String(li.unitPrice)} onChangeText={v => updateLine(idx, { unitPrice: parseFloat(v) || 0 })} keyboard="numeric" placeholder="0" />
                                             </View>
                                             <View style={{ flex: 1, marginLeft: 8 }}>
-                                                <FLabel>Tax %</FLabel>
+                                                <FLabel>{t(language, 'taxPercentLabel')}</FLabel>
                                                 <FInput value={String(li.taxRate)} onChangeText={v => updateLine(idx, { taxRate: parseFloat(v) || 0 })} keyboard="numeric" placeholder="0" />
                                             </View>
                                         </View>
                                     </View>
                                 ))}
                                 <TouchableOpacity style={styles.addLineBtn} onPress={() => setLineItems(prev => [...prev, { ...EMPTY_LINE }])}>
-                                    <Text style={styles.addLineBtnText}>+ Add Line Item</Text>
+                                    <Text style={styles.addLineBtnText}>{t(language, 'addLineItemBtn')}</Text>
                                 </TouchableOpacity>
                             </Section>
 
                             {/* Totals preview */}
                             <View style={styles.totalsCard}>
-                                <TotalRow label="Subtotal" value={`${currency}${totals.subtotal.toFixed(2)}`} />
-                                <TotalRow label="Tax" value={`${currency}${totals.taxTotal.toFixed(2)}`} />
-                                <TotalRow label="Total" value={`${currency}${totals.total.toFixed(2)}`} bold />
+                                <TotalRow label={t(language, 'subtotalLabel')} value={`${currency}${totals.subtotal.toFixed(2)}`} />
+                                <TotalRow label={t(language, 'taxSectionLabel')} value={`${currency}${totals.taxTotal.toFixed(2)}`} />
+                                <TotalRow label={t(language, 'totalWord')} value={`${currency}${totals.total.toFixed(2)}`} bold />
                             </View>
 
                             <TouchableOpacity style={styles.saveBtn} onPress={() => handleSave(false)}>
-                                <Text style={styles.saveBtnText}>Save & Mark as Sent</Text>
+                                <Text style={styles.saveBtnText}>{t(language, 'saveAndSend')}</Text>
                             </TouchableOpacity>
                             <TouchableOpacity style={styles.draftBtn} onPress={() => handleSave(true)}>
-                                <Text style={styles.draftBtnText}>Save as Draft</Text>
+                                <Text style={styles.draftBtnText}>{t(language, 'saveAsDraft')}</Text>
                             </TouchableOpacity>
                         </View>
                     </ScrollView>
@@ -478,26 +479,26 @@ export default function InvoicesScreen() {
                                 <View style={styles.titleRow}>
                                     <Text style={styles.title}>{viewInv.invoiceNumber}</Text>
                                     <TouchableOpacity onPress={() => setViewInv(null)}>
-                                        <Text style={{ color: Colors.textMuted, fontSize: 15 }}>Close</Text>
+                                        <Text style={{ color: Colors.textMuted, fontSize: 15 }}>{t(language, 'close')}</Text>
                                     </TouchableOpacity>
                                 </View>
 
                                 <View style={[styles.badge, { alignSelf: 'flex-start', marginBottom: 16, backgroundColor: STATUS_COLOR[viewInv.status] + '22' }]}>
-                                    <Text style={[styles.badgeText, { color: STATUS_COLOR[viewInv.status] }]}>{viewInv.status.toUpperCase()}</Text>
+                                    <Text style={[styles.badgeText, { color: STATUS_COLOR[viewInv.status] }]}>{t(language, viewInv.status).toUpperCase()}</Text>
                                 </View>
 
-                                <Section title="Client">
-                                    <DetailRow label="Name"    value={viewInv.clientName} />
-                                    {viewInv.clientEmail   && <DetailRow label="Email"   value={viewInv.clientEmail} />}
-                                    {viewInv.clientAddress && <DetailRow label="Address" value={viewInv.clientAddress} />}
+                                <Section title={t(language, 'clientSection')}>
+                                    <DetailRow label={t(language, 'nameLabel')}    value={viewInv.clientName} />
+                                    {viewInv.clientEmail   && <DetailRow label={t(language, 'email')}   value={viewInv.clientEmail} />}
+                                    {viewInv.clientAddress && <DetailRow label={t(language, 'addressLabel')} value={viewInv.clientAddress} />}
                                 </Section>
 
-                                <Section title="Dates">
-                                    <DetailRow label="Issued" value={viewInv.issueDate} />
-                                    <DetailRow label="Due"    value={viewInv.dueDate} />
+                                <Section title={t(language, 'datesSection')}>
+                                    <DetailRow label={t(language, 'issuedLabel')} value={viewInv.issueDate} />
+                                    <DetailRow label={t(language, 'duePrefix')}    value={viewInv.dueDate} />
                                 </Section>
 
-                                <Section title="Line Items">
+                                <Section title={t(language, 'lineItems')}>
                                     {(viewInv.lineItems ?? []).map((li, i) => {
                                         const qty       = li.quantity ?? 0;
                                         const unitPrice = li.unitPrice ?? 0;
@@ -515,20 +516,20 @@ export default function InvoicesScreen() {
                                         );
                                     })}
                                     <View style={styles.totalsCard}>
-                                        <TotalRow label="Subtotal" value={`${currency}${(viewInv.subtotal ?? 0).toFixed(2)}`} />
-                                        <TotalRow label="Tax"      value={`${currency}${(viewInv.taxTotal ?? 0).toFixed(2)}`} />
-                                        <TotalRow label="Total"    value={`${currency}${(viewInv.total ?? 0).toFixed(2)}`} bold />
+                                        <TotalRow label={t(language, 'subtotalLabel')} value={`${currency}${(viewInv.subtotal ?? 0).toFixed(2)}`} />
+                                        <TotalRow label={t(language, 'taxSectionLabel')}      value={`${currency}${(viewInv.taxTotal ?? 0).toFixed(2)}`} />
+                                        <TotalRow label={t(language, 'totalWord')}    value={`${currency}${(viewInv.total ?? 0).toFixed(2)}`} bold />
                                     </View>
                                 </Section>
 
                                 {viewInv.notes ? (
-                                    <Section title="Notes">
+                                    <Section title={t(language, 'notes')}>
                                         <Text style={styles.notesText}>{viewInv.notes}</Text>
                                     </Section>
                                 ) : null}
 
                                 <TouchableOpacity style={styles.saveBtn} onPress={() => handleShare(viewInv)}>
-                                    <Text style={styles.saveBtnText}>Share Invoice</Text>
+                                    <Text style={styles.saveBtnText}>{t(language, 'shareInvoice')}</Text>
                                 </TouchableOpacity>
 
                                 {whatsappAvailable && viewInv.status !== 'paid' && (
@@ -537,14 +538,14 @@ export default function InvoicesScreen() {
                                             onPress={() => sendInvoiceReminderViaWhatsApp(viewInv, user?.businessName || 'Business', currency, viewInv.clientPhone || '')}>
                                             <View style={styles.btnIconRow}>
                                                 <Icon name="message-circle" size={14} color="#fff" />
-                                                <Text style={styles.draftBtnText}>Send Reminder via WhatsApp</Text>
+                                                <Text style={styles.draftBtnText}>{t(language, 'sendReminderWhatsApp')}</Text>
                                             </View>
                                         </TouchableOpacity>
                                         <TouchableOpacity style={[styles.draftBtn, { marginTop: 8, backgroundColor: '#128C7E' }]}
                                             onPress={() => sendPaymentRequestViaWhatsApp(viewInv, user?.businessName || 'Business', currency, viewInv.clientPhone || '')}>
                                             <View style={styles.btnIconRow}>
                                                 <Icon name="credit-card" size={14} color="#fff" />
-                                                <Text style={styles.draftBtnText}>Request Payment via WhatsApp</Text>
+                                                <Text style={styles.draftBtnText}>{t(language, 'requestPaymentWhatsApp')}</Text>
                                             </View>
                                         </TouchableOpacity>
                                     </>
@@ -562,12 +563,12 @@ export default function InvoicesScreen() {
                                             }); }}>
                                             <View style={styles.btnIconRow}>
                                                 <Icon name="credit-card" size={14} color="#fff" />
-                                                <Text style={styles.draftBtnText}>Collect Payment via Paystack</Text>
+                                                <Text style={styles.draftBtnText}>{t(language, 'collectPaymentPaystack')}</Text>
                                             </View>
                                         </TouchableOpacity>
                                         <TouchableOpacity style={[styles.draftBtn, { marginTop: 8 }]}
                                             onPress={() => { markInvoiceStatus(viewInv.id, 'paid'); setViewInv(null); }}>
-                                            <Text style={styles.draftBtnText}>Mark as Paid</Text>
+                                            <Text style={styles.draftBtnText}>{t(language, 'markPaid')}</Text>
                                         </TouchableOpacity>
                                     </>
                                 )}
