@@ -119,8 +119,8 @@ export default function ReportsScreen() {
     const [showComparison, setShowComparison] = useState(false);
     // Formal statement is the default view for everyone, not just when
     // preparing something for a lender — "Show Simple View" switches to the
-    // plain-English cards for whoever prefers those instead.
-    const [showFormalPnL, setShowFormalPnL] = useState(true);
+    // plain-English cards for whoever prefers those instead. P&L has no such
+    // toggle anymore: the formal statement is its only view.
     const [showFormalBS, setShowFormalBS]   = useState(true);
     const [showFormalCF, setShowFormalCF]   = useState(true);
     const today = new Date().toISOString().split('T')[0];
@@ -538,59 +538,28 @@ export default function ReportsScreen() {
                     {/* ── P & L ────────────────────────────────────────── */}
                     {activeTab === 'pnl' && (
                         <View>
-                            <TouchableOpacity style={styles.formalToggleBtn} onPress={() => setShowFormalPnL(v => !v)}>
-                                <Icon name={showFormalPnL ? 'list' : 'file-text'} size={14} color={Colors.primary} />
-                                <Text style={styles.formalToggleText}>
-                                    {showFormalPnL ? 'Show Simple View' : 'Show Formal Statement'}
-                                </Text>
-                            </TouchableOpacity>
+                            {/* One P&L view only — the formal statement below is the
+                                sole rendering of Revenue/COGS/Profit; the old plain-
+                                English StatRow card that duplicated it has been
+                                removed rather than just hidden behind a toggle. */}
+                            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 10 }}>
+                                <TouchableOpacity style={styles.exportCsvBtn} onPress={exportPnL}>
+                                    <Text style={styles.exportText}>Export CSV</Text>
+                                </TouchableOpacity>
+                            </View>
 
-                            {showFormalPnL && (
-                                <ProfitAndLossStatement
-                                    businessName={businessName}
-                                    periodLabel={periodDateLabel}
-                                    pnl={enhPnL}
-                                    currency={currency}
-                                />
-                            )}
+                            <ProfitAndLossStatement
+                                businessName={businessName}
+                                periodLabel={periodDateLabel}
+                                pnl={enhPnL}
+                                currency={currency}
+                            />
 
                             {/* Same reasoning as Balance Sheet: clicking Monthly/
                                 Quarterly/Yearly above should show the Jan-Dec
                                 breakdown right away, not after scrolling past the
                                 whole P&L card and chart. */}
                             <PeriodComparisonTable transactions={transactions} currency={currency} />
-
-                            {!showFormalPnL && (
-                                <>
-                                    <PeriodLabel period={period} />
-                                    <View style={styles.card}>
-                                        <View style={styles.cardHeaderRow}>
-                                            <Text style={styles.cardTitle}>Profit & Loss</Text>
-                                            <TouchableOpacity style={styles.exportCsvBtn} onPress={exportPnL}>
-                                                <Text style={styles.exportText}>Export CSV</Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                        <StatRow label="Total Revenue (Money In)"             value={`${currency}${Math.round(enhPnL.revenue).toLocaleString()}`}                                           color={Colors.income} />
-                                        <StatRow label="  Cost of Goods Sold"                 value={`-${currency}${Math.round(enhPnL.cogs).toLocaleString()}`}                                          color={Colors.expense} indent />
-                                        <StatRow label="Gross Profit"                         value={`${currency}${Math.round(enhPnL.grossProfit).toLocaleString()}`}                                  color={enhPnL.grossProfit >= 0 ? Colors.income : Colors.expense} bold />
-                                        <StatRow label="  Gross Margin %"                     value={`${(isNaN(enhPnL.grossMargin) ? 0 : enhPnL.grossMargin).toFixed(1)}%`}               color={Colors.textMuted} indent info="Gross Margin" />
-                                        <StatRow label="  Running Costs (rent, salaries, admin)" value={`-${currency}${Math.round(enhPnL.sgaExpenses).toLocaleString()}`}                              color={Colors.expense} indent />
-                                        <StatRow label="Operating Profit (EBIT)"              value={`${enhPnL.ebit >= 0 ? '+' : ''}${currency}${Math.round(enhPnL.ebit).toLocaleString()}`}           color={enhPnL.ebit >= 0 ? Colors.income : Colors.expense} bold />
-                                        <StatRow label="  Operating Margin %"                 value={`${(isNaN(enhPnL.ebitMargin) ? 0 : enhPnL.ebitMargin).toFixed(1)}%`}                 color={Colors.textMuted} indent info="Operating Margin" />
-                                        {enhPnL.interestExpense !== 0 && (
-                                            <StatRow label="  Interest Expense (on loans)"    value={`-${currency}${Math.round(enhPnL.interestExpense).toLocaleString()}`}                            color={Colors.expense} indent />
-                                        )}
-                                        <StatRow label="Profit Before Tax"                    value={`${enhPnL.profitBeforeTax >= 0 ? '+' : ''}${currency}${Math.round(enhPnL.profitBeforeTax).toLocaleString()}`} color={enhPnL.profitBeforeTax >= 0 ? Colors.income : Colors.expense} bold info="Profit Before Tax" />
-                                        <StatRow label="  Equipment Depreciation (non-cash)"  value={`+${currency}${Math.round(enhPnL.depreciation).toLocaleString()}`}                               color={Colors.textMuted} indent />
-                                        <StatRow label="Cash Profit (EBITDA)"                 value={`${enhPnL.ebitda >= 0 ? '+' : ''}${currency}${Math.round(enhPnL.ebitda).toLocaleString()}`}      color={enhPnL.ebitda >= 0 ? Colors.income : Colors.expense} bold info="Cash Profit" />
-                                        <StatRow label="Net Profit (Bottom Line)"             value={`${enhPnL.netProfit >= 0 ? '+' : ''}${currency}${Math.round(enhPnL.netProfit).toLocaleString()}`} color={enhPnL.netProfit >= 0 ? Colors.income : Colors.expense} bold />
-                                        <StatRow label="Net Profit %"                         value={`${(isNaN(enhPnL.netMargin) ? 0 : enhPnL.netMargin).toFixed(1)}%`}                   color={enhPnL.netMargin >= parseFloat(targetMargin) ? Colors.income : Colors.expense} />
-                                        <StatRow label="Your Profit Target"                   value={`${targetMargin}%`}                                                                    color={Colors.textMuted} />
-                                        <StatRow label="Tax Charged to Customers"             value={`${currency}${finance.totalTaxCollected.toLocaleString()}`}                           color={Colors.warning} />
-                                        <StatRow label="Tax You Have Paid"                    value={`${currency}${finance.totalTaxPaid.toLocaleString()}`}                                color={Colors.warning} />
-                                    </View>
-                                </>
-                            )}
 
                             <View style={styles.card}>
                                 <Text style={styles.cardTitle}>Money Owed To / By You</Text>
