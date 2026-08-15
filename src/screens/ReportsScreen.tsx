@@ -117,9 +117,12 @@ export default function ReportsScreen() {
     const [activeTab, setActiveTab]   = useState<SubTab>('balancesheet');
     const [period, setPeriod]         = useState<ReportPeriod>('all');
     const [showComparison, setShowComparison] = useState(false);
-    const [showFormalPnL, setShowFormalPnL] = useState(false);
-    const [showFormalBS, setShowFormalBS]   = useState(false);
-    const [showFormalCF, setShowFormalCF]   = useState(false);
+    // Formal statement is the default view for everyone, not just when
+    // preparing something for a lender — "Show Simple View" switches to the
+    // plain-English cards for whoever prefers those instead.
+    const [showFormalPnL, setShowFormalPnL] = useState(true);
+    const [showFormalBS, setShowFormalBS]   = useState(true);
+    const [showFormalCF, setShowFormalCF]   = useState(true);
     const today = new Date().toISOString().split('T')[0];
     const inventoryValue = useMemo(
         () => computeInventoryValue(inventory),
@@ -494,7 +497,7 @@ export default function ReportsScreen() {
                             <TouchableOpacity style={styles.formalToggleBtn} onPress={() => setShowFormalBS(v => !v)}>
                                 <Icon name={showFormalBS ? 'list' : 'file-text'} size={14} color={Colors.primary} />
                                 <Text style={styles.formalToggleText}>
-                                    {showFormalBS ? 'Show Simple View' : 'Show Formal Statement (for banks/lenders)'}
+                                    {showFormalBS ? 'Show Simple View' : 'Show Formal Statement'}
                                 </Text>
                             </TouchableOpacity>
 
@@ -538,7 +541,7 @@ export default function ReportsScreen() {
                             <TouchableOpacity style={styles.formalToggleBtn} onPress={() => setShowFormalPnL(v => !v)}>
                                 <Icon name={showFormalPnL ? 'list' : 'file-text'} size={14} color={Colors.primary} />
                                 <Text style={styles.formalToggleText}>
-                                    {showFormalPnL ? 'Show Simple View' : 'Show Formal Statement (for banks/lenders)'}
+                                    {showFormalPnL ? 'Show Simple View' : 'Show Formal Statement'}
                                 </Text>
                             </TouchableOpacity>
 
@@ -662,7 +665,7 @@ export default function ReportsScreen() {
                             <TouchableOpacity style={styles.formalToggleBtn} onPress={() => setShowFormalCF(v => !v)}>
                                 <Icon name={showFormalCF ? 'list' : 'file-text'} size={14} color={Colors.primary} />
                                 <Text style={styles.formalToggleText}>
-                                    {showFormalCF ? 'Show Simple View' : 'Show Formal Statement (for banks/lenders)'}
+                                    {showFormalCF ? 'Show Simple View' : 'Show Formal Statement'}
                                 </Text>
                             </TouchableOpacity>
 
