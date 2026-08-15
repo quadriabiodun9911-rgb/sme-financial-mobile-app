@@ -430,7 +430,7 @@ export default function LoginScreen() {
                         <Image source={require('../../assets/icon.png')} style={styles.logo} />
                         <Text style={styles.title}>Welcome Back</Text>
                         <Text style={styles.brandTagline}>
-                            Quad360 turns a business's everyday financial activity into clear decisions, financial readiness, and access to the right capital.
+                            Quad360 helps you understand your business, know what you can afford, become financing-ready, and find the right capital — all in one place.
                         </Text>
                         <Text style={styles.subtitle}>Sign in with your email and PIN to restore your account on this device.</Text>
 
@@ -836,12 +836,12 @@ export default function LoginScreen() {
                         <View style={styles.splitBrand}>
                             <View style={styles.splitBrandMid}>
                                 <Image source={require('../../assets/icon.png')} style={styles.splitLogo} />
-                                <Text style={styles.splitTagline}>The Financial Intelligence & Financing Platform for African SMEs</Text>
+                                <Text style={styles.splitTagline}>The Financial Intelligence Layer Between African Businesses and Capital</Text>
                                 <Text style={styles.splitHeadline}>
-                                    Quad360 turns a business's everyday financial activity into clear decisions, financial readiness, and access to the right capital.
+                                    From business data to better decisions to better capital.
                                 </Text>
                                 <Text style={styles.splitSub}>
-                                    Turn your cash flow, invoices, and debt into a real financing case — then find financing built for what your business can prove.
+                                    Understand your business. Improve your financial health. Become financing-ready. Find the right capital.
                                 </Text>
                             </View>
                             <View style={styles.socialProofSetup}>
@@ -877,7 +877,7 @@ export default function LoginScreen() {
                     <View style={styles.card}>
                         <Image source={require('../../assets/icon.png')} style={styles.logo} />
                         <Text style={styles.brandTagline}>
-                            Quad360 turns a business's everyday financial activity into clear decisions, financial readiness, and access to the right capital.
+                            Quad360 helps you understand your business, know what you can afford, become financing-ready, and find the right capital — all in one place.
                         </Text>
                         <Text style={styles.subtitle}>{t(setupLang, 'setupSubtitle')}</Text>
 
@@ -910,7 +910,7 @@ export default function LoginScreen() {
                 <View style={styles.card}>
                     <Image source={require('../../assets/icon.png')} style={styles.logo} />
                     <Text style={styles.brandTagline}>
-                        Quad360 turns a business's everyday financial activity into clear decisions, financial readiness, and access to the right capital.
+                        Quad360 helps you understand your business, know what you can afford, become financing-ready, and find the right capital — all in one place.
                     </Text>
                     <Text style={styles.subtitle}>{t(language, 'loginSubtitle')}</Text>
 
