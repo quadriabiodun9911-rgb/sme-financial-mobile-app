@@ -430,7 +430,7 @@ export default function LoginScreen() {
                         <Image source={require('../../assets/icon.png')} style={styles.logo} />
                         <Text style={styles.title}>Welcome Back</Text>
                         <Text style={styles.brandTagline}>
-                            The financial operating system every business trusts more than their bank balance.
+                            Quad360 turns a business's everyday financial activity into clear decisions, financial readiness, and access to the right capital.
                         </Text>
                         <Text style={styles.subtitle}>Sign in with your email and PIN to restore your account on this device.</Text>
 
@@ -838,7 +838,7 @@ export default function LoginScreen() {
                                 <Image source={require('../../assets/icon.png')} style={styles.splitLogo} />
                                 <Text style={styles.splitTagline}>The Financial Intelligence & Financing Platform for African SMEs</Text>
                                 <Text style={styles.splitHeadline}>
-                                    The financial operating system every business trusts more than their bank balance.
+                                    Quad360 turns a business's everyday financial activity into clear decisions, financial readiness, and access to the right capital.
                                 </Text>
                                 <Text style={styles.splitSub}>
                                     Turn your cash flow, invoices, and debt into a real financing case — then find financing built for what your business can prove.
@@ -877,7 +877,7 @@ export default function LoginScreen() {
                     <View style={styles.card}>
                         <Image source={require('../../assets/icon.png')} style={styles.logo} />
                         <Text style={styles.brandTagline}>
-                            The financial operating system every business trusts more than their bank balance.
+                            Quad360 turns a business's everyday financial activity into clear decisions, financial readiness, and access to the right capital.
                         </Text>
                         <Text style={styles.subtitle}>{t(setupLang, 'setupSubtitle')}</Text>
 
@@ -910,7 +910,7 @@ export default function LoginScreen() {
                 <View style={styles.card}>
                     <Image source={require('../../assets/icon.png')} style={styles.logo} />
                     <Text style={styles.brandTagline}>
-                        The financial operating system every business trusts more than their bank balance.
+                        Quad360 turns a business's everyday financial activity into clear decisions, financial readiness, and access to the right capital.
                     </Text>
                     <Text style={styles.subtitle}>{t(language, 'loginSubtitle')}</Text>
 
