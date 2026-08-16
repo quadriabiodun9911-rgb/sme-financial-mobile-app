@@ -16,6 +16,7 @@ import { showAlert, confirmAction } from '../utils/webAlert';
 import Icon from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { t } from '../utils/i18n';
+import { trackDataExported } from '../utils/analytics';
 
 type FilterType   = 'all' | 'income' | 'expense' | 'collect';
 type StatusFilter = 'all' | 'paid' | 'pending' | 'overdue';
@@ -122,7 +123,7 @@ function formatDateHeader(iso: string): string {
 }
 
 export default function TransactionsScreen() {
-    const { transactions, addTransaction, deleteTransaction, updateTransaction, settings, setCurrentScreen, navParams, invoices, markInvoiceStatus, navigate, language } = useApp();
+    const { transactions, addTransaction, deleteTransaction, updateTransaction, settings, setCurrentScreen, navParams, invoices, markInvoiceStatus, navigate, language, isDemoMode } = useApp();
     const { currency, defaultTaxRate } = settings;
 
     const [modalOpen, setModalOpen]   = useState(false);
@@ -263,6 +264,7 @@ export default function TransactionsScreen() {
 
     const handleExportCSV = async () => {
         const csv = transactionsToCSV(filtered);
+        if (!isDemoMode) trackDataExported();
         try {
             if (Platform.OS === 'web') {
                 const blob = new Blob([csv], { type: 'text/csv' });

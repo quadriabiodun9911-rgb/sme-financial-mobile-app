@@ -16,6 +16,7 @@ import { openSupportChat } from '../utils/whatsappIntegration';
 import { showAlert, confirmAction } from '../utils/webAlert';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
+import { trackDataExported } from '../utils/analytics';
 import { isFinancingAdmin } from '../utils/financingAdmin';
 
 const CURRENCIES = [
@@ -63,7 +64,7 @@ export default function SettingsScreen() {
         userRole, teamMembers, inviteMember, removeMember, refreshTeam,
         language, setLanguage,
         transactions, user, updateProfile,
-        finance, assets, loans,
+        finance, assets, loans, isDemoMode,
     } = useApp() as ReturnType<typeof useApp>;
 
     // Feature flags
@@ -189,6 +190,7 @@ export default function SettingsScreen() {
     const handleExport = async () => {
         try {
             const json = await exportData();
+            if (!isDemoMode) trackDataExported();
             if (Platform.OS === 'web') {
                 const blob = new Blob([json], { type: 'application/json' });
                 const url  = URL.createObjectURL(blob);
@@ -208,6 +210,7 @@ export default function SettingsScreen() {
     const handleAccountantExport = () => {
         try {
             const csv = generateAccountantReportCSV(finance, transactions, assets, loans);
+            if (!isDemoMode) trackDataExported();
             const filename = `quad360-accountant-report-${new Date().toISOString().slice(0, 10)}.csv`;
             if (Platform.OS === 'web') {
                 const blob = new Blob([csv], { type: 'text/csv' });

@@ -4,7 +4,7 @@ import * as Updates from 'expo-updates';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider } from './src/contexts/ThemeContext';
 import { AuthProvider, SettingsProvider, FinanceProvider, GoalProvider, InvoiceProvider, useAuth } from './src/contexts/OptimizedContexts';
-import { trackScreenViewed } from './src/utils/analytics';
+import { trackScreenViewed, trackAppOpened } from './src/utils/analytics';
 import { initSentry, setSentryUser } from './src/utils/sentry';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import LandingScreen from './src/screens/LandingScreen';
@@ -52,6 +52,12 @@ import { UserRole, Screen } from './src/types';
 function NavigatorContent() {
     const { user, isLoading, currentScreen, navParams, setCurrentScreen, goBack, isLenderSession } = useAuth();
     const userRole = (user?.role === 'Accountant' ? 'accountant' : user?.role === 'Staff' ? 'staff' : 'owner') as UserRole;
+
+    // Once per cold start, not tied to any account/demo state -- this fires
+    // before either is known.
+    useEffect(() => {
+        trackAppOpened();
+    }, []);
 
     useEffect(() => {
         if (!isLoading && currentScreen !== 'login') {

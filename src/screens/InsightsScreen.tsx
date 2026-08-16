@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, StyleSheet,
     TouchableOpacity, LayoutAnimation, Platform, UIManager,
@@ -12,6 +12,7 @@ import { generateSwot } from '../utils/swot';
 import { SwotItem } from '../types';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
+import { trackInsightViewed } from '../utils/analytics';
 
 if (Platform.OS === 'android') {
     UIManager.setLayoutAnimationEnabledExperimental?.(true);
@@ -121,11 +122,15 @@ const SOURCE_LABELS = {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function InsightsScreen() {
-    const { finance, settings, transactions, setCurrentScreen, navigate } = useApp();
+    const { finance, settings, transactions, setCurrentScreen, navigate, isDemoMode } = useApp();
     const { currency, targetMargin, minReserve } = settings;
 
     const [swotExpanded, setSwotExpanded] = useState(true);
     const [expandedAction, setExpandedAction] = useState<number | null>(null);
+
+    useEffect(() => {
+        if (!isDemoMode) trackInsightViewed('swot');
+    }, [isDemoMode]);
 
     const topExpenses = useMemo(() => getTopCategories(transactions, 'expense', 5), [transactions]);
     const topIncome   = useMemo(() => getTopCategories(transactions, 'income', 5), [transactions]);

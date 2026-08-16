@@ -13,7 +13,7 @@ import { Platform } from 'react-native';
 import { User, Invoice, InvoiceStatus, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, MerchantFinancingApplication, LoanPurpose, StaffMember, PayrollRun, PayrollItem, CashPocket, CapitalCommitment, ReadinessSnapshot, UserRole } from '../types';
 import { computeFinance, computeAssetCurrentValue, countActiveMonths, getMonthlyExpenseAverage, computeRiskScore } from '../utils/finance';
 import { buildReadinessSnapshot, shouldRecordSnapshot, appendReadinessSnapshot } from '../utils/readinessHistory';
-import { trackTransactionAdded, trackInventoryItemAdded, trackAssetAdded, trackLoanAdded } from '../utils/analytics';
+import { trackTransactionAdded, trackInventoryItemAdded, trackAssetAdded, trackLoanAdded, trackGoalCreated, trackAppOpened, trackUserRegistered, trackUserLoggedOut, trackDemoStarted } from '../utils/analytics';
 import { sanitizeStoredGoals, refreshGoal } from '../utils/goals';
 import { DEMO_BUSINESSES } from '../utils/demoData';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -595,7 +595,10 @@ export function GoalProvider({ children }: { children: ReactNode }) {
   const value: GoalContextValue = useMemo(
     () => ({
       goals,
-      addGoal: (goal) => setGoals((prev) => [...prev, { ...goal, id: goal.id || genId() }]),
+      addGoal: (goal) => {
+        if (!isDemoMode) trackGoalCreated(goal.type);
+        setGoals((prev) => [...prev, { ...goal, id: goal.id || genId() }]);
+      },
       updateGoal: (id, goal) => setGoals((prev) =>
         prev.map((g) => (g.id === id ? { ...g, ...goal } : g))
       ),
@@ -603,7 +606,7 @@ export function GoalProvider({ children }: { children: ReactNode }) {
         prev.filter((g) => g.id !== id)
       ),
     }),
-    [goals]
+    [goals, isDemoMode]
   );
 
   return (
@@ -1094,6 +1097,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setCurrentScreenState('login');
       },
       logout: async () => {
+        if (!isDemoMode) trackUserLoggedOut();
         setIsLoading(true);
         try {
           await supabase.auth.signOut().catch(() => {});
@@ -1155,6 +1159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         setIsFirstLaunch(false);
         setUser({ email, businessName, role: 'Administrator', phone, createdAt: new Date().toISOString() });
+        trackUserRegistered(initialSettings?.currency ?? DEFAULT_SETTINGS.currency);
         // First-run choice — upload a statement or set a goal — rather than
         // dropping a brand-new user straight onto an empty Dashboard where
         // that decision is easy to never make.
@@ -1350,6 +1355,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       enterDemo: (businessId: string) => {
         const biz = DEMO_BUSINESSES.find((b) => b.id === businessId);
         if (!biz) return;
+        trackDemoStarted(biz.id, biz.businessName, biz.country);
         setUser({
           email: `demo-${biz.id}@quad360.demo`,
           businessName: biz.businessName,
