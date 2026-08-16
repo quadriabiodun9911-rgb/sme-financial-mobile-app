@@ -47,6 +47,7 @@ export default function LandingScreen() {
     const goLender = () => navigate('login', { mode: 'join-lender' });
     const goLenderDemo = () => enterLenderDemo();
     const goContact = () => navigate('contact');
+    const goBlog = () => navigate('blog');
 
     return (
         <SafeAreaView style={s.safe}>
@@ -57,6 +58,9 @@ export default function LandingScreen() {
                         <Text style={s.navBrand}>Quad360</Text>
                     </View>
                     <View style={s.navActions}>
+                        <TouchableOpacity onPress={goBlog} style={s.navContactBtn}>
+                            <Text style={s.navContactText}>Blog</Text>
+                        </TouchableOpacity>
                         <TouchableOpacity onPress={goContact} style={s.navContactBtn}>
                             <Text style={s.navContactText}>Contact</Text>
                         </TouchableOpacity>
@@ -194,10 +198,16 @@ export default function LandingScreen() {
 
                 <View style={s.footer}>
                     <Text style={s.footerText}>Quad360 — financial intelligence for SMEs and their lenders.</Text>
-                    <TouchableOpacity onPress={goContact} style={s.footerContactLink}>
-                        <Icon name="message-circle" size={13} color={Colors.primary} />
-                        <Text style={s.footerContactLinkText}>Contact Us →</Text>
-                    </TouchableOpacity>
+                    <View style={s.footerLinks}>
+                        <TouchableOpacity onPress={goBlog} style={s.footerContactLink}>
+                            <Icon name="file-text" size={13} color={Colors.primary} />
+                            <Text style={s.footerContactLinkText}>Blog →</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={goContact} style={s.footerContactLink}>
+                            <Icon name="message-circle" size={13} color={Colors.primary} />
+                            <Text style={s.footerContactLinkText}>Contact Us →</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
             </ScrollView>
         </SafeAreaView>
@@ -302,6 +312,7 @@ const s = StyleSheet.create({
         borderTopWidth: 1, borderTopColor: Colors.border, gap: 10,
     },
     footerText: { fontSize: 12, color: Colors.textMuted, textAlign: 'center' },
+    footerLinks: { flexDirection: 'row', alignItems: 'center', gap: 20 },
     footerContactLink: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     footerContactLinkText: { fontSize: 13, color: Colors.primary, fontWeight: '700' },
 });

@@ -32,7 +32,9 @@ export type Screen =
     | 'macro-assumptions'
     | 'financing-marketplace'
     | 'financing-admin'
-    | 'contact';
+    | 'contact'
+    | 'blog'
+    | 'blog-post';
 
 export interface Budget {
     id: string;

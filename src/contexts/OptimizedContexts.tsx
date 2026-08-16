@@ -820,11 +820,34 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+// Blog is the one part of this SPA meant to be directly linkable — every
+// other screen is pure in-memory state with no real URL (see
+// setCurrentScreen/navigate below, which always push an empty-url history
+// entry). A shared/bookmarked article link needs to land on that article on
+// a cold load, not always on 'landing'.
+function getInitialScreenFromUrl(): string {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return 'landing';
+  const path = window.location.pathname;
+  if (path === '/blog' || path === '/blog/') return 'blog';
+  if (path.startsWith('/blog/')) return 'blog-post';
+  return 'landing';
+}
+
+function getInitialNavParamsFromUrl(): any {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
+  const path = window.location.pathname;
+  if (path.startsWith('/blog/')) {
+    const slug = path.slice('/blog/'.length).replace(/\/$/, '');
+    if (slug) return { slug };
+  }
+  return null;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [currentScreen, setCurrentScreenState] = useState('landing');
-  const [navParams, setNavParams] = useState<any>(null);
+  const [currentScreen, setCurrentScreenState] = useState(getInitialScreenFromUrl);
+  const [navParams, setNavParams] = useState<any>(getInitialNavParamsFromUrl);
   const [isDemoMode, setIsDemoMode] = useState(false);
   const [demoBusinessId, setDemoBusinessId] = useState<string | null>(null);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -923,7 +946,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           } else {
             writeTabIdentity(profile.email);
             setUser({ email: profile.email, businessName: profile.businessName, phone: profile.phone, role: 'Administrator', createdAt: profile.createdAt });
-            await routeAfterAuth();
+            // A signed-in user who lands directly on a shared /blog link
+            // should see the article, not get bounced to their dashboard.
+            const isPublicBlogRoute = getInitialScreenFromUrl() === 'blog' || getInitialScreenFromUrl() === 'blog-post';
+            if (!isPublicBlogRoute) await routeAfterAuth();
           }
         } else {
           setIsFirstLaunch(true);

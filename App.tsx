@@ -9,6 +9,8 @@ import { initSentry, setSentryUser } from './src/utils/sentry';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import LandingScreen from './src/screens/LandingScreen';
 import ContactScreen from './src/screens/ContactScreen';
+import BlogScreen from './src/screens/BlogScreen';
+import BlogPostScreen from './src/screens/BlogPostScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
 import ReportsScreen from './src/screens/ReportsScreen';
@@ -47,7 +49,7 @@ import { isScreenAllowedForRole } from './src/utils/rolePermissions';
 import { UserRole, Screen } from './src/types';
 
 function NavigatorContent() {
-    const { user, isLoading, currentScreen, setCurrentScreen, goBack, isLenderSession } = useAuth();
+    const { user, isLoading, currentScreen, navParams, setCurrentScreen, goBack, isLenderSession } = useAuth();
     const userRole = (user?.role === 'Accountant' ? 'accountant' : user?.role === 'Staff' ? 'staff' : 'owner') as UserRole;
 
     useEffect(() => {
@@ -55,6 +57,23 @@ function NavigatorContent() {
             trackScreenViewed(currentScreen);
         }
     }, [currentScreen, isLoading]);
+
+    // Blog is the only part of this SPA with a real, bookmarkable URL (see
+    // getInitialScreenFromUrl in OptimizedContexts.tsx) — keep the address
+    // bar in sync as the user moves in and out of it. Every other screen is
+    // unaffected: pure in-memory state, no URL change, exactly as before.
+    useEffect(() => {
+        if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+        if (currentScreen === 'blog') {
+            if (window.location.pathname !== '/blog') window.history.replaceState(window.history.state, '', '/blog');
+        } else if (currentScreen === 'blog-post') {
+            const slug = navParams?.slug;
+            const path = slug ? `/blog/${slug}` : '/blog';
+            if (window.location.pathname !== path) window.history.replaceState(window.history.state, '', path);
+        } else if (window.location.pathname.startsWith('/blog')) {
+            window.history.replaceState(window.history.state, '', '/');
+        }
+    }, [currentScreen, navParams]);
 
     useEffect(() => {
         setSentryUser(user?.email ?? null);
@@ -116,6 +135,8 @@ function NavigatorContent() {
         <View style={{ flex: 1 }}>
             {currentScreen === 'landing'      && <LandingScreen />}
             {currentScreen === 'contact'      && <ContactScreen />}
+            {currentScreen === 'blog'         && <BlogScreen />}
+            {currentScreen === 'blog-post'    && <BlogPostScreen />}
             {currentScreen === 'login'        && <LoginScreen />}
             {currentScreen === 'dashboard'    && <DashboardScreen />}
             {currentScreen === 'reports'      && <ReportsScreen />}
