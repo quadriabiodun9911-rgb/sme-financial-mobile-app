@@ -38,6 +38,7 @@ import CashFlowFormalStatement from '../components/CashFlowFormalStatement';
 import { computeBalanceSheetTrend } from '../utils/balanceSheetTrend';
 import { computeAllTimeMonthlyBuckets } from '../utils/trendAnalysis';
 import { filterByPeriod, filterByDateRange, getPreviousPeriodRange, computeFinance, computeAssetCurrentValue, computeMonthlyTrend, computeEnhancedPnL, computeProperCashFlow, computeWorkingCapitalMetrics, classifyBusinessSize, sizeLabel, transactionsToCSV, ReportPeriod, MonthlyPoint, DateRange } from '../utils/finance';
+import { trackReportViewed } from '../utils/analytics';
 import { FinanceData } from '../types';
 import DateInput from '../components/DateInput';
 import { InventoryItem } from '../types';
@@ -108,13 +109,20 @@ const PERIODS: { key: ReportPeriod; label: string }[] = [
 ];
 
 export default function ReportsScreen() {
-    const { finance: allFinance, settings, updateSettings, transactions, assets, loans: loansList, navParams, inventory, invoices, setCurrentScreen, navigate, user } = useApp();
+    const { finance: allFinance, settings, updateSettings, transactions, assets, loans: loansList, navParams, inventory, invoices, setCurrentScreen, navigate, user, isDemoMode } = useApp();
     const { currency, minReserve, targetMargin } = settings;
     const businessName = user?.businessName || 'Your Business';
 
     const [showLanding, setShowLanding] = useState(false);
     const [section, setSection]       = useState<SectionKey>('statements');
     const [activeTab, setActiveTab]   = useState<SubTab>('balancesheet');
+
+    // Fires on every tab switch, including the initial default tab, so it's
+    // one effect rather than adding a track call to each of the ~20 tab
+    // buttons individually.
+    useEffect(() => {
+        if (!isDemoMode) trackReportViewed(activeTab);
+    }, [activeTab, isDemoMode]);
     const [period, setPeriod]         = useState<ReportPeriod>('all');
     const [showComparison, setShowComparison] = useState(false);
     // Formal statement is the default view for everyone, not just when

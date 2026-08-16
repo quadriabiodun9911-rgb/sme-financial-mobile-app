@@ -13,6 +13,7 @@ import { Platform } from 'react-native';
 import { User, Invoice, InvoiceStatus, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, MerchantFinancingApplication, LoanPurpose, StaffMember, PayrollRun, PayrollItem, CashPocket, CapitalCommitment, ReadinessSnapshot, UserRole } from '../types';
 import { computeFinance, computeAssetCurrentValue, countActiveMonths, getMonthlyExpenseAverage, computeRiskScore } from '../utils/finance';
 import { buildReadinessSnapshot, shouldRecordSnapshot, appendReadinessSnapshot } from '../utils/readinessHistory';
+import { trackTransactionAdded, trackInventoryItemAdded } from '../utils/analytics';
 import { sanitizeStoredGoals, refreshGoal } from '../utils/goals';
 import { DEMO_BUSINESSES } from '../utils/demoData';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -319,7 +320,13 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       budgets,
       inventory,
       finance,
-      addTransaction: (tx) => setTransactions((prev) => [...prev, { ...tx, id: tx.id || genId() }]),
+      addTransaction: (tx) => {
+        // Demo sessions produce nothing worth measuring in the real
+        // product-usage data -- same convention already used above for
+        // persistence (saveTransactions etc. all skip while isDemoMode).
+        if (!isDemoMode) trackTransactionAdded(tx.type, tx.amount, settingsForFinance?.settings?.currency ?? '₦');
+        setTransactions((prev) => [...prev, { ...tx, id: tx.id || genId() }]);
+      },
       updateTransaction: (id, tx) => setTransactions((prev) =>
         prev.map((t) => (t.id === id ? { ...t, ...tx } : t))
       ),
@@ -429,10 +436,13 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           prev.map((a) => (a.id === id ? { ...a, status: 'disposed', disposalDate, disposalValue } as Asset : a))
         );
       },
-      addInventoryItem: (item) => setInventory((prev) => {
-        const now = new Date().toISOString();
-        return [...prev, { ...item, id: item.id || genId(), createdAt: item.createdAt || now, updatedAt: item.updatedAt || now }];
-      }),
+      addInventoryItem: (item) => {
+        if (!isDemoMode) trackInventoryItemAdded();
+        setInventory((prev) => {
+          const now = new Date().toISOString();
+          return [...prev, { ...item, id: item.id || genId(), createdAt: item.createdAt || now, updatedAt: item.updatedAt || now }];
+        });
+      },
       updateInventoryItem: (id, item) => setInventory((prev) =>
         prev.map((i) => (i.id === id ? { ...i, ...item } : i))
       ),
@@ -520,7 +530,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         }));
       },
     }),
-    [transactions, assets, loans, budgets, inventory, staff, payrollRuns, cashPockets, capitalCommitments, readinessHistory, financing, syncUserId, finance]
+    [transactions, assets, loans, budgets, inventory, staff, payrollRuns, cashPockets, capitalCommitments, readinessHistory, financing, syncUserId, finance, isDemoMode, settingsForFinance?.settings?.currency]
   );
 
   return (
