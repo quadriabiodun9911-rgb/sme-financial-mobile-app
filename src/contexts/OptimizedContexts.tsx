@@ -13,7 +13,7 @@ import { Platform } from 'react-native';
 import { User, Invoice, InvoiceStatus, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, MerchantFinancingApplication, LoanPurpose, StaffMember, PayrollRun, PayrollItem, CashPocket, CapitalCommitment, ReadinessSnapshot, UserRole } from '../types';
 import { computeFinance, computeAssetCurrentValue, countActiveMonths, getMonthlyExpenseAverage, computeRiskScore } from '../utils/finance';
 import { buildReadinessSnapshot, shouldRecordSnapshot, appendReadinessSnapshot } from '../utils/readinessHistory';
-import { trackTransactionAdded, trackInventoryItemAdded } from '../utils/analytics';
+import { trackTransactionAdded, trackInventoryItemAdded, trackAssetAdded, trackLoanAdded } from '../utils/analytics';
 import { sanitizeStoredGoals, refreshGoal } from '../utils/goals';
 import { DEMO_BUSINESSES } from '../utils/demoData';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -333,7 +333,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       deleteTransaction: (id) => setTransactions((prev) =>
         prev.filter((t) => t.id !== id)
       ),
-      addAsset: (asset) => setAssets((prev) => [...prev, { ...asset, id: asset.id || genId(), createdAt: asset.createdAt || new Date().toISOString() }]),
+      addAsset: (asset) => {
+        if (!isDemoMode) trackAssetAdded(asset.category, asset.purchaseCost, settingsForFinance?.settings?.currency ?? '₦');
+        setAssets((prev) => [...prev, { ...asset, id: asset.id || genId(), createdAt: asset.createdAt || new Date().toISOString() }]);
+      },
       updateAsset: (id, asset) => setAssets((prev) =>
         prev.map((a) => (a.id === id ? { ...a, ...asset } : a))
       ),
@@ -343,7 +346,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       // createdAt backfilled the same way addAsset/addInvoice do — Loan
       // declares it required, but this line previously left it undefined
       // on every loan created through the normal Add Loan flow.
-      addLoan: (loan) => setLoans((prev) => [...prev, { ...loan, id: loan.id || genId(), payments: loan.payments ?? [], createdAt: loan.createdAt || new Date().toISOString() }]),
+      addLoan: (loan) => {
+        if (!isDemoMode) trackLoanAdded(loan.principal, settingsForFinance?.settings?.currency ?? '₦');
+        setLoans((prev) => [...prev, { ...loan, id: loan.id || genId(), payments: loan.payments ?? [], createdAt: loan.createdAt || new Date().toISOString() }]);
+      },
       updateLoan: (id, loan) => setLoans((prev) =>
         prev.map((l) => (l.id === id ? { ...l, ...loan } : l))
       ),
