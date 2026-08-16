@@ -1,0 +1,9 @@
+{
+  "generated": false,
+  "note": "PLACEHOLDER — no real pins have been generated yet. `generated: false` keeps plugins/withCertificatePinning.js a deliberate no-op so a prebuild never ships a fabricated or wrong pin (which would hard-fail 100% of native network requests for real users, a worse outcome than no pinning at all). Run `node scripts/regenerate-cert-pins.js <host>` from a trusted network you're confident is NOT behind any TLS-intercepting proxy, paste the resulting hashes below, set generated to true, then rebuild natively (expo prebuild + a real EAS build) and verify on a real device before releasing. Re-run this before every native release, since certificates rotate.",
+  "hosts": {
+    "xfiqezxifsfwkwlbaxbj.supabase.co": {
+      "spkiSha256Base64": []
+    }
+  }
+}

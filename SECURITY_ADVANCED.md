@@ -177,62 +177,68 @@ All 2FA events logged:
 
 Certificate Pinning prevents Man-in-the-Middle (MITM) attacks by verifying that the server's SSL/TLS certificate matches an expected value.
 
-### How It Works
+### Current Status: infrastructure built, pins not yet generated
 
-1. **Pin Storage**: Expected certificate fingerprints stored in app
-2. **Verification**: Before each HTTPS connection, certificate is verified
-3. **Match Check**: Certificate fingerprint must match one of the pinned values
-4. **Rejection**: If no match, connection is rejected (fail-secure)
+This section previously described certificate pinning as implemented. It
+wasn't — the old `src/utils/certificatePinning.ts` only *simulated*
+verification in JS (`verifyCertificatePin()` always returned `true`;
+`pinnedFetch()` just called plain `fetch()`), and nothing in the app's
+actual network layer (`supabase.ts`) ever routed through it. A JS-level
+check like that can't be real pinning regardless of implementation quality:
+it runs after the TLS handshake has already completed, too late to reject
+a connection based on it.
 
-### Pinned Certificates
+What's real now: `plugins/withCertificatePinning.js`, an Expo config plugin
+applied at `expo prebuild` / EAS Build time, which generates:
+- **Android**: a Network Security Config XML (`<pin-set>`) wired via
+  `android:networkSecurityConfig` in the manifest
+- **iOS**: `NSAppTransportSecurity.NSPinnedDomains` in Info.plist (iOS 14+
+  ATS pinning)
 
-Currently pinned for Supabase:
-- `xfiqezxifsfwkwlbaxbj.supabase.co`
-- `api.supabase.co`
+Both are enforced by the OS automatically for every native network request
+to a matching host — no app code needs to call anything. This has been
+verified end-to-end by actually running `expo prebuild` for both platforms
+and inspecting the generated native files (both produced correct output).
 
-Using:
-- Let's Encrypt ISRG Root X1 (primary)
-- Let's Encrypt ISRG Root X2 (backup)
+**What's still missing: real pin values.** `certificate-pins.json` ships
+with `generated: false` and an empty pin list, which makes the plugin a
+deliberate no-op — see that file's own comment for why. In short: this
+project's own outbound HTTPS (including from this development environment)
+goes through a TLS-intercepting egress proxy, so any certificate captured
+from here would be the proxy's certificate, not Supabase's real one.
+Shipping a pin generated that way wouldn't just fail to protect — it would
+hard-fail every native network request for real users, which is worse than
+no pinning at all. Real pins have to be generated from a trusted,
+unintercepted network.
+
+### To finish this (before the next native release)
+
+1. From a trusted network (not a corporate/CI TLS-inspecting proxy), run:
+   ```bash
+   node scripts/regenerate-cert-pins.js xfiqezxifsfwkwlbaxbj.supabase.co
+   ```
+2. Choose 2+ pins from the printed chain — pinning the intermediate/root CA
+   (not just the leaf) means routine cert renewal doesn't silently break
+   the app until the next release.
+3. Paste the pins into `certificate-pins.json`, set `"generated": true`.
+4. `expo prebuild` + a real EAS build, then verify connectivity on an
+   actual device before releasing.
+5. Repeat before every native release — certificates rotate.
+
+### Web
+
+Certificate pinning is not possible on web — browsers own the TLS stack
+and give no JS-reachable API to pin a certificate. This is a permanent
+platform limitation, not a gap to close later. HTTPS enforcement (below)
+is the ceiling on web.
 
 ### HTTPS Enforcement
 
-**Level: MODERATE** (production ready)
+**Level: MODERATE**
 - All Supabase API calls use HTTPS
-- Certificate pinning enabled
 - Minimum TLS 1.2
 - HTTP fallback NOT allowed
-
-### Updating Certificates
-
-When Supabase rotates certificates:
-
-1. Extract new certificate fingerprint:
-```bash
-openssl x509 -in cert.pem -pubkey -noout | \
-  openssl pkey -pubin -outform DER | \
-  openssl dgst -sha256 -binary | base64
-```
-
-2. Update `CERTIFICATE_PINS` in `src/utils/certificatePinning.ts`
-3. Deploy new app build
-
-### Validation
-
-```typescript
-import { validateSSLConnection } from './utils/certificatePinning';
-
-const isValid = await validateSSLConnection('xfiqezxifsfwkwlbaxbj.supabase.co');
-if (!isValid) {
-  console.error('SSL/TLS validation failed!');
-}
-```
-
-### Limitations
-
-- Certificate pinning requires native implementation
-- `react-native-cert-pinning` library provides native support
-- Currently implemented at library level
-- Production deployment recommended before rollout
+- Certificate pinning: see status above (native only, pending real pins)
 
 ---
 
@@ -318,8 +324,8 @@ async function rotateEncryptionKey(userId: string) {
 ### Phase 2: ✅ IN PROGRESS
 - [x] End-to-End Encryption
 - [x] Two-Factor Authentication (TOTP + Backup Codes)
-- [x] Certificate Pinning
-- [ ] Database RLS policies (needs manual setup)
+- [ ] Certificate Pinning (native config-plugin infrastructure built and verified via `expo prebuild`; real pin values not yet generated — see Certificate Pinning section)
+- [ ] Database RLS policies (migration files cover every table as of `013_gdpr_account_deletion_and_consent.sql`; still needs to be confirmed applied to each live environment — see supabase/migrations/)
 
 ### Phase 3: PLANNED
 - [ ] SMS OTP support
@@ -358,8 +364,14 @@ npm test -- twoFactorAuth.test.ts
 ### Test Certificate Pinning
 
 ```bash
-# Validate SSL connection
-curl -vI https://xfiqezxifsfwkwlbaxbj.supabase.co
+# Unit tests for the config plugin's XML/plist generation logic
+npm test -- certPinningTransforms.test.ts
+
+# Full integration check -- generates real native project files and lets
+# you inspect them directly (see Certificate Pinning section for what to
+# look for: <pin-set> in the Android XML, NSPinnedDomains in Info.plist)
+npx expo prebuild --platform android --no-install
+npx expo prebuild --platform ios --no-install
 ```
 
 ---

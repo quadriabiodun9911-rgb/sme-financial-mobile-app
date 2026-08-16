@@ -1,203 +1,40 @@
 /**
- * Certificate Pinning for Quad360 — NOT CURRENTLY ACTIVE
+ * Certificate pinning status reporting for Quad360.
  *
- * IMPORTANT: nothing in this file is wired into the app's actual network
- * layer. `supabase.ts` calls the stock `@supabase/supabase-js` client
- * directly over plain `fetch`; it never routes through `pinnedFetch` or
- * `verifyCertificatePin` here, so no request this app makes is actually
- * pin-checked today. This file previously had `getCertificatePinningStatus()`
- * unconditionally return `enabled: true`, which would have told any caller
- * (or future security review) that protection existed when it didn't — that
- * has been corrected below to reflect reality.
+ * The actual pinning enforcement does NOT happen here, or anywhere in JS —
+ * it can't. A JS-level "verify the cert" function runs after the TLS
+ * handshake has already completed, which is too late to reject a
+ * connection based on it; a wrapper around `fetch()` has no access to the
+ * underlying certificate at all on most platforms. This file previously
+ * contained exactly that kind of non-functional simulation
+ * (`verifyCertificatePin`, `pinnedFetch`) — removed, since keeping code
+ * that looks like pinning but isn't is worse than having none: it invites
+ * a future reader (or security review) to believe protection exists where
+ * it doesn't.
  *
- * Real certificate pinning on React Native requires a native module
- * (e.g. `react-native-ssl-pinning`, or Android Network Security Config /
- * iOS ATS pinning applied at the native layer) — none of which can be added
- * from a JS/TS-only change, and Expo's managed workflow needs a config
- * plugin + prebuild to carry native config through. That's a real
- * infrastructure decision (which library, whether to eject from Expo Go)
- * that needs to be made deliberately, not bundled into this pass — this
- * module is kept as a reference/spec for that future work, with its status
- * reporting now honest about being inactive.
+ * Real pinning is enforced natively, below the JS layer, automatically for
+ * every request the OS makes once configured:
+ *   - Android: a Network Security Config XML with a <pin-set>
+ *   - iOS: Info.plist's NSAppTransportSecurity.NSPinnedDomains (iOS 14+)
+ * Both are generated at build time by plugins/withCertificatePinning.js
+ * (an Expo config plugin, applied during `expo prebuild` / EAS Build) from
+ * the pins in certificate-pins.json — see that file and
+ * scripts/regenerate-cert-pins.js for how to populate real pins and why
+ * they aren't populated yet.
  *
- * The pins below are also illustrative placeholders (the second Let's
- * Encrypt "backup pin" is not a real SPKI hash) — they'd need to be
- * regenerated from the actual current Supabase project certificate before
- * any real pinning implementation could use them.
+ * Web is a separate, permanent limitation, not a gap to be closed later:
+ * browsers own the TLS stack and give no JS-reachable API to pin a
+ * certificate. HTTPS enforcement (below) is the ceiling on web.
  */
+import { Platform } from 'react-native';
+// resolveJsonModule is enabled in tsconfig (inherited from Expo's base
+// config), so this reads the same registry the config plugin reads.
+import pinsConfig from '../../certificate-pins.json';
 
-/**
- * Certificate pins for Supabase
- * Format: Subject Public Key Info (SPKI) fingerprint (SHA-256)
- *
- * To extract from a certificate:
- * openssl x509 -in cert.pem -pubkey -noout | \
- *   openssl pkey -pubin -outform DER | \
- *   openssl dgst -sha256 -binary | base64
- */
-export const CERTIFICATE_PINS = {
-    supabase: {
-        // Supabase main domain
-        'xfiqezxifsfwkwlbaxbj.supabase.co': [
-            // Let's Encrypt ISRG Root X1 (primary pin)
-            'C5B1AB4B92217B0386EB1F46BBB9F87B7BAA32E6550C956CFF92D6D55DF06FEA',
-            // Let's Encrypt ISRG Root X2 (backup pin)
-            '8CFF3B3F2A1B2E0A3E8F4D7C5B6A9E2F1D4C7A6B5E3D2C1F0A9B8E7D6C5B4A3',
-        ],
-        'api.supabase.co': [
-            'C5B1AB4B92217B0386EB1F46BBB9F87B7BAA32E6550C956CFF92D6D55DF06FEA',
-        ],
-    },
-};
-
-/**
- * Implementation note for React Native:
- *
- * Since React Native Certificate Pinning requires native modules,
- * here's the manual implementation:
- *
- * 1. Install: npx react-native-cert-pinning
- * 2. Link: npx react-native link react-native-cert-pinning
- * 3. Use in Axios/Fetch interceptor (see below)
- *
- * For Expo, use buildPhase post-install script to add pinning
- */
-
-/**
- * Verify certificate pin during request
- * This would be called by an HTTP interceptor
- *
- * NOTE: This is a client-side simulation. For production, use native implementation.
- */
-export async function verifyCertificatePin(hostname: string, certificate: string): Promise<boolean> {
-    const pins = CERTIFICATE_PINS.supabase[hostname as keyof typeof CERTIFICATE_PINS.supabase];
-
-    if (!pins) {
-        console.warn(`[Quad360] No pins configured for ${hostname}`);
-        return false; // Reject if no pins configured (fail secure)
-    }
-
-    // In production, extract actual SPKI hash from certificate
-    // For now, this is a placeholder
-    console.log(`[Quad360] Certificate pinning would be verified for ${hostname}`);
-
-    return true;
-}
-
-/**
- * Create a custom fetch wrapper with certificate pinning
- *
- * Usage:
- * const response = await pinnedFetch('https://xfiqezxifsfwkwlbaxbj.supabase.co/api/...')
- */
-export async function pinnedFetch(
-    url: string,
-    options?: RequestInit,
-): Promise<Response> {
-    const parsedUrl = new URL(url);
-    const hostname = parsedUrl.hostname;
-
-    // Verify hostname is in our pins list
-    if (!(hostname in CERTIFICATE_PINS.supabase)) {
-        console.warn(`[Quad360] Unverified hostname: ${hostname}`);
-        // In strict mode, throw error
-        // throw new Error(`Certificate pinning not configured for ${hostname}`);
-    }
-
-    // Make the request
-    // In production, use react-native-cert-pinning to verify the cert
-    return fetch(url, {
-        ...options,
-        // Note: Headers are automatically added by Supabase client
-    });
-}
-
-/**
- * Supabase client configuration for certificate pinning
- *
- * Add to supabase.ts:
- *
- * import { verifyCertificatePin } from './certificatePinning';
- *
- * // Use axios interceptor for custom verification
- * const axiosClient = axios.create();
- * axiosClient.interceptors.response.use(
- *   response => {
- *     // Verify certificate in response headers
- *     const cert = response.headers['x-certificate'];
- *     if (cert && !verifyCertificatePin('api.supabase.co', cert)) {
- *       throw new Error('Certificate pinning verification failed');
- *     }
- *     return response;
- *   },
- *   error => Promise.reject(error)
- * );
- */
-
-/**
- * Recommended SSL/TLS Configuration
- *
- * iOS (App Transport Security):
- * Add to Info.plist:
- * <key>NSAppTransportSecurity</key>
- * <dict>
- *   <key>NSExceptionDomains</key>
- *   <dict>
- *     <key>xfiqezxifsfwkwlbaxbj.supabase.co</key>
- *     <dict>
- *       <key>NSIncludesSubdomains</key>
- *       <true/>
- *       <key>NSThirdPartyExceptionAllowsInsecureHTTPLoads</key>
- *       <false/>
- *       <key>NSThirdPartyExceptionMinimumTLSVersion</key>
- *       <string>TLSv1.2</string>
- *     </dict>
- *   </dict>
- * </dict>
- *
- * Android (Network Security Configuration):
- * Create res/xml/network_security_config.xml:
- * <network-security-config>
- *   <domain-config cleartextTrafficPermitted="false">
- *     <domain includeSubdomains="true">xfiqezxifsfwkwlbaxbj.supabase.co</domain>
- *     <trust-anchors>
- *       <certificates src="@raw/supabase_cert" />
- *     </trust-anchors>
- *   </domain-config>
- * </network-security-config>
- */
-
-/**
- * HTTPS Enforcement Levels
- *
- * LEVEL_STRICT (Recommended for production):
- * - Only HTTPS connections allowed
- * - Certificate pinning enforced
- * - Minimum TLS 1.2
- *
- * LEVEL_MODERATE (Current):
- * - HTTPS preferred but HTTP fallback allowed for specific domains
- * - Certificate pinning in place
- * - Minimum TLS 1.2
- *
- * LEVEL_PERMISSIVE (Development only):
- * - HTTP allowed for localhost/127.0.0.1
- * - HTTPS for production domains
- * - No pinning
- */
-
-export const HTTPS_ENFORCEMENT_LEVEL = 'MODERATE';
-
-/**
- * Check if a URL uses HTTPS
- */
 export function isHTTPS(url: string): boolean {
     return url.startsWith('https://');
 }
 
-/**
- * Enforce HTTPS for all Supabase requests
- */
 export function enforceHTTPS(url: string): string {
     if (!isHTTPS(url)) {
         const httpsUrl = url.replace('http://', 'https://');
@@ -207,50 +44,45 @@ export function enforceHTTPS(url: string): string {
     return url;
 }
 
-/**
- * Get current certificate pinning status
- *
- * Reports `enabled: false` because nothing in the live app actually routes
- * requests through this module's verification functions (see the file-level
- * note above) — reporting `true` here previously made this module claim a
- * protection that wasn't in effect.
- */
-export async function getCertificatePinningStatus(): Promise<{
+export interface CertificatePinningStatus {
     enabled: boolean;
-    level: string;
     pinnedHosts: string[];
-    reason?: string;
-}> {
-    return {
-        enabled: false,
-        level: HTTPS_ENFORCEMENT_LEVEL,
-        pinnedHosts: Object.keys(CERTIFICATE_PINS.supabase),
-        reason: 'Certificate pinning requires a native module not yet integrated; only HTTPS enforcement is active today.',
-    };
+    reason: string;
 }
 
 /**
- * Validate SSL/TLS connection
- * Called before making critical requests
+ * Reports whether certificate pinning is actually active for the current
+ * platform and build — not whether the infrastructure to support it exists.
+ * `pinsConfig.generated` only turns true once real pins have been fetched
+ * outside this app's own build environment (see
+ * scripts/regenerate-cert-pins.js) and wired in; until then this correctly
+ * reports `false` on every platform, matching what a native build compiled
+ * right now would actually do (nothing).
  */
-export async function validateSSLConnection(hostname: string): Promise<boolean> {
-    try {
-        // Make a HEAD request to verify SSL/TLS
-        const response = await fetch(`https://${hostname}`, {
-            method: 'HEAD',
-            headers: {
-                'Accept-Encoding': 'identity',
-            },
-        });
+export function getCertificatePinningStatus(): CertificatePinningStatus {
+    const hostsWithPins = Object.entries(pinsConfig.hosts)
+        .filter(([, entry]) => (entry as { spkiSha256Base64: string[] }).spkiSha256Base64.length > 0)
+        .map(([host]) => host);
 
-        // Check response has security headers
-        const hasSecurityHeaders =
-            response.headers.get('strict-transport-security') !== null ||
-            response.headers.get('x-content-type-options') !== null;
-
-        return response.ok && hasSecurityHeaders;
-    } catch (e) {
-        console.error(`[Quad360] SSL/TLS validation failed for ${hostname}:`, e);
-        return false;
+    if (Platform.OS === 'web') {
+        return {
+            enabled: false,
+            pinnedHosts: [],
+            reason: 'Not applicable on web — browsers own the TLS stack and provide no way to pin a certificate from JavaScript. HTTPS is still enforced.',
+        };
     }
+
+    if (!pinsConfig.generated || hostsWithPins.length === 0) {
+        return {
+            enabled: false,
+            pinnedHosts: [],
+            reason: 'certificate-pins.json has no real pins yet (generated: false) — run scripts/regenerate-cert-pins.js from a trusted network, then rebuild natively. Until then this build uses normal (unpinned) HTTPS.',
+        };
+    }
+
+    return {
+        enabled: true,
+        pinnedHosts: hostsWithPins,
+        reason: 'Enforced natively via Android Network Security Config / iOS NSPinnedDomains, applied by plugins/withCertificatePinning.js at build time.',
+    };
 }

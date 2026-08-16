@@ -52,7 +52,8 @@
       "expo-secure-store",
       "expo-font",
       "expo-updates",
-      "expo-document-picker"
+      "expo-document-picker",
+      "./plugins/withCertificatePinning"
     ],
     "runtimeVersion": {
       "policy": "appVersion"
