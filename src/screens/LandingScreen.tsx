@@ -40,6 +40,12 @@ export default function LandingScreen() {
     const { navigate, enterLenderDemo } = useApp();
     const { width } = useWindowDimensions();
     const isWide = Platform.OS === 'web' && width >= 900;
+    // Logo + "Blog" + "Contact" + "Log In" + "Sign Up" don't all fit on a
+    // phone-width nav row, and this row never wraps — "Sign Up" was getting
+    // clipped off the right edge with no way to scroll to it. Blog/Contact
+    // are already reachable from the footer, so drop them from the header
+    // below this width instead of shrinking everything to illegibility.
+    const isNarrow = width < 480;
 
     const goLogin = () => navigate('login', { mode: 'owner-login' });
     const goSignup = () => navigate('login', { mode: 'owner-setup' });
@@ -58,12 +64,16 @@ export default function LandingScreen() {
                         <Text style={s.navBrand}>Quad360</Text>
                     </View>
                     <View style={s.navActions}>
-                        <TouchableOpacity onPress={goBlog} style={s.navContactBtn}>
-                            <Text style={s.navContactText}>Blog</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity onPress={goContact} style={s.navContactBtn}>
-                            <Text style={s.navContactText}>Contact</Text>
-                        </TouchableOpacity>
+                        {!isNarrow && (
+                            <>
+                                <TouchableOpacity onPress={goBlog} style={s.navContactBtn}>
+                                    <Text style={s.navContactText}>Blog</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={goContact} style={s.navContactBtn}>
+                                    <Text style={s.navContactText}>Contact</Text>
+                                </TouchableOpacity>
+                            </>
+                        )}
                         <TouchableOpacity onPress={goLogin} style={s.navLoginBtn}>
                             <Text style={s.navLoginText}>Log In</Text>
                         </TouchableOpacity>
@@ -221,7 +231,7 @@ const s = StyleSheet.create({
     safe: { flex: 1, backgroundColor: Colors.bg },
     scroll: { flexGrow: 1, paddingBottom: 48 },
 
-    nav: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: Spacing.xl, paddingTop: Spacing.lg, paddingBottom: Spacing.md },
+    nav: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', rowGap: Spacing.sm, paddingHorizontal: Spacing.xl, paddingTop: Spacing.lg, paddingBottom: Spacing.md },
     brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     navLogo: { width: 32, height: 32, borderRadius: Radius.sm },
     navBrand: { fontSize: 16, fontWeight: '800', color: Colors.textPrimary },
