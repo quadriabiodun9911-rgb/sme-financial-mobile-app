@@ -85,6 +85,13 @@ export default function DashboardScreen() {
     const [showDailyReport, setShowDailyReport] = useState(false);
     const [showWeeklyReport, setShowWeeklyReport] = useState(false);
     const [toast, setToast]                     = useState<string | null>(null);
+    // Measured height of the "Log today's sales" banner below -- the FAB and
+    // "End of Day" pill are position:'absolute' with fixed bottom offsets
+    // tuned for when that banner is hidden. When it's showing (any user who
+    // hasn't logged a transaction today), those offsets landed the FAB right
+    // on top of the banner instead of above it. Real measurement instead of
+    // a guessed constant so it stays correct if the banner's text wraps.
+    const [logTodayBannerHeight, setLogTodayBannerHeight] = useState(0);
     const [eodOpen, setEodOpen]                 = useState(false);
     const [eodIncome, setEodIncome]             = useState('');
     const [eodExpense, setEodExpense]           = useState('');
@@ -810,16 +817,16 @@ export default function DashboardScreen() {
             </ScrollView>
 
             {/* ── FAB ─────────────────────────────────────────────────────── */}
-            <TouchableOpacity style={styles.fab} onPress={() => openFab()}>
+            <TouchableOpacity style={[styles.fab, { bottom: 80 + (!loggedToday ? logTodayBannerHeight : 0) }]} onPress={() => openFab()}>
                 <Text style={styles.fabText}>+</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.eodFab} onPress={() => setEodOpen(true)}>
+            <TouchableOpacity style={[styles.eodFab, { bottom: 140 + (!loggedToday ? logTodayBannerHeight : 0) }]} onPress={() => setEodOpen(true)}>
                 <Text style={styles.eodFabText}>🌙 End of Day</Text>
             </TouchableOpacity>
 
             {/* ── Daily log-today banner ───────────────────────────────────── */}
             {!loggedToday && (
-                <View style={styles.logTodayBanner}>
+                <View style={styles.logTodayBanner} onLayout={e => setLogTodayBannerHeight(e.nativeEvent.layout.height)}>
                     <View style={styles.logTodayLeft}>
                         <Text style={styles.logTodayTitle}>🌙 Log today's sales before you sleep</Text>
                         <Text style={styles.logTodaySub}>Takes 30 seconds</Text>
