@@ -9,13 +9,32 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { Radius, Spacing } from '../theme/tokens';
 import Icon from '../components/ui/Icon';
-import { BLOG_POSTS } from '../content/blogPosts';
+import { BLOG_POSTS, BlogBodyBlock } from '../content/blogPosts';
 
 const formatDate = (iso: string) => {
     const d = new Date(`${iso}T00:00:00`);
     if (isNaN(d.getTime())) return iso;
     return d.toLocaleDateString('default', { year: 'numeric', month: 'long', day: 'numeric' });
 };
+
+function renderBlock(block: BlogBodyBlock, key: number) {
+    if (block.type === 'heading') {
+        return <Text key={key} style={s.heading}>{block.text}</Text>;
+    }
+    if (block.type === 'list') {
+        return (
+            <View key={key} style={s.list}>
+                {block.items.map((item, i) => (
+                    <View key={i} style={s.listRow}>
+                        <Text style={s.listBullet}>—</Text>
+                        <Text style={s.listItem}>{item}</Text>
+                    </View>
+                ))}
+            </View>
+        );
+    }
+    return <Text key={key} style={s.paragraph}>{block.text}</Text>;
+}
 
 export default function BlogPostScreen() {
     const { navigate, navParams } = useApp();
@@ -59,9 +78,7 @@ export default function BlogPostScreen() {
                     <View style={s.article}>
                         <Text style={s.title}>{post.title}</Text>
                         <Text style={s.meta}>{formatDate(post.publishedDate)} · {post.author}</Text>
-                        {post.body.map((para, i) => (
-                            <Text key={i} style={s.paragraph}>{para}</Text>
-                        ))}
+                        {post.body.map((block, i) => renderBlock(block, i))}
                     </View>
                 ) : (
                     <View style={s.emptyCard}>
@@ -99,6 +116,11 @@ const s = StyleSheet.create({
     title: { fontSize: 26, fontWeight: '800', color: Colors.textPrimary, marginBottom: 8, lineHeight: 33 },
     meta: { fontSize: 12.5, color: Colors.textMuted, fontWeight: '600', marginBottom: 22, textTransform: 'uppercase', letterSpacing: 0.3 },
     paragraph: { fontSize: 15.5, color: Colors.textSecondary, lineHeight: 25, marginBottom: 16 },
+    heading: { fontSize: 19, fontWeight: '800', color: Colors.textPrimary, marginTop: 12, marginBottom: 12, lineHeight: 25 },
+    list: { marginBottom: 16 },
+    listRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 8 },
+    listBullet: { fontSize: 15.5, color: Colors.primary, lineHeight: 25 },
+    listItem: { flex: 1, fontSize: 15.5, color: Colors.textSecondary, lineHeight: 25 },
 
     emptyCard: {
         marginHorizontal: Spacing.xl, backgroundColor: Colors.surface, borderRadius: Radius.lg,
