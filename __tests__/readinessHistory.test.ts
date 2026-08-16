@@ -18,6 +18,7 @@ function makeRisk(score: number, factors: Partial<Record<string, number>> = {}):
             score: factors[name] ?? 60,
             weight: 100 / names.length,
             status: 'good' as const,
+            explanation: '',
         })),
     };
 }

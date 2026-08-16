@@ -1040,6 +1040,11 @@ export interface RiskFactor {
     score: number;
     weight: number;
     status: 'good' | 'warning' | 'danger';
+    /** Plain-English reason for the score, built from the same numbers that
+     *  produced it -- e.g. "Profit margin is 6.2% -- thin, barely
+     *  profitable." Never a second, independently-computed judgment that
+     *  could drift from the score itself. */
+    explanation: string;
 }
 export interface RiskScore {
     score: number;
@@ -1074,6 +1079,12 @@ export function computeRiskScore(
         score: margin >= 20 ? 100 : margin >= 10 ? 70 : margin >= 0 ? 40 : 0,
         weight: 20,
         status: margin >= 20 ? 'good' : margin >= 0 ? 'warning' : 'danger',
+        explanation: `Profit margin is ${margin.toFixed(1)}% -- ${
+            margin >= 20 ? 'strong, well above the 20% benchmark.' :
+            margin >= 10 ? 'moderate, below the 20% benchmark.' :
+            margin >= 0  ? 'thin -- barely profitable.' :
+                           'negative -- the business lost money this period.'
+        }`,
     });
 
     // Liquidity / cash runway (weight 20) — same trailing-30-day-paid-expenses
@@ -1086,6 +1097,12 @@ export function computeRiskScore(
         score: runwayMonths >= 6 ? 100 : runwayMonths >= 3 ? 70 : runwayMonths >= 1 ? 40 : 10,
         weight: 20,
         status: runwayMonths >= 6 ? 'good' : runwayMonths >= 3 ? 'warning' : 'danger',
+        explanation: `${runwayMonths >= 12 ? '12+' : runwayMonths.toFixed(1)} months of cash runway at the current burn rate -- ${
+            runwayMonths >= 6 ? 'a healthy buffer.' :
+            runwayMonths >= 3 ? 'adequate, but worth building up.' :
+            runwayMonths >= 1 ? 'tight -- a bad month would hurt.' :
+                                'critically low.'
+        }`,
     });
 
     // Working capital (weight 10) — cash conversion cycle: how many days
@@ -1097,6 +1114,12 @@ export function computeRiskScore(
         score: wc.ccc <= 15 ? 100 : wc.ccc <= 30 ? 70 : wc.ccc <= 60 ? 40 : 10,
         weight: 10,
         status: wc.ccc <= 30 ? 'good' : wc.ccc <= 60 ? 'warning' : 'danger',
+        explanation: `Cash conversion cycle is ${Math.round(wc.ccc)} days -- ${
+            wc.ccc <= 15 ? 'cash returns quickly.' :
+            wc.ccc <= 30 ? 'a reasonable collection-and-payment cycle.' :
+            wc.ccc <= 60 ? 'cash is tied up longer than ideal between paying suppliers and collecting from customers.' :
+                           'cash is tied up for a long stretch -- a major drag on liquidity.'
+        }`,
     });
 
     // Debt (weight 15) — DSCR
@@ -1106,6 +1129,11 @@ export function computeRiskScore(
         score: dscr.dscr >= 1.25 ? 100 : dscr.dscr >= 1.0 ? 60 : 20,
         weight: 15,
         status: dscr.status === 'healthy' ? 'good' : dscr.status,
+        explanation: `Debt service coverage ratio is ${dscr.dscr.toFixed(2)}x -- ${
+            dscr.dscr >= 1.25 ? 'comfortable room to cover loan payments.' :
+            dscr.dscr >= 1.0  ? 'covers current obligations, but with little room to spare.' :
+                                'income does not fully cover current debt payments.'
+        }`,
     });
 
     // Efficiency (weight 10) — is expense growth outrunning revenue growth?
@@ -1114,7 +1142,12 @@ export function computeRiskScore(
     // the margin.
     const trend3 = computeMonthlyTrend(transactions, 3);
     let expenseGrowthGap = 0;
-    if (trend3.length >= 2) {
+    // computeMonthlyTrend always backfills exactly `months` entries (zeros
+    // for months with no activity), so trend3.length is never a signal of
+    // missing data -- whether the earliest month has any recorded income or
+    // expense at all is the real "is there enough history" question.
+    const hasEfficiencyData = trend3.length >= 2 && (trend3[0].income > 0 || trend3[0].expense > 0);
+    if (hasEfficiencyData) {
         const first = trend3[0];
         const last = trend3[trend3.length - 1];
         const revenueGrowthPct = first.income > 0 ? ((last.income - first.income) / first.income) * 100 : 0;
@@ -1126,6 +1159,11 @@ export function computeRiskScore(
         score: expenseGrowthGap <= 0 ? 100 : expenseGrowthGap <= 10 ? 70 : expenseGrowthGap <= 25 ? 40 : 10,
         weight: 10,
         status: expenseGrowthGap <= 0 ? 'good' : expenseGrowthGap <= 25 ? 'warning' : 'danger',
+        explanation: !hasEfficiencyData
+            ? 'Not enough monthly history yet to compare revenue and expense growth.'
+            : expenseGrowthGap <= 0
+                ? 'Expenses are growing slower than revenue over the last 3 months.'
+                : `Expenses are growing ${expenseGrowthGap.toFixed(0)} points faster than revenue over the last 3 months.`,
     });
 
     // Inventory (weight 10) — share of stock value sitting in slow movers.
@@ -1133,6 +1171,7 @@ export function computeRiskScore(
     // the "no data" convention computeStockVelocity itself uses.
     let inventoryScore = 100;
     let inventoryStatus: RiskFactor['status'] = 'good';
+    let inventoryExplanation = 'No inventory recorded -- not a factor in this score.';
     if (inventory.length > 0) {
         const totalValue = inventory.reduce((s, i) => s + i.quantity * i.costPrice, 0);
         const slowValue = inventory
@@ -1141,19 +1180,32 @@ export function computeRiskScore(
         const slowPct = totalValue > 0 ? (slowValue / totalValue) * 100 : 0;
         inventoryScore = slowPct <= 15 ? 100 : slowPct <= 35 ? 60 : 25;
         inventoryStatus = slowPct <= 15 ? 'good' : slowPct <= 35 ? 'warning' : 'danger';
+        inventoryExplanation = `${slowPct.toFixed(0)}% of inventory value is sitting in slow-moving stock -- ${
+            slowPct <= 15 ? 'a healthy turnover.' :
+            slowPct <= 35 ? 'worth reviewing which items aren\'t selling.' :
+                            'a lot of cash tied up in stock that isn\'t moving.'
+        }`;
     }
-    factors.push({ name: 'Inventory', score: inventoryScore, weight: 10, status: inventoryStatus });
+    factors.push({ name: 'Inventory', score: inventoryScore, weight: 10, status: inventoryStatus, explanation: inventoryExplanation });
 
     // Concentration (weight 15) — the worse of customer or supplier
     // concentration, since either one alone can sink the business.
     const custConc = computeCustomerConcentration(transactions);
     const suppConc = computeSupplierConcentration(transactions);
     const worstPct = Math.max(custConc[0]?.percentage ?? 0, suppConc[0]?.percentage ?? 0);
+    const worstIsCustomer = (custConc[0]?.percentage ?? 0) >= (suppConc[0]?.percentage ?? 0);
     factors.push({
         name: 'Concentration',
         score: worstPct <= 20 ? 100 : worstPct <= 40 ? 60 : 20,
         weight: 15,
         status: worstPct <= 20 ? 'good' : worstPct <= 40 ? 'warning' : 'danger',
+        explanation: worstPct === 0
+            ? 'Not enough transaction history yet to assess customer or supplier concentration.'
+            : `Your largest ${worstIsCustomer ? 'customer' : 'supplier'} makes up ${worstPct.toFixed(0)}% of your ${worstIsCustomer ? 'revenue' : 'purchases'} -- ${
+                worstPct <= 20 ? 'well diversified.' :
+                worstPct <= 40 ? 'moderate concentration risk.' :
+                                 'high concentration risk -- losing them would hurt badly.'
+              }`,
     });
 
     const score = Math.round(factors.reduce((s, f) => s + (f.score * f.weight) / 100, 0));

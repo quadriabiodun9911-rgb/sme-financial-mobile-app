@@ -435,6 +435,9 @@ function RiskTab() {
                             <View style={{ width: 16 }} />
                             <MiniBar pct={f.score} color={statusColor(f.status)} />
                         </View>
+                        <Text style={{ fontSize: 11, color: Colors.textMuted, lineHeight: 15, marginTop: 3, marginLeft: 16 }}>
+                            {f.explanation}
+                        </Text>
                     </View>
                 ))}
             </View>
