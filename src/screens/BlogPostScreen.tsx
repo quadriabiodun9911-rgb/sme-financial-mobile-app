@@ -99,7 +99,9 @@ const s = StyleSheet.create({
     safe: { flex: 1, backgroundColor: Colors.bg },
     scroll: { flexGrow: 1, paddingBottom: 60 },
 
-    nav: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: Spacing.xl, paddingTop: Spacing.lg, paddingBottom: Spacing.md },
+    // flexWrap as a safety net on narrow phones -- same fix as LandingScreen's
+    // nav row, which was confirmed clipping its "Sign Up" button off-screen.
+    nav: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', rowGap: Spacing.sm, paddingHorizontal: Spacing.xl, paddingTop: Spacing.lg, paddingBottom: Spacing.md },
     brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     navLogo: { width: 32, height: 32, borderRadius: Radius.sm },
     navBrand: { fontSize: 16, fontWeight: '800', color: Colors.textPrimary },

@@ -1011,7 +1011,12 @@ const styles = StyleSheet.create({
     pad:     { padding: Spacing.md },
     recurringSection: { marginTop: Spacing.lg, marginBottom: Spacing.sm },
 
-    topBar:  { flexDirection: 'row', padding: 10, gap: Spacing.sm, backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    // flexWrap is the safety net: search (flex:1) + Export + Import CSV +
+    // New Entry don't all fit one row on a phone-width screen -- confirmed
+    // "Import CSV" clipped and "New Entry" pushed fully off-screen at
+    // 320-375px CSS width. Wrapping lets search take its own row instead of
+    // being crushed to near-zero width, with the buttons flowing below it.
+    topBar:  { flexDirection: 'row', flexWrap: 'wrap', padding: 10, gap: Spacing.sm, rowGap: Spacing.sm, backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border },
     search:  { flex: 1, backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, color: Colors.textPrimary, fontSize: 14 },
     csvBtn:    { backgroundColor: Colors.muted, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.sm, justifyContent: 'center' },
     importBtn: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.sm, justifyContent: 'center' },
