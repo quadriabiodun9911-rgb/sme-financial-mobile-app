@@ -272,6 +272,7 @@ export const sendCashFlowAlert = async (
     currentCash?: number;
     threshold?: number;
     projectedMonth?: string;
+    expenseAmount?: number;
     currency?: string;
   }
 ) => {
@@ -286,7 +287,7 @@ export const sendCashFlowAlert = async (
         message = `📉 Forecast Alert\n\nBased on current trends, your cash is projected to run negative by ${details.projectedMonth}.\n\nTake action now:\n• Accelerate customer collections\n• Negotiate extended payment terms\n• Review discretionary expenses`;
         break;
       case 'large_expense':
-        message = `💸 Large Expense Alert\n\nA significant expense is scheduled for the next 7 days: ${details.currency}${details.currentCash?.toLocaleString()}\n\nEnsure sufficient cash on hand to cover this payment.`;
+        message = `💸 Large Expense Alert\n\nA significant expense is scheduled for the next 7 days: ${details.currency}${details.expenseAmount?.toLocaleString()}\n\nEnsure sufficient cash on hand to cover this payment.`;
         break;
     }
 

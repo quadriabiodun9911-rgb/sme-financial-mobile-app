@@ -6,10 +6,9 @@ import { FinanceData } from '../types';
 interface Props {
   finance: FinanceData;
   currency: string;
-  isSticky?: boolean;
 }
 
-export default function StickyMetricsHeader({ finance, currency, isSticky = false }: Props) {
+export default function StickyMetricsHeader({ finance, currency }: Props) {
   const { width } = useWindowDimensions();
   const cardWidth = (width - 48) / 3; // 3 cards with padding
 
@@ -36,7 +35,7 @@ export default function StickyMetricsHeader({ finance, currency, isSticky = fals
   ];
 
   return (
-    <View style={[styles.container, isSticky && styles.sticky]}>
+    <View style={styles.container}>
       <View style={styles.metricsRow}>
         {metrics.map((metric, idx) => (
           <View key={idx} style={[styles.metricCard, { width: cardWidth }]}>
@@ -61,18 +60,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border || '#e5e7eb',
-  },
-  sticky: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 100,
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
   },
   metricsRow: {
     flexDirection: 'row',

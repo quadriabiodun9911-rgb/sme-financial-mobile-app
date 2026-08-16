@@ -283,7 +283,7 @@ export default function DashboardScreen() {
     return (
         <SafeAreaView style={styles.safe}>
             <Header />
-            {canViewFinancials && <StickyMetricsHeader finance={finance} currency={currency} isSticky={true} />}
+            {canViewFinancials && <StickyMetricsHeader finance={finance} currency={currency} />}
             <ScrollView style={styles.scroll} contentContainerStyle={styles.pad}>
 
                 <TouchableOpacity style={styles.searchTrigger} onPress={() => setShowSearch(true)}>

@@ -1,5 +1,7 @@
 import { Transaction, Invoice } from '../types';
-import { ForecastAlert, AlertThresholds, CashFlowForecast } from '../types/forecast';
+import { ForecastAlert, AlertThresholds, CashFlowForecast, ForecastInput } from '../types/forecast';
+import { generateCashFlowForecast } from './forecastEngine';
+import { computeMonthlyTrend } from './finance';
 
 /**
  * Real-Time Cash Alerts System
@@ -11,7 +13,7 @@ import { ForecastAlert, AlertThresholds, CashFlowForecast } from '../types/forec
  * - Large upcoming expenses
  */
 
-const DEFAULT_THRESHOLDS: AlertThresholds = {
+export const DEFAULT_THRESHOLDS: AlertThresholds = {
   lowCashThreshold: 500000, // ₦500K default
   negativeForcastThreshold: 0,
   negativeForcastDays: 60,
@@ -81,7 +83,10 @@ export class AlertEngine {
       return null;
     }
 
-    const id = `alert-low-cash-${new Date().toISOString()}`;
+    // Stable id (not timestamped) -- there's only ever one low-cash alert
+    // active at a time, and a timestamped id would mint a new identity on
+    // every recomputation, silently breaking dismissal.
+    const id = 'alert-low-cash';
     const daysOfRunway = this.calculateRunway();
 
     return {
@@ -117,7 +122,8 @@ export class AlertEngine {
       return null; // Too far in the future
     }
 
-    const id = `alert-negative-forecast-${this.forecast.generatedAt}`;
+    // Stable id, same reasoning as the low-cash alert above.
+    const id = 'alert-negative-forecast';
     const priority =
       monthsUntilCrisis < 1 ? 'high' : monthsUntilCrisis < 2 ? 'medium' : 'low';
 
@@ -201,7 +207,8 @@ export class AlertEngine {
       .reduce((sum, t) => sum + t.amount, 0);
 
     if (upcomingExpenses > largeExpenseThreshold) {
-      const id = `alert-large-expense-${new Date().toISOString()}`;
+      // Stable id, same reasoning as the low-cash alert above.
+      const id = 'alert-large-expense';
 
       return {
         id,
@@ -325,4 +332,58 @@ export const getAlertStats = (alerts: ForecastAlert[]): { high: number; medium: 
     low: alerts.filter(a => a.priority === 'low').length,
     total: alerts.length,
   };
+};
+
+/**
+ * Adapt the app's native Transaction/Invoice records into forecastEngine's
+ * ForecastInput shape. The two type systems evolved separately -- this is
+ * the one place that reconciles field names (Invoice.total -> .amount,
+ * Transaction.recurringFrequency -> .frequency) rather than duplicating
+ * that mapping at every call site.
+ */
+const buildForecastInput = (
+  currentCash: number,
+  transactions: Transaction[],
+  invoices: Invoice[],
+  currency?: string
+): ForecastInput => {
+  const [currentMonth] = computeMonthlyTrend(transactions, 1);
+
+  return {
+    currentCash,
+    currentRevenue: currentMonth?.income ?? 0,
+    currentExpenses: currentMonth?.expense ?? 0,
+    transactions: transactions.map(t => ({
+      date: t.date,
+      amount: t.amount,
+      type: t.type,
+      isRecurring: !!t.isRecurring,
+      frequency: t.recurringFrequency,
+    })),
+    invoices: invoices.map(inv => ({
+      issueDate: inv.issueDate,
+      dueDate: inv.dueDate,
+      amount: inv.total,
+      status: inv.status,
+    })),
+    currency,
+  };
+};
+
+/**
+ * Single entry point for the dashboard alert bell: builds a cash-flow
+ * forecast from live financial data, then runs every alert detector
+ * (low cash, negative forecast, overdue invoices, large upcoming expenses)
+ * against it. Pure computation -- no side effects, no persistence; the
+ * caller owns dismissal storage.
+ */
+export const detectFinancialAlerts = (
+  currentCash: number,
+  transactions: Transaction[],
+  invoices: Invoice[],
+  currency?: string,
+  dismissedAlertIds?: string[]
+): ForecastAlert[] => {
+  const forecast = generateCashFlowForecast(buildForecastInput(currentCash, transactions, invoices, currency));
+  return detectAlerts(currentCash, transactions, invoices, forecast, undefined, dismissedAlertIds, currency);
 };

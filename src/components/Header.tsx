@@ -1,18 +1,85 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import Icon from './ui/Icon';
 import GlobalSearch from './GlobalSearch';
+import AlertsWidget from './AlertsWidget';
+import { detectFinancialAlerts, DEFAULT_THRESHOLDS } from '../utils/alertEngine';
+import { ForecastAlert } from '../types/forecast';
+import { sendCashFlowAlert, sendOverdueInvoiceAlert } from '../utils/whatsappIntegration';
+
+const DISMISSED_ALERTS_KEY = '@quad360/dismissed_alerts';
 
 export default function Header() {
-    const { user, logout, setCurrentScreen, goBack, currentScreen } = useApp();
+    const { user, logout, setCurrentScreen, goBack, currentScreen, finance, transactions, invoices, settings } = useApp();
     const showBack = currentScreen !== 'dashboard' && currentScreen !== 'login';
     const { width } = useWindowDimensions();
     const isNarrow = width < 480;
     const [showSearch, setShowSearch] = useState(false);
+    const [dismissedIds, setDismissedIds] = useState<string[]>([]);
+    const currency = settings?.currency ?? '₦';
+
+    useEffect(() => {
+        AsyncStorage.getItem(DISMISSED_ALERTS_KEY).then(raw => {
+            if (raw) {
+                try { setDismissedIds(JSON.parse(raw)); } catch { /* corrupt value, start fresh */ }
+            }
+        });
+    }, []);
+
+    const alerts = useMemo(
+        () => detectFinancialAlerts(finance?.cashBalance ?? 0, transactions ?? [], invoices ?? [], currency, dismissedIds),
+        [finance?.cashBalance, transactions, invoices, currency, dismissedIds]
+    );
+
+    const handleDismiss = useCallback((alertId: string) => {
+        setDismissedIds(prev => {
+            const next = [...prev, alertId];
+            AsyncStorage.setItem(DISMISSED_ALERTS_KEY, JSON.stringify(next));
+            return next;
+        });
+    }, []);
+
+    // Overdue-invoice alert ids are `alert-overdue-${invoice.id}` (see
+    // alertEngine.ts) -- recovering the invoice from that id keeps this a
+    // pure lookup instead of duplicating invoice data onto the alert.
+    const overdueInvoiceFor = useCallback(
+        (alert: ForecastAlert) => (invoices ?? []).find(inv => alert.id === `alert-overdue-${inv.id}`),
+        [invoices]
+    );
+
+    const canNotify = useCallback((alert: ForecastAlert): boolean => {
+        if (alert.type === 'overdue_invoice') return !!overdueInvoiceFor(alert)?.clientPhone;
+        if (alert.type === 'low_cash' || alert.type === 'negative_forecast' || alert.type === 'large_expense_coming') return !!user?.phone;
+        return false;
+    }, [overdueInvoiceFor, user?.phone]);
+
+    // Every send here opens WhatsApp with a pre-filled draft the sender
+    // still has to tap "send" on themselves -- one merchant-initiated tap
+    // per alert, never an automatic background send to a customer.
+    const handleNotify = useCallback((alert: ForecastAlert) => {
+        if (alert.type === 'overdue_invoice') {
+            const invoice = overdueInvoiceFor(alert);
+            if (!invoice?.clientPhone) return;
+            const daysOverdue = Math.floor((Date.now() - new Date(invoice.dueDate).getTime()) / (1000 * 60 * 60 * 24));
+            sendOverdueInvoiceAlert(invoice.clientPhone, user?.businessName || 'your supplier', invoice.invoiceNumber, invoice.total, daysOverdue, currency);
+            return;
+        }
+        if (!user?.phone) return;
+        if (alert.type !== 'low_cash' && alert.type !== 'negative_forecast' && alert.type !== 'large_expense_coming') return;
+        const cashFlowAlertType = alert.type === 'large_expense_coming' ? 'large_expense' : alert.type;
+        sendCashFlowAlert(user.phone, cashFlowAlertType, {
+            currentCash: finance?.cashBalance,
+            threshold: alert.type === 'low_cash' ? DEFAULT_THRESHOLDS.lowCashThreshold : undefined,
+            expenseAmount: alert.type === 'large_expense_coming' ? alert.amount : undefined,
+            projectedMonth: alert.affectedDate,
+            currency,
+        });
+    }, [overdueInvoiceFor, user?.phone, user?.businessName, finance?.cashBalance, currency]);
 
     return (
         <View style={styles.header}>
@@ -31,6 +98,13 @@ export default function Header() {
                 </TouchableOpacity>
             </View>
             <View style={styles.right}>
+                <AlertsWidget
+                    alerts={alerts}
+                    currency={currency}
+                    onDismiss={handleDismiss}
+                    canNotify={canNotify}
+                    onNotify={handleNotify}
+                />
                 <TouchableOpacity style={styles.iconBtn} onPress={() => setShowSearch(true)} activeOpacity={0.7}>
                     <Icon name="search" size={16} color={Colors.textSecondary} />
                 </TouchableOpacity>

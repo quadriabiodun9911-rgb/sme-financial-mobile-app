@@ -1,16 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, Modal, ScrollView } from 'react-native';
 import { Colors } from '../theme/colors';
+import { Radius, Shadow } from '../theme/tokens';
 import { ForecastAlert } from '../types/forecast';
+import Icon from './ui/Icon';
 
 interface Props {
   alerts: ForecastAlert[];
   currency?: string;
   onAlertPress?: (alert: ForecastAlert) => void;
   onDismiss?: (alertId: string) => void;
+  /** Whether a WhatsApp notify action makes sense for this alert (e.g. a
+   *  phone number is actually on file) -- the button only renders when
+   *  this returns true, so it never dead-ends into a no-op tap. */
+  canNotify?: (alert: ForecastAlert) => boolean;
+  onNotify?: (alert: ForecastAlert) => void;
 }
 
-export default function AlertsWidget({ alerts, currency = '₦', onAlertPress, onDismiss }: Props) {
+export default function AlertsWidget({ alerts, currency = '₦', onAlertPress, onDismiss, canNotify, onNotify }: Props) {
   const [showModal, setShowModal] = useState(false);
   const [selectedAlert, setSelectedAlert] = useState<ForecastAlert | null>(null);
 
@@ -56,10 +63,10 @@ export default function AlertsWidget({ alerts, currency = '₦', onAlertPress, o
         style={styles.bellButton}
         onPress={() => setShowModal(true)}
         activeOpacity={0.7}>
-        <Text style={styles.bellIcon}>🔔</Text>
+        <Icon name="bell" size={16} color={Colors.textSecondary} />
         {alerts.length > 0 && (
           <View style={[styles.badge, criticalCount > 0 && styles.badgeCritical]}>
-            <Text style={styles.badgeText}>{alerts.length}</Text>
+            <Text style={styles.badgeText}>{alerts.length > 9 ? '9+' : alerts.length}</Text>
           </View>
         )}
       </TouchableOpacity>
@@ -231,6 +238,14 @@ export default function AlertsWidget({ alerts, currency = '₦', onAlertPress, o
                 </Text>
               </ScrollView>
 
+              {onNotify && canNotify?.(selectedAlert) && (
+                <TouchableOpacity
+                  style={styles.detailNotifyBtn}
+                  onPress={() => onNotify(selectedAlert)}>
+                  <Text style={styles.detailNotifyBtnText}>💬 Notify via WhatsApp</Text>
+                </TouchableOpacity>
+              )}
+
               <TouchableOpacity
                 style={styles.detailDismissBtn}
                 onPress={() => {
@@ -250,21 +265,24 @@ export default function AlertsWidget({ alerts, currency = '₦', onAlertPress, o
 const styles = StyleSheet.create({
   bellButton: {
     position: 'relative',
-    padding: 8,
-  },
-  bellIcon: {
-    fontSize: 24,
+    width: 34, height: 34, borderRadius: Radius.pill,
+    backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border,
+    alignItems: 'center', justifyContent: 'center',
+    ...Shadow.sm,
   },
   badge: {
     position: 'absolute',
-    top: 0,
-    right: 0,
+    top: -4,
+    right: -4,
     backgroundColor: '#f59e0b',
-    borderRadius: 10,
-    width: 20,
-    height: 20,
+    borderRadius: 9,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 3,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: Colors.surface,
   },
   badgeCritical: {
     backgroundColor: '#ef4444',
@@ -536,6 +554,20 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: 16,
     marginBottom: 12,
+  },
+
+  detailNotifyBtn: {
+    marginHorizontal: 16,
+    marginBottom: 10,
+    backgroundColor: '#25D366',
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  detailNotifyBtnText: {
+    color: '#0b3b22',
+    fontWeight: '700',
+    fontSize: 13,
   },
 
   detailDismissBtn: {
