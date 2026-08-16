@@ -1,0 +1,124 @@
+import { Invoice, InventoryItem } from '../src/types';
+import { ForecastAlert } from '../src/types/forecast';
+import { FinancingRecommendation } from '../src/utils/financingRecommendation';
+import { buildDashboardPriorities, OverspentBudget } from '../src/utils/dashboardPriorities';
+
+const invoice = (overrides: Partial<Invoice> = {}): Invoice => ({
+    id: 'inv-1',
+    invoiceNumber: 'INV-001',
+    clientName: 'Acme',
+    clientEmail: 'a@acme.com',
+    clientAddress: '1 Main St',
+    issueDate: '2026-06-01',
+    dueDate: '2026-06-15',
+    lineItems: [],
+    notes: '',
+    status: 'sent',
+    subtotal: 100000,
+    taxTotal: 0,
+    total: 100000,
+    createdAt: '2026-06-01T00:00:00.000Z',
+    ...overrides,
+});
+
+const alert = (overrides: Partial<ForecastAlert> = {}): ForecastAlert => ({
+    id: 'alert-x',
+    type: 'low_cash',
+    priority: 'high',
+    title: '⚠️ Low Cash Balance',
+    description: 'desc',
+    createdAt: '2026-08-16T00:00:00.000Z',
+    ...overrides,
+});
+
+describe('buildDashboardPriorities', () => {
+    it('returns an empty list when nothing is flagged', () => {
+        const result = buildDashboardPriorities({
+            alerts: [], overdueInvoices: [], lowStockItems: [], overspentBudgets: [],
+            financingOpportunity: null, currency: '₦',
+        });
+        expect(result).toEqual([]);
+    });
+
+    it('excludes overdue_invoice alerts to avoid double-counting the aggregated card', () => {
+        const result = buildDashboardPriorities({
+            alerts: [alert({ id: 'alert-overdue-inv-1', type: 'overdue_invoice', title: 'Overdue' })],
+            overdueInvoices: [invoice()],
+            lowStockItems: [], overspentBudgets: [], financingOpportunity: null, currency: '₦',
+        });
+        // Only the aggregated overdue-invoices item, not a second copy from the alert.
+        expect(result.filter(p => p.kind === 'overdue_invoices' || p.title.includes('Overdue')).length).toBe(1);
+    });
+
+    it('sorts high-priority alerts into the attention tier and medium into watch', () => {
+        const result = buildDashboardPriorities({
+            alerts: [
+                alert({ id: 'a1', type: 'low_cash', priority: 'high' }),
+                alert({ id: 'a2', type: 'large_expense_coming', priority: 'medium' }),
+            ],
+            overdueInvoices: [], lowStockItems: [], overspentBudgets: [], financingOpportunity: null, currency: '₦',
+        });
+        expect(result.find(p => p.id === 'a1')?.tier).toBe('attention');
+        expect(result.find(p => p.id === 'a2')?.tier).toBe('watch');
+    });
+
+    it('places overdue invoices in the attention tier with the total as impact', () => {
+        const result = buildDashboardPriorities({
+            alerts: [], overdueInvoices: [invoice({ total: 250000 }), invoice({ id: 'inv-2', total: 100000 })],
+            lowStockItems: [], overspentBudgets: [], financingOpportunity: null, currency: '₦',
+        });
+        const item = result.find(p => p.kind === 'overdue_invoices');
+        expect(item?.tier).toBe('attention');
+        expect(item?.impactAmount).toBe(350000);
+        expect(item?.title).toBe('2 Customers Overdue');
+    });
+
+    it('sorts within a tier by impact amount, descending', () => {
+        const smallOverdue = invoice({ total: 10000 });
+        const bigLowCash = alert({ id: 'low-cash', type: 'low_cash', priority: 'high', amount: 900000 });
+        const result = buildDashboardPriorities({
+            alerts: [bigLowCash], overdueInvoices: [smallOverdue],
+            lowStockItems: [], overspentBudgets: [], financingOpportunity: null, currency: '₦',
+        });
+        expect(result[0].id).toBe('low-cash');
+        expect(result[1].kind).toBe('overdue_invoices');
+    });
+
+    it('always ranks attention above watch above opportunity, regardless of impact size', () => {
+        const overspent: OverspentBudget = { id: 'b1', category: 'Marketing', monthlyAmount: 50000, period: '2026-08', spent: 900000, overage: 850000 };
+        const result = buildDashboardPriorities({
+            alerts: [alert({ id: 'small-attention', type: 'low_cash', priority: 'high', amount: 1 })],
+            overdueInvoices: [], lowStockItems: [], overspentBudgets: [overspent],
+            financingOpportunity: null, currency: '₦',
+        });
+        expect(result[0].tier).toBe('attention');
+        expect(result[1].tier).toBe('watch');
+    });
+
+    it('never fabricates a dollar impact for low stock', () => {
+        const item: InventoryItem = {
+            id: 'i1', name: 'Widget', category: 'General', quantity: 1, unit: 'pcs',
+            costPrice: 100, sellingPrice: 150, lowStockThreshold: 5,
+            createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+        };
+        const result = buildDashboardPriorities({
+            alerts: [], overdueInvoices: [], lowStockItems: [item], overspentBudgets: [],
+            financingOpportunity: null, currency: '₦',
+        });
+        expect(result[0].impactAmount).toBe(0);
+        expect(result[0].tier).toBe('watch');
+    });
+
+    it('surfaces a financing opportunity in the opportunity tier', () => {
+        const financingOpportunity: FinancingRecommendation = {
+            productType: 'invoice_financing', label: 'Invoice Financing', confidence: 'strong', reasons: ['Strong receivables'],
+        };
+        const result = buildDashboardPriorities({
+            alerts: [], overdueInvoices: [], lowStockItems: [], overspentBudgets: [],
+            financingOpportunity,
+            currency: '₦',
+        });
+        expect(result[0].tier).toBe('opportunity');
+        expect(result[0].title).toContain('Invoice Financing');
+    });
+});

@@ -14,7 +14,7 @@ import { trackDemoConvertTapped, trackScreenViewed } from '../utils/analytics';
 import FooterNav from '../components/FooterNav';
 import { t } from '../utils/i18n';
 import { validateAmount, validateDescription } from '../utils/validation';
-import { Language } from '../types';
+import { Language, Screen } from '../types';
 import OnboardingWizard from '../components/OnboardingWizard';
 import ProfitShareCard from '../components/ProfitShareCard';
 import RetentionNudges from '../components/RetentionNudges';
@@ -29,18 +29,37 @@ import StickyMetricsHeader from '../components/StickyMetricsHeader';
 import { MetricsComputer } from '../utils/metricsComputer';
 import GreetingCard from '../components/GreetingCard';
 import TodaysNumbersCard from '../components/TodaysNumbersCard';
-import AlertsWidget from '../components/AlertsWidget';
 import WeeklyReportModal from '../components/WeeklyReportModal';
 import { showAlert } from '../utils/webAlert';
-import Icon from '../components/ui/Icon';
+import Icon, { IconName } from '../components/ui/Icon';
 import StatTile from '../components/ui/StatTile';
 import { buildFinancingFitInput } from '../utils/financingFit';
 import { recommendFinancingTypes } from '../utils/financingRecommendation';
 import { computeReadinessDelta } from '../utils/readinessHistory';
 import { notifyFinancingOpportunity } from '../utils/notifications';
+import { detectFinancialAlerts } from '../utils/alertEngine';
+import { buildDashboardPriorities, PriorityKind, PriorityTier, OverspentBudget } from '../utils/dashboardPriorities';
 
 const INCOME_CATEGORIES = ['Sales', 'Service', 'Consulting', 'Rental', 'Interest', 'Other Income'];
 const EXPENSE_CATEGORIES = ['Rent', 'Salaries', 'Utilities', 'Marketing', 'Supplies', 'Transport', 'Meals', 'Software', 'Tax', 'Other'];
+
+const PRIORITY_TIER_ORDER: PriorityTier[] = ['attention', 'watch', 'opportunity'];
+
+const PRIORITY_TIER_META: Record<PriorityTier, { emoji: string; label: string; color: string; tinted: boolean }> = {
+    attention:   { emoji: '🔴', label: 'Attention',   color: Colors.expense, tinted: true },
+    watch:       { emoji: '🟠', label: 'Watch',       color: Colors.warning, tinted: true },
+    opportunity: { emoji: '🟢', label: 'Opportunity', color: Colors.primary, tinted: false },
+};
+
+const PRIORITY_KIND_META: Record<PriorityKind, { icon: IconName; screen: Screen }> = {
+    overdue_invoices:     { icon: 'dollar-sign',    screen: 'invoices' },
+    low_cash:              { icon: 'alert-circle',   screen: 'cashflow' },
+    negative_forecast:     { icon: 'trending-down',  screen: 'cashflow' },
+    large_expense_coming:  { icon: 'alert-triangle', screen: 'cashflow' },
+    low_stock:              { icon: 'package',        screen: 'inventory' },
+    overspent_budget:       { icon: 'alert-triangle', screen: 'budget' },
+    financing_opportunity:  { icon: 'trending-up',    screen: 'financing-marketplace' },
+};
 
 export default function DashboardScreen() {
     const { finance, settings, goals, transactions, invoices, assets, loans, navigate, setCurrentScreen, navParams, language: rawLanguage, isLoading, addTransaction, isDemoMode, exitDemo, cashPockets, deleteGoal, updateGoal, budgets, inventory, user, financing, canViewFinancials, readinessHistory } = useApp();
@@ -143,13 +162,15 @@ export default function DashboardScreen() {
     // ── Remaining memoized values (not in MetricsComputer yet) ──
     const overspentBudgets = useMemo(() => {
         const monthStr = thisMonthStr;
-        return budgets.filter(b => {
-            if (b.period && b.period !== monthStr) return false;
-            const spent = transactions
-                .filter(t => t.type === 'expense' && t.category === b.category && t.date.startsWith(monthStr))
-                .reduce((s, t) => s + t.amount, 0);
-            return spent > b.monthlyAmount;
-        });
+        return budgets
+            .map(b => {
+                if (b.period && b.period !== monthStr) return null;
+                const spent = transactions
+                    .filter(t => t.type === 'expense' && t.category === b.category && t.date.startsWith(monthStr))
+                    .reduce((s, t) => s + t.amount, 0);
+                return spent > b.monthlyAmount ? { ...b, spent, overage: spent - b.monthlyAmount } : null;
+            })
+            .filter((b): b is OverspentBudget => b !== null);
     }, [budgets, transactions, thisMonthStr]);
 
     const lowStockItems = useMemo(() => inventory.filter(i => i.quantity <= i.lowStockThreshold), [inventory]);
@@ -178,6 +199,27 @@ export default function DashboardScreen() {
         if (isDemoMode || !financingOpportunity) return;
         notifyFinancingOpportunity(financingOpportunity.label, financingOpportunity.reasons[0]).catch(() => {});
     }, [isDemoMode, financingOpportunity]);
+
+    // Same cash-flow risk detection the header's alert bell uses -- pure
+    // computation, cheap to run a second time here rather than threading
+    // Header's alert state down through props for what's otherwise an
+    // unrelated component tree.
+    const alerts = useMemo(
+        () => detectFinancialAlerts(finance.cashBalance, transactions, invoices, settings?.currency),
+        [finance.cashBalance, transactions, invoices, settings?.currency]
+    );
+
+    const priorities = useMemo(
+        () => buildDashboardPriorities({
+            alerts,
+            overdueInvoices,
+            lowStockItems,
+            overspentBudgets,
+            financingOpportunity,
+            currency: settings?.currency ?? '₦',
+        }),
+        [alerts, overdueInvoices, lowStockItems, overspentBudgets, financingOpportunity, settings?.currency]
+    );
 
     const openFab = (type: 'income' | 'expense' = 'income') => {
         setQaType(type);
@@ -371,86 +413,50 @@ export default function DashboardScreen() {
                 </View>
                 )}
 
-                {/* SECTION 2: TODAY'S PRIORITIES - Action items */}
+                {/* SECTION 2: WHAT NEEDS YOUR ATTENTION — every risk and
+                    opportunity signal the app tracks (cash-flow alerts,
+                    overdue invoices, low stock, overspent budgets, a
+                    financing opportunity), ranked into one list: red items
+                    need action now, amber is worth watching, green is a
+                    positive signal. Within a tier, real dollar-impact
+                    figures sort first; nothing here is a guessed number. */}
                 <View style={styles.operationsSection}>
                   <View style={styles.sectionTitleRow}>
                     <Icon name="check-square" size={13} color={Colors.textMuted} />
-                    <Text style={styles.operationsSectionTitle}>Today's Priorities</Text>
+                    <Text style={styles.operationsSectionTitle}>What Needs Your Attention</Text>
                   </View>
 
-                  {/* Collections Alert */}
-                  {overdueInvoices.length > 0 && (
-                    <TouchableOpacity
-                      style={[styles.priorityCard, styles.priorityCardAlert]}
-                      onPress={() => setCurrentScreen('invoices')}
-                    >
-                      <View style={[styles.priorityIconBadge, { backgroundColor: Colors.expense + '22' }]}>
-                        <Icon name="dollar-sign" size={16} color={Colors.expense} />
+                  {PRIORITY_TIER_ORDER.map(tier => {
+                    const tierItems = priorities.filter(p => p.tier === tier);
+                    if (tierItems.length === 0) return null;
+                    const tierMeta = PRIORITY_TIER_META[tier];
+                    return (
+                      <View key={tier} style={styles.priorityTierGroup}>
+                        <Text style={[styles.priorityTierLabel, { color: tierMeta.color }]}>{tierMeta.emoji} {tierMeta.label}</Text>
+                        {tierItems.map(item => {
+                          const kindMeta = PRIORITY_KIND_META[item.kind];
+                          return (
+                            <TouchableOpacity
+                              key={item.id}
+                              style={[styles.priorityCard, tierMeta.tinted && { borderLeftColor: tierMeta.color, backgroundColor: tierMeta.color + '08' }]}
+                              onPress={() => setCurrentScreen(kindMeta.screen)}
+                            >
+                              <View style={[styles.priorityIconBadge, { backgroundColor: tierMeta.color + '22' }]}>
+                                <Icon name={kindMeta.icon} size={16} color={tierMeta.color} />
+                              </View>
+                              <View style={styles.priorityContent}>
+                                <Text style={styles.priorityTitle}>{item.title}</Text>
+                                <Text style={styles.priorityAmount}>{item.subtitle}</Text>
+                              </View>
+                              <Icon name="chevron-right" size={18} color={Colors.textMuted} />
+                            </TouchableOpacity>
+                          );
+                        })}
                       </View>
-                      <View style={styles.priorityContent}>
-                        <Text style={styles.priorityTitle}>{overdueInvoices.length} Customer{overdueInvoices.length > 1 ? 's' : ''} Overdue</Text>
-                        <Text style={styles.priorityAmount}>
-                          {currency}{overdueInvoices.reduce((s, i) => s + i.total, 0).toLocaleString()} to collect
-                        </Text>
-                      </View>
-                      <Icon name="chevron-right" size={18} color={Colors.textMuted} />
-                    </TouchableOpacity>
-                  )}
+                    );
+                  })}
 
-                  {/* Low Stock Alert */}
-                  {lowStockItems.length > 0 && (
-                    <TouchableOpacity
-                      style={[styles.priorityCard, styles.priorityCardWarning]}
-                      onPress={() => setCurrentScreen('inventory')}
-                    >
-                      <View style={[styles.priorityIconBadge, { backgroundColor: Colors.warning + '22' }]}>
-                        <Icon name="package" size={16} color={Colors.warning} />
-                      </View>
-                      <View style={styles.priorityContent}>
-                        <Text style={styles.priorityTitle}>{lowStockItems.length} Item{lowStockItems.length > 1 ? 's' : ''} Low in Stock</Text>
-                        <Text style={styles.priorityAmount}>Reorder to avoid stockout</Text>
-                      </View>
-                      <Icon name="chevron-right" size={18} color={Colors.textMuted} />
-                    </TouchableOpacity>
-                  )}
-
-                  {/* Budget Alerts */}
-                  {overspentBudgets.length > 0 && (
-                    <TouchableOpacity
-                      style={[styles.priorityCard, styles.priorityCardWarning]}
-                      onPress={() => setCurrentScreen('budget')}
-                    >
-                      <View style={[styles.priorityIconBadge, { backgroundColor: Colors.warning + '22' }]}>
-                        <Icon name="alert-triangle" size={16} color={Colors.warning} />
-                      </View>
-                      <View style={styles.priorityContent}>
-                        <Text style={styles.priorityTitle}>{overspentBudgets.length} Budget{overspentBudgets.length > 1 ? 's' : ''} Exceeded</Text>
-                        <Text style={styles.priorityAmount}>{overspentBudgets.map(b => b.category).join(', ')}</Text>
-                      </View>
-                      <Icon name="chevron-right" size={18} color={Colors.textMuted} />
-                    </TouchableOpacity>
-                  )}
-
-                  {/* Financing Opportunity — a positive signal, not a problem,
-                      so it uses the plain (not alert/warning) card style */}
-                  {financingOpportunity && (
-                    <TouchableOpacity
-                      style={styles.priorityCard}
-                      onPress={() => setCurrentScreen('financing-marketplace')}
-                    >
-                      <View style={[styles.priorityIconBadge, { backgroundColor: Colors.primary + '22' }]}>
-                        <Icon name="trending-up" size={16} color={Colors.primary} />
-                      </View>
-                      <View style={styles.priorityContent}>
-                        <Text style={styles.priorityTitle}>You may qualify for {financingOpportunity.label}</Text>
-                        <Text style={styles.priorityAmount}>{financingOpportunity.reasons[0]}</Text>
-                      </View>
-                      <Icon name="chevron-right" size={18} color={Colors.textMuted} />
-                    </TouchableOpacity>
-                  )}
-
-                  {/* No Priorities */}
-                  {overdueInvoices.length === 0 && lowStockItems.length === 0 && overspentBudgets.length === 0 && !financingOpportunity && (
+                  {priorities.length === 0 && (
                     <View style={styles.priorityCard}>
                       <View style={[styles.priorityIconBadge, { backgroundColor: Colors.success + '22' }]}>
                         <Icon name="check" size={16} color={Colors.success} />
@@ -1217,6 +1223,16 @@ const styles = StyleSheet.create({
       backgroundColor: Colors.border,
     },
 
+    priorityTierGroup: {
+      marginBottom: Spacing.sm,
+    },
+    priorityTierLabel: {
+      fontSize: 11,
+      fontWeight: '700',
+      marginBottom: 6,
+      textTransform: 'uppercase',
+      letterSpacing: 0.4,
+    },
     priorityCard: {
       flexDirection: 'row',
       alignItems: 'center',
