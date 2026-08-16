@@ -835,21 +835,94 @@ export async function loadProfile(): Promise<StoredProfile | null> {
     return safeParse<StoredProfile>(raw);
 }
 
+// ─── Consent tracking ─────────────────────────────────────────────────────────
+// Append-only: a new row per acceptance, matching user_consents' schema (see
+// migration 013). Never overwrites a prior acceptance, so re-consenting after
+// a policy change is a new dated record, not a silently-lost history of what
+// was agreed to and when. No-ops (rather than throwing) when signed out or
+// offline — recording consent must never block the signup flow it's called
+// from; a failed write here is logged, not surfaced as a blocking error.
+export async function recordConsent(consentType: string, version: string): Promise<void> {
+    const userId = await getAuthUserId();
+    if (!userId) return;
+    try {
+        const { error } = await supabase.from('user_consents').insert({
+            user_id: userId, consent_type: consentType, version,
+        });
+        if (error) logSyncError('user_consents', 'insert', error);
+    } catch (e) {
+        logSyncError('user_consents', 'insert', e);
+    }
+}
+
 // ─── Full data export / import / clear ───────────────────────────────────────
+// v1 only ever exported transactions/settings/goals -- a real "download my
+// data" has to cover every table this account's data actually lives in, not
+// a subset. v2 adds the rest of what's already loaded into app state
+// (invoices/assets/loans/budgets/inventory/cashPockets/staff/payrollRuns/
+// capitalCommitments/readinessHistory) plus the two tables never surfaced as
+// context state at all (audit_logs, user_consents), fetched directly here.
 export interface AppBackup {
     version: number;
     exportedAt: string;
+    profile: StoredProfile | null;
     transactions: Transaction[];
     settings: BusinessSettings;
     goals: FinancialGoal[];
+    invoices?: Invoice[];
+    assets?: Asset[];
+    loans?: Loan[];
+    budgets?: Budget[];
+    inventory?: InventoryItem[];
+    cashPockets?: CashPocket[];
+    staff?: StaffMember[];
+    payrollRuns?: PayrollRun[];
+    capitalCommitments?: CapitalCommitment[];
+    readinessHistory?: ReadinessSnapshot[];
+    auditLogs?: unknown[];
+    consents?: unknown[];
 }
 
-export async function exportAllData(
-    transactions: Transaction[],
-    settings: BusinessSettings,
-    goals: FinancialGoal[],
-): Promise<string> {
-    return JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), transactions, settings, goals }, null, 2);
+export interface ExportInput {
+    transactions: Transaction[];
+    settings: BusinessSettings;
+    goals: FinancialGoal[];
+    invoices: Invoice[];
+    assets: Asset[];
+    loans: Loan[];
+    budgets: Budget[];
+    inventory: InventoryItem[];
+    cashPockets: CashPocket[];
+    staff: StaffMember[];
+    payrollRuns: PayrollRun[];
+    capitalCommitments: CapitalCommitment[];
+    readinessHistory: ReadinessSnapshot[];
+}
+
+export async function exportAllData(input: ExportInput): Promise<string> {
+    const userId = await getAuthUserId();
+    const profile = await loadProfile();
+
+    let auditLogs: unknown[] = [];
+    let consents: unknown[] = [];
+    if (userId) {
+        const [auditRes, consentRes] = await Promise.all([
+            supabase.from('audit_logs').select('*').eq('user_id', userId),
+            supabase.from('user_consents').select('*').eq('user_id', userId),
+        ]);
+        if (auditRes.error) logSyncError('audit_logs', 'select', auditRes.error); else auditLogs = auditRes.data ?? [];
+        if (consentRes.error) logSyncError('user_consents', 'select', consentRes.error); else consents = consentRes.data ?? [];
+    }
+
+    const backup: AppBackup = {
+        version: 2,
+        exportedAt: new Date().toISOString(),
+        profile,
+        ...input,
+        auditLogs,
+        consents,
+    };
+    return JSON.stringify(backup, null, 2);
 }
 
 export async function importAllData(json: string): Promise<AppBackup> {
@@ -859,11 +932,25 @@ export async function importAllData(json: string): Promise<AppBackup> {
     if (!parsed.version || !Array.isArray(parsed.transactions)) {
         throw new Error('Invalid backup format. Make sure you are pasting a Quad360 backup.');
     }
-    await Promise.all([
+    // Every field below is optional on AppBackup (v1 files predate them) --
+    // restore only what the file actually contains rather than overwriting
+    // current data with an empty array for anything a v1 backup never had.
+    const restores: Promise<void>[] = [
         saveTransactions(parsed.transactions),
         saveSettings(parsed.settings),
         saveGoals(parsed.goals ?? []),
-    ]);
+    ];
+    if (parsed.invoices) restores.push(saveInvoices(parsed.invoices));
+    if (parsed.assets) restores.push(saveAssets(parsed.assets));
+    if (parsed.loans) restores.push(saveLoans(parsed.loans));
+    if (parsed.budgets) restores.push(saveBudgets(parsed.budgets));
+    if (parsed.inventory) restores.push(saveInventory(parsed.inventory));
+    if (parsed.cashPockets) restores.push(saveCashPockets(parsed.cashPockets));
+    if (parsed.staff) restores.push(saveStaff(parsed.staff));
+    if (parsed.payrollRuns) restores.push(savePayrollRuns(parsed.payrollRuns));
+    if (parsed.capitalCommitments) restores.push(saveCapitalCommitments(parsed.capitalCommitments));
+    if (parsed.readinessHistory) restores.push(saveReadinessHistory(parsed.readinessHistory));
+    await Promise.all(restores);
     return parsed;
 }
 
@@ -1037,17 +1124,80 @@ export async function loadFinancingFromSupabase(userId: string): Promise<Financi
 }
 
 // Permanently deletes all Supabase data for the owner. Use only for explicit "Delete Account" action.
+// Real cloud deletion, not the local-only wipe SettingsScreen's copy used to
+// imply while actually calling clearAllData() alone (a stale AsyncStorage
+// cache is what that clears — the Supabase rows survived, so "sign back in"
+// would have brought everything right back, contradicting the screen's own
+// "permanently removes... from the cloud... cannot be undone" text).
+//
+// Deliberately scope-aware: getWorkspaceOwnerId() resolves to the OWNER's id
+// for a team member (that's how they see the shared workspace), so using it
+// unconditionally here — as the code this replaces did — would let a staff
+// or accountant account's own "delete my account" wipe the OWNER's entire
+// business data out from under them. Only the tables genuinely private to
+// the account being deleted are ever touched unless authUserId IS the
+// workspace owner.
 export async function deleteAccountData(): Promise<void> {
-    const ownerId = await getWorkspaceOwnerId();
-    await clearAllData();
-    if (ownerId) {
-        const tables = ['transactions','goals','settings','invoices','assets','inventory','loans','budgets','audit_logs'];
-        const results = await Promise.allSettled(
-            tables.map(t => supabase.from(t).delete().eq('user_id', ownerId))
-        );
-        results.forEach((r, i) => {
-            if (r.status === 'rejected') logSyncError(tables[i], 'delete', r.reason);
-        });
-        await supabase.auth.signOut();
+    const authUserId = await getAuthUserId();
+    if (!authUserId) { await clearAllData(); return; }
+    const workspaceOwnerId = await getWorkspaceOwnerId();
+    const isOwner = authUserId === workspaceOwnerId;
+
+    const results: { table: string; error: unknown }[] = [];
+    const del = async (table: string, column: string, value: string) => {
+        const { error } = await supabase.from(table).delete().eq(column, value);
+        if (error) results.push({ table, error });
+    };
+
+    if (isOwner) {
+        // The shared business dataset — only ever deleted when the account
+        // being deleted IS the workspace owner, since every team member
+        // (accountant/staff) reads and writes these same rows.
+        await Promise.all([
+            ...['transactions', 'goals', 'settings', 'invoices', 'assets', 'inventory', 'loans', 'budgets',
+                'cash_pockets', 'merchant_financing']
+                .map(t => del(t, 'user_id', authUserId)),
+            // staff/payroll_runs store user_id as TEXT (see migration 004),
+            // not a UUID column, but .eq() sends the same string either way.
+            del('staff', 'user_id', authUserId),
+            del('payroll_runs', 'user_id', authUserId),
+            del('financing_pipeline_listings', 'business_user_id', authUserId),
+            del('loan_monitoring_shares', 'business_user_id', authUserId),
+        ]);
+        // A team member who was reading this owner's workspace loses that
+        // access once the owner's account (and all underlying data) is gone.
+        await del('team_members', 'owner_user_id', authUserId);
+    } else {
+        // A team member deleting their OWN account: remove their own
+        // membership row so they stop appearing in the owner's team list,
+        // but never touch the owner's business data.
+        await del('team_members', 'member_user_id', authUserId);
     }
+
+    // Identity-scoped rows every account has, owner or member alike.
+    await Promise.all([
+        del('audit_logs', 'user_id', authUserId),
+        del('two_factor_auth', 'user_id', authUserId),
+        del('two_factor_verification_logs', 'user_id', authUserId),
+        del('user_consents', 'user_id', authUserId),
+    ]);
+    await del('profiles', 'id', authUserId);
+
+    results.forEach(r => logSyncError(r.table, 'delete', r.error));
+
+    // The `payments` table (webhook-only, keyed by email, deny-all RLS) and
+    // the actual auth.users login identity both require the service-role
+    // key — neither is reachable from the authenticated client no matter
+    // what RLS policy exists. See supabase/functions/delete-account, which
+    // must be deployed separately for those two to actually be removed;
+    // this call degrades gracefully (data is already gone above either way)
+    // if that function isn't deployed yet.
+    try {
+        await supabase.functions.invoke('delete-account');
+    } catch (e) {
+        logSyncError('delete-account-function', 'invoke', e);
+    }
+
+    await clearAllData();
+    await supabase.auth.signOut();
 }

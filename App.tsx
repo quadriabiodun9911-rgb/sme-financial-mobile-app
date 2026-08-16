@@ -11,6 +11,7 @@ import LandingScreen from './src/screens/LandingScreen';
 import ContactScreen from './src/screens/ContactScreen';
 import BlogScreen from './src/screens/BlogScreen';
 import BlogPostScreen from './src/screens/BlogPostScreen';
+import PrivacyPolicyScreen from './src/screens/PrivacyPolicyScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
 import ReportsScreen from './src/screens/ReportsScreen';
@@ -137,6 +138,7 @@ function NavigatorContent() {
             {currentScreen === 'contact'      && <ContactScreen />}
             {currentScreen === 'blog'         && <BlogScreen />}
             {currentScreen === 'blog-post'    && <BlogPostScreen />}
+            {currentScreen === 'privacy-policy' && <PrivacyPolicyScreen />}
             {currentScreen === 'login'        && <LoginScreen />}
             {currentScreen === 'dashboard'    && <DashboardScreen />}
             {currentScreen === 'reports'      && <ReportsScreen />}

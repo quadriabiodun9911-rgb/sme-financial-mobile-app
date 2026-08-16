@@ -707,7 +707,7 @@ export default function SettingsScreen() {
                     <CollapsibleSection title="Data & Backup" defaultOpen={false}>
                         <Section title="Export & Import">
                             <Text style={styles.hint}>
-                                Export a full JSON backup of all your transactions, goals, and settings. Import to restore on a new device.
+                                Export a full JSON backup of your account — transactions, invoices, assets, loans, budgets, inventory, staff, payroll, goals, settings, and activity history. Import to restore on a new device.
                             </Text>
                             <TouchableOpacity style={styles.dataBtn} onPress={handleExport}>
                                 <View style={styles.btnIconRow}>

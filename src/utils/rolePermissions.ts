@@ -22,7 +22,7 @@ export function canViewFinancials(role: UserRole): boolean {
 // screen added later defaults to restricted rather than accidentally
 // exposed.
 const STAFF_ALLOWED_SCREENS: Screen[] = [
-    'landing', 'login', 'contact', 'blog', 'blog-post', '2fa', 'two-factor-verify', 'onboarding-choice',
+    'landing', 'login', 'contact', 'blog', 'blog-post', 'privacy-policy', '2fa', 'two-factor-verify', 'onboarding-choice',
     'dashboard', 'transactions', 'invoices', 'inventory', 'payment-link',
 ];
 // Note: 'settings' is deliberately excluded — it mixes team-management,

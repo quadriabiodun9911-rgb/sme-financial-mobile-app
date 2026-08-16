@@ -58,7 +58,7 @@ type Mode = 'owner-setup' | 'owner-login' | 'join-team' | 'join-lender' | 'reset
 type LoginMethod = 'pin' | 'email';
 
 export default function LoginScreen() {
-    const { isFirstLaunch, setupAccount, login, joinTeam, joinAsLender, enterDemo, language, setLanguage, updateSettings, resetApp, isLockedOut, lockoutUntil, recoverAccount, navParams } = useApp();
+    const { isFirstLaunch, setupAccount, login, joinTeam, joinAsLender, enterDemo, language, setLanguage, updateSettings, resetApp, isLockedOut, lockoutUntil, recoverAccount, navParams, recordConsent, navigate } = useApp();
     // The split-screen setup layout only applies on wide web viewports --
     // narrow/native rendering is untouched, so the primary mobile
     // experience carries zero risk from this. 900px comfortably fits the
@@ -137,6 +137,7 @@ export default function LoginScreen() {
     const [industry, setIndustry]   = useState<Industry>('general');
     const [setupLang, setSetupLang] = useState<Language>(language);
     const [submitting, setSubmitting] = useState(false);
+    const [agreedToTerms, setAgreedToTerms] = useState(false);
 
     // Owner return
     const [returnPin, setReturnPin] = useState('');
@@ -194,6 +195,7 @@ export default function LoginScreen() {
         }
         if (!/^\d{6}$/.test(pin)) { showAlert(t(setupLang, 'error'), t(setupLang, 'invalidPin')); return; }
         if (pin !== confirmPin)   { showAlert(t(setupLang, 'error'), t(setupLang, 'pinMismatch')); return; }
+        if (!agreedToTerms) { showAlert(t(setupLang, 'error'), 'Please agree to the Privacy Policy to continue.'); return; }
         setSubmitting(true);
         try {
             setLanguage(setupLang);
@@ -203,6 +205,10 @@ export default function LoginScreen() {
             // be silently overwritten back to defaults by that reset.
             await setupAccount(email.trim(), business.trim(), pin, false, phone.trim(), { currency, industry });
             updateSettings({ currency, industry });
+            // Fire-and-forget: recording consent must never block a
+            // signup that already succeeded — see recordConsent's own
+            // no-op-on-failure contract in storage.ts.
+            recordConsent('privacy_policy', 'draft-v1');
         } catch (e: any) {
             const msg: string = e?.message ?? '';
             if (msg.toLowerCase().includes('already registered') || msg.toLowerCase().includes('already been registered') || msg.toLowerCase().includes('user already exists') || msg.toLowerCase().includes('email address is already')) {
@@ -798,7 +804,17 @@ export default function LoginScreen() {
                     ))}
                 </Field>
 
-                <TouchableOpacity style={[styles.btn, submitting && styles.btnDisabled]} onPress={handleSetup} disabled={submitting}>
+                <TouchableOpacity style={styles.consentRow} onPress={() => setAgreedToTerms(v => !v)} activeOpacity={0.7}>
+                    <View style={[styles.consentCheckbox, agreedToTerms && styles.consentCheckboxChecked]}>
+                        {agreedToTerms && <Icon name="check" size={12} color="#fff" />}
+                    </View>
+                    <Text style={styles.consentText}>
+                        I agree to the{' '}
+                        <Text style={styles.consentLink} onPress={() => navigate('privacy-policy')}>Privacy Policy</Text>
+                    </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={[styles.btn, (submitting || !agreedToTerms) && styles.btnDisabled]} onPress={handleSetup} disabled={submitting || !agreedToTerms}>
                     {submitting
                         ? <ActivityIndicator color="#fff" />
                         : <Text style={styles.btnText}>{t(setupLang, 'createAccount')}</Text>
@@ -1210,6 +1226,15 @@ const styles = StyleSheet.create({
     resetText:  { color: Colors.danger, fontSize: 12 },
     trustNoteRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, marginTop: 10 },
     trustNote:  { fontSize: 11, color: Colors.textMuted, textAlign: 'center', lineHeight: 16 },
+
+    consentRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 9, marginTop: 6, marginBottom: 10 },
+    consentCheckbox: {
+        width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, borderColor: Colors.border,
+        alignItems: 'center', justifyContent: 'center', marginTop: 1,
+    },
+    consentCheckboxChecked: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+    consentText: { flex: 1, fontSize: 12.5, color: Colors.textSecondary, lineHeight: 17 },
+    consentLink: { color: Colors.primary, fontWeight: '700' },
 
     stepsBox: {
         backgroundColor: Colors.bg, borderRadius: 10, padding: 14, marginBottom: 16,

@@ -34,7 +34,7 @@ import {
   syncFinancingToSupabase,
   saveProfile, loadProfile, savePin, loadPin,
   generateAuthSecret, saveAuthSecret, loadAuthSecret,
-  clearAllData, exportAllData, importAllData,
+  clearAllData, exportAllData, importAllData, deleteAccountData, recordConsent,
   inviteTeamMember, removeTeamMember, loadTeamMembers, joinTeamWithCode,
   setWorkspaceOwner, clearWorkspaceOwner,
 } from '../utils/storage';
@@ -1359,7 +1359,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearData: async () => { await clearAllData(); reloadApp(); },
       resetBusinessData: async () => { await clearAllData(); reloadApp(); },
       resetApp: async () => { await clearAllData(); setUser(null); reloadApp(); },
-      deleteAccount: async () => { await clearAllData(); setUser(null); setCurrentScreenState('login'); reloadApp(); },
+      deleteAccount: async () => { await deleteAccountData(); setUser(null); setCurrentScreenState('login'); reloadApp(); },
       teamMembers,
       inviteMember: async (email, role) => {
         const code = await inviteTeamMember(email, role);
@@ -1787,7 +1787,13 @@ export function useApp() {
     deleteAccount: auth.deleteAccount || (() => Promise.resolve()),
     recoverAccount: auth.recoverAccount,
     importData: async (json) => { await importAllData(json); if (typeof window !== 'undefined' && window.location) window.location.reload(); },
-    exportData: () => exportAllData(transactions, (settings?.settings as any), goalsArray),
+    exportData: () => exportAllData({
+      transactions, settings: (settings?.settings as any), goals: goalsArray,
+      invoices: invoicesArray, assets, loans, budgets, inventory,
+      cashPockets: finance?.cashPockets ?? [], staff: finance?.staff ?? [], payrollRuns: finance?.payrollRuns ?? [],
+      capitalCommitments: finance?.capitalCommitments ?? [], readinessHistory: finance?.readinessHistory ?? [],
+    }),
+    recordConsent,
     enterDemo: auth.enterDemo || (() => {}),
     markInvoiceStatus: (id, status) => {
       invoices?.markInvoiceStatus(id, status);
