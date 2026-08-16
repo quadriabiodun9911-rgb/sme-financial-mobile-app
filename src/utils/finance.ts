@@ -1053,6 +1053,19 @@ export interface RiskScore {
     factors: RiskFactor[];
 }
 
+/** Shared label/emoji for each RiskScore band — one definition so
+ *  Credit-Worthiness, the Funding Readiness Pack, and the Business Health
+ *  Audit's Readiness pillar never disagree on what to call "Moderate".
+ *  Colors are theme-dependent (light/dark), so screens map `band` to a
+ *  Colors token themselves rather than getting a color from here. */
+export const RISK_BAND_STYLE: Record<RiskScore['band'], { label: string; emoji: string }> = {
+    Excellent: { label: 'Excellent', emoji: '💎' },
+    Strong: { label: 'Strong', emoji: '✅' },
+    Moderate: { label: 'Moderate', emoji: '⚠️' },
+    Weak: { label: 'Weak', emoji: '⚠️' },
+    Critical: { label: 'Critical', emoji: '⛔' },
+};
+
 /**
  * The single canonical business health score — seven weighted factors, one
  * per pillar a lender or the business owner actually cares about:

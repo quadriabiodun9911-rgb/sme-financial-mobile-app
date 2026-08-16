@@ -12,7 +12,7 @@ import LowDataNotice from '../components/LowDataNotice';
 import NextStepLink from '../components/NextStepLink';
 import { generatePDF, sharePDF } from '../utils/pdfExport';
 import { buildLenderSummaryExport, buildFundingReadinessPackExport } from '../utils/lenderSummaryExport';
-import { computeDSCR, computeRiskScore, computeAssetCurrentValue, computeWorkingCapitalMetrics, RiskScore } from '../utils/finance';
+import { computeDSCR, computeRiskScore, computeAssetCurrentValue, computeWorkingCapitalMetrics, RiskScore, RISK_BAND_STYLE } from '../utils/finance';
 import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
 import { computeReadinessDelta } from '../utils/readinessHistory';
 import { computeDataQuality } from '../utils/dataQuality';
@@ -215,14 +215,17 @@ export default function CreditWorthinessScreen() {
     const risk = useMemo(() => computeRiskScore(finance, loans, transactions, inventory), [finance, loans, transactions, inventory]);
     const overallCreditScore = risk.score;
 
-    const BAND_STYLE: Record<RiskScore['band'], { label: string; color: string; emoji: string }> = {
-        Excellent: { label: 'Excellent', color: Colors.income, emoji: '💎' },
-        Strong: { label: 'Strong', color: '#10b981', emoji: '✅' },
-        Moderate: { label: 'Moderate', color: Colors.warning, emoji: '⚠️' },
-        Weak: { label: 'Weak', color: '#fb923c', emoji: '⚠️' },
-        Critical: { label: 'Critical', color: Colors.expense, emoji: '⛔' },
+    const BAND_COLOR: Record<RiskScore['band'], string> = {
+        Excellent: Colors.income,
+        Strong: '#10b981',
+        Moderate: Colors.warning,
+        Weak: '#fb923c',
+        Critical: Colors.expense,
     };
-    const creditRating = useMemo(() => BAND_STYLE[risk.band], [risk.band]);
+    const creditRating = useMemo(
+        () => ({ ...RISK_BAND_STYLE[risk.band], color: BAND_COLOR[risk.band] }),
+        [risk.band]
+    );
 
     const topFactors = useMemo(() => {
         return [...risk.factors].sort((a, b) => a.score - b.score).slice(0, 2);
