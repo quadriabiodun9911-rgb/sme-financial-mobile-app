@@ -81,6 +81,9 @@ export default function LandingScreen() {
                     <Text style={s.subhead}>
                         Understand your business. Improve your financial health. Become financing-ready. Find the right capital.
                     </Text>
+                    <Text style={[s.northStar, isWide && s.northStarWide]}>
+                        Quad360 helps businesses save time, save money, gain clarity, and turn that recovered capacity into profitable growth.
+                    </Text>
 
                     <View style={s.ctaRow}>
                         <TouchableOpacity onPress={goSignup} style={s.ctaBtn}>
@@ -235,7 +238,9 @@ const s = StyleSheet.create({
     eyebrow: { fontSize: 11.5, fontWeight: '700', color: Colors.textMuted, letterSpacing: 0.6, marginBottom: 14 },
     headline: { fontSize: 32, fontWeight: '800', color: Colors.textPrimary, lineHeight: 40, marginBottom: 16 },
     headlineWide: { fontSize: 44, lineHeight: 52 },
-    subhead: { fontSize: 15.5, color: Colors.textSecondary, lineHeight: 23, marginBottom: 28, maxWidth: 560 },
+    subhead: { fontSize: 15.5, color: Colors.textSecondary, lineHeight: 23, marginBottom: 20, maxWidth: 560 },
+    northStar: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, lineHeight: 22, marginBottom: 28, maxWidth: 560 },
+    northStarWide: { fontSize: 16.5, lineHeight: 24 },
 
     ctaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 18, marginBottom: 24 },
     ctaBtn: { backgroundColor: Colors.primary, borderRadius: Radius.pill, paddingHorizontal: 26, paddingVertical: 15, ...Shadow.sm },
