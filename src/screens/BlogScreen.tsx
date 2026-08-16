@@ -56,6 +56,9 @@ export default function BlogScreen() {
                 <View style={s.hero}>
                     <Text style={s.heading}>Blog</Text>
                     <Text style={s.subtext}>Notes on SME finance, lending, and building Quad360.</Text>
+                    <Text style={s.northStar}>
+                        Quad360 helps businesses save time, save money, gain clarity, and turn that recovered capacity into profitable growth.
+                    </Text>
                 </View>
 
                 {posts.length === 0 ? (
@@ -105,7 +108,8 @@ const s = StyleSheet.create({
 
     hero: { paddingHorizontal: Spacing.xl, paddingTop: Spacing.md, paddingBottom: Spacing.xl },
     heading: { fontSize: 28, fontWeight: '800', color: Colors.textPrimary, marginBottom: 6 },
-    subtext: { fontSize: 14, color: Colors.textMuted },
+    subtext: { fontSize: 14, color: Colors.textMuted, marginBottom: 10 },
+    northStar: { fontSize: 13.5, fontWeight: '700', color: Colors.textPrimary, lineHeight: 20, maxWidth: 520 },
 
     emptyCard: {
         marginHorizontal: Spacing.xl, backgroundColor: Colors.surface, borderRadius: Radius.lg,

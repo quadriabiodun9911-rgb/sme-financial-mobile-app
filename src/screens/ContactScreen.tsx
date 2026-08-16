@@ -70,6 +70,9 @@ export default function ContactScreen() {
                     <Text style={s.subtext}>
                         Questions about Quad360 — as an SME or a lender? Reach us directly and we'll respond by email.
                     </Text>
+                    <Text style={s.northStar}>
+                        Quad360 helps businesses save time, save money, gain clarity, and turn that recovered capacity into profitable growth.
+                    </Text>
                     <TouchableOpacity onPress={() => Linking.openURL('mailto:hello@quad360financial.com')} style={s.emailBtn}>
                         <Icon name="mail" size={15} color={Colors.primary} />
                         <Text style={s.emailText}>hello@quad360financial.com</Text>
@@ -145,7 +148,8 @@ const s = StyleSheet.create({
         alignItems: 'center', justifyContent: 'center', marginBottom: 16,
     },
     heading: { fontSize: 26, fontWeight: '800', color: Colors.textPrimary, marginBottom: 10 },
-    subtext: { fontSize: 14, color: Colors.textMuted, textAlign: 'center', maxWidth: 480, lineHeight: 20, marginBottom: 18 },
+    subtext: { fontSize: 14, color: Colors.textMuted, textAlign: 'center', maxWidth: 480, lineHeight: 20, marginBottom: 12 },
+    northStar: { fontSize: 13.5, fontWeight: '700', color: Colors.textPrimary, textAlign: 'center', maxWidth: 480, lineHeight: 20, marginBottom: 18 },
     emailBtn: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     emailText: { fontSize: 15, color: Colors.primary, fontWeight: '700' },
 
