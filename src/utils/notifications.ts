@@ -1,6 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { PayrollReminderStatus } from './payrollReminders';
 
 Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -17,6 +18,7 @@ const KEYS = {
     financingOpportunityId: '@quad360/notif_financing_opportunity_id',
     overdueRemindersId: '@quad360/notif_overdue_reminders_id',
     loanPaymentDueId: '@quad360/notif_loan_payment_due_id',
+    payrollDueId: '@quad360/notif_payroll_due_id',
 };
 
 export async function requestNotificationPermission(): Promise<boolean> {
@@ -125,6 +127,38 @@ export async function notifyLoanPaymentDueSoon(lenderName: string, daysUntilDue:
         });
 
         await AsyncStorage.setItem(KEYS.loanPaymentDueId, Date.now().toString());
+    } catch {
+        // Fail silently
+    }
+}
+
+// Throttled to once per day, same reasoning as the other reminder
+// notifications -- the underlying status only actually changes once a
+// month (a run is recorded, or the calendar rolls over), so a fresh
+// notification on every recompute would just repeat itself all day.
+export async function notifyPayrollDue(status: PayrollReminderStatus): Promise<void> {
+    try {
+        if (Platform.OS === 'web' || status.kind === 'none') return;
+
+        const prevNotified = await AsyncStorage.getItem(KEYS.payrollDueId);
+        if (prevNotified) {
+            const daysSinceLastNotif = (Date.now() - parseInt(prevNotified, 10)) / (1000 * 60 * 60 * 24);
+            if (daysSinceLastNotif < 1) return;
+        }
+
+        const body = status.kind === 'overdue'
+            ? `No payroll run was recorded for ${status.missedPeriod}. Log it if staff were paid another way.`
+            : `${status.daysLeftInMonth} day${status.daysLeftInMonth === 1 ? '' : 's'} left in ${status.period} and payroll hasn't been run yet.`;
+
+        await Notifications.scheduleNotificationAsync({
+            content: {
+                title: status.kind === 'overdue' ? 'Payroll was never run 📋' : 'Payroll not run yet this month 📋',
+                body,
+            },
+            trigger: null,
+        });
+
+        await AsyncStorage.setItem(KEYS.payrollDueId, Date.now().toString());
     } catch {
         // Fail silently
     }

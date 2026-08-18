@@ -204,6 +204,26 @@ describe('buildDashboardPriorities', () => {
         expect(multiple.find(p => p.kind === 'overdue_loan_payments')?.subtitle).toContain('your lenders');
     });
 
+    it('passes a payroll_overdue alert through into the attention tier', () => {
+        const result = buildDashboardPriorities({
+            alerts: [alert({ id: 'alert-payroll-overdue-2026-07', type: 'payroll_overdue', priority: 'high', title: '📋 Payroll Never Run' })],
+            overdueInvoices: [], lowStockItems: [], overspentBudgets: [], financingOpportunity: null, currency: '₦',
+        });
+        const item = result.find(p => p.kind === 'payroll_overdue');
+        expect(item).toBeDefined();
+        expect(item?.tier).toBe('attention');
+    });
+
+    it('passes a payroll_due_soon alert through into the watch tier', () => {
+        const result = buildDashboardPriorities({
+            alerts: [alert({ id: 'alert-payroll-due-soon-2026-08', type: 'payroll_due_soon', priority: 'medium', title: '📋 Payroll Not Run Yet' })],
+            overdueInvoices: [], lowStockItems: [], overspentBudgets: [], financingOpportunity: null, currency: '₦',
+        });
+        const item = result.find(p => p.kind === 'payroll_due_soon');
+        expect(item).toBeDefined();
+        expect(item?.tier).toBe('watch');
+    });
+
     it('defaults to no overdue-loan card when overdueLoans is omitted', () => {
         const result = buildDashboardPriorities({
             alerts: [], overdueInvoices: [], lowStockItems: [], overspentBudgets: [], financingOpportunity: null, currency: '₦',

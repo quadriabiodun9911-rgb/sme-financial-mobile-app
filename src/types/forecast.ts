@@ -124,6 +124,7 @@ export interface AlertThresholds {
   largeExpenseComing: number;    // Alert if big recurring expense in next X days
   largeExpenseAmount: number;    // Define "large" as expense > this %
   loanPaymentDueSoonDays: number; // Warn a loan payment is coming within X days
+  payrollDueSoonDay: number; // Day of the month to start warning payroll hasn't run yet
 }
 
 export type AlertType =
@@ -134,7 +135,9 @@ export type AlertType =
   | 'collection_risk'
   | 'seasonal_risk'
   | 'loan_payment_overdue'
-  | 'loan_payment_due_soon';
+  | 'loan_payment_due_soon'
+  | 'payroll_overdue'
+  | 'payroll_due_soon';
 
 export interface ForecastAlert {
   id: string;

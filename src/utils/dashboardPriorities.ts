@@ -21,7 +21,9 @@ export type PriorityKind =
     | 'large_expense_coming'
     | 'low_stock'
     | 'overspent_budget'
-    | 'financing_opportunity';
+    | 'financing_opportunity'
+    | 'payroll_overdue'
+    | 'payroll_due_soon';
 
 export interface PriorityItem {
     id: string;
@@ -46,16 +48,19 @@ const TIER_RANK: Record<PriorityTier, number> = { attention: 0, watch: 1, opport
 // uncollected receivables are a direct cash-flow lever, not just a
 // collections issue.
 const GOAL_KINDS: Record<PrimaryGoal, PriorityKind[]> = {
-    cashflow: ['low_cash', 'negative_forecast', 'large_expense_coming', 'overdue_invoices', 'overdue_loan_payments'],
+    cashflow: ['low_cash', 'negative_forecast', 'large_expense_coming', 'overdue_invoices', 'overdue_loan_payments', 'payroll_overdue', 'payroll_due_soon'],
     costs: ['overspent_budget'],
     financing: ['financing_opportunity'],
 };
 
-// alertEngine reports one alert per overdue invoice; the dashboard already
-// aggregates overdue invoices into a single card ("3 customers, ₦420,000 to
-// collect"), so that alert type is excluded here to avoid double-reporting
-// the same risk in two different shapes.
-const CASH_FLOW_ALERT_TYPES = new Set(['low_cash', 'negative_forecast', 'large_expense_coming']);
+// alertEngine reports one alert per overdue invoice or overdue loan; the
+// dashboard already aggregates each of those into a single card ("3
+// customers, ₦420,000 to collect"), so those alert types are excluded here
+// to avoid double-reporting the same risk in two different shapes. Payroll
+// never produces more than one alert at a time (detectPayrollAlert returns
+// at most one), so it passes through generically instead of needing its
+// own aggregation block.
+const PASSTHROUGH_ALERT_TYPES = new Set(['low_cash', 'negative_forecast', 'large_expense_coming', 'payroll_overdue', 'payroll_due_soon']);
 
 function alertToPriorityItem(alert: ForecastAlert): PriorityItem {
     return {
@@ -83,7 +88,7 @@ export function buildDashboardPriorities(input: {
     const items: PriorityItem[] = [];
 
     for (const alert of alerts) {
-        if (CASH_FLOW_ALERT_TYPES.has(alert.type)) items.push(alertToPriorityItem(alert));
+        if (PASSTHROUGH_ALERT_TYPES.has(alert.type)) items.push(alertToPriorityItem(alert));
     }
 
     if (overdueInvoices.length > 0) {
@@ -101,7 +106,7 @@ export function buildDashboardPriorities(input: {
     // alertEngine reports one loan_payment_overdue alert per loan (with its
     // own days-overdue detail, kept in AlertsWidget); this aggregates them
     // into a single card the same way overdue invoices are, rather than
-    // letting them pass through CASH_FLOW_ALERT_TYPES one row per lender.
+    // letting them pass through PASSTHROUGH_ALERT_TYPES one row per lender.
     if (overdueLoans.length > 0) {
         const total = Math.round(overdueLoans.reduce((s, l) => s + monthlyPayment(l.principal, l.interestRate, l.termMonths), 0));
         items.push({

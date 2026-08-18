@@ -1,4 +1,4 @@
-import { Transaction, Invoice, Loan } from '../src/types';
+import { Transaction, Invoice, Loan, StaffMember, PayrollRun } from '../src/types';
 import { detectAlerts, detectCriticalAlerts, getAlertStats, detectFinancialAlerts, DEFAULT_THRESHOLDS } from '../src/utils/alertEngine';
 
 // startDate expressed relative to the real current date (matching how
@@ -14,6 +14,44 @@ function isoDaysFromNow(days: number): string {
     const d = new Date();
     d.setDate(d.getDate() + days);
     return d.toISOString().split('T')[0];
+}
+
+function currentPeriod(): string {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+function prevPeriod(): string {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function makeStaff(overrides: Partial<StaffMember> = {}): StaffMember {
+    return {
+        id: 'staff-1',
+        name: 'Amaka Obi',
+        role: 'Sales Assistant',
+        salary: 80000,
+        salaryType: 'monthly',
+        startDate: isoMonthsAgo(6),
+        status: 'active',
+        createdAt: isoMonthsAgo(6) + 'T00:00:00.000Z',
+        ...overrides,
+    };
+}
+
+function makeRun(period: string): PayrollRun {
+    return {
+        id: `run-${period}`,
+        period,
+        runDate: `${period}-05`,
+        items: [],
+        totalGross: 80000,
+        totalDeductions: 4000,
+        totalNet: 76000,
+        status: 'paid',
+        createdAt: `${period}-05T00:00:00.000Z`,
+    };
 }
 
 function makeLoan(overrides: Partial<Loan>): Loan {
@@ -154,6 +192,52 @@ describe('alertEngine', () => {
         it('defaults to no loan alerts when no loans are passed', () => {
             const alerts = detectAlerts(1000000, [], []);
             expect(alerts.some(a => a.type.startsWith('loan_payment'))).toBe(false);
+        });
+    });
+
+    describe('payroll alerts', () => {
+        it('flags overdue when the previous month was never run', () => {
+            const alerts = detectAlerts(
+                1000000, [], [], undefined, undefined, undefined, '₦', [],
+                [makeStaff()], []
+            );
+            const overdue = alerts.find(a => a.type === 'payroll_overdue');
+            expect(overdue).toBeDefined();
+            expect(overdue?.id).toBe(`alert-payroll-overdue-${prevPeriod()}`);
+            expect(overdue?.priority).toBe('high');
+        });
+
+        it('flags due_soon when the current month is late and previous month is covered', () => {
+            const alerts = detectAlerts(
+                1000000, [], [], undefined, { payrollDueSoonDay: 1 }, undefined, '₦', [],
+                [makeStaff()], [makeRun(prevPeriod())]
+            );
+            expect(alerts.some(a => a.type === 'payroll_overdue')).toBe(false);
+            const dueSoon = alerts.find(a => a.type === 'payroll_due_soon');
+            expect(dueSoon).toBeDefined();
+            expect(dueSoon?.id).toBe(`alert-payroll-due-soon-${currentPeriod()}`);
+            expect(dueSoon?.priority).toBe('medium');
+        });
+
+        it('produces no payroll alert once both months are covered', () => {
+            const alerts = detectAlerts(
+                1000000, [], [], undefined, { payrollDueSoonDay: 1 }, undefined, '₦', [],
+                [makeStaff()], [makeRun(prevPeriod()), makeRun(currentPeriod())]
+            );
+            expect(alerts.some(a => a.type.startsWith('payroll'))).toBe(false);
+        });
+
+        it('never flags payroll when there is no active staff', () => {
+            const alerts = detectAlerts(
+                1000000, [], [], undefined, undefined, undefined, '₦', [],
+                [makeStaff({ status: 'inactive' })], []
+            );
+            expect(alerts.some(a => a.type.startsWith('payroll'))).toBe(false);
+        });
+
+        it('defaults to no payroll alerts when no staff/payrollRuns are passed', () => {
+            const alerts = detectAlerts(1000000, [], []);
+            expect(alerts.some(a => a.type.startsWith('payroll'))).toBe(false);
         });
     });
 

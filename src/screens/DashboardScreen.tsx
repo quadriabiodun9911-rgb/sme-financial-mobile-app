@@ -36,9 +36,10 @@ import StatTile from '../components/ui/StatTile';
 import { buildFinancingFitInput } from '../utils/financingFit';
 import { recommendFinancingTypes } from '../utils/financingRecommendation';
 import { computeReadinessDelta } from '../utils/readinessHistory';
-import { notifyFinancingOpportunity, notifyOverdueRemindersDue, notifyLoanPaymentDueSoon } from '../utils/notifications';
+import { notifyFinancingOpportunity, notifyOverdueRemindersDue, notifyLoanPaymentDueSoon, notifyPayrollDue } from '../utils/notifications';
 import { getInvoicesDueForReminder, loadReminderState, InvoiceReminderState } from '../utils/invoiceReminders';
 import { isLoanPaymentOverdue, daysUntilLoanPaymentDue } from '../utils/loanMath';
+import { getPayrollReminderStatus } from '../utils/payrollReminders';
 import { detectFinancialAlerts, DEFAULT_THRESHOLDS } from '../utils/alertEngine';
 import { buildDashboardPriorities, PriorityKind, PriorityTier, OverspentBudget } from '../utils/dashboardPriorities';
 
@@ -62,10 +63,12 @@ const PRIORITY_KIND_META: Record<PriorityKind, { icon: IconName; screen: Screen 
     low_stock:              { icon: 'package',        screen: 'inventory' },
     overspent_budget:       { icon: 'alert-triangle', screen: 'budget' },
     financing_opportunity:  { icon: 'trending-up',    screen: 'financing-marketplace' },
+    payroll_overdue:        { icon: 'users',           screen: 'payroll' },
+    payroll_due_soon:       { icon: 'users',           screen: 'payroll' },
 };
 
 export default function DashboardScreen() {
-    const { finance, settings, goals, transactions, invoices, assets, loans, navigate, setCurrentScreen, navParams, language: rawLanguage, isLoading, addTransaction, isDemoMode, exitDemo, cashPockets, deleteGoal, updateGoal, budgets, inventory, user, financing, canViewFinancials, readinessHistory } = useApp();
+    const { finance, settings, goals, transactions, invoices, assets, loans, staff, payrollRuns, navigate, setCurrentScreen, navParams, language: rawLanguage, isLoading, addTransaction, isDemoMode, exitDemo, cashPockets, deleteGoal, updateGoal, budgets, inventory, user, financing, canViewFinancials, readinessHistory } = useApp();
     const language = rawLanguage as Language;
 
     const [fabOpen, setFabOpen]           = useState(false);
@@ -261,13 +264,22 @@ export default function DashboardScreen() {
         notifyLoanPaymentDueSoon(soonest.loan.lenderName, soonest.daysUntilDue, rest.length).catch(() => {});
     }, [isDemoMode, loansDueSoon]);
 
+    // Month-granular, not date-precise -- see payrollReminders.ts for why
+    // (no pay-day field exists on StaffMember, unlike invoices' dueDate or
+    // loans' implied schedule).
+    const payrollStatus = useMemo(() => getPayrollReminderStatus(staff, payrollRuns), [staff, payrollRuns]);
+    useEffect(() => {
+        if (isDemoMode || payrollStatus.kind === 'none') return;
+        notifyPayrollDue(payrollStatus).catch(() => {});
+    }, [isDemoMode, payrollStatus]);
+
     // Same cash-flow risk detection the header's alert bell uses -- pure
     // computation, cheap to run a second time here rather than threading
     // Header's alert state down through props for what's otherwise an
     // unrelated component tree.
     const alerts = useMemo(
-        () => detectFinancialAlerts(finance.cashBalance, transactions, invoices, settings?.currency, undefined, loans),
-        [finance.cashBalance, transactions, invoices, settings?.currency, loans]
+        () => detectFinancialAlerts(finance.cashBalance, transactions, invoices, settings?.currency, undefined, loans, staff, payrollRuns),
+        [finance.cashBalance, transactions, invoices, settings?.currency, loans, staff, payrollRuns]
     );
 
     const priorities = useMemo(

@@ -1,8 +1,9 @@
-import { Transaction, Invoice, Loan } from '../types';
+import { Transaction, Invoice, Loan, StaffMember, PayrollRun } from '../types';
 import { ForecastAlert, AlertThresholds, CashFlowForecast, ForecastInput } from '../types/forecast';
 import { generateCashFlowForecast } from './forecastEngine';
 import { computeMonthlyTrend } from './finance';
 import { nextLoanPaymentDueDate, daysUntilLoanPaymentDue, isLoanPaymentOverdue } from './loanMath';
+import { getPayrollReminderStatus, DEFAULT_PAYROLL_DUE_SOON_DAY } from './payrollReminders';
 
 /**
  * Real-Time Cash Alerts System
@@ -22,6 +23,7 @@ export const DEFAULT_THRESHOLDS: AlertThresholds = {
   largeExpenseComing: 7, // days ahead to check
   largeExpenseAmount: 0.5, // 50% of monthly average
   loanPaymentDueSoonDays: 3, // warn this many days before a loan payment is due
+  payrollDueSoonDay: DEFAULT_PAYROLL_DUE_SOON_DAY,
 };
 
 export class AlertEngine {
@@ -29,6 +31,8 @@ export class AlertEngine {
   private transactions: Transaction[];
   private invoices: Invoice[];
   private loans: Loan[];
+  private staff: StaffMember[];
+  private payrollRuns: PayrollRun[];
   private forecast?: CashFlowForecast;
   private thresholds: AlertThresholds;
   private dismissedAlerts: Set<string>;
@@ -42,12 +46,16 @@ export class AlertEngine {
     thresholds?: Partial<AlertThresholds>,
     dismissedAlertIds?: string[],
     currency?: string,
-    loans?: Loan[]
+    loans?: Loan[],
+    staff?: StaffMember[],
+    payrollRuns?: PayrollRun[]
   ) {
     this.currentCash = currentCash;
     this.transactions = transactions;
     this.invoices = invoices;
     this.loans = loans || [];
+    this.staff = staff || [];
+    this.payrollRuns = payrollRuns || [];
     this.forecast = forecast;
     this.thresholds = { ...DEFAULT_THRESHOLDS, ...thresholds };
     this.dismissedAlerts = new Set(dismissedAlertIds || []);
@@ -79,6 +87,10 @@ export class AlertEngine {
     // Loan payments overdue or coming due
     const loanAlerts = this.detectLoanPaymentAlerts();
     alerts.push(...loanAlerts);
+
+    // Payroll not run for the current or previous month
+    const payrollAlert = this.detectPayrollAlert();
+    if (payrollAlert) alerts.push(payrollAlert);
 
     // Filter out dismissed alerts
     return alerts.filter(a => !this.dismissedAlerts.has(a.id));
@@ -288,6 +300,48 @@ export class AlertEngine {
   }
 
   /**
+   * Detect a missed or soon-due payroll run. Unlike loans/invoices this is
+   * necessarily month-granular, not date-precise -- see payrollReminders.ts
+   * for why (no pay-day field exists anywhere in the data model). A stable
+   * id keyed to the period, not a timestamp, so dismissing this month's
+   * warning doesn't un-dismiss itself on the next recompute, and next
+   * month's version is a genuinely new id.
+   */
+  private detectPayrollAlert(): ForecastAlert | null {
+    const status = getPayrollReminderStatus(this.staff, this.payrollRuns, new Date(), this.thresholds.payrollDueSoonDay);
+
+    if (status.kind === 'overdue') {
+      return {
+        id: `alert-payroll-overdue-${status.missedPeriod}`,
+        type: 'payroll_overdue',
+        priority: 'high',
+        title: '📋 Payroll Never Run',
+        description: `No payroll run was recorded for ${status.missedPeriod}, but you had active staff that month.`,
+        affectedDate: status.missedPeriod,
+        recommendations: [
+          'Run payroll for the missed period if staff haven\'t been paid another way',
+          'If they were paid outside the app, log the run anyway to keep records accurate',
+        ],
+        createdAt: new Date().toISOString(),
+      };
+    }
+
+    if (status.kind === 'due_soon') {
+      return {
+        id: `alert-payroll-due-soon-${status.period}`,
+        type: 'payroll_due_soon',
+        priority: 'medium',
+        title: '📋 Payroll Not Run Yet',
+        description: `${status.daysLeftInMonth} day${status.daysLeftInMonth === 1 ? '' : 's'} left in ${status.period} and payroll hasn't been run.`,
+        affectedDate: status.period,
+        createdAt: new Date().toISOString(),
+      };
+    }
+
+    return null;
+  }
+
+  /**
    * Mark an alert as dismissed
    */
   public dismissAlert(alertId: string): void {
@@ -353,7 +407,9 @@ export const detectAlerts = (
   thresholds?: Partial<AlertThresholds>,
   dismissedAlertIds?: string[],
   currency?: string,
-  loans?: Loan[]
+  loans?: Loan[],
+  staff?: StaffMember[],
+  payrollRuns?: PayrollRun[]
 ): ForecastAlert[] => {
   const engine = new AlertEngine(
     currentCash,
@@ -363,7 +419,9 @@ export const detectAlerts = (
     thresholds,
     dismissedAlertIds,
     currency,
-    loans
+    loans,
+    staff,
+    payrollRuns
   );
   return engine.detectAllAlerts();
 };
@@ -434,8 +492,9 @@ export const buildForecastInput = (
  * Single entry point for the dashboard alert bell: builds a cash-flow
  * forecast from live financial data, then runs every alert detector
  * (low cash, negative forecast, overdue invoices, large upcoming expenses,
- * loan payments overdue or due soon) against it. Pure computation -- no
- * side effects, no persistence; the caller owns dismissal storage.
+ * loan payments overdue or due soon, payroll not run) against it. Pure
+ * computation -- no side effects, no persistence; the caller owns
+ * dismissal storage.
  */
 export const detectFinancialAlerts = (
   currentCash: number,
@@ -443,8 +502,10 @@ export const detectFinancialAlerts = (
   invoices: Invoice[],
   currency?: string,
   dismissedAlertIds?: string[],
-  loans?: Loan[]
+  loans?: Loan[],
+  staff?: StaffMember[],
+  payrollRuns?: PayrollRun[]
 ): ForecastAlert[] => {
   const forecast = generateCashFlowForecast(buildForecastInput(currentCash, transactions, invoices, currency));
-  return detectAlerts(currentCash, transactions, invoices, forecast, undefined, dismissedAlertIds, currency, loans);
+  return detectAlerts(currentCash, transactions, invoices, forecast, undefined, dismissedAlertIds, currency, loans, staff, payrollRuns);
 };

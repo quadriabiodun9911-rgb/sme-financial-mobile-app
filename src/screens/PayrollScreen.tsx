@@ -16,6 +16,7 @@ import ProfitCashImpactCard from '../components/ProfitCashImpactCard';
 import { computeProfitCashImpact } from '../utils/impactChain';
 import PayrollProviderCard from '../components/PayrollProviderCard';
 import { showAlert, confirmAction } from '../utils/webAlert';
+import { getPayrollReminderStatus } from '../utils/payrollReminders';
 
 type Tab = 'staff' | 'run' | 'history';
 
@@ -41,6 +42,7 @@ export default function PayrollScreen() {
     const fmt = (n: number) => `${sym}${n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
     const activeStaff = useMemo(() => staff.filter(s => s.status === 'active'), [staff]);
+    const payrollStatus = useMemo(() => getPayrollReminderStatus(staff, payrollRuns), [staff, payrollRuns]);
     const totalMonthlyPayroll = useMemo(() =>
         activeStaff.reduce((s, m) => s + (m.salaryType === 'monthly' ? m.salary : m.salaryType === 'weekly' ? m.salary * 4.33 : m.salary * 22), 0),
         [activeStaff]
@@ -100,6 +102,22 @@ export default function PayrollScreen() {
                 providerId={settings.payrollProviderId || 'manual'}
                 onChangeProvider={id => updateSettings({ payrollProviderId: id })}
             />
+
+            {payrollStatus.kind !== 'none' && (
+                <TouchableOpacity
+                    style={[styles.reminderBanner, payrollStatus.kind === 'overdue' && styles.reminderBannerOverdue]}
+                    onPress={() => setTab('run')}
+                    activeOpacity={0.8}
+                >
+                    <Icon name={payrollStatus.kind === 'overdue' ? 'alert-triangle' : 'alert-circle'} size={16} color={payrollStatus.kind === 'overdue' ? Colors.expense : Colors.warning} />
+                    <Text style={styles.reminderBannerText}>
+                        {payrollStatus.kind === 'overdue'
+                            ? `No payroll run was recorded for ${payrollStatus.missedPeriod}`
+                            : `Payroll for ${payrollStatus.period} hasn't been run — ${payrollStatus.daysLeftInMonth} day${payrollStatus.daysLeftInMonth === 1 ? '' : 's'} left in the month`}
+                    </Text>
+                    <Text style={styles.reminderBannerCta}>Run →</Text>
+                </TouchableOpacity>
+            )}
 
             <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
@@ -448,4 +466,13 @@ const styles = StyleSheet.create({
     segmentText: { fontSize: 13, color: Colors.textMuted, fontWeight: '600' },
     segmentTextActive: { color: Colors.primary, fontWeight: '800' },
 
+    reminderBanner: {
+        flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+        marginHorizontal: Spacing.lg, marginTop: Spacing.sm, padding: Spacing.md,
+        borderRadius: Radius.md, borderWidth: 1,
+        backgroundColor: 'rgba(245,158,11,0.1)', borderColor: Colors.warning,
+    },
+    reminderBannerOverdue: { backgroundColor: 'rgba(239,68,68,0.1)', borderColor: Colors.expense },
+    reminderBannerText: { flex: 1, fontSize: 12.5, color: Colors.textPrimary, fontWeight: '600' },
+    reminderBannerCta: { fontSize: 12.5, color: Colors.primary, fontWeight: '700' },
 });
