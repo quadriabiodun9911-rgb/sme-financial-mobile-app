@@ -49,7 +49,7 @@ export default function FinancialAssessmentScreen() {
   // of a made-up figure. Zero issues means zero, not a fabricated number.
   const moneyAtRisk = useMemo(
     () => diagnosis.diagnoses.reduce((sum, d) => sum + Math.max(0, d.financialImpact), 0),
-    [diagnosis.diagnoses]
+    [diagnosis]
   );
 
   const factorStatusColor = (status: 'good' | 'warning' | 'danger' | undefined) =>
