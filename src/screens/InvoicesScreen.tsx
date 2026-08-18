@@ -11,6 +11,7 @@ import { Invoice, InvoiceLineItem, InvoiceStatus } from '../types';
 import { generateId } from '../utils/uuid';
 import DateInput from '../components/DateInput';
 import { sendInvoiceReminderViaWhatsApp, sendPaymentRequestViaWhatsApp, isWhatsAppInstalled } from '../utils/whatsappIntegration';
+import { getInvoicesDueForReminder, loadReminderState, markReminderSent, InvoiceReminderState, ReminderDue } from '../utils/invoiceReminders';
 import NextStepLink from '../components/NextStepLink';
 import ProjectProfitabilityCalculator from '../components/ProjectProfitabilityCalculator';
 import { showAlert } from '../utils/webAlert';
@@ -126,6 +127,13 @@ export default function InvoicesScreen() {
     const [viewInv, setViewInv]     = useState<Invoice | null>(null);
     const [whatsappAvailable, setWhatsappAvailable] = useState(false);
 
+    // Which overdue-invoice reminders have already been sent, at which
+    // day-overdue milestone -- persisted so the same invoice isn't nagged
+    // again at the same milestone every time the screen is reopened.
+    const [reminderState, setReminderState] = useState<InvoiceReminderState>({});
+    const [reminderQueue, setReminderQueue] = useState<ReminderDue[] | null>(null);
+    const [reminderIdx, setReminderIdx]     = useState(0);
+
     // Form state
     const [clientName, setClientName]       = useState('');
     const [clientEmail, setClientEmail]     = useState('');
@@ -151,6 +159,29 @@ export default function InvoicesScreen() {
     useEffect(() => {
         isWhatsAppInstalled().then(setWhatsappAvailable);
     }, []);
+
+    useEffect(() => {
+        loadReminderState().then(setReminderState);
+    }, []);
+
+    const remindersDue = useMemo(
+        () => getInvoicesDueForReminder(invoices, reminderState),
+        [invoices, reminderState]
+    );
+
+    const startReminderRun = () => {
+        setReminderQueue(remindersDue);
+        setReminderIdx(0);
+    };
+
+    const sendCurrentReminder = async () => {
+        const current = reminderQueue?.[reminderIdx];
+        if (!current) return;
+        await sendInvoiceReminderViaWhatsApp(current.invoice, user?.businessName ?? 'My Business', currency, current.invoice.clientPhone || '');
+        const next = await markReminderSent(current.invoice.id, current.milestone);
+        setReminderState(next);
+        setReminderIdx(i => i + 1);
+    };
 
     const resetForm = () => {
         setClientName(''); setClientEmail(''); setClientPhone(''); setClientAddress('');
@@ -299,6 +330,13 @@ export default function InvoicesScreen() {
                             onPress={() => navigate('transactions', { filter: 'collect' })}
                         />
                     )}
+                    {remindersDue.length > 0 && (
+                        <NextStepLink
+                            text={`${remindersDue.length} invoice${remindersDue.length > 1 ? 's' : ''} due for a follow-up reminder`}
+                            onPress={startReminderRun}
+                            emphasis="button"
+                        />
+                    )}
                     {summary.paid > 0 && (
                         <NextStepLink
                             text={t(language, 'seeHowPaidAffectsCashForecast')}
@@ -387,6 +425,37 @@ export default function InvoicesScreen() {
                 </View>
             </ScrollView>
             <FooterNav />
+
+            {/* Follow-up Reminder Run -- one invoice at a time, since WhatsApp's
+                free deep-link API needs a manual tap to actually send each
+                message; this just removes the "remember to check" part. */}
+            {reminderQueue && (
+                <Modal visible transparent animationType="fade" onRequestClose={() => setReminderQueue(null)}>
+                    <View style={styles.reminderOverlay}>
+                        <View style={styles.reminderCard}>
+                            {reminderIdx < reminderQueue.length ? (
+                                <ReminderStep
+                                    due={reminderQueue[reminderIdx]}
+                                    step={reminderIdx + 1}
+                                    total={reminderQueue.length}
+                                    currency={currency}
+                                    onSend={sendCurrentReminder}
+                                    onSkip={() => setReminderIdx(i => i + 1)}
+                                    onClose={() => setReminderQueue(null)}
+                                />
+                            ) : (
+                                <>
+                                    <Text style={styles.reminderTitle}>All caught up</Text>
+                                    <Text style={styles.reminderDetail}>No more reminders to send right now.</Text>
+                                    <TouchableOpacity style={styles.reminderSendBtn} onPress={() => setReminderQueue(null)}>
+                                        <Text style={styles.reminderSendBtnText}>Close</Text>
+                                    </TouchableOpacity>
+                                </>
+                            )}
+                        </View>
+                    </View>
+                </Modal>
+            )}
 
             {/* Create / Edit Invoice Modal */}
             <Modal visible={showForm} animationType="slide">
@@ -640,6 +709,30 @@ function DetailRow({ label, value }: { label: string; value: string }) {
     );
 }
 
+function ReminderStep({ due, step, total, currency, onSend, onSkip, onClose }: {
+    due: ReminderDue; step: number; total: number; currency: string;
+    onSend: () => void; onSkip: () => void; onClose: () => void;
+}) {
+    return (
+        <>
+            <View style={styles.reminderHeadRow}>
+                <Text style={styles.reminderTitle}>Reminder {step} of {total}</Text>
+                <TouchableOpacity onPress={onClose}><Text style={styles.reminderCloseText}>Close</Text></TouchableOpacity>
+            </View>
+            <Text style={styles.reminderClient}>{due.invoice.clientName}</Text>
+            <Text style={styles.reminderDetail}>
+                {due.invoice.invoiceNumber} · {currency}{(due.invoice.total ?? 0).toLocaleString()} · {due.daysOverdue} days overdue
+            </Text>
+            <TouchableOpacity style={styles.reminderSendBtn} onPress={onSend}>
+                <Text style={styles.reminderSendBtnText}>Send via WhatsApp</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.reminderSkipBtn} onPress={onSkip}>
+                <Text style={styles.reminderSkipBtnText}>Skip for now</Text>
+            </TouchableOpacity>
+        </>
+    );
+}
+
 const styles = StyleSheet.create({
     safe:   { flex: 1, backgroundColor: Colors.bg },
     scroll: { flex: 1 },
@@ -724,4 +817,16 @@ const styles = StyleSheet.create({
     detailRow:   { flexDirection: 'row', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: Colors.border },
     detailLabel: { fontSize: 12, color: Colors.textMuted, width: 80 },
     detailValue: { fontSize: 13, color: Colors.textPrimary, flex: 1 },
+
+    reminderOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', padding: Spacing.xl },
+    reminderCard:    { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.xl, ...Shadow.md },
+    reminderHeadRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.sm },
+    reminderTitle:   { fontSize: 15, fontWeight: 'bold', color: Colors.textPrimary },
+    reminderCloseText: { fontSize: 13, color: Colors.textMuted },
+    reminderClient:  { fontSize: 18, fontWeight: '700', color: Colors.textPrimary, marginBottom: 4 },
+    reminderDetail:  { fontSize: 13, color: Colors.textSecondary, marginBottom: Spacing.lg },
+    reminderSendBtn: { backgroundColor: Colors.income, paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginBottom: 10 },
+    reminderSendBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
+    reminderSkipBtn: { paddingVertical: 10, alignItems: 'center' },
+    reminderSkipBtnText: { color: Colors.textMuted, fontSize: 13, fontWeight: '600' },
 });

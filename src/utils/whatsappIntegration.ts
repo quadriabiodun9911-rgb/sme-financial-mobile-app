@@ -297,55 +297,6 @@ export const sendCashFlowAlert = async (
   }
 };
 
-// ─── Automatically detect and send overdue invoice alerts ──────────────────
-export const detectAndSendOverdueAlerts = async (
-  invoices: Invoice[],
-  businessName: string,
-  overdueThresholdDays: number = 7,
-  sentAlertIds: Set<string> = new Set()
-): Promise<string[]> => {
-  const newAlertsSent: string[] = [];
-  const now = new Date();
-
-  for (const invoice of invoices) {
-    // Skip already sent, paid, or draft invoices
-    if (
-      sentAlertIds.has(invoice.id) ||
-      invoice.status === 'paid' ||
-      invoice.status === 'draft'
-    ) {
-      continue;
-    }
-
-    // Check if invoice is overdue
-    const dueDate = new Date(invoice.dueDate);
-    const daysOverdue = Math.floor((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-
-    if (daysOverdue >= overdueThresholdDays) {
-      try {
-        // Get customer phone (assuming it's in vendorCustomer field or needs to be added)
-        const customerPhone = (invoice as any).customerPhone || (invoice as any).vendorCustomer;
-
-        if (customerPhone) {
-          await sendOverdueInvoiceAlert(
-            customerPhone,
-            businessName,
-            invoice.invoiceNumber,
-            invoice.total,
-            daysOverdue,
-            '₦'
-          );
-          newAlertsSent.push(invoice.id);
-        }
-      } catch (error) {
-        console.error(`Failed to send alert for invoice ${invoice.id}:`, error);
-      }
-    }
-  }
-
-  return newAlertsSent;
-};
-
 // ─── Usage Examples ────────────────────────────────────────────────────────
 /**
  * EXAMPLE 1: Add button to InvoicesScreen
@@ -360,14 +311,7 @@ export const detectAndSendOverdueAlerts = async (
  *   <Text>📤 Share via WhatsApp</Text>
  * </TouchableOpacity>
  *
- * EXAMPLE 3: Automated overdue alert (run periodically)
- *
- * useEffect(() => {
- *   const sentAlerts = new Set<string>();
- *   detectAndSendOverdueAlerts(invoices, businessName, 7, sentAlerts);
- * }, [invoices]);
- *
- * EXAMPLE 4: Send cash flow alert
+ * EXAMPLE 3: Send cash flow alert
  *
  * if (currentCash < lowCashThreshold) {
  *   await sendCashFlowAlert(userPhone, 'low_cash', {
@@ -377,7 +321,7 @@ export const detectAndSendOverdueAlerts = async (
  *   });
  * }
  *
- * EXAMPLE 5: Check if WhatsApp installed before showing button
+ * EXAMPLE 4: Check if WhatsApp installed before showing button
  *
  * const whatsappAvailable = await isWhatsAppInstalled();
  * if (whatsappAvailable) {

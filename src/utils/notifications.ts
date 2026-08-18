@@ -15,6 +15,7 @@ const KEYS = {
     weeklyId: '@quad360/notif_weekly_id',
     financingQualifyId: '@quad360/notif_financing_qualify_id',
     financingOpportunityId: '@quad360/notif_financing_opportunity_id',
+    overdueRemindersId: '@quad360/notif_overdue_reminders_id',
 };
 
 export async function requestNotificationPermission(): Promise<boolean> {
@@ -67,15 +68,29 @@ export async function scheduleWeeklySummaryReminder(): Promise<void> {
     }
 }
 
-export async function scheduleOverdueInvoiceReminder(invoiceNumber: string, clientName: string): Promise<void> {
+// Throttled to once per day -- getInvoicesDueForReminder (invoiceReminders.ts)
+// recomputes on every relevant change, but a fresh notification every time
+// would repeat on each transaction/invoice edit even though the same
+// overdue invoices are still sitting there from an hour ago.
+export async function notifyOverdueRemindersDue(count: number): Promise<void> {
     try {
+        if (Platform.OS === 'web') return;
+
+        const prevNotified = await AsyncStorage.getItem(KEYS.overdueRemindersId);
+        if (prevNotified) {
+            const daysSinceLastNotif = (Date.now() - parseInt(prevNotified, 10)) / (1000 * 60 * 60 * 24);
+            if (daysSinceLastNotif < 1) return;
+        }
+
         await Notifications.scheduleNotificationAsync({
             content: {
-                title: 'Invoice Overdue ⚠️',
-                body: `${invoiceNumber} for ${clientName} is overdue. Follow up to get paid.`,
+                title: `${count} invoice${count === 1 ? '' : 's'} need${count === 1 ? 's' : ''} a reminder 📬`,
+                body: 'Tap to send WhatsApp payment reminders to your customers.',
             },
             trigger: null,
         });
+
+        await AsyncStorage.setItem(KEYS.overdueRemindersId, Date.now().toString());
     } catch {
         // Fail silently
     }

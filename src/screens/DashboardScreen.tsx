@@ -36,7 +36,8 @@ import StatTile from '../components/ui/StatTile';
 import { buildFinancingFitInput } from '../utils/financingFit';
 import { recommendFinancingTypes } from '../utils/financingRecommendation';
 import { computeReadinessDelta } from '../utils/readinessHistory';
-import { notifyFinancingOpportunity } from '../utils/notifications';
+import { notifyFinancingOpportunity, notifyOverdueRemindersDue } from '../utils/notifications';
+import { getInvoicesDueForReminder, loadReminderState, InvoiceReminderState } from '../utils/invoiceReminders';
 import { detectFinancialAlerts } from '../utils/alertEngine';
 import { buildDashboardPriorities, PriorityKind, PriorityTier, OverspentBudget } from '../utils/dashboardPriorities';
 
@@ -222,6 +223,23 @@ export default function DashboardScreen() {
         if (isDemoMode || !financingOpportunity) return;
         notifyFinancingOpportunity(financingOpportunity.label, financingOpportunity.reasons[0]).catch(() => {});
     }, [isDemoMode, financingOpportunity]);
+
+    // Same "should I nag the owner" question InvoicesScreen's reminder
+    // banner asks -- computed independently here (its own copy of the
+    // persisted reminder state) rather than threaded through props, the
+    // same way the alert detection just above is duplicated per-screen.
+    const [invoiceReminderState, setInvoiceReminderState] = useState<InvoiceReminderState>({});
+    useEffect(() => {
+        loadReminderState().then(setInvoiceReminderState);
+    }, []);
+    const remindersDueCount = useMemo(
+        () => getInvoicesDueForReminder(invoices, invoiceReminderState).length,
+        [invoices, invoiceReminderState]
+    );
+    useEffect(() => {
+        if (isDemoMode || remindersDueCount === 0) return;
+        notifyOverdueRemindersDue(remindersDueCount).catch(() => {});
+    }, [isDemoMode, remindersDueCount]);
 
     // Same cash-flow risk detection the header's alert bell uses -- pure
     // computation, cheap to run a second time here rather than threading
