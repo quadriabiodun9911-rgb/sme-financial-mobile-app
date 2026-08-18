@@ -17,6 +17,7 @@ import TaxSummary from '../components/TaxSummary';
 import TaxFilingReadinessTab from '../components/TaxFilingReadinessTab';
 import TaxPlanningTab from '../components/TaxPlanningTab';
 import BudgetForecast from '../components/BudgetForecast';
+import CashFlowOutlook from '../components/CashFlowOutlook';
 import CashManagement from '../components/CashManagement';
 import DebtAnalysis from '../components/DebtAnalysis';
 import EnhancedDebtManagement from '../components/EnhancedDebtManagement';
@@ -62,7 +63,7 @@ type SubTab =
     | 'balancesheet' | 'pnl' | 'inventory' | 'accrual'
     | 'aging'
     | 'tax' | 'tax-filing' | 'tax-planning'
-    | 'budget' | 'cashflow' | 'cashmgmt' | 'debt' | 'assets'
+    | 'budget' | 'cashflow' | 'outlook' | 'cashmgmt' | 'debt' | 'assets'
     | 'growth' | 'history' | 'quality' | 'exposure' | 'customers' | 'products' | 'pricing';
 
 const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
@@ -83,6 +84,7 @@ const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
     planning: [
         { key: 'budget',   label: 'Growth Scenarios' },
         { key: 'cashflow', label: 'Cash Flow Statement' },
+        { key: 'outlook',  label: 'Cash Flow Outlook' },
         { key: 'cashmgmt', label: 'Cash Safety' },
         { key: 'debt',     label: 'Loans & Debt' },
         { key: 'assets',   label: 'Assets' },
@@ -668,6 +670,16 @@ export default function ReportsScreen() {
                                 currency={currency}
                             />
                         </View>
+                    )}
+
+                    {/* ── CASH FLOW OUTLOOK ────────────────────────────── */}
+                    {activeTab === 'outlook' && (
+                        <CashFlowOutlook
+                            finance={allFinance}
+                            transactions={transactions}
+                            invoices={invoices}
+                            currency={currency}
+                        />
                     )}
 
                     {/* ── CASH MGMT ────────────────────────────────────── */}

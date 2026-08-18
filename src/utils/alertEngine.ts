@@ -341,7 +341,7 @@ export const getAlertStats = (alerts: ForecastAlert[]): { high: number; medium: 
  * Transaction.recurringFrequency -> .frequency) rather than duplicating
  * that mapping at every call site.
  */
-const buildForecastInput = (
+export const buildForecastInput = (
   currentCash: number,
   transactions: Transaction[],
   invoices: Invoice[],

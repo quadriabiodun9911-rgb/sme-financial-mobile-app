@@ -6,9 +6,6 @@ import {
   ForecastRecommendation,
   ForecastAssumptions,
   ScenarioType,
-  AlertThresholds,
-  ForecastAlert,
-  AlertType,
 } from '../types/forecast';
 
 /**
@@ -461,49 +458,4 @@ export class ForecastEngine {
 export const generateCashFlowForecast = (input: ForecastInput): CashFlowForecast => {
   const engine = new ForecastEngine(input);
   return engine.generate();
-};
-
-/**
- * Detect alerts based on forecast and thresholds
- */
-export const detectForecastAlerts = (
-  forecast: CashFlowForecast,
-  thresholds: AlertThresholds
-): ForecastAlert[] => {
-  const alerts: ForecastAlert[] = [];
-  let id = 1;
-
-  // Low cash alert
-  if (forecast.baselineBalance < thresholds.lowCashThreshold) {
-    alerts.push({
-      id: `alert-${id++}`,
-      type: 'low_cash',
-      priority: 'high',
-      title: 'Low Cash Balance',
-      description: `Current cash (${forecast.baselineBalance}) is below threshold (${thresholds.lowCashThreshold})`,
-      amount: forecast.baselineBalance,
-      createdAt: new Date().toISOString(),
-    });
-  }
-
-  // Negative forecast alert
-  if (forecast.baseCase.runsOutOfCash) {
-    const monthsUntilCrisis = (forecast.baseCase.months ?? []).findIndex(m => m.closingBalance < 0);
-    const daysUntilCrisis = monthsUntilCrisis * 30;
-
-    if (daysUntilCrisis < thresholds.negativeForcastDays) {
-      alerts.push({
-        id: `alert-${id++}`,
-        type: 'negative_forecast',
-        priority: monthsUntilCrisis < 1 ? 'high' : 'medium',
-        title: 'Negative Cash Flow Projected',
-        description: `Cash projected to run out in ${monthsUntilCrisis} months`,
-        affectedDate: forecast.baseCase.runOutDate,
-        recommendations: ['Accelerate customer collections', 'Negotiate extended payment terms with suppliers'],
-        createdAt: new Date().toISOString(),
-      });
-    }
-  }
-
-  return alerts;
 };
