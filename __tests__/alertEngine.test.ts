@@ -1,5 +1,36 @@
-import { Transaction, Invoice } from '../src/types';
+import { Transaction, Invoice, Loan } from '../src/types';
 import { detectAlerts, detectCriticalAlerts, getAlertStats, detectFinancialAlerts, DEFAULT_THRESHOLDS } from '../src/utils/alertEngine';
+
+// startDate expressed relative to the real current date (matching how
+// overdueInvoice above is "well past" threshold relative to "any test
+// today") since detectAlerts has no injectable `now` -- it always compares
+// against the real clock.
+function isoMonthsAgo(months: number): string {
+    const d = new Date();
+    d.setMonth(d.getMonth() - months);
+    return d.toISOString().split('T')[0];
+}
+function isoDaysFromNow(days: number): string {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    return d.toISOString().split('T')[0];
+}
+
+function makeLoan(overrides: Partial<Loan>): Loan {
+    return {
+        id: 'loan-1',
+        lenderName: 'First Bank',
+        purpose: 'Working capital',
+        principal: 500000,
+        interestRate: 15,
+        termMonths: 12,
+        startDate: isoMonthsAgo(3),
+        status: 'active',
+        payments: [],
+        createdAt: isoMonthsAgo(3) + 'T00:00:00.000Z',
+        ...overrides,
+    };
+}
 
 const overdueInvoice: Invoice = {
     id: 'inv-1',
@@ -76,6 +107,53 @@ describe('alertEngine', () => {
                 { id: '3', type: 'low_cash', priority: 'low', title: '', description: '', createdAt: '' },
             ]);
             expect(stats).toEqual({ high: 1, medium: 1, low: 1, total: 3 });
+        });
+    });
+
+    describe('loan payment alerts', () => {
+        it('flags an active loan whose implied schedule has passed with no payment logged', () => {
+            const loan = makeLoan({ startDate: isoMonthsAgo(3) }); // due 2 months ago, 0 payments
+            const alerts = detectAlerts(1000000, [], [], undefined, undefined, undefined, '₦', [loan]);
+            const overdue = alerts.find(a => a.type === 'loan_payment_overdue');
+            expect(overdue).toBeDefined();
+            expect(overdue?.id).toBe('alert-loan-overdue-loan-1');
+            expect(overdue?.priority).toBe('high'); // ~60 days overdue
+        });
+
+        it('warns when a payment is coming due soon but not yet overdue', () => {
+            const dueIn2Days = new Date();
+            dueIn2Days.setDate(dueIn2Days.getDate() + 2);
+            const start = new Date(dueIn2Days);
+            start.setMonth(start.getMonth() - 1);
+            const loan = makeLoan({ startDate: start.toISOString().split('T')[0] });
+
+            const alerts = detectAlerts(1000000, [], [], undefined, undefined, undefined, '₦', [loan]);
+            expect(alerts.some(a => a.type === 'loan_payment_overdue')).toBe(false);
+            const dueSoon = alerts.find(a => a.type === 'loan_payment_due_soon');
+            expect(dueSoon).toBeDefined();
+            expect(dueSoon?.id).toBe('alert-loan-due-soon-loan-1');
+        });
+
+        it('never flags a loan that is not active, even if its schedule would say overdue', () => {
+            const loan = makeLoan({ startDate: isoMonthsAgo(3), status: 'paid_off' });
+            const alerts = detectAlerts(1000000, [], [], undefined, undefined, undefined, '₦', [loan]);
+            expect(alerts.some(a => a.type.startsWith('loan_payment'))).toBe(false);
+        });
+
+        it('a logged payment advances the schedule and clears the overdue alert', () => {
+            // 1 month elapsed, but one payment already logged -- next due
+            // date is 2 months out from start, i.e. still in the future.
+            const loan = makeLoan({
+                startDate: isoMonthsAgo(1),
+                payments: [{ id: 'p1', date: isoMonthsAgo(1), amount: 40000 }],
+            });
+            const alerts = detectAlerts(1000000, [], [], undefined, undefined, undefined, '₦', [loan]);
+            expect(alerts.some(a => a.type.startsWith('loan_payment'))).toBe(false);
+        });
+
+        it('defaults to no loan alerts when no loans are passed', () => {
+            const alerts = detectAlerts(1000000, [], []);
+            expect(alerts.some(a => a.type.startsWith('loan_payment'))).toBe(false);
         });
     });
 

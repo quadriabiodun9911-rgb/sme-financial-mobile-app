@@ -1,4 +1,4 @@
-import { Invoice, InventoryItem } from '../src/types';
+import { Invoice, InventoryItem, Loan } from '../src/types';
 import { ForecastAlert } from '../src/types/forecast';
 import { FinancingRecommendation } from '../src/utils/financingRecommendation';
 import { buildDashboardPriorities, OverspentBudget } from '../src/utils/dashboardPriorities';
@@ -18,6 +18,20 @@ const invoice = (overrides: Partial<Invoice> = {}): Invoice => ({
     taxTotal: 0,
     total: 100000,
     createdAt: '2026-06-01T00:00:00.000Z',
+    ...overrides,
+});
+
+const loan = (overrides: Partial<Loan> = {}): Loan => ({
+    id: 'loan-1',
+    lenderName: 'First Bank',
+    purpose: 'Working capital',
+    principal: 500000,
+    interestRate: 15,
+    termMonths: 12,
+    startDate: '2026-01-01',
+    status: 'active',
+    payments: [],
+    createdAt: '2026-01-01T00:00:00.000Z',
     ...overrides,
 });
 
@@ -161,4 +175,40 @@ describe('buildDashboardPriorities', () => {
         expect(result[0].tier).toBe('opportunity');
         expect(result[0].title).toContain('Invoice Financing');
     });
+
+    it('aggregates overdue loan payments into a single attention-tier card', () => {
+        const result = buildDashboardPriorities({
+            alerts: [], overdueInvoices: [],
+            overdueLoans: [loan({ id: 'loan-1', principal: 500000, interestRate: 15, termMonths: 12 })],
+            lowStockItems: [], overspentBudgets: [], financingOpportunity: null, currency: '₦',
+        });
+        const item = result.find(p => p.kind === 'overdue_loan_payments');
+        expect(item).toBeDefined();
+        expect(item?.tier).toBe('attention');
+        expect(item?.subtitle).toContain('First Bank');
+        expect(item?.impactAmount).toBeGreaterThan(0);
+    });
+
+    it('names the single lender when only one loan is overdue, and generalizes for multiple', () => {
+        const single = buildDashboardPriorities({
+            alerts: [], overdueInvoices: [], overdueLoans: [loan({ id: 'loan-1', lenderName: 'First Bank' })],
+            lowStockItems: [], overspentBudgets: [], financingOpportunity: null, currency: '₦',
+        });
+        expect(single.find(p => p.kind === 'overdue_loan_payments')?.subtitle).toContain('First Bank');
+
+        const multiple = buildDashboardPriorities({
+            alerts: [], overdueInvoices: [],
+            overdueLoans: [loan({ id: 'loan-1', lenderName: 'First Bank' }), loan({ id: 'loan-2', lenderName: 'Coop Bank' })],
+            lowStockItems: [], overspentBudgets: [], financingOpportunity: null, currency: '₦',
+        });
+        expect(multiple.find(p => p.kind === 'overdue_loan_payments')?.subtitle).toContain('your lenders');
+    });
+
+    it('defaults to no overdue-loan card when overdueLoans is omitted', () => {
+        const result = buildDashboardPriorities({
+            alerts: [], overdueInvoices: [], lowStockItems: [], overspentBudgets: [], financingOpportunity: null, currency: '₦',
+        });
+        expect(result.some(p => p.kind === 'overdue_loan_payments')).toBe(false);
+    });
+
 });

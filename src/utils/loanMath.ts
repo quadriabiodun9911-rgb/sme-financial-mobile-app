@@ -46,3 +46,36 @@ export function outstandingLoanBalance(loan: { principal: number; payments?: Arr
   const totalPaid = (loan.payments ?? []).reduce((s, p) => s + p.amount, 0);
   return Math.max(0, loan.principal - totalPaid);
 }
+
+interface LoanScheduleInput {
+  startDate: string;
+  payments?: Array<{ amount: number }>;
+}
+
+/**
+ * Implied next payment date, assuming standard monthly amortization
+ * (Loan has no explicit paymentFrequency field -- this is the one
+ * assumption the Loans screen has always made). One payment logged means
+ * one month has been satisfied, regardless of the payment's actual amount,
+ * so a partial or extra payment doesn't skew the schedule -- it just means
+ * the balance itself (see outstandingLoanBalance) is ahead of or behind
+ * what a pure amortization schedule would show.
+ */
+export function nextLoanPaymentDueDate(loan: LoanScheduleInput): Date {
+  const start = new Date(loan.startDate);
+  const paid = (loan.payments ?? []).length;
+  const next = new Date(start);
+  next.setMonth(next.getMonth() + paid + 1);
+  return next;
+}
+
+/** Whole days between now and the next due date -- negative once overdue. */
+export function daysUntilLoanPaymentDue(loan: LoanScheduleInput, now: Date = new Date()): number {
+  const due = nextLoanPaymentDueDate(loan);
+  return Math.floor((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+export function isLoanPaymentOverdue(loan: { status: string } & LoanScheduleInput, now: Date = new Date()): boolean {
+  if (loan.status !== 'active') return false;
+  return daysUntilLoanPaymentDue(loan, now) < 0;
+}

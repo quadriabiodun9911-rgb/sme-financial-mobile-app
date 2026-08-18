@@ -36,9 +36,10 @@ import StatTile from '../components/ui/StatTile';
 import { buildFinancingFitInput } from '../utils/financingFit';
 import { recommendFinancingTypes } from '../utils/financingRecommendation';
 import { computeReadinessDelta } from '../utils/readinessHistory';
-import { notifyFinancingOpportunity, notifyOverdueRemindersDue } from '../utils/notifications';
+import { notifyFinancingOpportunity, notifyOverdueRemindersDue, notifyLoanPaymentDueSoon } from '../utils/notifications';
 import { getInvoicesDueForReminder, loadReminderState, InvoiceReminderState } from '../utils/invoiceReminders';
-import { detectFinancialAlerts } from '../utils/alertEngine';
+import { isLoanPaymentOverdue, daysUntilLoanPaymentDue } from '../utils/loanMath';
+import { detectFinancialAlerts, DEFAULT_THRESHOLDS } from '../utils/alertEngine';
 import { buildDashboardPriorities, PriorityKind, PriorityTier, OverspentBudget } from '../utils/dashboardPriorities';
 
 const INCOME_CATEGORIES = ['Sales', 'Service', 'Consulting', 'Rental', 'Interest', 'Other Income'];
@@ -54,6 +55,7 @@ const PRIORITY_TIER_META: Record<PriorityTier, { emoji: string; label: string; c
 
 const PRIORITY_KIND_META: Record<PriorityKind, { icon: IconName; screen: Screen }> = {
     overdue_invoices:     { icon: 'dollar-sign',    screen: 'invoices' },
+    overdue_loan_payments: { icon: 'alert-triangle', screen: 'loans' },
     low_cash:              { icon: 'alert-circle',   screen: 'cashflow' },
     negative_forecast:     { icon: 'trending-down',  screen: 'cashflow' },
     large_expense_coming:  { icon: 'alert-triangle', screen: 'cashflow' },
@@ -182,6 +184,7 @@ export default function DashboardScreen() {
     }, [budgets, transactions, thisMonthStr]);
 
     const lowStockItems = useMemo(() => inventory.filter(i => i.quantity <= i.lowStockThreshold), [inventory]);
+    const overdueLoans = useMemo(() => loans.filter(l => isLoanPaymentOverdue(l)), [loans]);
     const totalCash = useMemo(() => cashPockets.reduce((s, p) => s + p.amount, 0), [cashPockets]);
 
     // The "what changed" story, not just the current snapshot -- built from
@@ -241,26 +244,44 @@ export default function DashboardScreen() {
         notifyOverdueRemindersDue(remindersDueCount).catch(() => {});
     }, [isDemoMode, remindersDueCount]);
 
+    // Proactive heads-up before a loan payment is even overdue -- the
+    // overdue ones already surface via the alert bell and the priority
+    // list above; this is the "don't let it get there" half of the gap.
+    const loansDueSoon = useMemo(
+        () => loans
+            .filter(l => l.status === 'active')
+            .map(l => ({ loan: l, daysUntilDue: daysUntilLoanPaymentDue(l) }))
+            .filter(x => x.daysUntilDue >= 0 && x.daysUntilDue <= DEFAULT_THRESHOLDS.loanPaymentDueSoonDays)
+            .sort((a, b) => a.daysUntilDue - b.daysUntilDue),
+        [loans]
+    );
+    useEffect(() => {
+        if (isDemoMode || loansDueSoon.length === 0) return;
+        const [soonest, ...rest] = loansDueSoon;
+        notifyLoanPaymentDueSoon(soonest.loan.lenderName, soonest.daysUntilDue, rest.length).catch(() => {});
+    }, [isDemoMode, loansDueSoon]);
+
     // Same cash-flow risk detection the header's alert bell uses -- pure
     // computation, cheap to run a second time here rather than threading
     // Header's alert state down through props for what's otherwise an
     // unrelated component tree.
     const alerts = useMemo(
-        () => detectFinancialAlerts(finance.cashBalance, transactions, invoices, settings?.currency),
-        [finance.cashBalance, transactions, invoices, settings?.currency]
+        () => detectFinancialAlerts(finance.cashBalance, transactions, invoices, settings?.currency, undefined, loans),
+        [finance.cashBalance, transactions, invoices, settings?.currency, loans]
     );
 
     const priorities = useMemo(
         () => buildDashboardPriorities({
             alerts,
             overdueInvoices,
+            overdueLoans,
             lowStockItems,
             overspentBudgets,
             financingOpportunity,
             currency: settings?.currency ?? '₦',
             primaryGoal: settings?.primaryGoal,
         }),
-        [alerts, overdueInvoices, lowStockItems, overspentBudgets, financingOpportunity, settings?.currency, settings?.primaryGoal]
+        [alerts, overdueInvoices, overdueLoans, lowStockItems, overspentBudgets, financingOpportunity, settings?.currency, settings?.primaryGoal]
     );
 
     const openFab = (type: 'income' | 'expense' = 'income') => {

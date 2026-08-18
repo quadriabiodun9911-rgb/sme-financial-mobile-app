@@ -1,7 +1,8 @@
-import { Transaction, Invoice } from '../types';
+import { Transaction, Invoice, Loan } from '../types';
 import { ForecastAlert, AlertThresholds, CashFlowForecast, ForecastInput } from '../types/forecast';
 import { generateCashFlowForecast } from './forecastEngine';
 import { computeMonthlyTrend } from './finance';
+import { nextLoanPaymentDueDate, daysUntilLoanPaymentDue, isLoanPaymentOverdue } from './loanMath';
 
 /**
  * Real-Time Cash Alerts System
@@ -20,12 +21,14 @@ export const DEFAULT_THRESHOLDS: AlertThresholds = {
   overdueInvoiceThreshold: 7, // 7 days overdue
   largeExpenseComing: 7, // days ahead to check
   largeExpenseAmount: 0.5, // 50% of monthly average
+  loanPaymentDueSoonDays: 3, // warn this many days before a loan payment is due
 };
 
 export class AlertEngine {
   private currentCash: number;
   private transactions: Transaction[];
   private invoices: Invoice[];
+  private loans: Loan[];
   private forecast?: CashFlowForecast;
   private thresholds: AlertThresholds;
   private dismissedAlerts: Set<string>;
@@ -38,11 +41,13 @@ export class AlertEngine {
     forecast?: CashFlowForecast,
     thresholds?: Partial<AlertThresholds>,
     dismissedAlertIds?: string[],
-    currency?: string
+    currency?: string,
+    loans?: Loan[]
   ) {
     this.currentCash = currentCash;
     this.transactions = transactions;
     this.invoices = invoices;
+    this.loans = loans || [];
     this.forecast = forecast;
     this.thresholds = { ...DEFAULT_THRESHOLDS, ...thresholds };
     this.dismissedAlerts = new Set(dismissedAlertIds || []);
@@ -70,6 +75,10 @@ export class AlertEngine {
     // Large expenses coming
     const expenseAlert = this.detectLargeExpenseAlert();
     if (expenseAlert) alerts.push(expenseAlert);
+
+    // Loan payments overdue or coming due
+    const loanAlerts = this.detectLoanPaymentAlerts();
+    alerts.push(...loanAlerts);
 
     // Filter out dismissed alerts
     return alerts.filter(a => !this.dismissedAlerts.has(a.id));
@@ -230,6 +239,55 @@ export class AlertEngine {
   }
 
   /**
+   * Detect active loans that have missed their implied next payment date,
+   * or are coming up on one soon. nextLoanPaymentDueDate assumes standard
+   * monthly amortization (loanMath.ts) -- the same assumption the Loans
+   * screen itself has always displayed, just not previously surfaced
+   * anywhere else.
+   */
+  private detectLoanPaymentAlerts(): ForecastAlert[] {
+    const alerts: ForecastAlert[] = [];
+
+    for (const loan of this.loans) {
+      if (loan.status !== 'active') continue;
+
+      const daysUntilDue = daysUntilLoanPaymentDue(loan);
+
+      if (isLoanPaymentOverdue(loan)) {
+        const daysOverdue = -daysUntilDue;
+        // Never 'low' -- unlike an overdue customer invoice, a missed
+        // payment to a real lender risks the relationship and credit
+        // standing from day one, not just once it's been outstanding a while.
+        alerts.push({
+          id: `alert-loan-overdue-${loan.id}`,
+          type: 'loan_payment_overdue',
+          priority: daysOverdue > 14 ? 'high' : 'medium',
+          title: `📉 Loan Payment Overdue — ${loan.lenderName}`,
+          description: `Your payment to ${loan.lenderName} was due ${nextLoanPaymentDueDate(loan).toISOString().split('T')[0]} and is now ${daysOverdue} day${daysOverdue === 1 ? '' : 's'} overdue.`,
+          affectedDate: nextLoanPaymentDueDate(loan).toISOString().split('T')[0],
+          recommendations: [
+            'Log the payment as soon as it clears to keep the payoff schedule accurate',
+            'Contact the lender if you need to renegotiate terms',
+          ],
+          createdAt: new Date().toISOString(),
+        });
+      } else if (daysUntilDue >= 0 && daysUntilDue <= this.thresholds.loanPaymentDueSoonDays) {
+        alerts.push({
+          id: `alert-loan-due-soon-${loan.id}`,
+          type: 'loan_payment_due_soon',
+          priority: 'medium',
+          title: `📅 Loan Payment Due Soon — ${loan.lenderName}`,
+          description: `Your payment to ${loan.lenderName} is due in ${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'}.`,
+          affectedDate: nextLoanPaymentDueDate(loan).toISOString().split('T')[0],
+          createdAt: new Date().toISOString(),
+        });
+      }
+    }
+
+    return alerts;
+  }
+
+  /**
    * Mark an alert as dismissed
    */
   public dismissAlert(alertId: string): void {
@@ -294,7 +352,8 @@ export const detectAlerts = (
   forecast?: CashFlowForecast,
   thresholds?: Partial<AlertThresholds>,
   dismissedAlertIds?: string[],
-  currency?: string
+  currency?: string,
+  loans?: Loan[]
 ): ForecastAlert[] => {
   const engine = new AlertEngine(
     currentCash,
@@ -303,7 +362,8 @@ export const detectAlerts = (
     forecast,
     thresholds,
     dismissedAlertIds,
-    currency
+    currency,
+    loans
   );
   return engine.detectAllAlerts();
 };
@@ -373,17 +433,18 @@ export const buildForecastInput = (
 /**
  * Single entry point for the dashboard alert bell: builds a cash-flow
  * forecast from live financial data, then runs every alert detector
- * (low cash, negative forecast, overdue invoices, large upcoming expenses)
- * against it. Pure computation -- no side effects, no persistence; the
- * caller owns dismissal storage.
+ * (low cash, negative forecast, overdue invoices, large upcoming expenses,
+ * loan payments overdue or due soon) against it. Pure computation -- no
+ * side effects, no persistence; the caller owns dismissal storage.
  */
 export const detectFinancialAlerts = (
   currentCash: number,
   transactions: Transaction[],
   invoices: Invoice[],
   currency?: string,
-  dismissedAlertIds?: string[]
+  dismissedAlertIds?: string[],
+  loans?: Loan[]
 ): ForecastAlert[] => {
   const forecast = generateCashFlowForecast(buildForecastInput(currentCash, transactions, invoices, currency));
-  return detectAlerts(currentCash, transactions, invoices, forecast, undefined, dismissedAlertIds, currency);
+  return detectAlerts(currentCash, transactions, invoices, forecast, undefined, dismissedAlertIds, currency, loans);
 };

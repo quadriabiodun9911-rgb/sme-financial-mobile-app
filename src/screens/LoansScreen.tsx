@@ -30,7 +30,7 @@ import { publishLoanMonitoringShare, revokeLoanMonitoringShare } from '../utils/
 import NextStepLink from '../components/NextStepLink';
 import ProfitCashImpactCard from '../components/ProfitCashImpactCard';
 import { computeProfitCashImpact } from '../utils/impactChain';
-import { monthlyPayment, totalInterest, outstandingLoanBalance } from '../utils/loanMath';
+import { monthlyPayment, totalInterest, outstandingLoanBalance, nextLoanPaymentDueDate, isLoanPaymentOverdue } from '../utils/loanMath';
 import { showAlert } from '../utils/webAlert';
 import Icon from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
@@ -43,11 +43,7 @@ function totalPaid(loan: Loan): number {
 const outstandingBalance = outstandingLoanBalance;
 
 function nextDueDate(loan: Loan): string {
-    const start = new Date(loan.startDate);
-    const paid = (loan.payments ?? []).length;
-    const next = new Date(start);
-    next.setMonth(next.getMonth() + paid + 1);
-    return next.toISOString().split('T')[0];
+    return nextLoanPaymentDueDate(loan).toISOString().split('T')[0];
 }
 
 function payoffDate(loan: Loan): string {
@@ -57,11 +53,7 @@ function payoffDate(loan: Loan): string {
     return end.toISOString().split('T')[0];
 }
 
-function isOverdue(loan: Loan): boolean {
-    if (loan.status !== 'active') return false;
-    const due = new Date(nextDueDate(loan));
-    return due < new Date();
-}
+const isOverdue = isLoanPaymentOverdue;
 
 
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────
@@ -195,7 +187,7 @@ export default function LoansScreen() {
     const activeLoans = loans.filter(l => l.status === 'active');
     const totalDebt = activeLoans.reduce((s, l) => s + outstandingBalance(l), 0);
     const totalMonthly = activeLoans.reduce((s, l) => s + monthlyPayment(l.principal, l.interestRate, l.termMonths), 0);
-    const overdueLoans = activeLoans.filter(isOverdue);
+    const overdueLoans = activeLoans.filter(l => isOverdue(l));
 
     // Multi-loan payoff strategy (avalanche vs snowball) — only meaningful
     // with 2+ active loans; a single loan has no ordering decision to make.

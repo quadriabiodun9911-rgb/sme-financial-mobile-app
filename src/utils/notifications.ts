@@ -16,6 +16,7 @@ const KEYS = {
     financingQualifyId: '@quad360/notif_financing_qualify_id',
     financingOpportunityId: '@quad360/notif_financing_opportunity_id',
     overdueRemindersId: '@quad360/notif_overdue_reminders_id',
+    loanPaymentDueId: '@quad360/notif_loan_payment_due_id',
 };
 
 export async function requestNotificationPermission(): Promise<boolean> {
@@ -91,6 +92,39 @@ export async function notifyOverdueRemindersDue(count: number): Promise<void> {
         });
 
         await AsyncStorage.setItem(KEYS.overdueRemindersId, Date.now().toString());
+    } catch {
+        // Fail silently
+    }
+}
+
+// A self-reminder, not a client-facing message -- there's no WhatsApp
+// equivalent here since the "recipient" is the business owner's own lender
+// payment, so a plain local notification is the whole feature. Throttled
+// to once per day for the same reason as notifyOverdueRemindersDue: the
+// same loan being due soon shouldn't re-notify on every unrelated recompute.
+export async function notifyLoanPaymentDueSoon(lenderName: string, daysUntilDue: number, otherCount: number): Promise<void> {
+    try {
+        if (Platform.OS === 'web') return;
+
+        const prevNotified = await AsyncStorage.getItem(KEYS.loanPaymentDueId);
+        if (prevNotified) {
+            const daysSinceLastNotif = (Date.now() - parseInt(prevNotified, 10)) / (1000 * 60 * 60 * 24);
+            if (daysSinceLastNotif < 1) return;
+        }
+
+        const body = otherCount > 0
+            ? `${lenderName} payment due in ${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'}, plus ${otherCount} more coming up.`
+            : `${lenderName} payment due in ${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'}.`;
+
+        await Notifications.scheduleNotificationAsync({
+            content: {
+                title: 'Loan payment coming up 📅',
+                body,
+            },
+            trigger: null,
+        });
+
+        await AsyncStorage.setItem(KEYS.loanPaymentDueId, Date.now().toString());
     } catch {
         // Fail silently
     }

@@ -1,6 +1,7 @@
-import { Invoice, InventoryItem, Budget, PrimaryGoal } from '../types';
+import { Invoice, InventoryItem, Budget, Loan, PrimaryGoal } from '../types';
 import { ForecastAlert } from '../types/forecast';
 import { FinancingRecommendation } from './financingRecommendation';
+import { monthlyPayment } from './loanMath';
 
 /**
  * Unifies every source the dashboard already tracks separately -- cash-flow
@@ -14,6 +15,7 @@ export type PriorityTier = 'attention' | 'watch' | 'opportunity';
 
 export type PriorityKind =
     | 'overdue_invoices'
+    | 'overdue_loan_payments'
     | 'low_cash'
     | 'negative_forecast'
     | 'large_expense_coming'
@@ -44,7 +46,7 @@ const TIER_RANK: Record<PriorityTier, number> = { attention: 0, watch: 1, opport
 // uncollected receivables are a direct cash-flow lever, not just a
 // collections issue.
 const GOAL_KINDS: Record<PrimaryGoal, PriorityKind[]> = {
-    cashflow: ['low_cash', 'negative_forecast', 'large_expense_coming', 'overdue_invoices'],
+    cashflow: ['low_cash', 'negative_forecast', 'large_expense_coming', 'overdue_invoices', 'overdue_loan_payments'],
     costs: ['overspent_budget'],
     financing: ['financing_opportunity'],
 };
@@ -69,6 +71,7 @@ function alertToPriorityItem(alert: ForecastAlert): PriorityItem {
 export function buildDashboardPriorities(input: {
     alerts: ForecastAlert[];
     overdueInvoices: Invoice[];
+    overdueLoans?: Loan[];
     lowStockItems: InventoryItem[];
     overspentBudgets: OverspentBudget[];
     financingOpportunity: FinancingRecommendation | null;
@@ -76,7 +79,7 @@ export function buildDashboardPriorities(input: {
     /** Undefined ("not sure yet", or not asked) means no preference -- today's tier/amount ordering, unchanged. */
     primaryGoal?: PrimaryGoal;
 }): PriorityItem[] {
-    const { alerts, overdueInvoices, lowStockItems, overspentBudgets, financingOpportunity, currency, primaryGoal } = input;
+    const { alerts, overdueInvoices, overdueLoans = [], lowStockItems, overspentBudgets, financingOpportunity, currency, primaryGoal } = input;
     const items: PriorityItem[] = [];
 
     for (const alert of alerts) {
@@ -91,6 +94,22 @@ export function buildDashboardPriorities(input: {
             tier: 'attention',
             title: `${overdueInvoices.length} Customer${overdueInvoices.length > 1 ? 's' : ''} Overdue`,
             subtitle: `${currency}${total.toLocaleString()} to collect`,
+            impactAmount: total,
+        });
+    }
+
+    // alertEngine reports one loan_payment_overdue alert per loan (with its
+    // own days-overdue detail, kept in AlertsWidget); this aggregates them
+    // into a single card the same way overdue invoices are, rather than
+    // letting them pass through CASH_FLOW_ALERT_TYPES one row per lender.
+    if (overdueLoans.length > 0) {
+        const total = Math.round(overdueLoans.reduce((s, l) => s + monthlyPayment(l.principal, l.interestRate, l.termMonths), 0));
+        items.push({
+            id: 'priority-overdue-loan-payments',
+            kind: 'overdue_loan_payments',
+            tier: 'attention',
+            title: `${overdueLoans.length} Loan Payment${overdueLoans.length > 1 ? 's' : ''} Overdue`,
+            subtitle: `${currency}${total.toLocaleString()} owed to ${overdueLoans.length > 1 ? 'your lenders' : overdueLoans[0].lenderName}`,
             impactAmount: total,
         });
     }
