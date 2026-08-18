@@ -137,8 +137,8 @@ export default function ActionTrackerScreen() {
   );
 
   const actionPlan = useMemo(() => {
-    return generateActionPlan(diagnosis, diagnosis.metrics, settings.currency, outcomeHistory);
-  }, [diagnosis, settings.currency, outcomeHistory]);
+    return generateActionPlan(diagnosis, diagnosis.metrics, settings.currency, outcomeHistory, settings.primaryGoal);
+  }, [diagnosis, settings.currency, outcomeHistory, settings.primaryGoal]);
 
   // Land on whichever tab actually has actions instead of always defaulting
   // to "Immediate" — a warning-but-not-critical account often has zero

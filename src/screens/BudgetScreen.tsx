@@ -691,7 +691,11 @@ const s = StyleSheet.create({
     scroll:       { flex: 1, backgroundColor: Colors.bg },
     pad:          { padding: Spacing.lg, paddingBottom: 100 },
 
-    headerRow:    { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, gap: Spacing.md },
+    // flexWrap is the safety net: back-link + title + up to 3 conditional
+    // buttons (Adjust/Cancel Adjust, Auto, + Add) don't all fit one row on
+    // a phone-width screen -- confirmed clipping "+ Add" off-screen at
+    // 320-375px CSS width with even just 2 of the 3 buttons showing.
+    headerRow:    { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', rowGap: Spacing.sm, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, gap: Spacing.md },
     backBtn:      { color: Colors.primary, fontSize: 14 },
     screenTitle:  { flex: 1, fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary },
     addBtn:       { backgroundColor: Colors.primary, borderRadius: Radius.sm, paddingHorizontal: 14, paddingVertical: 7 },

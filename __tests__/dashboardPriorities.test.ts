@@ -109,6 +109,46 @@ describe('buildDashboardPriorities', () => {
         expect(result[0].tier).toBe('watch');
     });
 
+    it('breaks ties within a tier toward the stated primaryGoal, even against a smaller impact', () => {
+        const overspent: OverspentBudget = { id: 'b1', category: 'Rent', monthlyAmount: 50000, period: '2026-08', spent: 60000, overage: 10000 };
+        const result = buildDashboardPriorities({
+            // Both watch-tier: the overspent budget has a small overage, the
+            // large-expense alert a big one.
+            alerts: [alert({ id: 'big-watch', type: 'large_expense_coming', priority: 'medium', amount: 900000 })],
+            overdueInvoices: [], lowStockItems: [], overspentBudgets: [overspent],
+            financingOpportunity: null, currency: '₦',
+            primaryGoal: 'costs',
+        });
+        // Without a goal the ₦900k expense alert would sort first on impact
+        // alone. With primaryGoal 'costs', the smaller overspent-budget item
+        // -- the kind that actually maps to "costs" -- sorts first instead,
+        // within the same watch tier.
+        expect(result[0].kind).toBe('overspent_budget');
+        expect(result[1].kind).toBe('large_expense_coming');
+    });
+
+    it('never lets a preferred kind jump above a higher tier', () => {
+        const overspent: OverspentBudget = { id: 'b1', category: 'Rent', monthlyAmount: 50000, period: '2026-08', spent: 60000, overage: 10000 };
+        const result = buildDashboardPriorities({
+            alerts: [alert({ id: 'attention-item', type: 'low_cash', priority: 'high' })],
+            overdueInvoices: [], lowStockItems: [], overspentBudgets: [overspent],
+            financingOpportunity: null, currency: '₦',
+            primaryGoal: 'costs', // matches overspent_budget (watch), not low_cash (attention)
+        });
+        expect(result[0].tier).toBe('attention');
+        expect(result[0].kind).toBe('low_cash');
+    });
+
+    it('leaves ordering exactly as before when no primaryGoal is set', () => {
+        const bigLowCash = alert({ id: 'low-cash', type: 'low_cash', priority: 'high', amount: 900000 });
+        const result = buildDashboardPriorities({
+            alerts: [bigLowCash], overdueInvoices: [invoice({ total: 10000 })],
+            lowStockItems: [], overspentBudgets: [], financingOpportunity: null, currency: '₦',
+        });
+        expect(result[0].id).toBe('low-cash');
+        expect(result[1].kind).toBe('overdue_invoices');
+    });
+
     it('surfaces a financing opportunity in the opportunity tier', () => {
         const financingOpportunity: FinancingRecommendation = {
             productType: 'invoice_financing', label: 'Invoice Financing', confidence: 'strong', reasons: ['Strong receivables'],

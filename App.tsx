@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
-import { View, ActivityIndicator, Platform, BackHandler, Alert } from 'react-native';
+import { View, ActivityIndicator, Platform, BackHandler, Alert, useWindowDimensions, StyleSheet } from 'react-native';
+import { Colors } from './src/theme/colors';
 import * as Updates from 'expo-updates';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider } from './src/contexts/ThemeContext';
@@ -52,6 +53,7 @@ import { UserRole, Screen } from './src/types';
 function NavigatorContent() {
     const { user, isLoading, currentScreen, navParams, setCurrentScreen, goBack, isLenderSession } = useAuth();
     const userRole = (user?.role === 'Accountant' ? 'accountant' : user?.role === 'Staff' ? 'staff' : 'owner') as UserRole;
+    const { width: windowWidth } = useWindowDimensions();
 
     // Once per cold start, not tied to any account/demo state -- this fires
     // before either is known.
@@ -138,8 +140,20 @@ function NavigatorContent() {
         );
     }
 
+    // Every screen here is built mobile-first (single-column lists and
+    // cards sized for a ~390-430px phone). Left unconstrained on a laptop
+    // or desktop browser, a single invoice card or transaction row was
+    // stretching edge-to-edge across a 1440px window -- technically fine,
+    // but individual rows floated in huge empty space and read as broken
+    // rather than "not yet designed for desktop." Landing/Contact/Blog/
+    // Login already have their own wide-screen treatments (see each
+    // screen's own isWide/isWideWebSetup checks) and manage their own
+    // width, so they're excluded here rather than double-constrained.
+    const UNCONSTRAINED_SCREENS = new Set<Screen>(['landing', 'contact', 'blog', 'blog-post', 'privacy-policy', 'login']);
+    const constrainWidth = Platform.OS === 'web' && windowWidth >= 720 && !UNCONSTRAINED_SCREENS.has(currentScreen as Screen);
+
     return (
-        <View style={{ flex: 1 }}>
+        <View style={[{ flex: 1 }, constrainWidth && styles.centeredAppColumn]}>
             {currentScreen === 'landing'      && <LandingScreen />}
             {currentScreen === 'contact'      && <ContactScreen />}
             {currentScreen === 'blog'         && <BlogScreen />}
@@ -180,6 +194,26 @@ function NavigatorContent() {
         </View>
     );
 }
+
+const styles = StyleSheet.create({
+    // Centers the mobile-first app screens into a readable column on wide
+    // desktop viewports instead of letting single-column rows/cards stretch
+    // edge-to-edge. backgroundColor matches Colors.bg so the flanking space
+    // reads as intentional letterboxing, not an unstyled void, and stays
+    // correct across both the dark and warm-paper themes.
+    centeredAppColumn: {
+        width: '100%',
+        maxWidth: 720,
+        alignSelf: 'center',
+        backgroundColor: Colors.bg,
+        // Screens have their own position:'absolute' FABs/pills anchored
+        // with `right`/`bottom` offsets (e.g. Dashboard's quick-add button).
+        // Without this, absolute descendants skip past this narrower column
+        // and anchor to the full browser viewport instead, poking out past
+        // the column's actual right edge on any viewport wider than 720px.
+        position: 'relative',
+    },
+});
 
 function OtaUpdater() {
     useEffect(() => {

@@ -6,7 +6,7 @@ import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan } from '../utils/actionRecommendationEngine';
-import { getMonthlyExpenseAverage } from '../utils/finance';
+import { getMonthlyExpenseAverage, computeRiskScore, RISK_BAND_STYLE } from '../utils/finance';
 import SwotAnalysis from '../components/SwotAnalysis';
 import NextStepLink from '../components/NextStepLink';
 import Icon, { IconName } from '../components/ui/Icon';
@@ -29,8 +29,66 @@ export default function FinancialAssessmentScreen() {
   }, [transactions, invoices, finance, settings, loans, inventory]);
 
   const actionPlan = useMemo(() => {
-    return generateActionPlan(diagnosis, diagnosis.metrics, settings.currency);
-  }, [diagnosis, settings.currency]);
+    return generateActionPlan(diagnosis, diagnosis.metrics, settings.currency, [], settings.primaryGoal);
+  }, [diagnosis, settings.currency, settings.primaryGoal]);
+
+  // Same canonical score CreditWorthinessScreen and the Funding Readiness
+  // Pack show — reused here (not recomputed) so the Readiness pillar below
+  // never disagrees with "How prepared are you for external capital?"
+  // asked anywhere else in the app.
+  const risk = useMemo(
+    () => computeRiskScore(finance, loans, transactions, inventory),
+    [finance, loans, transactions, inventory]
+  );
+  const riskFactor = (name: string) => risk.factors.find(f => f.name === name);
+  const performanceFactor = riskFactor('Profitability');
+  const cashFactor = riskFactor('Liquidity');
+
+  // Total identified financial impact across every issue the diagnosis
+  // found — the honest answer to "where could money be leaking?" instead
+  // of a made-up figure. Zero issues means zero, not a fabricated number.
+  const moneyAtRisk = useMemo(
+    () => diagnosis.diagnoses.reduce((sum, d) => sum + Math.max(0, d.financialImpact), 0),
+    [diagnosis]
+  );
+
+  const factorStatusColor = (status: 'good' | 'warning' | 'danger' | undefined) =>
+    status === 'good' ? Colors.income : status === 'warning' ? Colors.warning : status === 'danger' ? Colors.expense : Colors.textMuted;
+
+  // Short status notes for the Performance/Cash pillars, derived only from
+  // the factor's status (not its raw explanation string). computeRiskScore's
+  // explanation text embeds its own margin/runway number computed from
+  // all-time totals, while the pillar's headline number above uses this
+  // month's figures (diagnosis.metrics) — two real, differently-scoped
+  // numbers that can legitimately disagree. Showing both together read as a
+  // contradiction, so the note stays qualitative instead of repeating a
+  // second number.
+  const performanceNote = performanceFactor?.status === 'good'
+    ? 'Comfortably above the 20% healthy-margin benchmark.'
+    : performanceFactor?.status === 'warning'
+    ? 'Below the 20% healthy-margin benchmark.'
+    : performanceFactor?.status === 'danger'
+    ? 'Thin margins, or a loss, this period.'
+    : 'Not enough data yet.';
+  const cashNote = cashFactor?.status === 'good'
+    ? 'A healthy cash buffer.'
+    : cashFactor?.status === 'warning'
+    ? 'Adequate, but worth building up.'
+    : cashFactor?.status === 'danger'
+    ? 'Tight — worth watching closely.'
+    : 'Not enough data yet.';
+
+  const moneyColor = diagnosis.diagnoses.some(d => d.severity === 'critical')
+    ? Colors.expense
+    : diagnosis.diagnoses.length > 0
+    ? Colors.warning
+    : Colors.income;
+
+  const readinessColor = risk.band === 'Excellent' || risk.band === 'Strong'
+    ? Colors.income
+    : risk.band === 'Moderate'
+    ? Colors.warning
+    : Colors.expense;
 
   const getHealthColor = (score: number) => {
     if (score >= 70) return Colors.income;
@@ -64,11 +122,55 @@ export default function FinancialAssessmentScreen() {
           <Icon name="search" size={20} color={Colors.textPrimary} />
           <Text style={styles.title}>Financial Assessment</Text>
         </View>
-        <Text style={styles.subtitle}>AI-powered diagnosis & recommendations</Text>
+        <Text style={styles.subtitle}>Your free Business Health & Efficiency Audit — money, performance, cash and readiness, from your own numbers</Text>
         {/* This whole screen is a current-month snapshot by design — make
             that explicit and point to the real multi-year view so results
             here aren't mistaken for a full history. */}
         <NextStepLink text="This is a current snapshot — see your multi-year trend" onPress={() => navigate('reports', { reportSection: 'growth', reportTab: 'history' })} />
+
+        {/* Four-pillar audit strip. Deliberately excludes a "Time" pillar
+            (how many hours a month admin costs this business) — there is no
+            real time-tracking instrumentation in the app, and a made-up
+            hours figure would be exactly the kind of fabricated number this
+            app refuses to show elsewhere. Ship the four pillars backed by
+            real data; add Time if that data ever exists. */}
+        <View style={styles.pillarGrid}>
+          <View style={[styles.pillarCard, { borderTopColor: moneyColor }]}>
+            <Text style={styles.pillarLabel}>MONEY</Text>
+            <Text style={styles.pillarQuestion}>Where could money be leaking?</Text>
+            <Text style={[styles.pillarValue, { color: moneyColor }]}>
+              {moneyAtRisk > 0 ? `${settings.currency}${Math.round(moneyAtRisk).toLocaleString()}` : 'No leaks found'}
+            </Text>
+            <Text style={styles.pillarDetail} numberOfLines={2}>
+              {diagnosis.diagnoses[0]?.problem ?? 'Nothing standing out right now.'}
+            </Text>
+          </View>
+
+          <View style={[styles.pillarCard, { borderTopColor: factorStatusColor(performanceFactor?.status) }]}>
+            <Text style={styles.pillarLabel}>PERFORMANCE</Text>
+            <Text style={styles.pillarQuestion}>Are you actually making money?</Text>
+            <Text style={[styles.pillarValue, { color: factorStatusColor(performanceFactor?.status) }]}>
+              {diagnosis.metrics.profitMargin.toFixed(1)}% margin
+            </Text>
+            <Text style={styles.pillarDetail} numberOfLines={2}>{performanceNote}</Text>
+          </View>
+
+          <View style={[styles.pillarCard, { borderTopColor: factorStatusColor(cashFactor?.status) }]}>
+            <Text style={styles.pillarLabel}>CASH</Text>
+            <Text style={styles.pillarQuestion}>Will your cash support your plans?</Text>
+            <Text style={[styles.pillarValue, { color: factorStatusColor(cashFactor?.status) }]}>
+              {diagnosis.metrics.runwayDays ?? '?'} days runway
+            </Text>
+            <Text style={styles.pillarDetail} numberOfLines={2}>{cashNote}</Text>
+          </View>
+
+          <View style={[styles.pillarCard, { borderTopColor: readinessColor }]}>
+            <Text style={styles.pillarLabel}>READINESS</Text>
+            <Text style={styles.pillarQuestion}>How ready are you for outside capital?</Text>
+            <Text style={[styles.pillarValue, { color: readinessColor }]}>{risk.score}/100</Text>
+            <Text style={styles.pillarDetail} numberOfLines={2}>{RISK_BAND_STYLE[risk.band].emoji} {RISK_BAND_STYLE[risk.band].label}</Text>
+          </View>
+        </View>
 
         {/* Overall Health Score */}
         <View style={[styles.healthCard, { borderLeftColor: getHealthColor(diagnosis.overallHealth) }]}>
@@ -384,6 +486,23 @@ const styles = StyleSheet.create({
   healthStatus: { fontSize: 13, color: Colors.textSecondary },
   healthDescriptionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
   healthDescription: { flex: 1, fontSize: 12, color: Colors.textSecondary, lineHeight: 18 },
+
+  pillarGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: Spacing.xl },
+  pillarCard: {
+    width: '48%',
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.md,
+    borderTopWidth: 3,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 3,
+    ...Shadow.sm,
+  },
+  pillarLabel: { fontSize: 10, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.5 },
+  pillarQuestion: { fontSize: 10.5, color: Colors.textSecondary, lineHeight: 14, marginBottom: 2 },
+  pillarValue: { fontSize: 15, fontWeight: '800' },
+  pillarDetail: { fontSize: 10, color: Colors.textMuted, lineHeight: 14 },
 
   categoryList: { gap: Spacing.sm, marginTop: Spacing.xs },
   categoryRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },

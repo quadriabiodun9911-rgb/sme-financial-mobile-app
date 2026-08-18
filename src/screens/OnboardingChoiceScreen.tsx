@@ -6,6 +6,7 @@ import { Colors } from '../theme/colors';
 import { Screen } from '../types';
 import Icon from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
+import { PRIMARY_GOAL_OPTIONS } from '../utils/primaryGoals';
 
 // Shown once, immediately after a brand-new account is created — the two
 // starting paths the app is built around: upload real data for an instant
@@ -14,7 +15,7 @@ import { Radius, Shadow, Spacing } from '../theme/tokens';
 // paths being taken, so this is asked explicitly instead of leaving a new
 // user to discover it (or not) on a busy Dashboard.
 export default function OnboardingChoiceScreen() {
-    const { setCurrentScreen, user } = useApp();
+    const { setCurrentScreen, user, settings, updateSettings } = useApp();
 
     // Any choice here — including Skip — already answers "how do I get my
     // first data in," so Dashboard's separate FirstRunWizard (which asks the
@@ -37,6 +38,28 @@ export default function OnboardingChoiceScreen() {
                     Let's find out where your business stands financially. Choose how you'd like to start —
                     you can always do the other one later.
                 </Text>
+
+                {/* Optional, doesn't block or navigate -- just tells Dashboard's
+                    priority list and the action plan what to surface first.
+                    Editable later in Settings, same as the rest of the
+                    business profile. */}
+                <Text style={s.goalLabel}>What matters most to you right now?</Text>
+                <View style={s.goalRow}>
+                    {PRIMARY_GOAL_OPTIONS.map(opt => {
+                        const selected = (settings.primaryGoal ?? null) === opt.value;
+                        return (
+                            <TouchableOpacity
+                                key={opt.label}
+                                style={[s.goalChip, selected && s.goalChipSelected]}
+                                onPress={() => updateSettings({ primaryGoal: opt.value ?? undefined })}
+                                activeOpacity={0.8}
+                            >
+                                <Icon name={opt.icon} size={13} color={selected ? '#fff' : Colors.textSecondary} />
+                                <Text style={[s.goalChipText, selected && s.goalChipTextSelected]}>{opt.label}</Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
 
                 <TouchableOpacity style={s.card} onPress={() => choose('import-transactions')} activeOpacity={0.85}>
                     <View style={s.cardIconBadge}>
@@ -77,6 +100,17 @@ const s = StyleSheet.create({
     iconWrap: { alignItems: 'center', marginBottom: Spacing.md },
     title:    { fontSize: 22, fontWeight: '800', color: Colors.textPrimary, textAlign: 'center', marginBottom: 8 },
     subtitle: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20, marginBottom: 28 },
+
+    goalLabel: { fontSize: 12.5, fontWeight: '700', color: Colors.textSecondary, marginBottom: Spacing.sm, textAlign: 'center' },
+    goalRow:   { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: Spacing.xs, marginBottom: Spacing.xl },
+    goalChip: {
+        flexDirection: 'row', alignItems: 'center', gap: 6,
+        paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm,
+        borderRadius: Radius.pill, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface,
+    },
+    goalChipSelected:   { backgroundColor: Colors.primary, borderColor: Colors.primary },
+    goalChipText:       { fontSize: 12, fontWeight: '600', color: Colors.textSecondary },
+    goalChipTextSelected: { color: '#fff' },
 
     card:     { backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, padding: Spacing.xl, marginBottom: 14, ...Shadow.sm },
     cardIconBadge: { width: 44, height: 44, borderRadius: Radius.md, backgroundColor: Colors.primary + '18', alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.sm },

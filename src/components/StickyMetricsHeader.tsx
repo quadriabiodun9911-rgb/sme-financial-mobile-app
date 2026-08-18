@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { FinanceData } from '../types';
 
@@ -9,9 +9,6 @@ interface Props {
 }
 
 export default function StickyMetricsHeader({ finance, currency }: Props) {
-  const { width } = useWindowDimensions();
-  const cardWidth = (width - 48) / 3; // 3 cards with padding
-
   const metrics = [
     {
       label: 'Profit',
@@ -38,7 +35,7 @@ export default function StickyMetricsHeader({ finance, currency }: Props) {
     <View style={styles.container}>
       <View style={styles.metricsRow}>
         {metrics.map((metric, idx) => (
-          <View key={idx} style={[styles.metricCard, { width: cardWidth }]}>
+          <View key={idx} style={styles.metricCard}>
             <Text style={styles.icon}>{metric.icon}</Text>
             <Text style={styles.metricLabel}>{metric.label}</Text>
             <Text style={[styles.metricValue, { color: metric.color }]}>
@@ -67,6 +64,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   metricCard: {
+    flex: 1,
     backgroundColor: Colors.bg,
     borderRadius: 12,
     padding: 10,

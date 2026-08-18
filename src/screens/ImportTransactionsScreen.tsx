@@ -764,11 +764,15 @@ export default function ImportTransactionsScreen() {
                     </View>
                 )}
 
-                <TouchableOpacity style={[styles.primaryBtn, { marginTop: 20, width: 280 }]} onPress={() => navigate('action-tracker')}>
-                    <Text style={styles.primaryBtnText}>See Recommended Actions →</Text>
+                {/* This is the "give value before asking for money" moment —
+                    the free 4-pillar audit (Money/Performance/Cash/Readiness)
+                    on FinancialAssessmentScreen, right after the data that
+                    powers it just arrived. */}
+                <TouchableOpacity style={[styles.primaryBtn, { marginTop: 20, width: 280 }]} onPress={() => navigate('financial-assessment')}>
+                    <Text style={styles.primaryBtnText}>Get Your Free Business Health Audit →</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.ghostBtn, { marginTop: 4 }]} onPress={() => navigate('financial-assessment')}>
-                    <Text style={styles.ghostBtnText}>Full Business Health & SWOT</Text>
+                <TouchableOpacity style={[styles.ghostBtn, { marginTop: 4 }]} onPress={() => navigate('action-tracker')}>
+                    <Text style={styles.ghostBtnText}>See Recommended Actions</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.ghostBtn} onPress={() => navigate('transactions')}>
                     <Text style={styles.ghostBtnText}>View Transactions</Text>

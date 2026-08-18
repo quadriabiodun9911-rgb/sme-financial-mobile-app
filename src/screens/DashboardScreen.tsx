@@ -85,6 +85,13 @@ export default function DashboardScreen() {
     const [showDailyReport, setShowDailyReport] = useState(false);
     const [showWeeklyReport, setShowWeeklyReport] = useState(false);
     const [toast, setToast]                     = useState<string | null>(null);
+    // Measured height of the "Log today's sales" banner below -- the FAB and
+    // "End of Day" pill are position:'absolute' with fixed bottom offsets
+    // tuned for when that banner is hidden. When it's showing (any user who
+    // hasn't logged a transaction today), those offsets landed the FAB right
+    // on top of the banner instead of above it. Real measurement instead of
+    // a guessed constant so it stays correct if the banner's text wraps.
+    const [logTodayBannerHeight, setLogTodayBannerHeight] = useState(0);
     const [eodOpen, setEodOpen]                 = useState(false);
     const [eodIncome, setEodIncome]             = useState('');
     const [eodExpense, setEodExpense]           = useState('');
@@ -176,6 +183,22 @@ export default function DashboardScreen() {
     const lowStockItems = useMemo(() => inventory.filter(i => i.quantity <= i.lowStockThreshold), [inventory]);
     const totalCash = useMemo(() => cashPockets.reduce((s, p) => s + p.amount, 0), [cashPockets]);
 
+    // The "what changed" story, not just the current snapshot -- built from
+    // the same readiness history Credit-Worthiness already tracks, not a
+    // second computation. Null until there are 2+ snapshots (never true in
+    // demo mode, since demo data is never persisted for snapshotting).
+    const readinessDelta = useMemo(() => computeReadinessDelta(readinessHistory), [readinessHistory]);
+    const readinessTopMover = useMemo(() => {
+        if (!readinessDelta) return null;
+        if (readinessDelta.trend === 'improving') {
+            return readinessDelta.improvedFactors.reduce((best, f) => (!best || f.to - f.from > best.to - best.from) ? f : best, readinessDelta.improvedFactors[0] ?? null);
+        }
+        if (readinessDelta.trend === 'declining') {
+            return readinessDelta.worsenedFactors.reduce((worst, f) => (!worst || f.to - f.from < worst.to - worst.from) ? f : worst, readinessDelta.worsenedFactors[0] ?? null);
+        }
+        return null;
+    }, [readinessDelta]);
+
     // Surface a financing opportunity on the dashboard itself, not just
     // when the owner happens to visit Financing — but only the strongest
     // signal, and only one, so this doesn't become noise on every visit
@@ -217,8 +240,9 @@ export default function DashboardScreen() {
             overspentBudgets,
             financingOpportunity,
             currency: settings?.currency ?? '₦',
+            primaryGoal: settings?.primaryGoal,
         }),
-        [alerts, overdueInvoices, lowStockItems, overspentBudgets, financingOpportunity, settings?.currency]
+        [alerts, overdueInvoices, lowStockItems, overspentBudgets, financingOpportunity, settings?.currency, settings?.primaryGoal]
     );
 
     const openFab = (type: 'income' | 'expense' = 'income') => {
@@ -358,10 +382,20 @@ export default function DashboardScreen() {
                     Action Tracker), so showing this banner to a staff
                     account would just lead to a dead-end restricted-access
                     screen. */}
+                {/* When the owner said financing-readiness is what matters
+                    most, this goes straight to Credit-Worthiness -- the
+                    screen that actually answers that question -- instead of
+                    the broader Business Passport. */}
                 {canViewFinancials && (
-                    <TouchableOpacity style={styles.solveBanner} onPress={() => setCurrentScreen('business-passport')} activeOpacity={0.8}>
-                        <Icon name="shield" size={16} color="#fff" />
-                        <Text style={styles.solveBannerText}>See your Business Passport</Text>
+                    <TouchableOpacity
+                        style={styles.solveBanner}
+                        onPress={() => setCurrentScreen(settings?.primaryGoal === 'financing' ? 'credit-worthiness' : 'business-passport')}
+                        activeOpacity={0.8}
+                    >
+                        <Icon name={settings?.primaryGoal === 'financing' ? 'credit-card' : 'shield'} size={16} color="#fff" />
+                        <Text style={styles.solveBannerText}>
+                            {settings?.primaryGoal === 'financing' ? 'See your Capital Readiness' : 'See your Business Passport'}
+                        </Text>
                         <Icon name="arrow-right" size={16} color="#fff" />
                     </TouchableOpacity>
                 )}
@@ -411,6 +445,43 @@ export default function DashboardScreen() {
                     </View>
                   </View>
                 </View>
+                )}
+
+                {/* "Your Progress" — the change that already happened, not
+                    just where things stand today. Reuses the same
+                    readiness-history trend Credit-Worthiness's "Readiness
+                    Over Time" section shows in full; this is a one-line
+                    summary that links there, not a second chart. Hidden
+                    entirely in demo mode (snapshots never persist there, so
+                    there's nothing honest to show) and for staff accounts
+                    (same financial-visibility gate as Vital Signs). */}
+                {canViewFinancials && !isDemoMode && (
+                  <TouchableOpacity
+                    style={[
+                      styles.progressCard,
+                      { borderColor: readinessDelta?.trend === 'improving' ? Colors.income : readinessDelta?.trend === 'declining' ? Colors.expense : Colors.border },
+                    ]}
+                    onPress={() => setCurrentScreen('credit-worthiness')}
+                    activeOpacity={0.8}
+                  >
+                    <Icon
+                      name={!readinessDelta ? 'clock' : readinessDelta.trend === 'improving' ? 'trending-up' : readinessDelta.trend === 'declining' ? 'trending-down' : 'minus'}
+                      size={16}
+                      color={readinessDelta?.trend === 'improving' ? Colors.income : readinessDelta?.trend === 'declining' ? Colors.expense : Colors.textMuted}
+                    />
+                    <Text style={styles.progressCardText}>
+                      {!readinessDelta ? (
+                        "Quad360 is building your progress story — check back in about a week."
+                      ) : readinessDelta.trend === 'improving' ? (
+                        <>Your readiness improved <Text style={{ color: Colors.income, fontWeight: '800' }}>{readinessDelta.scoreDelta} points</Text> over {readinessDelta.periodLabel}{readinessTopMover ? ` — ${readinessTopMover.name} is the biggest driver.` : '.'}</>
+                      ) : readinessDelta.trend === 'declining' ? (
+                        <>Your readiness dropped <Text style={{ color: Colors.expense, fontWeight: '800' }}>{Math.abs(readinessDelta.scoreDelta)} points</Text> over {readinessDelta.periodLabel}{readinessTopMover ? ` — ${readinessTopMover.name} needs attention.` : '.'}</>
+                      ) : (
+                        <>Your readiness has held steady over {readinessDelta.periodLabel}.</>
+                      )}
+                    </Text>
+                    <Icon name="chevron-right" size={16} color={Colors.textMuted} />
+                  </TouchableOpacity>
                 )}
 
                 {/* SECTION 2: WHAT NEEDS YOUR ATTENTION — every risk and
@@ -810,16 +881,16 @@ export default function DashboardScreen() {
             </ScrollView>
 
             {/* ── FAB ─────────────────────────────────────────────────────── */}
-            <TouchableOpacity style={styles.fab} onPress={() => openFab()}>
+            <TouchableOpacity style={[styles.fab, { bottom: 80 + (!loggedToday ? logTodayBannerHeight : 0) }]} onPress={() => openFab()}>
                 <Text style={styles.fabText}>+</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.eodFab} onPress={() => setEodOpen(true)}>
+            <TouchableOpacity style={[styles.eodFab, { bottom: 140 + (!loggedToday ? logTodayBannerHeight : 0) }]} onPress={() => setEodOpen(true)}>
                 <Text style={styles.eodFabText}>🌙 End of Day</Text>
             </TouchableOpacity>
 
             {/* ── Daily log-today banner ───────────────────────────────────── */}
             {!loggedToday && (
-                <View style={styles.logTodayBanner}>
+                <View style={styles.logTodayBanner} onLayout={e => setLogTodayBannerHeight(e.nativeEvent.layout.height)}>
                     <View style={styles.logTodayLeft}>
                         <Text style={styles.logTodayTitle}>🌙 Log today's sales before you sleep</Text>
                         <Text style={styles.logTodaySub}>Takes 30 seconds</Text>
@@ -981,6 +1052,13 @@ const styles = StyleSheet.create({
         ...Shadow.sm,
     },
     solveBannerText: { color: '#fff', fontWeight: '700', fontSize: 14, flex: 1 },
+    progressCard: {
+        flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+        backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1.5,
+        padding: Spacing.md, marginBottom: Spacing.lg,
+        ...Shadow.sm,
+    },
+    progressCardText: { flex: 1, fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
 
     betaCard:           { backgroundColor: Colors.surface, borderRadius: 16, padding: 16, marginBottom: 14, borderWidth: 1.5, borderColor: Colors.primary + '55' },
     betaCardHeader:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
