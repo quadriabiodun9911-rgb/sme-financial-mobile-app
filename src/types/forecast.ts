@@ -137,7 +137,8 @@ export type AlertType =
   | 'loan_payment_overdue'
   | 'loan_payment_due_soon'
   | 'payroll_overdue'
-  | 'payroll_due_soon';
+  | 'payroll_due_soon'
+  | 'overdue_transaction';
 
 export interface ForecastAlert {
   id: string;

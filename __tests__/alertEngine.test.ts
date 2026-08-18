@@ -54,6 +54,24 @@ function makeRun(period: string): PayrollRun {
     };
 }
 
+function isoDaysAgo(days: number): string {
+    const d = new Date();
+    d.setDate(d.getDate() - days);
+    return d.toISOString().split('T')[0];
+}
+
+function makeTx(overrides: Partial<Transaction> = {}): Transaction {
+    return {
+        id: 'tx-1',
+        date: isoDaysAgo(20),
+        description: 'Cash sale — bulk order',
+        type: 'income',
+        category: 'Sales',
+        amount: 45000,
+        ...overrides,
+    };
+}
+
 function makeLoan(overrides: Partial<Loan>): Loan {
     return {
         id: 'loan-1',
@@ -192,6 +210,43 @@ describe('alertEngine', () => {
         it('defaults to no loan alerts when no loans are passed', () => {
             const alerts = detectAlerts(1000000, [], []);
             expect(alerts.some(a => a.type.startsWith('loan_payment'))).toBe(false);
+        });
+    });
+
+    describe('overdue transaction alerts', () => {
+        it('flags an overdue income transaction not linked to any invoice', () => {
+            const tx = makeTx({ status: 'overdue' });
+            const alerts = detectAlerts(1000000, [tx], []);
+            const found = alerts.find(a => a.type === 'overdue_transaction');
+            expect(found).toBeDefined();
+            expect(found?.id).toBe('alert-overdue-tx-tx-1');
+        });
+
+        it('flags a pending transaction whose dueDate has passed', () => {
+            const tx = makeTx({ status: 'pending', dueDate: isoDaysAgo(10) });
+            const alerts = detectAlerts(1000000, [tx], []);
+            expect(alerts.some(a => a.type === 'overdue_transaction')).toBe(true);
+        });
+
+        it('never flags an expense transaction', () => {
+            const tx = makeTx({ type: 'expense', status: 'overdue' });
+            const alerts = detectAlerts(1000000, [tx], []);
+            expect(alerts.some(a => a.type === 'overdue_transaction')).toBe(false);
+        });
+
+        it('excludes a transaction linked to an already-alerted overdue invoice', () => {
+            const linkedTx = makeTx({ status: 'overdue', reference: overdueInvoice.invoiceNumber });
+            const alerts = detectAlerts(1000000, [linkedTx], [overdueInvoice]);
+            // Should see the invoice's own alert, but not a second alert for the linked transaction.
+            expect(alerts.some(a => a.type === 'overdue_invoice')).toBe(true);
+            expect(alerts.some(a => a.type === 'overdue_transaction')).toBe(false);
+        });
+
+        it('still flags an unlinked overdue transaction alongside a genuinely separate overdue invoice', () => {
+            const unlinkedTx = makeTx({ id: 'tx-2', status: 'overdue', reference: undefined });
+            const alerts = detectAlerts(1000000, [unlinkedTx], [overdueInvoice]);
+            expect(alerts.some(a => a.type === 'overdue_invoice')).toBe(true);
+            expect(alerts.some(a => a.type === 'overdue_transaction')).toBe(true);
         });
     });
 

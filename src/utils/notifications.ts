@@ -19,6 +19,7 @@ const KEYS = {
     overdueRemindersId: '@quad360/notif_overdue_reminders_id',
     loanPaymentDueId: '@quad360/notif_loan_payment_due_id',
     payrollDueId: '@quad360/notif_payroll_due_id',
+    overdueTransactionsId: '@quad360/notif_overdue_transactions_id',
 };
 
 export async function requestNotificationPermission(): Promise<boolean> {
@@ -159,6 +160,35 @@ export async function notifyPayrollDue(status: PayrollReminderStatus): Promise<v
         });
 
         await AsyncStorage.setItem(KEYS.payrollDueId, Date.now().toString());
+    } catch {
+        // Fail silently
+    }
+}
+
+// Overdue income logged directly as a transaction (not via Invoices) --
+// invoices already have their own richer reminder flow (invoiceReminders.ts
+// + this screen's stepper); this is the equivalent bare-minimum "you have
+// money to chase" nudge for the uninvoiced kind. Throttled to once a day,
+// same reasoning as the other reminder notifications here.
+export async function notifyOverdueTransactionsFound(count: number, totalAmount: number, currency: string): Promise<void> {
+    try {
+        if (Platform.OS === 'web' || count === 0) return;
+
+        const prevNotified = await AsyncStorage.getItem(KEYS.overdueTransactionsId);
+        if (prevNotified) {
+            const daysSinceLastNotif = (Date.now() - parseInt(prevNotified, 10)) / (1000 * 60 * 60 * 24);
+            if (daysSinceLastNotif < 1) return;
+        }
+
+        await Notifications.scheduleNotificationAsync({
+            content: {
+                title: `${count} payment${count === 1 ? '' : 's'} overdue 💰`,
+                body: `${currency}${Math.round(totalAmount).toLocaleString()} owed to you, logged as sales rather than invoices.`,
+            },
+            trigger: null,
+        });
+
+        await AsyncStorage.setItem(KEYS.overdueTransactionsId, Date.now().toString());
     } catch {
         // Fail silently
     }

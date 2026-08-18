@@ -4,6 +4,7 @@ import { generateCashFlowForecast } from './forecastEngine';
 import { computeMonthlyTrend } from './finance';
 import { nextLoanPaymentDueDate, daysUntilLoanPaymentDue, isLoanPaymentOverdue } from './loanMath';
 import { getPayrollReminderStatus, DEFAULT_PAYROLL_DUE_SOON_DAY } from './payrollReminders';
+import { getUninvoicedOverdueTransactions } from './overdueTransactions';
 
 /**
  * Real-Time Cash Alerts System
@@ -79,6 +80,10 @@ export class AlertEngine {
     // Overdue invoices
     const overdueAlerts = this.detectOverdueInvoiceAlerts();
     alerts.push(...overdueAlerts);
+
+    // Overdue income logged directly as a transaction (not via Invoices)
+    const overdueTransactionAlerts = this.detectOverdueTransactionAlerts();
+    alerts.push(...overdueTransactionAlerts);
 
     // Large expenses coming
     const expenseAlert = this.detectLargeExpenseAlert();
@@ -202,6 +207,35 @@ export class AlertEngine {
     });
 
     return alerts;
+  }
+
+  /**
+   * Detect overdue income logged directly as a transaction -- a cash sale
+   * or manually-tracked receivable, not routed through Invoices. Excludes
+   * any transaction linked to an invoice (see overdueTransactions.ts) since
+   * that invoice already produces its own overdue_invoice alert above;
+   * without the exclusion the same overdue money would show up twice.
+   */
+  private detectOverdueTransactionAlerts(): ForecastAlert[] {
+    return getUninvoicedOverdueTransactions(this.transactions, this.invoices).map(({ transaction, daysOverdue }) => {
+      const priority = daysOverdue > 30 ? 'high' : daysOverdue > 14 ? 'medium' : 'low';
+      const who = transaction.vendorCustomer || transaction.description;
+
+      return {
+        id: `alert-overdue-tx-${transaction.id}`,
+        type: 'overdue_transaction',
+        priority,
+        title: `💰 Payment Overdue — ${who}`,
+        description: `${transaction.description} (${this.formatCurrency(transaction.amount)}) is ${daysOverdue} day${daysOverdue === 1 ? '' : 's'} overdue.`,
+        amount: transaction.amount,
+        affectedDate: transaction.dueDate,
+        recommendations: [
+          'Follow up with the customer directly',
+          'Consider logging it as a formal invoice for easier tracking',
+        ],
+        createdAt: new Date().toISOString(),
+      };
+    });
   }
 
   /**

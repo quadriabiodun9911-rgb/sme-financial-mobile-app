@@ -1,4 +1,4 @@
-import { Invoice, InventoryItem, Budget, Loan, PrimaryGoal } from '../types';
+import { Invoice, InventoryItem, Budget, Loan, Transaction, PrimaryGoal } from '../types';
 import { ForecastAlert } from '../types/forecast';
 import { FinancingRecommendation } from './financingRecommendation';
 import { monthlyPayment } from './loanMath';
@@ -16,6 +16,7 @@ export type PriorityTier = 'attention' | 'watch' | 'opportunity';
 export type PriorityKind =
     | 'overdue_invoices'
     | 'overdue_loan_payments'
+    | 'overdue_transactions'
     | 'low_cash'
     | 'negative_forecast'
     | 'large_expense_coming'
@@ -48,18 +49,18 @@ const TIER_RANK: Record<PriorityTier, number> = { attention: 0, watch: 1, opport
 // uncollected receivables are a direct cash-flow lever, not just a
 // collections issue.
 const GOAL_KINDS: Record<PrimaryGoal, PriorityKind[]> = {
-    cashflow: ['low_cash', 'negative_forecast', 'large_expense_coming', 'overdue_invoices', 'overdue_loan_payments', 'payroll_overdue', 'payroll_due_soon'],
+    cashflow: ['low_cash', 'negative_forecast', 'large_expense_coming', 'overdue_invoices', 'overdue_loan_payments', 'overdue_transactions', 'payroll_overdue', 'payroll_due_soon'],
     costs: ['overspent_budget'],
     financing: ['financing_opportunity'],
 };
 
-// alertEngine reports one alert per overdue invoice or overdue loan; the
-// dashboard already aggregates each of those into a single card ("3
-// customers, ₦420,000 to collect"), so those alert types are excluded here
-// to avoid double-reporting the same risk in two different shapes. Payroll
-// never produces more than one alert at a time (detectPayrollAlert returns
-// at most one), so it passes through generically instead of needing its
-// own aggregation block.
+// alertEngine reports one alert per overdue invoice, overdue loan, or
+// overdue transaction; the dashboard already aggregates each of those into
+// a single card ("3 customers, ₦420,000 to collect"), so those alert types
+// are excluded here to avoid double-reporting the same risk in two
+// different shapes. Payroll never produces more than one alert at a time
+// (detectPayrollAlert returns at most one), so it passes through
+// generically instead of needing its own aggregation block.
 const PASSTHROUGH_ALERT_TYPES = new Set(['low_cash', 'negative_forecast', 'large_expense_coming', 'payroll_overdue', 'payroll_due_soon']);
 
 function alertToPriorityItem(alert: ForecastAlert): PriorityItem {
@@ -77,6 +78,7 @@ export function buildDashboardPriorities(input: {
     alerts: ForecastAlert[];
     overdueInvoices: Invoice[];
     overdueLoans?: Loan[];
+    overdueTransactions?: Transaction[];
     lowStockItems: InventoryItem[];
     overspentBudgets: OverspentBudget[];
     financingOpportunity: FinancingRecommendation | null;
@@ -84,7 +86,7 @@ export function buildDashboardPriorities(input: {
     /** Undefined ("not sure yet", or not asked) means no preference -- today's tier/amount ordering, unchanged. */
     primaryGoal?: PrimaryGoal;
 }): PriorityItem[] {
-    const { alerts, overdueInvoices, overdueLoans = [], lowStockItems, overspentBudgets, financingOpportunity, currency, primaryGoal } = input;
+    const { alerts, overdueInvoices, overdueLoans = [], overdueTransactions = [], lowStockItems, overspentBudgets, financingOpportunity, currency, primaryGoal } = input;
     const items: PriorityItem[] = [];
 
     for (const alert of alerts) {
@@ -115,6 +117,22 @@ export function buildDashboardPriorities(input: {
             tier: 'attention',
             title: `${overdueLoans.length} Loan Payment${overdueLoans.length > 1 ? 's' : ''} Overdue`,
             subtitle: `${currency}${total.toLocaleString()} owed to ${overdueLoans.length > 1 ? 'your lenders' : overdueLoans[0].lenderName}`,
+            impactAmount: total,
+        });
+    }
+
+    // Income logged directly as a transaction (not through Invoices) that's
+    // overdue or past its pending due date -- alertEngine already excludes
+    // anything linked to an invoice, so this never double-counts against
+    // the overdue-invoices card above.
+    if (overdueTransactions.length > 0) {
+        const total = overdueTransactions.reduce((s, t) => s + t.amount, 0);
+        items.push({
+            id: 'priority-overdue-transactions',
+            kind: 'overdue_transactions',
+            tier: 'attention',
+            title: `${overdueTransactions.length} Payment${overdueTransactions.length > 1 ? 's' : ''} Overdue`,
+            subtitle: `${currency}${total.toLocaleString()} to collect (logged as sales, not invoiced)`,
             impactAmount: total,
         });
     }

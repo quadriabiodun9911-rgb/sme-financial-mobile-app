@@ -17,6 +17,7 @@ import Icon from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { t } from '../utils/i18n';
 import { trackDataExported } from '../utils/analytics';
+import { isOverdueIncomeTransaction, getOverdueIncomeTransactions } from '../utils/overdueTransactions';
 
 type FilterType   = 'all' | 'income' | 'expense' | 'collect';
 type StatusFilter = 'all' | 'paid' | 'pending' | 'overdue';
@@ -142,10 +143,7 @@ export default function TransactionsScreen() {
         return transactions.filter(tx => {
             if (typeFilter === 'collect') {
                 // Collections: income that is overdue or pending with past due date
-                if (tx.type !== 'income') return false;
-                const isOverdue = tx.status === 'overdue';
-                const isPendingPastDue = tx.status === 'pending' && tx.dueDate && new Date(tx.dueDate + 'T00:00:00') < new Date();
-                if (!isOverdue && !isPendingPastDue) return false;
+                if (!isOverdueIncomeTransaction(tx)) return false;
             } else {
                 if (typeFilter !== 'all' && tx.type !== typeFilter) return false;
                 if (statusFilter !== 'all' && (tx.status ?? 'paid') !== statusFilter) return false;
@@ -172,6 +170,8 @@ export default function TransactionsScreen() {
             return b.amount - a.amount;
         });
     }, [filtered, typeFilter]);
+
+    const overdueCollections = useMemo(() => getOverdueIncomeTransactions(transactions), [transactions]);
 
     const baseTxs = typeFilter === 'collect' ? collectionsFiltered : filtered;
     const visibleTxs = useMemo(() => baseTxs.slice(0, page * PAGE_SIZE), [baseTxs, page, PAGE_SIZE]);
@@ -409,6 +409,14 @@ export default function TransactionsScreen() {
                         );
                     })()}
                 </>
+            )}
+
+            {typeFilter !== 'collect' && overdueCollections.length > 0 && (
+                <NextStepLink
+                    text={`${overdueCollections.length} payment${overdueCollections.length > 1 ? 's' : ''} overdue — ${currency}${overdueCollections.reduce((s, o) => s + o.transaction.amount, 0).toLocaleString()} to collect`}
+                    onPress={() => { setTypeFilter('collect'); setPage(1); }}
+                    emphasis="button"
+                />
             )}
 
             {/* Daily/weekly/monthly pace already lives on Profit & Loss's

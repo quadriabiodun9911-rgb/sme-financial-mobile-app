@@ -36,10 +36,11 @@ import StatTile from '../components/ui/StatTile';
 import { buildFinancingFitInput } from '../utils/financingFit';
 import { recommendFinancingTypes } from '../utils/financingRecommendation';
 import { computeReadinessDelta } from '../utils/readinessHistory';
-import { notifyFinancingOpportunity, notifyOverdueRemindersDue, notifyLoanPaymentDueSoon, notifyPayrollDue } from '../utils/notifications';
+import { notifyFinancingOpportunity, notifyOverdueRemindersDue, notifyLoanPaymentDueSoon, notifyPayrollDue, notifyOverdueTransactionsFound } from '../utils/notifications';
 import { getInvoicesDueForReminder, loadReminderState, InvoiceReminderState } from '../utils/invoiceReminders';
 import { isLoanPaymentOverdue, daysUntilLoanPaymentDue } from '../utils/loanMath';
 import { getPayrollReminderStatus } from '../utils/payrollReminders';
+import { getUninvoicedOverdueTransactions } from '../utils/overdueTransactions';
 import { detectFinancialAlerts, DEFAULT_THRESHOLDS } from '../utils/alertEngine';
 import { buildDashboardPriorities, PriorityKind, PriorityTier, OverspentBudget } from '../utils/dashboardPriorities';
 
@@ -57,6 +58,7 @@ const PRIORITY_TIER_META: Record<PriorityTier, { emoji: string; label: string; c
 const PRIORITY_KIND_META: Record<PriorityKind, { icon: IconName; screen: Screen }> = {
     overdue_invoices:     { icon: 'dollar-sign',    screen: 'invoices' },
     overdue_loan_payments: { icon: 'alert-triangle', screen: 'loans' },
+    overdue_transactions:  { icon: 'dollar-sign',    screen: 'transactions' },
     low_cash:              { icon: 'alert-circle',   screen: 'cashflow' },
     negative_forecast:     { icon: 'trending-down',  screen: 'cashflow' },
     large_expense_coming:  { icon: 'alert-triangle', screen: 'cashflow' },
@@ -188,6 +190,10 @@ export default function DashboardScreen() {
 
     const lowStockItems = useMemo(() => inventory.filter(i => i.quantity <= i.lowStockThreshold), [inventory]);
     const overdueLoans = useMemo(() => loans.filter(l => isLoanPaymentOverdue(l)), [loans]);
+    const overdueTransactions = useMemo(
+        () => getUninvoicedOverdueTransactions(transactions, invoices).map(o => o.transaction),
+        [transactions, invoices]
+    );
     const totalCash = useMemo(() => cashPockets.reduce((s, p) => s + p.amount, 0), [cashPockets]);
 
     // The "what changed" story, not just the current snapshot -- built from
@@ -273,6 +279,12 @@ export default function DashboardScreen() {
         notifyPayrollDue(payrollStatus).catch(() => {});
     }, [isDemoMode, payrollStatus]);
 
+    useEffect(() => {
+        if (isDemoMode || overdueTransactions.length === 0) return;
+        const total = overdueTransactions.reduce((s, t) => s + t.amount, 0);
+        notifyOverdueTransactionsFound(overdueTransactions.length, total, settings?.currency ?? '₦').catch(() => {});
+    }, [isDemoMode, overdueTransactions, settings?.currency]);
+
     // Same cash-flow risk detection the header's alert bell uses -- pure
     // computation, cheap to run a second time here rather than threading
     // Header's alert state down through props for what's otherwise an
@@ -287,13 +299,14 @@ export default function DashboardScreen() {
             alerts,
             overdueInvoices,
             overdueLoans,
+            overdueTransactions,
             lowStockItems,
             overspentBudgets,
             financingOpportunity,
             currency: settings?.currency ?? '₦',
             primaryGoal: settings?.primaryGoal,
         }),
-        [alerts, overdueInvoices, overdueLoans, lowStockItems, overspentBudgets, financingOpportunity, settings?.currency, settings?.primaryGoal]
+        [alerts, overdueInvoices, overdueLoans, overdueTransactions, lowStockItems, overspentBudgets, financingOpportunity, settings?.currency, settings?.primaryGoal]
     );
 
     const openFab = (type: 'income' | 'expense' = 'income') => {

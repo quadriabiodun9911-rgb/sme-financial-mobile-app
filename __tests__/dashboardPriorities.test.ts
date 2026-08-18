@@ -1,4 +1,4 @@
-import { Invoice, InventoryItem, Loan } from '../src/types';
+import { Invoice, InventoryItem, Loan, Transaction } from '../src/types';
 import { ForecastAlert } from '../src/types/forecast';
 import { FinancingRecommendation } from '../src/utils/financingRecommendation';
 import { buildDashboardPriorities, OverspentBudget } from '../src/utils/dashboardPriorities';
@@ -32,6 +32,17 @@ const loan = (overrides: Partial<Loan> = {}): Loan => ({
     status: 'active',
     payments: [],
     createdAt: '2026-01-01T00:00:00.000Z',
+    ...overrides,
+});
+
+const txFixture = (overrides: Partial<Transaction> = {}): Transaction => ({
+    id: 'tx-1',
+    date: '2026-07-20',
+    description: 'Cash sale',
+    type: 'income',
+    category: 'Sales',
+    amount: 30000,
+    status: 'overdue',
     ...overrides,
 });
 
@@ -222,6 +233,36 @@ describe('buildDashboardPriorities', () => {
         const item = result.find(p => p.kind === 'payroll_due_soon');
         expect(item).toBeDefined();
         expect(item?.tier).toBe('watch');
+    });
+
+    it('aggregates overdue transactions into a single attention-tier card', () => {
+        const result = buildDashboardPriorities({
+            alerts: [], overdueInvoices: [],
+            overdueTransactions: [txFixture({ id: 't1', amount: 30000 }), txFixture({ id: 't2', amount: 20000 })],
+            lowStockItems: [], overspentBudgets: [], financingOpportunity: null, currency: '₦',
+        });
+        const item = result.find(p => p.kind === 'overdue_transactions');
+        expect(item).toBeDefined();
+        expect(item?.tier).toBe('attention');
+        expect(item?.title).toBe('2 Payments Overdue');
+        expect(item?.impactAmount).toBe(50000);
+    });
+
+    it('defaults to no overdue-transactions card when overdueTransactions is omitted', () => {
+        const result = buildDashboardPriorities({
+            alerts: [], overdueInvoices: [], lowStockItems: [], overspentBudgets: [], financingOpportunity: null, currency: '₦',
+        });
+        expect(result.some(p => p.kind === 'overdue_transactions')).toBe(false);
+    });
+
+    it('keeps overdue transactions separate from overdue invoices, not merged into one card', () => {
+        const result = buildDashboardPriorities({
+            alerts: [], overdueInvoices: [invoice()],
+            overdueTransactions: [txFixture()],
+            lowStockItems: [], overspentBudgets: [], financingOpportunity: null, currency: '₦',
+        });
+        expect(result.some(p => p.kind === 'overdue_invoices')).toBe(true);
+        expect(result.some(p => p.kind === 'overdue_transactions')).toBe(true);
     });
 
     it('defaults to no overdue-loan card when overdueLoans is omitted', () => {
