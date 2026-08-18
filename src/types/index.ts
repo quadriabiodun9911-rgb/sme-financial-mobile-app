@@ -261,7 +261,15 @@ export interface BusinessSettings {
     nextTaxDeadline?: string;  // ISO date — next VAT/Corporation Tax (or local equivalent) filing deadline, used by Tax Filing Readiness
     legalEntityType?: LegalEntityType; // drives the generic compliance-obligations checklist on Tax Filing Readiness
     macroAssumptions?: MacroAssumption[]; // owner-entered external-factor beliefs, see MacroAssumption
+    // Asked once at onboarding (editable later in Settings) — the one thing
+    // the owner said matters most right now. Only the values the app can
+    // genuinely act on today are offered (see OnboardingChoiceScreen):
+    // real signals get re-ranked toward what was chosen, nothing is
+    // fabricated to fit an answer the app has no data behind.
+    primaryGoal?: PrimaryGoal;
 }
+
+export type PrimaryGoal = 'cashflow' | 'costs' | 'financing';
 
 export interface NavParams {
     reportSection?: 'statements' | 'customers' | 'tax' | 'planning' | 'growth';

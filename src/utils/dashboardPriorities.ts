@@ -1,4 +1,4 @@
-import { Invoice, InventoryItem, Budget } from '../types';
+import { Invoice, InventoryItem, Budget, PrimaryGoal } from '../types';
 import { ForecastAlert } from '../types/forecast';
 import { FinancingRecommendation } from './financingRecommendation';
 
@@ -38,6 +38,17 @@ export interface OverspentBudget extends Budget {
 
 const TIER_RANK: Record<PriorityTier, number> = { attention: 0, watch: 1, opportunity: 2 };
 
+// What "matters most" (set once at onboarding, editable in Settings) maps to
+// among the kinds this function already computes -- never a new kind, never
+// a fabricated one. Overdue invoices are included under cashflow since
+// uncollected receivables are a direct cash-flow lever, not just a
+// collections issue.
+const GOAL_KINDS: Record<PrimaryGoal, PriorityKind[]> = {
+    cashflow: ['low_cash', 'negative_forecast', 'large_expense_coming', 'overdue_invoices'],
+    costs: ['overspent_budget'],
+    financing: ['financing_opportunity'],
+};
+
 // alertEngine reports one alert per overdue invoice; the dashboard already
 // aggregates overdue invoices into a single card ("3 customers, ₦420,000 to
 // collect"), so that alert type is excluded here to avoid double-reporting
@@ -62,8 +73,10 @@ export function buildDashboardPriorities(input: {
     overspentBudgets: OverspentBudget[];
     financingOpportunity: FinancingRecommendation | null;
     currency: string;
+    /** Undefined ("not sure yet", or not asked) means no preference -- today's tier/amount ordering, unchanged. */
+    primaryGoal?: PrimaryGoal;
 }): PriorityItem[] {
-    const { alerts, overdueInvoices, lowStockItems, overspentBudgets, financingOpportunity, currency } = input;
+    const { alerts, overdueInvoices, lowStockItems, overspentBudgets, financingOpportunity, currency, primaryGoal } = input;
     const items: PriorityItem[] = [];
 
     for (const alert of alerts) {
@@ -116,5 +129,18 @@ export function buildDashboardPriorities(input: {
         });
     }
 
-    return items.sort((a, b) => TIER_RANK[a.tier] - TIER_RANK[b.tier] || b.impactAmount - a.impactAmount);
+    const preferredKinds = primaryGoal ? GOAL_KINDS[primaryGoal] : null;
+    return items.sort((a, b) => {
+        const tierDiff = TIER_RANK[a.tier] - TIER_RANK[b.tier];
+        if (tierDiff !== 0) return tierDiff;
+        // Real urgency (tier) always wins -- this only breaks ties within a
+        // tier toward what the owner said matters most, it never promotes a
+        // watch-tier item above an attention-tier one.
+        if (preferredKinds) {
+            const aPreferred = preferredKinds.includes(a.kind);
+            const bPreferred = preferredKinds.includes(b.kind);
+            if (aPreferred !== bPreferred) return aPreferred ? -1 : 1;
+        }
+        return b.impactAmount - a.impactAmount;
+    });
 }

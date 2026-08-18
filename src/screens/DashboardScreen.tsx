@@ -240,8 +240,9 @@ export default function DashboardScreen() {
             overspentBudgets,
             financingOpportunity,
             currency: settings?.currency ?? '₦',
+            primaryGoal: settings?.primaryGoal,
         }),
-        [alerts, overdueInvoices, lowStockItems, overspentBudgets, financingOpportunity, settings?.currency]
+        [alerts, overdueInvoices, lowStockItems, overspentBudgets, financingOpportunity, settings?.currency, settings?.primaryGoal]
     );
 
     const openFab = (type: 'income' | 'expense' = 'income') => {
@@ -381,10 +382,20 @@ export default function DashboardScreen() {
                     Action Tracker), so showing this banner to a staff
                     account would just lead to a dead-end restricted-access
                     screen. */}
+                {/* When the owner said financing-readiness is what matters
+                    most, this goes straight to Credit-Worthiness -- the
+                    screen that actually answers that question -- instead of
+                    the broader Business Passport. */}
                 {canViewFinancials && (
-                    <TouchableOpacity style={styles.solveBanner} onPress={() => setCurrentScreen('business-passport')} activeOpacity={0.8}>
-                        <Icon name="shield" size={16} color="#fff" />
-                        <Text style={styles.solveBannerText}>See your Business Passport</Text>
+                    <TouchableOpacity
+                        style={styles.solveBanner}
+                        onPress={() => setCurrentScreen(settings?.primaryGoal === 'financing' ? 'credit-worthiness' : 'business-passport')}
+                        activeOpacity={0.8}
+                    >
+                        <Icon name={settings?.primaryGoal === 'financing' ? 'credit-card' : 'shield'} size={16} color="#fff" />
+                        <Text style={styles.solveBannerText}>
+                            {settings?.primaryGoal === 'financing' ? 'See your Capital Readiness' : 'See your Business Passport'}
+                        </Text>
                         <Icon name="arrow-right" size={16} color="#fff" />
                     </TouchableOpacity>
                 )}

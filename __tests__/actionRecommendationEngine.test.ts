@@ -80,3 +80,46 @@ describe('generateActionPlan — feeding outcome history back into recommendatio
         expect(action.pastAttempt?.succeeded).toBe(true);
     });
 });
+
+describe('generateActionPlan — reordering by primaryGoal (onboarding "what matters most")', () => {
+    // With slow-moving inventory added, shortTermActions ties three tactics
+    // at priority 7: an expense_reduction, a revenue, and a cash_improvement
+    // tactic (in that insertion order, since expense/revenue generators run
+    // before the inventory generator). This is a real generated tie, not a
+    // hand-built fixture, so it proves the reordering actually moves
+    // something rather than trivially matching the default order.
+    const tieMetrics = makeMetrics({ inventoryValue: 500000, slowMovingValuePct: 60 });
+
+    it('leaves the default (no-goal) order exactly as the generators produced it', () => {
+        const plan = generateActionPlan(makeDiagnosis(tieMetrics), tieMetrics, '₦');
+        const tied = plan.shortTermActions.filter(a => a.priority === 7).map(a => a.id);
+        expect(tied).toEqual(['expense-reduction-0', 'revenue-price-increase', 'inventory-clear-slow-movers']);
+    });
+
+    it('moves the cash_improvement tactic to the front of its priority tier when primaryGoal is cashflow', () => {
+        const plan = generateActionPlan(makeDiagnosis(tieMetrics), tieMetrics, '₦', [], 'cashflow');
+        const tied = plan.shortTermActions.filter(a => a.priority === 7).map(a => a.id);
+        expect(tied[0]).toBe('inventory-clear-slow-movers');
+    });
+
+    it('moves the expense_reduction tactic to the front of its priority tier when primaryGoal is costs', () => {
+        const plan = generateActionPlan(makeDiagnosis(tieMetrics), tieMetrics, '₦', [], 'costs');
+        const tied = plan.shortTermActions.filter(a => a.priority === 7).map(a => a.id);
+        expect(tied[0]).toBe('expense-reduction-0');
+    });
+
+    it('never promotes a genuinely lower-priority tactic above a higher-priority one, even when it matches the goal', () => {
+        // expense-reduction-1 is priority 6 and matches 'costs' (expense_reduction);
+        // the three priority-7 tactics above it -- including two that don't
+        // match 'costs' -- must still all outrank it.
+        const plan = generateActionPlan(makeDiagnosis(tieMetrics), tieMetrics, '₦', [], 'costs');
+        const shortTermIds = plan.shortTermActions.map(a => a.id);
+        expect(shortTermIds.indexOf('expense-reduction-1')).toBe(shortTermIds.length - 1);
+    });
+
+    it('does not reorder anything when primaryGoal has no matching impactType (financing)', () => {
+        const withoutGoal = generateActionPlan(makeDiagnosis(tieMetrics), tieMetrics, '₦');
+        const withFinancingGoal = generateActionPlan(makeDiagnosis(tieMetrics), tieMetrics, '₦', [], 'financing');
+        expect(withFinancingGoal.shortTermActions.map(a => a.id)).toEqual(withoutGoal.shortTermActions.map(a => a.id));
+    });
+});

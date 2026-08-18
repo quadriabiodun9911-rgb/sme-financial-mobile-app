@@ -29,8 +29,8 @@ export default function FinancialAssessmentScreen() {
   }, [transactions, invoices, finance, settings, loans, inventory]);
 
   const actionPlan = useMemo(() => {
-    return generateActionPlan(diagnosis, diagnosis.metrics, settings.currency);
-  }, [diagnosis, settings.currency]);
+    return generateActionPlan(diagnosis, diagnosis.metrics, settings.currency, [], settings.primaryGoal);
+  }, [diagnosis, settings.currency, settings.primaryGoal]);
 
   // Same canonical score CreditWorthinessScreen and the Funding Readiness
   // Pack show — reused here (not recomputed) so the Readiness pillar below

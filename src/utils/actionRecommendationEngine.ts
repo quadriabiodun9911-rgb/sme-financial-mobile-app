@@ -4,6 +4,7 @@
  */
 
 import { DiagnosisResult, FinancialMetrics } from './financialDiagnosisEngine';
+import { PrimaryGoal } from '../types';
 
 export interface ActionTactic {
   id: string;
@@ -432,7 +433,8 @@ export function generateActionPlan(
   diagnosis: DiagnosisResult,
   metrics: FinancialMetrics,
   currency: string = '₦',
-  outcomeHistory: PastTacticOutcome[] = []
+  outcomeHistory: PastTacticOutcome[] = [],
+  primaryGoal?: PrimaryGoal
 ): ActionPlan {
   let allActions: ActionTactic[] = [];
 
@@ -475,18 +477,40 @@ export function generateActionPlan(
     });
   }
 
+  // What "matters most" (set once at onboarding, editable in Settings)
+  // only breaks ties among tactics the diagnosis already rated equally
+  // urgent -- it never pushes a lower-priority tactic above a higher one.
+  // 'financing' has no matching impactType among revenue/expense_reduction/
+  // cash_improvement, so it's deliberately left unmapped here; that
+  // preference surfaces on the Dashboard's Capital Readiness link instead.
+  const preferredImpactType: ActionTactic['impactType'] | null =
+    primaryGoal === 'costs' ? 'expense_reduction' :
+    primaryGoal === 'cashflow' ? 'cash_improvement' :
+    null;
+
+  const byPriorityThenGoal = (a: ActionTactic, b: ActionTactic) => {
+    const priorityDiff = b.priority - a.priority;
+    if (priorityDiff !== 0) return priorityDiff;
+    if (preferredImpactType) {
+      const aPreferred = a.impactType === preferredImpactType;
+      const bPreferred = b.impactType === preferredImpactType;
+      if (aPreferred !== bPreferred) return aPreferred ? -1 : 1;
+    }
+    return 0;
+  };
+
   // Sort by priority and timeframe
   const immediateActions = allActions
     .filter(a => a.timeframe === 'immediate')
-    .sort((a, b) => b.priority - a.priority);
+    .sort(byPriorityThenGoal);
 
   const shortTermActions = allActions
     .filter(a => a.timeframe === 'week' || a.timeframe === 'month')
-    .sort((a, b) => b.priority - a.priority);
+    .sort(byPriorityThenGoal);
 
   const strategicActions = allActions
     .filter(a => a.timeframe === 'quarter')
-    .sort((a, b) => b.priority - a.priority);
+    .sort(byPriorityThenGoal);
 
   // Calculate estimated impact
   const totalImpact = allActions.reduce((sum, a) => sum + a.expectedImpact, 0);

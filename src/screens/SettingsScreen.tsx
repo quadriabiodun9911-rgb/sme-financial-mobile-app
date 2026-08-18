@@ -18,6 +18,7 @@ import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { trackDataExported } from '../utils/analytics';
 import { isFinancingAdmin } from '../utils/financingAdmin';
+import { PRIMARY_GOAL_OPTIONS } from '../utils/primaryGoals';
 
 const CURRENCIES = [
     { label: 'USD ($)',    value: '$'   },
@@ -328,6 +329,23 @@ export default function SettingsScreen() {
                                 {BUSINESS_TYPES.map(bt => (
                                     <Opt key={bt.value} label={bt.label} active={form.businessType === bt.value}
                                         onPress={() => setForm((f: typeof form) => ({ ...f, businessType: bt.value }))} />
+                                ))}
+                            </View>
+                        </Section>
+
+                        {/* Set once at onboarding, changeable any time here.
+                            Reranks Dashboard's priority list and the action
+                            plan toward this -- see dashboardPriorities.ts and
+                            actionRecommendationEngine.ts -- it never changes
+                            what's shown, only what surfaces first. */}
+                        <Section title="What Matters Most Right Now">
+                            <Text style={styles.hint}>
+                                Changes what Dashboard and your action plan surface first — never what's shown, only the order.
+                            </Text>
+                            <View style={styles.optRow}>
+                                {PRIMARY_GOAL_OPTIONS.map(opt => (
+                                    <Opt key={opt.label} label={opt.label} active={(form.primaryGoal ?? null) === opt.value}
+                                        onPress={() => setForm((f: typeof form) => ({ ...f, primaryGoal: opt.value ?? undefined }))} />
                                 ))}
                             </View>
                         </Section>
