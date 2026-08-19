@@ -1,4 +1,4 @@
-import { Transaction, Invoice, Loan, StaffMember, PayrollRun, FinancialGoal } from '../types';
+import { Transaction, Invoice, Loan, StaffMember, PayrollRun, FinancialGoal, Budget } from '../types';
 import { ForecastAlert, AlertThresholds, CashFlowForecast, ForecastInput } from '../types/forecast';
 import { generateCashFlowForecast } from './forecastEngine';
 import { computeMonthlyTrend } from './finance';
@@ -7,6 +7,7 @@ import { getPayrollReminderStatus, DEFAULT_PAYROLL_DUE_SOON_DAY } from './payrol
 import { getUninvoicedOverdueTransactions } from './overdueTransactions';
 import { getTaxDeadlineStatus, TAX_DEADLINE_DUE_SOON_DAYS } from './taxDeadline';
 import { nextRecurringDueDate, daysUntilRecurringDue, isRecurringTransactionOverdue, hasRecurringSchedule } from './recurringTransactions';
+import { isBudgetPeriodLapsed, currentPeriodString } from './budgetPeriod';
 
 /**
  * Real-Time Cash Alerts System
@@ -40,6 +41,7 @@ export class AlertEngine {
   private payrollRuns: PayrollRun[];
   private nextTaxDeadline?: string;
   private goals: FinancialGoal[];
+  private budgets: Budget[];
   private forecast?: CashFlowForecast;
   private thresholds: AlertThresholds;
   private dismissedAlerts: Set<string>;
@@ -57,7 +59,8 @@ export class AlertEngine {
     staff?: StaffMember[],
     payrollRuns?: PayrollRun[],
     nextTaxDeadline?: string,
-    goals?: FinancialGoal[]
+    goals?: FinancialGoal[],
+    budgets?: Budget[]
   ) {
     this.currentCash = currentCash;
     this.transactions = transactions;
@@ -67,6 +70,7 @@ export class AlertEngine {
     this.payrollRuns = payrollRuns || [];
     this.nextTaxDeadline = nextTaxDeadline;
     this.goals = goals || [];
+    this.budgets = budgets || [];
     this.forecast = forecast;
     this.thresholds = { ...DEFAULT_THRESHOLDS, ...thresholds };
     this.dismissedAlerts = new Set(dismissedAlertIds || []);
@@ -118,6 +122,10 @@ export class AlertEngine {
     // Recurring transactions whose next occurrence is overdue or coming soon
     const recurringAlerts = this.detectRecurringTransactionAlerts();
     alerts.push(...recurringAlerts);
+
+    // Budgeting has gone dormant for the current month
+    const budgetLapsedAlert = this.detectBudgetPeriodLapsedAlert();
+    if (budgetLapsedAlert) alerts.push(budgetLapsedAlert);
 
     // Filter out dismissed alerts
     return alerts.filter(a => !this.dismissedAlerts.has(a.id));
@@ -543,6 +551,32 @@ export class AlertEngine {
   }
 
   /**
+   * Detect budgeting having gone dormant for the current month -- the
+   * business has budgeted before (never fires for someone who's simply
+   * never used the feature, same guard as payroll's hadStaffLastMonth),
+   * but nothing is active now. A stable id keyed to the period, not a
+   * timestamp, so dismissing this month's nudge doesn't un-dismiss itself
+   * on the next recompute.
+   */
+  private detectBudgetPeriodLapsedAlert(): ForecastAlert | null {
+    if (!isBudgetPeriodLapsed(this.budgets)) return null;
+
+    const period = currentPeriodString();
+    return {
+      id: `alert-budget-period-lapsed-${period}`,
+      type: 'budget_period_lapsed',
+      priority: 'low',
+      title: '📋 No Budget Set This Month',
+      description: `You've budgeted before, but nothing is active for ${period} -- overspending won't be tracked until you renew it.`,
+      affectedDate: period,
+      recommendations: [
+        'Renew your categories in Budget, or use Auto-Generate Budget to refresh them all at once',
+      ],
+      createdAt: new Date().toISOString(),
+    };
+  }
+
+  /**
    * Mark an alert as dismissed
    */
   public dismissAlert(alertId: string): void {
@@ -612,7 +646,8 @@ export const detectAlerts = (
   staff?: StaffMember[],
   payrollRuns?: PayrollRun[],
   nextTaxDeadline?: string,
-  goals?: FinancialGoal[]
+  goals?: FinancialGoal[],
+  budgets?: Budget[]
 ): ForecastAlert[] => {
   const engine = new AlertEngine(
     currentCash,
@@ -626,7 +661,8 @@ export const detectAlerts = (
     staff,
     payrollRuns,
     nextTaxDeadline,
-    goals
+    goals,
+    budgets
   );
   return engine.detectAllAlerts();
 };
@@ -698,8 +734,9 @@ export const buildForecastInput = (
  * forecast from live financial data, then runs every alert detector
  * (low cash, negative forecast, overdue invoices, large upcoming expenses,
  * loan payments overdue or due soon, payroll not run, tax filing deadline,
- * goals off track or past deadline) against it. Pure computation -- no side
- * effects, no persistence; the caller owns dismissal storage.
+ * goals off track or past deadline, recurring transactions, a lapsed
+ * budget period) against it. Pure computation -- no side effects, no
+ * persistence; the caller owns dismissal storage.
  */
 export const detectFinancialAlerts = (
   currentCash: number,
@@ -711,8 +748,9 @@ export const detectFinancialAlerts = (
   staff?: StaffMember[],
   payrollRuns?: PayrollRun[],
   nextTaxDeadline?: string,
-  goals?: FinancialGoal[]
+  goals?: FinancialGoal[],
+  budgets?: Budget[]
 ): ForecastAlert[] => {
   const forecast = generateCashFlowForecast(buildForecastInput(currentCash, transactions, invoices, currency));
-  return detectAlerts(currentCash, transactions, invoices, forecast, undefined, dismissedAlertIds, currency, loans, staff, payrollRuns, nextTaxDeadline, goals);
+  return detectAlerts(currentCash, transactions, invoices, forecast, undefined, dismissedAlertIds, currency, loans, staff, payrollRuns, nextTaxDeadline, goals, budgets);
 };

@@ -36,13 +36,14 @@ import StatTile from '../components/ui/StatTile';
 import { buildFinancingFitInput } from '../utils/financingFit';
 import { recommendFinancingTypes } from '../utils/financingRecommendation';
 import { computeReadinessDelta } from '../utils/readinessHistory';
-import { notifyFinancingOpportunity, notifyOverdueRemindersDue, notifyLoanPaymentDueSoon, notifyPayrollDue, notifyOverdueTransactionsFound, notifyTaxDeadline, notifyGoalAlerts, notifyRecurringTransactionAlerts } from '../utils/notifications';
+import { notifyFinancingOpportunity, notifyOverdueRemindersDue, notifyLoanPaymentDueSoon, notifyPayrollDue, notifyOverdueTransactionsFound, notifyTaxDeadline, notifyGoalAlerts, notifyRecurringTransactionAlerts, notifyBudgetPeriodLapsed } from '../utils/notifications';
 import { getInvoicesDueForReminder, loadReminderState, InvoiceReminderState } from '../utils/invoiceReminders';
 import { isLoanPaymentOverdue, daysUntilLoanPaymentDue } from '../utils/loanMath';
 import { getPayrollReminderStatus } from '../utils/payrollReminders';
 import { getUninvoicedOverdueTransactions } from '../utils/overdueTransactions';
 import { getTaxDeadlineStatus } from '../utils/taxDeadline';
 import { isRecurringTransactionOverdue, daysUntilRecurringDue, hasRecurringSchedule } from '../utils/recurringTransactions';
+import { isBudgetActiveForPeriod, isBudgetPeriodLapsed, currentPeriodString } from '../utils/budgetPeriod';
 import { detectFinancialAlerts, DEFAULT_THRESHOLDS } from '../utils/alertEngine';
 import { buildDashboardPriorities, PriorityKind, PriorityTier, OverspentBudget } from '../utils/dashboardPriorities';
 
@@ -74,6 +75,7 @@ const PRIORITY_KIND_META: Record<PriorityKind, { icon: IconName; screen: Screen 
     goal_deadline_passed:   { icon: 'target',           screen: 'goals' },
     goal_off_track:         { icon: 'flag',             screen: 'goals' },
     recurring_transaction_overdue: { icon: 'repeat',    screen: 'transactions' },
+    budget_period_lapsed:   { icon: 'calendar',        screen: 'budget' },
 };
 
 export default function DashboardScreen() {
@@ -185,7 +187,7 @@ export default function DashboardScreen() {
         const monthStr = thisMonthStr;
         return budgets
             .map(b => {
-                if (b.period && b.period !== monthStr) return null;
+                if (!isBudgetActiveForPeriod(b, monthStr)) return null;
                 const spent = transactions
                     .filter(t => t.type === 'expense' && t.category === b.category && t.date.startsWith(monthStr))
                     .reduce((s, t) => s + t.amount, 0);
@@ -337,13 +339,21 @@ export default function DashboardScreen() {
         notifyRecurringTransactionAlerts(overdueRecurringTransactions.length, recurringDueSoonCount).catch(() => {});
     }, [isDemoMode, overdueRecurringTransactions.length, recurringDueSoonCount]);
 
+    // Never fires for a business that's simply never used budgeting -- see
+    // budgetPeriod.ts's isBudgetPeriodLapsed guard.
+    const budgetPeriodLapsed = useMemo(() => isBudgetPeriodLapsed(budgets), [budgets]);
+    useEffect(() => {
+        if (isDemoMode || !budgetPeriodLapsed) return;
+        notifyBudgetPeriodLapsed(currentPeriodString()).catch(() => {});
+    }, [isDemoMode, budgetPeriodLapsed]);
+
     // Same cash-flow risk detection the header's alert bell uses -- pure
     // computation, cheap to run a second time here rather than threading
     // Header's alert state down through props for what's otherwise an
     // unrelated component tree.
     const alerts = useMemo(
-        () => detectFinancialAlerts(finance.cashBalance, transactions, invoices, settings?.currency, undefined, loans, staff, payrollRuns, settings?.nextTaxDeadline, goals),
-        [finance.cashBalance, transactions, invoices, settings?.currency, loans, staff, payrollRuns, settings?.nextTaxDeadline, goals]
+        () => detectFinancialAlerts(finance.cashBalance, transactions, invoices, settings?.currency, undefined, loans, staff, payrollRuns, settings?.nextTaxDeadline, goals, budgets),
+        [finance.cashBalance, transactions, invoices, settings?.currency, loans, staff, payrollRuns, settings?.nextTaxDeadline, goals, budgets]
     );
 
     const priorities = useMemo(

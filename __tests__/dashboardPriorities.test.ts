@@ -318,6 +318,16 @@ describe('buildDashboardPriorities', () => {
         expect(result.some(p => p.kind === 'recurring_transaction_overdue')).toBe(false);
     });
 
+    it('passes a budget_period_lapsed alert through into the watch tier', () => {
+        const result = buildDashboardPriorities({
+            alerts: [alert({ id: 'alert-budget-period-lapsed-2026-08', type: 'budget_period_lapsed', priority: 'low', title: '📋 No Budget Set This Month' })],
+            overdueInvoices: [], lowStockItems: [], overspentBudgets: [], financingOpportunity: null, currency: '₦',
+        });
+        const item = result.find(p => p.kind === 'budget_period_lapsed');
+        expect(item).toBeDefined();
+        expect(item?.tier).toBe('watch');
+    });
+
     it('never surfaces a recurring_transaction_due_soon alert as a priority item', () => {
         const result = buildDashboardPriorities({
             alerts: [alert({ id: 'alert-recurring-due-soon-r1', type: 'recurring_transaction_due_soon', priority: 'low', title: '🔁 Recurring Expense Coming Up — Rent' })],

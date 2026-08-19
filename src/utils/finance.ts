@@ -3,6 +3,7 @@ import { getWeekRanges, transactionsInRange, sumByType } from './periodRange';
 import { computeLeverageRatios } from './debtRatios';
 import { computeCashRunway } from './cashRunway';
 import { computeStockVelocity } from './stockVelocity';
+import { activeBudgetsForPeriod } from './budgetPeriod';
 
 // ─── Tax rate ──────────────────────────────────────────────────────────────
 // settings.defaultTaxRate is stored as a percentage NUMBER (e.g. "20" means
@@ -1268,7 +1269,7 @@ export function computeCashFlowForecast(
     // weeks that actually fall within this calendar month, since a budget
     // is a plan for "this month," not an indefinite recurring commitment.
     const currentPeriod = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-    const monthlyBudgetTotal = budgets.filter(b => b.period === currentPeriod).reduce((s, b) => s + b.monthlyAmount, 0);
+    const monthlyBudgetTotal = activeBudgetsForPeriod(budgets, currentPeriod).reduce((s, b) => s + b.monthlyAmount, 0);
     const weeklyBudgetOutflow = monthlyBudgetTotal / 4.33;
 
     // Map invoice due dates to weeks
@@ -1512,7 +1513,14 @@ export interface BudgetVsActual {
 
 export function computeBudgetVsActual(transactions: Transaction[], budgets: Budget[], month: string): BudgetVsActual[] {
     const monthTx = transactions.filter(t => t.date.startsWith(month) && t.type === 'expense');
-    return budgets.map(b => {
+    // A budget is a plan for one calendar month, not an indefinite
+    // commitment -- previously this compared every budget ever created
+    // against the given month's spend, so a category set once and never
+    // revisited kept being silently evaluated (and shown as on-track/over)
+    // months after its own period had passed, while every other consumer
+    // of Budget[] (the Dashboard overspend check, the cash-flow forecast)
+    // had already stopped counting it.
+    return activeBudgetsForPeriod(budgets, month).map(b => {
         const actual = monthTx.filter(t => t.category.toLowerCase() === b.category.toLowerCase()).reduce((s, t) => s + t.amount, 0);
         const variance = b.monthlyAmount - actual;
         const variancePct = b.monthlyAmount > 0 ? (variance / b.monthlyAmount) * 100 : 0;

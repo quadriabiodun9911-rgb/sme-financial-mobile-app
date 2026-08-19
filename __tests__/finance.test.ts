@@ -9,8 +9,9 @@ import {
     countActiveMonths,
     getMonthlyExpenseAverage,
     computeTaxTotals,
+    computeBudgetVsActual,
 } from '../src/utils/finance';
-import { Transaction } from '../src/types';
+import { Transaction, Budget } from '../src/types';
 
 const makeTx = (overrides: Partial<Transaction>): Transaction => ({
     id: 'test',
@@ -399,5 +400,39 @@ describe('computeTaxTotals', () => {
         const thisYearOnly = allTime.filter(t => t.date.startsWith('2026'));
         expect(computeTaxTotals(allTime).totalTaxCollected).toBe(800);
         expect(computeTaxTotals(thisYearOnly).totalTaxCollected).toBe(300);
+    });
+});
+
+describe('computeBudgetVsActual', () => {
+    const makeBudget = (overrides: Partial<Budget>): Budget => ({
+        id: 'b1', category: 'Marketing', monthlyAmount: 50000, period: '2026-08', ...overrides,
+    });
+
+    it('evaluates a budget whose period matches the given month', () => {
+        const budgets = [makeBudget({ period: '2026-08' })];
+        const txs = [makeTx({ type: 'expense', category: 'Marketing', amount: 20000, date: '2026-08-05' })];
+        const result = computeBudgetVsActual(txs, budgets, '2026-08');
+        expect(result).toHaveLength(1);
+        expect(result[0].actual).toBe(20000);
+    });
+
+    it('excludes a budget whose period is from a past month, not the given one', () => {
+        // Regression: this used to run every budget ever created against
+        // whatever month was passed in, so a category set once in June kept
+        // being silently evaluated against August's spend forever, while
+        // DashboardScreen's own overspend check and the cash-flow forecast
+        // had already stopped counting it -- three call sites disagreeing
+        // about which budgets were still "live."
+        const budgets = [makeBudget({ id: 'stale', period: '2026-06' })];
+        const txs = [makeTx({ type: 'expense', category: 'Marketing', amount: 90000, date: '2026-08-05' })];
+        const result = computeBudgetVsActual(txs, budgets, '2026-08');
+        expect(result).toHaveLength(0);
+    });
+
+    it('keeps a budget with no period at all, treating it as always current', () => {
+        const budgets = [makeBudget({ period: '' })];
+        const txs = [makeTx({ type: 'expense', category: 'Marketing', amount: 10000, date: '2026-08-05' })];
+        const result = computeBudgetVsActual(txs, budgets, '2026-08');
+        expect(result).toHaveLength(1);
     });
 });

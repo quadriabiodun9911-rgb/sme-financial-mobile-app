@@ -24,6 +24,7 @@ const KEYS = {
     taxDeadlineId: '@quad360/notif_tax_deadline_id',
     goalAlertsId: '@quad360/notif_goal_alerts_id',
     recurringTransactionsId: '@quad360/notif_recurring_transactions_id',
+    budgetPeriodLapsedId: '@quad360/notif_budget_period_lapsed_id',
 };
 
 export async function requestNotificationPermission(): Promise<boolean> {
@@ -290,6 +291,33 @@ export async function notifyRecurringTransactionAlerts(overdueCount: number, due
         });
 
         await AsyncStorage.setItem(KEYS.recurringTransactionsId, Date.now().toString());
+    } catch {
+        // Fail silently
+    }
+}
+
+// Only fires for a business that has budgeted before (see
+// budgetPeriod.ts's isBudgetPeriodLapsed) -- never a nag to someone who's
+// simply never used the feature. Throttled to once a day.
+export async function notifyBudgetPeriodLapsed(period: string): Promise<void> {
+    try {
+        if (Platform.OS === 'web') return;
+
+        const prevNotified = await AsyncStorage.getItem(KEYS.budgetPeriodLapsedId);
+        if (prevNotified) {
+            const daysSinceLastNotif = (Date.now() - parseInt(prevNotified, 10)) / (1000 * 60 * 60 * 24);
+            if (daysSinceLastNotif < 1) return;
+        }
+
+        await Notifications.scheduleNotificationAsync({
+            content: {
+                title: 'No budget set this month 📋',
+                body: `You've budgeted before, but nothing is active for ${period}. Renew it to keep tracking overspending.`,
+            },
+            trigger: null,
+        });
+
+        await AsyncStorage.setItem(KEYS.budgetPeriodLapsedId, Date.now().toString());
     } catch {
         // Fail silently
     }

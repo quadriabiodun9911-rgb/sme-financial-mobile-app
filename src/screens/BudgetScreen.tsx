@@ -12,6 +12,7 @@ import { totalMonthlyLoanBurden } from '../utils/loanMath';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateExpenseReductionActions } from '../utils/actionRecommendationEngine';
 import { generateAutoBudget, AutoBudgetSuggestion } from '../utils/budgetEngine';
+import { isBudgetPeriodLapsed } from '../utils/budgetPeriod';
 import NextStepLink from '../components/NextStepLink';
 import ProfitCashImpactCard from '../components/ProfitCashImpactCard';
 import { computeProfitCashImpact } from '../utils/impactChain';
@@ -46,6 +47,12 @@ export default function BudgetScreen() {
     const [adjustedAmounts, setAdjustedAmounts] = useState<Record<string, string>>({});
 
     const bva = useMemo(() => computeBudgetVsActual(transactions, budgets, currentMonth), [transactions, budgets, currentMonth]);
+
+    // budgets is never empty here and computeBudgetVsActual now filters to
+    // the current period only (see finance.ts) -- when every category is
+    // from a past period, bva comes back empty even though budgets isn't,
+    // which is the moment to say so instead of just showing a bare table.
+    const budgetPeriodLapsed = useMemo(() => isBudgetPeriodLapsed(budgets), [budgets]);
 
     const totalBudgeted = budgets.reduce((s, b) => s + b.monthlyAmount, 0);
     const totalActual   = bva.reduce((s, b) => s + b.actual, 0);
@@ -268,6 +275,18 @@ export default function BudgetScreen() {
             </View>
 
             <ScrollView ref={scrollRef} style={s.scroll} contentContainerStyle={s.pad}>
+                {budgetPeriodLapsed && (
+                    <TouchableOpacity style={s.lapsedBanner} onPress={openAutoGen} activeOpacity={0.8}>
+                        <Icon name="calendar" size={16} color={Colors.warning} />
+                        <View style={{ flex: 1 }}>
+                            <Text style={s.lapsedBannerTitle}>No budget set for {monthLabel}</Text>
+                            <Text style={s.lapsedBannerText}>
+                                You've budgeted before, but nothing's active this month — overspending won't be tracked. Tap to auto-generate, or edit a category below to renew it.
+                            </Text>
+                        </View>
+                    </TouchableOpacity>
+                )}
+
                 {/* Month summary */}
                 <View style={s.summaryCard}>
                     <Text style={s.summaryMonth}>{monthLabel}</Text>
@@ -690,6 +709,14 @@ const s = StyleSheet.create({
     safe:         { flex: 1, backgroundColor: Colors.bg },
     scroll:       { flex: 1, backgroundColor: Colors.bg },
     pad:          { padding: Spacing.lg, paddingBottom: 100 },
+
+    lapsedBanner: {
+        flexDirection: 'row', gap: 10, alignItems: 'flex-start',
+        backgroundColor: Colors.warning + '18', borderWidth: 1, borderColor: Colors.warning,
+        borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.lg,
+    },
+    lapsedBannerTitle: { fontSize: 13.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: 3 },
+    lapsedBannerText:  { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
 
     // flexWrap is the safety net: back-link + title + up to 3 conditional
     // buttons (Adjust/Cancel Adjust, Auto, + Add) don't all fit one row on

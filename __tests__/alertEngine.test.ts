@@ -1,4 +1,4 @@
-import { Transaction, Invoice, Loan, StaffMember, PayrollRun, FinancialGoal } from '../src/types';
+import { Transaction, Invoice, Loan, StaffMember, PayrollRun, FinancialGoal, Budget } from '../src/types';
 import { detectAlerts, detectCriticalAlerts, getAlertStats, detectFinancialAlerts, DEFAULT_THRESHOLDS } from '../src/utils/alertEngine';
 
 // startDate expressed relative to the real current date (matching how
@@ -445,6 +445,34 @@ describe('alertEngine', () => {
             const tx = makeTx({ isRecurring: true, recurringFrequency: 'monthly', date: isoDaysAgo(2) });
             const alerts = detectAlerts(1000000, [tx], []);
             expect(alerts.some(a => a.type.startsWith('recurring_transaction'))).toBe(false);
+        });
+    });
+
+    describe('budget period lapsed alerts', () => {
+        function makeBudget(overrides: Partial<Budget> = {}): Budget {
+            return { id: 'b1', category: 'Marketing', monthlyAmount: 50000, period: prevPeriod(), ...overrides };
+        }
+
+        it('flags when budgets exist but none are active for the current period', () => {
+            const alerts = detectAlerts(
+                1000000, [], [], undefined, undefined, undefined, '₦', [], [], [], undefined, [], [makeBudget()]
+            );
+            const lapsed = alerts.find(a => a.type === 'budget_period_lapsed');
+            expect(lapsed).toBeDefined();
+            expect(lapsed?.id).toBe(`alert-budget-period-lapsed-${currentPeriod()}`);
+            expect(lapsed?.priority).toBe('low');
+        });
+
+        it('never flags when a budget is active for the current period', () => {
+            const alerts = detectAlerts(
+                1000000, [], [], undefined, undefined, undefined, '₦', [], [], [], undefined, [], [makeBudget({ period: currentPeriod() })]
+            );
+            expect(alerts.some(a => a.type === 'budget_period_lapsed')).toBe(false);
+        });
+
+        it('never flags when there are no budgets at all', () => {
+            const alerts = detectAlerts(1000000, [], []);
+            expect(alerts.some(a => a.type === 'budget_period_lapsed')).toBe(false);
         });
     });
 

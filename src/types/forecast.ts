@@ -146,7 +146,8 @@ export type AlertType =
   | 'goal_deadline_passed'
   | 'goal_off_track'
   | 'recurring_transaction_overdue'
-  | 'recurring_transaction_due_soon';
+  | 'recurring_transaction_due_soon'
+  | 'budget_period_lapsed';
 
 export interface ForecastAlert {
   id: string;
