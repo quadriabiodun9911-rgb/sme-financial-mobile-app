@@ -21,6 +21,7 @@ const makeDiagnosis = (overrides: Partial<RootCauseAnalysis> = {}): RootCauseAna
     impact: 'Margins will keep compressing month over month if this continues',
     financialImpact: 5000,
     opportunity: 'Freeze discretionary spend increases until revenue growth catches up',
+    dimension: 'efficiency',
     ...overrides,
 });
 

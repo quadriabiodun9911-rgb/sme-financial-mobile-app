@@ -63,6 +63,12 @@ export interface RootCauseAnalysis {
   impact: string;
   financialImpact: number;
   opportunity: string;
+  // Which HealthCategory this came from -- same discriminator as the score
+  // breakdown, set explicitly per diagnosis (mirrors suggestedGoalType's
+  // reasoning below) so goalRiskLinkage.ts can filter diagnoses down to the
+  // ones actually relevant to a given goal type without parsing `problem`
+  // text.
+  dimension: HealthCategory['key'];
   // Which trackable goal type (goals.ts) would address this, if any -- set
   // explicitly per diagnosis rather than inferred from the problem text, so
   // the "achieve a goal -> here's your next one" loop (DashboardScreen)
@@ -316,6 +322,7 @@ export function diagnoseProfitability(
       financialImpact: potentialGain,
       opportunity: 'Increase prices or reduce expenses',
       suggestedGoalType: 'margin_improvement',
+      dimension: 'profitability',
     });
   }
 
@@ -329,6 +336,7 @@ export function diagnoseProfitability(
       financialImpact: -metrics.totalRevenue * (metrics.monthOverMonthGrowth / 100),
       opportunity: 'Launch customer acquisition or win-back campaign',
       suggestedGoalType: 'revenue_growth',
+      dimension: 'profitability',
     });
   }
 
@@ -341,6 +349,7 @@ export function diagnoseProfitability(
       impact: 'Cash forecasting unreliable; cash flow volatile',
       financialImpact: 0,
       opportunity: 'Convert one-off customers to subscriptions/retainers',
+      dimension: 'profitability',
     });
   }
 
@@ -363,6 +372,7 @@ export function diagnoseLiquidity(
       financialImpact: -metrics.cashBalance,
       opportunity: 'Immediate: Collect overdue invoices or cut expenses',
       suggestedGoalType: 'cash_reserve',
+      dimension: 'liquidity',
     });
   } else if (metrics.runwayDays < INDUSTRY_BENCHMARKS.runwayDaysSafe) {
     diagnoses.push({
@@ -373,6 +383,7 @@ export function diagnoseLiquidity(
       financialImpact: 0,
       opportunity: 'Build 60+ day cash buffer through revenue growth or cost cutting',
       suggestedGoalType: 'cash_reserve',
+      dimension: 'liquidity',
     });
   }
 
@@ -394,6 +405,7 @@ export function diagnoseLiquidity(
       financialImpact: metrics.accountsReceivable,
       opportunity: 'Implement strict payment terms; offer early payment discounts',
       suggestedGoalType: 'reduce_overdue_ar',
+      dimension: 'liquidity',
     });
   }
 
@@ -413,6 +425,7 @@ export function diagnoseWorkingCapital(
       impact: 'Working capital trapped in the gap between paying out and getting paid',
       financialImpact: 0,
       opportunity: 'Negotiate longer supplier payment terms or shorter customer payment terms to close the gap',
+      dimension: 'workingCapital',
     });
   }
 
@@ -435,6 +448,7 @@ export function diagnoseDebt(
       impact: `${currency}${metrics.monthlyDebtService.toLocaleString()} in monthly debt service against current income`,
       financialImpact: metrics.monthlyDebtService,
       opportunity: 'Grow operating income, refinance for lower payments, or pause new borrowing until DSCR recovers',
+      dimension: 'debt',
     });
   }
 
@@ -456,6 +470,7 @@ export function diagnoseInventory(
       impact: `${currency}${Math.round(trappedValue).toLocaleString()} sitting in slow-moving stock instead of cash`,
       financialImpact: trappedValue,
       opportunity: 'Discount or bundle slow movers to free up cash; reduce reorder quantities for these items',
+      dimension: 'inventory',
     });
   }
 
@@ -475,6 +490,7 @@ export function diagnoseConcentration(
       impact: 'Losing this customer would be an existential risk, not just a bad month',
       financialImpact: 0,
       opportunity: 'Actively diversify the customer base; cap any single customer\'s share of revenue',
+      dimension: 'concentration',
     });
   }
 
@@ -486,6 +502,7 @@ export function diagnoseConcentration(
       impact: 'A price increase, stockout, or falling-out with this supplier would hit operations directly',
       financialImpact: 0,
       opportunity: 'Qualify a second supplier for critical inputs before it becomes urgent',
+      dimension: 'concentration',
     });
   }
 
@@ -511,6 +528,7 @@ export function diagnoseEfficiency(
       financialImpact: metrics.totalExpenses * (growthGap / 100),
       opportunity: 'Freeze discretionary spend increases until revenue growth catches up',
       suggestedGoalType: 'cost_reduction',
+      dimension: 'efficiency',
     });
   }
 
@@ -532,6 +550,7 @@ export function diagnoseEfficiency(
         financialImpact: topCategory[1] * 0.1, // 10% potential savings
         opportunity: `Negotiate better rates or reduce ${topCategory[0]} usage`,
         suggestedGoalType: 'cost_reduction',
+        dimension: 'efficiency',
       });
     }
   }

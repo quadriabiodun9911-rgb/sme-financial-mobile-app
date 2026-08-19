@@ -19,6 +19,8 @@ import { generateActionPlan } from '../utils/actionRecommendationEngine';
 import { suggestSolution, ImpactSource } from '../utils/impactChain';
 import { getMonthlyExpenseAverage } from '../utils/finance';
 import { showAlert } from '../utils/webAlert';
+import { computeRiskRadar } from '../utils/riskRadar';
+import { assessGoalRisk, GoalRiskSeverity } from '../utils/goalRiskLinkage';
 
 // Maps each goal type to the closest matching solution category — a
 // revenue/margin goal is fundamentally a pricing/growth problem, a cost or
@@ -59,6 +61,10 @@ const PRIORITY_COLORS = { high: Colors.expense, medium: Colors.warning, low: Col
 
 const FEASIBILITY_COLORS: Record<string, string> = { easy: Colors.income, medium: Colors.warning, difficult: Colors.expense };
 
+const READINESS_BAND_COLORS: Record<string, string> = { Strong: Colors.income, Moderate: Colors.warning, Weak: Colors.expense };
+
+const RISK_SEVERITY_COLORS: Record<GoalRiskSeverity, string> = { high: Colors.expense, medium: Colors.warning, low: Colors.textMuted };
+
 export default function GoalsScreen() {
     const { goals, addGoal, deleteGoal, updateGoal, finance, transactions, invoices, settings, navParams, navigate, setCurrentScreen, loans, inventory } = useApp();
     const { currency } = settings;
@@ -70,7 +76,7 @@ export default function GoalsScreen() {
     // into one modal with two tabs, since both answered the same underlying
     // question ("what do I do about this goal?") with overlapping content.
     const [planGoalId, setPlanGoalId] = useState<string | null>(null);
-    const [planTab, setPlanTab] = useState<'bridge' | 'strategy'>('bridge');
+    const [planTab, setPlanTab] = useState<'bridge' | 'strategy' | 'risks'>('bridge');
     const [selectedType, setSelectedType] = useState<GoalType | null>(null);
 
     // Form state for new/edit goal
@@ -115,17 +121,36 @@ export default function GoalsScreen() {
         [planGoal, finance, transactions, settings]
     );
 
+    // Shared diagnosis for the plan modal — both the Bridge tab (via
+    // .metrics) and the Risks tab (via .diagnoses, see planGoalRisk below)
+    // need it; computed once here instead of twice.
+    const planDiagnosis = useMemo(() => {
+        if (!planGoal) return null;
+        return performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), settings.currency, loans, inventory);
+    }, [planGoal, transactions, invoices, finance, settings, loans, inventory]);
+
     // Full Goal Bridge computation for the plan modal's Bridge tab — mirrors
     // the retired GoalBridgeScreen's own diagnosis -> tactics -> bridge
     // pipeline exactly (that screen never gated on transaction count, unlike
     // feasibilityByGoalId's lightweight card-preview above).
     const planBridge = useMemo(() => {
-        if (!planGoal) return null;
-        const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), settings.currency, loans, inventory);
-        const tactics = generateActionPlan(diagnosis, diagnosis.metrics, settings.currency);
+        if (!planGoal || !planDiagnosis) return null;
+        const tactics = generateActionPlan(planDiagnosis, planDiagnosis.metrics, settings.currency);
         const allTactics = [...tactics.immediateActions, ...tactics.shortTermActions, ...tactics.strategicActions];
-        return calculateGoalBridge(mapSavedGoalToBridge(planGoal), diagnosis.metrics, allTactics, settings.currency);
-    }, [planGoal, transactions, invoices, finance, settings, loans, inventory]);
+        return calculateGoalBridge(mapSavedGoalToBridge(planGoal), planDiagnosis.metrics, allTactics, settings.currency);
+    }, [planGoal, planDiagnosis, settings.currency]);
+
+    // "What could stop me from reaching THIS goal" — filters the same real
+    // diagnosis root-causes and Risk Radar categories shown elsewhere down
+    // to whichever ones actually threaten this goal's type, and combines
+    // that with Goal Bridge's own successProbability into one Growth
+    // Readiness score. See goalRiskLinkage.ts for why nothing here is a
+    // fabricated number.
+    const planGoalRisk = useMemo(() => {
+        if (!planGoal || !planDiagnosis || !planBridge) return null;
+        const riskRadar = computeRiskRadar(transactions, loans, settings?.macroAssumptions ?? []);
+        return assessGoalRisk(planGoal.type, planDiagnosis.diagnoses, riskRadar, planBridge.successProbability);
+    }, [planGoal, planDiagnosis, planBridge, transactions, loans, settings?.macroAssumptions]);
 
     // Auto-open add modal if navigated here with a goalType param, or the
     // plan modal (defaulting to its Bridge tab) if navigated here with a
@@ -451,6 +476,15 @@ export default function GoalsScreen() {
                                                 <Text style={[styles.planTabText, planTab === 'strategy' && styles.planTabTextActive]}>Strategy</Text>
                                             </View>
                                         </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={[styles.planTab, planTab === 'risks' && styles.planTabActive]}
+                                            onPress={() => setPlanTab('risks')}
+                                        >
+                                            <View style={styles.planTabInner}>
+                                                <Icon name="alert-triangle" size={13} color={planTab === 'risks' ? '#fff' : Colors.textMuted} />
+                                                <Text style={[styles.planTabText, planTab === 'risks' && styles.planTabTextActive]}>Risks</Text>
+                                            </View>
+                                        </TouchableOpacity>
                                     </View>
 
                                     {planTab === 'bridge' && planBridge && (
@@ -574,6 +608,68 @@ export default function GoalsScreen() {
 
                                             <Text style={styles.strategyFooter}>
                                                 Strategy refreshes automatically as your financial data changes.
+                                            </Text>
+                                        </>
+                                    )}
+
+                                    {planTab === 'risks' && planGoalRisk && (
+                                        <>
+                                            <View style={[styles.assessmentCard, { borderLeftColor: READINESS_BAND_COLORS[planGoalRisk.readinessBand] }]}>
+                                                <View style={styles.assessmentHeader}>
+                                                    <Text style={styles.assessmentLabel}>Growth Readiness</Text>
+                                                    <View style={[styles.feasibilityBadge, { backgroundColor: READINESS_BAND_COLORS[planGoalRisk.readinessBand] + '22', borderColor: READINESS_BAND_COLORS[planGoalRisk.readinessBand] }]}>
+                                                        <Text style={[styles.feasibilityText, { color: READINESS_BAND_COLORS[planGoalRisk.readinessBand] }]}>
+                                                            {planGoalRisk.readinessBand.toUpperCase()}
+                                                        </Text>
+                                                    </View>
+                                                </View>
+                                                <View style={styles.assessmentRow}>
+                                                    <View style={styles.probabilityContainer}>
+                                                        <View style={styles.probabilityBar}>
+                                                            <View
+                                                                style={[
+                                                                    styles.probabilityFill,
+                                                                    { width: `${planGoalRisk.growthReadiness}%`, backgroundColor: READINESS_BAND_COLORS[planGoalRisk.readinessBand] },
+                                                                ]}
+                                                            />
+                                                        </View>
+                                                        <Text style={styles.probabilityPercent}>{Math.round(planGoalRisk.growthReadiness)}/100</Text>
+                                                    </View>
+                                                </View>
+                                                <Text style={styles.readinessNarrative}>{planGoalRisk.narrative}</Text>
+                                            </View>
+
+                                            <View style={styles.sectionTitleRow}>
+                                                <Icon name="alert-triangle" size={15} color={Colors.textPrimary} />
+                                                <Text style={[styles.sectionTitle, styles.sectionTitleInRow]}>What Could Stop This Goal</Text>
+                                            </View>
+
+                                            {planGoalRisk.risks.length === 0 && (
+                                                <Text style={styles.strategyIntro}>Nothing currently threatens this goal — a clear runway to hit your target.</Text>
+                                            )}
+
+                                            {planGoalRisk.risks.map((risk, i) => (
+                                                <View key={i} style={[styles.actionCard, { borderLeftColor: RISK_SEVERITY_COLORS[risk.severity] }]}>
+                                                    <View style={styles.actionHeader}>
+                                                        <View style={[styles.priorityBadge, { backgroundColor: RISK_SEVERITY_COLORS[risk.severity] + '22' }]}>
+                                                            <Text style={[styles.priorityText, { color: RISK_SEVERITY_COLORS[risk.severity] }]}>
+                                                                {risk.severity.toUpperCase()} RISK
+                                                            </Text>
+                                                        </View>
+                                                    </View>
+                                                    <Text style={styles.actionTitle}>{risk.label}</Text>
+                                                    <Text style={styles.actionDetail}>{risk.summary}</Text>
+                                                    {risk.financialImpact > 0 && (
+                                                        <View style={styles.metricPill}>
+                                                            <Text style={styles.metricText}>{currency}{Math.round(risk.financialImpact).toLocaleString()} at stake</Text>
+                                                        </View>
+                                                    )}
+                                                    <Text style={[styles.actionDetail, { marginTop: 6, fontStyle: 'italic' }]}>→ {risk.action}</Text>
+                                                </View>
+                                            ))}
+
+                                            <Text style={styles.strategyFooter}>
+                                                Risks refresh automatically as your financial data changes.
                                             </Text>
                                         </>
                                     )}
@@ -913,6 +1009,7 @@ const styles = StyleSheet.create({
     probabilityBar: { flex: 1, height: 6, backgroundColor: Colors.surface, borderRadius: 3, overflow: 'hidden' },
     probabilityFill: { height: '100%' },
     probabilityPercent: { fontSize: 12, fontWeight: '700', color: Colors.textPrimary },
+    readinessNarrative: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18, marginTop: 4 },
 
     roadmapNode: { flexDirection: 'row', gap: Spacing.md, marginBottom: Spacing.sm },
     timelineNodeContainer: { alignItems: 'center', width: 30 },
