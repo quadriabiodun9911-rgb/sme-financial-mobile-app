@@ -4,6 +4,7 @@ import {
     Alert, ActivityIndicator, FlatList, Modal, Platform,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Papa from 'papaparse';
@@ -16,6 +17,7 @@ import { parsePdfStatement } from '../utils/pdfParser';
 import { filterNewTransactions } from '../utils/transactionDedup';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { getMonthlyExpenseAverage } from '../utils/finance';
+import { scanStatementImage, ScannedTransaction, ScanMediaType } from '../utils/statementScan';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -328,6 +330,27 @@ function parseRows(raw: Record<string, string>[]): {
     return { rows, summaryRowsSkipped, openingBalance, closingBalance };
 }
 
+// ─── Scanned photo/PDF → preview rows ────────────────────────────────────────
+// Reuses the same classifyByDescription auto-categoriser the CSV/Excel/PDF
+// path uses, so a scanned receipt lands in the identical review step
+// (flagged rows, category picker, dedup) instead of a separate flow.
+function rowsFromScan(transactions: ScannedTransaction[]): ParsedRow[] {
+    return transactions.map((t, i) => {
+        const { category, subCategory, flagged } = classifyByDescription(t.description, t.direction);
+        return {
+            id:          `scan_${Date.now()}_${i}`,
+            date:        parseDate(t.date),
+            description: t.description.trim() || 'Scanned transaction',
+            amount:      Math.abs(t.amount) || 0,
+            type:        t.direction,
+            category,
+            subCategory,
+            flagged,
+            raw:         {},
+        };
+    }).filter(r => r.amount > 0);
+}
+
 // ─── Category options shown in the picker ────────────────────────────────────
 
 const CATEGORY_OPTIONS: { label: string; category: TxCategory; subCategory: string }[] = [
@@ -371,6 +394,8 @@ export default function ImportTransactionsScreen() {
     const [closingBalance, setClosingBalance] = useState<number | undefined>(undefined);
     const [duplicatesSkipped, setDuplicatesSkipped] = useState(0);
     const [imported,   setImported]   = useState(0);
+    const [scanning,   setScanning]   = useState(false);
+    const [scanWarning, setScanWarning] = useState('');
 
     // Web fallback: hidden <input type="file"> for iOS Safari
     const webInputRef = useRef<any>(null);
@@ -543,6 +568,88 @@ export default function ImportTransactionsScreen() {
         }
     }, [processFile]);
 
+    // ── Scan a photo/PDF (camera or gallery/file) → OCR via statement-scan ──
+    const runScan = useCallback(async (base64: string, mediaType: ScanMediaType) => {
+        setScanning(true);
+        setError('');
+        setScanWarning('');
+        try {
+            const result = await scanStatementImage(base64, mediaType);
+            const parsed = rowsFromScan(result.transactions);
+            if (parsed.length === 0) {
+                setError(result.warning || 'No transactions could be read from this photo. Try a clearer, well-lit shot.');
+                return;
+            }
+            setRows(parsed);
+            setOpeningBalance(undefined);
+            setClosingBalance(undefined);
+            setSkippedNote('');
+            if (result.warning) setScanWarning(result.warning);
+            setStep('preview');
+        } catch (e: any) {
+            setError(e?.message || 'Could not scan this file. Please try again.');
+        } finally {
+            setScanning(false);
+        }
+    }, []);
+
+    // Native (iOS/Android) — expo-image-picker handles both camera capture
+    // and the photo library with one API and returns base64 directly.
+    const handleScanNative = useCallback(async (source: 'camera' | 'library') => {
+        setError('');
+        try {
+            const perm = source === 'camera'
+                ? await ImagePicker.requestCameraPermissionsAsync()
+                : await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (!perm.granted) {
+                setError(source === 'camera'
+                    ? 'Camera permission is needed to scan a statement or receipt.'
+                    : 'Photo library permission is needed to pick a photo.');
+                return;
+            }
+            const pick = source === 'camera' ? ImagePicker.launchCameraAsync : ImagePicker.launchImageLibraryAsync;
+            const result = await pick({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                base64: true,
+                quality: 0.7,
+            });
+            if (result.canceled || !result.assets?.[0]?.base64) return;
+            await runScan(result.assets[0].base64, 'image/jpeg');
+        } catch (e: any) {
+            setError(e?.message || 'Failed to open camera/gallery. Please try again.');
+        }
+    }, [runScan]);
+
+    // Web — a hidden <input type="file" accept="image/*">, with
+    // capture="environment" added only for the camera button so it invokes
+    // the device camera on mobile browsers instead of the file picker.
+    const handleScanWeb = useCallback((useCamera: boolean) => {
+        if (typeof document === 'undefined') return;
+        setError('');
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        if (useCamera) input.setAttribute('capture', 'environment');
+        input.onchange = async (e: any) => {
+            const file: File = e.target?.files?.[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = () => {
+                const result = String(reader.result || '');
+                const idx = result.indexOf(',');
+                const base64 = idx >= 0 ? result.slice(idx + 1) : result;
+                const mediaType = (file.type || 'image/jpeg') as ScanMediaType;
+                runScan(base64, mediaType);
+            };
+            reader.onerror = () => setError('Could not read that photo. Please try again.');
+            reader.readAsDataURL(file);
+        };
+        input.click();
+    }, [runScan]);
+
+    const handleScan = (source: 'camera' | 'library') =>
+        Platform.OS === 'web' ? handleScanWeb(source === 'camera') : handleScanNative(source);
+
     // ── Remove a row from preview ────────────────────────────────────────────
     const removeRow = (id: string) => setRows(prev => prev.filter(r => r.id !== id));
 
@@ -713,6 +820,43 @@ export default function ImportTransactionsScreen() {
                         )
                     }
                 </TouchableOpacity>
+
+                <View style={styles.orDivider}>
+                    <View style={styles.orLine} />
+                    <Text style={styles.orText}>OR SCAN A PHOTO</Text>
+                    <View style={styles.orLine} />
+                </View>
+                <Text style={styles.scanHint}>
+                    Snap or upload a photo of a paper statement, till receipt, or invoice — it's read automatically into transactions you can review below.
+                </Text>
+
+                <View style={styles.scanRow}>
+                    <TouchableOpacity
+                        style={[styles.secondaryBtn, scanning && styles.btnDisabled]}
+                        onPress={() => handleScan('camera')}
+                        disabled={scanning || loading}
+                    >
+                        {scanning
+                            ? <ActivityIndicator color={Colors.primary} />
+                            : (
+                                <View style={styles.primaryBtnContent}>
+                                    <Icon name="camera" size={16} color={Colors.primary} />
+                                    <Text style={styles.secondaryBtnText}>Scan with Camera</Text>
+                                </View>
+                            )
+                        }
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.secondaryBtn, scanning && styles.btnDisabled]}
+                        onPress={() => handleScan('library')}
+                        disabled={scanning || loading}
+                    >
+                        <View style={styles.primaryBtnContent}>
+                            <Icon name="image" size={16} color={Colors.primary} />
+                            <Text style={styles.secondaryBtnText}>Upload a Photo</Text>
+                        </View>
+                    </TouchableOpacity>
+                </View>
             </ScrollView>
         );
     }
@@ -777,7 +921,7 @@ export default function ImportTransactionsScreen() {
                 <TouchableOpacity style={styles.ghostBtn} onPress={() => navigate('transactions')}>
                     <Text style={styles.ghostBtnText}>View Transactions</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.ghostBtn} onPress={() => { setStep('upload'); setRows([]); setError(''); setSkippedNote(''); setOpeningBalance(undefined); setClosingBalance(undefined); setDuplicatesSkipped(0); }}>
+                <TouchableOpacity style={styles.ghostBtn} onPress={() => { setStep('upload'); setRows([]); setError(''); setSkippedNote(''); setScanWarning(''); setOpeningBalance(undefined); setClosingBalance(undefined); setDuplicatesSkipped(0); }}>
                     <Text style={styles.ghostBtnText}>Import another file</Text>
                 </TouchableOpacity>
             </ScrollView>
@@ -791,7 +935,7 @@ export default function ImportTransactionsScreen() {
         <View style={styles.container}>
             {/* Fixed header */}
             <View style={styles.previewHeader}>
-                <TouchableOpacity onPress={() => { setStep('upload'); setRows([]); }}>
+                <TouchableOpacity onPress={() => { setStep('upload'); setRows([]); setScanWarning(''); }}>
                     <Text style={styles.backBtn}>← Back</Text>
                 </TouchableOpacity>
                 <View style={{ flex: 1 }}>
@@ -806,6 +950,12 @@ export default function ImportTransactionsScreen() {
                         <View style={styles.noteRow}>
                             <Icon name="info" size={11} color={Colors.textMuted} />
                             <Text style={styles.skippedNote}>{skippedNote}</Text>
+                        </View>
+                    )}
+                    {!!scanWarning && (
+                        <View style={styles.noteRow}>
+                            <Icon name="alert-triangle" size={11} color="#f59e0b" />
+                            <Text style={styles.flaggedNote}>{scanWarning}</Text>
                         </View>
                     )}
                 </View>
@@ -953,6 +1103,17 @@ const styles = StyleSheet.create({
 
     ghostBtn:     { paddingVertical: Spacing.md, alignItems: 'center' },
     ghostBtnText: { color: Colors.primary, fontWeight: '600', fontSize: 14 },
+
+    orDivider: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginVertical: Spacing.lg },
+    orLine:    { flex: 1, height: 1, backgroundColor: Colors.border },
+    orText:    { fontSize: 10, fontWeight: '700', color: Colors.textMuted, letterSpacing: 0.6 },
+    scanHint:  { fontSize: 12, color: Colors.textSecondary, textAlign: 'center', marginBottom: Spacing.md, lineHeight: 18 },
+    scanRow:   { flexDirection: 'row', gap: Spacing.md },
+    secondaryBtn: {
+        flex: 1, borderWidth: 1, borderColor: Colors.primary, borderRadius: Radius.md,
+        paddingVertical: 13, alignItems: 'center', backgroundColor: Colors.surface,
+    },
+    secondaryBtnText: { color: Colors.primary, fontWeight: '800', fontSize: 13 },
 
     // Preview header
     previewHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: 14, backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border },

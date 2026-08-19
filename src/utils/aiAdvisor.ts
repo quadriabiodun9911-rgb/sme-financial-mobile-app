@@ -72,8 +72,12 @@ export async function askAdvisor(question: string, context: AdvisorContext): Pro
         // edge function always replies with a JSON { error } body (see
         // supabase/functions/advisor), so surface that message instead of
         // the generic "Edge Function returned a non-2xx status code".
+        // .context is only a real Response for an actual HTTP error reply;
+        // a network-level failure (e.g. unreachable Supabase project) sets
+        // it to something else, so check for a real .json() before calling
+        // it instead of throwing a confusing "not a function" error.
         const errResponse = (error as { context?: Response }).context;
-        if (errResponse) {
+        if (errResponse && typeof errResponse.json === 'function') {
             const body = await errResponse.json().catch(() => null);
             if (body?.error) throw new Error(body.error);
         }
