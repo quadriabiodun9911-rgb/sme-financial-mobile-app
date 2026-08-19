@@ -28,7 +28,8 @@ export type PriorityKind =
     | 'tax_deadline_overdue'
     | 'tax_deadline_due_soon'
     | 'goal_deadline_passed'
-    | 'goal_off_track';
+    | 'goal_off_track'
+    | 'recurring_transaction_overdue';
 
 export interface PriorityItem {
     id: string;
@@ -53,23 +54,27 @@ const TIER_RANK: Record<PriorityTier, number> = { attention: 0, watch: 1, opport
 // uncollected receivables are a direct cash-flow lever, not just a
 // collections issue.
 const GOAL_KINDS: Record<PrimaryGoal, PriorityKind[]> = {
-    cashflow: ['low_cash', 'negative_forecast', 'large_expense_coming', 'overdue_invoices', 'overdue_loan_payments', 'overdue_transactions', 'payroll_overdue', 'payroll_due_soon', 'tax_deadline_overdue', 'tax_deadline_due_soon'],
+    cashflow: ['low_cash', 'negative_forecast', 'large_expense_coming', 'overdue_invoices', 'overdue_loan_payments', 'overdue_transactions', 'payroll_overdue', 'payroll_due_soon', 'tax_deadline_overdue', 'tax_deadline_due_soon', 'recurring_transaction_overdue'],
     costs: ['overspent_budget'],
     financing: ['financing_opportunity'],
 };
 
-// alertEngine reports one alert per overdue invoice, overdue loan, or
-// overdue transaction; the dashboard already aggregates each of those into
-// a single card ("3 customers, ₦420,000 to collect"), so those alert types
-// are excluded here to avoid double-reporting the same risk in two
-// different shapes. Payroll and the tax filing deadline never produce more
-// than one alert at a time (detectPayrollAlert / detectTaxDeadlineAlert
-// each return at most one), so they pass through generically instead of
-// needing their own aggregation block. Goal alerts can fire once per goal,
-// but unlike loans/invoices/transactions there's no shared unit to sum
-// across goals (revenue growth is in currency, margin improvement is in
-// points, a custom goal could be either) -- one card per goal, named by
-// its own title, is more useful than a vague "N goals off track" total.
+// alertEngine reports one alert per overdue invoice, overdue loan, overdue
+// transaction, or overdue recurring transaction; the dashboard already
+// aggregates each of those into a single card ("3 customers, ₦420,000 to
+// collect"), so those alert types are excluded here to avoid
+// double-reporting the same risk in two different shapes. Payroll and the
+// tax filing deadline never produce more than one alert at a time
+// (detectPayrollAlert / detectTaxDeadlineAlert each return at most one), so
+// they pass through generically instead of needing their own aggregation
+// block. Goal alerts can fire once per goal, but unlike loans/invoices/
+// transactions there's no shared unit to sum across goals (revenue growth
+// is in currency, margin improvement is in points, a custom goal could be
+// either) -- one card per goal, named by its own title, is more useful
+// than a vague "N goals off track" total. recurring_transaction_due_soon
+// is deliberately never surfaced here at all (same as loan_payment_due_soon)
+// -- it's a softer, pre-emptive nudge that only needs the alert bell and a
+// notification, not a Dashboard card competing for attention.
 const PASSTHROUGH_ALERT_TYPES = new Set(['low_cash', 'negative_forecast', 'large_expense_coming', 'payroll_overdue', 'payroll_due_soon', 'tax_deadline_overdue', 'tax_deadline_due_soon', 'goal_deadline_passed', 'goal_off_track']);
 
 function alertToPriorityItem(alert: ForecastAlert): PriorityItem {
@@ -88,6 +93,7 @@ export function buildDashboardPriorities(input: {
     overdueInvoices: Invoice[];
     overdueLoans?: Loan[];
     overdueTransactions?: Transaction[];
+    overdueRecurringTransactions?: Transaction[];
     lowStockItems: InventoryItem[];
     overspentBudgets: OverspentBudget[];
     financingOpportunity: FinancingRecommendation | null;
@@ -95,7 +101,7 @@ export function buildDashboardPriorities(input: {
     /** Undefined ("not sure yet", or not asked) means no preference -- today's tier/amount ordering, unchanged. */
     primaryGoal?: PrimaryGoal;
 }): PriorityItem[] {
-    const { alerts, overdueInvoices, overdueLoans = [], overdueTransactions = [], lowStockItems, overspentBudgets, financingOpportunity, currency, primaryGoal } = input;
+    const { alerts, overdueInvoices, overdueLoans = [], overdueTransactions = [], overdueRecurringTransactions = [], lowStockItems, overspentBudgets, financingOpportunity, currency, primaryGoal } = input;
     const items: PriorityItem[] = [];
 
     for (const alert of alerts) {
@@ -142,6 +148,22 @@ export function buildDashboardPriorities(input: {
             tier: 'attention',
             title: `${overdueTransactions.length} Payment${overdueTransactions.length > 1 ? 's' : ''} Overdue`,
             subtitle: `${currency}${total.toLocaleString()} to collect (logged as sales, not invoiced)`,
+            impactAmount: total,
+        });
+    }
+
+    // Recurring transactions (rent, subscriptions, retainers) whose next
+    // occurrence is overdue. 'watch' rather than 'attention' -- unlike an
+    // overdue invoice or loan payment, there's no certainty this was
+    // actually missed rather than just not re-logged.
+    if (overdueRecurringTransactions.length > 0) {
+        const total = overdueRecurringTransactions.reduce((s, t) => s + t.amount, 0);
+        items.push({
+            id: 'priority-recurring-transactions-overdue',
+            kind: 'recurring_transaction_overdue',
+            tier: 'watch',
+            title: `${overdueRecurringTransactions.length} Recurring Bill${overdueRecurringTransactions.length > 1 ? 's' : ''} Due`,
+            subtitle: `${currency}${total.toLocaleString()} expected — log it if it happened, or update the date`,
             impactAmount: total,
         });
     }

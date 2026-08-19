@@ -36,12 +36,13 @@ import StatTile from '../components/ui/StatTile';
 import { buildFinancingFitInput } from '../utils/financingFit';
 import { recommendFinancingTypes } from '../utils/financingRecommendation';
 import { computeReadinessDelta } from '../utils/readinessHistory';
-import { notifyFinancingOpportunity, notifyOverdueRemindersDue, notifyLoanPaymentDueSoon, notifyPayrollDue, notifyOverdueTransactionsFound, notifyTaxDeadline, notifyGoalAlerts } from '../utils/notifications';
+import { notifyFinancingOpportunity, notifyOverdueRemindersDue, notifyLoanPaymentDueSoon, notifyPayrollDue, notifyOverdueTransactionsFound, notifyTaxDeadline, notifyGoalAlerts, notifyRecurringTransactionAlerts } from '../utils/notifications';
 import { getInvoicesDueForReminder, loadReminderState, InvoiceReminderState } from '../utils/invoiceReminders';
 import { isLoanPaymentOverdue, daysUntilLoanPaymentDue } from '../utils/loanMath';
 import { getPayrollReminderStatus } from '../utils/payrollReminders';
 import { getUninvoicedOverdueTransactions } from '../utils/overdueTransactions';
 import { getTaxDeadlineStatus } from '../utils/taxDeadline';
+import { isRecurringTransactionOverdue, daysUntilRecurringDue, hasRecurringSchedule } from '../utils/recurringTransactions';
 import { detectFinancialAlerts, DEFAULT_THRESHOLDS } from '../utils/alertEngine';
 import { buildDashboardPriorities, PriorityKind, PriorityTier, OverspentBudget } from '../utils/dashboardPriorities';
 
@@ -72,6 +73,7 @@ const PRIORITY_KIND_META: Record<PriorityKind, { icon: IconName; screen: Screen 
     tax_deadline_due_soon:  { icon: 'alert-circle',    screen: 'reports' },
     goal_deadline_passed:   { icon: 'target',           screen: 'goals' },
     goal_off_track:         { icon: 'flag',             screen: 'goals' },
+    recurring_transaction_overdue: { icon: 'repeat',    screen: 'transactions' },
 };
 
 export default function DashboardScreen() {
@@ -170,7 +172,6 @@ export default function DashboardScreen() {
     const overdueCount = metrics.overdueCount;
     const overdueInvoices = metrics.overdueInvoices;
     const owedToYou = metrics.owedToYou;
-    const recurringDueCount = metrics.recurringDueCount;
     const todayProfit = metrics.todayProfit;
     const lastMonthProfit = metrics.lastMonthProfit;
     const thisMonthProfit = metrics.thisMonthProfit;
@@ -315,6 +316,27 @@ export default function DashboardScreen() {
         notifyGoalAlerts(goalsMissedCount, goalsOffTrackCount).catch(() => {});
     }, [isDemoMode, goalsMissedCount, goalsOffTrackCount]);
 
+    // Quad360 has no engine that auto-generates each period's instance, so
+    // this can only ever say "expected by now, not updated since" -- see
+    // recurringTransactions.ts and alertEngine's detectRecurringTransactionAlerts
+    // for the full reasoning.
+    const overdueRecurringTransactions = useMemo(
+        () => transactions.filter(t => hasRecurringSchedule(t) && isRecurringTransactionOverdue(t)),
+        [transactions]
+    );
+    const recurringDueSoonCount = useMemo(
+        () => transactions.filter(t => {
+            if (!hasRecurringSchedule(t)) return false;
+            const d = daysUntilRecurringDue(t);
+            return d >= 0 && d <= DEFAULT_THRESHOLDS.recurringDueSoonDays;
+        }).length,
+        [transactions]
+    );
+    useEffect(() => {
+        if (isDemoMode || (overdueRecurringTransactions.length === 0 && recurringDueSoonCount === 0)) return;
+        notifyRecurringTransactionAlerts(overdueRecurringTransactions.length, recurringDueSoonCount).catch(() => {});
+    }, [isDemoMode, overdueRecurringTransactions.length, recurringDueSoonCount]);
+
     // Same cash-flow risk detection the header's alert bell uses -- pure
     // computation, cheap to run a second time here rather than threading
     // Header's alert state down through props for what's otherwise an
@@ -330,13 +352,14 @@ export default function DashboardScreen() {
             overdueInvoices,
             overdueLoans,
             overdueTransactions,
+            overdueRecurringTransactions,
             lowStockItems,
             overspentBudgets,
             financingOpportunity,
             currency: settings?.currency ?? '₦',
             primaryGoal: settings?.primaryGoal,
         }),
-        [alerts, overdueInvoices, overdueLoans, overdueTransactions, lowStockItems, overspentBudgets, financingOpportunity, settings?.currency, settings?.primaryGoal]
+        [alerts, overdueInvoices, overdueLoans, overdueTransactions, overdueRecurringTransactions, lowStockItems, overspentBudgets, financingOpportunity, settings?.currency, settings?.primaryGoal]
     );
 
     const openFab = (type: 'income' | 'expense' = 'income') => {

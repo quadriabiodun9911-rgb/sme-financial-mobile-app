@@ -126,6 +126,7 @@ export interface AlertThresholds {
   loanPaymentDueSoonDays: number; // Warn a loan payment is coming within X days
   payrollDueSoonDay: number; // Day of the month to start warning payroll hasn't run yet
   taxDeadlineDueSoonDays: number; // Warn a tax filing deadline is coming within X days
+  recurringDueSoonDays: number; // Warn a recurring transaction's next occurrence is coming within X days
 }
 
 export type AlertType =
@@ -143,7 +144,9 @@ export type AlertType =
   | 'tax_deadline_overdue'
   | 'tax_deadline_due_soon'
   | 'goal_deadline_passed'
-  | 'goal_off_track';
+  | 'goal_off_track'
+  | 'recurring_transaction_overdue'
+  | 'recurring_transaction_due_soon';
 
 export interface ForecastAlert {
   id: string;

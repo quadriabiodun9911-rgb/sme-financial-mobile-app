@@ -27,9 +27,6 @@ export interface DashboardMetrics {
     collectionsTotal: number;
     collectionsCount: number;
 
-    // Recurring
-    recurringDueCount: number;
-
     // Profit
     todayProfit: number;
     lastMonthProfit: number;
@@ -118,9 +115,6 @@ export class MetricsComputer {
             collectionsTotal: this.computeCollectionsTotal(),
             collectionsCount: this.computeCollectionsCount(),
 
-            // Recurring transactions due this month
-            recurringDueCount: this.countRecurringDue(),
-
             // Profit calculations (reuse indices)
             todayProfit: this.computeTodayProfit(),
             lastMonthProfit: this.computeMonthProfit(this.lastMonthStr),
@@ -163,13 +157,6 @@ export class MetricsComputer {
         const overdueTx = this.txByStatus.get('overdue') || [];
         const overdueInv = this.invoicesByStatus.get('overdue') || [];
         return overdueTx.length + overdueInv.length;
-    }
-
-    private countRecurringDue(): number {
-        const txsThisMonth = this.txByMonth.get(this.thisMonthStr) || [];
-        return txsThisMonth.filter(
-            t => t.isRecurring && t.nextRecurringDate?.startsWith(this.thisMonthStr),
-        ).length;
     }
 
     private computeMonthProfit(monthStr: string): number {

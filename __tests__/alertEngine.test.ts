@@ -412,6 +412,42 @@ describe('alertEngine', () => {
         });
     });
 
+    describe('recurring transaction alerts', () => {
+        it('flags a recurring expense whose next occurrence has passed', () => {
+            const tx = makeTx({ id: 'rent-1', type: 'expense', isRecurring: true, recurringFrequency: 'monthly', date: isoMonthsAgo(2) });
+            const alerts = detectAlerts(1000000, [tx], []);
+            const overdue = alerts.find(a => a.type === 'recurring_transaction_overdue');
+            expect(overdue).toBeDefined();
+            expect(overdue?.id).toBe('alert-recurring-overdue-rent-1');
+        });
+
+        it('flags a recurring income whose next occurrence is coming up soon', () => {
+            const tx = makeTx({ id: 'retainer-1', type: 'income', isRecurring: true, recurringFrequency: 'monthly', date: isoDaysAgo(28) });
+            const alerts = detectAlerts(1000000, [tx], []);
+            const dueSoon = alerts.find(a => a.type === 'recurring_transaction_due_soon');
+            expect(dueSoon).toBeDefined();
+            expect(dueSoon?.id).toBe('alert-recurring-due-soon-retainer-1');
+        });
+
+        it('never flags a non-recurring transaction', () => {
+            const tx = makeTx({ isRecurring: false, date: isoMonthsAgo(2) });
+            const alerts = detectAlerts(1000000, [tx], []);
+            expect(alerts.some(a => a.type.startsWith('recurring_transaction'))).toBe(false);
+        });
+
+        it('never flags a recurring transaction missing its frequency', () => {
+            const tx = makeTx({ isRecurring: true, recurringFrequency: undefined, date: isoMonthsAgo(2) });
+            const alerts = detectAlerts(1000000, [tx], []);
+            expect(alerts.some(a => a.type.startsWith('recurring_transaction'))).toBe(false);
+        });
+
+        it('produces no recurring alert for one whose next occurrence is comfortably far out', () => {
+            const tx = makeTx({ isRecurring: true, recurringFrequency: 'monthly', date: isoDaysAgo(2) });
+            const alerts = detectAlerts(1000000, [tx], []);
+            expect(alerts.some(a => a.type.startsWith('recurring_transaction'))).toBe(false);
+        });
+    });
+
     describe('detectFinancialAlerts', () => {
         it('builds a forecast from transactions/invoices and folds it into the alert set', () => {
             const recurringExpense: Transaction = {

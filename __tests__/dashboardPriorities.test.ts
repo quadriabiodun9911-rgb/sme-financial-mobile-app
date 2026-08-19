@@ -298,6 +298,34 @@ describe('buildDashboardPriorities', () => {
         expect(result.some(p => p.kind === 'overdue_transactions')).toBe(false);
     });
 
+    it('aggregates overdue recurring transactions into a single watch-tier card', () => {
+        const result = buildDashboardPriorities({
+            alerts: [], overdueInvoices: [],
+            overdueRecurringTransactions: [txFixture({ id: 'r1', amount: 25000 }), txFixture({ id: 'r2', amount: 45000 })],
+            lowStockItems: [], overspentBudgets: [], financingOpportunity: null, currency: '₦',
+        });
+        const item = result.find(p => p.kind === 'recurring_transaction_overdue');
+        expect(item).toBeDefined();
+        expect(item?.tier).toBe('watch');
+        expect(item?.title).toBe('2 Recurring Bills Due');
+        expect(item?.impactAmount).toBe(70000);
+    });
+
+    it('defaults to no recurring-transaction card when overdueRecurringTransactions is omitted', () => {
+        const result = buildDashboardPriorities({
+            alerts: [], overdueInvoices: [], lowStockItems: [], overspentBudgets: [], financingOpportunity: null, currency: '₦',
+        });
+        expect(result.some(p => p.kind === 'recurring_transaction_overdue')).toBe(false);
+    });
+
+    it('never surfaces a recurring_transaction_due_soon alert as a priority item', () => {
+        const result = buildDashboardPriorities({
+            alerts: [alert({ id: 'alert-recurring-due-soon-r1', type: 'recurring_transaction_due_soon', priority: 'low', title: '🔁 Recurring Expense Coming Up — Rent' })],
+            overdueInvoices: [], lowStockItems: [], overspentBudgets: [], financingOpportunity: null, currency: '₦',
+        });
+        expect(result.some(p => p.id === 'alert-recurring-due-soon-r1')).toBe(false);
+    });
+
     it('keeps overdue transactions separate from overdue invoices, not merged into one card', () => {
         const result = buildDashboardPriorities({
             alerts: [], overdueInvoices: [invoice()],

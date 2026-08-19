@@ -3,6 +3,9 @@ import { View, Text, TouchableOpacity, StyleSheet, Switch, FlatList } from 'reac
 import { Colors } from '../theme/colors';
 import { RecurringFrequency, Transaction } from '../types';
 import { confirmAction } from '../utils/webAlert';
+import { nextRecurringDueDate, daysUntilRecurringDue } from '../utils/recurringTransactions';
+
+const DUE_SOON_DAYS = 3;
 
 interface RecurringTransaction extends Transaction {
   id: string;
@@ -27,25 +30,6 @@ export default function RecurringTransactionManager({
   onToggle,
 }: Props) {
   const frequencies = ['weekly', 'monthly', 'quarterly', 'yearly'] as const;
-
-  const getNextDate = (frequency: RecurringFrequency, baseDate: string): string => {
-    const date = new Date(baseDate);
-    switch (frequency) {
-      case 'weekly':
-        date.setDate(date.getDate() + 7);
-        break;
-      case 'monthly':
-        date.setMonth(date.getMonth() + 1);
-        break;
-      case 'quarterly':
-        date.setMonth(date.getMonth() + 3);
-        break;
-      case 'yearly':
-        date.setFullYear(date.getFullYear() + 1);
-        break;
-    }
-    return date.toISOString().split('T')[0];
-  };
 
   const renderFrequencyLabel = (freq: RecurringFrequency): string => {
     const labels = { weekly: '📅 Weekly', monthly: '📆 Monthly', quarterly: '📅 Quarterly', yearly: '📅 Yearly' };
@@ -101,9 +85,21 @@ export default function RecurringTransactionManager({
               </View>
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Next</Text>
-                <Text style={styles.detailValue}>
-                  {new Date(getNextDate(item.recurringFrequency, item.nextRecurringDate || item.date)).toLocaleDateString()}
-                </Text>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={styles.detailValue}>
+                    {nextRecurringDueDate(item).toLocaleDateString()}
+                  </Text>
+                  {(() => {
+                    const daysUntilDue = daysUntilRecurringDue(item);
+                    if (daysUntilDue < 0) {
+                      return <Text style={styles.dueOverdue}>{Math.abs(daysUntilDue)}d overdue — log it or edit the date</Text>;
+                    }
+                    if (daysUntilDue <= DUE_SOON_DAYS) {
+                      return <Text style={styles.dueSoon}>Due in {daysUntilDue}d</Text>;
+                    }
+                    return null;
+                  })()}
+                </View>
               </View>
             </View>
           </View>
@@ -130,4 +126,6 @@ const styles = StyleSheet.create({
   detailRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
   detailLabel: { fontSize: 12, color: Colors.textMuted },
   detailValue: { fontSize: 12, fontWeight: '600', color: Colors.textPrimary },
+  dueOverdue: { fontSize: 11, fontWeight: '600', color: '#ef4444', marginTop: 2 },
+  dueSoon: { fontSize: 11, fontWeight: '600', color: '#f59e0b', marginTop: 2 },
 });

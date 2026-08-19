@@ -23,6 +23,7 @@ const KEYS = {
     overdueTransactionsId: '@quad360/notif_overdue_transactions_id',
     taxDeadlineId: '@quad360/notif_tax_deadline_id',
     goalAlertsId: '@quad360/notif_goal_alerts_id',
+    recurringTransactionsId: '@quad360/notif_recurring_transactions_id',
 };
 
 export async function requestNotificationPermission(): Promise<boolean> {
@@ -256,6 +257,39 @@ export async function notifyGoalAlerts(missedCount: number, offTrackCount: numbe
         });
 
         await AsyncStorage.setItem(KEYS.goalAlertsId, Date.now().toString());
+    } catch {
+        // Fail silently
+    }
+}
+
+// Same ambiguity as notifyPayrollDue -- Quad360 can't know for certain a
+// recurring bill was missed vs. just not re-logged, so this is a nudge to
+// check, not a confident "you owe this." Single summary notification since
+// several recurring transactions can be due/overdue at once. Throttled to
+// once a day.
+export async function notifyRecurringTransactionAlerts(overdueCount: number, dueSoonCount: number): Promise<void> {
+    try {
+        if (Platform.OS === 'web' || (overdueCount === 0 && dueSoonCount === 0)) return;
+
+        const prevNotified = await AsyncStorage.getItem(KEYS.recurringTransactionsId);
+        if (prevNotified) {
+            const daysSinceLastNotif = (Date.now() - parseInt(prevNotified, 10)) / (1000 * 60 * 60 * 24);
+            if (daysSinceLastNotif < 1) return;
+        }
+
+        const parts: string[] = [];
+        if (overdueCount > 0) parts.push(`${overdueCount} recurring bill${overdueCount === 1 ? '' : 's'} overdue`);
+        if (dueSoonCount > 0) parts.push(`${dueSoonCount} coming up soon`);
+
+        await Notifications.scheduleNotificationAsync({
+            content: {
+                title: 'Recurring transactions need a check 🔁',
+                body: `${parts.join(', ')}. Tap to review.`,
+            },
+            trigger: null,
+        });
+
+        await AsyncStorage.setItem(KEYS.recurringTransactionsId, Date.now().toString());
     } catch {
         // Fail silently
     }

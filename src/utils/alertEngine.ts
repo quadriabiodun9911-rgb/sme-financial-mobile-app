@@ -6,6 +6,7 @@ import { nextLoanPaymentDueDate, daysUntilLoanPaymentDue, isLoanPaymentOverdue }
 import { getPayrollReminderStatus, DEFAULT_PAYROLL_DUE_SOON_DAY } from './payrollReminders';
 import { getUninvoicedOverdueTransactions } from './overdueTransactions';
 import { getTaxDeadlineStatus, TAX_DEADLINE_DUE_SOON_DAYS } from './taxDeadline';
+import { nextRecurringDueDate, daysUntilRecurringDue, isRecurringTransactionOverdue, hasRecurringSchedule } from './recurringTransactions';
 
 /**
  * Real-Time Cash Alerts System
@@ -27,6 +28,7 @@ export const DEFAULT_THRESHOLDS: AlertThresholds = {
   loanPaymentDueSoonDays: 3, // warn this many days before a loan payment is due
   payrollDueSoonDay: DEFAULT_PAYROLL_DUE_SOON_DAY,
   taxDeadlineDueSoonDays: TAX_DEADLINE_DUE_SOON_DAYS,
+  recurringDueSoonDays: 3,
 };
 
 export class AlertEngine {
@@ -112,6 +114,10 @@ export class AlertEngine {
     // Goals past their deadline, or falling behind pace ahead of it
     const goalAlerts = this.detectGoalAlerts();
     alerts.push(...goalAlerts);
+
+    // Recurring transactions whose next occurrence is overdue or coming soon
+    const recurringAlerts = this.detectRecurringTransactionAlerts();
+    alerts.push(...recurringAlerts);
 
     // Filter out dismissed alerts
     return alerts.filter(a => !this.dismissedAlerts.has(a.id));
@@ -474,6 +480,60 @@ export class AlertEngine {
           title: `🎯 Goal Off Track — ${goal.title}`,
           description: `"${goal.title}" is falling behind pace: ${Math.round(goal.progress)}% complete with the deadline (${goal.deadline}) still ahead.`,
           affectedDate: goal.deadline,
+          createdAt: new Date().toISOString(),
+        });
+      }
+    }
+
+    return alerts;
+  }
+
+  /**
+   * Detect recurring transactions (Rent, subscriptions, retainers...) whose
+   * next occurrence, per recurringTransactions.ts's schedule math, is
+   * overdue or coming up soon. Quad360 has no engine that auto-generates
+   * each period's instance, so "overdue" here can't mean "unpaid" with
+   * certainty the way an invoice or loan payment can -- it means "this was
+   * expected to recur by now and nothing has updated the record since,"
+   * same ambiguity payroll's detector already carries, hence the same
+   * escape-hatch framing in the recommendation text and a capped 'medium'
+   * priority rather than 'high'. Editing the transaction's own date (the
+   * only completing action this screen offers) is what clears it.
+   */
+  private detectRecurringTransactionAlerts(): ForecastAlert[] {
+    const alerts: ForecastAlert[] = [];
+
+    for (const tx of this.transactions) {
+      if (!hasRecurringSchedule(tx)) continue;
+
+      const daysUntilDue = daysUntilRecurringDue(tx);
+      const dueDate = nextRecurringDueDate(tx).toISOString().split('T')[0];
+      const kind = tx.type === 'expense' ? 'Expense' : 'Income';
+
+      if (isRecurringTransactionOverdue(tx)) {
+        const daysOverdue = -daysUntilDue;
+        alerts.push({
+          id: `alert-recurring-overdue-${tx.id}`,
+          type: 'recurring_transaction_overdue',
+          priority: daysOverdue > 30 ? 'medium' : 'low',
+          title: `🔁 Recurring ${kind} Due — ${tx.description}`,
+          description: `"${tx.description}" (${this.formatCurrency(tx.amount)}, ${tx.recurringFrequency}) was expected around ${dueDate} and hasn't been logged again since.`,
+          amount: tx.amount,
+          affectedDate: dueDate,
+          recommendations: [
+            "Log this period's transaction if it happened",
+            'Edit this entry\'s date once you\'ve recorded the latest occurrence, to keep the schedule accurate',
+          ],
+          createdAt: new Date().toISOString(),
+        });
+      } else if (daysUntilDue >= 0 && daysUntilDue <= this.thresholds.recurringDueSoonDays) {
+        alerts.push({
+          id: `alert-recurring-due-soon-${tx.id}`,
+          type: 'recurring_transaction_due_soon',
+          priority: 'low',
+          title: `🔁 Recurring ${kind} Coming Up — ${tx.description}`,
+          description: `"${tx.description}" (${this.formatCurrency(tx.amount)}) is due again in ${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'}.`,
+          affectedDate: dueDate,
           createdAt: new Date().toISOString(),
         });
       }
