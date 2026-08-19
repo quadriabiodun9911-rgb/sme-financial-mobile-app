@@ -36,7 +36,7 @@ import StatTile from '../components/ui/StatTile';
 import { buildFinancingFitInput } from '../utils/financingFit';
 import { recommendFinancingTypes } from '../utils/financingRecommendation';
 import { computeReadinessDelta } from '../utils/readinessHistory';
-import { notifyFinancingOpportunity, notifyOverdueRemindersDue, notifyLoanPaymentDueSoon, notifyPayrollDue, notifyOverdueTransactionsFound, notifyTaxDeadline, notifyGoalAlerts, notifyRecurringTransactionAlerts, notifyBudgetPeriodLapsed, notifyAssetsNearingReplacement, notifyStockoutRisk, notifyTaxAbilityToPayShortfall, notifySlowMovingStock, requestNotificationPermission, scheduleWeeklySummaryReminder } from '../utils/notifications';
+import { notifyFinancingOpportunity, notifyFinancingQualificationProgress, notifyOverdueRemindersDue, notifyLoanPaymentDueSoon, notifyPayrollDue, notifyOverdueTransactionsFound, notifyTaxDeadline, notifyGoalAlerts, notifyRecurringTransactionAlerts, notifyBudgetPeriodLapsed, notifyAssetsNearingReplacement, notifyStockoutRisk, notifyTaxAbilityToPayShortfall, notifySlowMovingStock, requestNotificationPermission, scheduleWeeklySummaryReminder, scheduleDailyReminder } from '../utils/notifications';
 import { getInvoicesDueForReminder, loadReminderState, InvoiceReminderState } from '../utils/invoiceReminders';
 import { isLoanPaymentOverdue, daysUntilLoanPaymentDue } from '../utils/loanMath';
 import { getPayrollReminderStatus } from '../utils/payrollReminders';
@@ -44,7 +44,7 @@ import { getUninvoicedOverdueTransactions } from '../utils/overdueTransactions';
 import { getTaxDeadlineStatus } from '../utils/taxDeadline';
 import { isRecurringTransactionOverdue, daysUntilRecurringDue, hasRecurringSchedule } from '../utils/recurringTransactions';
 import { isBudgetActiveForPeriod, isBudgetPeriodLapsed, currentPeriodString } from '../utils/budgetPeriod';
-import { computeAssetsNearingReplacement, computeAssetCurrentValue, getMonthlyExpenseAverage } from '../utils/finance';
+import { computeAssetsNearingReplacement, computeAssetCurrentValue, getMonthlyExpenseAverage, computeOneThingInsight } from '../utils/finance';
 import { computeStockVelocity } from '../utils/stockVelocity';
 import { computeTaxAbilityToPay } from '../utils/taxFilingReadiness';
 import { detectFinancialAlerts, DEFAULT_THRESHOLDS } from '../utils/alertEngine';
@@ -298,6 +298,16 @@ export default function DashboardScreen() {
         notifyFinancingOpportunity(financingOpportunity.label, financingOpportunity.reasons[0]).catch(() => {});
     }, [isDemoMode, financingOpportunity]);
 
+    // "Almost qualified for merchant financing" nudge -- built the same way
+    // as notifyFinancingOpportunity above (throttles itself, once every 7
+    // days) but never actually called from anywhere until now, so a
+    // business closing in on the 90-day activity threshold never heard
+    // about it.
+    useEffect(() => {
+        if (isDemoMode || !user?.daysActive) return;
+        notifyFinancingQualificationProgress(user.daysActive).catch(() => {});
+    }, [isDemoMode, user?.daysActive]);
+
     // Same "should I nag the owner" question InvoicesScreen's reminder
     // banner asks -- computed independently here (its own copy of the
     // persisted reminder state) rather than threaded through props, the
@@ -451,17 +461,21 @@ export default function DashboardScreen() {
         notifyTaxAbilityToPayShortfall(taxAbilityToPay.shortfall, settings?.currency ?? '₦').catch(() => {});
     }, [isDemoMode, taxAbilityToPay, settings?.currency]);
 
-    // Weekly-rhythm engagement -- WeeklyReportModal/computeWeeklySummary
-    // already exist and are already rendered below; this is the missing
-    // link that actually brings the user back weekly instead of only
-    // showing the report to whoever happens to open it manually. Both
-    // calls are already idempotent (permission check short-circuits if
-    // already granted; schedule cancels its own previous notification
-    // before rescheduling), so running this once per mount is safe.
+    // Daily + weekly rhythm engagement -- both scheduling functions existed
+    // fully built in notifications.ts but neither was ever called from
+    // anywhere; this is the missing link that actually brings the user back
+    // instead of only showing the weekly report to whoever happens to open
+    // it manually. All three calls are already idempotent (permission check
+    // short-circuits if already granted; each schedule cancels its own
+    // previous notification before rescheduling), so running this once per
+    // mount is safe.
     useEffect(() => {
         if (isDemoMode) return;
         requestNotificationPermission().then(granted => {
-            if (granted) scheduleWeeklySummaryReminder();
+            if (granted) {
+                scheduleDailyReminder();
+                scheduleWeeklySummaryReminder();
+            }
         });
     }, [isDemoMode]);
 
@@ -919,19 +933,30 @@ export default function DashboardScreen() {
                   );
                 })()}
 
-                {priorities.length === 0 && (
-                  <View style={styles.nextActionCard}>
-                    <View style={styles.nextActionRow}>
-                      <View style={[styles.priorityIconBadge, { backgroundColor: Colors.success + '22' }]}>
-                        <Icon name="check" size={16} color={Colors.success} />
-                      </View>
-                      <View style={styles.priorityContent}>
-                        <Text style={styles.nextActionTitle}>All Clear for Today</Text>
-                        <Text style={styles.priorityAmount}>No alerts — keep up the momentum!</Text>
+                {/* Empty state -- no alert-engine priority is currently
+                    active, but that doesn't mean nothing is worth saying.
+                    computeOneThingInsight checks a real signal the priority
+                    list doesn't cover at all (margin vs. target), so this
+                    slot shows that instead of a generic "all clear" filler
+                    whenever there's something more specific and true to say. */}
+                {priorities.length === 0 && (() => {
+                  const insight = computeOneThingInsight(finance, settings);
+                  const isHealthy = insight.severity === 'healthy';
+                  const insightColor = insight.severity === 'critical' ? Colors.expense : insight.severity === 'warning' ? Colors.warning : Colors.success;
+                  return (
+                    <View style={styles.nextActionCard}>
+                      <View style={styles.nextActionRow}>
+                        <View style={[styles.priorityIconBadge, { backgroundColor: insightColor + '22' }]}>
+                          <Icon name={isHealthy ? 'check' : insight.severity === 'critical' ? 'alert-circle' : 'alert-triangle'} size={16} color={insightColor} />
+                        </View>
+                        <View style={styles.priorityContent}>
+                          <Text style={styles.nextActionTitle}>{isHealthy ? 'All Clear for Today' : insight.title}</Text>
+                          <Text style={styles.priorityAmount}>{insight.action}</Text>
+                        </View>
                       </View>
                     </View>
-                  </View>
-                )}
+                  );
+                })()}
 
                 {/* SECTION 2: WHAT NEEDS YOUR ATTENTION — every remaining
                     risk/opportunity signal (the top one is already shown

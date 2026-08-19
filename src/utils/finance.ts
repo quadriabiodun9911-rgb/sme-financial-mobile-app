@@ -664,37 +664,6 @@ export function transactionsToCSV(transactions: Transaction[]): string {
 
 // ─── CFO-Grade Finance Utilities ─────────────────────────────────────────────
 
-// 1. Year-over-year trend (last 24 months)
-export interface YoYTrendPoint {
-    year: number;
-    month: string;
-    income: number;
-    expense: number;
-    profit: number;
-}
-
-export function computeYearOverYearTrend(transactions: Transaction[]): YoYTrendPoint[] {
-    const now = new Date();
-    const points: YoYTrendPoint[] = [];
-    for (let i = 23; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const yr = d.getFullYear();
-        const mo = d.getMonth();
-        const prefix = `${yr}-${String(mo + 1).padStart(2, '0')}`;
-        const monthTx = transactions.filter(t => t.date.startsWith(prefix));
-        const income = monthTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-        const expense = monthTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-        points.push({
-            year: yr,
-            month: d.toLocaleString('default', { month: 'short' }),
-            income,
-            expense,
-            profit: income - expense,
-        });
-    }
-    return points;
-}
-
 // 2. Revenue forecast
 export interface ForecastPoint {
     month: string;
