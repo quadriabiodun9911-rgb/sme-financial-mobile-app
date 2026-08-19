@@ -868,6 +868,7 @@ function CategoryChart({
         typeFilter === 'expense' ? 'expense' : 'income'
     );
     const [expanded, setExpanded] = useState(false);
+    const [sectionOpen, setSectionOpen] = useState(false);
 
     const showIncome  = typeFilter === 'all' || typeFilter === 'income' || typeFilter === 'collect';
     const showExpense = typeFilter === 'all' || typeFilter === 'expense';
@@ -886,65 +887,75 @@ function CategoryChart({
 
     return (
         <View style={chartStyles.container}>
-            {/* Tab toggle — only show if both types are present */}
-            {showIncome && showExpense && (
-                <View style={chartStyles.tabRow}>
-                    {(['income', 'expense'] as const).map(kind => (
-                        <TouchableOpacity
-                            key={kind}
-                            style={[chartStyles.tabBtn, activeTab === kind && { backgroundColor: kind === 'income' ? Colors.income : Colors.expense }]}
-                            onPress={() => setActiveTab(kind)}
-                        >
-                            <Text style={[chartStyles.tabBtnText, activeTab === kind && { color: '#fff' }]}>
-                                {kind === 'income' ? t(language, 'income') : t(language, 'expense')}
+            {/* Compact header — always visible, tap to reveal the full breakdown */}
+            <TouchableOpacity style={chartStyles.summaryRow} onPress={() => setSectionOpen(v => !v)}>
+                <View style={{ flex: 1 }}>
+                    <Text style={chartStyles.title}>
+                        {tab === 'income' ? t(language, 'whereMoneyComesFrom') : t(language, 'whereMoneyGoingTo')}
+                    </Text>
+                    <Text style={chartStyles.totalLabel}>
+                        {t(language, 'totalColon')} {currency}{total.toLocaleString()}
+                    </Text>
+                </View>
+                <Icon name={sectionOpen ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.textMuted} />
+            </TouchableOpacity>
+
+            {sectionOpen && (
+                <>
+                    {/* Tab toggle — only show if both types are present */}
+                    {showIncome && showExpense && (
+                        <View style={chartStyles.tabRow}>
+                            {(['income', 'expense'] as const).map(kind => (
+                                <TouchableOpacity
+                                    key={kind}
+                                    style={[chartStyles.tabBtn, activeTab === kind && { backgroundColor: kind === 'income' ? Colors.income : Colors.expense }]}
+                                    onPress={() => setActiveTab(kind)}
+                                >
+                                    <Text style={[chartStyles.tabBtnText, activeTab === kind && { color: '#fff' }]}>
+                                        {kind === 'income' ? t(language, 'income') : t(language, 'expense')}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    )}
+
+                    {/* Stacked percentage bar */}
+                    <View style={chartStyles.stackBar}>
+                        {entries.map(([cat, amt], i) => {
+                            const pct = total > 0 ? (amt / total) * 100 : 0;
+                            return (
+                                <View
+                                    key={cat}
+                                    style={{ width: `${pct}%` as any, height: 12, backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }}
+                                />
+                            );
+                        })}
+                    </View>
+
+                    {/* Rows */}
+                    {shown.map(([cat, amt], i) => {
+                        const pct = total > 0 ? (amt / total) * 100 : 0;
+                        return (
+                            <View key={cat} style={chartStyles.row}>
+                                <View style={[chartStyles.dot, { backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }]} />
+                                <Text style={chartStyles.catName} numberOfLines={1}>{cat}</Text>
+                                <View style={chartStyles.barTrack}>
+                                    <View style={[chartStyles.barFill, { width: `${pct}%` as any, backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }]} />
+                                </View>
+                                <Text style={chartStyles.pctLabel}>{Math.round(pct)}%</Text>
+                                <Text style={chartStyles.amtLabel}>{currency}{amt.toLocaleString()}</Text>
+                            </View>
+                        );
+                    })}
+
+                    {entries.length > 5 && (
+                        <TouchableOpacity onPress={() => setExpanded(v => !v)} style={chartStyles.showMore}>
+                            <Text style={chartStyles.showMoreText}>
+                                {expanded ? t(language, 'showLess') : `${t(language, 'showMorePrefix')} ${entries.length - 5} ${t(language, 'moreCategories')}`}
                             </Text>
                         </TouchableOpacity>
-                    ))}
-                </View>
-            )}
-
-            <Text style={chartStyles.title}>
-                {tab === 'income' ? t(language, 'whereMoneyComesFrom') : t(language, 'whereMoneyGoingTo')}
-            </Text>
-            <Text style={chartStyles.totalLabel}>
-                {t(language, 'totalColon')} {currency}{total.toLocaleString()}
-            </Text>
-
-            {/* Stacked percentage bar */}
-            <View style={chartStyles.stackBar}>
-                {entries.map(([cat, amt], i) => {
-                    const pct = total > 0 ? (amt / total) * 100 : 0;
-                    return (
-                        <View
-                            key={cat}
-                            style={{ width: `${pct}%` as any, height: 12, backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }}
-                        />
-                    );
-                })}
-            </View>
-
-            {/* Rows */}
-            {shown.map(([cat, amt], i) => {
-                const pct = total > 0 ? (amt / total) * 100 : 0;
-                return (
-                    <View key={cat} style={chartStyles.row}>
-                        <View style={[chartStyles.dot, { backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }]} />
-                        <Text style={chartStyles.catName} numberOfLines={1}>{cat}</Text>
-                        <View style={chartStyles.barTrack}>
-                            <View style={[chartStyles.barFill, { width: `${pct}%` as any, backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }]} />
-                        </View>
-                        <Text style={chartStyles.pctLabel}>{Math.round(pct)}%</Text>
-                        <Text style={chartStyles.amtLabel}>{currency}{amt.toLocaleString()}</Text>
-                    </View>
-                );
-            })}
-
-            {entries.length > 5 && (
-                <TouchableOpacity onPress={() => setExpanded(v => !v)} style={chartStyles.showMore}>
-                    <Text style={chartStyles.showMoreText}>
-                        {expanded ? t(language, 'showLess') : `${t(language, 'showMorePrefix')} ${entries.length - 5} ${t(language, 'moreCategories')}`}
-                    </Text>
-                </TouchableOpacity>
+                    )}
+                </>
             )}
         </View>
     );
@@ -952,12 +963,13 @@ function CategoryChart({
 
 const chartStyles = StyleSheet.create({
     container:   { backgroundColor: Colors.surface, marginHorizontal: 0, paddingHorizontal: 14, paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border },
-    tabRow:      { flexDirection: 'row', gap: Spacing.sm, marginBottom: 10 },
+    summaryRow:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+    tabRow:      { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.md, marginBottom: 10 },
     tabBtn:      { flex: 1, paddingVertical: 6, borderRadius: Radius.sm, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', backgroundColor: Colors.bg },
     tabBtnText:  { fontSize: 12, fontWeight: '700', color: Colors.textMuted },
     title:       { fontSize: 12, fontWeight: '700', color: Colors.textSecondary, marginBottom: 2 },
-    totalLabel:  { fontSize: 10, color: Colors.textMuted, marginBottom: 10 },
-    stackBar:    { flexDirection: 'row', height: 12, borderRadius: 6, overflow: 'hidden', marginBottom: Spacing.md, backgroundColor: Colors.bg },
+    totalLabel:  { fontSize: 10, color: Colors.textMuted },
+    stackBar:    { flexDirection: 'row', height: 12, borderRadius: 6, overflow: 'hidden', marginTop: Spacing.md, marginBottom: Spacing.md, backgroundColor: Colors.bg },
     row:         { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.sm, gap: 6 },
     dot:         { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
     catName:     { fontSize: 11, color: Colors.textSecondary, width: 90, flexShrink: 0 },
