@@ -1138,6 +1138,7 @@ const styles = StyleSheet.create({
     card: {
         backgroundColor: Colors.surface, borderRadius: Radius.xl, padding: Spacing.xxl,
         borderWidth: 1, borderColor: Colors.border,
+        width: '100%', maxWidth: 480, alignSelf: 'center',
         ...Shadow.lg,
     },
     logo:     { width: 80, height: 80, alignSelf: 'center', borderRadius: Radius.lg, marginBottom: 8, ...Shadow.md },
