@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView } from 
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { computeCashRunway } from '../utils/cashRunway';
-import { computeAgingBuckets, getTaxRatePercent } from '../utils/finance';
+import { computeAgingBuckets, getTaxRatePercent, getMonthlyExpenseAverage } from '../utils/finance';
 import { computeInventoryValue } from '../utils/stockVelocity';
 import { totalMonthlyLoanBurden } from '../utils/loanMath';
 import {
@@ -15,6 +15,10 @@ import {
     computeTrailingAccrualFigures,
 } from '../utils/cfoMetrics';
 import { CommitmentStatus, CommitmentKPI } from '../types';
+import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
+import { computeRiskRadar } from '../utils/riskRadar';
+import { buildAdvisorContext } from '../utils/aiAdvisor';
+import AIAdvisorCard from './AIAdvisorCard';
 
 function fmt(currency: string, n: number): string {
     return `${currency}${Math.round(n).toLocaleString()}`;
@@ -43,10 +47,29 @@ const STATUS_LABEL: Record<CommitmentStatus, string> = {
 // equipment or marketing is "delivering."
 export default function CFOQuestionsTab() {
     const {
-        transactions, loans, inventory, finance, settings, navigate,
+        transactions, loans, inventory, finance, settings, navigate, goals, invoices,
         capitalCommitments, addCommitment, updateCommitment, deleteCommitment,
     } = useApp();
     const { currency } = settings;
+
+    // AI Advisor context -- reuses the same diagnosis/risk-radar engines
+    // every other screen calls, packaged for the model to answer from (see
+    // buildAdvisorContext). Gated the same way DashboardScreen gates its own
+    // diagnosis call: fewer than 5 transactions makes it too noisy to be
+    // worth running a second time here.
+    const advisorContext = useMemo(
+        () => (transactions.length >= 5
+            ? buildAdvisorContext(
+                finance,
+                settings,
+                performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), currency, loans, inventory),
+                computeRiskRadar(transactions, loans, settings?.macroAssumptions ?? []),
+                goals,
+                capitalCommitments,
+            )
+            : null),
+        [transactions, invoices, finance, settings, currency, loans, inventory, goals, capitalCommitments]
+    );
 
     const [revenueMissPct, setRevenueMissPct] = useState(15);
     const [showAddCommitment, setShowAddCommitment] = useState(false);
@@ -135,6 +158,8 @@ export default function CFOQuestionsTab() {
         <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
             <Text style={s.pageTitle}>7 Questions Every CEO Should Ask</Text>
             <Text style={s.pageSub}>Answered from your own numbers — not generic advice.</Text>
+
+            {advisorContext && <AIAdvisorCard context={advisorContext} />}
 
             {/* Q1 */}
             <View style={s.card}>
