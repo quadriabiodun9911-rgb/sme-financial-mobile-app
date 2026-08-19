@@ -30,6 +30,10 @@ import { performFinancialDiagnosis } from './financialDiagnosisEngine';
 import { computeDataQuality, DataQuality } from './dataQuality';
 import { analyzeTrend } from './trendAnalysis';
 import { buildStructuralSnapshot, StructuralSnapshot } from './structuralSnapshot';
+import { computeRiskRadar } from './riskRadar';
+import { generateActionPlan } from './actionRecommendationEngine';
+import { calculateGoalBridge, mapSavedGoalToBridge } from './goalBridgeEngine';
+import { assessGoalRisk, GoalRiskAssessment } from './goalRiskLinkage';
 
 // Below this many recorded transactions, a full diagnosis is too thin to
 // trust — the Passport falls back to a structural snapshot built from
@@ -95,6 +99,19 @@ export interface BusinessPassport {
     // financialDiagnosisEngine.ts. Empty when there's not enough
     // transaction history for a full diagnosis (see structuralSnapshot).
     narrativeSummary: string;
+    // "What could stop this business from reaching its stated goals" —
+    // the same real diagnosis + Risk Radar + Goal Bridge pipeline
+    // GoalsScreen's Risks tab uses, run per active goal. A lender reading
+    // this document sees not just where the business stands today but
+    // whether it's steering around its own real risks — empty when there's
+    // not enough history for a diagnosis, or no active goals set.
+    goalRisks: {
+        goalId: string;
+        goalTitle: string;
+        readinessBand: GoalRiskAssessment['readinessBand'];
+        growthReadiness: number;
+        narrative: string;
+    }[];
 }
 
 export function buildBusinessPassport(
@@ -130,6 +147,26 @@ export function buildBusinessPassport(
         settings.industry,
         settings.currency,
     );
+
+    const activeGoals = goals.filter(g => g.status !== 'achieved');
+    const goalRisks = (hasEnoughDataForDiagnosis && activeGoals.length > 0)
+        ? (() => {
+            const riskRadar = computeRiskRadar(transactions, loans, settings.macroAssumptions ?? []);
+            const tactics = generateActionPlan(diagnosis, diagnosis.metrics, settings.currency);
+            const allTactics = [...tactics.immediateActions, ...tactics.shortTermActions, ...tactics.strategicActions];
+            return activeGoals.map(g => {
+                const bridge = calculateGoalBridge(mapSavedGoalToBridge(g), diagnosis.metrics, allTactics, settings.currency);
+                const assessment = assessGoalRisk(g.type, diagnosis.diagnoses, riskRadar, bridge.successProbability);
+                return {
+                    goalId: g.id,
+                    goalTitle: g.title,
+                    readinessBand: assessment.readinessBand,
+                    growthReadiness: assessment.growthReadiness,
+                    narrative: assessment.narrative,
+                };
+            });
+        })()
+        : [];
 
     return {
         businessName: dna.identity.businessName,
@@ -200,5 +237,6 @@ export function buildBusinessPassport(
         },
         topActions: diagnosis.topOpportunities,
         narrativeSummary: hasEnoughDataForDiagnosis ? diagnosis.narrativeSummary : '',
+        goalRisks,
     };
 }

@@ -271,7 +271,42 @@ export default function BusinessPassportScreen() {
                     </TouchableOpacity>
                 </Section>
 
-                {/* 8. Actions — always visible, not collapsible; this is
+                {/* 8. Growth Goals & Risk — what could stop the business's
+                    own stated growth goals, not just general business risk.
+                    Same real diagnosis + Risk Radar + Goal Bridge pipeline
+                    GoalsScreen's Risks tab uses (see goalRiskLinkage.ts).
+                    Only rendered when there's something real to show: a
+                    lender reading "no active goals" as a section would be
+                    noise, not evidence. */}
+                {passport.goalRisks.length > 0 && (
+                    <Section
+                        title="Growth Goals & Risk"
+                        subtitle="What could stop this business from reaching its own goals?"
+                        teaser={`${passport.goalRisks.length} active goal${passport.goalRisks.length === 1 ? '' : 's'} assessed`}
+                    >
+                        <Text style={s.readinessNote}>
+                            For each goal the business has set for itself, this filters the same real diagnosis and
+                            risk signals shown above down to whichever ones actually threaten reaching it — not
+                            general business risk, but risk specific to this goal.
+                        </Text>
+                        {passport.goalRisks.map(gr => (
+                            <View key={gr.goalId} style={s.goalRiskRow}>
+                                <View style={s.goalRiskHeader}>
+                                    <Text style={s.goalRiskTitle}>{gr.goalTitle}</Text>
+                                    <Text style={[s.goalRiskBand, { color: BAND_COLOR[gr.readinessBand] }]}>
+                                        {gr.growthReadiness}/100 · {gr.readinessBand}
+                                    </Text>
+                                </View>
+                                <Text style={s.readinessNote}>{gr.narrative}</Text>
+                            </View>
+                        ))}
+                        <TouchableOpacity onPress={() => navigate('goals')}>
+                            <Text style={s.linkText}>See the full risk breakdown for each goal →</Text>
+                        </TouchableOpacity>
+                    </Section>
+                )}
+
+                {/* 9. Actions — always visible, not collapsible; this is
                     the "what do I do now" summary the whole page builds to. */}
                 <View style={s.actionsCard}>
                     <Text style={s.cardTitle}>Actions</Text>
@@ -378,6 +413,10 @@ const s = StyleSheet.create({
     deviationRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginBottom: 6 },
     deviationText: { flex: 1, fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
     readinessNote: { fontSize: 11.5, color: Colors.textMuted, lineHeight: 16, marginBottom: 10, fontStyle: 'italic' },
+    goalRiskRow: { backgroundColor: Colors.bg, borderRadius: 10, padding: 12, marginBottom: 10 },
+    goalRiskHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+    goalRiskTitle: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary, flex: 1, marginRight: 8 },
+    goalRiskBand: { fontSize: 11.5, fontWeight: '800' },
     linkText: { fontSize: 12.5, color: Colors.primary, fontWeight: '700', marginTop: 8 },
     linkRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: Spacing.sm },
     valuationRange: { fontSize: 20, fontWeight: '800', color: Colors.textPrimary },

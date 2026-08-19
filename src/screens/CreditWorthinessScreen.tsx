@@ -12,7 +12,7 @@ import LowDataNotice from '../components/LowDataNotice';
 import NextStepLink from '../components/NextStepLink';
 import { generatePDF, sharePDF } from '../utils/pdfExport';
 import { buildLenderSummaryExport, buildFundingReadinessPackExport } from '../utils/lenderSummaryExport';
-import { computeDSCR, computeRiskScore, computeAssetCurrentValue, computeWorkingCapitalMetrics, RiskScore, RISK_BAND_STYLE } from '../utils/finance';
+import { computeDSCR, computeRiskScore, computeAssetCurrentValue, computeWorkingCapitalMetrics, RiskScore, RISK_BAND_STYLE, getMonthlyExpenseAverage } from '../utils/finance';
 import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
 import { computeReadinessDelta } from '../utils/readinessHistory';
 import { computeDataQuality } from '../utils/dataQuality';
@@ -20,6 +20,11 @@ import { computeInventoryValue } from '../utils/stockVelocity';
 import { computeLeverageRatios, computeLiveLoanBalance } from '../utils/debtRatios';
 import { buildFiveCsAssessment } from '../utils/fiveCsOfCredit';
 import { buildFundingReadinessPack } from '../utils/fundingReadiness';
+import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
+import { generateActionPlan } from '../utils/actionRecommendationEngine';
+import { calculateGoalBridge, mapSavedGoalToBridge } from '../utils/goalBridgeEngine';
+import { assessGoalRisk, GoalRiskAssessment } from '../utils/goalRiskLinkage';
+import { computeRiskRadar } from '../utils/riskRadar';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 
@@ -42,7 +47,7 @@ function fmtCompact(currency: string, amount: number): string {
 type PageTab = 'profile' | 'funding-pack';
 
 export default function CreditWorthinessScreen() {
-    const { user, finance, transactions, invoices, loans, navigate, navParams, settings, inventory, assets, readinessHistory } = useApp();
+    const { user, finance, transactions, invoices, loans, navigate, navParams, settings, inventory, assets, readinessHistory, goals } = useApp();
     const { currency } = settings;
     const [tab, setTab] = useState<PageTab>(navParams?.tab === 'funding-pack' ? 'funding-pack' : 'profile');
 
@@ -230,6 +235,27 @@ export default function CreditWorthinessScreen() {
     const topFactors = useMemo(() => {
         return [...risk.factors].sort((a, b) => a.score - b.score).slice(0, 2);
     }, [risk.factors]);
+
+    // "What could stop this business from reaching its own growth goals" —
+    // same real diagnosis + Risk Radar + Goal Bridge pipeline GoalsScreen's
+    // Risks tab uses (see goalRiskLinkage.ts), surfaced here too since a
+    // lender assessing this business's readiness should see whether it's
+    // steering around its own real risks, not just its historical score.
+    // Gated the same way GoalsScreen gates its diagnosis call.
+    const activeGoals = useMemo(() => goals.filter(g => g.status !== 'achieved'), [goals]);
+    const goalRiskByGoalId = useMemo(() => {
+        if (transactions.length < 5 || activeGoals.length === 0) return {};
+        const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), currency, loans, inventory);
+        const riskRadar = computeRiskRadar(transactions, loans, settings?.macroAssumptions ?? []);
+        const tactics = generateActionPlan(diagnosis, diagnosis.metrics, currency);
+        const allTactics = [...tactics.immediateActions, ...tactics.shortTermActions, ...tactics.strategicActions];
+        const map: Record<string, GoalRiskAssessment> = {};
+        for (const g of activeGoals) {
+            const bridge = calculateGoalBridge(mapSavedGoalToBridge(g), diagnosis.metrics, allTactics, currency);
+            map[g.id] = assessGoalRisk(g.type, diagnosis.diagnoses, riskRadar, bridge.successProbability);
+        }
+        return map;
+    }, [transactions, invoices, finance, currency, loans, inventory, activeGoals, settings?.macroAssumptions]);
 
     // Same conditions rendered by the "What Lenders Look For" checkpoints
     // below — kept in one place so the exported summary and the on-screen
@@ -575,6 +601,37 @@ export default function CreditWorthinessScreen() {
                                 </View>
                             </View>
                         ))}
+                    </View>
+                )}
+
+                {/* Growth Goals & Risk — what could stop THIS business from
+                    reaching its own stated goals, not just general business
+                    risk. Same real diagnosis + Risk Radar + Goal Bridge
+                    pipeline GoalsScreen's Risks tab uses (see
+                    goalRiskLinkage.ts). Only shown when there's a real active
+                    goal to assess. */}
+                {activeGoals.length > 0 && (
+                    <View style={s.section}>
+                        <Text style={s.sectionTitle}>🎯 Growth Goals & Risk</Text>
+                        {activeGoals.map(g => {
+                            const goalRisk = goalRiskByGoalId[g.id];
+                            if (!goalRisk) return null;
+                            return (
+                                <View key={g.id} style={s.improvementCard}>
+                                    <View style={s.improvementHeader}>
+                                        <Text style={s.improvementName}>{g.title}</Text>
+                                        <Text style={[s.improvementScore, { color: FP_BAND_COLOR[goalRisk.readinessBand] }]}>
+                                            {Math.round(goalRisk.growthReadiness)}
+                                        </Text>
+                                    </View>
+                                    <Text style={s.improvementDescription}>{goalRisk.narrative}</Text>
+                                    <View style={s.progressBar}>
+                                        <View style={[s.progressFill, { width: `${goalRisk.growthReadiness}%`, backgroundColor: FP_BAND_COLOR[goalRisk.readinessBand] }]} />
+                                    </View>
+                                </View>
+                            );
+                        })}
+                        <NextStepLink text="See the full risk breakdown for each goal →" onPress={() => navigate('goals')} />
                     </View>
                 )}
 
