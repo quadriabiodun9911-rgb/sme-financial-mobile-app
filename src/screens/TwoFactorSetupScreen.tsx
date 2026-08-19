@@ -17,7 +17,6 @@ import {
     Text,
     TouchableOpacity,
     StyleSheet,
-    Alert,
     Modal,
     ActivityIndicator,
     TextInput,
@@ -29,6 +28,7 @@ import Icon from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
+import { showAlert, confirmAction } from '../utils/webAlert';
 import {
     generateTOTPSecret,
     getTwoFactorStatus,
@@ -134,33 +134,16 @@ export default function TwoFactorSetupScreen() {
     };
 
     const handleDisable2FA = () => {
-        const msg = 'Are you sure you want to disable two-factor authentication?';
         const doDisable = async () => {
             try {
                 await disableTwoFactor();
                 setStatus('disabled');
-                if (Platform.OS === 'web') {
-                    window.alert('Two-factor authentication has been disabled.');
-                } else {
-                    Alert.alert('2FA Disabled', 'Two-factor authentication has been disabled.');
-                }
+                showAlert('2FA Disabled', 'Two-factor authentication has been disabled.');
             } catch (e) {
-                if (Platform.OS === 'web') {
-                    window.alert(`Failed to disable 2FA: ${e}`);
-                } else {
-                    Alert.alert('Error', `Failed to disable 2FA: ${e}`);
-                }
+                showAlert('Error', `Failed to disable 2FA: ${e}`);
             }
         };
-
-        if (Platform.OS === 'web') {
-            if (window.confirm(msg)) doDisable();
-            return;
-        }
-        Alert.alert('Disable 2FA?', msg, [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Disable', style: 'destructive', onPress: doDisable },
-        ]);
+        confirmAction('Disable 2FA?', 'Are you sure you want to disable two-factor authentication?', 'Disable', doDisable);
     };
 
     const downloadBackupCodes = () => {
@@ -176,10 +159,7 @@ export default function TwoFactorSetupScreen() {
             return;
         }
         // In production, use react-native-share or similar
-        Alert.alert(
-            'Backup Codes',
-            'Save these codes in a secure location:\n\n' + codesText,
-        );
+        showAlert('Backup Codes', 'Save these codes in a secure location:\n\n' + codesText);
     };
 
     if (loading) {
@@ -391,7 +371,7 @@ export default function TwoFactorSetupScreen() {
 const styles = StyleSheet.create({
     safe: { flex: 1, backgroundColor: Colors.bg },
     scroll: { flex: 1 },
-    pad: { padding: Spacing.lg, paddingBottom: 100 },
+    pad: { padding: Spacing.lg, paddingBottom: 100, width: '100%', maxWidth: 560, alignSelf: 'center' },
 
     title: { fontSize: 26, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 4 },
     subtitle: { fontSize: 14, color: Colors.textMuted, marginBottom: Spacing.xl },

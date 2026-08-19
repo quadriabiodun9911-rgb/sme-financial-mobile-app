@@ -8,6 +8,7 @@ import { Colors } from '../theme/colors';
 import { apiFetch } from '../utils/api';
 import Icon from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
+import { confirmAction } from '../utils/webAlert';
 
 export default function PaymentLinkScreen() {
     const { settings, user, navigate, goBack, navParams, addTransaction, markInvoiceStatus } = useApp() as any;
@@ -151,16 +152,13 @@ export default function PaymentLinkScreen() {
             } else {
                 openWebUrl(authUrl);
             }
-            const confirmMsg = 'Payment page opened. Complete the payment in your browser. Come back here once done, then click OK to mark this as paid (or Cancel to do it later).';
-            if (Platform.OS === 'web') {
-                if (window.confirm(confirmMsg)) recordManualPayment('Paystack');
-            } else {
-                Alert.alert(
-                    'Payment page opened',
-                    'Complete the payment in your browser. Come back here once done to confirm.',
-                    [{ text: 'Mark as Paid', onPress: () => recordManualPayment('Paystack') }]
-                );
-            }
+            confirmAction(
+                'Payment Page Opened',
+                'Complete the payment in your browser. Come back here once done, then confirm to mark this as paid (or cancel to do it later).',
+                'Mark as Paid',
+                () => recordManualPayment('Paystack'),
+                false,
+            );
         } catch (e: any) {
             if (payWin && !payWin.closed) payWin.close();
             const serverDown = e.message?.includes('Server error') || e.message?.includes('fetch') || e.message?.includes('Network');
@@ -208,16 +206,13 @@ export default function PaymentLinkScreen() {
             } else {
                 openWebUrl(data.checkoutUrl);
             }
-            const confirmMsg = 'Payment page opened. Complete the payment in your browser. Come back here once done, then click OK to mark this as paid (or Cancel to do it later).';
-            if (Platform.OS === 'web') {
-                if (window.confirm(confirmMsg)) recordManualPayment('Korapay');
-            } else {
-                Alert.alert(
-                    'Payment page opened',
-                    'Complete the payment in your browser. Come back here once done to confirm.',
-                    [{ text: 'Mark as Paid', onPress: () => recordManualPayment('Korapay') }]
-                );
-            }
+            confirmAction(
+                'Payment Page Opened',
+                'Complete the payment in your browser. Come back here once done, then confirm to mark this as paid (or cancel to do it later).',
+                'Mark as Paid',
+                () => recordManualPayment('Korapay'),
+                false,
+            );
         } catch (e: any) {
             if (payWin && !payWin.closed) payWin.close();
             const networkDown = e.message?.includes('fetch') || e.message?.includes('Network');

@@ -95,7 +95,7 @@ export default function OnboardingChoiceScreen() {
 
 const s = StyleSheet.create({
     safe:    { flex: 1, backgroundColor: Colors.bg },
-    content: { flex: 1, padding: Spacing.xxl, justifyContent: 'center' },
+    content: { flex: 1, padding: Spacing.xxl, justifyContent: 'center', width: '100%', maxWidth: 480, alignSelf: 'center' },
 
     iconWrap: { alignItems: 'center', marginBottom: Spacing.md },
     title:    { fontSize: 22, fontWeight: '800', color: Colors.textPrimary, textAlign: 'center', marginBottom: 8 },

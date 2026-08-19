@@ -12,7 +12,7 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
-    TouchableOpacity, StyleSheet, Modal, Alert, Platform,
+    TouchableOpacity, StyleSheet, Modal,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -31,7 +31,7 @@ import NextStepLink from '../components/NextStepLink';
 import ProfitCashImpactCard from '../components/ProfitCashImpactCard';
 import { computeProfitCashImpact } from '../utils/impactChain';
 import { monthlyPayment, totalInterest, outstandingLoanBalance, nextLoanPaymentDueDate, isLoanPaymentOverdue } from '../utils/loanMath';
-import { showAlert } from '../utils/webAlert';
+import { showAlert, confirmAction } from '../utils/webAlert';
 import Icon from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { t } from '../utils/i18n';
@@ -162,16 +162,7 @@ export default function LoansScreen() {
     };
 
     const confirmDelete = useCallback((id: string) => {
-        if (Platform.OS === 'web') {
-            if (window.confirm('Remove this loan and all its payment history?')) {
-                deleteLoan(id);
-            }
-        } else {
-            Alert.alert('Delete Loan', 'Remove this loan and all its payment history?', [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Delete', style: 'destructive', onPress: () => deleteLoan(id) },
-            ]);
-        }
+        confirmAction('Delete Loan', 'Remove this loan and all its payment history?', 'Delete', () => deleteLoan(id));
     }, [deleteLoan]);
 
     const handleToggleLoan = useCallback((id: string) => {

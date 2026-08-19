@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { SafeAreaView, ScrollView, View, Text, TouchableOpacity, StyleSheet, TextInput } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
+import { Spacing, Radius } from '../theme/tokens';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import Icon, { IconName } from '../components/ui/Icon';
@@ -674,21 +675,21 @@ export default function FinancingMarketplaceScreen() {
 const s = StyleSheet.create({
     safe: { flex: 1, backgroundColor: Colors.bg },
     scroll: { flex: 1 },
-    pad: { padding: 16, paddingBottom: 80 },
+    pad: { padding: Spacing.lg, paddingBottom: 80, width: '100%', maxWidth: 640, alignSelf: 'center' },
     title: { fontSize: 28, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 4 },
     subtitle: { fontSize: 14, color: Colors.textSecondary, marginBottom: 14, lineHeight: 19 },
 
-    disclosureBox: { backgroundColor: Colors.warning + '15', borderRadius: 10, padding: 12, marginBottom: 18, borderWidth: 1, borderColor: Colors.warning + '40' },
+    disclosureBox: { backgroundColor: Colors.warning + '15', borderRadius: Radius.sm, padding: Spacing.md, marginBottom: 18, borderWidth: 1, borderColor: Colors.warning + '40' },
     disclosureText: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
 
     readinessTrend: { fontSize: 11.5, fontWeight: '700', marginTop: 6 },
 
-    recommendBox: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 18, borderWidth: 1, borderColor: Colors.primary + '40' },
-    recommendTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: 12 },
-    recommendCard: { backgroundColor: Colors.bg, borderRadius: 10, padding: 12, marginBottom: 10 },
+    recommendBox: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.lg, marginBottom: 18, borderWidth: 1, borderColor: Colors.primary + '40' },
+    recommendTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: Spacing.md },
+    recommendCard: { backgroundColor: Colors.bg, borderRadius: Radius.sm, padding: Spacing.md, marginBottom: Spacing.sm },
     recommendCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
     recommendCardLabel: { fontSize: 13.5, fontWeight: '700', color: Colors.textPrimary },
-    recommendConfidenceBadge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, backgroundColor: Colors.textMuted + '22' },
+    recommendConfidenceBadge: { borderRadius: 6, paddingHorizontal: Spacing.sm, paddingVertical: 3, backgroundColor: Colors.textMuted + '22' },
     recommendConfidenceStrong: { backgroundColor: Colors.income + '22' },
     recommendConfidenceText: { fontSize: 10, fontWeight: '700', color: Colors.textMuted },
     recommendConfidenceTextStrong: { color: Colors.income },
@@ -697,17 +698,17 @@ const s = StyleSheet.create({
     orBrowseLabel: { fontSize: 12, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 10 },
     categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4, marginBottom: 20 },
     categoryCard: {
-        width: '47%', backgroundColor: Colors.surface, borderRadius: 12, borderWidth: 1, borderColor: Colors.border,
-        paddingVertical: 18, paddingHorizontal: 12, alignItems: 'center', gap: 8,
+        width: '47%', backgroundColor: Colors.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border,
+        paddingVertical: 18, paddingHorizontal: Spacing.md, alignItems: 'center', gap: Spacing.sm,
     },
     categoryLabel: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary, textAlign: 'center' },
-    browseAllBtn: { alignItems: 'center', paddingVertical: 12, marginBottom: 20 },
+    browseAllBtn: { alignItems: 'center', paddingVertical: Spacing.md, marginBottom: 20 },
     browseAllText: { fontSize: 13, fontWeight: '700', color: Colors.primary },
 
-    specializedBox: { backgroundColor: Colors.surface, borderRadius: 10, padding: 12, marginBottom: 18, borderWidth: 1, borderColor: Colors.border },
+    specializedBox: { backgroundColor: Colors.surface, borderRadius: Radius.sm, padding: Spacing.md, marginBottom: 18, borderWidth: 1, borderColor: Colors.border },
     specializedText: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17, fontStyle: 'italic' },
 
-    assessmentBox: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 18 },
+    assessmentBox: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.lg, marginBottom: 18 },
     assessmentTitle: { fontSize: 16, fontWeight: '800', color: Colors.textPrimary, marginBottom: 14 },
     assessmentDivider: { height: 1, backgroundColor: Colors.border, marginTop: 14, marginBottom: 4 },
     assessmentRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: Colors.border },
@@ -715,78 +716,78 @@ const s = StyleSheet.create({
     assessmentValue: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, textAlign: 'right' },
     assessmentWarn: { fontSize: 12, color: Colors.warning, marginTop: 10, lineHeight: 16 },
 
-    amountLabel: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: 8 },
-    amountInput: { borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: Colors.textPrimary, backgroundColor: Colors.bg },
+    amountLabel: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: Spacing.sm },
+    amountInput: { borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm, paddingHorizontal: Spacing.md, paddingVertical: 10, fontSize: 14, color: Colors.textPrimary, backgroundColor: Colors.bg },
     amountHint: { fontSize: 11.5, color: Colors.textMuted, marginTop: 6, lineHeight: 16 },
     capacityNoteLink: { fontSize: 12, color: Colors.primary, marginTop: 10, fontWeight: '600' },
 
-    beforeApplyingBox: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 18, borderWidth: 1, borderColor: Colors.equity + '40' },
+    beforeApplyingBox: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.lg, marginBottom: 18, borderWidth: 1, borderColor: Colors.equity + '40' },
     beforeApplyingTitle: { fontSize: 15, fontWeight: '800', color: Colors.textPrimary, marginBottom: 2 },
-    beforeApplyingSubtitle: { fontSize: 11.5, color: Colors.textMuted, marginBottom: 12 },
-    beforeApplyingRow: { flexDirection: 'row', marginBottom: 8 },
+    beforeApplyingSubtitle: { fontSize: 11.5, color: Colors.textMuted, marginBottom: Spacing.md },
+    beforeApplyingRow: { flexDirection: 'row', marginBottom: Spacing.sm },
     beforeApplyingIcon: { fontSize: 14, fontWeight: '800', width: 20 },
     beforeApplyingLabel: { fontSize: 12.5, color: Colors.textSecondary, flex: 1, lineHeight: 17 },
 
     sectionTitle: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, marginBottom: 10 },
 
-    productHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
-    productHeaderLeft: { flexDirection: 'row', alignItems: 'flex-start', flex: 1, marginRight: 8 },
+    productHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: Spacing.sm },
+    productHeaderLeft: { flexDirection: 'row', alignItems: 'flex-start', flex: 1, marginRight: Spacing.sm },
     productName: { fontSize: 14.5, fontWeight: '700', color: Colors.textPrimary },
     productLender: { fontSize: 11.5, color: Colors.textMuted, marginTop: 2 },
-    fitBadge: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, alignItems: 'center', minWidth: 76 },
+    fitBadge: { borderRadius: Radius.sm, paddingHorizontal: 10, paddingVertical: 6, alignItems: 'center', minWidth: 76 },
     fitBadgeScore: { fontSize: 16, fontWeight: '800' },
     fitBadgeLabel: { fontSize: 9.5, fontWeight: '700', marginTop: 1 },
-    productDesc: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17, marginBottom: 8 },
+    productDesc: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17, marginBottom: Spacing.sm },
     productMetaRow: { flexDirection: 'row', gap: 14, marginBottom: 4 },
     productMeta: { fontSize: 11.5, color: Colors.textMuted, fontWeight: '600' },
 
-    criteriaTitle: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: 8 },
+    criteriaTitle: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: Spacing.sm },
     criterionRow: { flexDirection: 'row', marginBottom: 9 },
     criterionIcon: { fontSize: 14, fontWeight: '800', width: 20 },
     criterionLabel: { fontSize: 12.5, fontWeight: '600', color: Colors.textPrimary },
     criterionDetail: { fontSize: 11.5, color: Colors.textSecondary, marginTop: 1 },
     criterionNote: { fontSize: 11, color: Colors.textMuted, fontStyle: 'italic', marginTop: 2, lineHeight: 15 },
 
-    improveBox: { marginTop: 4, backgroundColor: Colors.bg, borderRadius: 8, padding: 10 },
+    improveBox: { marginTop: 4, backgroundColor: Colors.bg, borderRadius: Radius.sm, padding: 10 },
     improveTitle: { fontSize: 12, fontWeight: '700', color: Colors.textPrimary, marginBottom: 5 },
     improveTip: { fontSize: 11.5, color: Colors.textSecondary, lineHeight: 16, marginBottom: 3 },
     improveFootnote: { fontSize: 10.5, color: Colors.textMuted, fontStyle: 'italic', marginTop: 4, lineHeight: 14 },
 
     notEligibleNote: { fontSize: 11.5, color: Colors.expense, marginTop: 6, lineHeight: 16 },
 
-    economicBox: { marginTop: 10, backgroundColor: Colors.warning + '15', borderRadius: 8, padding: 10, borderWidth: 1, borderColor: Colors.warning + '40' },
+    economicBox: { marginTop: 10, backgroundColor: Colors.warning + '15', borderRadius: Radius.sm, padding: 10, borderWidth: 1, borderColor: Colors.warning + '40' },
     economicTitle: { fontSize: 12, fontWeight: '700', color: Colors.textPrimary, marginBottom: 4 },
     economicNoteText: { fontSize: 11.5, color: Colors.textSecondary, lineHeight: 16 },
 
-    footerNote: { marginTop: 8, marginBottom: 20 },
+    footerNote: { marginTop: Spacing.sm, marginBottom: 20 },
     footerNoteText: { fontSize: 11, color: Colors.textMuted, lineHeight: 16, textAlign: 'center' },
 
-    visibilityBox: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginTop: 8, marginBottom: 20, borderWidth: 1, borderColor: Colors.equity + '40' },
+    visibilityBox: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.lg, marginTop: Spacing.sm, marginBottom: 20, borderWidth: 1, borderColor: Colors.equity + '40' },
     visibilityTitle: { fontSize: 16, fontWeight: '800', color: Colors.textPrimary, marginBottom: 4 },
     visibilitySubtitle: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 17, marginBottom: 14 },
 
-    shareGrid: { flexDirection: 'row', gap: 12, marginBottom: 14 },
-    shareCol: { flex: 1, backgroundColor: Colors.bg, borderRadius: 8, padding: 10 },
+    shareGrid: { flexDirection: 'row', gap: Spacing.md, marginBottom: 14 },
+    shareCol: { flex: 1, backgroundColor: Colors.bg, borderRadius: Radius.sm, padding: 10 },
     shareColTitle: { fontSize: 11.5, fontWeight: '800', color: Colors.income, marginBottom: 6 },
     shareColItem: { fontSize: 11, color: Colors.textSecondary, lineHeight: 16, marginBottom: 2 },
 
-    factorSummaryBox: { backgroundColor: Colors.bg, borderRadius: 8, padding: 12, marginBottom: 14 },
+    factorSummaryBox: { backgroundColor: Colors.bg, borderRadius: Radius.sm, padding: Spacing.md, marginBottom: 14 },
     factorSummaryTitle: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: 10 },
-    factorRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 7, gap: 8 },
+    factorRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 7, gap: Spacing.sm },
     factorRowName: { fontSize: 11, color: Colors.textSecondary, width: 100 },
     factorRowTrack: { flex: 1, height: 5, borderRadius: 3, backgroundColor: Colors.border, overflow: 'hidden' },
     factorRowFill: { height: '100%', borderRadius: 3 },
     factorRowScore: { fontSize: 10.5, color: Colors.textMuted, width: 26, textAlign: 'right' },
     revenueBandNote: { fontSize: 11, color: Colors.textMuted, marginTop: 6, fontStyle: 'italic' },
 
-    purposeInput: { borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 13, color: Colors.textPrimary, backgroundColor: Colors.bg, marginBottom: 14 },
+    purposeInput: { borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm, paddingHorizontal: Spacing.md, paddingVertical: 10, fontSize: 13, color: Colors.textPrimary, backgroundColor: Colors.bg, marginBottom: 14 },
 
-    publishBtn: { backgroundColor: Colors.primary, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
+    publishBtn: { backgroundColor: Colors.primary, borderRadius: Radius.sm, paddingVertical: Spacing.md, alignItems: 'center' },
     publishBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
-    publishMsg: { fontSize: 12, color: Colors.income, marginTop: 8, textAlign: 'center' },
+    publishMsg: { fontSize: 12, color: Colors.income, marginTop: Spacing.sm, textAlign: 'center' },
 
     activeListingsBox: { marginTop: 16, paddingTop: 14, borderTopWidth: 1, borderTopColor: Colors.border },
-    activeListingsTitle: { fontSize: 11.5, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 8 },
+    activeListingsTitle: { fontSize: 11.5, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: Spacing.sm },
     activeListingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
     activeListingType: { fontSize: 12.5, color: Colors.textPrimary, fontWeight: '600' },
     revokeLink: { fontSize: 12, color: Colors.expense, fontWeight: '600' },

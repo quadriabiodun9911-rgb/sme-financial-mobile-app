@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
-    TouchableOpacity, Modal, StyleSheet, Alert, Platform,
+    TouchableOpacity, Modal, StyleSheet,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -18,7 +18,7 @@ import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan } from '../utils/actionRecommendationEngine';
 import { suggestSolution, ImpactSource } from '../utils/impactChain';
 import { getMonthlyExpenseAverage } from '../utils/finance';
-import { showAlert } from '../utils/webAlert';
+import { showAlert, confirmAction } from '../utils/webAlert';
 import { computeRiskRadar } from '../utils/riskRadar';
 import { assessGoalRisk, GoalRiskSeverity } from '../utils/goalRiskLinkage';
 
@@ -230,16 +230,7 @@ export default function GoalsScreen() {
     };
 
     const handleDelete = useCallback((id: string, title: string) => {
-        if (Platform.OS === 'web') {
-            if (window.confirm(`Remove "${title}"?`)) {
-                deleteGoal(id);
-            }
-        } else {
-            Alert.alert('Delete Goal', `Remove "${title}"?`, [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Delete', style: 'destructive', onPress: () => deleteGoal(id) },
-            ]);
-        }
+        confirmAction('Delete Goal', `Remove "${title}"?`, 'Delete', () => deleteGoal(id));
     }, [deleteGoal]);
 
     const openEditModal = useCallback((goal: FinancialGoal) => {

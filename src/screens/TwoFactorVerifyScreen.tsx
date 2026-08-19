@@ -90,7 +90,7 @@ export default function TwoFactorVerifyScreen() {
 
 const s = StyleSheet.create({
     safe: { flex: 1, backgroundColor: Colors.bg },
-    container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xxxl },
+    container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xxxl, width: '100%', maxWidth: 440, alignSelf: 'center' },
     iconWrap: { marginBottom: Spacing.lg },
     title: { fontSize: 20, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: Spacing.sm, textAlign: 'center' },
     subtitle: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 20, marginBottom: 28 },

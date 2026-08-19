@@ -3,7 +3,6 @@ import {
     SafeAreaView, ScrollView, View, Text,
     TouchableOpacity, StyleSheet, Modal,
     TextInput, KeyboardAvoidingView, Platform,
-    Alert,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -18,7 +17,7 @@ import { computeStockVelocity, computeInventoryValue } from '../utils/stockVeloc
 import RecipeCostCalculator from '../components/RecipeCostCalculator';
 import ProductionCostCalculator from '../components/ProductionCostCalculator';
 import { InventoryItem } from '../types';
-import { showAlert } from '../utils/webAlert';
+import { showAlert, confirmAction } from '../utils/webAlert';
 
 type InventoryTab = 'stock' | 'analytics';
 
@@ -160,20 +159,7 @@ export default function InventoryScreen() {
     };
 
     const confirmDelete = (item: InventoryItem) => {
-        if (Platform.OS === 'web') {
-            if (window.confirm(`Remove "${item.name}" from inventory?`)) {
-                deleteInventoryItem(item.id);
-            }
-        } else {
-            Alert.alert(
-                'Delete Item',
-                `Remove "${item.name}" from inventory?`,
-                [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Delete', style: 'destructive', onPress: () => deleteInventoryItem(item.id) },
-                ],
-            );
-        }
+        confirmAction('Delete Item', `Remove "${item.name}" from inventory?`, 'Delete', () => deleteInventoryItem(item.id));
     };
 
     const confirmSell = () => {

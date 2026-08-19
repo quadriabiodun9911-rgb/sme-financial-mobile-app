@@ -376,13 +376,13 @@ export default function LoginScreen() {
                 if (msg.includes('user not found') || msg.includes('not found')) {
                     showAlert('No Account Found', 'No account exists with that email address. Please check and try again.');
                 } else {
-                    showAlert('Error', error.message);
+                    showAlert('Could Not Send Reset Link', error.message);
                 }
             } else {
                 setResetStep('verify');
             }
         } catch (e: any) {
-            showAlert('Error', e?.message ?? 'Failed to send reset email.');
+            showAlert('Could Not Send Reset Link', e?.message ?? 'Something went wrong. Please try again.');
         }
         setResetSubmitting(false);
     };

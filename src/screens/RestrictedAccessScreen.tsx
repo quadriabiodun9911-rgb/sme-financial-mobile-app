@@ -32,10 +32,10 @@ export default function RestrictedAccessScreen() {
 
 const s = StyleSheet.create({
     safe: { flex: 1, backgroundColor: Colors.bg },
-    body: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xxxl },
+    body: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xxxl, width: '100%', maxWidth: 480, alignSelf: 'center' },
     iconWrap: { marginBottom: Spacing.lg },
     title: { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 10, textAlign: 'center' },
-    text: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center', lineHeight: 19, marginBottom: Spacing.xxl },
+    text: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center', lineHeight: 19, marginBottom: Spacing.xxl, maxWidth: 400 },
     btn: { backgroundColor: Colors.primary, paddingVertical: Spacing.md, paddingHorizontal: Spacing.xxl, borderRadius: 10 },
     btnText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
 });

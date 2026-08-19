@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
-    TouchableOpacity, StyleSheet, Modal, Alert, Platform,
+    TouchableOpacity, StyleSheet, Modal,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -149,16 +149,7 @@ export default function AssetsScreen() {
     };
 
     const confirmDelete = useCallback((id: string) => {
-        if (Platform.OS === 'web') {
-            if (window.confirm(t(language, 'confirm'))) {
-                deleteAsset(id);
-            }
-        } else {
-            Alert.alert(t(language, 'delete'), t(language, 'confirm'), [
-                { text: t(language, 'cancel'), style: 'cancel' },
-                { text: t(language, 'delete'), style: 'destructive', onPress: () => deleteAsset(id) },
-            ]);
-        }
+        confirmAction(t(language, 'delete'), t(language, 'confirm'), t(language, 'delete'), () => deleteAsset(id));
     }, [language, deleteAsset]);
 
     const handleOpenDispose = useCallback((id: string) => {

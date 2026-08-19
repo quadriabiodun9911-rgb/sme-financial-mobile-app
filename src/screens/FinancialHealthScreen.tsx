@@ -8,7 +8,7 @@
 import React, { useState, useCallback } from 'react';
 import {
     View, Text, TouchableOpacity, ScrollView,
-    StyleSheet, ActivityIndicator, Alert, Platform,
+    StyleSheet, ActivityIndicator,
 } from 'react-native';
 import { useApp } from '../contexts/OptimizedContexts';
 import { Colors } from '../theme/colors';
@@ -16,6 +16,7 @@ import { Config } from '../config';
 import NextStepLink from '../components/NextStepLink';
 import Icon from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
+import { showAlert } from '../utils/webAlert';
 
 interface HealthData {
     income:    any | null;
@@ -68,9 +69,7 @@ export default function FinancialHealthScreen() {
 
     const fetchHealth = useCallback(async () => {
         if (!phone) {
-            const msg = 'Phone number required. Please add your phone number in Settings to use Financial Health scoring.';
-            if (Platform.OS === 'web') window.alert(msg);
-            else Alert.alert('Phone number required', 'Please add your phone number in Settings to use Financial Health scoring.', [{ text: 'OK' }]);
+            showAlert('Phone Number Required', 'Please add your phone number in Settings to use Financial Health scoring.');
             return;
         }
 
@@ -80,7 +79,7 @@ export default function FinancialHealthScreen() {
                 `${Config.BACKEND_URL}/api/financial-health/${encodeURIComponent(phone)}?currencyCode=${currencyCode}`
             );
 
-            if (!res.ok) throw new Error(`Server error ${res.status}. Is the backend deployed?`);
+            if (!res.ok) throw new Error('The scoring service is temporarily unavailable.');
 
             const json = await res.json();
             setData({ ...json, fetchedAt: new Date().toISOString() });
@@ -89,8 +88,8 @@ export default function FinancialHealthScreen() {
                 console.warn('Pngme partial errors:', json.errors);
             }
         } catch (err: any) {
-            if (Platform.OS === 'web') window.alert(`Could not load data: ${err.message}`);
-            else Alert.alert('Could not load data', err.message);
+            showAlert('Could Not Load Data', 'We couldn\'t reach the Financial Health scoring service right now. Please try again shortly.');
+            console.error('[FinancialHealthScreen] fetch failed:', err);
         } finally {
             setLoading(false);
         }

@@ -14,7 +14,7 @@ import { sendInvoiceReminderViaWhatsApp, sendPaymentRequestViaWhatsApp, isWhatsA
 import { getInvoicesDueForReminder, loadReminderState, markReminderSent, InvoiceReminderState, ReminderDue } from '../utils/invoiceReminders';
 import NextStepLink from '../components/NextStepLink';
 import ProjectProfitabilityCalculator from '../components/ProjectProfitabilityCalculator';
-import { showAlert } from '../utils/webAlert';
+import { showAlert, confirmAction } from '../utils/webAlert';
 import Icon from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { t } from '../utils/i18n';
@@ -279,16 +279,7 @@ export default function InvoicesScreen() {
     };
 
     const handleDelete = (inv: Invoice) => {
-        if (Platform.OS === 'web') {
-            if (window.confirm(`Delete ${inv.invoiceNumber}? This cannot be undone.`)) {
-                deleteInvoice(inv.id);
-            }
-        } else {
-            Alert.alert('Delete Invoice', `Delete ${inv.invoiceNumber}? This cannot be undone.`, [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Delete', style: 'destructive', onPress: () => deleteInvoice(inv.id) },
-            ]);
-        }
+        confirmAction('Delete Invoice', `Delete ${inv.invoiceNumber}? This cannot be undone.`, 'Delete', () => deleteInvoice(inv.id));
     };
 
     const updateLine = (idx: number, patch: Partial<InvoiceLineItem>) => {

@@ -719,7 +719,7 @@ export default function DashboardScreen() {
                 {isDemoMode && (
                     <View style={styles.demoBanner}>
                         <View style={styles.demoBannerLeft}>
-                            <Icon name="eye" size={14} color="#fef3c7" />
+                            <Icon name="eye" size={14} color="#fff" />
                             <Text style={styles.demoBannerText}>Demo Mode — data is not saved</Text>
                         </View>
                         <TouchableOpacity onPress={() => { trackDemoConvertTapped(); exitDemo(); }} style={styles.demoBannerBtn}>
@@ -1541,13 +1541,13 @@ const styles = StyleSheet.create({
     flex:   { flex: 1 },
 
     demoBanner: {
-        backgroundColor: '#854d0e', borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.lg,
+        backgroundColor: Colors.warning, borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.lg,
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     },
     demoBannerLeft:    { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flex: 1 },
-    demoBannerText:    { color: '#fef3c7', fontWeight: '600', fontSize: 13, flex: 1 },
-    demoBannerBtn:     { backgroundColor: '#fef3c7', borderRadius: Radius.sm, paddingHorizontal: 10, paddingVertical: 5, marginLeft: 8 },
-    demoBannerBtnText: { color: '#854d0e', fontWeight: '700', fontSize: 12 },
+    demoBannerText:    { color: '#fff', fontWeight: '600', fontSize: 13, flex: 1 },
+    demoBannerBtn:     { backgroundColor: '#fff', borderRadius: Radius.sm, paddingHorizontal: 10, paddingVertical: 5, marginLeft: 8 },
+    demoBannerBtnText: { color: Colors.warning, fontWeight: '700', fontSize: 12 },
 
     solveBanner: {
         backgroundColor: Colors.primary, borderRadius: Radius.lg, padding: Spacing.lg, marginBottom: Spacing.lg,
@@ -1746,6 +1746,10 @@ const styles = StyleSheet.create({
     btn:     { backgroundColor: Colors.primary, paddingVertical: 13, borderRadius: 10, alignItems: 'center', marginTop: 4 },
     btnText: { color: Colors.textPrimary, fontWeight: 'bold', fontSize: 14 },
 
+    // Fixed dark background (not Colors.surface) on purpose: toastText is
+    // always white, and Colors.surface is a light cream on the Warm Paper
+    // theme -- reacting to theme here would make the toast illegible on
+    // that palette instead of just staying a normal dark toast on both.
     toast:     { position: 'absolute', bottom: 140, left: 20, right: 20, backgroundColor: '#1a1a2e', borderRadius: 10, paddingHorizontal: 16, paddingVertical: 12, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 10 },
     toastText: { color: '#fff', fontSize: 13, fontWeight: '600', textAlign: 'center' },
 
