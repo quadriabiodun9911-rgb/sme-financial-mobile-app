@@ -107,7 +107,17 @@ export default function LoginScreen() {
         setMode(isFirstLaunch ? 'owner-setup' : 'owner-login');
     }, [isFirstLaunch, navParams]);
 
-    // On web: detect Supabase recovery callback (access_token in URL hash)
+    // On web: detect Supabase recovery callback. Two paths land here:
+    // the manual hash check below only matches the classic implicit-flow
+    // shape (#access_token=...&type=recovery) -- but supabase-js's own
+    // client (detectSessionInUrl: true, see utils/supabase.ts) processes
+    // the URL itself on load and may consume/clear the hash (or receive a
+    // PKCE-style ?code=... link instead, which has no hash at all) before
+    // this effect's plain string check ever sees it. The PASSWORD_RECOVERY
+    // auth event is what Supabase actually recommends relying on for a
+    // reset landing page -- it fires however the client parsed the link --
+    // so it's the authoritative path; the hash check just short-circuits
+    // that same UI switch a tick sooner when its shape does match.
     useEffect(() => {
         if (Platform.OS !== 'web') return;
         const hash = window.location.hash;
@@ -115,13 +125,21 @@ export default function LoginScreen() {
         const type = params.get('type');
         const accessToken = params.get('access_token');
         if ((type === 'recovery' || type === 'signup') && accessToken) {
-            // Let Supabase process the token first, then show the PIN reset form
             supabase.auth.getSession().then(() => {
                 setMode('reset-pin');
                 setResetStep('complete-web');
             });
             window.history.replaceState(null, '', window.location.pathname);
         }
+
+        const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+            if (event === 'PASSWORD_RECOVERY') {
+                setMode('reset-pin');
+                setResetStep('complete-web');
+                window.history.replaceState(null, '', window.location.pathname);
+            }
+        });
+        return () => sub.subscription.unsubscribe();
     }, []);
 
     // Update lockout timer
