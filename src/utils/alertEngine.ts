@@ -5,6 +5,7 @@ import { computeMonthlyTrend } from './finance';
 import { nextLoanPaymentDueDate, daysUntilLoanPaymentDue, isLoanPaymentOverdue } from './loanMath';
 import { getPayrollReminderStatus, DEFAULT_PAYROLL_DUE_SOON_DAY } from './payrollReminders';
 import { getUninvoicedOverdueTransactions } from './overdueTransactions';
+import { getTaxDeadlineStatus, TAX_DEADLINE_DUE_SOON_DAYS } from './taxDeadline';
 
 /**
  * Real-Time Cash Alerts System
@@ -25,6 +26,7 @@ export const DEFAULT_THRESHOLDS: AlertThresholds = {
   largeExpenseAmount: 0.5, // 50% of monthly average
   loanPaymentDueSoonDays: 3, // warn this many days before a loan payment is due
   payrollDueSoonDay: DEFAULT_PAYROLL_DUE_SOON_DAY,
+  taxDeadlineDueSoonDays: TAX_DEADLINE_DUE_SOON_DAYS,
 };
 
 export class AlertEngine {
@@ -34,6 +36,7 @@ export class AlertEngine {
   private loans: Loan[];
   private staff: StaffMember[];
   private payrollRuns: PayrollRun[];
+  private nextTaxDeadline?: string;
   private forecast?: CashFlowForecast;
   private thresholds: AlertThresholds;
   private dismissedAlerts: Set<string>;
@@ -49,7 +52,8 @@ export class AlertEngine {
     currency?: string,
     loans?: Loan[],
     staff?: StaffMember[],
-    payrollRuns?: PayrollRun[]
+    payrollRuns?: PayrollRun[],
+    nextTaxDeadline?: string
   ) {
     this.currentCash = currentCash;
     this.transactions = transactions;
@@ -57,6 +61,7 @@ export class AlertEngine {
     this.loans = loans || [];
     this.staff = staff || [];
     this.payrollRuns = payrollRuns || [];
+    this.nextTaxDeadline = nextTaxDeadline;
     this.forecast = forecast;
     this.thresholds = { ...DEFAULT_THRESHOLDS, ...thresholds };
     this.dismissedAlerts = new Set(dismissedAlertIds || []);
@@ -96,6 +101,10 @@ export class AlertEngine {
     // Payroll not run for the current or previous month
     const payrollAlert = this.detectPayrollAlert();
     if (payrollAlert) alerts.push(payrollAlert);
+
+    // Tax filing deadline overdue or coming up soon
+    const taxDeadlineAlert = this.detectTaxDeadlineAlert();
+    if (taxDeadlineAlert) alerts.push(taxDeadlineAlert);
 
     // Filter out dismissed alerts
     return alerts.filter(a => !this.dismissedAlerts.has(a.id));
@@ -376,6 +385,50 @@ export class AlertEngine {
   }
 
   /**
+   * Detect a tax filing deadline (settings.nextTaxDeadline) that's overdue
+   * or coming up soon. Same date math as the Tax Filing Readiness tab
+   * (taxDeadline.ts) -- that tab already displays this prominently on its
+   * own screen, so no new local banner is needed, only surfacing it here.
+   * A stable id keyed to the deadline date itself, not a timestamp, so
+   * dismissing it doesn't un-dismiss on the next recompute, and setting a
+   * new deadline in Settings is a genuinely new alert.
+   */
+  private detectTaxDeadlineAlert(): ForecastAlert | null {
+    const status = getTaxDeadlineStatus(this.nextTaxDeadline, new Date(), this.thresholds.taxDeadlineDueSoonDays);
+
+    if (status.kind === 'overdue') {
+      return {
+        id: `alert-tax-deadline-overdue-${status.deadline}`,
+        type: 'tax_deadline_overdue',
+        priority: 'high',
+        title: '🏛️ Tax Filing Deadline Overdue',
+        description: `Your tax filing deadline (${status.deadline}) was ${status.daysOverdue} day${status.daysOverdue === 1 ? '' : 's'} ago.`,
+        affectedDate: status.deadline,
+        recommendations: [
+          'File as soon as possible to limit penalties',
+          'Contact an accountant if you need help catching up',
+        ],
+        createdAt: new Date().toISOString(),
+      };
+    }
+
+    if (status.kind === 'due_soon') {
+      return {
+        id: `alert-tax-deadline-due-soon-${status.deadline}`,
+        type: 'tax_deadline_due_soon',
+        priority: status.daysUntilDeadline <= 3 ? 'high' : 'medium',
+        title: '🏛️ Tax Filing Deadline Coming Up',
+        description: `Your tax filing deadline (${status.deadline}) is in ${status.daysUntilDeadline} day${status.daysUntilDeadline === 1 ? '' : 's'}.`,
+        affectedDate: status.deadline,
+        recommendations: ['Make sure your records are ready to hand to an accountant'],
+        createdAt: new Date().toISOString(),
+      };
+    }
+
+    return null;
+  }
+
+  /**
    * Mark an alert as dismissed
    */
   public dismissAlert(alertId: string): void {
@@ -443,7 +496,8 @@ export const detectAlerts = (
   currency?: string,
   loans?: Loan[],
   staff?: StaffMember[],
-  payrollRuns?: PayrollRun[]
+  payrollRuns?: PayrollRun[],
+  nextTaxDeadline?: string
 ): ForecastAlert[] => {
   const engine = new AlertEngine(
     currentCash,
@@ -455,7 +509,8 @@ export const detectAlerts = (
     currency,
     loans,
     staff,
-    payrollRuns
+    payrollRuns,
+    nextTaxDeadline
   );
   return engine.detectAllAlerts();
 };
@@ -526,9 +581,9 @@ export const buildForecastInput = (
  * Single entry point for the dashboard alert bell: builds a cash-flow
  * forecast from live financial data, then runs every alert detector
  * (low cash, negative forecast, overdue invoices, large upcoming expenses,
- * loan payments overdue or due soon, payroll not run) against it. Pure
- * computation -- no side effects, no persistence; the caller owns
- * dismissal storage.
+ * loan payments overdue or due soon, payroll not run, tax filing deadline)
+ * against it. Pure computation -- no side effects, no persistence; the
+ * caller owns dismissal storage.
  */
 export const detectFinancialAlerts = (
   currentCash: number,
@@ -538,8 +593,9 @@ export const detectFinancialAlerts = (
   dismissedAlertIds?: string[],
   loans?: Loan[],
   staff?: StaffMember[],
-  payrollRuns?: PayrollRun[]
+  payrollRuns?: PayrollRun[],
+  nextTaxDeadline?: string
 ): ForecastAlert[] => {
   const forecast = generateCashFlowForecast(buildForecastInput(currentCash, transactions, invoices, currency));
-  return detectAlerts(currentCash, transactions, invoices, forecast, undefined, dismissedAlertIds, currency, loans, staff, payrollRuns);
+  return detectAlerts(currentCash, transactions, invoices, forecast, undefined, dismissedAlertIds, currency, loans, staff, payrollRuns, nextTaxDeadline);
 };

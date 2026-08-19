@@ -24,7 +24,9 @@ export type PriorityKind =
     | 'overspent_budget'
     | 'financing_opportunity'
     | 'payroll_overdue'
-    | 'payroll_due_soon';
+    | 'payroll_due_soon'
+    | 'tax_deadline_overdue'
+    | 'tax_deadline_due_soon';
 
 export interface PriorityItem {
     id: string;
@@ -49,7 +51,7 @@ const TIER_RANK: Record<PriorityTier, number> = { attention: 0, watch: 1, opport
 // uncollected receivables are a direct cash-flow lever, not just a
 // collections issue.
 const GOAL_KINDS: Record<PrimaryGoal, PriorityKind[]> = {
-    cashflow: ['low_cash', 'negative_forecast', 'large_expense_coming', 'overdue_invoices', 'overdue_loan_payments', 'overdue_transactions', 'payroll_overdue', 'payroll_due_soon'],
+    cashflow: ['low_cash', 'negative_forecast', 'large_expense_coming', 'overdue_invoices', 'overdue_loan_payments', 'overdue_transactions', 'payroll_overdue', 'payroll_due_soon', 'tax_deadline_overdue', 'tax_deadline_due_soon'],
     costs: ['overspent_budget'],
     financing: ['financing_opportunity'],
 };
@@ -58,10 +60,11 @@ const GOAL_KINDS: Record<PrimaryGoal, PriorityKind[]> = {
 // overdue transaction; the dashboard already aggregates each of those into
 // a single card ("3 customers, ₦420,000 to collect"), so those alert types
 // are excluded here to avoid double-reporting the same risk in two
-// different shapes. Payroll never produces more than one alert at a time
-// (detectPayrollAlert returns at most one), so it passes through
-// generically instead of needing its own aggregation block.
-const PASSTHROUGH_ALERT_TYPES = new Set(['low_cash', 'negative_forecast', 'large_expense_coming', 'payroll_overdue', 'payroll_due_soon']);
+// different shapes. Payroll and the tax filing deadline never produce more
+// than one alert at a time (detectPayrollAlert / detectTaxDeadlineAlert
+// each return at most one), so they pass through generically instead of
+// needing their own aggregation block.
+const PASSTHROUGH_ALERT_TYPES = new Set(['low_cash', 'negative_forecast', 'large_expense_coming', 'payroll_overdue', 'payroll_due_soon', 'tax_deadline_overdue', 'tax_deadline_due_soon']);
 
 function alertToPriorityItem(alert: ForecastAlert): PriorityItem {
     return {

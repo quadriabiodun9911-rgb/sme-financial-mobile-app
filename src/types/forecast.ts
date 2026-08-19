@@ -125,6 +125,7 @@ export interface AlertThresholds {
   largeExpenseAmount: number;    // Define "large" as expense > this %
   loanPaymentDueSoonDays: number; // Warn a loan payment is coming within X days
   payrollDueSoonDay: number; // Day of the month to start warning payroll hasn't run yet
+  taxDeadlineDueSoonDays: number; // Warn a tax filing deadline is coming within X days
 }
 
 export type AlertType =
@@ -138,7 +139,9 @@ export type AlertType =
   | 'loan_payment_due_soon'
   | 'payroll_overdue'
   | 'payroll_due_soon'
-  | 'overdue_transaction';
+  | 'overdue_transaction'
+  | 'tax_deadline_overdue'
+  | 'tax_deadline_due_soon';
 
 export interface ForecastAlert {
   id: string;

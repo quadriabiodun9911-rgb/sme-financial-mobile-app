@@ -235,6 +235,26 @@ describe('buildDashboardPriorities', () => {
         expect(item?.tier).toBe('watch');
     });
 
+    it('passes a tax_deadline_overdue alert through into the attention tier', () => {
+        const result = buildDashboardPriorities({
+            alerts: [alert({ id: 'alert-tax-deadline-overdue-2026-08-15', type: 'tax_deadline_overdue', priority: 'high', title: '🏛️ Tax Filing Deadline Overdue' })],
+            overdueInvoices: [], lowStockItems: [], overspentBudgets: [], financingOpportunity: null, currency: '₦',
+        });
+        const item = result.find(p => p.kind === 'tax_deadline_overdue');
+        expect(item).toBeDefined();
+        expect(item?.tier).toBe('attention');
+    });
+
+    it('passes a tax_deadline_due_soon alert through into the watch tier', () => {
+        const result = buildDashboardPriorities({
+            alerts: [alert({ id: 'alert-tax-deadline-due-soon-2026-08-25', type: 'tax_deadline_due_soon', priority: 'medium', title: '🏛️ Tax Filing Deadline Coming Up' })],
+            overdueInvoices: [], lowStockItems: [], overspentBudgets: [], financingOpportunity: null, currency: '₦',
+        });
+        const item = result.find(p => p.kind === 'tax_deadline_due_soon');
+        expect(item).toBeDefined();
+        expect(item?.tier).toBe('watch');
+    });
+
     it('aggregates overdue transactions into a single attention-tier card', () => {
         const result = buildDashboardPriorities({
             alerts: [], overdueInvoices: [],

@@ -36,11 +36,12 @@ import StatTile from '../components/ui/StatTile';
 import { buildFinancingFitInput } from '../utils/financingFit';
 import { recommendFinancingTypes } from '../utils/financingRecommendation';
 import { computeReadinessDelta } from '../utils/readinessHistory';
-import { notifyFinancingOpportunity, notifyOverdueRemindersDue, notifyLoanPaymentDueSoon, notifyPayrollDue, notifyOverdueTransactionsFound } from '../utils/notifications';
+import { notifyFinancingOpportunity, notifyOverdueRemindersDue, notifyLoanPaymentDueSoon, notifyPayrollDue, notifyOverdueTransactionsFound, notifyTaxDeadline } from '../utils/notifications';
 import { getInvoicesDueForReminder, loadReminderState, InvoiceReminderState } from '../utils/invoiceReminders';
 import { isLoanPaymentOverdue, daysUntilLoanPaymentDue } from '../utils/loanMath';
 import { getPayrollReminderStatus } from '../utils/payrollReminders';
 import { getUninvoicedOverdueTransactions } from '../utils/overdueTransactions';
+import { getTaxDeadlineStatus } from '../utils/taxDeadline';
 import { detectFinancialAlerts, DEFAULT_THRESHOLDS } from '../utils/alertEngine';
 import { buildDashboardPriorities, PriorityKind, PriorityTier, OverspentBudget } from '../utils/dashboardPriorities';
 
@@ -67,6 +68,8 @@ const PRIORITY_KIND_META: Record<PriorityKind, { icon: IconName; screen: Screen 
     financing_opportunity:  { icon: 'trending-up',    screen: 'financing-marketplace' },
     payroll_overdue:        { icon: 'users',           screen: 'payroll' },
     payroll_due_soon:       { icon: 'users',           screen: 'payroll' },
+    tax_deadline_overdue:   { icon: 'alert-triangle',  screen: 'reports' },
+    tax_deadline_due_soon:  { icon: 'alert-circle',    screen: 'reports' },
 };
 
 export default function DashboardScreen() {
@@ -285,13 +288,22 @@ export default function DashboardScreen() {
         notifyOverdueTransactionsFound(overdueTransactions.length, total, settings?.currency ?? '₦').catch(() => {});
     }, [isDemoMode, overdueTransactions, settings?.currency]);
 
+    // The Tax Filing Readiness tab (Reports) already shows this prominently
+    // on its own screen -- this only adds the alert bell / priority list /
+    // notification surfacing that was previously missing everywhere else.
+    const taxDeadlineStatus = useMemo(() => getTaxDeadlineStatus(settings?.nextTaxDeadline), [settings?.nextTaxDeadline]);
+    useEffect(() => {
+        if (isDemoMode || taxDeadlineStatus.kind === 'none' || taxDeadlineStatus.kind === 'ok') return;
+        notifyTaxDeadline(taxDeadlineStatus).catch(() => {});
+    }, [isDemoMode, taxDeadlineStatus]);
+
     // Same cash-flow risk detection the header's alert bell uses -- pure
     // computation, cheap to run a second time here rather than threading
     // Header's alert state down through props for what's otherwise an
     // unrelated component tree.
     const alerts = useMemo(
-        () => detectFinancialAlerts(finance.cashBalance, transactions, invoices, settings?.currency, undefined, loans, staff, payrollRuns),
-        [finance.cashBalance, transactions, invoices, settings?.currency, loans, staff, payrollRuns]
+        () => detectFinancialAlerts(finance.cashBalance, transactions, invoices, settings?.currency, undefined, loans, staff, payrollRuns, settings?.nextTaxDeadline),
+        [finance.cashBalance, transactions, invoices, settings?.currency, loans, staff, payrollRuns, settings?.nextTaxDeadline]
     );
 
     const priorities = useMemo(

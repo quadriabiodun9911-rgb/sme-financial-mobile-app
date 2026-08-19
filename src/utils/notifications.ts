@@ -2,6 +2,7 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PayrollReminderStatus } from './payrollReminders';
+import { TaxDeadlineStatus } from './taxDeadline';
 
 Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -20,6 +21,7 @@ const KEYS = {
     loanPaymentDueId: '@quad360/notif_loan_payment_due_id',
     payrollDueId: '@quad360/notif_payroll_due_id',
     overdueTransactionsId: '@quad360/notif_overdue_transactions_id',
+    taxDeadlineId: '@quad360/notif_tax_deadline_id',
 };
 
 export async function requestNotificationPermission(): Promise<boolean> {
@@ -189,6 +191,37 @@ export async function notifyOverdueTransactionsFound(count: number, totalAmount:
         });
 
         await AsyncStorage.setItem(KEYS.overdueTransactionsId, Date.now().toString());
+    } catch {
+        // Fail silently
+    }
+}
+
+// Mirrors the Tax Filing Readiness tab's own deadline card, which only the
+// user visiting Reports would otherwise see. Throttled to once a day, same
+// reasoning as the other reminder notifications here.
+export async function notifyTaxDeadline(status: TaxDeadlineStatus): Promise<void> {
+    try {
+        if (Platform.OS === 'web' || status.kind === 'none' || status.kind === 'ok') return;
+
+        const prevNotified = await AsyncStorage.getItem(KEYS.taxDeadlineId);
+        if (prevNotified) {
+            const daysSinceLastNotif = (Date.now() - parseInt(prevNotified, 10)) / (1000 * 60 * 60 * 24);
+            if (daysSinceLastNotif < 1) return;
+        }
+
+        const body = status.kind === 'overdue'
+            ? `Your tax filing deadline (${status.deadline}) was ${status.daysOverdue} day${status.daysOverdue === 1 ? '' : 's'} ago. File as soon as possible to limit penalties.`
+            : `Your tax filing deadline (${status.deadline}) is in ${status.daysUntilDeadline} day${status.daysUntilDeadline === 1 ? '' : 's'}.`;
+
+        await Notifications.scheduleNotificationAsync({
+            content: {
+                title: status.kind === 'overdue' ? 'Tax filing deadline overdue 🏛️' : 'Tax filing deadline coming up 🏛️',
+                body,
+            },
+            trigger: null,
+        });
+
+        await AsyncStorage.setItem(KEYS.taxDeadlineId, Date.now().toString());
     } catch {
         // Fail silently
     }

@@ -296,6 +296,51 @@ describe('alertEngine', () => {
         });
     });
 
+    describe('tax deadline alerts', () => {
+        it('flags overdue for a deadline in the past', () => {
+            const deadline = isoDaysFromNow(-3);
+            const alerts = detectAlerts(
+                1000000, [], [], undefined, undefined, undefined, '₦', [], [], [], deadline
+            );
+            const overdue = alerts.find(a => a.type === 'tax_deadline_overdue');
+            expect(overdue).toBeDefined();
+            expect(overdue?.id).toBe(`alert-tax-deadline-overdue-${deadline}`);
+            expect(overdue?.priority).toBe('high');
+        });
+
+        it('flags due_soon (high priority) for a deadline within 3 days', () => {
+            const deadline = isoDaysFromNow(2);
+            const alerts = detectAlerts(
+                1000000, [], [], undefined, undefined, undefined, '₦', [], [], [], deadline
+            );
+            const dueSoon = alerts.find(a => a.type === 'tax_deadline_due_soon');
+            expect(dueSoon).toBeDefined();
+            expect(dueSoon?.id).toBe(`alert-tax-deadline-due-soon-${deadline}`);
+            expect(dueSoon?.priority).toBe('high');
+        });
+
+        it('flags due_soon (medium priority) for a deadline further out but still within the window', () => {
+            const deadline = isoDaysFromNow(10);
+            const alerts = detectAlerts(
+                1000000, [], [], undefined, undefined, undefined, '₦', [], [], [], deadline
+            );
+            const dueSoon = alerts.find(a => a.type === 'tax_deadline_due_soon');
+            expect(dueSoon?.priority).toBe('medium');
+        });
+
+        it('produces no tax deadline alert when the deadline is comfortably far out', () => {
+            const alerts = detectAlerts(
+                1000000, [], [], undefined, undefined, undefined, '₦', [], [], [], isoDaysFromNow(60)
+            );
+            expect(alerts.some(a => a.type.startsWith('tax_deadline'))).toBe(false);
+        });
+
+        it('produces no tax deadline alert when no deadline is set', () => {
+            const alerts = detectAlerts(1000000, [], []);
+            expect(alerts.some(a => a.type.startsWith('tax_deadline'))).toBe(false);
+        });
+    });
+
     describe('detectFinancialAlerts', () => {
         it('builds a forecast from transactions/invoices and folds it into the alert set', () => {
             const recurringExpense: Transaction = {

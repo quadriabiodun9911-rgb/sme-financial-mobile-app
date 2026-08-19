@@ -1,5 +1,6 @@
 import { Transaction, Invoice, BusinessSettings, FinanceData } from '../types';
 import { computeDataQuality } from './dataQuality';
+import { daysUntilTaxDeadline } from './taxDeadline';
 
 export interface ReadinessCheck {
     id: string;
@@ -48,9 +49,7 @@ export function computeTaxFilingReadiness(
     // never surfaces "you have 4 days left" — this does.
     let daysUntilDeadline: number | null = null;
     if (settings.nextTaxDeadline) {
-        const deadline = new Date(settings.nextTaxDeadline + 'T00:00:00');
-        const today = new Date(referenceDate.toISOString().split('T')[0] + 'T00:00:00');
-        daysUntilDeadline = Math.round((deadline.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        daysUntilDeadline = daysUntilTaxDeadline(settings.nextTaxDeadline, referenceDate);
     }
     checks.push({
         id: 'deadline',
