@@ -7,9 +7,13 @@ import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import LowDataNotice from '../components/LowDataNotice';
 import Icon from '../components/ui/Icon';
-import { computeRiskScore, RISK_BAND_STYLE } from '../utils/finance';
+import { computeRiskScore, RISK_BAND_STYLE, getMonthlyExpenseAverage } from '../utils/finance';
 import { computeRiskRadar, RiskLevel } from '../utils/riskRadar';
 import { computeReadinessDelta } from '../utils/readinessHistory';
+import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
+import { generateActionPlan } from '../utils/actionRecommendationEngine';
+import { calculateGoalBridge, mapSavedGoalToBridge } from '../utils/goalBridgeEngine';
+import { assessGoalRisk, GoalRiskAssessment } from '../utils/goalRiskLinkage';
 import { GoalStatus } from '../types';
 
 const BAND_COLOR: Record<string, string> = {
@@ -28,6 +32,12 @@ const RISK_LEVEL_META: Record<RiskLevel, { color: string; dot: string }> = {
 };
 
 const FACTOR_STATUS_COLOR: Record<string, string> = { good: Colors.income, warning: Colors.warning, danger: Colors.expense };
+
+const READINESS_BAND_COLORS: Record<GoalRiskAssessment['readinessBand'], string> = {
+    Strong: Colors.income,
+    Moderate: Colors.warning,
+    Weak: Colors.expense,
+};
 
 const GOAL_STATUS_META: Record<GoalStatus, { label: string; color: string }> = {
     on_track:  { label: 'On Track',  color: Colors.income },
@@ -49,7 +59,7 @@ const GOAL_STATUS_META: Record<GoalStatus, { label: string; color: string }> = {
  * duplicating it.
  */
 export default function ScoreboardScreen() {
-    const { transactions, loans, inventory, finance, settings, goals, readinessHistory, navigate, setCurrentScreen } = useApp();
+    const { transactions, invoices, loans, inventory, finance, settings, goals, readinessHistory, navigate, setCurrentScreen } = useApp();
     const { currency } = settings;
 
     const risk = useMemo(() => computeRiskScore(finance, loans, transactions, inventory), [finance, loans, transactions, inventory]);
@@ -67,6 +77,36 @@ export default function ScoreboardScreen() {
         return counts;
     }, [goals]);
     const activeGoals = useMemo(() => goals.filter(g => g.status !== 'achieved').slice(0, 3), [goals]);
+
+    // "What could stop THIS goal" for each goal shown above -- same real
+    // diagnosis/risk-radar/bridge pipeline GoalsScreen's Plan modal already
+    // runs, gated the same way (< 5 transactions makes the diagnosis too
+    // noisy to be worth it). Kept to the 3 goals actually rendered rather
+    // than every goal, since this recomputes a full goal-bridge per goal.
+    const goalRiskByGoalId = useMemo(() => {
+        if (transactions.length < 5 || activeGoals.length === 0) return {};
+        const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), currency, loans, inventory);
+        const tactics = generateActionPlan(diagnosis, diagnosis.metrics, currency);
+        const allTactics = [...tactics.immediateActions, ...tactics.shortTermActions, ...tactics.strategicActions];
+        const map: Record<string, GoalRiskAssessment> = {};
+        for (const g of activeGoals) {
+            const bridge = calculateGoalBridge(mapSavedGoalToBridge(g), diagnosis.metrics, allTactics, currency);
+            map[g.id] = assessGoalRisk(g.type, diagnosis.diagnoses, riskRadar, bridge.successProbability);
+        }
+        return map;
+    }, [transactions, invoices, finance, currency, loans, inventory, activeGoals, riskRadar]);
+
+    // The single most useful thing to say about goals at a glance: which one
+    // is least ready, in its own words -- not a repeat of every goal's list.
+    const mostAtRiskGoal = useMemo(() => {
+        let worst: { goal: typeof activeGoals[number]; risk: GoalRiskAssessment } | null = null;
+        for (const g of activeGoals) {
+            const risk = goalRiskByGoalId[g.id];
+            if (!risk) continue;
+            if (!worst || risk.growthReadiness < worst.risk.growthReadiness) worst = { goal: g, risk };
+        }
+        return worst;
+    }, [activeGoals, goalRiskByGoalId]);
 
     return (
         <SafeAreaView style={s.safe}>
@@ -151,15 +191,21 @@ export default function ScoreboardScreen() {
                     )}
                 </TouchableOpacity>
 
-                {/* Goals */}
-                <TouchableOpacity style={s.card} onPress={() => setCurrentScreen('goals')} activeOpacity={0.85}>
-                    <View style={s.cardHeaderRow}>
-                        <Icon name="target" size={14} color={Colors.textMuted} />
-                        <Text style={s.cardTitle}>Goals</Text>
-                    </View>
-                    {goals.length === 0 ? (
-                        <Text style={s.cardBodyText}>No goals set yet — tap to set your first one.</Text>
-                    ) : (
+                {/* Goals -- the header (tap -> Goals screen) and the
+                    per-goal risk note (tap -> that goal's Risks tab) are
+                    separate tap targets, not nested, so a tap on one never
+                    also fires the other. */}
+                <View style={s.card}>
+                    <TouchableOpacity onPress={() => setCurrentScreen('goals')} activeOpacity={0.85}>
+                        <View style={s.cardHeaderRow}>
+                            <Icon name="target" size={14} color={Colors.textMuted} />
+                            <Text style={s.cardTitle}>Goals</Text>
+                        </View>
+                        {goals.length === 0 && (
+                            <Text style={s.cardBodyText}>No goals set yet — tap to set your first one.</Text>
+                        )}
+                    </TouchableOpacity>
+                    {goals.length > 0 && (
                         <>
                             <View style={s.factorChipsRow}>
                                 {(['on_track', 'at_risk', 'off_track', 'achieved'] as GoalStatus[])
@@ -171,17 +217,41 @@ export default function ScoreboardScreen() {
                                         </View>
                                     ))}
                             </View>
-                            {activeGoals.map(g => (
-                                <View key={g.id} style={s.goalRow}>
-                                    <Text style={s.goalTitle} numberOfLines={1}>{g.title}</Text>
-                                    <View style={s.goalBarTrack}>
-                                        <View style={[s.goalBarFill, { width: `${Math.min(100, Math.max(0, g.progress))}%`, backgroundColor: GOAL_STATUS_META[g.status].color }]} />
+                            {activeGoals.map(g => {
+                                const goalRisk = goalRiskByGoalId[g.id];
+                                return (
+                                    <View key={g.id} style={s.goalRow}>
+                                        <View style={s.goalTitleRow}>
+                                            <Text style={s.goalTitle} numberOfLines={1}>{g.title}</Text>
+                                            {goalRisk && (
+                                                <View style={[s.readinessPill, { backgroundColor: READINESS_BAND_COLORS[goalRisk.readinessBand] + '22' }]}>
+                                                    <Text style={[s.readinessPillText, { color: READINESS_BAND_COLORS[goalRisk.readinessBand] }]}>
+                                                        {goalRisk.readinessBand}
+                                                    </Text>
+                                                </View>
+                                            )}
+                                        </View>
+                                        <View style={s.goalBarTrack}>
+                                            <View style={[s.goalBarFill, { width: `${Math.min(100, Math.max(0, g.progress))}%`, backgroundColor: GOAL_STATUS_META[g.status].color }]} />
+                                        </View>
                                     </View>
-                                </View>
-                            ))}
+                                );
+                            })}
+
+                            {mostAtRiskGoal && (
+                                <TouchableOpacity
+                                    style={s.goalRiskNote}
+                                    onPress={() => navigate('goals', { goalId: mostAtRiskGoal.goal.id, planTab: 'risks' })}
+                                >
+                                    <Text style={s.goalRiskNoteText}>
+                                        <Text style={{ fontWeight: '700', color: Colors.textPrimary }}>{mostAtRiskGoal.goal.title}: </Text>
+                                        {mostAtRiskGoal.risk.narrative} See what could stop it →
+                                    </Text>
+                                </TouchableOpacity>
+                            )}
                         </>
                     )}
-                </TouchableOpacity>
+                </View>
 
                 <TouchableOpacity style={s.linkRow} onPress={() => setCurrentScreen('dashboard')}>
                     <Text style={s.linkText}>See today's priorities & this month's mission on the Dashboard →</Text>
@@ -220,9 +290,14 @@ const s = StyleSheet.create({
     riskDot: { fontSize: 9 },
 
     goalRow: { marginTop: Spacing.sm },
-    goalTitle: { fontSize: 12, fontWeight: '600', color: Colors.textPrimary, marginBottom: 4 },
+    goalTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+    goalTitle: { flex: 1, fontSize: 12, fontWeight: '600', color: Colors.textPrimary, marginRight: Spacing.sm },
     goalBarTrack: { height: 6, borderRadius: 3, backgroundColor: Colors.bg, overflow: 'hidden' },
     goalBarFill: { height: '100%', borderRadius: 3 },
+    readinessPill: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: Radius.pill },
+    readinessPillText: { fontSize: 9.5, fontWeight: '800' },
+    goalRiskNote: { marginTop: Spacing.md, paddingTop: Spacing.md, borderTopWidth: 1, borderTopColor: Colors.border },
+    goalRiskNoteText: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
 
     linkRow: { paddingVertical: Spacing.sm, marginBottom: Spacing.sm },
     linkText: { fontSize: 12.5, color: Colors.primary, fontWeight: '700' },

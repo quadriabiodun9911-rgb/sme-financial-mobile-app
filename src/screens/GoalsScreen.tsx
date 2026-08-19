@@ -153,9 +153,11 @@ export default function GoalsScreen() {
     }, [planGoal, planDiagnosis, planBridge, transactions, loans, settings?.macroAssumptions]);
 
     // Auto-open add modal if navigated here with a goalType param, or the
-    // plan modal (defaulting to its Bridge tab) if navigated here with a
-    // goalId — the latter mirrors the deep-link capability the retired
-    // GoalBridgeScreen used to offer via its own goalId navParam.
+    // plan modal if navigated here with a goalId — the latter mirrors the
+    // deep-link capability the retired GoalBridgeScreen used to offer via
+    // its own goalId navParam. Defaults to the Bridge tab, but a caller
+    // (e.g. Scoreboard's per-goal readiness link) can request a specific
+    // tab via planTab, same as tapping that tab manually would.
     useEffect(() => {
         if (navParams?.goalType) {
             setAddModalOpen(true);
@@ -163,7 +165,7 @@ export default function GoalsScreen() {
         }
         if (navParams?.goalId) {
             setPlanGoalId(navParams.goalId);
-            setPlanTab('bridge');
+            setPlanTab(navParams?.planTab === 'risks' || navParams?.planTab === 'strategy' ? navParams.planTab : 'bridge');
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
