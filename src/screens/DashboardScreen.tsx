@@ -792,19 +792,22 @@ export default function DashboardScreen() {
 
                 {/* "Your Progress" — the change that already happened, not
                     just where things stand today. Reuses the same
-                    readiness-history trend Credit-Worthiness's "Readiness
-                    Over Time" section shows in full; this is a one-line
-                    summary that links there, not a second chart. Hidden
-                    entirely in demo mode (snapshots never persist there, so
-                    there's nothing honest to show) and for staff accounts
-                    (same financial-visibility gate as Vital Signs). */}
+                    readiness-history trend the Scoreboard's health-score
+                    card and Credit-Worthiness's "Readiness Over Time" both
+                    show in full; this is a one-line summary that links to
+                    the Scoreboard (the everyday "how am I doing" home for
+                    this data — Credit-Worthiness stays reachable from there
+                    for the full factor-level breakdown). Hidden entirely in
+                    demo mode (snapshots never persist there, so there's
+                    nothing honest to show) and for staff accounts (same
+                    financial-visibility gate as Vital Signs). */}
                 {canViewFinancials && !isDemoMode && (
                   <TouchableOpacity
                     style={[
                       styles.progressCard,
                       { borderColor: readinessDelta?.trend === 'improving' ? Colors.income : readinessDelta?.trend === 'declining' ? Colors.expense : Colors.border },
                     ]}
-                    onPress={() => setCurrentScreen('credit-worthiness')}
+                    onPress={() => setCurrentScreen('scoreboard')}
                     activeOpacity={0.8}
                   >
                     <Icon
