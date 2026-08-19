@@ -43,8 +43,6 @@ Express API that bridges the Pngme African financial data API with the Quad360 R
 |---|---|---|
 | GET | `/health` | Health check |
 | POST | `/pngme/webhook` | Receives Pngme transaction events |
-| POST | `/api/users` | Register a user with Pngme |
-| GET | `/api/users/:userId/connect-url` | Get Pngme widget URL for account linking |
 | GET | `/api/transactions/:userId` | List transactions (`?since=ISO_DATE` optional) |
 
 ## Local Development

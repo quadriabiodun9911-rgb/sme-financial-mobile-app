@@ -4,9 +4,7 @@ const helmet = require('helmet');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 
-const bankDataRoutes        = require('./routes/bank-data');
 const pngmeRoutes           = require('./routes/pngme');
-const usersRoutes           = require('./routes/users');
 const transactionsRoutes    = require('./routes/transactions');
 const financialHealthRoutes = require('./routes/financial-health');
 const paymentsRoutes        = require('./routes/payments');
@@ -102,13 +100,11 @@ app.use(async (req, res, next) => {
   }
 });
 
-// Routes — payment and bank routes require valid Supabase session token
+// Routes — payment routes require valid Supabase session token
 app.use('/api/payments', requireAuth, paymentsRoutes);
-app.use('/api/bank-data', requireAuth, bankDataRoutes);
 app.use('/api/transactions', requireAuth, transactionsRoutes);
 app.use('/api/financial-health', requireAuth, financialHealthRoutes);
-// Users and webhooks don't require auth (registration + server callbacks)
-app.use('/api/users', usersRoutes);
+// Webhooks don't require auth (server callbacks)
 app.use('/pngme', pngmeRoutes);
 
 // 404 handler
