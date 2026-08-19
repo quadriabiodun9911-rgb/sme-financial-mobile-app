@@ -1,13 +1,18 @@
 /**
  * AI Advisor -- a genuine LLM-backed conversational advisor (Anthropic
- * Claude, called server-side so the API key never reaches the client).
+ * Claude, called from a Supabase Edge Function so the API key never reaches
+ * the client). Quad360's /backend Express app was never actually deployed
+ * anywhere by this project's owner (no Render, no Vercel project for it) --
+ * Supabase is the real backend infrastructure here, matching the existing
+ * supabase/functions/delete-account pattern, so this calls
+ * supabase.functions.invoke('advisor') rather than a separate HTTP backend.
  *
  * The model is never handed raw access to the app's data store; it's given
  * exactly the same real, already-computed figures the rest of Quad360
  * surfaces (health score, cash position, risk radar, goals, etc.), packed
  * into AdvisorContext by buildAdvisorContext below. It's instructed
- * (backend/routes/advisor.js) to answer only from that data -- never to
- * fabricate a number, matching every other engine in this app.
+ * (supabase/functions/advisor/index.ts) to answer only from that data --
+ * never to fabricate a number, matching every other engine in this app.
  *
  * Lives on the CFO Questions tab (not the Dashboard, which is already dense
  * with cards) -- takes already-computed diagnosis/riskRadar rather than raw
@@ -15,7 +20,7 @@
  * DashboardScreen already use for those two engines.
  */
 
-import { apiFetch } from './api';
+import { supabase } from './supabase';
 import { FinanceData, BusinessSettings, FinancialGoal, CapitalCommitment } from '../types';
 import { DiagnosisResult } from './financialDiagnosisEngine';
 import { RiskRadar } from './riskRadar';
@@ -59,9 +64,20 @@ export function buildAdvisorContext(
 }
 
 export async function askAdvisor(question: string, context: AdvisorContext): Promise<string> {
-    const res = await apiFetch('/api/advisor/ask', {
-        method: 'POST',
-        body: JSON.stringify({ question, context }),
+    const { data, error } = await supabase.functions.invoke('advisor', {
+        body: { question, context },
     });
-    return res.answer;
+    if (error) {
+        // FunctionsHttpError carries the real Response on .context -- the
+        // edge function always replies with a JSON { error } body (see
+        // supabase/functions/advisor), so surface that message instead of
+        // the generic "Edge Function returned a non-2xx status code".
+        const errResponse = (error as { context?: Response }).context;
+        if (errResponse) {
+            const body = await errResponse.json().catch(() => null);
+            if (body?.error) throw new Error(body.error);
+        }
+        throw new Error(error.message || 'Could not reach the AI Advisor.');
+    }
+    return data.answer;
 }

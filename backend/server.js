@@ -10,7 +10,6 @@ const usersRoutes           = require('./routes/users');
 const transactionsRoutes    = require('./routes/transactions');
 const financialHealthRoutes = require('./routes/financial-health');
 const paymentsRoutes        = require('./routes/payments');
-const advisorRoutes         = require('./routes/advisor');
 const { requireAuth }       = require('./middleware/auth');
 const { ConnectionPool }    = require('./utils/connection-pool');
 const { Cache }             = require('./utils/cache');
@@ -108,7 +107,6 @@ app.use('/api/payments', requireAuth, paymentsRoutes);
 app.use('/api/bank-data', requireAuth, bankDataRoutes);
 app.use('/api/transactions', requireAuth, transactionsRoutes);
 app.use('/api/financial-health', requireAuth, financialHealthRoutes);
-app.use('/api/advisor', requireAuth, advisorRoutes);
 // Users and webhooks don't require auth (registration + server callbacks)
 app.use('/api/users', usersRoutes);
 app.use('/pngme', pngmeRoutes);
