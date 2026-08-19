@@ -1,4 +1,4 @@
-import { Transaction, Invoice, Loan, StaffMember, PayrollRun, FinancialGoal, Budget } from '../src/types';
+import { Transaction, Invoice, Loan, StaffMember, PayrollRun, FinancialGoal, Budget, Asset } from '../src/types';
 import { detectAlerts, detectCriticalAlerts, getAlertStats, detectFinancialAlerts, DEFAULT_THRESHOLDS } from '../src/utils/alertEngine';
 
 // startDate expressed relative to the real current date (matching how
@@ -473,6 +473,66 @@ describe('alertEngine', () => {
         it('never flags when there are no budgets at all', () => {
             const alerts = detectAlerts(1000000, [], []);
             expect(alerts.some(a => a.type === 'budget_period_lapsed')).toBe(false);
+        });
+    });
+
+    describe('asset replacement alerts', () => {
+        function makeAsset(overrides: Partial<Asset> = {}): Asset {
+            return {
+                id: 'asset-1',
+                name: 'Delivery Van',
+                category: 'vehicle',
+                description: '',
+                purchaseDate: isoMonthsAgo(12),
+                purchaseCost: 1000000,
+                usefulLifeYears: 5,
+                residualValue: 0,
+                status: 'active',
+                createdAt: isoMonthsAgo(12) + 'T00:00:00.000Z',
+                ...overrides,
+            };
+        }
+
+        it('flags a fully depreciated asset at medium priority', () => {
+            const asset = makeAsset({ usefulLifeYears: 5, purchaseDate: isoMonthsAgo(72) }); // 6 years elapsed, 5-year life
+            const alerts = detectAlerts(
+                1000000, [], [], undefined, undefined, undefined, '₦', [], [], [], undefined, [], [], [asset]
+            );
+            const found = alerts.find(a => a.type === 'asset_nearing_replacement');
+            expect(found).toBeDefined();
+            expect(found?.id).toBe('alert-asset-replacement-asset-1');
+            expect(found?.priority).toBe('medium');
+        });
+
+        it('flags an asset within the 20% threshold but above 5% at low priority', () => {
+            const asset = makeAsset({ usefulLifeYears: 10, purchaseDate: isoMonthsAgo(102) }); // ~8.5 years of a 10-year life -- ~15% remaining
+            const alerts = detectAlerts(
+                1000000, [], [], undefined, undefined, undefined, '₦', [], [], [], undefined, [], [], [asset]
+            );
+            const found = alerts.find(a => a.type === 'asset_nearing_replacement');
+            expect(found).toBeDefined();
+            expect(found?.priority).toBe('low');
+        });
+
+        it('never flags an asset with plenty of remaining value', () => {
+            const asset = makeAsset({ usefulLifeYears: 10, purchaseDate: isoMonthsAgo(12) }); // 1 of 10 years elapsed
+            const alerts = detectAlerts(
+                1000000, [], [], undefined, undefined, undefined, '₦', [], [], [], undefined, [], [], [asset]
+            );
+            expect(alerts.some(a => a.type === 'asset_nearing_replacement')).toBe(false);
+        });
+
+        it('never flags a disposed asset', () => {
+            const asset = makeAsset({ status: 'disposed', purchaseDate: isoMonthsAgo(72) });
+            const alerts = detectAlerts(
+                1000000, [], [], undefined, undefined, undefined, '₦', [], [], [], undefined, [], [], [asset]
+            );
+            expect(alerts.some(a => a.type === 'asset_nearing_replacement')).toBe(false);
+        });
+
+        it('defaults to no asset alerts when no assets are passed', () => {
+            const alerts = detectAlerts(1000000, [], []);
+            expect(alerts.some(a => a.type === 'asset_nearing_replacement')).toBe(false);
         });
     });
 

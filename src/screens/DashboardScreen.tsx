@@ -36,7 +36,7 @@ import StatTile from '../components/ui/StatTile';
 import { buildFinancingFitInput } from '../utils/financingFit';
 import { recommendFinancingTypes } from '../utils/financingRecommendation';
 import { computeReadinessDelta } from '../utils/readinessHistory';
-import { notifyFinancingOpportunity, notifyOverdueRemindersDue, notifyLoanPaymentDueSoon, notifyPayrollDue, notifyOverdueTransactionsFound, notifyTaxDeadline, notifyGoalAlerts, notifyRecurringTransactionAlerts, notifyBudgetPeriodLapsed } from '../utils/notifications';
+import { notifyFinancingOpportunity, notifyOverdueRemindersDue, notifyLoanPaymentDueSoon, notifyPayrollDue, notifyOverdueTransactionsFound, notifyTaxDeadline, notifyGoalAlerts, notifyRecurringTransactionAlerts, notifyBudgetPeriodLapsed, notifyAssetsNearingReplacement } from '../utils/notifications';
 import { getInvoicesDueForReminder, loadReminderState, InvoiceReminderState } from '../utils/invoiceReminders';
 import { isLoanPaymentOverdue, daysUntilLoanPaymentDue } from '../utils/loanMath';
 import { getPayrollReminderStatus } from '../utils/payrollReminders';
@@ -44,6 +44,7 @@ import { getUninvoicedOverdueTransactions } from '../utils/overdueTransactions';
 import { getTaxDeadlineStatus } from '../utils/taxDeadline';
 import { isRecurringTransactionOverdue, daysUntilRecurringDue, hasRecurringSchedule } from '../utils/recurringTransactions';
 import { isBudgetActiveForPeriod, isBudgetPeriodLapsed, currentPeriodString } from '../utils/budgetPeriod';
+import { computeAssetsNearingReplacement, computeAssetCurrentValue } from '../utils/finance';
 import { detectFinancialAlerts, DEFAULT_THRESHOLDS } from '../utils/alertEngine';
 import { buildDashboardPriorities, PriorityKind, PriorityTier, OverspentBudget } from '../utils/dashboardPriorities';
 
@@ -76,6 +77,7 @@ const PRIORITY_KIND_META: Record<PriorityKind, { icon: IconName; screen: Screen 
     goal_off_track:         { icon: 'flag',             screen: 'goals' },
     recurring_transaction_overdue: { icon: 'repeat',    screen: 'transactions' },
     budget_period_lapsed:   { icon: 'calendar',        screen: 'budget' },
+    asset_nearing_replacement: { icon: 'briefcase',    screen: 'assets' },
 };
 
 export default function DashboardScreen() {
@@ -347,13 +349,23 @@ export default function DashboardScreen() {
         notifyBudgetPeriodLapsed(currentPeriodString()).catch(() => {});
     }, [isDemoMode, budgetPeriodLapsed]);
 
+    // Same ≤20%-of-cost threshold AssetsScreen's own local banner already
+    // uses (computeAssetsNearingReplacement, finance.ts) -- just not
+    // previously surfaced anywhere else.
+    const assetsNearingReplacement = useMemo(() => computeAssetsNearingReplacement(assets), [assets]);
+    useEffect(() => {
+        if (isDemoMode || assetsNearingReplacement.length === 0) return;
+        const total = assetsNearingReplacement.reduce((s, a) => s + computeAssetCurrentValue(a), 0);
+        notifyAssetsNearingReplacement(assetsNearingReplacement.length, total, settings?.currency ?? '₦').catch(() => {});
+    }, [isDemoMode, assetsNearingReplacement, settings?.currency]);
+
     // Same cash-flow risk detection the header's alert bell uses -- pure
     // computation, cheap to run a second time here rather than threading
     // Header's alert state down through props for what's otherwise an
     // unrelated component tree.
     const alerts = useMemo(
-        () => detectFinancialAlerts(finance.cashBalance, transactions, invoices, settings?.currency, undefined, loans, staff, payrollRuns, settings?.nextTaxDeadline, goals, budgets),
-        [finance.cashBalance, transactions, invoices, settings?.currency, loans, staff, payrollRuns, settings?.nextTaxDeadline, goals, budgets]
+        () => detectFinancialAlerts(finance.cashBalance, transactions, invoices, settings?.currency, undefined, loans, staff, payrollRuns, settings?.nextTaxDeadline, goals, budgets, assets),
+        [finance.cashBalance, transactions, invoices, settings?.currency, loans, staff, payrollRuns, settings?.nextTaxDeadline, goals, budgets, assets]
     );
 
     const priorities = useMemo(
@@ -363,13 +375,14 @@ export default function DashboardScreen() {
             overdueLoans,
             overdueTransactions,
             overdueRecurringTransactions,
+            assetsNearingReplacement,
             lowStockItems,
             overspentBudgets,
             financingOpportunity,
             currency: settings?.currency ?? '₦',
             primaryGoal: settings?.primaryGoal,
         }),
-        [alerts, overdueInvoices, overdueLoans, overdueTransactions, overdueRecurringTransactions, lowStockItems, overspentBudgets, financingOpportunity, settings?.currency, settings?.primaryGoal]
+        [alerts, overdueInvoices, overdueLoans, overdueTransactions, overdueRecurringTransactions, assetsNearingReplacement, lowStockItems, overspentBudgets, financingOpportunity, settings?.currency, settings?.primaryGoal]
     );
 
     const openFab = (type: 'income' | 'expense' = 'income') => {

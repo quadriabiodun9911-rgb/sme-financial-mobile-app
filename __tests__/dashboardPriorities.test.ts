@@ -1,4 +1,4 @@
-import { Invoice, InventoryItem, Loan, Transaction } from '../src/types';
+import { Invoice, InventoryItem, Loan, Transaction, Asset } from '../src/types';
 import { ForecastAlert } from '../src/types/forecast';
 import { FinancingRecommendation } from '../src/utils/financingRecommendation';
 import { buildDashboardPriorities, OverspentBudget } from '../src/utils/dashboardPriorities';
@@ -43,6 +43,24 @@ const txFixture = (overrides: Partial<Transaction> = {}): Transaction => ({
     category: 'Sales',
     amount: 30000,
     status: 'overdue',
+    ...overrides,
+});
+
+// residualValue === purchaseCost makes depreciable = 0, so
+// computeAssetCurrentValue always returns exactly purchaseCost regardless
+// of today's real date -- keeps the aggregation dollar-total assertion
+// deterministic without needing to fake the clock.
+const assetFixture = (overrides: Partial<Asset> = {}): Asset => ({
+    id: 'asset-1',
+    name: 'Delivery Van',
+    category: 'vehicle',
+    description: '',
+    purchaseDate: '2020-01-01',
+    purchaseCost: 20000,
+    usefulLifeYears: 5,
+    residualValue: 20000,
+    status: 'active',
+    createdAt: '2020-01-01T00:00:00.000Z',
     ...overrides,
 });
 
@@ -309,6 +327,26 @@ describe('buildDashboardPriorities', () => {
         expect(item?.tier).toBe('watch');
         expect(item?.title).toBe('2 Recurring Bills Due');
         expect(item?.impactAmount).toBe(70000);
+    });
+
+    it('aggregates assets nearing replacement into a single watch-tier card', () => {
+        const result = buildDashboardPriorities({
+            alerts: [], overdueInvoices: [],
+            assetsNearingReplacement: [assetFixture({ id: 'a1', purchaseCost: 20000, residualValue: 20000 }), assetFixture({ id: 'a2', purchaseCost: 5000, residualValue: 5000 })],
+            lowStockItems: [], overspentBudgets: [], financingOpportunity: null, currency: '₦',
+        });
+        const item = result.find(p => p.kind === 'asset_nearing_replacement');
+        expect(item).toBeDefined();
+        expect(item?.tier).toBe('watch');
+        expect(item?.title).toBe('2 Assets Nearing Replacement');
+        expect(item?.impactAmount).toBe(25000);
+    });
+
+    it('defaults to no asset-replacement card when assetsNearingReplacement is omitted', () => {
+        const result = buildDashboardPriorities({
+            alerts: [], overdueInvoices: [], lowStockItems: [], overspentBudgets: [], financingOpportunity: null, currency: '₦',
+        });
+        expect(result.some(p => p.kind === 'asset_nearing_replacement')).toBe(false);
     });
 
     it('defaults to no recurring-transaction card when overdueRecurringTransactions is omitted', () => {

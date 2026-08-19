@@ -1,4 +1,4 @@
-import { Transaction, Invoice, Loan, StaffMember, PayrollRun, FinancialGoal, Budget } from '../types';
+import { Transaction, Invoice, Loan, StaffMember, PayrollRun, FinancialGoal, Budget, Asset } from '../types';
 import { ForecastAlert, AlertThresholds, CashFlowForecast, ForecastInput } from '../types/forecast';
 import { generateCashFlowForecast } from './forecastEngine';
 import { computeMonthlyTrend } from './finance';
@@ -8,6 +8,7 @@ import { getUninvoicedOverdueTransactions } from './overdueTransactions';
 import { getTaxDeadlineStatus, TAX_DEADLINE_DUE_SOON_DAYS } from './taxDeadline';
 import { nextRecurringDueDate, daysUntilRecurringDue, isRecurringTransactionOverdue, hasRecurringSchedule } from './recurringTransactions';
 import { isBudgetPeriodLapsed, currentPeriodString } from './budgetPeriod';
+import { computeAssetsNearingReplacement, computeAssetCurrentValue } from './finance';
 
 /**
  * Real-Time Cash Alerts System
@@ -42,6 +43,7 @@ export class AlertEngine {
   private nextTaxDeadline?: string;
   private goals: FinancialGoal[];
   private budgets: Budget[];
+  private assets: Asset[];
   private forecast?: CashFlowForecast;
   private thresholds: AlertThresholds;
   private dismissedAlerts: Set<string>;
@@ -60,7 +62,8 @@ export class AlertEngine {
     payrollRuns?: PayrollRun[],
     nextTaxDeadline?: string,
     goals?: FinancialGoal[],
-    budgets?: Budget[]
+    budgets?: Budget[],
+    assets?: Asset[]
   ) {
     this.currentCash = currentCash;
     this.transactions = transactions;
@@ -71,6 +74,7 @@ export class AlertEngine {
     this.nextTaxDeadline = nextTaxDeadline;
     this.goals = goals || [];
     this.budgets = budgets || [];
+    this.assets = assets || [];
     this.forecast = forecast;
     this.thresholds = { ...DEFAULT_THRESHOLDS, ...thresholds };
     this.dismissedAlerts = new Set(dismissedAlertIds || []);
@@ -126,6 +130,10 @@ export class AlertEngine {
     // Budgeting has gone dormant for the current month
     const budgetLapsedAlert = this.detectBudgetPeriodLapsedAlert();
     if (budgetLapsedAlert) alerts.push(budgetLapsedAlert);
+
+    // Assets nearing the end of their useful life
+    const assetReplacementAlerts = this.detectAssetReplacementAlerts();
+    alerts.push(...assetReplacementAlerts);
 
     // Filter out dismissed alerts
     return alerts.filter(a => !this.dismissedAlerts.has(a.id));
@@ -577,6 +585,32 @@ export class AlertEngine {
   }
 
   /**
+   * Detect active assets nearing the end of their useful life --
+   * computeAssetsNearingReplacement (finance.ts) is the same ≤20%-of-cost
+   * threshold AssetsScreen has always used for its own local banner, just
+   * not previously surfaced anywhere else. A stable id keyed to the asset,
+   * not a timestamp, so dismissing it doesn't un-dismiss on the next
+   * recompute -- naturally clears once the asset is disposed/replaced.
+   */
+  private detectAssetReplacementAlerts(): ForecastAlert[] {
+    return computeAssetsNearingReplacement(this.assets).map(asset => {
+      const currentValue = computeAssetCurrentValue(asset);
+      const remainingPct = asset.purchaseCost > 0 ? (currentValue / asset.purchaseCost) * 100 : 0;
+
+      return {
+        id: `alert-asset-replacement-${asset.id}`,
+        type: 'asset_nearing_replacement',
+        priority: remainingPct <= 5 ? 'medium' : 'low',
+        title: `🔧 Asset Nearing Replacement — ${asset.name}`,
+        description: `"${asset.name}" is nearly fully depreciated (${Math.round(remainingPct)}% of original value remaining) -- plan for replacement.`,
+        amount: currentValue,
+        recommendations: ['Set a replacement-fund goal to budget for this ahead of time'],
+        createdAt: new Date().toISOString(),
+      };
+    });
+  }
+
+  /**
    * Mark an alert as dismissed
    */
   public dismissAlert(alertId: string): void {
@@ -647,7 +681,8 @@ export const detectAlerts = (
   payrollRuns?: PayrollRun[],
   nextTaxDeadline?: string,
   goals?: FinancialGoal[],
-  budgets?: Budget[]
+  budgets?: Budget[],
+  assets?: Asset[]
 ): ForecastAlert[] => {
   const engine = new AlertEngine(
     currentCash,
@@ -662,7 +697,8 @@ export const detectAlerts = (
     payrollRuns,
     nextTaxDeadline,
     goals,
-    budgets
+    budgets,
+    assets
   );
   return engine.detectAllAlerts();
 };
@@ -735,8 +771,8 @@ export const buildForecastInput = (
  * (low cash, negative forecast, overdue invoices, large upcoming expenses,
  * loan payments overdue or due soon, payroll not run, tax filing deadline,
  * goals off track or past deadline, recurring transactions, a lapsed
- * budget period) against it. Pure computation -- no side effects, no
- * persistence; the caller owns dismissal storage.
+ * budget period, assets nearing replacement) against it. Pure computation --
+ * no side effects, no persistence; the caller owns dismissal storage.
  */
 export const detectFinancialAlerts = (
   currentCash: number,
@@ -749,8 +785,9 @@ export const detectFinancialAlerts = (
   payrollRuns?: PayrollRun[],
   nextTaxDeadline?: string,
   goals?: FinancialGoal[],
-  budgets?: Budget[]
+  budgets?: Budget[],
+  assets?: Asset[]
 ): ForecastAlert[] => {
   const forecast = generateCashFlowForecast(buildForecastInput(currentCash, transactions, invoices, currency));
-  return detectAlerts(currentCash, transactions, invoices, forecast, undefined, dismissedAlertIds, currency, loans, staff, payrollRuns, nextTaxDeadline, goals, budgets);
+  return detectAlerts(currentCash, transactions, invoices, forecast, undefined, dismissedAlertIds, currency, loans, staff, payrollRuns, nextTaxDeadline, goals, budgets, assets);
 };

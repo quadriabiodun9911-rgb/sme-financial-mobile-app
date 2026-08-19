@@ -1,7 +1,8 @@
-import { Invoice, InventoryItem, Budget, Loan, Transaction, PrimaryGoal } from '../types';
+import { Invoice, InventoryItem, Budget, Loan, Transaction, PrimaryGoal, Asset } from '../types';
 import { ForecastAlert } from '../types/forecast';
 import { FinancingRecommendation } from './financingRecommendation';
 import { monthlyPayment } from './loanMath';
+import { computeAssetCurrentValue } from './finance';
 
 /**
  * Unifies every source the dashboard already tracks separately -- cash-flow
@@ -30,7 +31,8 @@ export type PriorityKind =
     | 'goal_deadline_passed'
     | 'goal_off_track'
     | 'recurring_transaction_overdue'
-    | 'budget_period_lapsed';
+    | 'budget_period_lapsed'
+    | 'asset_nearing_replacement';
 
 export interface PriorityItem {
     id: string;
@@ -61,9 +63,9 @@ const GOAL_KINDS: Record<PrimaryGoal, PriorityKind[]> = {
 };
 
 // alertEngine reports one alert per overdue invoice, overdue loan, overdue
-// transaction, or overdue recurring transaction; the dashboard already
-// aggregates each of those into a single card ("3 customers, ₦420,000 to
-// collect"), so those alert types are excluded here to avoid
+// transaction, overdue recurring transaction, or asset nearing replacement;
+// the dashboard already aggregates each of those into a single card ("3
+// customers, ₦420,000 to collect"), so those alert types are excluded here to avoid
 // double-reporting the same risk in two different shapes. Payroll and the
 // tax filing deadline, and lapsed budget period never produce more than
 // one alert at a time (detectPayrollAlert / detectTaxDeadlineAlert /
@@ -96,6 +98,7 @@ export function buildDashboardPriorities(input: {
     overdueLoans?: Loan[];
     overdueTransactions?: Transaction[];
     overdueRecurringTransactions?: Transaction[];
+    assetsNearingReplacement?: Asset[];
     lowStockItems: InventoryItem[];
     overspentBudgets: OverspentBudget[];
     financingOpportunity: FinancingRecommendation | null;
@@ -103,7 +106,7 @@ export function buildDashboardPriorities(input: {
     /** Undefined ("not sure yet", or not asked) means no preference -- today's tier/amount ordering, unchanged. */
     primaryGoal?: PrimaryGoal;
 }): PriorityItem[] {
-    const { alerts, overdueInvoices, overdueLoans = [], overdueTransactions = [], overdueRecurringTransactions = [], lowStockItems, overspentBudgets, financingOpportunity, currency, primaryGoal } = input;
+    const { alerts, overdueInvoices, overdueLoans = [], overdueTransactions = [], overdueRecurringTransactions = [], assetsNearingReplacement = [], lowStockItems, overspentBudgets, financingOpportunity, currency, primaryGoal } = input;
     const items: PriorityItem[] = [];
 
     for (const alert of alerts) {
@@ -166,6 +169,21 @@ export function buildDashboardPriorities(input: {
             tier: 'watch',
             title: `${overdueRecurringTransactions.length} Recurring Bill${overdueRecurringTransactions.length > 1 ? 's' : ''} Due`,
             subtitle: `${currency}${total.toLocaleString()} expected — log it if it happened, or update the date`,
+            impactAmount: total,
+        });
+    }
+
+    // Assets whose book value has fallen to the same ≤20%-of-cost threshold
+    // AssetsScreen's own local banner already uses. impactAmount is the
+    // real remaining book value, not a fabricated replacement-cost estimate.
+    if (assetsNearingReplacement.length > 0) {
+        const total = assetsNearingReplacement.reduce((s, a) => s + computeAssetCurrentValue(a), 0);
+        items.push({
+            id: 'priority-assets-nearing-replacement',
+            kind: 'asset_nearing_replacement',
+            tier: 'watch',
+            title: `${assetsNearingReplacement.length} Asset${assetsNearingReplacement.length > 1 ? 's' : ''} Nearing Replacement`,
+            subtitle: `${currency}${total.toLocaleString()} combined book value left — plan ahead for replacement`,
             impactAmount: total,
         });
     }

@@ -25,6 +25,7 @@ const KEYS = {
     goalAlertsId: '@quad360/notif_goal_alerts_id',
     recurringTransactionsId: '@quad360/notif_recurring_transactions_id',
     budgetPeriodLapsedId: '@quad360/notif_budget_period_lapsed_id',
+    assetReplacementId: '@quad360/notif_asset_replacement_id',
 };
 
 export async function requestNotificationPermission(): Promise<boolean> {
@@ -318,6 +319,34 @@ export async function notifyBudgetPeriodLapsed(period: string): Promise<void> {
         });
 
         await AsyncStorage.setItem(KEYS.budgetPeriodLapsedId, Date.now().toString());
+    } catch {
+        // Fail silently
+    }
+}
+
+// Mirrors AssetsScreen's own "nearly fully depreciated" banner (same
+// ≤20%-of-cost threshold, see finance.ts's computeAssetsNearingReplacement)
+// -- this is the equivalent nudge for someone who hasn't opened that screen
+// lately. Throttled to once a day.
+export async function notifyAssetsNearingReplacement(count: number, totalValue: number, currency: string): Promise<void> {
+    try {
+        if (Platform.OS === 'web' || count === 0) return;
+
+        const prevNotified = await AsyncStorage.getItem(KEYS.assetReplacementId);
+        if (prevNotified) {
+            const daysSinceLastNotif = (Date.now() - parseInt(prevNotified, 10)) / (1000 * 60 * 60 * 24);
+            if (daysSinceLastNotif < 1) return;
+        }
+
+        await Notifications.scheduleNotificationAsync({
+            content: {
+                title: `${count} asset${count === 1 ? '' : 's'} nearing replacement 🔧`,
+                body: `${currency}${Math.round(totalValue).toLocaleString()} in remaining book value. Consider a replacement-fund goal.`,
+            },
+            trigger: null,
+        });
+
+        await AsyncStorage.setItem(KEYS.assetReplacementId, Date.now().toString());
     } catch {
         // Fail silently
     }
