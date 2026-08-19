@@ -3,7 +3,7 @@
  * Audits financial statements and identifies root causes
  */
 
-import { Transaction, Invoice, Loan, InventoryItem } from '../types';
+import { Transaction, Invoice, Loan, InventoryItem, GoalType } from '../types';
 import { computeDSCR, computeWorkingCapitalMetrics, computeCustomerConcentration, computeSupplierConcentration, computeRiskScore, RiskScore, DSCRResult } from './finance';
 import { computeStockVelocity } from './stockVelocity';
 
@@ -63,6 +63,15 @@ export interface RootCauseAnalysis {
   impact: string;
   financialImpact: number;
   opportunity: string;
+  // Which trackable goal type (goals.ts) would address this, if any -- set
+  // explicitly per diagnosis rather than inferred from the problem text, so
+  // the "achieve a goal -> here's your next one" loop (DashboardScreen)
+  // never guesses. Left undefined for diagnoses with no corresponding
+  // FinancialGoal type today (debt, concentration, inventory, cash
+  // conversion cycle, revenue mix) -- proposing a "goal" for those would
+  // either misuse an unrelated type or create one nothing can track
+  // progress against.
+  suggestedGoalType?: GoalType;
 }
 
 export interface DiagnosisResult {
@@ -306,6 +315,7 @@ export function diagnoseProfitability(
       impact: `Losing ${currency}${potentialGain.toLocaleString()} potential profit monthly`,
       financialImpact: potentialGain,
       opportunity: 'Increase prices or reduce expenses',
+      suggestedGoalType: 'margin_improvement',
     });
   }
 
@@ -318,6 +328,7 @@ export function diagnoseProfitability(
       impact: `Revenue down ${Math.abs(metrics.monthOverMonthGrowth).toFixed(1)}% month-over-month`,
       financialImpact: -metrics.totalRevenue * (metrics.monthOverMonthGrowth / 100),
       opportunity: 'Launch customer acquisition or win-back campaign',
+      suggestedGoalType: 'revenue_growth',
     });
   }
 
@@ -351,6 +362,7 @@ export function diagnoseLiquidity(
       impact: 'Risk of inability to pay employees, suppliers, or operations',
       financialImpact: -metrics.cashBalance,
       opportunity: 'Immediate: Collect overdue invoices or cut expenses',
+      suggestedGoalType: 'cash_reserve',
     });
   } else if (metrics.runwayDays < INDUSTRY_BENCHMARKS.runwayDaysSafe) {
     diagnoses.push({
@@ -360,6 +372,7 @@ export function diagnoseLiquidity(
       impact: 'Vulnerable to unexpected expenses or revenue dips',
       financialImpact: 0,
       opportunity: 'Build 60+ day cash buffer through revenue growth or cost cutting',
+      suggestedGoalType: 'cash_reserve',
     });
   }
 
@@ -380,6 +393,7 @@ export function diagnoseLiquidity(
       impact: `${currency}${metrics.accountsReceivable.toLocaleString()} tied up in outstanding customer receivables`,
       financialImpact: metrics.accountsReceivable,
       opportunity: 'Implement strict payment terms; offer early payment discounts',
+      suggestedGoalType: 'reduce_overdue_ar',
     });
   }
 
@@ -496,6 +510,7 @@ export function diagnoseEfficiency(
       impact: 'Margins will keep compressing month over month if this continues',
       financialImpact: metrics.totalExpenses * (growthGap / 100),
       opportunity: 'Freeze discretionary spend increases until revenue growth catches up',
+      suggestedGoalType: 'cost_reduction',
     });
   }
 
@@ -516,6 +531,7 @@ export function diagnoseEfficiency(
         impact: `Vulnerable to price increases in ${topCategory[0]}`,
         financialImpact: topCategory[1] * 0.1, // 10% potential savings
         opportunity: `Negotiate better rates or reduce ${topCategory[0]} usage`,
+        suggestedGoalType: 'cost_reduction',
       });
     }
   }

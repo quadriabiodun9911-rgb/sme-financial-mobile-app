@@ -3,7 +3,7 @@
 // daysOutstanding was hardcoded to 30 for any unpaid invoice, regardless of
 // how much was actually owed or how overdue it actually was.
 
-import { calculateFinancialMetrics } from '../src/utils/financialDiagnosisEngine';
+import { calculateFinancialMetrics, diagnoseProfitability, diagnoseLiquidity, diagnoseWorkingCapital, diagnoseDebt, diagnoseInventory, diagnoseConcentration, diagnoseEfficiency, FinancialMetrics } from '../src/utils/financialDiagnosisEngine';
 import { Transaction, Invoice } from '../src/types';
 
 const makeTx = (overrides: Partial<Transaction>): Transaction => ({
@@ -191,5 +191,112 @@ describe('calculateFinancialMetrics — accountsReceivable & daysOutstanding are
         const m = calculateFinancialMetrics(txs, [], 10000, 5000);
         expect(m.accountsReceivable).toBe(5000);
         expect(m.daysOutstanding).toBe(5); // 5,000 AR / 1,000 per day
+    });
+});
+
+// suggestedGoalType is set explicitly per diagnosis (not inferred from the
+// problem text) so DashboardScreen's "achieve a goal -> here's your next
+// one" loop only ever proposes a goal type that's actually trackable
+// (goals.ts). Debt/inventory/concentration diagnoses deliberately have no
+// corresponding FinancialGoal type and must stay undefined.
+describe('diagnose* functions — suggestedGoalType', () => {
+    const healthyMetrics: FinancialMetrics = {
+        totalRevenue: 1000000,
+        totalExpenses: 700000,
+        netProfit: 300000,
+        profitMargin: 30,
+        cashBalance: 500000,
+        runwayDays: 90,
+        accountsReceivable: 0,
+        accountsPayable: 0,
+        daysOutstanding: 10,
+        dso: 10,
+        dpo: 10,
+        cashConversionCycleDays: 10,
+        dscr: 2,
+        dscrStatus: 'healthy',
+        monthlyDebtService: 0,
+        inventoryValue: 0,
+        slowMovingValuePct: 0,
+        topCustomerConcentrationPct: 10,
+        topSupplierConcentrationPct: 10,
+        expensesByCategory: {},
+        revenueRecurringPct: 60,
+        expenseGrowthPct: 5,
+        monthOverMonthGrowth: 5,
+        profitTrend: 'stable',
+    };
+
+    it('flags margin_improvement for a low profit margin', () => {
+        const diagnoses = diagnoseProfitability({ ...healthyMetrics, profitMargin: 5 });
+        const found = diagnoses.find(d => d.problem.includes('Low profit margin'));
+        expect(found?.suggestedGoalType).toBe('margin_improvement');
+    });
+
+    it('flags revenue_growth for rapidly declining revenue', () => {
+        const diagnoses = diagnoseProfitability({ ...healthyMetrics, monthOverMonthGrowth: -20 });
+        const found = diagnoses.find(d => d.problem === 'Revenue declining rapidly');
+        expect(found?.suggestedGoalType).toBe('revenue_growth');
+    });
+
+    it('leaves suggestedGoalType unset for an unstable-revenue-mix diagnosis', () => {
+        const diagnoses = diagnoseProfitability({ ...healthyMetrics, revenueRecurringPct: 10 });
+        const found = diagnoses.find(d => d.problem.includes('one-off deals'));
+        expect(found).toBeDefined();
+        expect(found?.suggestedGoalType).toBeUndefined();
+    });
+
+    it('flags cash_reserve for a critical cash position', () => {
+        const diagnoses = diagnoseLiquidity({ ...healthyMetrics, runwayDays: 10 });
+        const found = diagnoses.find(d => d.problem.includes('Critical cash position'));
+        expect(found?.suggestedGoalType).toBe('cash_reserve');
+    });
+
+    it('flags cash_reserve for a low (but not critical) cash buffer', () => {
+        const diagnoses = diagnoseLiquidity({ ...healthyMetrics, runwayDays: 45 });
+        const found = diagnoses.find(d => d.problem.includes('Low cash buffer'));
+        expect(found?.suggestedGoalType).toBe('cash_reserve');
+    });
+
+    it('flags reduce_overdue_ar for slow-paying customers', () => {
+        const diagnoses = diagnoseLiquidity({ ...healthyMetrics, accountsReceivable: 200000, daysOutstanding: 60 });
+        const found = diagnoses.find(d => d.problem.includes('Slow-paying customers'));
+        expect(found?.suggestedGoalType).toBe('reduce_overdue_ar');
+    });
+
+    it('leaves suggestedGoalType unset for a long cash conversion cycle', () => {
+        const diagnoses = diagnoseWorkingCapital({ ...healthyMetrics, cashConversionCycleDays: 90 });
+        expect(diagnoses).toHaveLength(1);
+        expect(diagnoses[0].suggestedGoalType).toBeUndefined();
+    });
+
+    it('leaves suggestedGoalType unset for a DSCR diagnosis', () => {
+        const diagnoses = diagnoseDebt({ ...healthyMetrics, dscrStatus: 'danger', dscr: 0.8, monthlyDebtService: 50000 });
+        expect(diagnoses).toHaveLength(1);
+        expect(diagnoses[0].suggestedGoalType).toBeUndefined();
+    });
+
+    it('leaves suggestedGoalType unset for a slow-moving-inventory diagnosis', () => {
+        const diagnoses = diagnoseInventory({ ...healthyMetrics, inventoryValue: 100000, slowMovingValuePct: 60 });
+        expect(diagnoses).toHaveLength(1);
+        expect(diagnoses[0].suggestedGoalType).toBeUndefined();
+    });
+
+    it('leaves suggestedGoalType unset for a customer/supplier concentration diagnosis', () => {
+        const diagnoses = diagnoseConcentration({ ...healthyMetrics, topCustomerConcentrationPct: 70, topSupplierConcentrationPct: 70 });
+        expect(diagnoses).toHaveLength(2);
+        expect(diagnoses.every(d => d.suggestedGoalType === undefined)).toBe(true);
+    });
+
+    it('flags cost_reduction when expenses are growing faster than revenue', () => {
+        const diagnoses = diagnoseEfficiency({ ...healthyMetrics, expenseGrowthPct: 30, monthOverMonthGrowth: 5 });
+        const found = diagnoses.find(d => d.problem.includes('Expenses growing faster'));
+        expect(found?.suggestedGoalType).toBe('cost_reduction');
+    });
+
+    it('flags cost_reduction when one expense category dominates spend', () => {
+        const diagnoses = diagnoseEfficiency({ ...healthyMetrics, totalExpenses: 100000, expensesByCategory: { Rent: 50000 } });
+        const found = diagnoses.find(d => d.problem.includes('Rent'));
+        expect(found?.suggestedGoalType).toBe('cost_reduction');
     });
 });

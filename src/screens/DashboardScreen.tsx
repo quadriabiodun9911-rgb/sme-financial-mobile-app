@@ -44,11 +44,16 @@ import { getUninvoicedOverdueTransactions } from '../utils/overdueTransactions';
 import { getTaxDeadlineStatus } from '../utils/taxDeadline';
 import { isRecurringTransactionOverdue, daysUntilRecurringDue, hasRecurringSchedule } from '../utils/recurringTransactions';
 import { isBudgetActiveForPeriod, isBudgetPeriodLapsed, currentPeriodString } from '../utils/budgetPeriod';
-import { computeAssetsNearingReplacement, computeAssetCurrentValue } from '../utils/finance';
+import { computeAssetsNearingReplacement, computeAssetCurrentValue, getMonthlyExpenseAverage } from '../utils/finance';
 import { computeStockVelocity } from '../utils/stockVelocity';
 import { computeTaxAbilityToPay } from '../utils/taxFilingReadiness';
 import { detectFinancialAlerts, DEFAULT_THRESHOLDS } from '../utils/alertEngine';
+import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
+import { buildNewGoal, goalDefaults } from '../utils/goals';
+import { GoalType } from '../types';
 import { buildDashboardPriorities, PriorityKind, PriorityTier, OverspentBudget } from '../utils/dashboardPriorities';
+
+const CELEBRATED_GOALS_KEY = '@quad360/celebrated_goal_ids';
 
 const INCOME_CATEGORIES = ['Sales', 'Service', 'Consulting', 'Rental', 'Interest', 'Other Income'];
 const EXPENSE_CATEGORIES = ['Rent', 'Salaries', 'Utilities', 'Marketing', 'Supplies', 'Transport', 'Meals', 'Software', 'Tax', 'Other'];
@@ -86,7 +91,7 @@ const PRIORITY_KIND_META: Record<PriorityKind, { icon: IconName; screen: Screen 
 };
 
 export default function DashboardScreen() {
-    const { finance, settings, goals, transactions, invoices, assets, loans, staff, payrollRuns, navigate, setCurrentScreen, navParams, language: rawLanguage, isLoading, addTransaction, isDemoMode, exitDemo, cashPockets, deleteGoal, updateGoal, budgets, inventory, user, financing, canViewFinancials, readinessHistory } = useApp();
+    const { finance, settings, goals, transactions, invoices, assets, loans, staff, payrollRuns, navigate, setCurrentScreen, navParams, language: rawLanguage, isLoading, addTransaction, isDemoMode, exitDemo, cashPockets, addGoal, deleteGoal, updateGoal, budgets, inventory, user, financing, canViewFinancials, readinessHistory } = useApp();
     const language = rawLanguage as Language;
 
     const [fabOpen, setFabOpen]           = useState(false);
@@ -120,6 +125,21 @@ export default function DashboardScreen() {
     const [eodIncome, setEodIncome]             = useState('');
     const [eodExpense, setEodExpense]           = useState('');
     const [lastSynced, setLastSynced]           = useState<Date>(new Date());
+    // Which achieved goals have already had their "what's next" banner shown
+    // (either accepted or dismissed) -- status/progress are recomputed fresh
+    // on every render (see goals.ts's refreshGoal) and never persisted, so
+    // without this a goal would re-trigger the celebration banner forever,
+    // and a goal that briefly dips back under 100% and re-crosses it would
+    // celebrate twice.
+    const [celebratedGoalIds, setCelebratedGoalIds] = useState<string[]>([]);
+
+    useEffect(() => {
+        AsyncStorage.getItem(CELEBRATED_GOALS_KEY).then(raw => {
+            if (raw) {
+                try { setCelebratedGoalIds(JSON.parse(raw)); } catch { /* corrupt value, start fresh */ }
+            }
+        });
+    }, []);
 
     useEffect(() => {
         AsyncStorage.getItem('@quad360/onboarding_dismissed').then(v => {
@@ -432,6 +452,73 @@ export default function DashboardScreen() {
         [alerts, overdueInvoices, overdueLoans, overdueTransactions, overdueRecurringTransactions, assetsNearingReplacement, stockoutRiskItems, slowMovingItems, lowStockItems, overspentBudgets, financingOpportunity, settings?.currency, settings?.primaryGoal]
     );
 
+    // Same call shape every other diagnosis screen already uses (GoalsScreen,
+    // ActionTrackerScreen, FinancialAssessmentScreen, BudgetScreen) -- gated
+    // the same way GoalsScreen gates it, since fewer than 5 transactions
+    // makes the diagnosis too noisy to be worth a second engine run here.
+    const diagnosisForNextGoal = useMemo(
+        () => (transactions.length >= 5
+            ? performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), settings?.currency, loans, inventory)
+            : null),
+        [transactions, invoices, finance.cashBalance, finance.expense, settings?.currency, loans, inventory]
+    );
+
+    // The first not-yet-celebrated achieved goal -- see celebratedGoalIds
+    // above for why "achieved" alone isn't enough to gate this.
+    const goalToCelebrate = useMemo(
+        () => achievedGoals.find(g => !celebratedGoalIds.includes(g.id)) ?? null,
+        [achievedGoals, celebratedGoalIds]
+    );
+
+    // What to propose next: the highest-severity/impact unresolved issue
+    // that maps to a trackable goal type (financialDiagnosisEngine's
+    // suggestedGoalType) and isn't already an active goal -- recommending a
+    // goal type the user is already chasing would just be noise. Falls back
+    // to cash_reserve (always a legitimate target for any business) when
+    // diagnosis found nothing mappable, e.g. because the business is
+    // genuinely healthy right now.
+    const nextGoalType: GoalType | null = useMemo(() => {
+        if (!goalToCelebrate) return null;
+        const activeTypes = new Set(goals.filter(g => g.status !== 'achieved').map(g => g.type));
+        const fromDiagnosis = diagnosisForNextGoal?.diagnoses.find(d => d.suggestedGoalType && !activeTypes.has(d.suggestedGoalType));
+        if (fromDiagnosis?.suggestedGoalType) return fromDiagnosis.suggestedGoalType;
+        return activeTypes.has('cash_reserve') ? null : 'cash_reserve';
+    }, [goalToCelebrate, goals, diagnosisForNextGoal]);
+
+    // Same defaults GoalsScreen's own "add goal" tile would prefill for this
+    // type -- never a number invented just for this banner.
+    const nextGoalPreview = useMemo(
+        () => (nextGoalType ? goalDefaults(nextGoalType, finance, settings, transactions) : null),
+        [nextGoalType, finance, settings, transactions]
+    );
+
+    const markGoalCelebrated = (goalId: string) => {
+        setCelebratedGoalIds(prev => {
+            const next = [...prev, goalId];
+            AsyncStorage.setItem(CELEBRATED_GOALS_KEY, JSON.stringify(next));
+            return next;
+        });
+    };
+
+    const handleSetNextGoal = () => {
+        if (!goalToCelebrate || !nextGoalType || !nextGoalPreview) return;
+        const deadline = new Date(Date.now() + 90 * 86400000).toISOString().split('T')[0];
+        addGoal(buildNewGoal({
+            type: nextGoalType,
+            title: nextGoalPreview.title ?? 'New Goal',
+            description: nextGoalPreview.description ?? '',
+            targetValue: nextGoalPreview.targetValue ?? 0,
+            deadline,
+        }, finance, settings, transactions));
+        markGoalCelebrated(goalToCelebrate.id);
+        showToast(`New goal set: ${nextGoalPreview.title}`);
+    };
+
+    const handleDismissCelebration = () => {
+        if (!goalToCelebrate) return;
+        markGoalCelebrated(goalToCelebrate.id);
+    };
+
     const openFab = (type: 'income' | 'expense' = 'income') => {
         setQaType(type);
         setQaCategory('');
@@ -669,6 +756,37 @@ export default function DashboardScreen() {
                     </Text>
                     <Icon name="chevron-right" size={16} color={Colors.textMuted} />
                   </TouchableOpacity>
+                )}
+
+                {/* Achievement -> next goal: a business never permanently
+                    "arrives" at financial health, so a completed goal ends
+                    with a proposed next one instead of just sitting achieved.
+                    nextGoalType is sourced from the same diagnosis engine's
+                    highest-impact unresolved issue (never a made-up target),
+                    and Set This Goal reuses the exact same goalDefaults/
+                    buildNewGoal path the manual "add goal" flow uses. */}
+                {canViewFinancials && goalToCelebrate && (
+                  <View style={styles.celebrationCard}>
+                    <View style={styles.celebrationHeaderRow}>
+                      <Icon name="award" size={18} color={Colors.income} />
+                      <Text style={styles.celebrationTitle}>Goal Achieved — {goalToCelebrate.title}</Text>
+                    </View>
+                    <Text style={styles.celebrationSubtitle}>
+                      {nextGoalType && nextGoalPreview
+                        ? `Nice work! Ready for what's next? Recommended: ${nextGoalPreview.title}`
+                        : 'Nice work! Keep it up — explore new goals whenever you\'re ready.'}
+                    </Text>
+                    <View style={styles.celebrationActions}>
+                      {nextGoalType && nextGoalPreview && (
+                        <TouchableOpacity style={styles.celebrationPrimaryBtn} onPress={handleSetNextGoal} activeOpacity={0.85}>
+                          <Text style={styles.celebrationPrimaryBtnText}>Set This Goal</Text>
+                        </TouchableOpacity>
+                      )}
+                      <TouchableOpacity style={styles.celebrationSecondaryBtn} onPress={handleDismissCelebration} activeOpacity={0.7}>
+                        <Text style={styles.celebrationSecondaryBtnText}>Not Now</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
                 )}
 
                 {/* SECTION 2: WHAT NEEDS YOUR ATTENTION — every risk and
@@ -1246,6 +1364,26 @@ const styles = StyleSheet.create({
         ...Shadow.sm,
     },
     progressCardText: { flex: 1, fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
+
+    celebrationCard: {
+        backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1.5,
+        borderColor: Colors.income + '55', padding: Spacing.md, marginBottom: Spacing.lg,
+        ...Shadow.sm,
+    },
+    celebrationHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, marginBottom: 4 },
+    celebrationTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, flex: 1 },
+    celebrationSubtitle: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18, marginBottom: Spacing.sm },
+    celebrationActions: { flexDirection: 'row', gap: Spacing.sm },
+    celebrationPrimaryBtn: {
+        backgroundColor: Colors.income, borderRadius: Radius.pill,
+        paddingVertical: 9, paddingHorizontal: Spacing.md,
+    },
+    celebrationPrimaryBtnText: { color: '#fff', fontSize: 12.5, fontWeight: '700' },
+    celebrationSecondaryBtn: {
+        paddingVertical: 9, paddingHorizontal: Spacing.md,
+        borderRadius: Radius.pill, borderWidth: 1, borderColor: Colors.border,
+    },
+    celebrationSecondaryBtnText: { color: Colors.textSecondary, fontSize: 12.5, fontWeight: '600' },
 
     betaCard:           { backgroundColor: Colors.surface, borderRadius: 16, padding: 16, marginBottom: 14, borderWidth: 1.5, borderColor: Colors.primary + '55' },
     betaCardHeader:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
