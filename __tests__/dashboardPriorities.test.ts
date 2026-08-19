@@ -3,6 +3,20 @@ import { ForecastAlert } from '../src/types/forecast';
 import { FinancingRecommendation } from '../src/utils/financingRecommendation';
 import { buildDashboardPriorities, OverspentBudget } from '../src/utils/dashboardPriorities';
 
+const inventoryFixture = (overrides: Partial<InventoryItem> = {}): InventoryItem => ({
+    id: 'item-1',
+    name: 'Ankara Fabric',
+    category: 'Fabric',
+    quantity: 20,
+    unit: 'yards',
+    costPrice: 500,
+    sellingPrice: 1000,
+    lowStockThreshold: 5,
+    createdAt: '2026-06-01T00:00:00.000Z',
+    updatedAt: '2026-06-01T00:00:00.000Z',
+    ...overrides,
+});
+
 const invoice = (overrides: Partial<Invoice> = {}): Invoice => ({
     id: 'inv-1',
     invoiceNumber: 'INV-001',
@@ -347,6 +361,29 @@ describe('buildDashboardPriorities', () => {
             alerts: [], overdueInvoices: [], lowStockItems: [], overspentBudgets: [], financingOpportunity: null, currency: '₦',
         });
         expect(result.some(p => p.kind === 'asset_nearing_replacement')).toBe(false);
+    });
+
+    it('aggregates stockout-risk inventory into a single watch-tier card', () => {
+        const result = buildDashboardPriorities({
+            alerts: [], overdueInvoices: [],
+            stockoutRiskItems: [
+                inventoryFixture({ id: 'i1', quantity: 20, costPrice: 500 }),
+                inventoryFixture({ id: 'i2', quantity: 10, costPrice: 200 }),
+            ],
+            lowStockItems: [], overspentBudgets: [], financingOpportunity: null, currency: '₦',
+        });
+        const item = result.find(p => p.kind === 'inventory_stockout_risk');
+        expect(item).toBeDefined();
+        expect(item?.tier).toBe('watch');
+        expect(item?.title).toBe('2 Items Selling Out Fast');
+        expect(item?.impactAmount).toBe(20 * 500 + 10 * 200);
+    });
+
+    it('defaults to no stockout-risk card when stockoutRiskItems is omitted', () => {
+        const result = buildDashboardPriorities({
+            alerts: [], overdueInvoices: [], lowStockItems: [], overspentBudgets: [], financingOpportunity: null, currency: '₦',
+        });
+        expect(result.some(p => p.kind === 'inventory_stockout_risk')).toBe(false);
     });
 
     it('defaults to no recurring-transaction card when overdueRecurringTransactions is omitted', () => {

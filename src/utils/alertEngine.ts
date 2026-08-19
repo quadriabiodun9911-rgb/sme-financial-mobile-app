@@ -1,4 +1,4 @@
-import { Transaction, Invoice, Loan, StaffMember, PayrollRun, FinancialGoal, Budget, Asset } from '../types';
+import { Transaction, Invoice, Loan, StaffMember, PayrollRun, FinancialGoal, Budget, Asset, InventoryItem } from '../types';
 import { ForecastAlert, AlertThresholds, CashFlowForecast, ForecastInput } from '../types/forecast';
 import { generateCashFlowForecast } from './forecastEngine';
 import { computeMonthlyTrend } from './finance';
@@ -9,6 +9,7 @@ import { getTaxDeadlineStatus, TAX_DEADLINE_DUE_SOON_DAYS } from './taxDeadline'
 import { nextRecurringDueDate, daysUntilRecurringDue, isRecurringTransactionOverdue, hasRecurringSchedule } from './recurringTransactions';
 import { isBudgetPeriodLapsed, currentPeriodString } from './budgetPeriod';
 import { computeAssetsNearingReplacement, computeAssetCurrentValue } from './finance';
+import { computeStockVelocity } from './stockVelocity';
 
 /**
  * Real-Time Cash Alerts System
@@ -44,6 +45,7 @@ export class AlertEngine {
   private goals: FinancialGoal[];
   private budgets: Budget[];
   private assets: Asset[];
+  private inventory: InventoryItem[];
   private forecast?: CashFlowForecast;
   private thresholds: AlertThresholds;
   private dismissedAlerts: Set<string>;
@@ -63,7 +65,8 @@ export class AlertEngine {
     nextTaxDeadline?: string,
     goals?: FinancialGoal[],
     budgets?: Budget[],
-    assets?: Asset[]
+    assets?: Asset[],
+    inventory?: InventoryItem[]
   ) {
     this.currentCash = currentCash;
     this.transactions = transactions;
@@ -75,6 +78,7 @@ export class AlertEngine {
     this.goals = goals || [];
     this.budgets = budgets || [];
     this.assets = assets || [];
+    this.inventory = inventory || [];
     this.forecast = forecast;
     this.thresholds = { ...DEFAULT_THRESHOLDS, ...thresholds };
     this.dismissedAlerts = new Set(dismissedAlertIds || []);
@@ -134,6 +138,10 @@ export class AlertEngine {
     // Assets nearing the end of their useful life
     const assetReplacementAlerts = this.detectAssetReplacementAlerts();
     alerts.push(...assetReplacementAlerts);
+
+    // Fast-selling inventory projected to run out soon
+    const stockoutRiskAlerts = this.detectStockoutRiskAlerts();
+    alerts.push(...stockoutRiskAlerts);
 
     // Filter out dismissed alerts
     return alerts.filter(a => !this.dismissedAlerts.has(a.id));
@@ -611,6 +619,39 @@ export class AlertEngine {
   }
 
   /**
+   * Detect fast-selling inventory (computeStockVelocity's 'fast' tier,
+   * stockVelocity.ts) projected to run out within its own FAST_DAYS_THRESHOLD
+   * (14 days) at current sales pace. Deliberately separate from the
+   * low_stock alert -- that one only compares quantity against a static,
+   * manually-set reorder point, so a fast mover well above its threshold
+   * can still be days from a stockout without ever tripping it. Only fires
+   * for items with real recent sales data through Inventory's "Sell" flow
+   * (computeStockVelocity returns 'no-data' otherwise, never a guess).
+   */
+  private detectStockoutRiskAlerts(): ForecastAlert[] {
+    const alerts: ForecastAlert[] = [];
+
+    for (const item of this.inventory) {
+      const velocity = computeStockVelocity(item, this.transactions);
+      if (velocity.tier !== 'fast') continue;
+
+      const daysLeft = Math.round(velocity.daysOfStockLeft);
+      alerts.push({
+        id: `alert-stockout-risk-${item.id}`,
+        type: 'inventory_stockout_risk',
+        priority: daysLeft <= 7 ? 'medium' : 'low',
+        title: `📦 Selling Out Fast — ${item.name}`,
+        description: `"${item.name}" has about ${daysLeft} day${daysLeft === 1 ? '' : 's'} of stock left at its current sales pace.`,
+        amount: item.quantity * item.costPrice,
+        recommendations: ['Reorder now to avoid a stockout while it\'s still selling well'],
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    return alerts;
+  }
+
+  /**
    * Mark an alert as dismissed
    */
   public dismissAlert(alertId: string): void {
@@ -682,7 +723,8 @@ export const detectAlerts = (
   nextTaxDeadline?: string,
   goals?: FinancialGoal[],
   budgets?: Budget[],
-  assets?: Asset[]
+  assets?: Asset[],
+  inventory?: InventoryItem[]
 ): ForecastAlert[] => {
   const engine = new AlertEngine(
     currentCash,
@@ -698,7 +740,8 @@ export const detectAlerts = (
     nextTaxDeadline,
     goals,
     budgets,
-    assets
+    assets,
+    inventory
   );
   return engine.detectAllAlerts();
 };
@@ -771,8 +814,9 @@ export const buildForecastInput = (
  * (low cash, negative forecast, overdue invoices, large upcoming expenses,
  * loan payments overdue or due soon, payroll not run, tax filing deadline,
  * goals off track or past deadline, recurring transactions, a lapsed
- * budget period, assets nearing replacement) against it. Pure computation --
- * no side effects, no persistence; the caller owns dismissal storage.
+ * budget period, assets nearing replacement, inventory at stockout risk)
+ * against it. Pure computation -- no side effects, no persistence; the
+ * caller owns dismissal storage.
  */
 export const detectFinancialAlerts = (
   currentCash: number,
@@ -786,8 +830,9 @@ export const detectFinancialAlerts = (
   nextTaxDeadline?: string,
   goals?: FinancialGoal[],
   budgets?: Budget[],
-  assets?: Asset[]
+  assets?: Asset[],
+  inventory?: InventoryItem[]
 ): ForecastAlert[] => {
   const forecast = generateCashFlowForecast(buildForecastInput(currentCash, transactions, invoices, currency));
-  return detectAlerts(currentCash, transactions, invoices, forecast, undefined, dismissedAlertIds, currency, loans, staff, payrollRuns, nextTaxDeadline, goals, budgets, assets);
+  return detectAlerts(currentCash, transactions, invoices, forecast, undefined, dismissedAlertIds, currency, loans, staff, payrollRuns, nextTaxDeadline, goals, budgets, assets, inventory);
 };

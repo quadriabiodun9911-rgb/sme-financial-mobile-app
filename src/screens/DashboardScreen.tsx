@@ -36,7 +36,7 @@ import StatTile from '../components/ui/StatTile';
 import { buildFinancingFitInput } from '../utils/financingFit';
 import { recommendFinancingTypes } from '../utils/financingRecommendation';
 import { computeReadinessDelta } from '../utils/readinessHistory';
-import { notifyFinancingOpportunity, notifyOverdueRemindersDue, notifyLoanPaymentDueSoon, notifyPayrollDue, notifyOverdueTransactionsFound, notifyTaxDeadline, notifyGoalAlerts, notifyRecurringTransactionAlerts, notifyBudgetPeriodLapsed, notifyAssetsNearingReplacement } from '../utils/notifications';
+import { notifyFinancingOpportunity, notifyOverdueRemindersDue, notifyLoanPaymentDueSoon, notifyPayrollDue, notifyOverdueTransactionsFound, notifyTaxDeadline, notifyGoalAlerts, notifyRecurringTransactionAlerts, notifyBudgetPeriodLapsed, notifyAssetsNearingReplacement, notifyStockoutRisk } from '../utils/notifications';
 import { getInvoicesDueForReminder, loadReminderState, InvoiceReminderState } from '../utils/invoiceReminders';
 import { isLoanPaymentOverdue, daysUntilLoanPaymentDue } from '../utils/loanMath';
 import { getPayrollReminderStatus } from '../utils/payrollReminders';
@@ -45,6 +45,7 @@ import { getTaxDeadlineStatus } from '../utils/taxDeadline';
 import { isRecurringTransactionOverdue, daysUntilRecurringDue, hasRecurringSchedule } from '../utils/recurringTransactions';
 import { isBudgetActiveForPeriod, isBudgetPeriodLapsed, currentPeriodString } from '../utils/budgetPeriod';
 import { computeAssetsNearingReplacement, computeAssetCurrentValue } from '../utils/finance';
+import { computeStockVelocity } from '../utils/stockVelocity';
 import { detectFinancialAlerts, DEFAULT_THRESHOLDS } from '../utils/alertEngine';
 import { buildDashboardPriorities, PriorityKind, PriorityTier, OverspentBudget } from '../utils/dashboardPriorities';
 
@@ -78,6 +79,7 @@ const PRIORITY_KIND_META: Record<PriorityKind, { icon: IconName; screen: Screen 
     recurring_transaction_overdue: { icon: 'repeat',    screen: 'transactions' },
     budget_period_lapsed:   { icon: 'calendar',        screen: 'budget' },
     asset_nearing_replacement: { icon: 'briefcase',    screen: 'assets' },
+    inventory_stockout_risk:   { icon: 'zap',          screen: 'inventory' },
 };
 
 export default function DashboardScreen() {
@@ -359,13 +361,26 @@ export default function DashboardScreen() {
         notifyAssetsNearingReplacement(assetsNearingReplacement.length, total, settings?.currency ?? '₦').catch(() => {});
     }, [isDemoMode, assetsNearingReplacement, settings?.currency]);
 
+    // Distinct from lowStockItems below -- this is sales-velocity-derived
+    // (computeStockVelocity's 'fast' tier), so it can catch an item that's
+    // well above its manually-set reorder point but still about to sell out.
+    const stockoutRiskItems = useMemo(
+        () => inventory.filter(i => computeStockVelocity(i, transactions).tier === 'fast'),
+        [inventory, transactions]
+    );
+    useEffect(() => {
+        if (isDemoMode || stockoutRiskItems.length === 0) return;
+        const total = stockoutRiskItems.reduce((s, i) => s + i.quantity * i.costPrice, 0);
+        notifyStockoutRisk(stockoutRiskItems.length, total, settings?.currency ?? '₦').catch(() => {});
+    }, [isDemoMode, stockoutRiskItems, settings?.currency]);
+
     // Same cash-flow risk detection the header's alert bell uses -- pure
     // computation, cheap to run a second time here rather than threading
     // Header's alert state down through props for what's otherwise an
     // unrelated component tree.
     const alerts = useMemo(
-        () => detectFinancialAlerts(finance.cashBalance, transactions, invoices, settings?.currency, undefined, loans, staff, payrollRuns, settings?.nextTaxDeadline, goals, budgets, assets),
-        [finance.cashBalance, transactions, invoices, settings?.currency, loans, staff, payrollRuns, settings?.nextTaxDeadline, goals, budgets, assets]
+        () => detectFinancialAlerts(finance.cashBalance, transactions, invoices, settings?.currency, undefined, loans, staff, payrollRuns, settings?.nextTaxDeadline, goals, budgets, assets, inventory),
+        [finance.cashBalance, transactions, invoices, settings?.currency, loans, staff, payrollRuns, settings?.nextTaxDeadline, goals, budgets, assets, inventory]
     );
 
     const priorities = useMemo(
@@ -376,13 +391,14 @@ export default function DashboardScreen() {
             overdueTransactions,
             overdueRecurringTransactions,
             assetsNearingReplacement,
+            stockoutRiskItems,
             lowStockItems,
             overspentBudgets,
             financingOpportunity,
             currency: settings?.currency ?? '₦',
             primaryGoal: settings?.primaryGoal,
         }),
-        [alerts, overdueInvoices, overdueLoans, overdueTransactions, overdueRecurringTransactions, assetsNearingReplacement, lowStockItems, overspentBudgets, financingOpportunity, settings?.currency, settings?.primaryGoal]
+        [alerts, overdueInvoices, overdueLoans, overdueTransactions, overdueRecurringTransactions, assetsNearingReplacement, stockoutRiskItems, lowStockItems, overspentBudgets, financingOpportunity, settings?.currency, settings?.primaryGoal]
     );
 
     const openFab = (type: 'income' | 'expense' = 'income') => {

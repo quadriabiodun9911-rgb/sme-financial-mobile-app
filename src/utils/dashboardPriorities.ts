@@ -32,7 +32,8 @@ export type PriorityKind =
     | 'goal_off_track'
     | 'recurring_transaction_overdue'
     | 'budget_period_lapsed'
-    | 'asset_nearing_replacement';
+    | 'asset_nearing_replacement'
+    | 'inventory_stockout_risk';
 
 export interface PriorityItem {
     id: string;
@@ -63,9 +64,10 @@ const GOAL_KINDS: Record<PrimaryGoal, PriorityKind[]> = {
 };
 
 // alertEngine reports one alert per overdue invoice, overdue loan, overdue
-// transaction, overdue recurring transaction, or asset nearing replacement;
-// the dashboard already aggregates each of those into a single card ("3
-// customers, ₦420,000 to collect"), so those alert types are excluded here to avoid
+// transaction, overdue recurring transaction, asset nearing replacement, or
+// inventory item at stockout risk; the dashboard already aggregates each of
+// those into a single card ("3 customers, ₦420,000 to collect"), so those
+// alert types are excluded here to avoid
 // double-reporting the same risk in two different shapes. Payroll and the
 // tax filing deadline, and lapsed budget period never produce more than
 // one alert at a time (detectPayrollAlert / detectTaxDeadlineAlert /
@@ -99,6 +101,7 @@ export function buildDashboardPriorities(input: {
     overdueTransactions?: Transaction[];
     overdueRecurringTransactions?: Transaction[];
     assetsNearingReplacement?: Asset[];
+    stockoutRiskItems?: InventoryItem[];
     lowStockItems: InventoryItem[];
     overspentBudgets: OverspentBudget[];
     financingOpportunity: FinancingRecommendation | null;
@@ -106,7 +109,7 @@ export function buildDashboardPriorities(input: {
     /** Undefined ("not sure yet", or not asked) means no preference -- today's tier/amount ordering, unchanged. */
     primaryGoal?: PrimaryGoal;
 }): PriorityItem[] {
-    const { alerts, overdueInvoices, overdueLoans = [], overdueTransactions = [], overdueRecurringTransactions = [], assetsNearingReplacement = [], lowStockItems, overspentBudgets, financingOpportunity, currency, primaryGoal } = input;
+    const { alerts, overdueInvoices, overdueLoans = [], overdueTransactions = [], overdueRecurringTransactions = [], assetsNearingReplacement = [], stockoutRiskItems = [], lowStockItems, overspentBudgets, financingOpportunity, currency, primaryGoal } = input;
     const items: PriorityItem[] = [];
 
     for (const alert of alerts) {
@@ -184,6 +187,23 @@ export function buildDashboardPriorities(input: {
             tier: 'watch',
             title: `${assetsNearingReplacement.length} Asset${assetsNearingReplacement.length > 1 ? 's' : ''} Nearing Replacement`,
             subtitle: `${currency}${total.toLocaleString()} combined book value left — plan ahead for replacement`,
+            impactAmount: total,
+        });
+    }
+
+    // Fast movers (computeStockVelocity's 'fast' tier) projected to run out
+    // within ~14 days at current sales pace -- distinct from low_stock,
+    // which only compares against a static reorder point and can miss a
+    // fast seller still well above its threshold. impactAmount is the
+    // items' real current inventory value, not a lost-sales estimate.
+    if (stockoutRiskItems.length > 0) {
+        const total = stockoutRiskItems.reduce((s, i) => s + i.quantity * i.costPrice, 0);
+        items.push({
+            id: 'priority-inventory-stockout-risk',
+            kind: 'inventory_stockout_risk',
+            tier: 'watch',
+            title: `${stockoutRiskItems.length} Item${stockoutRiskItems.length > 1 ? 's' : ''} Selling Out Fast`,
+            subtitle: `${currency}${total.toLocaleString()} in stock at risk — reorder before you run out`,
             impactAmount: total,
         });
     }

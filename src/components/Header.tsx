@@ -15,7 +15,7 @@ import { sendCashFlowAlert, sendOverdueInvoiceAlert } from '../utils/whatsappInt
 const DISMISSED_ALERTS_KEY = '@quad360/dismissed_alerts';
 
 export default function Header() {
-    const { user, logout, setCurrentScreen, goBack, currentScreen, finance, transactions, invoices, loans, staff, payrollRuns, settings, goals, budgets, assets } = useApp();
+    const { user, logout, setCurrentScreen, goBack, currentScreen, finance, transactions, invoices, loans, staff, payrollRuns, settings, goals, budgets, assets, inventory } = useApp();
     const showBack = currentScreen !== 'dashboard' && currentScreen !== 'login';
     const { width } = useWindowDimensions();
     const isNarrow = width < 480;
@@ -32,8 +32,8 @@ export default function Header() {
     }, []);
 
     const alerts = useMemo(
-        () => detectFinancialAlerts(finance?.cashBalance ?? 0, transactions ?? [], invoices ?? [], currency, dismissedIds, loans ?? [], staff ?? [], payrollRuns ?? [], settings?.nextTaxDeadline, goals ?? [], budgets ?? [], assets ?? []),
-        [finance?.cashBalance, transactions, invoices, currency, dismissedIds, loans, staff, payrollRuns, settings?.nextTaxDeadline, goals, budgets, assets]
+        () => detectFinancialAlerts(finance?.cashBalance ?? 0, transactions ?? [], invoices ?? [], currency, dismissedIds, loans ?? [], staff ?? [], payrollRuns ?? [], settings?.nextTaxDeadline, goals ?? [], budgets ?? [], assets ?? [], inventory ?? []),
+        [finance?.cashBalance, transactions, invoices, currency, dismissedIds, loans, staff, payrollRuns, settings?.nextTaxDeadline, goals, budgets, assets, inventory]
     );
 
     const handleDismiss = useCallback((alertId: string) => {

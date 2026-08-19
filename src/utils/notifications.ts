@@ -26,6 +26,7 @@ const KEYS = {
     recurringTransactionsId: '@quad360/notif_recurring_transactions_id',
     budgetPeriodLapsedId: '@quad360/notif_budget_period_lapsed_id',
     assetReplacementId: '@quad360/notif_asset_replacement_id',
+    stockoutRiskId: '@quad360/notif_stockout_risk_id',
 };
 
 export async function requestNotificationPermission(): Promise<boolean> {
@@ -347,6 +348,33 @@ export async function notifyAssetsNearingReplacement(count: number, totalValue: 
         });
 
         await AsyncStorage.setItem(KEYS.assetReplacementId, Date.now().toString());
+    } catch {
+        // Fail silently
+    }
+}
+
+// Only fires for items with real recent sales data (computeStockVelocity's
+// 'fast' tier -- see stockVelocity.ts), never a guess for items with no
+// sales history. Throttled to once a day.
+export async function notifyStockoutRisk(count: number, totalValue: number, currency: string): Promise<void> {
+    try {
+        if (Platform.OS === 'web' || count === 0) return;
+
+        const prevNotified = await AsyncStorage.getItem(KEYS.stockoutRiskId);
+        if (prevNotified) {
+            const daysSinceLastNotif = (Date.now() - parseInt(prevNotified, 10)) / (1000 * 60 * 60 * 24);
+            if (daysSinceLastNotif < 1) return;
+        }
+
+        await Notifications.scheduleNotificationAsync({
+            content: {
+                title: `${count} item${count === 1 ? '' : 's'} selling out fast 📦`,
+                body: `${currency}${Math.round(totalValue).toLocaleString()} in stock at risk of running out. Reorder soon.`,
+            },
+            trigger: null,
+        });
+
+        await AsyncStorage.setItem(KEYS.stockoutRiskId, Date.now().toString());
     } catch {
         // Fail silently
     }
