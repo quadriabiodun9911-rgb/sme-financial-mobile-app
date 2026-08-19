@@ -365,8 +365,6 @@ export default function LoginScreen() {
 
     const handleResetRequest = async () => {
         if (!resetEmail.trim()) { showAlert('Error', 'Please enter your email address.'); return; }
-        if (!/^\d{6}$/.test(resetNewPin)) { showAlert('Error', 'New PIN must be exactly 6 digits.'); return; }
-        if (resetNewPin !== resetConfirmPin) { showAlert('Error', 'PINs do not match.'); return; }
         setResetSubmitting(true);
         try {
             const redirectTo = Platform.OS === 'web' && typeof window !== 'undefined'
@@ -588,25 +586,15 @@ export default function LoginScreen() {
                             <>
                                 <View style={styles.stepsBox}>
                                     <Text style={styles.stepsTitle}>How it works:</Text>
-                                    <Text style={styles.stepsItem}>1. Enter your email and choose a new PIN below</Text>
+                                    <Text style={styles.stepsItem}>1. Enter your account email below</Text>
                                     <Text style={styles.stepsItem}>2. We send a reset link to your email</Text>
                                     <Text style={styles.stepsItem}>3. Open the email on this device and tap the link</Text>
-                                    <Text style={styles.stepsItem}>4. The link brings you back here and sets your new PIN</Text>
+                                    <Text style={styles.stepsItem}>4. The link brings you back here to set your new PIN</Text>
                                 </View>
                                 <Field label="Your Account Email">
                                     <TextInput style={styles.input} value={resetEmail} onChangeText={setResetEmail}
                                         placeholder="your@email.com" placeholderTextColor={Colors.muted}
                                         autoCapitalize="none" keyboardType="email-address" />
-                                </Field>
-                                <Field label="Choose a New PIN (6 digits)">
-                                    <TextInput style={styles.input} value={resetNewPin} onChangeText={setResetNewPin}
-                                        placeholder="••••••" placeholderTextColor={Colors.muted}
-                                        secureTextEntry keyboardType="number-pad" maxLength={6} />
-                                </Field>
-                                <Field label="Confirm New PIN">
-                                    <TextInput style={styles.input} value={resetConfirmPin} onChangeText={setResetConfirmPin}
-                                        placeholder="••••••" placeholderTextColor={Colors.muted}
-                                        secureTextEntry keyboardType="number-pad" maxLength={6} />
                                 </Field>
                                 <TouchableOpacity style={[styles.btn, resetSubmitting && styles.btnDisabled]}
                                     onPress={handleResetRequest} disabled={resetSubmitting}>
