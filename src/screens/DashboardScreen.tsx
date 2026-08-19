@@ -50,6 +50,7 @@ import { computeTaxAbilityToPay } from '../utils/taxFilingReadiness';
 import { detectFinancialAlerts, DEFAULT_THRESHOLDS } from '../utils/alertEngine';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { buildNewGoal, goalDefaults } from '../utils/goals';
+import { computeRiskRadar, RiskLevel } from '../utils/riskRadar';
 import { GoalType } from '../types';
 import { buildDashboardPriorities, PriorityKind, PriorityTier, OverspentBudget } from '../utils/dashboardPriorities';
 
@@ -59,6 +60,13 @@ const INCOME_CATEGORIES = ['Sales', 'Service', 'Consulting', 'Rental', 'Interest
 const EXPENSE_CATEGORIES = ['Rent', 'Salaries', 'Utilities', 'Marketing', 'Supplies', 'Transport', 'Meals', 'Software', 'Tax', 'Other'];
 
 const PRIORITY_TIER_ORDER: PriorityTier[] = ['attention', 'watch', 'opportunity'];
+
+const RISK_LEVEL_META: Record<RiskLevel, { color: string; dot: string }> = {
+    high:      { color: Colors.expense,    dot: '🔴' },
+    medium:    { color: Colors.warning,    dot: '🟡' },
+    low:       { color: Colors.income,     dot: '🟢' },
+    'no-data': { color: Colors.textMuted,  dot: '⚪' },
+};
 
 const PRIORITY_TIER_META: Record<PriorityTier, { emoji: string; label: string; color: string; tinted: boolean }> = {
     attention:   { emoji: '🔴', label: 'Attention',   color: Colors.expense, tinted: true },
@@ -519,6 +527,17 @@ export default function DashboardScreen() {
         markGoalCelebrated(goalToCelebrate.id);
     };
 
+    // "What could stop growth" -- distinct from "What Needs Your Attention"
+    // above: that section is acute/urgent items with a real dollar figure;
+    // this is a periodic strategic check-in across signals that already
+    // exist scattered on their own deep-dive screens (CFO > Risk tab's
+    // concentration/seasonal cards, Settings' macro assumptions), never
+    // otherwise summarized in one place.
+    const riskRadar = useMemo(
+        () => computeRiskRadar(transactions, loans, settings?.macroAssumptions ?? []),
+        [transactions, loans, settings?.macroAssumptions]
+    );
+
     const openFab = (type: 'income' | 'expense' = 'income') => {
         setQaType(type);
         setQaCategory('');
@@ -844,6 +863,47 @@ export default function DashboardScreen() {
                     </View>
                   )}
                 </View>
+
+                {/* Risk Radar -- what could stop growth, not what needs
+                    action today. Every category is a real, already-computed
+                    signal (debt coverage, customer/supplier concentration,
+                    seasonal pattern, macro-assumption cost exposure); a
+                    category reads "no data yet" rather than guessing. Tap
+                    through to CFO > Risk for the full detail each category
+                    already has its own screen for. */}
+                {canViewFinancials && (
+                <TouchableOpacity
+                  style={styles.riskRadarCard}
+                  onPress={() => navigate('cfo', { tab: 'risk' })}
+                  activeOpacity={0.85}
+                >
+                  <View style={styles.sectionTitleRow}>
+                    <Icon name="radio" size={13} color={Colors.textMuted} />
+                    <Text style={styles.operationsSectionTitle}>Risk Radar</Text>
+                    <View style={[styles.riskOverallBadge, { backgroundColor: RISK_LEVEL_META[riskRadar.overallLevel].color + '22' }]}>
+                      <Text style={[styles.riskOverallBadgeText, { color: RISK_LEVEL_META[riskRadar.overallLevel].color }]}>
+                        {riskRadar.overallLevel === 'high' ? 'High' : riskRadar.overallLevel === 'medium' ? 'Moderate' : 'Low'}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.riskChipsRow}>
+                    {riskRadar.categories.map(c => (
+                      <View key={c.key} style={styles.riskChip}>
+                        <Text style={styles.riskChipDot}>{RISK_LEVEL_META[c.level].dot}</Text>
+                        <Text style={styles.riskChipLabel}>{c.label}</Text>
+                      </View>
+                    ))}
+                  </View>
+                  {riskRadar.topRisks.length > 0 ? (
+                    <Text style={styles.riskRadarSummary}>
+                      <Text style={{ fontWeight: '700', color: Colors.textPrimary }}>Biggest risk: </Text>
+                      {riskRadar.topRisks[0].summary}
+                    </Text>
+                  ) : (
+                    <Text style={styles.riskRadarSummary}>Nothing standing out right now — a good window to focus on growth.</Text>
+                  )}
+                </TouchableOpacity>
+                )}
 
                 {/* SECTION 3: KEY METRICS - Monthly snapshot */}
                 {canViewFinancials && (
@@ -1384,6 +1444,23 @@ const styles = StyleSheet.create({
         borderRadius: Radius.pill, borderWidth: 1, borderColor: Colors.border,
     },
     celebrationSecondaryBtnText: { color: Colors.textSecondary, fontSize: 12.5, fontWeight: '600' },
+
+    riskRadarCard: {
+        backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1,
+        borderColor: Colors.border, padding: Spacing.md, marginBottom: Spacing.lg,
+        ...Shadow.sm,
+    },
+    riskOverallBadge: { borderRadius: Radius.pill, paddingHorizontal: 10, paddingVertical: 2, marginLeft: 'auto' },
+    riskOverallBadgeText: { fontSize: 11, fontWeight: '800' },
+    riskChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs, marginTop: Spacing.sm, marginBottom: Spacing.sm },
+    riskChip: {
+        flexDirection: 'row', alignItems: 'center', gap: 4,
+        backgroundColor: Colors.bg, borderRadius: Radius.pill,
+        paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: Colors.border,
+    },
+    riskChipDot: { fontSize: 9 },
+    riskChipLabel: { fontSize: 11, fontWeight: '600', color: Colors.textSecondary },
+    riskRadarSummary: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
 
     betaCard:           { backgroundColor: Colors.surface, borderRadius: 16, padding: 16, marginBottom: 14, borderWidth: 1.5, borderColor: Colors.primary + '55' },
     betaCardHeader:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
