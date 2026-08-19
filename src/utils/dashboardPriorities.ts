@@ -26,7 +26,9 @@ export type PriorityKind =
     | 'payroll_overdue'
     | 'payroll_due_soon'
     | 'tax_deadline_overdue'
-    | 'tax_deadline_due_soon';
+    | 'tax_deadline_due_soon'
+    | 'goal_deadline_passed'
+    | 'goal_off_track';
 
 export interface PriorityItem {
     id: string;
@@ -63,8 +65,12 @@ const GOAL_KINDS: Record<PrimaryGoal, PriorityKind[]> = {
 // different shapes. Payroll and the tax filing deadline never produce more
 // than one alert at a time (detectPayrollAlert / detectTaxDeadlineAlert
 // each return at most one), so they pass through generically instead of
-// needing their own aggregation block.
-const PASSTHROUGH_ALERT_TYPES = new Set(['low_cash', 'negative_forecast', 'large_expense_coming', 'payroll_overdue', 'payroll_due_soon', 'tax_deadline_overdue', 'tax_deadline_due_soon']);
+// needing their own aggregation block. Goal alerts can fire once per goal,
+// but unlike loans/invoices/transactions there's no shared unit to sum
+// across goals (revenue growth is in currency, margin improvement is in
+// points, a custom goal could be either) -- one card per goal, named by
+// its own title, is more useful than a vague "N goals off track" total.
+const PASSTHROUGH_ALERT_TYPES = new Set(['low_cash', 'negative_forecast', 'large_expense_coming', 'payroll_overdue', 'payroll_due_soon', 'tax_deadline_overdue', 'tax_deadline_due_soon', 'goal_deadline_passed', 'goal_off_track']);
 
 function alertToPriorityItem(alert: ForecastAlert): PriorityItem {
     return {

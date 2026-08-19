@@ -22,6 +22,7 @@ const KEYS = {
     payrollDueId: '@quad360/notif_payroll_due_id',
     overdueTransactionsId: '@quad360/notif_overdue_transactions_id',
     taxDeadlineId: '@quad360/notif_tax_deadline_id',
+    goalAlertsId: '@quad360/notif_goal_alerts_id',
 };
 
 export async function requestNotificationPermission(): Promise<boolean> {
@@ -222,6 +223,39 @@ export async function notifyTaxDeadline(status: TaxDeadlineStatus): Promise<void
         });
 
         await AsyncStorage.setItem(KEYS.taxDeadlineId, Date.now().toString());
+    } catch {
+        // Fail silently
+    }
+}
+
+// Goals screen already shows each goal's own days-remaining state -- this
+// is just the same "you'd otherwise only see it if you opened that screen"
+// nudge the other reminders here give. Lower urgency than the others (no
+// third-party penalty attached to a self-set goal), so it's a single
+// summary notification rather than one per goal. Throttled to once a day.
+export async function notifyGoalAlerts(missedCount: number, offTrackCount: number): Promise<void> {
+    try {
+        if (Platform.OS === 'web' || (missedCount === 0 && offTrackCount === 0)) return;
+
+        const prevNotified = await AsyncStorage.getItem(KEYS.goalAlertsId);
+        if (prevNotified) {
+            const daysSinceLastNotif = (Date.now() - parseInt(prevNotified, 10)) / (1000 * 60 * 60 * 24);
+            if (daysSinceLastNotif < 1) return;
+        }
+
+        const parts: string[] = [];
+        if (missedCount > 0) parts.push(`${missedCount} goal${missedCount === 1 ? '' : 's'} past deadline`);
+        if (offTrackCount > 0) parts.push(`${offTrackCount} falling behind pace`);
+
+        await Notifications.scheduleNotificationAsync({
+            content: {
+                title: 'Your goals need a check-in 🎯',
+                body: `${parts.join(', ')}. Tap to review.`,
+            },
+            trigger: null,
+        });
+
+        await AsyncStorage.setItem(KEYS.goalAlertsId, Date.now().toString());
     } catch {
         // Fail silently
     }

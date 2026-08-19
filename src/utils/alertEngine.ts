@@ -1,4 +1,4 @@
-import { Transaction, Invoice, Loan, StaffMember, PayrollRun } from '../types';
+import { Transaction, Invoice, Loan, StaffMember, PayrollRun, FinancialGoal } from '../types';
 import { ForecastAlert, AlertThresholds, CashFlowForecast, ForecastInput } from '../types/forecast';
 import { generateCashFlowForecast } from './forecastEngine';
 import { computeMonthlyTrend } from './finance';
@@ -37,6 +37,7 @@ export class AlertEngine {
   private staff: StaffMember[];
   private payrollRuns: PayrollRun[];
   private nextTaxDeadline?: string;
+  private goals: FinancialGoal[];
   private forecast?: CashFlowForecast;
   private thresholds: AlertThresholds;
   private dismissedAlerts: Set<string>;
@@ -53,7 +54,8 @@ export class AlertEngine {
     loans?: Loan[],
     staff?: StaffMember[],
     payrollRuns?: PayrollRun[],
-    nextTaxDeadline?: string
+    nextTaxDeadline?: string,
+    goals?: FinancialGoal[]
   ) {
     this.currentCash = currentCash;
     this.transactions = transactions;
@@ -62,6 +64,7 @@ export class AlertEngine {
     this.staff = staff || [];
     this.payrollRuns = payrollRuns || [];
     this.nextTaxDeadline = nextTaxDeadline;
+    this.goals = goals || [];
     this.forecast = forecast;
     this.thresholds = { ...DEFAULT_THRESHOLDS, ...thresholds };
     this.dismissedAlerts = new Set(dismissedAlertIds || []);
@@ -105,6 +108,10 @@ export class AlertEngine {
     // Tax filing deadline overdue or coming up soon
     const taxDeadlineAlert = this.detectTaxDeadlineAlert();
     if (taxDeadlineAlert) alerts.push(taxDeadlineAlert);
+
+    // Goals past their deadline, or falling behind pace ahead of it
+    const goalAlerts = this.detectGoalAlerts();
+    alerts.push(...goalAlerts);
 
     // Filter out dismissed alerts
     return alerts.filter(a => !this.dismissedAlerts.has(a.id));
@@ -429,6 +436,53 @@ export class AlertEngine {
   }
 
   /**
+   * Detect goals that missed their deadline, or are falling behind pace
+   * ahead of it. goal.status/.progress are expected to already be fresh
+   * (useApp().goals recomputes them via refreshGoal on every read -- see
+   * goals.ts), so this never recomputes goal math itself, only reads it.
+   * Lower priority than loan/payroll/tax alerts throughout -- a self-set
+   * goal has no third-party penalty attached, unlike those obligations.
+   * A stable id keyed to the goal id, not a timestamp, so dismissing one
+   * doesn't un-dismiss on the next recompute.
+   */
+  private detectGoalAlerts(): ForecastAlert[] {
+    const alerts: ForecastAlert[] = [];
+    const now = new Date();
+
+    for (const goal of this.goals) {
+      if (goal.status === 'achieved') continue;
+
+      const deadline = new Date(goal.deadline);
+      const daysPastDeadline = Math.floor((now.getTime() - deadline.getTime()) / (1000 * 60 * 60 * 24));
+
+      if (daysPastDeadline > 0) {
+        alerts.push({
+          id: `alert-goal-missed-${goal.id}`,
+          type: 'goal_deadline_passed',
+          priority: 'medium',
+          title: `🎯 Goal Deadline Passed — ${goal.title}`,
+          description: `"${goal.title}" was due ${goal.deadline} and is still at ${Math.round(goal.progress)}% (${daysPastDeadline} day${daysPastDeadline === 1 ? '' : 's'} past deadline).`,
+          affectedDate: goal.deadline,
+          recommendations: ['Review the goal and either push the deadline out or close it out if it was reached another way'],
+          createdAt: new Date().toISOString(),
+        });
+      } else if (goal.status === 'off_track') {
+        alerts.push({
+          id: `alert-goal-off-track-${goal.id}`,
+          type: 'goal_off_track',
+          priority: 'low',
+          title: `🎯 Goal Off Track — ${goal.title}`,
+          description: `"${goal.title}" is falling behind pace: ${Math.round(goal.progress)}% complete with the deadline (${goal.deadline}) still ahead.`,
+          affectedDate: goal.deadline,
+          createdAt: new Date().toISOString(),
+        });
+      }
+    }
+
+    return alerts;
+  }
+
+  /**
    * Mark an alert as dismissed
    */
   public dismissAlert(alertId: string): void {
@@ -497,7 +551,8 @@ export const detectAlerts = (
   loans?: Loan[],
   staff?: StaffMember[],
   payrollRuns?: PayrollRun[],
-  nextTaxDeadline?: string
+  nextTaxDeadline?: string,
+  goals?: FinancialGoal[]
 ): ForecastAlert[] => {
   const engine = new AlertEngine(
     currentCash,
@@ -510,7 +565,8 @@ export const detectAlerts = (
     loans,
     staff,
     payrollRuns,
-    nextTaxDeadline
+    nextTaxDeadline,
+    goals
   );
   return engine.detectAllAlerts();
 };
@@ -581,9 +637,9 @@ export const buildForecastInput = (
  * Single entry point for the dashboard alert bell: builds a cash-flow
  * forecast from live financial data, then runs every alert detector
  * (low cash, negative forecast, overdue invoices, large upcoming expenses,
- * loan payments overdue or due soon, payroll not run, tax filing deadline)
- * against it. Pure computation -- no side effects, no persistence; the
- * caller owns dismissal storage.
+ * loan payments overdue or due soon, payroll not run, tax filing deadline,
+ * goals off track or past deadline) against it. Pure computation -- no side
+ * effects, no persistence; the caller owns dismissal storage.
  */
 export const detectFinancialAlerts = (
   currentCash: number,
@@ -594,8 +650,9 @@ export const detectFinancialAlerts = (
   loans?: Loan[],
   staff?: StaffMember[],
   payrollRuns?: PayrollRun[],
-  nextTaxDeadline?: string
+  nextTaxDeadline?: string,
+  goals?: FinancialGoal[]
 ): ForecastAlert[] => {
   const forecast = generateCashFlowForecast(buildForecastInput(currentCash, transactions, invoices, currency));
-  return detectAlerts(currentCash, transactions, invoices, forecast, undefined, dismissedAlertIds, currency, loans, staff, payrollRuns, nextTaxDeadline);
+  return detectAlerts(currentCash, transactions, invoices, forecast, undefined, dismissedAlertIds, currency, loans, staff, payrollRuns, nextTaxDeadline, goals);
 };

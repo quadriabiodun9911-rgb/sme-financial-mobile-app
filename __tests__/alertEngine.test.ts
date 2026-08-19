@@ -1,4 +1,4 @@
-import { Transaction, Invoice, Loan, StaffMember, PayrollRun } from '../src/types';
+import { Transaction, Invoice, Loan, StaffMember, PayrollRun, FinancialGoal } from '../src/types';
 import { detectAlerts, detectCriticalAlerts, getAlertStats, detectFinancialAlerts, DEFAULT_THRESHOLDS } from '../src/utils/alertEngine';
 
 // startDate expressed relative to the real current date (matching how
@@ -84,6 +84,24 @@ function makeLoan(overrides: Partial<Loan>): Loan {
         status: 'active',
         payments: [],
         createdAt: isoMonthsAgo(3) + 'T00:00:00.000Z',
+        ...overrides,
+    };
+}
+
+function makeGoal(overrides: Partial<FinancialGoal> = {}): FinancialGoal {
+    return {
+        id: 'goal-1',
+        type: 'revenue_growth',
+        title: 'Increase Revenue by 20%',
+        description: 'Grow total income by at least 20%.',
+        targetValue: 1200000,
+        unit: '₦',
+        baselineValue: 1000000,
+        currentValue: 1000000,
+        deadline: isoDaysFromNow(30),
+        createdAt: isoMonthsAgo(3),
+        status: 'on_track',
+        progress: 0,
         ...overrides,
     };
 }
@@ -338,6 +356,59 @@ describe('alertEngine', () => {
         it('produces no tax deadline alert when no deadline is set', () => {
             const alerts = detectAlerts(1000000, [], []);
             expect(alerts.some(a => a.type.startsWith('tax_deadline'))).toBe(false);
+        });
+    });
+
+    describe('goal alerts', () => {
+        it('flags a goal whose deadline has passed and is not achieved', () => {
+            const goal = makeGoal({ deadline: isoDaysAgo(5), status: 'off_track', progress: 40 });
+            const alerts = detectAlerts(
+                1000000, [], [], undefined, undefined, undefined, '₦', [], [], [], undefined, [goal]
+            );
+            const missed = alerts.find(a => a.type === 'goal_deadline_passed');
+            expect(missed).toBeDefined();
+            expect(missed?.id).toBe(`alert-goal-missed-${goal.id}`);
+            expect(missed?.priority).toBe('medium');
+        });
+
+        it('flags an off-track goal whose deadline is still ahead', () => {
+            const goal = makeGoal({ deadline: isoDaysFromNow(20), status: 'off_track', progress: 10 });
+            const alerts = detectAlerts(
+                1000000, [], [], undefined, undefined, undefined, '₦', [], [], [], undefined, [goal]
+            );
+            const offTrack = alerts.find(a => a.type === 'goal_off_track');
+            expect(offTrack).toBeDefined();
+            expect(offTrack?.id).toBe(`alert-goal-off-track-${goal.id}`);
+            expect(offTrack?.priority).toBe('low');
+        });
+
+        it('never flags an achieved goal, even past its deadline', () => {
+            const goal = makeGoal({ deadline: isoDaysAgo(5), status: 'achieved', progress: 100 });
+            const alerts = detectAlerts(
+                1000000, [], [], undefined, undefined, undefined, '₦', [], [], [], undefined, [goal]
+            );
+            expect(alerts.some(a => a.type.startsWith('goal_'))).toBe(false);
+        });
+
+        it('produces no alert for an on-track goal ahead of its deadline', () => {
+            const goal = makeGoal({ deadline: isoDaysFromNow(20), status: 'on_track', progress: 60 });
+            const alerts = detectAlerts(
+                1000000, [], [], undefined, undefined, undefined, '₦', [], [], [], undefined, [goal]
+            );
+            expect(alerts.some(a => a.type.startsWith('goal_'))).toBe(false);
+        });
+
+        it('produces no alert for an at-risk (not off-track) goal ahead of its deadline', () => {
+            const goal = makeGoal({ deadline: isoDaysFromNow(20), status: 'at_risk', progress: 45 });
+            const alerts = detectAlerts(
+                1000000, [], [], undefined, undefined, undefined, '₦', [], [], [], undefined, [goal]
+            );
+            expect(alerts.some(a => a.type.startsWith('goal_'))).toBe(false);
+        });
+
+        it('defaults to no goal alerts when no goals are passed', () => {
+            const alerts = detectAlerts(1000000, [], []);
+            expect(alerts.some(a => a.type.startsWith('goal_'))).toBe(false);
         });
     });
 

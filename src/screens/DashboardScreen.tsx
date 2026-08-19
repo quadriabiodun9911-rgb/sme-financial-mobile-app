@@ -36,7 +36,7 @@ import StatTile from '../components/ui/StatTile';
 import { buildFinancingFitInput } from '../utils/financingFit';
 import { recommendFinancingTypes } from '../utils/financingRecommendation';
 import { computeReadinessDelta } from '../utils/readinessHistory';
-import { notifyFinancingOpportunity, notifyOverdueRemindersDue, notifyLoanPaymentDueSoon, notifyPayrollDue, notifyOverdueTransactionsFound, notifyTaxDeadline } from '../utils/notifications';
+import { notifyFinancingOpportunity, notifyOverdueRemindersDue, notifyLoanPaymentDueSoon, notifyPayrollDue, notifyOverdueTransactionsFound, notifyTaxDeadline, notifyGoalAlerts } from '../utils/notifications';
 import { getInvoicesDueForReminder, loadReminderState, InvoiceReminderState } from '../utils/invoiceReminders';
 import { isLoanPaymentOverdue, daysUntilLoanPaymentDue } from '../utils/loanMath';
 import { getPayrollReminderStatus } from '../utils/payrollReminders';
@@ -70,6 +70,8 @@ const PRIORITY_KIND_META: Record<PriorityKind, { icon: IconName; screen: Screen 
     payroll_due_soon:       { icon: 'users',           screen: 'payroll' },
     tax_deadline_overdue:   { icon: 'alert-triangle',  screen: 'reports' },
     tax_deadline_due_soon:  { icon: 'alert-circle',    screen: 'reports' },
+    goal_deadline_passed:   { icon: 'target',           screen: 'goals' },
+    goal_off_track:         { icon: 'flag',             screen: 'goals' },
 };
 
 export default function DashboardScreen() {
@@ -297,13 +299,29 @@ export default function DashboardScreen() {
         notifyTaxDeadline(taxDeadlineStatus).catch(() => {});
     }, [isDemoMode, taxDeadlineStatus]);
 
+    // goals is already the live/refreshed array (OptimizedContexts recomputes
+    // status/progress on every read via refreshGoal) -- this only counts what's
+    // already there, it never recomputes goal math itself.
+    const goalsMissedCount = useMemo(
+        () => goals.filter(g => g.status !== 'achieved' && new Date(g.deadline) < new Date()).length,
+        [goals]
+    );
+    const goalsOffTrackCount = useMemo(
+        () => goals.filter(g => g.status === 'off_track' && new Date(g.deadline) >= new Date()).length,
+        [goals]
+    );
+    useEffect(() => {
+        if (isDemoMode || (goalsMissedCount === 0 && goalsOffTrackCount === 0)) return;
+        notifyGoalAlerts(goalsMissedCount, goalsOffTrackCount).catch(() => {});
+    }, [isDemoMode, goalsMissedCount, goalsOffTrackCount]);
+
     // Same cash-flow risk detection the header's alert bell uses -- pure
     // computation, cheap to run a second time here rather than threading
     // Header's alert state down through props for what's otherwise an
     // unrelated component tree.
     const alerts = useMemo(
-        () => detectFinancialAlerts(finance.cashBalance, transactions, invoices, settings?.currency, undefined, loans, staff, payrollRuns, settings?.nextTaxDeadline),
-        [finance.cashBalance, transactions, invoices, settings?.currency, loans, staff, payrollRuns, settings?.nextTaxDeadline]
+        () => detectFinancialAlerts(finance.cashBalance, transactions, invoices, settings?.currency, undefined, loans, staff, payrollRuns, settings?.nextTaxDeadline, goals),
+        [finance.cashBalance, transactions, invoices, settings?.currency, loans, staff, payrollRuns, settings?.nextTaxDeadline, goals]
     );
 
     const priorities = useMemo(

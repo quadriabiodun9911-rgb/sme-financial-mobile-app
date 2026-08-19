@@ -141,7 +141,9 @@ export type AlertType =
   | 'payroll_due_soon'
   | 'overdue_transaction'
   | 'tax_deadline_overdue'
-  | 'tax_deadline_due_soon';
+  | 'tax_deadline_due_soon'
+  | 'goal_deadline_passed'
+  | 'goal_off_track';
 
 export interface ForecastAlert {
   id: string;

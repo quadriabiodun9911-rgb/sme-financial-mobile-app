@@ -255,6 +255,29 @@ describe('buildDashboardPriorities', () => {
         expect(item?.tier).toBe('watch');
     });
 
+    it('passes a goal_deadline_passed alert through, one card per goal', () => {
+        const result = buildDashboardPriorities({
+            alerts: [
+                alert({ id: 'alert-goal-missed-goal-1', type: 'goal_deadline_passed', priority: 'medium', title: '🎯 Goal Deadline Passed — Increase Revenue by 20%' }),
+                alert({ id: 'alert-goal-missed-goal-2', type: 'goal_deadline_passed', priority: 'medium', title: '🎯 Goal Deadline Passed — Build Cash Reserve' }),
+            ],
+            overdueInvoices: [], lowStockItems: [], overspentBudgets: [], financingOpportunity: null, currency: '₦',
+        });
+        const items = result.filter(p => p.kind === 'goal_deadline_passed');
+        expect(items).toHaveLength(2);
+        expect(items[0].tier).toBe('watch');
+    });
+
+    it('passes a goal_off_track alert through into the watch tier', () => {
+        const result = buildDashboardPriorities({
+            alerts: [alert({ id: 'alert-goal-off-track-goal-1', type: 'goal_off_track', priority: 'low', title: '🎯 Goal Off Track — Reduce Operating Costs by 15%' })],
+            overdueInvoices: [], lowStockItems: [], overspentBudgets: [], financingOpportunity: null, currency: '₦',
+        });
+        const item = result.find(p => p.kind === 'goal_off_track');
+        expect(item).toBeDefined();
+        expect(item?.tier).toBe('watch');
+    });
+
     it('aggregates overdue transactions into a single attention-tier card', () => {
         const result = buildDashboardPriorities({
             alerts: [], overdueInvoices: [],
