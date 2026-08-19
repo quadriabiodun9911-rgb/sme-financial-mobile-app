@@ -53,8 +53,10 @@ import { buildNewGoal, goalDefaults } from '../utils/goals';
 import { computeRiskRadar, RiskLevel } from '../utils/riskRadar';
 import { GoalType } from '../types';
 import { buildDashboardPriorities, PriorityKind, PriorityTier, OverspentBudget } from '../utils/dashboardPriorities';
+import { resolveMonthlyMission, StoredMission } from '../utils/monthlyMission';
 
 const CELEBRATED_GOALS_KEY = '@quad360/celebrated_goal_ids';
+const MONTHLY_MISSION_KEY = '@quad360/monthly_mission';
 
 const INCOME_CATEGORIES = ['Sales', 'Service', 'Consulting', 'Rental', 'Interest', 'Other Income'];
 const EXPENSE_CATEGORIES = ['Rent', 'Salaries', 'Utilities', 'Marketing', 'Supplies', 'Transport', 'Meals', 'Software', 'Tax', 'Other'];
@@ -146,6 +148,18 @@ export default function DashboardScreen() {
             if (raw) {
                 try { setCelebratedGoalIds(JSON.parse(raw)); } catch { /* corrupt value, start fresh */ }
             }
+        });
+    }, []);
+
+    // undefined = not yet read from storage (skip resolving a mission until
+    // then, so a freshly-picked baseline never races the real stored one
+    // and overwrites it before the load completes); null = read, nothing
+    // stored yet.
+    const [storedMission, setStoredMission] = useState<StoredMission | null | undefined>(undefined);
+    useEffect(() => {
+        AsyncStorage.getItem(MONTHLY_MISSION_KEY).then(raw => {
+            if (!raw) { setStoredMission(null); return; }
+            try { setStoredMission(JSON.parse(raw)); } catch { setStoredMission(null); }
         });
     }, []);
 
@@ -459,6 +473,23 @@ export default function DashboardScreen() {
         }),
         [alerts, overdueInvoices, overdueLoans, overdueTransactions, overdueRecurringTransactions, assetsNearingReplacement, stockoutRiskItems, slowMovingItems, lowStockItems, overspentBudgets, financingOpportunity, settings?.currency, settings?.primaryGoal]
     );
+
+    // This month's one focused target -- the highest-impact "reduce this to
+    // zero" item already on the priority list above, tracked against a
+    // baseline snapshotted once (see monthlyMission.ts). Held back until
+    // storedMission has actually been read from AsyncStorage (see its
+    // useEffect above), otherwise a fresh guess made on the very first
+    // render would win the race and get persisted over the real stored
+    // baseline.
+    const { mission: monthlyMission, toPersist: missionToPersist } = useMemo(
+        () => (storedMission === undefined ? { mission: null, toPersist: null } : resolveMonthlyMission(priorities, storedMission)),
+        [priorities, storedMission]
+    );
+    useEffect(() => {
+        if (!missionToPersist) return;
+        setStoredMission(missionToPersist);
+        AsyncStorage.setItem(MONTHLY_MISSION_KEY, JSON.stringify(missionToPersist));
+    }, [missionToPersist]);
 
     // Same call shape every other diagnosis screen already uses (GoalsScreen,
     // ActionTrackerScreen, FinancialAssessmentScreen, BudgetScreen) -- gated
@@ -806,6 +837,38 @@ export default function DashboardScreen() {
                       </TouchableOpacity>
                     </View>
                   </View>
+                )}
+
+                {/* This Month's Mission -- one focused target pulled from
+                    the priority list below, not a second computation. The
+                    baseline is a real snapshot taken once (monthlyMission.ts);
+                    progress is that same real number moving, never guessed.
+                    Clearing it early rolls straight into the next one, same
+                    "achieved -> what's next" loop as the goal-celebration
+                    card above. */}
+                {canViewFinancials && monthlyMission && (
+                  <TouchableOpacity
+                    style={styles.missionCard}
+                    onPress={() => setCurrentScreen(PRIORITY_KIND_META[monthlyMission.kind]?.screen ?? 'transactions')}
+                    activeOpacity={0.85}
+                  >
+                    <View style={styles.sectionTitleRow}>
+                      <Icon name="target" size={13} color={Colors.textMuted} />
+                      <Text style={styles.operationsSectionTitle}>This Month's Mission</Text>
+                    </View>
+                    <Text style={styles.missionTitle}>{monthlyMission.title}</Text>
+                    <View style={styles.missionBarTrack}>
+                      <View style={[styles.missionBarFill, { width: `${monthlyMission.progressPct}%` }]} />
+                    </View>
+                    <View style={styles.missionStatsRow}>
+                      <Text style={styles.missionStat}>
+                        {Math.round(monthlyMission.progressPct)}% cleared
+                      </Text>
+                      <Text style={styles.missionStat}>
+                        {(settings?.currency ?? '₦')}{Math.round(monthlyMission.currentAmount).toLocaleString()} left of {(settings?.currency ?? '₦')}{Math.round(monthlyMission.baselineAmount).toLocaleString()}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
                 )}
 
                 {/* SECTION 2: WHAT NEEDS YOUR ATTENTION — every risk and
@@ -1461,6 +1524,17 @@ const styles = StyleSheet.create({
     riskChipDot: { fontSize: 9 },
     riskChipLabel: { fontSize: 11, fontWeight: '600', color: Colors.textSecondary },
     riskRadarSummary: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
+
+    missionCard: {
+        backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1,
+        borderColor: Colors.border, padding: Spacing.md, marginBottom: Spacing.lg,
+        ...Shadow.sm,
+    },
+    missionTitle: { fontSize: 15, fontWeight: '800', color: Colors.textPrimary, marginBottom: Spacing.sm },
+    missionBarTrack: { height: 8, borderRadius: 4, backgroundColor: Colors.bg, overflow: 'hidden', marginBottom: Spacing.xs },
+    missionBarFill: { height: 8, borderRadius: 4, backgroundColor: Colors.primary },
+    missionStatsRow: { flexDirection: 'row', justifyContent: 'space-between' },
+    missionStat: { fontSize: 11.5, color: Colors.textMuted, fontWeight: '600' },
 
     betaCard:           { backgroundColor: Colors.surface, borderRadius: 16, padding: 16, marginBottom: 14, borderWidth: 1.5, borderColor: Colors.primary + '55' },
     betaCardHeader:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
