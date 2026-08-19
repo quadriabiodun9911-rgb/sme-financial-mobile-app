@@ -149,7 +149,8 @@ export type AlertType =
   | 'recurring_transaction_due_soon'
   | 'budget_period_lapsed'
   | 'asset_nearing_replacement'
-  | 'inventory_stockout_risk';
+  | 'inventory_stockout_risk'
+  | 'tax_ability_to_pay_shortfall';
 
 export interface ForecastAlert {
   id: string;

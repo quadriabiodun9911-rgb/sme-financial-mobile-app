@@ -609,6 +609,38 @@ describe('alertEngine', () => {
         });
     });
 
+    describe('tax ability-to-pay alerts', () => {
+        it('flags a shortfall when cash on hand is below tax collected but not remitted', () => {
+            const alerts = detectAlerts(
+                100000, [], [], undefined, undefined, undefined, '₦', [], [], [], undefined, [], [], [], [], 300000, 50000
+            ); // liability = 300000 - 50000 = 250000, cash = 100000 -> short by 150000
+            const found = alerts.find(a => a.type === 'tax_ability_to_pay_shortfall');
+            expect(found).toBeDefined();
+            expect(found?.id).toBe('alert-tax-ability-to-pay');
+            expect(found?.priority).toBe('high');
+            expect(found?.amount).toBe(150000);
+        });
+
+        it('never flags it when cash on hand covers the estimated liability', () => {
+            const alerts = detectAlerts(
+                500000, [], [], undefined, undefined, undefined, '₦', [], [], [], undefined, [], [], [], [], 300000, 50000
+            ); // liability = 250000, cash = 500000 -> covered
+            expect(alerts.some(a => a.type === 'tax_ability_to_pay_shortfall')).toBe(false);
+        });
+
+        it('never flags it when there is no outstanding tax liability tracked', () => {
+            const alerts = detectAlerts(
+                1000, [], [], undefined, undefined, undefined, '₦', [], [], [], undefined, [], [], [], [], 50000, 50000
+            ); // liability = 0
+            expect(alerts.some(a => a.type === 'tax_ability_to_pay_shortfall')).toBe(false);
+        });
+
+        it('defaults to no alert when tax totals are omitted', () => {
+            const alerts = detectAlerts(1000, [], []);
+            expect(alerts.some(a => a.type === 'tax_ability_to_pay_shortfall')).toBe(false);
+        });
+    });
+
     describe('detectFinancialAlerts', () => {
         it('builds a forecast from transactions/invoices and folds it into the alert set', () => {
             const recurringExpense: Transaction = {

@@ -221,6 +221,15 @@ export default function TransactionsScreen() {
             return;
         }
 
+        // taxRate alone was being saved with no corresponding taxAmount --
+        // the "= ₦X tax on ₦Y" preview shown just above this form promised
+        // the figure would be tracked, but nothing ever persisted it, so
+        // totalTaxCollected/totalTaxPaid (finance.ts) stayed 0 for every
+        // transaction added through this form regardless of tax rate,
+        // silently breaking the Tax Filing Readiness "ability to pay" check
+        // and its alert-bell/Dashboard/notification counterpart for every
+        // real user. Same formula as taxPreview above.
+        const taxRateNum = form.taxRate ? parseFloat(form.taxRate) : undefined;
         const payload = {
             description:        form.description.trim(),
             amount:             amt,
@@ -228,7 +237,8 @@ export default function TransactionsScreen() {
             category:           form.category,
             reference:          form.reference || undefined,
             vendorCustomer:     joinVendorCustomer(form.vendorCustomer, form.phone) || undefined,
-            taxRate:            form.taxRate ? parseFloat(form.taxRate) : undefined,
+            taxRate:            taxRateNum,
+            taxAmount:          taxRateNum ? amt * (taxRateNum / 100) : undefined,
             status:             form.status,
             dueDate:            form.dueDate || undefined,
             date:               form.date || todayStr(),

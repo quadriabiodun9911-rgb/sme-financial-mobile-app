@@ -31,6 +31,23 @@ function fmtGBP(currency: string, n: number): string {
     return `${currency}${Math.round(Math.abs(n)).toLocaleString()}`;
 }
 
+export interface TaxAbilityToPay {
+    estimatedLiability: number;
+    canCover: boolean;
+    /** 0 when canCover is true or there's no liability tracked. */
+    shortfall: number;
+}
+
+// totalTaxCollected - totalTaxPaid is tax already charged to customers but
+// not yet remitted -- the closest proxy available to "what you'll owe"
+// without a real tax computation. Shared by the readiness checklist below
+// and alertEngine's global detector so the two never drift on the formula.
+export function computeTaxAbilityToPay(finance: Pick<FinanceData, 'cashBalance' | 'totalTaxCollected' | 'totalTaxPaid'>): TaxAbilityToPay {
+    const estimatedLiability = Math.max(0, (finance.totalTaxCollected || 0) - (finance.totalTaxPaid || 0));
+    const canCover = finance.cashBalance >= estimatedLiability;
+    return { estimatedLiability, canCover, shortfall: canCover ? 0 : estimatedLiability - finance.cashBalance };
+}
+
 export function computeTaxFilingReadiness(
     transactions: Transaction[],
     invoices: Invoice[],
@@ -70,8 +87,7 @@ export function computeTaxFilingReadiness(
     // tax already charged to customers but not yet remitted — the closest
     // proxy available to "what you'll owe" without a real tax computation.
     if (finance) {
-        const estimatedLiability = Math.max(0, (finance.totalTaxCollected || 0) - (finance.totalTaxPaid || 0));
-        const canCover = finance.cashBalance >= estimatedLiability;
+        const { estimatedLiability, canCover, shortfall } = computeTaxAbilityToPay(finance);
         checks.push({
             id: 'ability-to-pay',
             label: 'Cash on hand covers what you likely owe',
@@ -80,7 +96,7 @@ export function computeTaxFilingReadiness(
                 ? 'No outstanding tax liability tracked right now.'
                 : canCover
                     ? `${fmtGBP(currency, finance.cashBalance)} in cash against ~${fmtGBP(currency, estimatedLiability)} estimated owed — covered.`
-                    : `Estimated ${fmtGBP(currency, estimatedLiability)} owed, but only ${fmtGBP(currency, finance.cashBalance)} in cash — you may be short by ${fmtGBP(currency, estimatedLiability - finance.cashBalance)}.`,
+                    : `Estimated ${fmtGBP(currency, estimatedLiability)} owed, but only ${fmtGBP(currency, finance.cashBalance)} in cash — you may be short by ${fmtGBP(currency, shortfall)}.`,
         });
     }
 

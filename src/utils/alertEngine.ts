@@ -10,6 +10,7 @@ import { nextRecurringDueDate, daysUntilRecurringDue, isRecurringTransactionOver
 import { isBudgetPeriodLapsed, currentPeriodString } from './budgetPeriod';
 import { computeAssetsNearingReplacement, computeAssetCurrentValue } from './finance';
 import { computeStockVelocity } from './stockVelocity';
+import { computeTaxAbilityToPay } from './taxFilingReadiness';
 
 /**
  * Real-Time Cash Alerts System
@@ -46,6 +47,8 @@ export class AlertEngine {
   private budgets: Budget[];
   private assets: Asset[];
   private inventory: InventoryItem[];
+  private totalTaxCollected: number;
+  private totalTaxPaid: number;
   private forecast?: CashFlowForecast;
   private thresholds: AlertThresholds;
   private dismissedAlerts: Set<string>;
@@ -66,7 +69,9 @@ export class AlertEngine {
     goals?: FinancialGoal[],
     budgets?: Budget[],
     assets?: Asset[],
-    inventory?: InventoryItem[]
+    inventory?: InventoryItem[],
+    totalTaxCollected?: number,
+    totalTaxPaid?: number
   ) {
     this.currentCash = currentCash;
     this.transactions = transactions;
@@ -79,6 +84,8 @@ export class AlertEngine {
     this.budgets = budgets || [];
     this.assets = assets || [];
     this.inventory = inventory || [];
+    this.totalTaxCollected = totalTaxCollected || 0;
+    this.totalTaxPaid = totalTaxPaid || 0;
     this.forecast = forecast;
     this.thresholds = { ...DEFAULT_THRESHOLDS, ...thresholds };
     this.dismissedAlerts = new Set(dismissedAlertIds || []);
@@ -142,6 +149,10 @@ export class AlertEngine {
     // Fast-selling inventory projected to run out soon
     const stockoutRiskAlerts = this.detectStockoutRiskAlerts();
     alerts.push(...stockoutRiskAlerts);
+
+    // Cash on hand won't cover tax already collected but not yet remitted
+    const taxAbilityToPayAlert = this.detectTaxAbilityToPayAlert();
+    if (taxAbilityToPayAlert) alerts.push(taxAbilityToPayAlert);
 
     // Filter out dismissed alerts
     return alerts.filter(a => !this.dismissedAlerts.has(a.id));
@@ -652,6 +663,41 @@ export class AlertEngine {
   }
 
   /**
+   * Detect cash on hand falling short of tax already collected from
+   * customers but not yet remitted (computeTaxAbilityToPay,
+   * taxFilingReadiness.ts -- same "ability to pay" check the Tax Filing
+   * Readiness tab already runs, just not previously surfaced anywhere
+   * else). Distinct from the tax_deadline alerts above -- those are purely
+   * about the filing *date*; this is about whether there'll be enough cash
+   * to cover the bill when it lands, which can be true or false regardless
+   * of how far off the deadline is. A stable id, not a timestamp, so
+   * dismissing it doesn't un-dismiss on the next recompute -- naturally
+   * clears once cash catches up or the liability is paid down.
+   */
+  private detectTaxAbilityToPayAlert(): ForecastAlert | null {
+    const { estimatedLiability, canCover, shortfall } = computeTaxAbilityToPay({
+      cashBalance: this.currentCash,
+      totalTaxCollected: this.totalTaxCollected,
+      totalTaxPaid: this.totalTaxPaid,
+    });
+    if (estimatedLiability === 0 || canCover) return null;
+
+    return {
+      id: 'alert-tax-ability-to-pay',
+      type: 'tax_ability_to_pay_shortfall',
+      priority: 'high',
+      title: '💰 May Not Cover Estimated Tax Bill',
+      description: `Estimated ${this.formatCurrency(estimatedLiability)} owed in tax, but only ${this.formatCurrency(this.currentCash)} in cash — you may be short by ${this.formatCurrency(shortfall)}.`,
+      amount: shortfall,
+      recommendations: [
+        'Set aside tax money as you collect it, separate from operating cash',
+        'Look into a Time to Pay arrangement with the tax authority if you\'ll be short when it\'s due',
+      ],
+      createdAt: new Date().toISOString(),
+    };
+  }
+
+  /**
    * Mark an alert as dismissed
    */
   public dismissAlert(alertId: string): void {
@@ -724,7 +770,9 @@ export const detectAlerts = (
   goals?: FinancialGoal[],
   budgets?: Budget[],
   assets?: Asset[],
-  inventory?: InventoryItem[]
+  inventory?: InventoryItem[],
+  totalTaxCollected?: number,
+  totalTaxPaid?: number
 ): ForecastAlert[] => {
   const engine = new AlertEngine(
     currentCash,
@@ -741,7 +789,9 @@ export const detectAlerts = (
     goals,
     budgets,
     assets,
-    inventory
+    inventory,
+    totalTaxCollected,
+    totalTaxPaid
   );
   return engine.detectAllAlerts();
 };
@@ -814,8 +864,9 @@ export const buildForecastInput = (
  * (low cash, negative forecast, overdue invoices, large upcoming expenses,
  * loan payments overdue or due soon, payroll not run, tax filing deadline,
  * goals off track or past deadline, recurring transactions, a lapsed
- * budget period, assets nearing replacement, inventory at stockout risk)
- * against it. Pure computation -- no side effects, no persistence; the
+ * budget period, assets nearing replacement, inventory at stockout risk,
+ * cash falling short of tax already collected) against it. Pure
+ * computation -- no side effects, no persistence; the
  * caller owns dismissal storage.
  */
 export const detectFinancialAlerts = (
@@ -831,8 +882,10 @@ export const detectFinancialAlerts = (
   goals?: FinancialGoal[],
   budgets?: Budget[],
   assets?: Asset[],
-  inventory?: InventoryItem[]
+  inventory?: InventoryItem[],
+  totalTaxCollected?: number,
+  totalTaxPaid?: number
 ): ForecastAlert[] => {
   const forecast = generateCashFlowForecast(buildForecastInput(currentCash, transactions, invoices, currency));
-  return detectAlerts(currentCash, transactions, invoices, forecast, undefined, dismissedAlertIds, currency, loans, staff, payrollRuns, nextTaxDeadline, goals, budgets, assets, inventory);
+  return detectAlerts(currentCash, transactions, invoices, forecast, undefined, dismissedAlertIds, currency, loans, staff, payrollRuns, nextTaxDeadline, goals, budgets, assets, inventory, totalTaxCollected, totalTaxPaid);
 };

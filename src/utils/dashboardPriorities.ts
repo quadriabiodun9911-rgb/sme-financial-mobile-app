@@ -33,7 +33,8 @@ export type PriorityKind =
     | 'recurring_transaction_overdue'
     | 'budget_period_lapsed'
     | 'asset_nearing_replacement'
-    | 'inventory_stockout_risk';
+    | 'inventory_stockout_risk'
+    | 'tax_ability_to_pay_shortfall';
 
 export interface PriorityItem {
     id: string;
@@ -58,7 +59,7 @@ const TIER_RANK: Record<PriorityTier, number> = { attention: 0, watch: 1, opport
 // uncollected receivables are a direct cash-flow lever, not just a
 // collections issue.
 const GOAL_KINDS: Record<PrimaryGoal, PriorityKind[]> = {
-    cashflow: ['low_cash', 'negative_forecast', 'large_expense_coming', 'overdue_invoices', 'overdue_loan_payments', 'overdue_transactions', 'payroll_overdue', 'payroll_due_soon', 'tax_deadline_overdue', 'tax_deadline_due_soon', 'recurring_transaction_overdue'],
+    cashflow: ['low_cash', 'negative_forecast', 'large_expense_coming', 'overdue_invoices', 'overdue_loan_payments', 'overdue_transactions', 'payroll_overdue', 'payroll_due_soon', 'tax_deadline_overdue', 'tax_deadline_due_soon', 'tax_ability_to_pay_shortfall', 'recurring_transaction_overdue'],
     costs: ['overspent_budget', 'budget_period_lapsed'],
     financing: ['financing_opportunity'],
 };
@@ -69,8 +70,9 @@ const GOAL_KINDS: Record<PrimaryGoal, PriorityKind[]> = {
 // those into a single card ("3 customers, ₦420,000 to collect"), so those
 // alert types are excluded here to avoid
 // double-reporting the same risk in two different shapes. Payroll and the
-// tax filing deadline, and lapsed budget period never produce more than
-// one alert at a time (detectPayrollAlert / detectTaxDeadlineAlert /
+// tax filing deadline, tax ability-to-pay, and lapsed budget period never
+// produce more than one alert at a time (detectPayrollAlert /
+// detectTaxDeadlineAlert / detectTaxAbilityToPayAlert /
 // detectBudgetPeriodLapsedAlert each return at most one), so they pass
 // through generically instead of needing their own aggregation block.
 // Goal alerts can fire once per goal, but unlike loans/invoices/
@@ -81,7 +83,7 @@ const GOAL_KINDS: Record<PrimaryGoal, PriorityKind[]> = {
 // is deliberately never surfaced here at all (same as loan_payment_due_soon)
 // -- it's a softer, pre-emptive nudge that only needs the alert bell and a
 // notification, not a Dashboard card competing for attention.
-const PASSTHROUGH_ALERT_TYPES = new Set(['low_cash', 'negative_forecast', 'large_expense_coming', 'payroll_overdue', 'payroll_due_soon', 'tax_deadline_overdue', 'tax_deadline_due_soon', 'goal_deadline_passed', 'goal_off_track', 'budget_period_lapsed']);
+const PASSTHROUGH_ALERT_TYPES = new Set(['low_cash', 'negative_forecast', 'large_expense_coming', 'payroll_overdue', 'payroll_due_soon', 'tax_deadline_overdue', 'tax_deadline_due_soon', 'tax_ability_to_pay_shortfall', 'goal_deadline_passed', 'goal_off_track', 'budget_period_lapsed']);
 
 function alertToPriorityItem(alert: ForecastAlert): PriorityItem {
     return {

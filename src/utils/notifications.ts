@@ -27,6 +27,7 @@ const KEYS = {
     budgetPeriodLapsedId: '@quad360/notif_budget_period_lapsed_id',
     assetReplacementId: '@quad360/notif_asset_replacement_id',
     stockoutRiskId: '@quad360/notif_stockout_risk_id',
+    taxAbilityToPayId: '@quad360/notif_tax_ability_to_pay_id',
 };
 
 export async function requestNotificationPermission(): Promise<boolean> {
@@ -375,6 +376,36 @@ export async function notifyStockoutRisk(count: number, totalValue: number, curr
         });
 
         await AsyncStorage.setItem(KEYS.stockoutRiskId, Date.now().toString());
+    } catch {
+        // Fail silently
+    }
+}
+
+// Mirrors the Tax Filing Readiness tab's own "ability to pay" check
+// (computeTaxAbilityToPay, taxFilingReadiness.ts) -- distinct from
+// notifyTaxDeadline above, which is purely about the filing *date*. This
+// fires when cash on hand won't cover tax already collected but not yet
+// remitted, regardless of how far off the deadline is. Throttled to once
+// a day, same reasoning as the other reminder notifications here.
+export async function notifyTaxAbilityToPayShortfall(shortfall: number, currency: string): Promise<void> {
+    try {
+        if (Platform.OS === 'web' || shortfall <= 0) return;
+
+        const prevNotified = await AsyncStorage.getItem(KEYS.taxAbilityToPayId);
+        if (prevNotified) {
+            const daysSinceLastNotif = (Date.now() - parseInt(prevNotified, 10)) / (1000 * 60 * 60 * 24);
+            if (daysSinceLastNotif < 1) return;
+        }
+
+        await Notifications.scheduleNotificationAsync({
+            content: {
+                title: 'May not cover your tax bill 💰',
+                body: `You could be short by ${currency}${Math.round(shortfall).toLocaleString()} against tax already collected. Set cash aside before it's due.`,
+            },
+            trigger: null,
+        });
+
+        await AsyncStorage.setItem(KEYS.taxAbilityToPayId, Date.now().toString());
     } catch {
         // Fail silently
     }

@@ -36,7 +36,7 @@ import StatTile from '../components/ui/StatTile';
 import { buildFinancingFitInput } from '../utils/financingFit';
 import { recommendFinancingTypes } from '../utils/financingRecommendation';
 import { computeReadinessDelta } from '../utils/readinessHistory';
-import { notifyFinancingOpportunity, notifyOverdueRemindersDue, notifyLoanPaymentDueSoon, notifyPayrollDue, notifyOverdueTransactionsFound, notifyTaxDeadline, notifyGoalAlerts, notifyRecurringTransactionAlerts, notifyBudgetPeriodLapsed, notifyAssetsNearingReplacement, notifyStockoutRisk } from '../utils/notifications';
+import { notifyFinancingOpportunity, notifyOverdueRemindersDue, notifyLoanPaymentDueSoon, notifyPayrollDue, notifyOverdueTransactionsFound, notifyTaxDeadline, notifyGoalAlerts, notifyRecurringTransactionAlerts, notifyBudgetPeriodLapsed, notifyAssetsNearingReplacement, notifyStockoutRisk, notifyTaxAbilityToPayShortfall } from '../utils/notifications';
 import { getInvoicesDueForReminder, loadReminderState, InvoiceReminderState } from '../utils/invoiceReminders';
 import { isLoanPaymentOverdue, daysUntilLoanPaymentDue } from '../utils/loanMath';
 import { getPayrollReminderStatus } from '../utils/payrollReminders';
@@ -46,6 +46,7 @@ import { isRecurringTransactionOverdue, daysUntilRecurringDue, hasRecurringSched
 import { isBudgetActiveForPeriod, isBudgetPeriodLapsed, currentPeriodString } from '../utils/budgetPeriod';
 import { computeAssetsNearingReplacement, computeAssetCurrentValue } from '../utils/finance';
 import { computeStockVelocity } from '../utils/stockVelocity';
+import { computeTaxAbilityToPay } from '../utils/taxFilingReadiness';
 import { detectFinancialAlerts, DEFAULT_THRESHOLDS } from '../utils/alertEngine';
 import { buildDashboardPriorities, PriorityKind, PriorityTier, OverspentBudget } from '../utils/dashboardPriorities';
 
@@ -80,6 +81,7 @@ const PRIORITY_KIND_META: Record<PriorityKind, { icon: IconName; screen: Screen 
     budget_period_lapsed:   { icon: 'calendar',        screen: 'budget' },
     asset_nearing_replacement: { icon: 'briefcase',    screen: 'assets' },
     inventory_stockout_risk:   { icon: 'zap',          screen: 'inventory' },
+    tax_ability_to_pay_shortfall: { icon: 'alert-triangle', screen: 'reports' },
 };
 
 export default function DashboardScreen() {
@@ -374,13 +376,27 @@ export default function DashboardScreen() {
         notifyStockoutRisk(stockoutRiskItems.length, total, settings?.currency ?? '₦').catch(() => {});
     }, [isDemoMode, stockoutRiskItems, settings?.currency]);
 
+    // Same "ability to pay" check the Tax Filing Readiness tab already runs
+    // -- distinct from taxDeadlineStatus above, which is purely about the
+    // filing date. This is about whether cash on hand covers tax already
+    // collected but not yet remitted, regardless of how far off the
+    // deadline is.
+    const taxAbilityToPay = useMemo(
+        () => computeTaxAbilityToPay({ cashBalance: finance.cashBalance, totalTaxCollected: finance.totalTaxCollected, totalTaxPaid: finance.totalTaxPaid }),
+        [finance.cashBalance, finance.totalTaxCollected, finance.totalTaxPaid]
+    );
+    useEffect(() => {
+        if (isDemoMode || taxAbilityToPay.canCover) return;
+        notifyTaxAbilityToPayShortfall(taxAbilityToPay.shortfall, settings?.currency ?? '₦').catch(() => {});
+    }, [isDemoMode, taxAbilityToPay, settings?.currency]);
+
     // Same cash-flow risk detection the header's alert bell uses -- pure
     // computation, cheap to run a second time here rather than threading
     // Header's alert state down through props for what's otherwise an
     // unrelated component tree.
     const alerts = useMemo(
-        () => detectFinancialAlerts(finance.cashBalance, transactions, invoices, settings?.currency, undefined, loans, staff, payrollRuns, settings?.nextTaxDeadline, goals, budgets, assets, inventory),
-        [finance.cashBalance, transactions, invoices, settings?.currency, loans, staff, payrollRuns, settings?.nextTaxDeadline, goals, budgets, assets, inventory]
+        () => detectFinancialAlerts(finance.cashBalance, transactions, invoices, settings?.currency, undefined, loans, staff, payrollRuns, settings?.nextTaxDeadline, goals, budgets, assets, inventory, finance.totalTaxCollected, finance.totalTaxPaid),
+        [finance.cashBalance, transactions, invoices, settings?.currency, loans, staff, payrollRuns, settings?.nextTaxDeadline, goals, budgets, assets, inventory, finance.totalTaxCollected, finance.totalTaxPaid]
     );
 
     const priorities = useMemo(

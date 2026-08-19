@@ -287,6 +287,17 @@ describe('buildDashboardPriorities', () => {
         expect(item?.tier).toBe('watch');
     });
 
+    it('passes a tax_ability_to_pay_shortfall alert through into the attention tier', () => {
+        const result = buildDashboardPriorities({
+            alerts: [alert({ id: 'alert-tax-ability-to-pay', type: 'tax_ability_to_pay_shortfall', priority: 'high', title: '💰 May Not Cover Estimated Tax Bill', amount: 150000 })],
+            overdueInvoices: [], lowStockItems: [], overspentBudgets: [], financingOpportunity: null, currency: '₦',
+        });
+        const item = result.find(p => p.kind === 'tax_ability_to_pay_shortfall');
+        expect(item).toBeDefined();
+        expect(item?.tier).toBe('attention');
+        expect(item?.impactAmount).toBe(150000);
+    });
+
     it('passes a goal_deadline_passed alert through, one card per goal', () => {
         const result = buildDashboardPriorities({
             alerts: [
