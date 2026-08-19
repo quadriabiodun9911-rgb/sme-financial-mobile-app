@@ -641,6 +641,37 @@ describe('alertEngine', () => {
         });
     });
 
+    describe('low cash alert with a custom reserve target', () => {
+        it('uses the configured minReserve instead of the default threshold once set', () => {
+            // Above the default ₦500K threshold, but below a ₦2M reserve target.
+            const alerts = detectAlerts(
+                600000, [], [], undefined, undefined, undefined, '₦', [], [], [], undefined, [], [], [], [], undefined, undefined, '2000000'
+            );
+            const found = alerts.find(a => a.type === 'low_cash');
+            expect(found).toBeDefined();
+            expect(found?.description).toContain('reserve target');
+        });
+
+        it('never flags it once cash clears the configured reserve target', () => {
+            const alerts = detectAlerts(
+                2500000, [], [], undefined, undefined, undefined, '₦', [], [], [], undefined, [], [], [], [], undefined, undefined, '2000000'
+            );
+            expect(alerts.some(a => a.type === 'low_cash')).toBe(false);
+        });
+
+        it('falls back to the default threshold when no reserve target is configured', () => {
+            // Below the default ₦500K threshold; an unset ('0') reserve target
+            // must not suppress the default -- it should still fire.
+            const alerts = detectAlerts(
+                100000, [], [], undefined, undefined, undefined, '₦', [], [], [], undefined, [], [], [], [], undefined, undefined, '0'
+            );
+            const found = alerts.find(a => a.type === 'low_cash');
+            expect(found).toBeDefined();
+            expect(found?.description).toContain('threshold');
+            expect(found?.description).not.toContain('reserve target');
+        });
+    });
+
     describe('detectFinancialAlerts', () => {
         it('builds a forecast from transactions/invoices and folds it into the alert set', () => {
             const recurringExpense: Transaction = {

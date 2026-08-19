@@ -49,6 +49,7 @@ export class AlertEngine {
   private inventory: InventoryItem[];
   private totalTaxCollected: number;
   private totalTaxPaid: number;
+  private minReserveThreshold: number;
   private forecast?: CashFlowForecast;
   private thresholds: AlertThresholds;
   private dismissedAlerts: Set<string>;
@@ -71,7 +72,8 @@ export class AlertEngine {
     assets?: Asset[],
     inventory?: InventoryItem[],
     totalTaxCollected?: number,
-    totalTaxPaid?: number
+    totalTaxPaid?: number,
+    minReserve?: string
   ) {
     this.currentCash = currentCash;
     this.transactions = transactions;
@@ -86,6 +88,7 @@ export class AlertEngine {
     this.inventory = inventory || [];
     this.totalTaxCollected = totalTaxCollected || 0;
     this.totalTaxPaid = totalTaxPaid || 0;
+    this.minReserveThreshold = parseFloat(minReserve || '') || 0;
     this.forecast = forecast;
     this.thresholds = { ...DEFAULT_THRESHOLDS, ...thresholds };
     this.dismissedAlerts = new Set(dismissedAlertIds || []);
@@ -159,10 +162,20 @@ export class AlertEngine {
   }
 
   /**
-   * Detect if current cash is below threshold
+   * Detect if current cash is below threshold -- a user-configured minimum
+   * reserve (Settings > "Minimum savings to keep at all times", the same
+   * value CashManagement/SWOT/CFOQuestionsTab already check locally, see
+   * finance.ts's minReserve usage) is a stronger, explicit signal than the
+   * generic default threshold, so once it's set it becomes the operative
+   * line instead of the hardcoded default sitting unused. Settings' own
+   * hint text already promises "The app will warn you if your account
+   * drops below this amount" -- this is what makes that true globally,
+   * not just on the screens that happened to check it locally.
    */
   private detectLowCashAlert(): ForecastAlert | null {
-    if (this.currentCash >= this.thresholds.lowCashThreshold) {
+    const hasCustomReserve = this.minReserveThreshold > 0;
+    const threshold = hasCustomReserve ? this.minReserveThreshold : this.thresholds.lowCashThreshold;
+    if (this.currentCash >= threshold) {
       return null;
     }
 
@@ -177,7 +190,7 @@ export class AlertEngine {
       type: 'low_cash',
       priority: daysOfRunway < 14 ? 'high' : 'medium',
       title: '⚠️ Low Cash Balance',
-      description: `Current cash is ${this.formatCurrency(this.currentCash)}, below your ${this.formatCurrency(this.thresholds.lowCashThreshold)} threshold`,
+      description: `Current cash is ${this.formatCurrency(this.currentCash)}, below your ${this.formatCurrency(threshold)} ${hasCustomReserve ? 'reserve target' : 'threshold'}`,
       amount: this.currentCash,
       recommendations: [
         'Accelerate customer collections',
@@ -772,7 +785,8 @@ export const detectAlerts = (
   assets?: Asset[],
   inventory?: InventoryItem[],
   totalTaxCollected?: number,
-  totalTaxPaid?: number
+  totalTaxPaid?: number,
+  minReserve?: string
 ): ForecastAlert[] => {
   const engine = new AlertEngine(
     currentCash,
@@ -791,7 +805,8 @@ export const detectAlerts = (
     assets,
     inventory,
     totalTaxCollected,
-    totalTaxPaid
+    totalTaxPaid,
+    minReserve
   );
   return engine.detectAllAlerts();
 };
@@ -865,8 +880,9 @@ export const buildForecastInput = (
  * loan payments overdue or due soon, payroll not run, tax filing deadline,
  * goals off track or past deadline, recurring transactions, a lapsed
  * budget period, assets nearing replacement, inventory at stockout risk,
- * cash falling short of tax already collected) against it. Pure
- * computation -- no side effects, no persistence; the
+ * cash falling short of tax already collected or the user's own configured
+ * minimum reserve) against it. Pure computation -- no side effects, no
+ * persistence; the
  * caller owns dismissal storage.
  */
 export const detectFinancialAlerts = (
@@ -884,8 +900,9 @@ export const detectFinancialAlerts = (
   assets?: Asset[],
   inventory?: InventoryItem[],
   totalTaxCollected?: number,
-  totalTaxPaid?: number
+  totalTaxPaid?: number,
+  minReserve?: string
 ): ForecastAlert[] => {
   const forecast = generateCashFlowForecast(buildForecastInput(currentCash, transactions, invoices, currency));
-  return detectAlerts(currentCash, transactions, invoices, forecast, undefined, dismissedAlertIds, currency, loans, staff, payrollRuns, nextTaxDeadline, goals, budgets, assets, inventory, totalTaxCollected, totalTaxPaid);
+  return detectAlerts(currentCash, transactions, invoices, forecast, undefined, dismissedAlertIds, currency, loans, staff, payrollRuns, nextTaxDeadline, goals, budgets, assets, inventory, totalTaxCollected, totalTaxPaid, minReserve);
 };

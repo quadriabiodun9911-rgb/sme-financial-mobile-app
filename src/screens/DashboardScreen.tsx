@@ -395,8 +395,8 @@ export default function DashboardScreen() {
     // Header's alert state down through props for what's otherwise an
     // unrelated component tree.
     const alerts = useMemo(
-        () => detectFinancialAlerts(finance.cashBalance, transactions, invoices, settings?.currency, undefined, loans, staff, payrollRuns, settings?.nextTaxDeadline, goals, budgets, assets, inventory, finance.totalTaxCollected, finance.totalTaxPaid),
-        [finance.cashBalance, transactions, invoices, settings?.currency, loans, staff, payrollRuns, settings?.nextTaxDeadline, goals, budgets, assets, inventory, finance.totalTaxCollected, finance.totalTaxPaid]
+        () => detectFinancialAlerts(finance.cashBalance, transactions, invoices, settings?.currency, undefined, loans, staff, payrollRuns, settings?.nextTaxDeadline, goals, budgets, assets, inventory, finance.totalTaxCollected, finance.totalTaxPaid, settings?.minReserve),
+        [finance.cashBalance, transactions, invoices, settings?.currency, loans, staff, payrollRuns, settings?.nextTaxDeadline, goals, budgets, assets, inventory, finance.totalTaxCollected, finance.totalTaxPaid, settings?.minReserve]
     );
 
     const priorities = useMemo(

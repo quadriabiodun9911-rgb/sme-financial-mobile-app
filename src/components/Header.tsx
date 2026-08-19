@@ -32,8 +32,8 @@ export default function Header() {
     }, []);
 
     const alerts = useMemo(
-        () => detectFinancialAlerts(finance?.cashBalance ?? 0, transactions ?? [], invoices ?? [], currency, dismissedIds, loans ?? [], staff ?? [], payrollRuns ?? [], settings?.nextTaxDeadline, goals ?? [], budgets ?? [], assets ?? [], inventory ?? [], finance?.totalTaxCollected, finance?.totalTaxPaid),
-        [finance?.cashBalance, transactions, invoices, currency, dismissedIds, loans, staff, payrollRuns, settings?.nextTaxDeadline, goals, budgets, assets, inventory, finance?.totalTaxCollected, finance?.totalTaxPaid]
+        () => detectFinancialAlerts(finance?.cashBalance ?? 0, transactions ?? [], invoices ?? [], currency, dismissedIds, loans ?? [], staff ?? [], payrollRuns ?? [], settings?.nextTaxDeadline, goals ?? [], budgets ?? [], assets ?? [], inventory ?? [], finance?.totalTaxCollected, finance?.totalTaxPaid, settings?.minReserve),
+        [finance?.cashBalance, transactions, invoices, currency, dismissedIds, loans, staff, payrollRuns, settings?.nextTaxDeadline, goals, budgets, assets, inventory, finance?.totalTaxCollected, finance?.totalTaxPaid, settings?.minReserve]
     );
 
     const handleDismiss = useCallback((alertId: string) => {
