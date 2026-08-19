@@ -1,6 +1,14 @@
 {
   "buildCommand": "expo export --platform web --source-maps",
   "outputDirectory": "dist",
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "quad360.vercel.app" }],
+      "destination": "https://quad360financial.com/:path*",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     {
       "source": "/:path*",
