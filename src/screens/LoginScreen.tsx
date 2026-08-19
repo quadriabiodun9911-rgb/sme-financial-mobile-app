@@ -15,19 +15,19 @@ import { savePin, saveProfile, generateAuthSecret, saveAuthSecret, loadAuthSecre
 import { Industry } from '../types';
 
 const CURRENCIES = [
-    { label: 'USD ($)',    value: '$'   },
-    { label: 'GBP (£)',   value: '£'   },
-    { label: 'EUR (€)',   value: '€'   },
-    { label: 'NGN (₦)',   value: '₦'   },
-    { label: 'ZAR (R)',   value: 'R'   },
-    { label: 'KES (KSh)', value: 'KSh' },
-    { label: 'GHS (₵)',   value: '₵'   },
-    { label: 'EGP (E£)',  value: 'E£'  },
-    { label: 'AED (د.إ)', value: 'AED' },
-    { label: 'INR (₹)',   value: '₹'   },
-    { label: 'CNY (¥)',   value: '¥'   },
-    { label: 'CAD (C$)',  value: 'C$'  },
-    { label: 'AUD (A$)',  value: 'A$'  },
+    { label: 'USD ($)',    value: '$',   code: 'USD' },
+    { label: 'GBP (£)',   value: '£',   code: 'GBP' },
+    { label: 'EUR (€)',   value: '€',   code: 'EUR' },
+    { label: 'NGN (₦)',   value: '₦',   code: 'NGN' },
+    { label: 'ZAR (R)',   value: 'R',   code: 'ZAR' },
+    { label: 'KES (KSh)', value: 'KSh', code: 'KES' },
+    { label: 'GHS (₵)',   value: '₵',   code: 'GHS' },
+    { label: 'EGP (E£)',  value: 'E£',  code: 'EGP' },
+    { label: 'AED (د.إ)', value: 'AED', code: 'AED' },
+    { label: 'INR (₹)',   value: '₹',   code: 'INR' },
+    { label: 'CNY (¥)',   value: '¥',   code: 'CNY' },
+    { label: 'CAD (C$)',  value: 'C$',  code: 'CAD' },
+    { label: 'AUD (A$)',  value: 'A$',  code: 'AUD' },
 ];
 
 const INDUSTRIES: { label: string; value: Industry; hint: string }[] = [
@@ -52,6 +52,25 @@ function detectLocaleCurrency(): string {
         }
     } catch {}
     return '$';
+}
+
+// Same region map as detectLocaleCurrency, in ISO codes rather than
+// symbols -- kept as a sibling function (not a derived lookup) so the two
+// can't drift silently out of sync with each other's region list.
+function detectLocaleCurrencyCode(): string {
+    try {
+        if (typeof Intl !== 'undefined') {
+            const locale = Intl.DateTimeFormat().resolvedOptions().locale ?? '';
+            const region = locale.split('-')[1]?.toUpperCase();
+            const map: Record<string, string> = {
+                ZA: 'ZAR', NG: 'NGN', KE: 'KES', GH: 'GHS', EG: 'EGP',
+                GB: 'GBP', DE: 'EUR', FR: 'EUR', AE: 'AED', IN: 'INR',
+                CN: 'CNY', CA: 'CAD', AU: 'AUD',
+            };
+            if (region && map[region]) return map[region];
+        }
+    } catch {}
+    return 'USD';
 }
 
 type Mode = 'owner-setup' | 'owner-login' | 'join-team' | 'join-lender' | 'reset-pin' | 'demo-pick' | 'recover';
@@ -134,6 +153,7 @@ export default function LoginScreen() {
     const [pin, setPin]             = useState('');
     const [confirmPin, setConfirm]  = useState('');
     const [currency, setCurrency]   = useState(detectLocaleCurrency);
+    const [currencyCode, setCurrencyCode] = useState(detectLocaleCurrencyCode);
     const [industry, setIndustry]   = useState<Industry>('general');
     const [setupLang, setSetupLang] = useState<Language>(language);
     const [submitting, setSubmitting] = useState(false);
@@ -203,8 +223,8 @@ export default function LoginScreen() {
             // it's persisted before the post-signup settings-hydrate effect
             // resets/reloads settings — otherwise the chosen currency/industry can
             // be silently overwritten back to defaults by that reset.
-            await setupAccount(email.trim(), business.trim(), pin, false, phone.trim(), { currency, industry });
-            updateSettings({ currency, industry });
+            await setupAccount(email.trim(), business.trim(), pin, false, phone.trim(), { currency, currencyCode, industry });
+            updateSettings({ currency, currencyCode, industry });
             // Fire-and-forget: recording consent must never block a
             // signup that already succeeded — see recordConsent's own
             // no-op-on-failure contract in storage.ts.
@@ -848,7 +868,7 @@ export default function LoginScreen() {
                         <ScrollView>
                             {CURRENCIES.map(c => (
                                 <TouchableOpacity key={c.value} style={[styles.currencyOption, currency === c.value && styles.currencyOptionActive]}
-                                    onPress={() => { setCurrency(c.value); setCurrencyModalOpen(false); }}>
+                                    onPress={() => { setCurrency(c.value); setCurrencyCode(c.code); setCurrencyModalOpen(false); }}>
                                     <Text style={[styles.currencyOptionText, currency === c.value && { color: Colors.primary, fontWeight: '700' }]}>
                                         {c.label}
                                     </Text>

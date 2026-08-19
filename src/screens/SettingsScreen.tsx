@@ -21,19 +21,19 @@ import { isFinancingAdmin } from '../utils/financingAdmin';
 import { PRIMARY_GOAL_OPTIONS } from '../utils/primaryGoals';
 
 const CURRENCIES = [
-    { label: 'USD ($)',    value: '$'   },
-    { label: 'GBP (£)',   value: '£'   },
-    { label: 'EUR (€)',   value: '€'   },
-    { label: 'NGN (₦)',   value: '₦'   },
-    { label: 'ZAR (R)',   value: 'R'   },
-    { label: 'KES (KSh)', value: 'KSh' },
-    { label: 'GHS (₵)',   value: '₵'   },
-    { label: 'EGP (E£)',  value: 'E£'  },
-    { label: 'AED (د.إ)', value: 'AED' },
-    { label: 'INR (₹)',   value: '₹'   },
-    { label: 'CNY (¥)',   value: '¥'   },
-    { label: 'CAD (C$)',  value: 'C$'  },
-    { label: 'AUD (A$)',  value: 'A$'  },
+    { label: 'USD ($)',    value: '$',   code: 'USD' },
+    { label: 'GBP (£)',   value: '£',   code: 'GBP' },
+    { label: 'EUR (€)',   value: '€',   code: 'EUR' },
+    { label: 'NGN (₦)',   value: '₦',   code: 'NGN' },
+    { label: 'ZAR (R)',   value: 'R',   code: 'ZAR' },
+    { label: 'KES (KSh)', value: 'KSh', code: 'KES' },
+    { label: 'GHS (₵)',   value: '₵',   code: 'GHS' },
+    { label: 'EGP (E£)',  value: 'E£',  code: 'EGP' },
+    { label: 'AED (د.إ)', value: 'AED', code: 'AED' },
+    { label: 'INR (₹)',   value: '₹',   code: 'INR' },
+    { label: 'CNY (¥)',   value: '¥',   code: 'CNY' },
+    { label: 'CAD (C$)',  value: 'C$',  code: 'CAD' },
+    { label: 'AUD (A$)',  value: 'A$',  code: 'AUD' },
 ];
 
 const BUSINESS_TYPES: { label: string; value: BusinessSettings['businessType'] }[] = [
@@ -427,7 +427,7 @@ export default function SettingsScreen() {
                             <View style={styles.optRow}>
                                 {CURRENCIES.map(c => (
                                     <Opt key={c.value} label={c.label} active={form.currency === c.value}
-                                        onPress={() => setForm((f: typeof form) => ({ ...f, currency: c.value }))} />
+                                        onPress={() => setForm((f: typeof form) => ({ ...f, currency: c.value, currencyCode: c.code }))} />
                                 ))}
                             </View>
                         </Section>
