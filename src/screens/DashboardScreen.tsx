@@ -36,7 +36,7 @@ import StatTile from '../components/ui/StatTile';
 import { buildFinancingFitInput } from '../utils/financingFit';
 import { recommendFinancingTypes } from '../utils/financingRecommendation';
 import { computeReadinessDelta } from '../utils/readinessHistory';
-import { notifyFinancingOpportunity, notifyOverdueRemindersDue, notifyLoanPaymentDueSoon, notifyPayrollDue, notifyOverdueTransactionsFound, notifyTaxDeadline, notifyGoalAlerts, notifyRecurringTransactionAlerts, notifyBudgetPeriodLapsed, notifyAssetsNearingReplacement, notifyStockoutRisk, notifyTaxAbilityToPayShortfall, notifySlowMovingStock } from '../utils/notifications';
+import { notifyFinancingOpportunity, notifyOverdueRemindersDue, notifyLoanPaymentDueSoon, notifyPayrollDue, notifyOverdueTransactionsFound, notifyTaxDeadline, notifyGoalAlerts, notifyRecurringTransactionAlerts, notifyBudgetPeriodLapsed, notifyAssetsNearingReplacement, notifyStockoutRisk, notifyTaxAbilityToPayShortfall, notifySlowMovingStock, requestNotificationPermission, scheduleWeeklySummaryReminder } from '../utils/notifications';
 import { getInvoicesDueForReminder, loadReminderState, InvoiceReminderState } from '../utils/invoiceReminders';
 import { isLoanPaymentOverdue, daysUntilLoanPaymentDue } from '../utils/loanMath';
 import { getPayrollReminderStatus } from '../utils/payrollReminders';
@@ -111,6 +111,11 @@ export default function DashboardScreen() {
     const [qaCategory, setQaCategory]     = useState('');
     const [qaSubmitting, setQaSubmitting] = useState(false);
     const [showMore, setShowMore]               = useState(false);
+    // Collapsed by default -- the #1 priority gets hero treatment (Next
+    // Best Action) below, so re-showing the full ranked list right under it
+    // would just repeat the top item and add back the clutter that change
+    // was meant to remove. Expand only on request.
+    const [showAllPriorities, setShowAllPriorities] = useState(false);
     const [betaCardDismissed, setBetaCardDismissed] = useState(false);
 
     const [showFullDashboard, setShowFullDashboard] = useState(false);
@@ -445,6 +450,20 @@ export default function DashboardScreen() {
         if (isDemoMode || taxAbilityToPay.canCover) return;
         notifyTaxAbilityToPayShortfall(taxAbilityToPay.shortfall, settings?.currency ?? '₦').catch(() => {});
     }, [isDemoMode, taxAbilityToPay, settings?.currency]);
+
+    // Weekly-rhythm engagement -- WeeklyReportModal/computeWeeklySummary
+    // already exist and are already rendered below; this is the missing
+    // link that actually brings the user back weekly instead of only
+    // showing the report to whoever happens to open it manually. Both
+    // calls are already idempotent (permission check short-circuits if
+    // already granted; schedule cancels its own previous notification
+    // before rescheduling), so running this once per mount is safe.
+    useEffect(() => {
+        if (isDemoMode) return;
+        requestNotificationPermission().then(granted => {
+            if (granted) scheduleWeeklySummaryReminder();
+        });
+    }, [isDemoMode]);
 
     // Same cash-flow risk detection the header's alert bell uses -- pure
     // computation, cheap to run a second time here rather than threading
@@ -871,61 +890,89 @@ export default function DashboardScreen() {
                   </TouchableOpacity>
                 )}
 
-                {/* SECTION 2: WHAT NEEDS YOUR ATTENTION — every risk and
-                    opportunity signal the app tracks (cash-flow alerts,
-                    overdue invoices, low stock, overspent budgets, a
-                    financing opportunity), ranked into one list: red items
-                    need action now, amber is worth watching, green is a
-                    positive signal. Within a tier, real dollar-impact
-                    figures sort first; nothing here is a guessed number. */}
-                <View style={styles.operationsSection}>
-                  <View style={styles.sectionTitleRow}>
-                    <Icon name="check-square" size={13} color={Colors.textMuted} />
-                    <Text style={styles.operationsSectionTitle}>What Needs Your Attention</Text>
-                  </View>
-
-                  {PRIORITY_TIER_ORDER.map(tier => {
-                    const tierItems = priorities.filter(p => p.tier === tier);
-                    if (tierItems.length === 0) return null;
-                    const tierMeta = PRIORITY_TIER_META[tier];
-                    return (
-                      <View key={tier} style={styles.priorityTierGroup}>
-                        <Text style={[styles.priorityTierLabel, { color: tierMeta.color }]}>{tierMeta.emoji} {tierMeta.label}</Text>
-                        {tierItems.map(item => {
-                          const kindMeta = PRIORITY_KIND_META[item.kind];
-                          return (
-                            <TouchableOpacity
-                              key={item.id}
-                              style={[styles.priorityCard, tierMeta.tinted && { borderLeftColor: tierMeta.color, backgroundColor: tierMeta.color + '08' }]}
-                              onPress={() => setCurrentScreen(kindMeta.screen)}
-                            >
-                              <View style={[styles.priorityIconBadge, { backgroundColor: tierMeta.color + '22' }]}>
-                                <Icon name={kindMeta.icon} size={16} color={tierMeta.color} />
-                              </View>
-                              <View style={styles.priorityContent}>
-                                <Text style={styles.priorityTitle}>{item.title}</Text>
-                                <Text style={styles.priorityAmount}>{item.subtitle}</Text>
-                              </View>
-                              <Icon name="chevron-right" size={18} color={Colors.textMuted} />
-                            </TouchableOpacity>
-                          );
-                        })}
+                {/* NEXT BEST ACTION — the single top-ranked item from the
+                    same real, already-sorted priority list below (attention
+                    tier first, real dollar-impact descending), given hero
+                    treatment instead of being buried at the top of a list
+                    the user has to scan. Nothing new is computed here. */}
+                {priorities.length > 0 && (() => {
+                  const top = priorities[0];
+                  const topKindMeta = PRIORITY_KIND_META[top.kind];
+                  const topTierMeta = PRIORITY_TIER_META[top.tier];
+                  return (
+                    <TouchableOpacity style={styles.nextActionCard} onPress={() => setCurrentScreen(topKindMeta.screen)} activeOpacity={0.85}>
+                      <Text style={styles.nextActionEyebrow}>NEXT BEST ACTION</Text>
+                      <View style={styles.nextActionRow}>
+                        <View style={[styles.priorityIconBadge, { backgroundColor: topTierMeta.color + '22' }]}>
+                          <Icon name={topKindMeta.icon} size={18} color={topTierMeta.color} />
+                        </View>
+                        <View style={styles.priorityContent}>
+                          <Text style={styles.nextActionTitle}>{top.title}</Text>
+                          <Text style={styles.priorityAmount}>{top.subtitle}</Text>
+                        </View>
+                        <Icon name="arrow-right" size={18} color={Colors.textMuted} />
                       </View>
-                    );
-                  })}
+                    </TouchableOpacity>
+                  );
+                })()}
 
-                  {priorities.length === 0 && (
-                    <View style={styles.priorityCard}>
+                {priorities.length === 0 && (
+                  <View style={styles.nextActionCard}>
+                    <View style={styles.nextActionRow}>
                       <View style={[styles.priorityIconBadge, { backgroundColor: Colors.success + '22' }]}>
                         <Icon name="check" size={16} color={Colors.success} />
                       </View>
                       <View style={styles.priorityContent}>
-                        <Text style={styles.priorityTitle}>All Clear for Today</Text>
+                        <Text style={styles.nextActionTitle}>All Clear for Today</Text>
                         <Text style={styles.priorityAmount}>No alerts — keep up the momentum!</Text>
                       </View>
                     </View>
-                  )}
-                </View>
+                  </View>
+                )}
+
+                {/* SECTION 2: WHAT NEEDS YOUR ATTENTION — every remaining
+                    risk/opportunity signal (the top one is already shown
+                    above), collapsed by default so the dashboard doesn't
+                    default to a full list on top of the hero action. */}
+                {priorities.length > 1 && (
+                  <View style={styles.operationsSection}>
+                    <TouchableOpacity style={styles.sectionTitleRow} onPress={() => setShowAllPriorities(v => !v)} activeOpacity={0.7}>
+                      <Icon name="check-square" size={13} color={Colors.textMuted} />
+                      <Text style={styles.operationsSectionTitle}>What Else Needs Your Attention ({priorities.length - 1})</Text>
+                      <Icon name={showAllPriorities ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.textMuted} />
+                    </TouchableOpacity>
+
+                    {showAllPriorities && PRIORITY_TIER_ORDER.map(tier => {
+                      const tierItems = priorities.filter(p => p.tier === tier && p.id !== priorities[0].id);
+                      if (tierItems.length === 0) return null;
+                      const tierMeta = PRIORITY_TIER_META[tier];
+                      return (
+                        <View key={tier} style={styles.priorityTierGroup}>
+                          <Text style={[styles.priorityTierLabel, { color: tierMeta.color }]}>{tierMeta.emoji} {tierMeta.label}</Text>
+                          {tierItems.map(item => {
+                            const kindMeta = PRIORITY_KIND_META[item.kind];
+                            return (
+                              <TouchableOpacity
+                                key={item.id}
+                                style={[styles.priorityCard, tierMeta.tinted && { borderLeftColor: tierMeta.color, backgroundColor: tierMeta.color + '08' }]}
+                                onPress={() => setCurrentScreen(kindMeta.screen)}
+                              >
+                                <View style={[styles.priorityIconBadge, { backgroundColor: tierMeta.color + '22' }]}>
+                                  <Icon name={kindMeta.icon} size={16} color={tierMeta.color} />
+                                </View>
+                                <View style={styles.priorityContent}>
+                                  <Text style={styles.priorityTitle}>{item.title}</Text>
+                                  <Text style={styles.priorityAmount}>{item.subtitle}</Text>
+                                </View>
+                                <Icon name="chevron-right" size={18} color={Colors.textMuted} />
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
 
                 {/* Risk Radar -- what could stop growth, not what needs
                     action today. Every category is a real, already-computed
@@ -1775,6 +1822,34 @@ const styles = StyleSheet.create({
     vitalDivider: {
       height: 1,
       backgroundColor: Colors.border,
+    },
+
+    nextActionCard: {
+      backgroundColor: Colors.surface,
+      borderRadius: Radius.lg,
+      padding: Spacing.lg,
+      marginBottom: Spacing.md,
+      borderWidth: 1.5,
+      borderColor: Colors.primary,
+      ...Shadow.sm,
+    },
+    nextActionEyebrow: {
+      fontSize: 10.5,
+      fontWeight: '800',
+      color: Colors.primary,
+      letterSpacing: 0.8,
+      marginBottom: Spacing.sm,
+    },
+    nextActionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.md,
+    },
+    nextActionTitle: {
+      fontSize: 14.5,
+      fontWeight: '800',
+      color: Colors.textPrimary,
+      marginBottom: 2,
     },
 
     priorityTierGroup: {
