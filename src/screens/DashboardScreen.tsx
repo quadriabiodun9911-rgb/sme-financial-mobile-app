@@ -36,7 +36,7 @@ import StatTile from '../components/ui/StatTile';
 import { buildFinancingFitInput } from '../utils/financingFit';
 import { recommendFinancingTypes } from '../utils/financingRecommendation';
 import { computeReadinessDelta } from '../utils/readinessHistory';
-import { notifyFinancingOpportunity, notifyOverdueRemindersDue, notifyLoanPaymentDueSoon, notifyPayrollDue, notifyOverdueTransactionsFound, notifyTaxDeadline, notifyGoalAlerts, notifyRecurringTransactionAlerts, notifyBudgetPeriodLapsed, notifyAssetsNearingReplacement, notifyStockoutRisk, notifyTaxAbilityToPayShortfall } from '../utils/notifications';
+import { notifyFinancingOpportunity, notifyOverdueRemindersDue, notifyLoanPaymentDueSoon, notifyPayrollDue, notifyOverdueTransactionsFound, notifyTaxDeadline, notifyGoalAlerts, notifyRecurringTransactionAlerts, notifyBudgetPeriodLapsed, notifyAssetsNearingReplacement, notifyStockoutRisk, notifyTaxAbilityToPayShortfall, notifySlowMovingStock } from '../utils/notifications';
 import { getInvoicesDueForReminder, loadReminderState, InvoiceReminderState } from '../utils/invoiceReminders';
 import { isLoanPaymentOverdue, daysUntilLoanPaymentDue } from '../utils/loanMath';
 import { getPayrollReminderStatus } from '../utils/payrollReminders';
@@ -82,6 +82,7 @@ const PRIORITY_KIND_META: Record<PriorityKind, { icon: IconName; screen: Screen 
     asset_nearing_replacement: { icon: 'briefcase',    screen: 'assets' },
     inventory_stockout_risk:   { icon: 'zap',          screen: 'inventory' },
     tax_ability_to_pay_shortfall: { icon: 'alert-triangle', screen: 'reports' },
+    inventory_slow_moving:     { icon: 'package',      screen: 'inventory' },
 };
 
 export default function DashboardScreen() {
@@ -376,6 +377,19 @@ export default function DashboardScreen() {
         notifyStockoutRisk(stockoutRiskItems.length, total, settings?.currency ?? '₦').catch(() => {});
     }, [isDemoMode, stockoutRiskItems, settings?.currency]);
 
+    // The mirror image of stockoutRiskItems -- cash tied up in stock that
+    // isn't moving (computeStockVelocity's 'slow' tier), rather than stock
+    // about to run out.
+    const slowMovingItems = useMemo(
+        () => inventory.filter(i => computeStockVelocity(i, transactions).tier === 'slow'),
+        [inventory, transactions]
+    );
+    useEffect(() => {
+        if (isDemoMode || slowMovingItems.length === 0) return;
+        const total = slowMovingItems.reduce((s, i) => s + i.quantity * i.costPrice, 0);
+        notifySlowMovingStock(slowMovingItems.length, total, settings?.currency ?? '₦').catch(() => {});
+    }, [isDemoMode, slowMovingItems, settings?.currency]);
+
     // Same "ability to pay" check the Tax Filing Readiness tab already runs
     // -- distinct from taxDeadlineStatus above, which is purely about the
     // filing date. This is about whether cash on hand covers tax already
@@ -408,13 +422,14 @@ export default function DashboardScreen() {
             overdueRecurringTransactions,
             assetsNearingReplacement,
             stockoutRiskItems,
+            slowMovingItems,
             lowStockItems,
             overspentBudgets,
             financingOpportunity,
             currency: settings?.currency ?? '₦',
             primaryGoal: settings?.primaryGoal,
         }),
-        [alerts, overdueInvoices, overdueLoans, overdueTransactions, overdueRecurringTransactions, assetsNearingReplacement, stockoutRiskItems, lowStockItems, overspentBudgets, financingOpportunity, settings?.currency, settings?.primaryGoal]
+        [alerts, overdueInvoices, overdueLoans, overdueTransactions, overdueRecurringTransactions, assetsNearingReplacement, stockoutRiskItems, slowMovingItems, lowStockItems, overspentBudgets, financingOpportunity, settings?.currency, settings?.primaryGoal]
     );
 
     const openFab = (type: 'income' | 'expense' = 'income') => {

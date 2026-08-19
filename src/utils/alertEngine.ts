@@ -153,6 +153,10 @@ export class AlertEngine {
     const stockoutRiskAlerts = this.detectStockoutRiskAlerts();
     alerts.push(...stockoutRiskAlerts);
 
+    // Dead-slow inventory tying up cash for far longer than needed
+    const slowMovingAlerts = this.detectSlowMovingInventoryAlerts();
+    alerts.push(...slowMovingAlerts);
+
     // Cash on hand won't cover tax already collected but not yet remitted
     const taxAbilityToPayAlert = this.detectTaxAbilityToPayAlert();
     if (taxAbilityToPayAlert) alerts.push(taxAbilityToPayAlert);
@@ -676,6 +680,39 @@ export class AlertEngine {
   }
 
   /**
+   * Detect dead-slow inventory (computeStockVelocity's 'slow' tier --
+   * >SLOW_DAYS_THRESHOLD, 60 days, of stock left at current pace).
+   * Deliberately the mirror image of detectStockoutRiskAlerts above: that
+   * one is "will run out too soon," this is "cash tied up too long" --
+   * both derived from the same sales-velocity signal, opposite risk.
+   * Reuses computeStockVelocity's own summary text rather than
+   * re-deriving the copy. Same no-fabrication guard as stockout risk:
+   * only fires for items with real recent sales data through Inventory's
+   * "Sell" flow, never a guess for one with none.
+   */
+  private detectSlowMovingInventoryAlerts(): ForecastAlert[] {
+    const alerts: ForecastAlert[] = [];
+
+    for (const item of this.inventory) {
+      const velocity = computeStockVelocity(item, this.transactions);
+      if (velocity.tier !== 'slow') continue;
+
+      alerts.push({
+        id: `alert-slow-moving-${item.id}`,
+        type: 'inventory_slow_moving',
+        priority: 'low',
+        title: `🐌 Slow Mover — ${item.name}`,
+        description: velocity.summary,
+        amount: item.quantity * item.costPrice,
+        recommendations: ['Consider a discount or bundle to free up the cash tied up in this stock'],
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    return alerts;
+  }
+
+  /**
    * Detect cash on hand falling short of tax already collected from
    * customers but not yet remitted (computeTaxAbilityToPay,
    * taxFilingReadiness.ts -- same "ability to pay" check the Tax Filing
@@ -879,10 +916,10 @@ export const buildForecastInput = (
  * (low cash, negative forecast, overdue invoices, large upcoming expenses,
  * loan payments overdue or due soon, payroll not run, tax filing deadline,
  * goals off track or past deadline, recurring transactions, a lapsed
- * budget period, assets nearing replacement, inventory at stockout risk,
- * cash falling short of tax already collected or the user's own configured
- * minimum reserve) against it. Pure computation -- no side effects, no
- * persistence; the
+ * budget period, assets nearing replacement, inventory at stockout risk or
+ * moving too slowly, cash falling short of tax already collected or the
+ * user's own configured minimum reserve) against it. Pure computation --
+ * no side effects, no persistence; the
  * caller owns dismissal storage.
  */
 export const detectFinancialAlerts = (

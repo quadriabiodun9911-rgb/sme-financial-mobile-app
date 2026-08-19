@@ -397,6 +397,29 @@ describe('buildDashboardPriorities', () => {
         expect(result.some(p => p.kind === 'inventory_stockout_risk')).toBe(false);
     });
 
+    it('aggregates slow-moving inventory into a single watch-tier card', () => {
+        const result = buildDashboardPriorities({
+            alerts: [], overdueInvoices: [],
+            slowMovingItems: [
+                inventoryFixture({ id: 'i3', quantity: 40, costPrice: 300 }),
+                inventoryFixture({ id: 'i4', quantity: 15, costPrice: 100 }),
+            ],
+            lowStockItems: [], overspentBudgets: [], financingOpportunity: null, currency: '₦',
+        });
+        const item = result.find(p => p.kind === 'inventory_slow_moving');
+        expect(item).toBeDefined();
+        expect(item?.tier).toBe('watch');
+        expect(item?.title).toBe('2 Items Moving Slowly');
+        expect(item?.impactAmount).toBe(40 * 300 + 15 * 100);
+    });
+
+    it('defaults to no slow-moving card when slowMovingItems is omitted', () => {
+        const result = buildDashboardPriorities({
+            alerts: [], overdueInvoices: [], lowStockItems: [], overspentBudgets: [], financingOpportunity: null, currency: '₦',
+        });
+        expect(result.some(p => p.kind === 'inventory_slow_moving')).toBe(false);
+    });
+
     it('defaults to no recurring-transaction card when overdueRecurringTransactions is omitted', () => {
         const result = buildDashboardPriorities({
             alerts: [], overdueInvoices: [], lowStockItems: [], overspentBudgets: [], financingOpportunity: null, currency: '₦',

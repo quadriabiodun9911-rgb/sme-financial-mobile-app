@@ -34,7 +34,8 @@ export type PriorityKind =
     | 'budget_period_lapsed'
     | 'asset_nearing_replacement'
     | 'inventory_stockout_risk'
-    | 'tax_ability_to_pay_shortfall';
+    | 'tax_ability_to_pay_shortfall'
+    | 'inventory_slow_moving';
 
 export interface PriorityItem {
     id: string;
@@ -66,9 +67,9 @@ const GOAL_KINDS: Record<PrimaryGoal, PriorityKind[]> = {
 
 // alertEngine reports one alert per overdue invoice, overdue loan, overdue
 // transaction, overdue recurring transaction, asset nearing replacement, or
-// inventory item at stockout risk; the dashboard already aggregates each of
-// those into a single card ("3 customers, ₦420,000 to collect"), so those
-// alert types are excluded here to avoid
+// inventory item at stockout risk or moving too slowly; the dashboard
+// already aggregates each of those into a single card ("3 customers,
+// ₦420,000 to collect"), so those alert types are excluded here to avoid
 // double-reporting the same risk in two different shapes. Payroll and the
 // tax filing deadline, tax ability-to-pay, and lapsed budget period never
 // produce more than one alert at a time (detectPayrollAlert /
@@ -104,6 +105,7 @@ export function buildDashboardPriorities(input: {
     overdueRecurringTransactions?: Transaction[];
     assetsNearingReplacement?: Asset[];
     stockoutRiskItems?: InventoryItem[];
+    slowMovingItems?: InventoryItem[];
     lowStockItems: InventoryItem[];
     overspentBudgets: OverspentBudget[];
     financingOpportunity: FinancingRecommendation | null;
@@ -111,7 +113,7 @@ export function buildDashboardPriorities(input: {
     /** Undefined ("not sure yet", or not asked) means no preference -- today's tier/amount ordering, unchanged. */
     primaryGoal?: PrimaryGoal;
 }): PriorityItem[] {
-    const { alerts, overdueInvoices, overdueLoans = [], overdueTransactions = [], overdueRecurringTransactions = [], assetsNearingReplacement = [], stockoutRiskItems = [], lowStockItems, overspentBudgets, financingOpportunity, currency, primaryGoal } = input;
+    const { alerts, overdueInvoices, overdueLoans = [], overdueTransactions = [], overdueRecurringTransactions = [], assetsNearingReplacement = [], stockoutRiskItems = [], slowMovingItems = [], lowStockItems, overspentBudgets, financingOpportunity, currency, primaryGoal } = input;
     const items: PriorityItem[] = [];
 
     for (const alert of alerts) {
@@ -206,6 +208,22 @@ export function buildDashboardPriorities(input: {
             tier: 'watch',
             title: `${stockoutRiskItems.length} Item${stockoutRiskItems.length > 1 ? 's' : ''} Selling Out Fast`,
             subtitle: `${currency}${total.toLocaleString()} in stock at risk — reorder before you run out`,
+            impactAmount: total,
+        });
+    }
+
+    // Dead-slow movers (computeStockVelocity's 'slow' tier) -- the mirror
+    // image of stockoutRiskItems above: cash tied up in stock that isn't
+    // moving, rather than stock about to run out. impactAmount is the
+    // items' real current inventory value, same never-fabricate rule.
+    if (slowMovingItems.length > 0) {
+        const total = slowMovingItems.reduce((s, i) => s + i.quantity * i.costPrice, 0);
+        items.push({
+            id: 'priority-inventory-slow-moving',
+            kind: 'inventory_slow_moving',
+            tier: 'watch',
+            title: `${slowMovingItems.length} Item${slowMovingItems.length > 1 ? 's' : ''} Moving Slowly`,
+            subtitle: `${currency}${total.toLocaleString()} tied up in slow-selling stock`,
             impactAmount: total,
         });
     }

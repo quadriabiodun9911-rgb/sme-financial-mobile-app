@@ -609,6 +609,70 @@ describe('alertEngine', () => {
         });
     });
 
+    describe('slow-moving inventory alerts', () => {
+        function makeItem(overrides: Partial<InventoryItem> = {}): InventoryItem {
+            return {
+                id: 'item-1',
+                name: 'Ankara Fabric',
+                category: 'Fabric',
+                quantity: 20,
+                unit: 'yards',
+                costPrice: 500,
+                sellingPrice: 1000,
+                lowStockThreshold: 5,
+                createdAt: isoDaysAgo(60),
+                updatedAt: isoDaysAgo(60),
+                ...overrides,
+            };
+        }
+        function makeSaleTx(itemName: string, amount: number, daysAgo: number): Transaction {
+            return {
+                id: `sale-${itemName}-${daysAgo}`,
+                date: isoDaysAgo(daysAgo),
+                description: `Sale: ${itemName}`,
+                type: 'income',
+                category: 'Sales',
+                transactionCategory: 'sale',
+                amount,
+            };
+        }
+
+        it('flags a dead-slow item with well over 60 days of stock left', () => {
+            const item = makeItem({ id: 'item-5', quantity: 5000 });
+            const sale = makeSaleTx('Ankara Fabric', 50000, 5); // ~1.67 units/day -> ~3000 days of stock left
+            const alerts = detectAlerts(
+                1000000, [sale], [], undefined, undefined, undefined, '₦', [], [], [], undefined, [], [], [], [item]
+            );
+            const found = alerts.find(a => a.type === 'inventory_slow_moving');
+            expect(found).toBeDefined();
+            expect(found?.id).toBe('alert-slow-moving-item-5');
+            expect(found?.priority).toBe('low');
+            expect(found?.description).toContain('Slow mover');
+        });
+
+        it('never flags an item moving at a merely moderate pace', () => {
+            const item = makeItem({ id: 'item-6', quantity: 50 });
+            const sale = makeSaleTx('Ankara Fabric', 50000, 5); // ~30 days of stock left -> 'moderate', not 'slow'
+            const alerts = detectAlerts(
+                1000000, [sale], [], undefined, undefined, undefined, '₦', [], [], [], undefined, [], [], [], [item]
+            );
+            expect(alerts.some(a => a.type === 'inventory_slow_moving')).toBe(false);
+        });
+
+        it('never flags an item with no recorded sales through the Sell flow', () => {
+            const item = makeItem({ id: 'item-7', quantity: 5000 });
+            const alerts = detectAlerts(
+                1000000, [], [], undefined, undefined, undefined, '₦', [], [], [], undefined, [], [], [], [item]
+            );
+            expect(alerts.some(a => a.type === 'inventory_slow_moving')).toBe(false);
+        });
+
+        it('defaults to no slow-moving alerts when no inventory is passed', () => {
+            const alerts = detectAlerts(1000000, [], []);
+            expect(alerts.some(a => a.type === 'inventory_slow_moving')).toBe(false);
+        });
+    });
+
     describe('tax ability-to-pay alerts', () => {
         it('flags a shortfall when cash on hand is below tax collected but not remitted', () => {
             const alerts = detectAlerts(

@@ -28,6 +28,7 @@ const KEYS = {
     assetReplacementId: '@quad360/notif_asset_replacement_id',
     stockoutRiskId: '@quad360/notif_stockout_risk_id',
     taxAbilityToPayId: '@quad360/notif_tax_ability_to_pay_id',
+    slowMovingStockId: '@quad360/notif_slow_moving_stock_id',
 };
 
 export async function requestNotificationPermission(): Promise<boolean> {
@@ -406,6 +407,33 @@ export async function notifyTaxAbilityToPayShortfall(shortfall: number, currency
         });
 
         await AsyncStorage.setItem(KEYS.taxAbilityToPayId, Date.now().toString());
+    } catch {
+        // Fail silently
+    }
+}
+
+// The mirror image of notifyStockoutRisk -- dead-slow stock (computeStockVelocity's
+// 'slow' tier) tying up cash for far longer than needed, rather than about to run
+// out. Same real-sales-data guard, same once-a-day throttle.
+export async function notifySlowMovingStock(count: number, totalValue: number, currency: string): Promise<void> {
+    try {
+        if (Platform.OS === 'web' || count === 0) return;
+
+        const prevNotified = await AsyncStorage.getItem(KEYS.slowMovingStockId);
+        if (prevNotified) {
+            const daysSinceLastNotif = (Date.now() - parseInt(prevNotified, 10)) / (1000 * 60 * 60 * 24);
+            if (daysSinceLastNotif < 1) return;
+        }
+
+        await Notifications.scheduleNotificationAsync({
+            content: {
+                title: `${count} item${count === 1 ? '' : 's'} moving slowly 🐌`,
+                body: `${currency}${Math.round(totalValue).toLocaleString()} tied up in slow-selling stock. Consider a discount to free up cash.`,
+            },
+            trigger: null,
+        });
+
+        await AsyncStorage.setItem(KEYS.slowMovingStockId, Date.now().toString());
     } catch {
         // Fail silently
     }
