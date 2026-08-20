@@ -156,8 +156,8 @@ export default function TransactionsScreen() {
             }
             const q = search.toLowerCase();
             if (q && !(
-                tx.description.toLowerCase().includes(q) ||
-                tx.category.toLowerCase().includes(q) ||
+                (tx.description ?? '').toLowerCase().includes(q) ||
+                (tx.category ?? '').toLowerCase().includes(q) ||
                 (tx.vendorCustomer?.toLowerCase().includes(q) ?? false) ||
                 (tx.reference?.toLowerCase().includes(q) ?? false) ||
                 String(tx.amount).includes(q)

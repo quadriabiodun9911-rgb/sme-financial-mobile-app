@@ -44,17 +44,17 @@ export default function GlobalSearch({ visible, onClose }: Props) {
         if (q.length < 2) return { transactions: [], invoices: [], assets: [] };
         return {
             transactions: transactions.filter(t =>
-                t.description.toLowerCase().includes(q) ||
-                t.category.toLowerCase().includes(q) ||
+                (t.description ?? '').toLowerCase().includes(q) ||
+                (t.category ?? '').toLowerCase().includes(q) ||
                 (t.vendorCustomer ?? '').toLowerCase().includes(q)
             ).slice(0, 8),
             invoices: invoices.filter(inv =>
-                inv.clientName.toLowerCase().includes(q) ||
-                inv.invoiceNumber.toLowerCase().includes(q)
+                (inv.clientName ?? '').toLowerCase().includes(q) ||
+                (inv.invoiceNumber ?? '').toLowerCase().includes(q)
             ).slice(0, 5),
             assets: assets.filter(a =>
-                a.name.toLowerCase().includes(q) ||
-                a.category.toLowerCase().includes(q)
+                (a.name ?? '').toLowerCase().includes(q) ||
+                (a.category ?? '').toLowerCase().includes(q)
             ).slice(0, 4),
         };
     }, [q, transactions, invoices, assets]);

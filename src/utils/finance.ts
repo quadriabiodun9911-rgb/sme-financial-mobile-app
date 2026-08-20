@@ -109,7 +109,7 @@ function transactionSpanYears(transactions: Transaction[]): number {
 }
 
 export function computeEnhancedPnL(transactions: Transaction[], assets: Asset[]): EnhancedPnL {
-    const isCOGS = (cat: string) => COGS_KEYWORDS.some(k => cat.toLowerCase().includes(k));
+    const isCOGS = (cat: string) => COGS_KEYWORDS.some(k => (cat ?? '').toLowerCase().includes(k));
 
     const revenue = transactions.filter(t => t.type === 'income').reduce((s, t) => s + (Number(t.amount) || 0), 0);
     const expenses = transactions.filter(t => t.type === 'expense');
@@ -1490,7 +1490,7 @@ export function computeBudgetVsActual(transactions: Transaction[], budgets: Budg
     // of Budget[] (the Dashboard overspend check, the cash-flow forecast)
     // had already stopped counting it.
     return activeBudgetsForPeriod(budgets, month).map(b => {
-        const actual = monthTx.filter(t => t.category.toLowerCase() === b.category.toLowerCase()).reduce((s, t) => s + t.amount, 0);
+        const actual = monthTx.filter(t => (t.category ?? '').toLowerCase() === b.category.toLowerCase()).reduce((s, t) => s + (t.amount ?? 0), 0);
         const variance = b.monthlyAmount - actual;
         const variancePct = b.monthlyAmount > 0 ? (variance / b.monthlyAmount) * 100 : 0;
         const status: BudgetVsActual['status'] = Math.abs(variancePct) <= 5 ? 'on_track' : variance < 0 ? 'over' : 'under';
