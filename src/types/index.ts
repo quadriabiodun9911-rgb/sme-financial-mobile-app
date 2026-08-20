@@ -176,6 +176,15 @@ export interface Transaction {
     // calculation subtracts `principalPortion` from `amount` before
     // treating it as a real expense.
     principalPortion?: number;
+    // Set only on an income transaction created by Inventory's "Sell"
+    // button (see InventoryScreen.confirmSell): quantity sold × the item's
+    // costPrice at the moment of sale -- the real cost basis of that
+    // specific sale, not a value derived later from a possibly-changed
+    // current costPrice. Undefined on every other transaction, including
+    // stock sales recorded before this field existed -- there's no honest
+    // way to reconstruct their cost basis after the fact, so they're
+    // treated as unknown (0), not silently assumed to have zero cost.
+    costOfGoodsSold?: number;
 }
 
 export interface FinanceData {

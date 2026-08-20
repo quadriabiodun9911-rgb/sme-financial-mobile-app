@@ -82,6 +82,29 @@ export default function StockSalesComparisonTable({ businessName, transactions, 
                         ))}
                     </View>
 
+                    <View style={s.row}>
+                        <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabel}>Cost of Goods Sold</Text></View>
+                        {points.map(p => (
+                            <View key={p.key} style={s.cell}><Text style={[s.val, { color: Colors.expense }]}>{fmt(p.costOfGoodsSold)}</Text></View>
+                        ))}
+                    </View>
+
+                    <View style={[s.row, s.subtotalRow]}>
+                        <View style={[s.cell, s.rowLabelCell]}><Text style={[s.rowLabel, s.rowLabelBold]}>Gross Profit</Text></View>
+                        {points.map(p => (
+                            <View key={p.key} style={s.cell}>
+                                <Text style={[s.val, s.valBold, { color: p.grossProfit >= 0 ? Colors.income : Colors.expense }]}>{fmt(p.grossProfit)}</Text>
+                            </View>
+                        ))}
+                    </View>
+
+                    <View style={s.row}>
+                        <View style={[s.cell, s.rowLabelCell]}><Text style={[s.rowLabel, s.rowLabelMuted]}>Gross Margin</Text></View>
+                        {points.map(p => (
+                            <View key={p.key} style={s.cell}><Text style={s.valMuted}>{p.grossMarginPct.toFixed(0)}%</Text></View>
+                        ))}
+                    </View>
+
                     <View style={[s.row, { borderBottomWidth: 0 }]}>
                         <View style={[s.cell, s.rowLabelCell]}><Text style={[s.rowLabel, s.rowLabelMuted]}>% of Total Revenue</Text></View>
                         {points.map(p => (
@@ -91,6 +114,7 @@ export default function StockSalesComparisonTable({ businessName, transactions, 
                 </View>
             </ScrollView>
             <Text style={s.hint}>Only sales recorded through Inventory's Sell button — revenue logged any other way isn't counted here.</Text>
+            <Text style={s.hint}>Cost of Goods Sold is only tracked for sales recorded after this feature was added — earlier sales show as {currency}0 cost, understating Gross Profit for periods that include them.</Text>
             {hasPartial && (
                 <Text style={s.hint}>* still in progress — not a full {grouping === 'monthly' ? 'month' : grouping === 'quarterly' ? 'quarter' : 'year'} yet, so it's not a fair comparison against earlier columns.</Text>
             )}
@@ -107,13 +131,16 @@ const s = StyleSheet.create({
 
     headerRow: { flexDirection: 'row', borderBottomWidth: 2, borderBottomColor: Colors.textPrimary },
     row: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: Colors.border },
+    subtotalRow: { borderTopWidth: 1, borderTopColor: Colors.border },
     cell: { width: 98, paddingVertical: 10, paddingHorizontal: 6, alignItems: 'flex-end', justifyContent: 'center' },
     rowLabelCell: { width: 140, alignItems: 'flex-start' },
     rowLabelHeader: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase' },
     rowLabel: { fontSize: 12.5, color: Colors.textSecondary },
+    rowLabelBold: { fontWeight: '700', color: Colors.textPrimary },
     rowLabelMuted: { color: Colors.textMuted, fontStyle: 'italic', fontSize: 11.5 },
     colHeader: { fontSize: 10.5, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', textAlign: 'right' },
     val: { fontSize: 12.5, color: Colors.textPrimary, fontVariant: ['tabular-nums'] },
+    valBold: { fontWeight: '700' },
     valMuted: { fontSize: 12.5, color: Colors.textMuted, fontVariant: ['tabular-nums'] },
 
     empty: { backgroundColor: Colors.surface, borderRadius: 14, padding: 20 },

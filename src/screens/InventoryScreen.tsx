@@ -183,6 +183,7 @@ export default function InventoryScreen() {
             date: new Date().toISOString().split('T')[0],
             status: 'paid',
             transactionCategory: 'sale',
+            costOfGoodsSold: qty * (item.costPrice ?? 0),
         });
         setSellModal(null);
         setSellQty('');

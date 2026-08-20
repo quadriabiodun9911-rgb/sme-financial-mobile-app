@@ -764,57 +764,6 @@ export default function DashboardScreen() {
                     </View>
                 )}
 
-                {/* Import Bank Statement entry point — previously only
-                    reachable via Settings or an empty-state CTA buried
-                    inside Reports > Growth Analytics, which a real user
-                    never found; every report and chart in the app is
-                    useless without transaction history. Kept permanently
-                    visible (not just while an account is new) — a user
-                    importing a fresh monthly statement needs this exact
-                    same easy access every time, not just once. */}
-                {canViewFinancials && !isDemoMode && (
-                    <TouchableOpacity
-                        style={styles.solveBanner}
-                        onPress={() => setCurrentScreen('import-transactions')}
-                        activeOpacity={0.8}
-                    >
-                        <Icon name="upload" size={16} color="#fff" />
-                        <Text style={styles.solveBannerText}>
-                            {transactions.length === 0 ? 'Import Your Bank Statement to Get Started' : 'Import Bank Statement'}
-                        </Text>
-                        <Icon name="arrow-right" size={16} color="#fff" />
-                    </TouchableOpacity>
-                )}
-
-                {/* Business Passport entry point — the continuously-updating
-                    financial identity (health, risk, credit readiness,
-                    investment readiness, growth, actions) in one place,
-                    instead of a first-time owner having to map "I have a
-                    cash problem" onto which of the app's many screens
-                    answers it. Hidden for staff accounts: 'business-passport'
-                    isn't in STAFF_ALLOWED_SCREENS (nor are most of its
-                    destinations — Analysis, Credit-Worthiness, Forecast,
-                    Action Tracker), so showing this banner to a staff
-                    account would just lead to a dead-end restricted-access
-                    screen. */}
-                {/* When the owner said financing-readiness is what matters
-                    most, this goes straight to Credit-Worthiness -- the
-                    screen that actually answers that question -- instead of
-                    the broader Business Passport. */}
-                {canViewFinancials && (
-                    <TouchableOpacity
-                        style={styles.solveBanner}
-                        onPress={() => setCurrentScreen(settings?.primaryGoal === 'financing' ? 'credit-worthiness' : 'business-passport')}
-                        activeOpacity={0.8}
-                    >
-                        <Icon name={settings?.primaryGoal === 'financing' ? 'credit-card' : 'shield'} size={16} color="#fff" />
-                        <Text style={styles.solveBannerText}>
-                            {settings?.primaryGoal === 'financing' ? 'See your Capital Readiness' : 'See your Business Passport'}
-                        </Text>
-                        <Icon name="arrow-right" size={16} color="#fff" />
-                    </TouchableOpacity>
-                )}
-
                 {/* ══════════════════════════════════════════════════════════════════
                     ⚙️ OPERATIONS COMMAND CENTRE
                     ══════════════════════════════════════════════════════════════════ */}
@@ -1617,12 +1566,6 @@ const styles = StyleSheet.create({
     demoBannerBtn:     { backgroundColor: '#fff', borderRadius: Radius.sm, paddingHorizontal: 10, paddingVertical: 5, marginLeft: 8 },
     demoBannerBtnText: { color: Colors.warning, fontWeight: '700', fontSize: 12 },
 
-    solveBanner: {
-        backgroundColor: Colors.primary, borderRadius: Radius.lg, padding: Spacing.lg, marginBottom: Spacing.lg,
-        flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
-        ...Shadow.sm,
-    },
-    solveBannerText: { color: '#fff', fontWeight: '700', fontSize: 14, flex: 1 },
     progressCard: {
         flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
         backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1.5,

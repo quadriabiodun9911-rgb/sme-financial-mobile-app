@@ -48,4 +48,39 @@ describe('computeInventorySalesTrend', () => {
         const yearly = computeInventorySalesTrend('yearly', txs);
         expect(yearly.find(p => p.key === '2024')?.stockSold).toBe(300);
     });
+
+    it('computes Gross Profit and Gross Margin from costOfGoodsSold', () => {
+        const txs = [
+            makeTx({ amount: 1000, date: '2024-01-05', transactionCategory: 'sale', costOfGoodsSold: 600 }),
+        ];
+        const points = computeInventorySalesTrend('monthly', txs);
+        expect(points[0].costOfGoodsSold).toBe(600);
+        expect(points[0].grossProfit).toBe(400);
+        expect(points[0].grossMarginPct).toBeCloseTo(40, 5);
+    });
+
+    it('treats a sale recorded before costOfGoodsSold existed as zero cost, not an error', () => {
+        const txs = [
+            makeTx({ amount: 500, date: '2024-01-05', transactionCategory: 'sale' }), // no costOfGoodsSold field at all
+        ];
+        const points = computeInventorySalesTrend('monthly', txs);
+        expect(points[0].costOfGoodsSold).toBe(0);
+        expect(points[0].grossProfit).toBe(500);
+    });
+
+    it('rolls costOfGoodsSold and grossProfit up into quarters and years too', () => {
+        const txs = [
+            makeTx({ amount: 100, date: '2024-01-05', transactionCategory: 'sale', costOfGoodsSold: 40 }),
+            makeTx({ amount: 200, date: '2024-02-05', transactionCategory: 'sale', costOfGoodsSold: 90 }),
+        ];
+        const quarterly = computeInventorySalesTrend('quarterly', txs);
+        const q1 = quarterly.find(p => p.key === '2024-Q1')!;
+        expect(q1.costOfGoodsSold).toBe(130);
+        expect(q1.grossProfit).toBe(170);
+
+        const yearly = computeInventorySalesTrend('yearly', txs);
+        const y = yearly.find(p => p.key === '2024')!;
+        expect(y.costOfGoodsSold).toBe(130);
+        expect(y.grossProfit).toBe(170);
+    });
 });
