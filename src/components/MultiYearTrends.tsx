@@ -2,34 +2,55 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
-import { analyzeTrend, MonthlyTrendPoint } from '../utils/trendAnalysis';
+import { analyzeTrend, computeDailyTrend, computeWeeklyTrend, computeQuarterlyTrend } from '../utils/trendAnalysis';
 import GroupedBarChart from './GroupedBarChart';
 
-type RangeKey = '12' | '24' | '36' | 'all';
-const RANGES: { key: RangeKey; label: string }[] = [
-    { key: '12', label: '12mo' },
-    { key: '24', label: '24mo' },
-    { key: '36', label: '36mo' },
-    { key: 'all', label: 'All time' },
+type Grouping = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
+const GROUPINGS: { key: Grouping; label: string }[] = [
+    { key: 'daily', label: 'Daily' },
+    { key: 'weekly', label: 'Weekly' },
+    { key: 'monthly', label: 'Monthly' },
+    { key: 'quarterly', label: 'Quarterly' },
+    { key: 'yearly', label: 'Yearly' },
 ];
+const PERIOD_NOUN: Record<Grouping, string> = { daily: 'day', weekly: 'week', monthly: 'month', quarterly: 'quarter', yearly: 'year' };
+// The chart is a horizontal-scrolling column chart, not a fixed-width
+// table, so it can hold more points than a vertical list -- but "every
+// day, all recorded history" is still hundreds of columns nobody scrolls
+// through usefully. Capped to a sensible trailing window per granularity,
+// same reasoning as Reports > Cash Flow Statement's "By Period" view.
+const WINDOW: Record<Grouping, number> = { daily: 30, weekly: 12, monthly: 36, quarterly: 12, yearly: 20 };
 
 const MONTH_LABEL = (m: string) => {
     const [y, mo] = m.split('-');
     return new Date(Number(y), Number(mo) - 1, 1).toLocaleString('default', { month: 'short', year: '2-digit' });
 };
+const DAY_LABEL = (d: string) => {
+    const [y, mo, day] = d.split('-').map(Number);
+    return new Date(y, mo - 1, day).toLocaleString('default', { month: 'short', day: 'numeric' });
+};
 
 export default function MultiYearTrends() {
     const { transactions, settings, navigate } = useApp();
     const currency = settings.currency || '₦';
-    const [range, setRange] = useState<RangeKey>('all');
+    const [grouping, setGrouping] = useState<Grouping>('monthly');
 
     const trend = useMemo(() => analyzeTrend(transactions), [transactions]);
+    const daily = useMemo(() => computeDailyTrend(transactions), [transactions]);
+    const weekly = useMemo(() => computeWeeklyTrend(daily), [daily]);
+    const quarterly = useMemo(() => computeQuarterlyTrend(trend.monthly), [trend.monthly]);
 
-    const visibleMonths: MonthlyTrendPoint[] = useMemo(() => {
-        if (range === 'all') return trend.monthly;
-        const n = Number(range);
-        return trend.monthly.slice(-n);
-    }, [trend.monthly, range]);
+    // Same {label, revenue, expense} shape regardless of grouping, so the
+    // chart below doesn't need to know which one is active.
+    const chartPoints = useMemo(() => {
+        if (grouping === 'daily') return daily.map(d => ({ label: DAY_LABEL(d.date), revenue: d.revenue, expense: d.expense }));
+        if (grouping === 'weekly') return weekly.map(w => ({ label: w.label, revenue: w.revenue, expense: w.expense }));
+        if (grouping === 'monthly') return trend.monthly.map(m => ({ label: MONTH_LABEL(m.month), revenue: m.revenue, expense: m.expense }));
+        if (grouping === 'quarterly') return quarterly.map(q => ({ label: q.label, revenue: q.revenue, expense: q.expense }));
+        return trend.yearly.map(y => ({ label: y.year, revenue: y.revenue, expense: y.expense }));
+    }, [grouping, daily, weekly, trend.monthly, trend.yearly, quarterly]);
+
+    const visiblePoints = useMemo(() => chartPoints.slice(-WINDOW[grouping]), [chartPoints, grouping]);
 
     const fmt = (n: number) => `${currency}${Math.round(n).toLocaleString()}`;
     const fmtPct = (n: number | null) => n === null ? '—' : `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`;
@@ -112,28 +133,30 @@ export default function MultiYearTrends() {
                         )}
                     </View>
 
-                    {/* Range toggle */}
+                    {/* Grouping toggle -- same Daily/Weekly/Monthly/Quarterly/
+                        Yearly granularities as every other trend table in
+                        Reports, replacing the old months-only range picker. */}
                     <View style={s.rangeRow}>
-                        {RANGES.map(r => (
+                        {GROUPINGS.map(g => (
                             <TouchableOpacity
-                                key={r.key}
-                                style={[s.rangeBtn, range === r.key && s.rangeBtnActive]}
-                                onPress={() => setRange(r.key)}
+                                key={g.key}
+                                style={[s.rangeBtn, grouping === g.key && s.rangeBtnActive]}
+                                onPress={() => setGrouping(g.key)}
                             >
-                                <Text style={[s.rangeBtnText, range === r.key && s.rangeBtnTextActive]}>{r.label}</Text>
+                                <Text style={[s.rangeBtnText, grouping === g.key && s.rangeBtnTextActive]}>{g.label}</Text>
                             </TouchableOpacity>
                         ))}
                     </View>
 
-                    {/* Monthly revenue vs expense chart */}
+                    {/* Revenue vs expense chart, at the chosen granularity */}
                     <View style={s.card}>
-                        <Text style={s.cardTitle}>Revenue vs Expenses by Month</Text>
+                        <Text style={s.cardTitle}>Revenue vs Expenses (last {visiblePoints.length} {PERIOD_NOUN[grouping]}{visiblePoints.length === 1 ? '' : 's'})</Text>
                         <GroupedBarChart
                             height={100}
-                            labels={visibleMonths.map(m => MONTH_LABEL(m.month))}
+                            labels={visiblePoints.map(p => p.label)}
                             series={[
-                                { label: 'Revenue', color: Colors.income, values: visibleMonths.map(m => m.revenue) },
-                                { label: 'Expenses', color: Colors.expense, values: visibleMonths.map(m => m.expense) },
+                                { label: 'Revenue', color: Colors.income, values: visiblePoints.map(p => p.revenue) },
+                                { label: 'Expenses', color: Colors.expense, values: visiblePoints.map(p => p.expense) },
                             ]}
                         />
                     </View>
@@ -195,8 +218,8 @@ const s = StyleSheet.create({
     bwMonth: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },
     bwVal:   { fontSize: 12, fontWeight: '700' },
 
-    rangeRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
-    rangeBtn: { paddingVertical: 7, paddingHorizontal: 14, borderRadius: 8, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },
+    rangeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
+    rangeBtn: { paddingVertical: 7, paddingHorizontal: 12, borderRadius: 8, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },
     rangeBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
     rangeBtnText: { fontSize: 12, fontWeight: '600', color: Colors.textMuted },
     rangeBtnTextActive: { color: '#fff' },
