@@ -54,6 +54,18 @@ function hashPin(pin: string): string {
 }
 const LOCKOUT_KEY = '@quad360/lockoutUntil';
 const ATTEMPTS_KEY = '@quad360/loginAttempts';
+// Shared, stable fallback for navParams -- useApp() rebuilds its returned
+// object from scratch on every call (it isn't wrapped in useMemo), so a
+// fresh `{}` literal here would be a brand-new reference on every single
+// render of every consumer. LoginScreen's mode-sync effect depends on
+// navParams to decide whether to leave an explicitly-set mode alone; a
+// churning reference made that effect re-fire on essentially every render
+// anywhere in the app, snapping `mode` back to the default a moment after
+// any local setMode() call (Sign Up, Join Team, Join Lender, Demo, Forgot
+// PIN all looked unresponsive because of this, not because of a broken
+// click). Reusing the same object when auth.navParams is nullish keeps the
+// dependency stable across renders that didn't actually change it.
+const EMPTY_NAV_PARAMS: Record<string, unknown> = {};
 
 // ─── Tab-identity guard ─────────────────────────────────────────────────────
 // Every persisted identity marker this app has (profile, PIN, auth secret,
@@ -1002,15 +1014,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setCurrentScreenState('login');
             writeTabIdentity(null);
           } else {
-            writeTabIdentity(profile.email);
-            setUser({ email: profile.email, businessName: profile.businessName, phone: profile.phone, role: 'Administrator', createdAt: profile.createdAt });
-            // A signed-in user who lands directly on a shared /blog link
-            // should see the article, not get bounced to their dashboard.
-            const isPublicBlogRoute = getInitialScreenFromUrl() === 'blog' || getInitialScreenFromUrl() === 'blog-post';
-            // Same reasoning: don't stomp the reset-pin screen the recovery
-            // effect above just switched to for a device that also happens
-            // to have a saved profile -- see that effect's comment.
-            if (!isPublicBlogRoute && !recoveryDetectedRef.current) await routeAfterAuth();
+            // A saved local profile means "this device has met this email
+            // before," not "there's a live cloud session right now" -- those
+            // used to be conflated here, so logging out (which calls
+            // supabase.auth.signOut() but never touched the local profile)
+            // left every later reload rendering a fully "logged in"
+            // dashboard with no real session behind it: nothing to sync,
+            // nothing to fetch, indistinguishable from a brand-new empty
+            // account. Confirming a live session for this exact email
+            // before auto-routing to the dashboard closes that gap; when
+            // there isn't one, this falls through to the ordinary
+            // PIN-unlock login screen instead.
+            const { data: { session } } = await supabase.auth.getSession().catch(() => ({ data: { session: null } } as any));
+            if (session?.user?.email === profile.email) {
+              writeTabIdentity(profile.email);
+              setUser({ email: profile.email, businessName: profile.businessName, phone: profile.phone, role: 'Administrator', createdAt: profile.createdAt });
+              // A signed-in user who lands directly on a shared /blog link
+              // should see the article, not get bounced to their dashboard.
+              const isPublicBlogRoute = getInitialScreenFromUrl() === 'blog' || getInitialScreenFromUrl() === 'blog-post';
+              // Same reasoning: don't stomp the reset-pin screen the recovery
+              // effect above just switched to for a device that also happens
+              // to have a saved profile -- see that effect's comment.
+              if (!isPublicBlogRoute && !recoveryDetectedRef.current) await routeAfterAuth();
+            } else if (!recoveryDetectedRef.current) {
+              setIsFirstLaunch(false);
+              setCurrentScreenState('login');
+            }
           }
         } else {
           setIsFirstLaunch(true);
@@ -1832,7 +1861,7 @@ export function useApp() {
     refreshTeam: auth.refreshTeam || (() => Promise.resolve()),
 
     // Other missing properties
-    navParams: auth.navParams ?? {},
+    navParams: auth.navParams ?? EMPTY_NAV_PARAMS,
     isFirstLaunch: auth.isFirstLaunch,
     pendingSyncCount: 0,
     lockoutUntil: auth.lockoutUntil,
