@@ -71,6 +71,7 @@ const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
     statements: [
         { key: 'balancesheet', label: 'What I Own & Owe' },
         { key: 'pnl',          label: 'Profit & Loss' },
+        { key: 'cashflow',     label: 'Cash Flow Statement' },
         { key: 'inventory',    label: 'Stock' },
         { key: 'accrual',      label: 'Accrual vs Cash' },
     ],
@@ -84,7 +85,6 @@ const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
     ],
     planning: [
         { key: 'budget',   label: 'Growth Scenarios' },
-        { key: 'cashflow', label: 'Cash Flow Statement' },
         { key: 'outlook',  label: 'Cash Flow Outlook' },
         { key: 'cashmgmt', label: 'Cash Safety' },
         { key: 'debt',     label: 'Loans & Debt' },
@@ -285,7 +285,7 @@ export default function ReportsScreen() {
                     </View>
                     {[
                         { icon: 'bar-chart-2' as IconName, label: 'Profit & Loss', sub: 'Did I make money? Revenue vs costs breakdown', section: 'statements' as SectionKey, tab: 'pnl' as SubTab },
-                        { icon: 'droplet' as IconName, label: 'Cash Flow', sub: 'Money coming in and going out over time', section: 'planning' as SectionKey, tab: 'cashflow' as SubTab },
+                        { icon: 'droplet' as IconName, label: 'Cash Flow', sub: 'Money coming in and going out over time', section: 'statements' as SectionKey, tab: 'cashflow' as SubTab },
                     ].map(item => (
                         <TouchableOpacity
                             key={item.tab}

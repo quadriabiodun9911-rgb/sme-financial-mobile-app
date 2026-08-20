@@ -768,14 +768,11 @@ export default function DashboardScreen() {
                     reachable via Settings or an empty-state CTA buried
                     inside Reports > Growth Analytics, which a real user
                     never found; every report and chart in the app is
-                    useless without transaction history, so this needs to be
-                    the first prominent thing an account with little to no
-                    history sees, not something discovered by accident three
-                    screens deep. Stops nudging once there's enough history
-                    for the app to actually be useful — the existing Quick
-                    Actions tile below stays available for re-imports after
-                    that. */}
-                {canViewFinancials && !isDemoMode && transactions.length < 5 && (
+                    useless without transaction history. Kept permanently
+                    visible (not just while an account is new) — a user
+                    importing a fresh monthly statement needs this exact
+                    same easy access every time, not just once. */}
+                {canViewFinancials && !isDemoMode && (
                     <TouchableOpacity
                         style={styles.solveBanner}
                         onPress={() => setCurrentScreen('import-transactions')}

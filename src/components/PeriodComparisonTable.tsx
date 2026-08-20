@@ -70,18 +70,18 @@ export default function PeriodComparisonTable({ transactions, currency, defaultG
 
     const columns = useMemo(() => {
         if (grouping === 'daily') {
-            return daily.map(d => ({ key: d.date, label: DAY_LABEL(d.date), revenue: d.revenue, expense: d.expense, profit: d.profit, margin: d.profitMargin, partial: d.date === currentKeys.daily }));
+            return daily.map(d => ({ key: d.date, label: DAY_LABEL(d.date), revenue: d.revenue, expense: d.expense, cogs: d.cogs, opex: d.opex, other: d.otherExpense, profit: d.profit, margin: d.profitMargin, partial: d.date === currentKeys.daily }));
         }
         if (grouping === 'weekly') {
-            return weekly.map(w => ({ key: w.week, label: w.label, revenue: w.revenue, expense: w.expense, profit: w.profit, margin: w.profitMargin, partial: w.week === currentKeys.weekly }));
+            return weekly.map(w => ({ key: w.week, label: w.label, revenue: w.revenue, expense: w.expense, cogs: w.cogs, opex: w.opex, other: w.otherExpense, profit: w.profit, margin: w.profitMargin, partial: w.week === currentKeys.weekly }));
         }
         if (grouping === 'monthly') {
-            return monthly.map(m => ({ key: m.month, label: MONTH_LABEL(m.month), revenue: m.revenue, expense: m.expense, profit: m.profit, margin: m.profitMargin, partial: m.month === currentKeys.monthly }));
+            return monthly.map(m => ({ key: m.month, label: MONTH_LABEL(m.month), revenue: m.revenue, expense: m.expense, cogs: m.cogs, opex: m.opex, other: m.otherExpense, profit: m.profit, margin: m.profitMargin, partial: m.month === currentKeys.monthly }));
         }
         if (grouping === 'quarterly') {
-            return quarterly.map(q => ({ key: q.quarter, label: q.label, revenue: q.revenue, expense: q.expense, profit: q.profit, margin: q.profitMargin, partial: q.quarter === currentKeys.quarterly }));
+            return quarterly.map(q => ({ key: q.quarter, label: q.label, revenue: q.revenue, expense: q.expense, cogs: q.cogs, opex: q.opex, other: q.otherExpense, profit: q.profit, margin: q.profitMargin, partial: q.quarter === currentKeys.quarterly }));
         }
-        return yearly.map(y => ({ key: y.year, label: y.year, revenue: y.revenue, expense: y.expense, profit: y.profit, margin: y.profitMargin, partial: y.year === currentKeys.yearly }));
+        return yearly.map(y => ({ key: y.year, label: y.year, revenue: y.revenue, expense: y.expense, cogs: y.cogs, opex: y.opex, other: y.otherExpense, profit: y.profit, margin: y.profitMargin, partial: y.year === currentKeys.yearly }));
     }, [grouping, daily, weekly, monthly, quarterly, yearly, currentKeys]);
 
     const hasPartial = columns.some(c => c.partial);
@@ -137,18 +137,73 @@ export default function PeriodComparisonTable({ transactions, currency, defaultG
                         ))}
                     </View>
 
-                    {/* Expenses */}
-                    <View style={s.row}>
-                        <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabel}>Expenses</Text></View>
-                        {columns.map(c => (
-                            <View key={c.key} style={s.cell}>
-                                <Text style={[s.val, { color: Colors.expense }]}>{fmt(c.expense)}</Text>
-                                {c.partial && showEstimate && (
-                                    <Text style={s.estimate}>≈{fmt(c.expense * factor!)}</Text>
-                                )}
+                    {/* businessName is only set from Reports, where this
+                        sits alongside the formal P&L statement -- a single
+                        "Expenses" line there hides exactly the breakdown
+                        (Cost of Goods Sold vs. Operating Expenses vs.
+                        interest/other) the formal statement right above it
+                        already shows, so this trend should show it too
+                        rather than flattening it back down. Inventory's
+                        plain "daily sales pace" card (no businessName) keeps
+                        the single Expenses line -- it's not P&L context. */}
+                    {businessName ? (
+                        <>
+                            <View style={s.row}>
+                                <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabel}>Cost of Goods Sold</Text></View>
+                                {columns.map(c => (
+                                    <View key={c.key} style={s.cell}>
+                                        <Text style={[s.val, { color: Colors.expense }]}>{fmt(c.cogs)}</Text>
+                                        {c.partial && showEstimate && <Text style={s.estimate}>≈{fmt(c.cogs * factor!)}</Text>}
+                                    </View>
+                                ))}
                             </View>
-                        ))}
-                    </View>
+
+                            <View style={[s.row, s.subtotalRow]}>
+                                <View style={[s.cell, s.rowLabelCell]}><Text style={[s.rowLabel, s.rowLabelBold]}>Gross Profit</Text></View>
+                                {columns.map(c => {
+                                    const gp = c.revenue - c.cogs;
+                                    return (
+                                        <View key={c.key} style={s.cell}>
+                                            <Text style={[s.val, s.valBold, { color: gp >= 0 ? Colors.income : Colors.expense }]}>{fmt(gp)}</Text>
+                                            {c.partial && showEstimate && <Text style={s.estimate}>≈{fmt(gp * factor!)}</Text>}
+                                        </View>
+                                    );
+                                })}
+                            </View>
+
+                            <View style={s.row}>
+                                <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabel}>Operating Expenses</Text></View>
+                                {columns.map(c => (
+                                    <View key={c.key} style={s.cell}>
+                                        <Text style={[s.val, { color: Colors.expense }]}>{fmt(c.opex)}</Text>
+                                        {c.partial && showEstimate && <Text style={s.estimate}>≈{fmt(c.opex * factor!)}</Text>}
+                                    </View>
+                                ))}
+                            </View>
+
+                            <View style={s.row}>
+                                <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabel}>Other (Interest, etc.)</Text></View>
+                                {columns.map(c => (
+                                    <View key={c.key} style={s.cell}>
+                                        <Text style={[s.val, { color: Colors.expense }]}>{fmt(c.other)}</Text>
+                                        {c.partial && showEstimate && <Text style={s.estimate}>≈{fmt(c.other * factor!)}</Text>}
+                                    </View>
+                                ))}
+                            </View>
+                        </>
+                    ) : (
+                        <View style={s.row}>
+                            <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabel}>Expenses</Text></View>
+                            {columns.map(c => (
+                                <View key={c.key} style={s.cell}>
+                                    <Text style={[s.val, { color: Colors.expense }]}>{fmt(c.expense)}</Text>
+                                    {c.partial && showEstimate && (
+                                        <Text style={s.estimate}>≈{fmt(c.expense * factor!)}</Text>
+                                    )}
+                                </View>
+                            ))}
+                        </View>
+                    )}
 
                     {/* Profit */}
                     <View style={[s.row, s.subtotalRow]}>

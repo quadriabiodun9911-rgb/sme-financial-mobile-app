@@ -95,7 +95,11 @@ export const FEATURE_INDEX: FeatureEntry[] = [
         id: 'cash-timeline', label: 'Cash Timeline (Forecast)', icon: '📈',
         description: 'Forward-looking cash forecast and runway',
         keywords: ['forecast', 'runway', 'projection'],
-        screen: 'reports', navParams: { reportSection: 'planning', reportTab: 'cashflow' },
+        // 'outlook' (Cash Flow Outlook) is the forward-looking forecast this
+        // entry describes -- 'cashflow' (the Statement of Cash Flows, now
+        // moved to the statements section) is the historical statement, not
+        // a forecast, and was a pre-existing mismatch here.
+        screen: 'reports', navParams: { reportSection: 'planning', reportTab: 'outlook' },
     },
     {
         id: 'cash-safety', label: 'Cash Safety', icon: '🛡️',

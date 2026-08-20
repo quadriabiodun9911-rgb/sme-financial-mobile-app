@@ -77,6 +77,31 @@ export default function CashFlowComparisonTable({ businessName, transactions, cu
                         ))}
                     </View>
 
+                    {/* Same three activities the formal Statement of Cash
+                        Flows breaks out (Operating/Investing/Financing), so
+                        this trend answers not just "how much went out" but
+                        "was it running the business, buying equipment, or
+                        paying down debt" -- indented under Disbursements
+                        since they sum to it. */}
+                    <View style={s.row}>
+                        <View style={[s.cell, s.rowLabelCell]}><Text style={[s.rowLabel, s.rowLabelIndent]}>Operating</Text></View>
+                        {points.map(p => (
+                            <View key={p.key} style={s.cell}><Text style={s.valMuted}>{fmt(p.operatingOut)}</Text></View>
+                        ))}
+                    </View>
+                    <View style={s.row}>
+                        <View style={[s.cell, s.rowLabelCell]}><Text style={[s.rowLabel, s.rowLabelIndent]}>Investing</Text></View>
+                        {points.map(p => (
+                            <View key={p.key} style={s.cell}><Text style={s.valMuted}>{fmt(p.investingOut)}</Text></View>
+                        ))}
+                    </View>
+                    <View style={s.row}>
+                        <View style={[s.cell, s.rowLabelCell]}><Text style={[s.rowLabel, s.rowLabelIndent]}>Financing</Text></View>
+                        {points.map(p => (
+                            <View key={p.key} style={s.cell}><Text style={s.valMuted}>{fmt(p.financingOut)}</Text></View>
+                        ))}
+                    </View>
+
                     <View style={[s.row, s.totalRow, { borderBottomWidth: 0 }]}>
                         <View style={[s.cell, s.rowLabelCell]}><Text style={[s.rowLabel, s.rowLabelBold]}>Net Cash Flow</Text></View>
                         {points.map(p => (
@@ -110,9 +135,11 @@ const s = StyleSheet.create({
     rowLabelHeader: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase' },
     rowLabel: { fontSize: 12.5, color: Colors.textSecondary },
     rowLabelBold: { fontWeight: '700', color: Colors.textPrimary },
+    rowLabelIndent: { fontSize: 11.5, color: Colors.textMuted, fontStyle: 'italic', paddingLeft: 10 },
     colHeader: { fontSize: 10.5, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', textAlign: 'right' },
     val: { fontSize: 12.5, color: Colors.textPrimary, fontVariant: ['tabular-nums'] },
     valBold: { fontWeight: '700' },
+    valMuted: { fontSize: 11.5, color: Colors.textMuted, fontVariant: ['tabular-nums'], fontStyle: 'italic' },
 
     empty: { backgroundColor: Colors.surface, borderRadius: 14, padding: 20 },
     emptyText: { fontSize: 13, color: Colors.textMuted, textAlign: 'center' },

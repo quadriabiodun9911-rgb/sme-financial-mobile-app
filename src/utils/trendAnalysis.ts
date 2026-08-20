@@ -9,11 +9,21 @@
  */
 
 import { Transaction } from '../types';
+import { classifyExpenseLine } from './finance';
 
+// Every "expense" bucket below also breaks into cogs/opex/otherExpense
+// (cogs + opex + otherExpense === expense, always), classified via the same
+// classifyExpenseLine used by computeEnhancedPnL — so a period's trend row
+// (e.g. Reports > Profit & Loss trend) and its P&L statement for that same
+// stretch of transactions never disagree on what counts as Cost of Goods
+// Sold vs. Operating Expenses vs. interest/other.
 export interface MonthlyTrendPoint {
     month: string;       // 'YYYY-MM'
     revenue: number;
     expense: number;
+    cogs: number;
+    opex: number;
+    otherExpense: number;
     profit: number;
     profitMargin: number; // 0-100, 0 when revenue is 0
     transactionCount: number;
@@ -23,6 +33,9 @@ export interface YearlyTrendPoint {
     year: string;         // 'YYYY'
     revenue: number;
     expense: number;
+    cogs: number;
+    opex: number;
+    otherExpense: number;
     profit: number;
     profitMargin: number;
     monthsWithData: number;
@@ -32,6 +45,9 @@ export interface DailyTrendPoint {
     date: string;         // 'YYYY-MM-DD'
     revenue: number;
     expense: number;
+    cogs: number;
+    opex: number;
+    otherExpense: number;
     profit: number;
     profitMargin: number;
 }
@@ -41,6 +57,9 @@ export interface WeeklyTrendPoint {
     label: string;        // 'Wk of 14 Jul'
     revenue: number;
     expense: number;
+    cogs: number;
+    opex: number;
+    otherExpense: number;
     profit: number;
     profitMargin: number;
     daysWithData: number;
@@ -51,6 +70,9 @@ export interface QuarterlyTrendPoint {
     label: string;        // 'Q1 2025'
     revenue: number;
     expense: number;
+    cogs: number;
+    opex: number;
+    otherExpense: number;
     profit: number;
     profitMargin: number;
     monthsWithData: number;
@@ -76,19 +98,27 @@ export interface TrendAnalysis {
  * future accidental cross-use.
  */
 export function computeAllTimeMonthlyBuckets(transactions: Transaction[]): MonthlyTrendPoint[] {
-    const buckets = new Map<string, { revenue: number; expense: number; count: number }>();
+    const buckets = new Map<string, { revenue: number; expense: number; cogs: number; opex: number; otherExpense: number; count: number }>();
 
     for (const t of transactions) {
         const month = (t.date || '').slice(0, 7);
         if (!month || month.length !== 7) continue;
-        if (!buckets.has(month)) buckets.set(month, { revenue: 0, expense: 0, count: 0 });
+        if (!buckets.has(month)) buckets.set(month, { revenue: 0, expense: 0, cogs: 0, opex: 0, otherExpense: 0, count: 0 });
         const b = buckets.get(month)!;
         // Loan principal repayments aren't a P&L expense under GAAP/IFRS —
         // only interest is (see finance.ts computeEnhancedPnL for the same
         // exclusion). Every trend/comparison built on this bucket needs to
         // agree with Reports' P&L card for the same period.
-        if (t.type === 'income') b.revenue += (t.amount ?? 0);
-        else b.expense += (t.amount ?? 0) - (t.principalPortion || 0);
+        if (t.type === 'income') {
+            b.revenue += (t.amount ?? 0);
+        } else {
+            const amt = (t.amount ?? 0) - (t.principalPortion || 0);
+            b.expense += amt;
+            const line = classifyExpenseLine(t.category);
+            if (line === 'cogs') b.cogs += amt;
+            else if (line === 'interest') b.otherExpense += amt;
+            else b.opex += amt;
+        }
         b.count += 1;
     }
 
@@ -100,6 +130,9 @@ export function computeAllTimeMonthlyBuckets(transactions: Transaction[]): Month
                 month,
                 revenue: b.revenue,
                 expense: b.expense,
+                cogs: b.cogs,
+                opex: b.opex,
+                otherExpense: b.otherExpense,
                 profit,
                 profitMargin: b.revenue > 0 ? (profit / b.revenue) * 100 : 0,
                 transactionCount: b.count,
@@ -109,16 +142,24 @@ export function computeAllTimeMonthlyBuckets(transactions: Transaction[]): Month
 
 /** Group transactions into daily revenue/expense/profit buckets. */
 export function computeDailyTrend(transactions: Transaction[]): DailyTrendPoint[] {
-    const buckets = new Map<string, { revenue: number; expense: number }>();
+    const buckets = new Map<string, { revenue: number; expense: number; cogs: number; opex: number; otherExpense: number }>();
 
     for (const t of transactions) {
         const date = (t.date || '').slice(0, 10);
         if (!date || date.length !== 10) continue;
-        if (!buckets.has(date)) buckets.set(date, { revenue: 0, expense: 0 });
+        if (!buckets.has(date)) buckets.set(date, { revenue: 0, expense: 0, cogs: 0, opex: 0, otherExpense: 0 });
         const b = buckets.get(date)!;
         // See computeAllTimeMonthlyBuckets above -- same principal exclusion.
-        if (t.type === 'income') b.revenue += (t.amount ?? 0);
-        else b.expense += (t.amount ?? 0) - (t.principalPortion || 0);
+        if (t.type === 'income') {
+            b.revenue += (t.amount ?? 0);
+        } else {
+            const amt = (t.amount ?? 0) - (t.principalPortion || 0);
+            b.expense += amt;
+            const line = classifyExpenseLine(t.category);
+            if (line === 'cogs') b.cogs += amt;
+            else if (line === 'interest') b.otherExpense += amt;
+            else b.opex += amt;
+        }
     }
 
     return Array.from(buckets.entries())
@@ -129,6 +170,9 @@ export function computeDailyTrend(transactions: Transaction[]): DailyTrendPoint[
                 date,
                 revenue: b.revenue,
                 expense: b.expense,
+                cogs: b.cogs,
+                opex: b.opex,
+                otherExpense: b.otherExpense,
                 profit,
                 profitMargin: b.revenue > 0 ? (profit / b.revenue) * 100 : 0,
             };
@@ -160,14 +204,17 @@ function isoWeekOf(dateStr: string): { key: string; mondayLabel: string } {
 
 /** Roll daily points up into ISO weeks (Monday-start). */
 export function computeWeeklyTrend(daily: DailyTrendPoint[]): WeeklyTrendPoint[] {
-    const buckets = new Map<string, { label: string; revenue: number; expense: number; days: number }>();
+    const buckets = new Map<string, { label: string; revenue: number; expense: number; cogs: number; opex: number; otherExpense: number; days: number }>();
 
     for (const d of daily) {
         const { key, mondayLabel } = isoWeekOf(d.date);
-        if (!buckets.has(key)) buckets.set(key, { label: `Wk of ${mondayLabel}`, revenue: 0, expense: 0, days: 0 });
+        if (!buckets.has(key)) buckets.set(key, { label: `Wk of ${mondayLabel}`, revenue: 0, expense: 0, cogs: 0, opex: 0, otherExpense: 0, days: 0 });
         const b = buckets.get(key)!;
         b.revenue += d.revenue;
         b.expense += d.expense;
+        b.cogs += d.cogs;
+        b.opex += d.opex;
+        b.otherExpense += d.otherExpense;
         b.days += 1;
     }
 
@@ -180,6 +227,9 @@ export function computeWeeklyTrend(daily: DailyTrendPoint[]): WeeklyTrendPoint[]
                 label: b.label,
                 revenue: b.revenue,
                 expense: b.expense,
+                cogs: b.cogs,
+                opex: b.opex,
+                otherExpense: b.otherExpense,
                 profit,
                 profitMargin: b.revenue > 0 ? (profit / b.revenue) * 100 : 0,
                 daysWithData: b.days,
@@ -189,17 +239,20 @@ export function computeWeeklyTrend(daily: DailyTrendPoint[]): WeeklyTrendPoint[]
 
 /** Roll monthly points up into calendar quarters. */
 export function computeQuarterlyTrend(monthly: MonthlyTrendPoint[]): QuarterlyTrendPoint[] {
-    const buckets = new Map<string, { year: string; q: number; revenue: number; expense: number; months: number }>();
+    const buckets = new Map<string, { year: string; q: number; revenue: number; expense: number; cogs: number; opex: number; otherExpense: number; months: number }>();
 
     for (const m of monthly) {
         const year = m.month.slice(0, 4);
         const monthNum = Number(m.month.slice(5, 7));
         const q = Math.ceil(monthNum / 3);
         const key = `${year}-Q${q}`;
-        if (!buckets.has(key)) buckets.set(key, { year, q, revenue: 0, expense: 0, months: 0 });
+        if (!buckets.has(key)) buckets.set(key, { year, q, revenue: 0, expense: 0, cogs: 0, opex: 0, otherExpense: 0, months: 0 });
         const b = buckets.get(key)!;
         b.revenue += m.revenue;
         b.expense += m.expense;
+        b.cogs += m.cogs;
+        b.opex += m.opex;
+        b.otherExpense += m.otherExpense;
         b.months += 1;
     }
 
@@ -212,6 +265,9 @@ export function computeQuarterlyTrend(monthly: MonthlyTrendPoint[]): QuarterlyTr
                 label: `Q${b.q} ${b.year}`,
                 revenue: b.revenue,
                 expense: b.expense,
+                cogs: b.cogs,
+                opex: b.opex,
+                otherExpense: b.otherExpense,
                 profit,
                 profitMargin: b.revenue > 0 ? (profit / b.revenue) * 100 : 0,
                 monthsWithData: b.months,
@@ -221,14 +277,17 @@ export function computeQuarterlyTrend(monthly: MonthlyTrendPoint[]): QuarterlyTr
 
 /** Roll monthly points up into calendar years. */
 export function computeYearlyTrend(monthly: MonthlyTrendPoint[]): YearlyTrendPoint[] {
-    const buckets = new Map<string, { revenue: number; expense: number; months: number }>();
+    const buckets = new Map<string, { revenue: number; expense: number; cogs: number; opex: number; otherExpense: number; months: number }>();
 
     for (const m of monthly) {
         const year = m.month.slice(0, 4);
-        if (!buckets.has(year)) buckets.set(year, { revenue: 0, expense: 0, months: 0 });
+        if (!buckets.has(year)) buckets.set(year, { revenue: 0, expense: 0, cogs: 0, opex: 0, otherExpense: 0, months: 0 });
         const b = buckets.get(year)!;
         b.revenue += m.revenue;
         b.expense += m.expense;
+        b.cogs += m.cogs;
+        b.opex += m.opex;
+        b.otherExpense += m.otherExpense;
         b.months += 1;
     }
 
@@ -240,6 +299,9 @@ export function computeYearlyTrend(monthly: MonthlyTrendPoint[]): YearlyTrendPoi
                 year,
                 revenue: b.revenue,
                 expense: b.expense,
+                cogs: b.cogs,
+                opex: b.opex,
+                otherExpense: b.otherExpense,
                 profit,
                 profitMargin: b.revenue > 0 ? (profit / b.revenue) * 100 : 0,
                 monthsWithData: b.months,

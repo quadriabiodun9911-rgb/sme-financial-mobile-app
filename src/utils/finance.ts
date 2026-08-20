@@ -73,6 +73,18 @@ export function getThresholds(size: BusinessSize): SizeThresholds {
 // ─── Enhanced P&L with COGS / Gross Profit / EBIT / EBITDA ───────────────────
 const COGS_KEYWORDS = ['cost', 'cogs', 'material', 'labour', 'labor', 'production', 'manufacturing', 'inventory', 'purchase', 'supplier', 'raw', 'freight', 'delivery'];
 
+export type ExpenseLine = 'cogs' | 'interest' | 'opex';
+
+// Shared with trendAnalysis.ts so every period breakdown (daily/weekly/
+// monthly/quarterly/yearly) agrees with this P&L's COGS/SG&A/interest split
+// instead of re-deriving its own classification that could silently drift.
+export function classifyExpenseLine(category: string | undefined): ExpenseLine {
+    const cat = category || 'Uncategorized';
+    if (cat === 'Loan Repayment') return 'interest';
+    if (COGS_KEYWORDS.some(k => cat.toLowerCase().includes(k))) return 'cogs';
+    return 'opex';
+}
+
 export interface EnhancedPnL {
     revenue: number;
     cogs: number;
@@ -109,8 +121,6 @@ function transactionSpanYears(transactions: Transaction[]): number {
 }
 
 export function computeEnhancedPnL(transactions: Transaction[], assets: Asset[]): EnhancedPnL {
-    const isCOGS = (cat: string) => COGS_KEYWORDS.some(k => (cat ?? '').toLowerCase().includes(k));
-
     const revenue = transactions.filter(t => t.type === 'income').reduce((s, t) => s + (Number(t.amount) || 0), 0);
     const expenses = transactions.filter(t => t.type === 'expense');
 
@@ -128,14 +138,15 @@ export function computeEnhancedPnL(transactions: Transaction[], assets: Asset[])
         // a real label rather than a raw `undefined` Map key merging every
         // such transaction's spend into one indistinguishable bucket.
         const cat = t.category || 'Uncategorized';
-        if (cat === 'Loan Repayment') {
+        const line = classifyExpenseLine(cat);
+        if (line === 'interest') {
             // Interest is a distinct below-the-line item in a standard
             // multi-step income statement (Operating Profit → Interest →
             // Profit Before Tax), not part of Operating Expenses — folding
             // it into SG&A would also silently understate EBITDA, which by
             // definition excludes interest entirely.
             interestExpense += amt;
-        } else if (isCOGS(cat)) {
+        } else if (line === 'cogs') {
             cogs += amt;
             cogsMap.set(cat, (cogsMap.get(cat) ?? 0) + amt);
         } else {
