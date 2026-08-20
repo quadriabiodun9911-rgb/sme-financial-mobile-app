@@ -40,13 +40,15 @@ export async function generateEncryptionKey(): Promise<string> {
             return key;
         } catch { /* fall through to web storage */ }
     }
-    // Browsers have no SecureStore-equivalent secure enclave; sessionStorage
-    // (cleared on tab/browser close) bounds this credential's exposure
-    // window far tighter than localStorage would, at the cost of not
-    // surviving a browser restart on web. See the matching note in
-    // secureStorage.ts for the full reasoning.
+    // localStorage, not sessionStorage -- see secureStorage.ts for the full
+    // reasoning (sessionStorage is scoped per browser TAB, not per session,
+    // which silently orphans anything saved there the moment the user's
+    // next action happens to open in a new tab). This function is currently
+    // unreachable from live app code (see deriveFieldEncryptionKey below),
+    // but kept consistent with secureStorage.ts rather than leaving a
+    // latent version of the same bug for whenever it is wired up.
     try {
-        if (typeof window !== 'undefined') window.sessionStorage.setItem(ENCRYPTION_KEY_STORAGE, key);
+        if (typeof window !== 'undefined') window.localStorage.setItem(ENCRYPTION_KEY_STORAGE, key);
     } catch {
         console.warn('[Quad360] Could not persist encryption key — encrypted data will be unreadable after restart');
     }
@@ -94,7 +96,7 @@ export async function getEncryptionKey(): Promise<string | null> {
         } catch { /* fall through */ }
     }
     try {
-        return typeof window !== 'undefined' ? window.sessionStorage.getItem(ENCRYPTION_KEY_STORAGE) : null;
+        return typeof window !== 'undefined' ? window.localStorage.getItem(ENCRYPTION_KEY_STORAGE) : null;
     } catch {
         return null;
     }

@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
     View, Text, TouchableOpacity, StyleSheet,
-    Modal, ScrollView,
+    Modal, ScrollView, Platform, useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -56,6 +56,14 @@ const TABS: { label: string; screen: Screen; icon: IconName }[] = [
 export default function FooterNav() {
     const { currentScreen, setCurrentScreen, user, pendingSyncCount, transactions, goals, invoices, finance, userRole, canViewFinancials } = useApp();
     const [moreOpen, setMoreOpen] = useState(false);
+    // Modal renders via a portal on web (react-native-web), completely
+    // outside App.tsx's centeredAppColumn wrapper -- so unlike every
+    // regular screen, this sheet was stretching full-bleed on desktop
+    // instead of matching the rest of the app's width. Same threshold/
+    // condition as App.tsx's own constrainWidth, applied locally since the
+    // portal can't inherit it.
+    const { width: windowWidth } = useWindowDimensions();
+    const constrainMoreWidth = Platform.OS === 'web' && windowWidth >= 720;
 
     // Feature flags
     const enableReports = process.env.EXPO_PUBLIC_ENABLE_REPORTS !== 'false';
@@ -148,6 +156,8 @@ export default function FooterNav() {
             >
                 <SafeAreaView style={styles.page}>
                     <StatusBar style="light" backgroundColor={Colors.bg} />
+
+                    <View style={[{ flex: 1, width: '100%' }, constrainMoreWidth && styles.moreConstrainedColumn]}>
 
                     {/* Header */}
                     <View style={styles.header}>
@@ -297,6 +307,7 @@ export default function FooterNav() {
                         <Text style={styles.versionText}>Quad360 · v1.0.0</Text>
 
                     </ScrollView>
+                    </View>
                 </SafeAreaView>
             </Modal>
         </>
@@ -322,6 +333,9 @@ const styles = StyleSheet.create({
 
     // ── Me page ─────────────────────────────────────────────────────────────
     page:   { flex: 1, backgroundColor: Colors.bg },
+    // Matches App.tsx's centeredAppColumn -- see the comment where this is
+    // applied for why it's needed here too.
+    moreConstrainedColumn: { maxWidth: 720, alignSelf: 'center' },
     scroll: { paddingBottom: 40 },
 
     // Header
