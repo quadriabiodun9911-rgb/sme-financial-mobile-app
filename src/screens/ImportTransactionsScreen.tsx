@@ -18,6 +18,7 @@ import { filterNewTransactions } from '../utils/transactionDedup';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { getMonthlyExpenseAverage } from '../utils/finance';
 import { scanStatementImage, ScannedTransaction, ScanMediaType } from '../utils/statementScan';
+import { confirmAction } from '../utils/webAlert';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -62,16 +63,24 @@ const CATEGORY_RULES: { keywords: string[]; category: TxCategory; subCategory: s
     { keywords: ['internet', 'wifi', 'spectranet', 'smile', 'ipnx', 'swift'],                      category: 'expense',  subCategory: 'Internet' },
     { keywords: ['supplier', 'stock', 'inventory', 'goods', 'raw material', 'merchandise'],        category: 'cost',     subCategory: 'Cost of Goods' },
     { keywords: ['equipment', 'laptop', 'machine', 'vehicle', 'generator', 'furniture', 'asset'],  category: 'asset',    subCategory: 'Asset Purchase' },
+    { keywords: ['software', 'license', 'licence', 'subscription', 'saas', 'renewal', 'app store', 'play store'], category: 'expense', subCategory: 'Software & Subscriptions' },
     { keywords: ['advert', 'marketing', 'promotion', 'flyer', 'banner', 'social media', 'google'], category: 'expense',  subCategory: 'Marketing' },
     { keywords: ['transport', 'uber', 'bolt', 'taxi', 'logistics', 'dispatch', 'delivery'],        category: 'expense',  subCategory: 'Transport' },
     { keywords: ['pos purchase', 'pos payment', 'pos trxn'],                                       category: 'expense',  subCategory: 'POS Purchase' },
     { keywords: ['loan repayment', 'loan payment', 'emi', 'mortgage repayment'],                   category: 'expense',  subCategory: 'Loan Repayment' },
     { keywords: ['bank charge', 'sms charge', 'maintenance fee', 'card fee', 'vat charge'],        category: 'expense',  subCategory: 'Bank Charges' },
     // Income signals
-    { keywords: ['invoice', 'sales', 'revenue', 'payment received', 'customer payment'],           category: 'income',   subCategory: 'Sales Revenue' },
+    { keywords: ['invoice', 'sales', 'revenue', 'payment received', 'customer payment', 'client payment'], category: 'income', subCategory: 'Sales Revenue' },
+    { keywords: ['consulting', 'consultation', 'retainer', 'professional fee', 'service fee', 'contract payment', 'freelance', 'commission'], category: 'income', subCategory: 'Service Income' },
     { keywords: ['transfer from', 'trf from', 'payment from'],                                     category: 'income',   subCategory: 'Transfer Received' },
     { keywords: ['interest earned', 'interest credit'],                                             category: 'income',   subCategory: 'Interest' },
     { keywords: ['refund', 'reversal'],                                                             category: 'income',   subCategory: 'Refund' },
+    // Internal transfers -- money moving to the business's own savings/
+    // reserve account, not actually leaving the business. Not a P&L
+    // expense, but the row still needs a bucket to land in without being
+    // flagged, since a user can't correctly guess what category "Transfer
+    // to Savings Account" belongs in any more than the app can.
+    { keywords: ['transfer to savings', 'transfer to reserve', 'trf to savings', 'own account transfer', 'internal transfer'], category: 'expense', subCategory: 'Internal Transfer' },
 ];
 
 // ─── Learned rules ────────────────────────────────────────────────────────────
@@ -677,28 +686,13 @@ export default function ImportTransactionsScreen() {
     };
 
     // ── Final import ─────────────────────────────────────────────────────────
-    const handleImport = () => {
-        const flagged = rows.filter(r => r.flagged);
-        if (flagged.length > 0) {
-            const title = `${flagged.length} transaction${flagged.length > 1 ? 's' : ''} ${flagged.length > 1 ? 'need' : 'needs'} a category`;
-            const message = 'Please assign a category to all flagged rows (marked ⚠️) before importing.';
-            // Alert.alert doesn't render on Expo web, so this guard was
-            // silently no-opping there — the button looked "dead" because
-            // nothing visibly happened when rows were still flagged.
-            if (Platform.OS === 'web') {
-                window.alert(`${title}\n\n${message}`);
-            } else {
-                Alert.alert(title, message);
-            }
-            return;
-        }
-
+    const importRows = (rowsToImport: ParsedRow[]) => {
         // Same guard used by Reconciliation and the other bank-statement
         // import paths — without it, re-uploading the same (or an
         // overlapping) statement would silently double every transaction
         // in it, with no warning.
-        const newRows = filterNewTransactions(rows, transactions as any);
-        const duplicateCount = rows.length - newRows.length;
+        const newRows = filterNewTransactions(rowsToImport, transactions as any);
+        const duplicateCount = rowsToImport.length - newRows.length;
 
         newRows.forEach((r, idx) => {
             addTransaction({
@@ -713,12 +707,50 @@ export default function ImportTransactionsScreen() {
                                    : r.type === 'income'     ? 'sale'
                                    : 'expense',
                 reference:           `IMPORT-${Date.now()}-${idx}`,
+                // Money moving to the business's own savings/reserve account
+                // hasn't left the business -- it's still the owner's cash,
+                // just parked somewhere less liquid. Recording the full
+                // amount as principalPortion reuses the same "not a P&L
+                // expense" mechanism loan principal repayments already rely
+                // on (see finance.ts), so this shows up in the transaction
+                // history without silently understating profit.
+                ...(r.subCategory === 'Internal Transfer' ? { principalPortion: r.amount } : {}),
             });
         });
 
         setImported(newRows.length);
         setDuplicatesSkipped(duplicateCount);
         setStep('done');
+    };
+
+    const handleImport = () => {
+        const flagged = rows.filter(r => r.flagged);
+        if (flagged.length > 0) {
+            // Not knowing which category a transaction belongs in is normal
+            // -- most people reading a raw bank statement can't classify
+            // every line either. Blocking the whole import on resolving all
+            // of them was a dead end for anyone who genuinely didn't know;
+            // this offers the same "Uncategorized" escape hatch the
+            // per-row picker's "Not sure" option gives, applied in bulk, so
+            // the data gets in and can be recategorised later from
+            // Transactions instead of never getting in at all.
+            confirmAction(
+                `${flagged.length} transaction${flagged.length > 1 ? 's' : ''} still need${flagged.length > 1 ? '' : 's'} a category`,
+                `You can import now anyway — ${flagged.length > 1 ? 'they' : 'it'} will be saved as "Uncategorized" and you can fix ${flagged.length > 1 ? 'them' : 'it'} anytime from Transactions.`,
+                'Import Anyway',
+                () => {
+                    const resolved = rows.map(r =>
+                        r.flagged ? { ...r, category: 'unknown' as TxCategory, subCategory: 'Uncategorized', flagged: false } : r
+                    );
+                    setRows(resolved);
+                    importRows(resolved);
+                },
+                false
+            );
+            return;
+        }
+
+        importRows(rows);
     };
 
     // ── Stats for header ─────────────────────────────────────────────────────
