@@ -181,4 +181,34 @@ describe('computeBalanceSheetTrend', () => {
         const points = computeBalanceSheetTrend('monthly', ['2024-01'], txs, [], []);
         expect(points[0].accountsPayable).toBe(400);
     });
+
+    it('returns an empty array for daily/weekly grouping when there are no transactions', () => {
+        expect(computeBalanceSheetTrend('daily', [], [], [], [])).toEqual([]);
+        expect(computeBalanceSheetTrend('weekly', [], [], [], [])).toEqual([]);
+    });
+
+    it('gives one as-of-that-day point per day with data for daily grouping', () => {
+        const txs = [
+            makeTx({ type: 'income', amount: 1000, date: '2024-01-10' }),
+            makeTx({ type: 'income', amount: 500, date: '2024-01-15' }),
+        ];
+        // months is ignored for daily/weekly -- periods are derived from the
+        // transactions' own dates, same as it would be in real usage (the
+        // caller only ever has a months list, not a days list, to pass).
+        const points = computeBalanceSheetTrend('daily', [], txs, [], []);
+        expect(points).toHaveLength(2);
+        expect(points[0]).toMatchObject({ key: '2024-01-10', cashOnHand: 1000 });
+        expect(points[1]).toMatchObject({ key: '2024-01-15', cashOnHand: 1500 }); // cumulative, not per-day
+    });
+
+    it('rolls days up into ISO weeks, as of each week\'s Sunday', () => {
+        const txs = [
+            makeTx({ type: 'income', amount: 1000, date: '2024-01-01' }), // Monday, ISO week 2024-W01
+            makeTx({ type: 'income', amount: 500, date: '2024-01-08' }),  // Monday, next ISO week
+        ];
+        const points = computeBalanceSheetTrend('weekly', [], txs, [], []);
+        expect(points).toHaveLength(2);
+        expect(points[0]).toMatchObject({ cashOnHand: 1000 });
+        expect(points[1]).toMatchObject({ cashOnHand: 1500 }); // cumulative
+    });
 });

@@ -184,8 +184,15 @@ export function isoWeekKey(dateStr: string): string {
     return isoWeekOf(dateStr).key;
 }
 
-/** ISO week number + the Monday that starts it, for a 'YYYY-MM-DD' date. */
-function isoWeekOf(dateStr: string): { key: string; mondayLabel: string } {
+/**
+ * ISO week number + the Monday that starts it (and the Sunday that ends
+ * it), for a 'YYYY-MM-DD' date. Exported so every other trend module
+ * (balanceSheetTrend.ts, cashFlowTrend.ts, inventorySalesTrend.ts) rolls
+ * days up into weeks with the exact same ISO-week math this module already
+ * uses for computeWeeklyTrend, instead of each reimplementing its own
+ * (easy to get subtly wrong around year boundaries).
+ */
+export function isoWeekOf(dateStr: string): { key: string; mondayLabel: string; weekEndDate: string } {
     const d = new Date(dateStr + 'T00:00:00');
     // Shift to the Thursday of this week so the ISO week/year never
     // disagree with the calendar year the date visually belongs to.
@@ -199,7 +206,11 @@ function isoWeekOf(dateStr: string): { key: string; mondayLabel: string } {
     monday.setDate(d.getDate() - ((d.getDay() + 6) % 7));
     const mondayLabel = monday.toLocaleString('default', { month: 'short', day: 'numeric' });
 
-    return { key: `${isoYear}-W${String(week).padStart(2, '0')}`, mondayLabel };
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    const weekEndDate = sunday.toISOString().slice(0, 10);
+
+    return { key: `${isoYear}-W${String(week).padStart(2, '0')}`, mondayLabel, weekEndDate };
 }
 
 /** Roll daily points up into ISO weeks (Monday-start). */

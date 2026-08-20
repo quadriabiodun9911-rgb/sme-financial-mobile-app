@@ -68,6 +68,30 @@ describe('computeInventorySalesTrend', () => {
         expect(points[0].grossProfit).toBe(500);
     });
 
+    it('gives one point per day for daily grouping', () => {
+        const txs = [
+            makeTx({ amount: 400, date: '2024-01-05', transactionCategory: 'sale', costOfGoodsSold: 150 }),
+            makeTx({ amount: 100, date: '2024-01-05' }), // non-sale income, still counts toward totalRevenue
+            makeTx({ amount: 600, date: '2024-01-06', transactionCategory: 'sale', costOfGoodsSold: 200 }),
+        ];
+        const points = computeInventorySalesTrend('daily', txs);
+        expect(points).toHaveLength(2);
+        expect(points[0]).toMatchObject({ key: '2024-01-05', stockSold: 400, totalRevenue: 500, costOfGoodsSold: 150, grossProfit: 250 });
+        expect(points[1]).toMatchObject({ key: '2024-01-06', stockSold: 600, totalRevenue: 600, costOfGoodsSold: 200, grossProfit: 400 });
+    });
+
+    it('rolls daily points up into ISO weeks', () => {
+        const txs = [
+            makeTx({ amount: 100, date: '2024-01-01', transactionCategory: 'sale', costOfGoodsSold: 40 }), // Monday, W01
+            makeTx({ amount: 50, date: '2024-01-03', transactionCategory: 'sale', costOfGoodsSold: 20 }),   // Wednesday, same week
+            makeTx({ amount: 20, date: '2024-01-08', transactionCategory: 'sale', costOfGoodsSold: 5 }),    // Monday, next week
+        ];
+        const points = computeInventorySalesTrend('weekly', txs);
+        expect(points).toHaveLength(2);
+        expect(points[0]).toMatchObject({ stockSold: 150, costOfGoodsSold: 60, grossProfit: 90 });
+        expect(points[1]).toMatchObject({ stockSold: 20, costOfGoodsSold: 5, grossProfit: 15 });
+    });
+
     it('rolls costOfGoodsSold and grossProfit up into quarters and years too', () => {
         const txs = [
             makeTx({ amount: 100, date: '2024-01-05', transactionCategory: 'sale', costOfGoodsSold: 40 }),

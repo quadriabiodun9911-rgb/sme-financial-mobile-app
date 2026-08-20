@@ -11,6 +11,7 @@
  */
 
 import { Transaction } from '../types';
+import { isoWeekOf } from './trendAnalysis';
 
 export interface CashFlowTrendPoint {
     key: string;
@@ -32,9 +33,13 @@ export interface CashFlowTrendPoint {
     financingOut: number;
 }
 
-export type CashFlowPeriodGrouping = 'monthly' | 'quarterly' | 'yearly';
+export type CashFlowPeriodGrouping = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
 
 const MONTH_SHORT = (y: number, m: number) => new Date(y, m - 1, 1).toLocaleString('default', { month: 'short' }) + ` '${String(y).slice(2)}`;
+const DAY_LABEL = (d: string) => {
+    const [y, mo, day] = d.split('-').map(Number);
+    return new Date(y, mo - 1, day).toLocaleString('default', { month: 'short', day: 'numeric' });
+};
 
 // Same category-string convention as finance.ts's COGS/opex classification
 // (see classifyExpenseLine) -- asset purchases are investing activity, loan
@@ -49,14 +54,18 @@ function classifyCashActivity(category: string | undefined): 'operating' | 'inve
     return 'operating';
 }
 
-function monthlyCashFlowPoints(transactions: Transaction[]): CashFlowTrendPoint[] {
+// Buckets paid transactions straight from raw dates, keyed/labeled however
+// the caller needs (day or month) -- daily and monthly grouping are both
+// base periods built directly from transactions (weekly/quarterly/yearly
+// roll up from one of these two via `rollUp` instead).
+function bucketByKey(transactions: Transaction[], keyOf: (date: string) => string, labelOf: (key: string) => string): CashFlowTrendPoint[] {
     const buckets = new Map<string, { in: number; out: number; opOut: number; invOut: number; finOut: number }>();
     for (const t of transactions) {
         if ((t.status ?? 'paid') !== 'paid') continue; // only money that actually moved
-        if (!t.date || t.date.length < 7) continue;
-        const month = t.date.slice(0, 7);
-        if (!buckets.has(month)) buckets.set(month, { in: 0, out: 0, opOut: 0, invOut: 0, finOut: 0 });
-        const b = buckets.get(month)!;
+        if (!t.date || t.date.length < 10) continue;
+        const key = keyOf(t.date.slice(0, 10));
+        if (!buckets.has(key)) buckets.set(key, { in: 0, out: 0, opOut: 0, invOut: 0, finOut: 0 });
+        const b = buckets.get(key)!;
         if (t.type === 'income') {
             b.in += (t.amount ?? 0);
         } else {
@@ -70,14 +79,22 @@ function monthlyCashFlowPoints(transactions: Transaction[]): CashFlowTrendPoint[
     }
     return Array.from(buckets.entries())
         .sort(([a], [b]) => a.localeCompare(b))
-        .map(([month, b]) => {
-            const [y, mo] = month.split('-').map(Number);
-            return {
-                key: month, label: MONTH_SHORT(y, mo),
-                cashIn: b.in, cashOut: b.out, netCashFlow: b.in - b.out,
-                operatingOut: b.opOut, investingOut: b.invOut, financingOut: b.finOut,
-            };
-        });
+        .map(([key, b]) => ({
+            key, label: labelOf(key),
+            cashIn: b.in, cashOut: b.out, netCashFlow: b.in - b.out,
+            operatingOut: b.opOut, investingOut: b.invOut, financingOut: b.finOut,
+        }));
+}
+
+function dailyCashFlowPoints(transactions: Transaction[]): CashFlowTrendPoint[] {
+    return bucketByKey(transactions, d => d, DAY_LABEL);
+}
+
+function monthlyCashFlowPoints(transactions: Transaction[]): CashFlowTrendPoint[] {
+    return bucketByKey(transactions, d => d.slice(0, 7), month => {
+        const [y, mo] = month.split('-').map(Number);
+        return MONTH_SHORT(y, mo);
+    });
 }
 
 function rollUp(monthly: CashFlowTrendPoint[], keyOf: (m: CashFlowTrendPoint) => string, labelOf: (key: string, m: CashFlowTrendPoint) => string): CashFlowTrendPoint[] {
@@ -102,6 +119,14 @@ function rollUp(monthly: CashFlowTrendPoint[], keyOf: (m: CashFlowTrendPoint) =>
 }
 
 export function computeCashFlowTrend(grouping: CashFlowPeriodGrouping, transactions: Transaction[]): CashFlowTrendPoint[] {
+    if (grouping === 'daily') return dailyCashFlowPoints(transactions);
+
+    if (grouping === 'weekly') {
+        const daily = dailyCashFlowPoints(transactions);
+        if (daily.length === 0) return daily;
+        return rollUp(daily, d => isoWeekOf(d.key).key, (_key, d) => `Wk of ${isoWeekOf(d.key).mondayLabel}`);
+    }
+
     const monthly = monthlyCashFlowPoints(transactions);
     if (grouping === 'monthly' || monthly.length === 0) return monthly;
 

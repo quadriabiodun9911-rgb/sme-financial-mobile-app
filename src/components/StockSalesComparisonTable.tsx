@@ -3,6 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-nati
 import { Colors } from '../theme/colors';
 import { Transaction } from '../types';
 import { computeInventorySalesTrend, InventorySalesGrouping } from '../utils/inventorySalesTrend';
+import { isoWeekKey } from '../utils/trendAnalysis';
 import { StatementCard } from './FormalStatement';
 
 interface Props {
@@ -12,10 +13,14 @@ interface Props {
 }
 
 const GROUPINGS: { key: InventorySalesGrouping; label: string }[] = [
+    { key: 'daily', label: 'Daily' },
+    { key: 'weekly', label: 'Weekly' },
     { key: 'monthly', label: 'Monthly' },
     { key: 'quarterly', label: 'Quarterly' },
     { key: 'yearly', label: 'Yearly' },
 ];
+
+const PERIOD_NOUN: Record<InventorySalesGrouping, string> = { daily: 'day', weekly: 'week', monthly: 'month', quarterly: 'quarter', yearly: 'year' };
 
 // Stock quantity has no dated history in this app, so "stock value over
 // time" can't be shown honestly (see inventorySalesTrend.ts). What's here
@@ -27,6 +32,8 @@ export default function StockSalesComparisonTable({ businessName, transactions, 
 
     const currentKey = useMemo(() => {
         const todayISO = new Date().toISOString().slice(0, 10);
+        if (grouping === 'daily') return todayISO;
+        if (grouping === 'weekly') return isoWeekKey(todayISO);
         if (grouping === 'monthly') return todayISO.slice(0, 7);
         if (grouping === 'quarterly') return `${todayISO.slice(0, 4)}-Q${Math.ceil(Number(todayISO.slice(5, 7)) / 3)}`;
         return todayISO.slice(0, 4);
@@ -116,7 +123,7 @@ export default function StockSalesComparisonTable({ businessName, transactions, 
             <Text style={s.hint}>Only sales recorded through Inventory's Sell button — revenue logged any other way isn't counted here.</Text>
             <Text style={s.hint}>Cost of Goods Sold is only tracked for sales recorded after this feature was added — earlier sales show as {currency}0 cost, understating Gross Profit for periods that include them.</Text>
             {hasPartial && (
-                <Text style={s.hint}>* still in progress — not a full {grouping === 'monthly' ? 'month' : grouping === 'quarterly' ? 'quarter' : 'year'} yet, so it's not a fair comparison against earlier columns.</Text>
+                <Text style={s.hint}>* still in progress — not a full {PERIOD_NOUN[grouping]} yet, so it's not a fair comparison against earlier columns.</Text>
             )}
         </StatementCard>
     );

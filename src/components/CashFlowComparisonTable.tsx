@@ -3,6 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-nati
 import { Colors } from '../theme/colors';
 import { Transaction } from '../types';
 import { computeCashFlowTrend, CashFlowPeriodGrouping } from '../utils/cashFlowTrend';
+import { isoWeekKey } from '../utils/trendAnalysis';
 import { StatementCard } from './FormalStatement';
 
 interface Props {
@@ -12,10 +13,14 @@ interface Props {
 }
 
 const GROUPINGS: { key: CashFlowPeriodGrouping; label: string }[] = [
+    { key: 'daily', label: 'Daily' },
+    { key: 'weekly', label: 'Weekly' },
     { key: 'monthly', label: 'Monthly' },
     { key: 'quarterly', label: 'Quarterly' },
     { key: 'yearly', label: 'Yearly' },
 ];
+
+const PERIOD_NOUN: Record<CashFlowPeriodGrouping, string> = { daily: 'day', weekly: 'week', monthly: 'month', quarterly: 'quarter', yearly: 'year' };
 
 export default function CashFlowComparisonTable({ businessName, transactions, currency }: Props) {
     const [grouping, setGrouping] = useState<CashFlowPeriodGrouping>('monthly');
@@ -23,6 +28,8 @@ export default function CashFlowComparisonTable({ businessName, transactions, cu
 
     const currentKey = useMemo(() => {
         const todayISO = new Date().toISOString().slice(0, 10);
+        if (grouping === 'daily') return todayISO;
+        if (grouping === 'weekly') return isoWeekKey(todayISO);
         if (grouping === 'monthly') return todayISO.slice(0, 7);
         if (grouping === 'quarterly') return `${todayISO.slice(0, 4)}-Q${Math.ceil(Number(todayISO.slice(5, 7)) / 3)}`;
         return todayISO.slice(0, 4);
@@ -112,9 +119,9 @@ export default function CashFlowComparisonTable({ businessName, transactions, cu
                     </View>
                 </View>
             </ScrollView>
-            <Text style={s.hint}>Only money that actually moved (paid transactions), summed within each {grouping === 'monthly' ? 'month' : grouping === 'quarterly' ? 'quarter' : 'year'} — not a running balance, and not the same as Revenue/Expenses on Profit &amp; Loss, which counts unpaid transactions too.</Text>
+            <Text style={s.hint}>Only money that actually moved (paid transactions), summed within each {PERIOD_NOUN[grouping]} — not a running balance, and not the same as Revenue/Expenses on Profit &amp; Loss, which counts unpaid transactions too.</Text>
             {hasPartial && (
-                <Text style={s.hint}>* still in progress — not a full {grouping === 'monthly' ? 'month' : grouping === 'quarterly' ? 'quarter' : 'year'} yet, so it's not a fair comparison against earlier columns.</Text>
+                <Text style={s.hint}>* still in progress — not a full {PERIOD_NOUN[grouping]} yet, so it's not a fair comparison against earlier columns.</Text>
             )}
         </StatementCard>
     );

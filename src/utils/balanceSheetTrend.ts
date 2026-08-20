@@ -30,6 +30,7 @@
 
 import { Transaction, Asset, Loan } from '../types';
 import { computeLoanAmortizationSplit } from './finance';
+import { isoWeekOf } from './trendAnalysis';
 
 export interface BalanceSheetTrendPoint {
     key: string;
@@ -73,7 +74,7 @@ export interface ManualBalances {
     otherLiabilities: number;
 }
 
-export type BalancePeriodGrouping = 'monthly' | 'quarterly' | 'yearly';
+export type BalancePeriodGrouping = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
 
 interface PeriodDef {
     key: string;
@@ -191,6 +192,24 @@ function buildPoints(periods: PeriodDef[], transactions: Transaction[], assets: 
 }
 
 const MONTH_SHORT = (y: number, m: number) => new Date(y, m - 1, 1).toLocaleString('default', { month: 'short' }) + ` '${String(y).slice(2)}`;
+const DAY_LABEL = (d: string) => {
+    const [y, mo, day] = d.split('-').map(Number);
+    return new Date(y, mo - 1, day).toLocaleString('default', { month: 'short', day: 'numeric' });
+};
+
+// Every date that has at least one transaction -- the same "which periods
+// actually have data" definition computeAllTimeMonthlyBuckets uses for
+// months, just at day granularity. Daily/weekly grouping derives its own
+// periods from this instead of the caller-supplied `months` list (which
+// only carries month-level keys), the same way yearly already derives its
+// own periods from `months` rather than taking them as a separate input.
+function datesWithData(transactions: Transaction[]): string[] {
+    const set = new Set<string>();
+    for (const t of transactions) {
+        if (t.date && t.date.length >= 10) set.add(t.date.slice(0, 10));
+    }
+    return Array.from(set).sort();
+}
 
 // A period's calendar end date (month/quarter/year-end) can be in the
 // future for the current, still-in-progress period — e.g. today is Aug 4
@@ -215,6 +234,28 @@ export function computeBalanceSheetTrend(
     loans: Loan[],
     manual: ManualBalances = EMPTY_MANUAL
 ): BalanceSheetTrendPoint[] {
+    if (grouping === 'daily' || grouping === 'weekly') {
+        const days = datesWithData(transactions);
+        if (days.length === 0) return [];
+
+        if (grouping === 'daily') {
+            const periods: PeriodDef[] = days.map(d => ({ key: d, label: DAY_LABEL(d), endDate: capAtToday(d) }));
+            return buildPoints(periods, transactions, assets, loans, manual);
+        }
+
+        // weekly -- as of each ISO week's Sunday (its calendar end), not
+        // its Monday, matching every other grouping's "as of period-end"
+        // convention.
+        const seen = new Map<string, PeriodDef>();
+        for (const d of days) {
+            const { key, mondayLabel, weekEndDate } = isoWeekOf(d);
+            if (!seen.has(key)) seen.set(key, { key, label: `Wk of ${mondayLabel}`, endDate: capAtToday(weekEndDate) });
+        }
+        return Array.from(seen.values())
+            .sort((a, b) => a.key.localeCompare(b.key))
+            .map(p => buildPoints([p], transactions, assets, loans, manual)[0]);
+    }
+
     if (months.length === 0) return [];
 
     if (grouping === 'monthly') {

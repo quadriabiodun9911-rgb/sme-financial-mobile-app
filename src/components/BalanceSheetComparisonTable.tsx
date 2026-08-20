@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { Transaction, Asset, Loan } from '../types';
-import { computeAllTimeMonthlyBuckets } from '../utils/trendAnalysis';
+import { computeAllTimeMonthlyBuckets, isoWeekKey } from '../utils/trendAnalysis';
 import { computeBalanceSheetTrend, BalancePeriodGrouping, BalanceSheetTrendPoint, ManualBalances } from '../utils/balanceSheetTrend';
 import { StatementCard } from './FormalStatement';
 
@@ -16,10 +16,14 @@ interface Props {
 }
 
 const GROUPINGS: { key: BalancePeriodGrouping; label: string }[] = [
+    { key: 'daily', label: 'Daily' },
+    { key: 'weekly', label: 'Weekly' },
     { key: 'monthly', label: 'Monthly' },
     { key: 'quarterly', label: 'Quarterly' },
     { key: 'yearly', label: 'Yearly' },
 ];
+
+const PERIOD_NOUN: Record<BalancePeriodGrouping, string> = { daily: 'day', weekly: 'week', monthly: 'month', quarterly: 'quarter', yearly: 'year' };
 
 type LeafRow = {
     label: string;
@@ -92,6 +96,8 @@ export default function BalanceSheetComparisonTable({ businessName, transactions
 
     const currentKey = useMemo(() => {
         const todayISO = new Date().toISOString().slice(0, 10);
+        if (grouping === 'daily') return todayISO;
+        if (grouping === 'weekly') return isoWeekKey(todayISO);
         if (grouping === 'monthly') return todayISO.slice(0, 7);
         if (grouping === 'quarterly') return `${todayISO.slice(0, 4)}-Q${Math.ceil(Number(todayISO.slice(5, 7)) / 3)}`;
         return todayISO.slice(0, 4);
@@ -201,12 +207,12 @@ export default function BalanceSheetComparisonTable({ businessName, transactions
                     </View>
                 </View>
             </ScrollView>
-            <Text style={s.hint}>As of the end of each {grouping === 'monthly' ? 'month' : grouping === 'quarterly' ? 'quarter' : 'year'}. Tap a bold row to expand it.</Text>
+            <Text style={s.hint}>As of the end of each {PERIOD_NOUN[grouping]}. Tap a bold row to expand it.</Text>
             <Text style={s.hint}>Accounts Receivable / Accounts Payable only count what's still unpaid today, so older columns can understate what was actually owed at the time.</Text>
             <Text style={s.hint}>Inventory value and manually-entered figures have no date attached, so they show today's total repeated in every column, not a real trend.</Text>
             <Text style={s.hint}>"Current Portion" / "Long-Term" is a projection from each loan's own rate and term, not a lender-confirmed schedule.</Text>
             {hasPartial && (
-                <Text style={s.hint}>* still in progress — figures are as of today, not a full {grouping === 'monthly' ? 'month' : grouping === 'quarterly' ? 'quarter' : 'year'}.</Text>
+                <Text style={s.hint}>* still in progress — figures are as of today, not a full {PERIOD_NOUN[grouping]}.</Text>
             )}
         </StatementCard>
     );
