@@ -25,7 +25,7 @@ function norm(s: string): string {
  * Two transactions with the same key are treated as the same posting.
  */
 export function transactionKey(t: DedupableTransaction): string {
-  return `${norm(t.date)}|${norm(t.description)}|${Math.round(t.amount * 100)}|${t.type}`;
+  return `${norm(t.date)}|${norm(t.description)}|${Math.round((t.amount ?? 0) * 100)}|${t.type}`;
 }
 
 /**

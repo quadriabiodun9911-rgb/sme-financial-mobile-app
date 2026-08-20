@@ -387,7 +387,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             {
               id: genId(),
               date: payment.date,
-              description: payment.note || `Loan repayment: ${loan.lenderName}`,
+              description: payment.note || `Loan repayment: ${loan.lenderName || 'lender'}`,
               type: 'expense',
               category: 'Loan Repayment',
               amount: payment.amount,
@@ -1676,13 +1676,13 @@ export function useApp() {
       if (invoice.status !== 'draft' && finance?.addTransaction) {
         finance.addTransaction({
           date: invoice.issueDate,
-          description: `Invoice ${invoice.invoiceNumber}: ${invoice.clientName}`,
+          description: `Invoice ${invoice.invoiceNumber}: ${invoice.clientName || 'Customer'}`,
           type: 'income',
           category: 'Sales',
           amount: invoice.total,
           status: invoice.status === 'paid' ? 'paid' : invoice.status === 'overdue' ? 'overdue' : 'pending',
           reference: invoice.invoiceNumber,
-          vendorCustomer: invoice.clientName,
+          vendorCustomer: invoice.clientName || undefined,
           dueDate: invoice.dueDate,
         } as any);
       }
@@ -1706,8 +1706,8 @@ export function useApp() {
       if (linked && finance?.updateTransaction) {
         finance.updateTransaction(linked.id, {
           amount: after.total,
-          description: `Invoice ${after.invoiceNumber}: ${after.clientName}`,
-          vendorCustomer: after.clientName,
+          description: `Invoice ${after.invoiceNumber}: ${after.clientName || 'Customer'}`,
+          vendorCustomer: after.clientName || undefined,
           dueDate: after.dueDate,
           ...(txStatus ? { status: txStatus } : {}),
         });
@@ -1717,13 +1717,13 @@ export function useApp() {
         // link now instead of leaving this revenue invisible.
         finance.addTransaction({
           date: after.issueDate,
-          description: `Invoice ${after.invoiceNumber}: ${after.clientName}`,
+          description: `Invoice ${after.invoiceNumber}: ${after.clientName || 'Customer'}`,
           type: 'income',
           category: 'Sales',
           amount: after.total,
           status: txStatus,
           reference: after.invoiceNumber,
-          vendorCustomer: after.clientName,
+          vendorCustomer: after.clientName || undefined,
           dueDate: after.dueDate,
         } as any);
       }
@@ -1844,13 +1844,13 @@ export function useApp() {
         // back-fill the link now instead of leaving this collection invisible.
         finance.addTransaction({
           date: new Date().toISOString().split('T')[0],
-          description: `Invoice ${inv.invoiceNumber}: ${inv.clientName}`,
+          description: `Invoice ${inv.invoiceNumber}: ${inv.clientName || 'Customer'}`,
           type: 'income',
           category: 'Sales',
           amount: inv.total,
           status: txStatus,
           reference: inv.invoiceNumber,
-          vendorCustomer: inv.clientName,
+          vendorCustomer: inv.clientName || undefined,
           dueDate: inv.dueDate,
         } as any);
       }

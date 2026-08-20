@@ -56,7 +56,7 @@ export function computeStockVelocity(
         t.date >= cutoffStr,
     );
 
-    const totalRevenue = matches.reduce((sum, t) => sum + t.amount, 0);
+    const totalRevenue = matches.reduce((sum, t) => sum + (t.amount ?? 0), 0);
     const unitsSoldInWindow = item.sellingPrice > 0 ? totalRevenue / item.sellingPrice : 0;
     const avgDailyUnitsSold = unitsSoldInWindow / windowDays;
 

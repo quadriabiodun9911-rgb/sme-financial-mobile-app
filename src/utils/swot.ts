@@ -25,7 +25,7 @@ export function generateSwot(
     const overdueAPCount = apBuckets.reduce((s, b) => s + b.transactions.length, 0);
     const recurringCount = transactions.filter(t => t.isRecurring).length;
     const expenseRatio = finance.income > 0 ? (finance.expense / finance.income) * 100 : 0;
-    const incomeCategories = new Set(transactions.filter(t => t.type === 'income').map(t => t.category)).size;
+    const incomeCategories = new Set(transactions.filter(t => t.type === 'income').map(t => t.category || 'Uncategorized')).size;
 
     // ── STRENGTHS ──────────────────────────────────────────────────────────────
 

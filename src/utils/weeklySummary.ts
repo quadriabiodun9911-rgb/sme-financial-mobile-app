@@ -93,7 +93,7 @@ export function computeWeeklySummary(
 
     // Cash position: current balance, minus this week's PAID net flow, gives start-of-week balance.
     const paidThisWeek = thisWeekTx.filter(t => t.status === 'paid' || !t.status);
-    const weeklyCashChange = paidThisWeek.reduce((s, t) => s + (t.type === 'income' ? t.amount : -t.amount), 0);
+    const weeklyCashChange = paidThisWeek.reduce((s, t) => s + (t.type === 'income' ? (t.amount ?? 0) : -(t.amount ?? 0)), 0);
     const cashPosition: CashPosition = {
         current: finance.cashBalance,
         weeklyChange: weeklyCashChange,
@@ -193,7 +193,7 @@ export function computeWeeklySummary(
             const loanDetail = activeLoans.map(l => {
                 const paid = l.payments.reduce((s, p) => s + p.amount, 0);
                 const balance = Math.max(0, l.principal - paid);
-                return { ...l, balance, annualInterest: balance * (l.interestRate / 100) };
+                return { ...l, balance, annualInterest: balance * ((l.interestRate ?? 0) / 100) };
             });
             const totalBalance = loanDetail.reduce((s, l) => s + l.balance, 0);
             const totalAnnualInterest = loanDetail.reduce((s, l) => s + l.annualInterest, 0);
@@ -201,7 +201,7 @@ export function computeWeeklySummary(
             priorities.push({
                 lever: 'debt',
                 label: 'Reduce Debt Cost',
-                text: `Outstanding loans total ${fmtGBP(totalBalance)}, costing ~${fmtGBP(totalAnnualInterest)}/year in interest — extra payments toward ${costliest.lenderName} (${costliest.interestRate}% rate) cut that cost fastest.`,
+                text: `Outstanding loans total ${fmtGBP(totalBalance)}, costing ~${fmtGBP(totalAnnualInterest)}/year in interest — extra payments toward ${costliest.lenderName || 'your lender'} (${costliest.interestRate ?? 0}% rate) cut that cost fastest.`,
                 impact: totalAnnualInterest / 52,
             });
         } else {

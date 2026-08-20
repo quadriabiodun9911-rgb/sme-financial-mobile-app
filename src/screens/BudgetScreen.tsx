@@ -79,7 +79,7 @@ export default function BudgetScreen() {
     const hasManualLoanBudget = budgets.some(b => b.category.toLowerCase().includes('loan'));
     const loanActualThisMonth = transactions
         .filter(t => t.type === 'expense' && t.category === 'Loan Repayment' && (t.date || '').startsWith(currentMonth))
-        .reduce((s, t) => s + t.amount, 0);
+        .reduce((s, t) => s + (t.amount ?? 0), 0);
     const displayBva = useMemo(() => {
         if (hasManualLoanBudget || loanBurden <= 0) return bva;
         const variance = loanBurden - loanActualThisMonth;
@@ -107,7 +107,7 @@ export default function BudgetScreen() {
             const cat = (t.category || 'Other');
             const month = (t.date || '').slice(0, 7);
             if (!acc[cat]) acc[cat] = { total: 0, months: new Set() };
-            acc[cat].total += t.amount;
+            acc[cat].total += (t.amount ?? 0);
             if (month) acc[cat].months.add(month);
         });
         const avg: Record<string, number> = {};

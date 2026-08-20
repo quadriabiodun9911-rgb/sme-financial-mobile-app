@@ -8,8 +8,13 @@
 export function monthlyPayment(principal: number, annualRate: number, termMonths: number): number {
   if (!termMonths || termMonths <= 0) return 0;
   if (!principal || principal <= 0) return 0;
-  if (annualRate === 0) return principal / termMonths;
-  const r = annualRate / 100 / 12;
+  // annualRate can arrive as `undefined` at runtime for a loan whose
+  // interestRate field failed to decrypt (see ENCRYPTED_FIELDS in
+  // encryption.ts) even though the type says it's always a number --
+  // treat that the same as a 0% rate rather than propagating NaN.
+  const safeRate = annualRate || 0;
+  if (safeRate === 0) return principal / termMonths;
+  const r = safeRate / 100 / 12;
   const factor = Math.pow(1 + r, termMonths);
   return (principal * r * factor) / (factor - 1);
 }

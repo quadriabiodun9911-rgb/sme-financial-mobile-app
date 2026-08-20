@@ -83,7 +83,7 @@ function buildInvoiceHtml(inv: Invoice, businessName: string, currency: string):
 
 <div>
   <div class="label">Bill To</div>
-  <div class="value" style="font-size:15px">${inv.clientName}</div>
+  <div class="value" style="font-size:15px">${inv.clientName || 'Customer'}</div>
   ${inv.clientEmail ? `<div>${inv.clientEmail}</div>` : ''}
   ${inv.clientAddress ? `<div style="color:#64748b">${inv.clientAddress}</div>` : ''}
 </div>
@@ -252,7 +252,7 @@ export default function InvoicesScreen() {
     };
 
     const handleShare = async (inv: Invoice) => {
-        const msg = `Invoice ${inv.invoiceNumber} for ${inv.clientName}\nTotal: ${currency}${(inv.total ?? 0).toFixed(2)}\nDue: ${inv.dueDate}`;
+        const msg = `Invoice ${inv.invoiceNumber} for ${inv.clientName || 'Customer'}\nTotal: ${currency}${(inv.total ?? 0).toFixed(2)}\nDue: ${inv.dueDate}`;
         try {
             if (Platform.OS === 'web') {
                 if (navigator.share) { await navigator.share({ title: `Invoice ${inv.invoiceNumber}`, text: msg }); }
@@ -274,7 +274,7 @@ export default function InvoicesScreen() {
             const lineTotal = (qty * unitPrice * (1 + taxRate / 100)).toFixed(2);
             return `- ${li.description ?? ''} x${qty} = ${currency}${lineTotal}`;
         }).join('\n');
-        const message = `Hi ${inv.clientName},\n\nYour invoice ${inv.invoiceNumber} is ready.\n\nAmount due: ${currency}${(inv.total ?? 0).toFixed(2)}\nDue date: ${inv.dueDate}\n\nItems:\n${lineItemsText}\n\nThank you for your business!\n${businessName}`;
+        const message = `Hi ${inv.clientName || 'there'},\n\nYour invoice ${inv.invoiceNumber} is ready.\n\nAmount due: ${currency}${(inv.total ?? 0).toFixed(2)}\nDue date: ${inv.dueDate}\n\nItems:\n${lineItemsText}\n\nThank you for your business!\n${businessName}`;
         const url = `https://wa.me/?text=${encodeURIComponent(message)}`;
         if (Platform.OS === 'web') {
             const win = window.open(url, '_blank');

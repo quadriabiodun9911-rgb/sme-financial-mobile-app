@@ -36,7 +36,7 @@ export default function EnhancedDebtManagement({ finance, currency, loans = [], 
     const todayStr = new Date().toISOString().split('T')[0];
     const income30 = transactions
         .filter(t => t.type === 'income' && t.status === 'paid' && t.date >= last30Str && t.date <= todayStr)
-        .reduce((s, t) => s + t.amount, 0);
+        .reduce((s, t) => s + (t.amount ?? 0), 0);
     const monthlyProfit = income30 - monthlyBurn;
 
     // Structural monthly debt service from the Loan Register itself (same

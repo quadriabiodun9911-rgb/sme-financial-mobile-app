@@ -30,7 +30,7 @@ export default function TaxSummary({ periodTransactions, allTransactions, curren
         const map = new Map<string, number>();
         periodTransactions.forEach(tx => {
             if (tx.taxAmount && tx.taxAmount > 0) {
-                const key = `${tx.category} (${tx.type})`;
+                const key = `${tx.category || 'Uncategorized'} (${tx.type})`;
                 map.set(key, (map.get(key) ?? 0) + tx.taxAmount);
             }
         });
@@ -40,11 +40,11 @@ export default function TaxSummary({ periodTransactions, allTransactions, curren
     }, [periodTransactions]);
 
     const taxableIncome = useMemo(() => (
-        periodTransactions.filter(t => t.type === 'income' && (t.taxAmount ?? 0) > 0).reduce((s, t) => s + t.amount, 0)
+        periodTransactions.filter(t => t.type === 'income' && (t.taxAmount ?? 0) > 0).reduce((s, t) => s + (t.amount ?? 0), 0)
     ), [periodTransactions]);
 
     const taxableExpenses = useMemo(() => (
-        periodTransactions.filter(t => t.type === 'expense' && (t.taxAmount ?? 0) > 0).reduce((s, t) => s + t.amount, 0)
+        periodTransactions.filter(t => t.type === 'expense' && (t.taxAmount ?? 0) > 0).reduce((s, t) => s + (t.amount ?? 0), 0)
     ), [periodTransactions]);
 
     const { totalTaxCollected, totalTaxPaid, netTaxPosition } = useMemo(

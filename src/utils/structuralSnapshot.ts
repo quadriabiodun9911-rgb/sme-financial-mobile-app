@@ -56,7 +56,7 @@ export function buildStructuralSnapshot(
     // non-draft invoice's linked transaction never being created for drafts).
     const outstandingReceivables = invoices.filter(i => i.status === 'sent' || i.status === 'overdue').reduce((s, i) => s + (i.total ?? 0), 0);
     const inventoryStockValue = computeInventoryValue(inventory);
-    const inventoryPotentialRevenue = inventory.reduce((s, i) => s + i.quantity * i.sellingPrice, 0);
+    const inventoryPotentialRevenue = inventory.reduce((s, i) => s + i.quantity * (i.sellingPrice ?? 0), 0);
     const activeAssetValue = assets.filter(a => a.status === 'active').reduce((s, a) => s + computeAssetCurrentValue(a), 0);
 
     const revenueGoal = goals.find(g => g.type === 'revenue_growth');

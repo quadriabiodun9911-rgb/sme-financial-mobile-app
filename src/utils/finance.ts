@@ -123,19 +123,24 @@ export function computeEnhancedPnL(transactions: Transaction[], assets: Asset[])
         // loan-repayment transactions, see OptimizedContexts.addLoanPayment)
         // excludes that part from every cost figure below.
         const amt = (Number(t.amount) || 0) - (Number(t.principalPortion) || 0);
-        if (t.category === 'Loan Repayment') {
+        // A category that failed to decrypt (see ENCRYPTED_FIELDS in
+        // encryption.ts) arrives as `undefined` at runtime -- fall back to
+        // a real label rather than a raw `undefined` Map key merging every
+        // such transaction's spend into one indistinguishable bucket.
+        const cat = t.category || 'Uncategorized';
+        if (cat === 'Loan Repayment') {
             // Interest is a distinct below-the-line item in a standard
             // multi-step income statement (Operating Profit → Interest →
             // Profit Before Tax), not part of Operating Expenses — folding
             // it into SG&A would also silently understate EBITDA, which by
             // definition excludes interest entirely.
             interestExpense += amt;
-        } else if (isCOGS(t.category)) {
+        } else if (isCOGS(cat)) {
             cogs += amt;
-            cogsMap.set(t.category, (cogsMap.get(t.category) ?? 0) + amt);
+            cogsMap.set(cat, (cogsMap.get(cat) ?? 0) + amt);
         } else {
             sga += amt;
-            sgaMap.set(t.category, (sgaMap.get(t.category) ?? 0) + amt);
+            sgaMap.set(cat, (sgaMap.get(cat) ?? 0) + amt);
         }
     }
 
@@ -233,13 +238,13 @@ export interface ProperCashFlow {
 export function computeProperCashFlow(transactions: Transaction[], assets: Asset[]): ProperCashFlow {
     const expenseTx = transactions.filter(t => t.type === 'expense');
     const paidExpenseTx = expenseTx.filter(t => t.status === 'paid');
-    const collectedRevenue = transactions.filter(t => t.type === 'income' && t.status === 'paid').reduce((s, t) => s + t.amount, 0);
+    const collectedRevenue = transactions.filter(t => t.type === 'income' && t.status === 'paid').reduce((s, t) => s + (t.amount ?? 0), 0);
     // GAAP/IFRS: loan principal repayments aren't an operating expense, so
     // they're excluded here and surfaced instead as `principalRepayments`,
     // a Financing outflow below — matching the standard Operating /
     // Investing / Financing split, not lumped into Operating like every
     // other paid expense.
-    const paidExpenses  = paidExpenseTx.reduce((s, t) => s + t.amount - (t.principalPortion || 0), 0);
+    const paidExpenses  = paidExpenseTx.reduce((s, t) => s + (t.amount ?? 0) - (t.principalPortion || 0), 0);
     // Accrual-basis, not collectedRevenue - paidExpenses: this is the base
     // the indirect method's depreciation/AR/AP adjustments below reconcile
     // to cash from operations, so it has to include revenue/expense
@@ -247,13 +252,13 @@ export function computeProperCashFlow(transactions: Transaction[], assets: Asset
     // count the AR/AP effect, since uncollected/unpaid amounts would
     // already be excluded from it before changeInAR/changeInAP subtract
     // them again.
-    const totalRevenue = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-    const totalExpense = expenseTx.reduce((s, t) => s + t.amount - (t.principalPortion || 0), 0);
+    const totalRevenue = transactions.filter(t => t.type === 'income').reduce((s, t) => s + (t.amount ?? 0), 0);
+    const totalExpense = expenseTx.reduce((s, t) => s + (t.amount ?? 0) - (t.principalPortion || 0), 0);
     const netProfit = totalRevenue - totalExpense;
 
     const depreciation  = assets.filter(a => a.status === 'active').reduce((s, a) => s + computeAssetAnnualDepreciation(a), 0);
-    const uncollectedAR = transactions.filter(t => t.type === 'income'  && (t.status === 'pending' || t.status === 'overdue')).reduce((s, t) => s + t.amount, 0);
-    const unpaidAP      = transactions.filter(t => t.type === 'expense' && (t.status === 'pending' || t.status === 'overdue')).reduce((s, t) => s + t.amount, 0);
+    const uncollectedAR = transactions.filter(t => t.type === 'income'  && (t.status === 'pending' || t.status === 'overdue')).reduce((s, t) => s + (t.amount ?? 0), 0);
+    const unpaidAP      = transactions.filter(t => t.type === 'expense' && (t.status === 'pending' || t.status === 'overdue')).reduce((s, t) => s + (t.amount ?? 0), 0);
 
     const changeInAR = -uncollectedAR;
     const changeInAP =  unpaidAP;
@@ -454,7 +459,16 @@ export function getTopCategories(
         // caller of this for 'expense' uses it to name a business's "biggest
         // cost" for SWOT/goal/insight advice, so a loan repayment must never
         // outrank a real operating cost here.
-        .forEach(t => map.set(t.category, (map.get(t.category) ?? 0) + t.amount - (type === 'expense' ? (t.principalPortion || 0) : 0)));
+        //
+        // category/amount can both arrive as `undefined` at runtime for a
+        // record whose field failed to decrypt (see ENCRYPTED_FIELDS in
+        // encryption.ts) even though the types say string/number -- fall
+        // back to a real label and 0 rather than a raw `undefined` Map key
+        // or NaN poisoning every category total.
+        .forEach(t => {
+            const cat = t.category || 'Uncategorized';
+            map.set(cat, (map.get(cat) ?? 0) + (t.amount ?? 0) - (type === 'expense' ? (t.principalPortion || 0) : 0));
+        });
 
     return Array.from(map.entries())
         .sort((a, b) => b[1] - a[1])
@@ -498,7 +512,7 @@ export function computeAgingBuckets(
         else bucket = buckets[3];
 
         bucket.transactions.push(tx);
-        bucket.total += tx.amount;
+        bucket.total += (tx.amount ?? 0);
     }
 
     return buckets;
@@ -602,8 +616,8 @@ export function computeMonthlyTrend(transactions: Transaction[], months = 6): Mo
         const mo = d.getMonth(); // 0-based
         const prefix = `${yr}-${String(mo + 1).padStart(2, '0')}`;
         const monthTx = transactions.filter(t => t.date.startsWith(prefix));
-        const income = monthTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-        const expense = monthTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+        const income = monthTx.filter(t => t.type === 'income').reduce((s, t) => s + (t.amount ?? 0), 0);
+        const expense = monthTx.filter(t => t.type === 'expense').reduce((s, t) => s + (t.amount ?? 0), 0);
         points.push({
             label: d.toLocaleString('default', { month: 'short' }),
             income,
@@ -679,7 +693,7 @@ export function computeRevenueForecast(transactions: Transaction[], months: 3 | 
     for (let i = 5; i >= 0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
         const prefix = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '00')}`;
-        const income = transactions.filter(t => t.type === 'income' && t.date.startsWith(prefix)).reduce((s, t) => s + t.amount, 0);
+        const income = transactions.filter(t => t.type === 'income' && t.date.startsWith(prefix)).reduce((s, t) => s + (t.amount ?? 0), 0);
         last6.push(income);
     }
     const avgIncome = last6.reduce((s, v) => s + v, 0) / 6;
@@ -743,8 +757,13 @@ export interface DSCRResult {
 
 export function loanMonthlyPayment(principal: number, annualRate: number, termMonths: number): number {
     if (!termMonths || termMonths <= 0) return 0;
-    if (annualRate === 0) return principal / termMonths;
-    const r = annualRate / 100 / 12;
+    // annualRate can arrive as `undefined` at runtime for a loan whose
+    // interestRate field failed to decrypt (see ENCRYPTED_FIELDS in
+    // encryption.ts) even though the type says it's always a number --
+    // treat that the same as a 0% rate rather than propagating NaN.
+    const safeRate = annualRate || 0;
+    if (safeRate === 0) return principal / termMonths;
+    const r = safeRate / 100 / 12;
     const factor = Math.pow(1 + r, termMonths);
     return principal * (r * factor) / (factor - 1);
 }
@@ -803,8 +822,8 @@ export function computeDSCR(transactions: Transaction[], loans: Loan[]): DSCRRes
     // records its payments. Excluded entirely (not just principalPortion)
     // so neither the principal nor the interest actually paid double-counts
     // against the theoretical schedule used in the denominator.
-    const income = recent.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-    const expense = recent.filter(t => t.type === 'expense' && t.category !== 'Loan Repayment').reduce((s, t) => s + t.amount, 0);
+    const income = recent.filter(t => t.type === 'income').reduce((s, t) => s + (t.amount ?? 0), 0);
+    const expense = recent.filter(t => t.type === 'expense' && t.category !== 'Loan Repayment').reduce((s, t) => s + (t.amount ?? 0), 0);
 
     let netOperatingIncome = income - expense;
     const dates = recent.map(t => t.date).sort();
@@ -904,10 +923,10 @@ export function computeCustomerConcentration(transactions: Transaction[]): Custo
         const raw = t.vendorCustomer?.split(' | ')[0]?.trim();
         const key = raw || 'Unknown';
         const e = map.get(key) ?? { amount: 0, txCount: 0 };
-        e.amount += t.amount;
+        e.amount += (t.amount ?? 0);
         e.txCount++;
         map.set(key, e);
-        total += t.amount;
+        total += (t.amount ?? 0);
     }
     return Array.from(map.entries())
         .sort((a, b) => b[1].amount - a[1].amount)
@@ -938,8 +957,8 @@ export function computeSupplierConcentration(transactions: Transaction[]): Suppl
         if (t.type !== 'expense') continue;
         const raw = t.vendorCustomer?.split(' | ')[0]?.trim();
         const key = raw || 'Unknown';
-        map.set(key, (map.get(key) ?? 0) + t.amount);
-        total += t.amount;
+        map.set(key, (map.get(key) ?? 0) + (t.amount ?? 0));
+        total += (t.amount ?? 0);
     }
     return Array.from(map.entries())
         .sort((a, b) => b[1] - a[1])
@@ -972,7 +991,7 @@ export function computeSeasonalRisk(transactions: Transaction[]): SeasonalRisk[]
         // directly from the string instead of round-tripping through Date.
         const mo = parseInt(t.date.slice(5, 7), 10) - 1;
         if (mo < 0 || mo > 11) continue;
-        monthTotals[mo] += t.amount;
+        monthTotals[mo] += (t.amount ?? 0);
         monthCounts[mo]++;
     }
     const avgRevenues = monthTotals.map((total, i) => monthCounts[i] > 0 ? total / monthCounts[i] : 0);
@@ -1156,10 +1175,10 @@ export function computeRiskScore(
     let inventoryStatus: RiskFactor['status'] = 'good';
     let inventoryExplanation = 'No inventory recorded -- not a factor in this score.';
     if (inventory.length > 0) {
-        const totalValue = inventory.reduce((s, i) => s + i.quantity * i.costPrice, 0);
+        const totalValue = inventory.reduce((s, i) => s + i.quantity * (i.costPrice ?? 0), 0);
         const slowValue = inventory
             .filter(i => computeStockVelocity(i, transactions).tier === 'slow')
-            .reduce((s, i) => s + i.quantity * i.costPrice, 0);
+            .reduce((s, i) => s + i.quantity * (i.costPrice ?? 0), 0);
         const slowPct = totalValue > 0 ? (slowValue / totalValue) * 100 : 0;
         inventoryScore = slowPct <= 15 ? 100 : slowPct <= 35 ? 60 : 25;
         inventoryStatus = slowPct <= 15 ? 'good' : slowPct <= 35 ? 'warning' : 'danger';
@@ -1228,7 +1247,7 @@ export function computeCashFlowForecast(
     const last90 = new Date(today); last90.setDate(today.getDate() - 90);
     const last90Str = last90.toISOString().split('T')[0];
     const recurringExpenses = transactions.filter(t => t.type === 'expense' && t.isRecurring && t.date >= last90Str);
-    const weeklyExpenseBase = recurringExpenses.reduce((s, t) => s + t.amount, 0) / 13; // 13 weeks in 90 days
+    const weeklyExpenseBase = recurringExpenses.reduce((s, t) => s + (t.amount ?? 0), 0) / 13; // 13 weeks in 90 days
 
     // Monthly loan payments
     const monthlyLoanCost = loans.filter(l => l.status === 'active').reduce((s, l) => s + loanMonthlyPayment(l.principal, l.interestRate, l.termMonths), 0);
@@ -1302,11 +1321,11 @@ export function computePaymentOptimiser(transactions: Transaction[], invoices: I
         const urgency: PaymentAction['urgency'] = daysUntilDue < 0 ? 'urgent' : daysUntilDue <= 7 ? 'soon' : 'flexible';
         actions.push({
             action: 'collect',
-            description: t.description,
-            amount: t.amount,
+            description: t.description || 'this transaction',
+            amount: t.amount ?? 0,
             dueDate: t.dueDate!,
             urgency,
-            impact: daysUntilDue < 0 ? `Overdue by ${Math.abs(daysUntilDue)} days — chase immediately` : `Collecting adds ${t.amount.toLocaleString()} to cash`,
+            impact: daysUntilDue < 0 ? `Overdue by ${Math.abs(daysUntilDue)} days — chase immediately` : `Collecting adds ${(t.amount ?? 0).toLocaleString()} to cash`,
         });
     }
 
@@ -1318,8 +1337,8 @@ export function computePaymentOptimiser(transactions: Transaction[], invoices: I
         const urgency: PaymentAction['urgency'] = daysUntilDue < 0 ? 'urgent' : daysUntilDue <= 7 ? 'soon' : 'flexible';
         actions.push({
             action: 'pay',
-            description: t.description,
-            amount: t.amount,
+            description: t.description || 'this transaction',
+            amount: t.amount ?? 0,
             dueDate: t.dueDate!,
             urgency,
             impact: urgency === 'flexible' ? `Delay payment to preserve ${cashBalance.toLocaleString()} cash balance` : `Pay to avoid late fees`,
@@ -1367,7 +1386,7 @@ export function computeDebtOptimiser(loans: Loan[]): DebtOptimizerResult {
     // difference — is real.
     const simulatePayoff = (order: Loan[]): { totalInterest: number; months: number } => {
         const minPayments = new Map(order.map(l => [l.id, loanMonthlyPayment(l.principal, l.interestRate, l.termMonths)]));
-        const monthlyRates = new Map(order.map(l => [l.id, l.interestRate / 100 / 12]));
+        const monthlyRates = new Map(order.map(l => [l.id, (l.interestRate ?? 0) / 100 / 12]));
         const balances = new Map(order.map(l => [l.id, getBalance(l)]));
         const totalBudget = order.reduce((s, l) => s + (minPayments.get(l.id) ?? 0), 0);
 
@@ -1400,7 +1419,7 @@ export function computeDebtOptimiser(loans: Loan[]): DebtOptimizerResult {
     };
 
     // Avalanche: highest interest rate first
-    const avalancheOrder = [...activeLoans].sort((a, b) => b.interestRate - a.interestRate);
+    const avalancheOrder = [...activeLoans].sort((a, b) => (b.interestRate ?? 0) - (a.interestRate ?? 0));
     const avalancheResult = simulatePayoff(avalancheOrder);
 
     // Snowball: smallest balance first
@@ -1409,12 +1428,12 @@ export function computeDebtOptimiser(loans: Loan[]): DebtOptimizerResult {
 
     const interestDiff = snowballResult.totalInterest - avalancheResult.totalInterest;
     const recommendation = interestDiff > 1
-        ? `Avalanche method saves ${interestDiff.toFixed(0)} in interest. Focus on ${avalancheOrder[0]?.lenderName} first (${avalancheOrder[0]?.interestRate}% rate).`
-        : `Both methods yield similar results. Snowball may boost motivation by clearing ${snowballOrder[0]?.lenderName} first.`;
+        ? `Avalanche method saves ${interestDiff.toFixed(0)} in interest. Focus on ${avalancheOrder[0]?.lenderName || 'your highest-rate lender'} first (${avalancheOrder[0]?.interestRate ?? 0}% rate).`
+        : `Both methods yield similar results. Snowball may boost motivation by clearing ${snowballOrder[0]?.lenderName || 'your smallest loan'} first.`;
 
     return {
-        avalanche: { order: avalancheOrder.map(l => l.lenderName), totalInterestSaved: Math.round(interestDiff), monthsToPayoff: avalancheResult.months },
-        snowball: { order: snowballOrder.map(l => l.lenderName), totalInterestSaved: 0, monthsToPayoff: snowballResult.months },
+        avalanche: { order: avalancheOrder.map(l => l.lenderName || 'Unnamed lender'), totalInterestSaved: Math.round(interestDiff), monthsToPayoff: avalancheResult.months },
+        snowball: { order: snowballOrder.map(l => l.lenderName || 'Unnamed lender'), totalInterestSaved: 0, monthsToPayoff: snowballResult.months },
         recommendation,
     };
 }
@@ -1580,8 +1599,8 @@ export function generateAccountantReportCSV(finance: FinanceData, transactions: 
 
     // Cash Flow Summary
     sections.push('=== CASH FLOW SUMMARY ===');
-    const collected = transactions.filter(t => t.type === 'income' && t.status === 'paid').reduce((s, t) => s + t.amount, 0);
-    const paid = transactions.filter(t => t.type === 'expense' && t.status === 'paid').reduce((s, t) => s + t.amount, 0);
+    const collected = transactions.filter(t => t.type === 'income' && t.status === 'paid').reduce((s, t) => s + (t.amount ?? 0), 0);
+    const paid = transactions.filter(t => t.type === 'expense' && t.status === 'paid').reduce((s, t) => s + (t.amount ?? 0), 0);
     sections.push(`Cash Collected,${collected.toFixed(2)}`);
     sections.push(`Cash Paid Out,${paid.toFixed(2)}`);
     sections.push(`Net Cash Flow,${(collected - paid).toFixed(2)}`);
@@ -1591,7 +1610,7 @@ export function generateAccountantReportCSV(finance: FinanceData, transactions: 
     sections.push('=== TRANSACTION LIST ===');
     sections.push('Date,Description,Type,Category,Amount,Status');
     for (const t of transactions) {
-        sections.push(`${t.date},"${t.description}",${t.type},${t.category},${t.amount.toFixed(2)},${t.status ?? 'paid'}`);
+        sections.push(`${t.date},"${t.description ?? ''}",${t.type},${t.category ?? ''},${(t.amount ?? 0).toFixed(2)},${t.status ?? 'paid'}`);
     }
 
     return sections.join('\n');

@@ -254,12 +254,12 @@ export function buildPostFinancingShareExport(
     generatedAt: Date = new Date(),
 ): ExportData {
     return {
-        title: `${businessName} — Financing Status Update for ${loan.lenderName}`,
+        title: `${businessName} — Financing Status Update for ${loan.lenderName || 'your lender'}`,
         date: generatedAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
         summary: [
             { label: 'Status', value: POST_FINANCING_STATUS_LABEL[monitor.status] },
             { label: 'Trend since funding', value: monitor.readinessSinceFunding ? POST_FINANCING_TREND_LABEL[monitor.readinessSinceFunding.trend] : 'Not enough history yet' },
-            { label: 'Loan', value: `${loan.lenderName} — funded ${loan.startDate}` },
+            { label: 'Loan', value: `${loan.lenderName || 'your lender'} — funded ${loan.startDate}` },
         ],
         sections: [
             {

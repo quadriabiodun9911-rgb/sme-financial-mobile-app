@@ -507,7 +507,7 @@ function GrowthTab() {
     // Pricing opportunity
     const avgTransaction = useMemo(() => {
         const inc = transactions.filter(t => t.type === 'income');
-        return inc.length > 0 ? inc.reduce((s, t) => s + t.amount, 0) / inc.length : 0;
+        return inc.length > 0 ? inc.reduce((s, t) => s + (t.amount ?? 0), 0) / inc.length : 0;
     }, [transactions]);
 
     // Revenue gap — what 10% price increase would mean
@@ -521,7 +521,7 @@ function GrowthTab() {
     const topExpenses = useMemo(() => {
         const map = new Map<string, number>();
         transactions.filter(t => t.type === 'expense').forEach(t => {
-            map.set(t.category || 'Uncategorised', (map.get(t.category || 'Uncategorised') ?? 0) + t.amount - (t.principalPortion || 0));
+            map.set(t.category || 'Uncategorised', (map.get(t.category || 'Uncategorised') ?? 0) + (t.amount ?? 0) - (t.principalPortion || 0));
         });
         return Array.from(map.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5);
     }, [transactions]);

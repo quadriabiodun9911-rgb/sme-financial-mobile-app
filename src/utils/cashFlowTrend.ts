@@ -32,8 +32,8 @@ function monthlyCashFlowPoints(transactions: Transaction[]): CashFlowTrendPoint[
         const month = t.date.slice(0, 7);
         if (!buckets.has(month)) buckets.set(month, { in: 0, out: 0 });
         const b = buckets.get(month)!;
-        if (t.type === 'income') b.in += t.amount;
-        else b.out += t.amount;
+        if (t.type === 'income') b.in += (t.amount ?? 0);
+        else b.out += (t.amount ?? 0);
     }
     return Array.from(buckets.entries())
         .sort(([a], [b]) => a.localeCompare(b))

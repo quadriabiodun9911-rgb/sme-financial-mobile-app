@@ -35,7 +35,7 @@ export function computeCashRunway(
 
     const burn30 = transactions
         .filter(t => t.type === 'expense' && t.status === 'paid' && t.date >= last30Str && t.date <= todayStr)
-        .reduce((s, t) => s + t.amount, 0);
+        .reduce((s, t) => s + (t.amount ?? 0), 0);
 
     const dailyBurn = burn30 / 30;
     const runwayDays = dailyBurn > 0 ? Math.floor(cashBalance / dailyBurn) : Infinity;

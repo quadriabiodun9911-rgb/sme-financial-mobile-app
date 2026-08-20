@@ -78,7 +78,7 @@ export function computeCustomerMetrics(transactions: Transaction[]): CustomerMet
     for (const t of transactions) {
         if (!isMarketingExpense(t) || !t.date) continue;
         const month = t.date.slice(0, 7);
-        marketingByMonth.set(month, (marketingByMonth.get(month) ?? 0) + t.amount);
+        marketingByMonth.set(month, (marketingByMonth.get(month) ?? 0) + (t.amount ?? 0));
     }
 
     const sortedMonths = [...monthsWithSalesData].sort();

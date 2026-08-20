@@ -37,7 +37,7 @@ function monthlyStockSales(transactions: Transaction[]): Map<string, number> {
         if (t.type !== 'income' || t.transactionCategory !== 'sale') continue;
         if (!t.date || t.date.length < 7) continue;
         const month = t.date.slice(0, 7);
-        buckets.set(month, (buckets.get(month) ?? 0) + t.amount);
+        buckets.set(month, (buckets.get(month) ?? 0) + (t.amount ?? 0));
     }
     return buckets;
 }

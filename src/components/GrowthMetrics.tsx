@@ -31,7 +31,7 @@ export default function GrowthMetrics({ transactions, currency, finance }: Props
         for (const tx of transactions.filter(t => t.type === 'income')) {
             const monthKey = tx.date.slice(0, 7);
             if (monthKey.length !== 7) continue;
-            months.set(monthKey, (months.get(monthKey) || 0) + tx.amount);
+            months.set(monthKey, (months.get(monthKey) || 0) + (tx.amount ?? 0));
         }
 
         // Create chronological array

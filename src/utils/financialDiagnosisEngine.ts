@@ -137,7 +137,7 @@ export function calculateFinancialMetrics(
     t => t.type === 'income' && t.date.startsWith(lastMonth)
   );
 
-  const thisMonthRevenue = thisMonthTransactions.reduce((sum, t) => sum + t.amount, 0);
+  const thisMonthRevenue = thisMonthTransactions.reduce((sum, t) => sum + (t.amount ?? 0), 0);
 
   // Expense calculations. Loan principal repayments are excluded from
   // every P&L figure below (GAAP/IFRS: only interest is a real expense —
@@ -146,7 +146,7 @@ export function calculateFinancialMetrics(
   const expenseTransactions = transactions.filter(t => t.type === 'expense');
   const thisMonthExpenses = expenseTransactions
     .filter(t => t.date.startsWith(thisMonth))
-    .reduce((sum, t) => sum + t.amount - (t.principalPortion || 0), 0);
+    .reduce((sum, t) => sum + (t.amount ?? 0) - (t.principalPortion || 0), 0);
 
   // Growth comparisons below use a day-capped version of lastMonth — "this
   // month" here means "latest data month" (see comment above), which for
@@ -168,10 +168,10 @@ export function calculateFinancialMetrics(
 
   const lastMonthRevenueComparable = lastMonthTransactions
     .filter(t => parseInt(t.date.slice(8, 10), 10) <= dayCap)
-    .reduce((sum, t) => sum + t.amount, 0);
+    .reduce((sum, t) => sum + (t.amount ?? 0), 0);
   const lastMonthExpensesComparable = expenseTransactions
     .filter(t => t.date.startsWith(lastMonth) && parseInt(t.date.slice(8, 10), 10) <= dayCap)
-    .reduce((sum, t) => sum + t.amount - (t.principalPortion || 0), 0);
+    .reduce((sum, t) => sum + (t.amount ?? 0) - (t.principalPortion || 0), 0);
 
   const expenseGrowthPct =
     lastMonthExpensesComparable > 0 ? ((thisMonthExpenses - lastMonthExpensesComparable) / lastMonthExpensesComparable) * 100 : 0;
@@ -181,7 +181,7 @@ export function calculateFinancialMetrics(
     .filter(t => t.date.startsWith(thisMonth))
     .forEach(t => {
       const cat = t.category || 'Other';
-      expensesByCategory[cat] = (expensesByCategory[cat] || 0) + t.amount - (t.principalPortion || 0);
+      expensesByCategory[cat] = (expensesByCategory[cat] || 0) + (t.amount ?? 0) - (t.principalPortion || 0);
     });
 
   // Profit calculations
@@ -211,7 +211,7 @@ export function calculateFinancialMetrics(
   // is now consistent with the rest of the app.
   const thisMonthPaidExpenses = expenseTransactions
     .filter(t => t.date.startsWith(thisMonth) && t.status === 'paid')
-    .reduce((sum, t) => sum + t.amount, 0);
+    .reduce((sum, t) => sum + (t.amount ?? 0), 0);
   const effectiveMonthlyExpense = thisMonthPaidExpenses > 0 ? thisMonthPaidExpenses : monthlyExpenseAverage;
   const runwayDays =
     effectiveMonthlyExpense > 0
@@ -252,7 +252,7 @@ export function calculateFinancialMetrics(
   // timescales and could produce percentages over 100%.
   const thisMonthRecurringRevenue = thisMonthTransactions
     .filter(t => t.isRecurring)
-    .reduce((sum, t) => sum + t.amount, 0);
+    .reduce((sum, t) => sum + (t.amount ?? 0), 0);
   const revenueRecurringPct =
     thisMonthRevenue > 0 ? (thisMonthRecurringRevenue / thisMonthRevenue) * 100 : 0;
 
@@ -265,10 +265,10 @@ export function calculateFinancialMetrics(
   const dscrResult = computeDSCR(transactions, loans);
 
   // Inventory — share of stock value sitting in slow-moving items.
-  const inventoryValue = inventory.reduce((sum, i) => sum + i.quantity * i.costPrice, 0);
+  const inventoryValue = inventory.reduce((sum, i) => sum + i.quantity * (i.costPrice ?? 0), 0);
   const slowMovingValue = inventory
     .filter(i => computeStockVelocity(i, transactions).tier === 'slow')
-    .reduce((sum, i) => sum + i.quantity * i.costPrice, 0);
+    .reduce((sum, i) => sum + i.quantity * (i.costPrice ?? 0), 0);
   const slowMovingValuePct = inventoryValue > 0 ? (slowMovingValue / inventoryValue) * 100 : 0;
 
   // Concentration — worst of customer or supplier concentration.

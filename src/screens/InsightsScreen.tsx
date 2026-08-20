@@ -144,8 +144,8 @@ export default function InsightsScreen() {
         return {
             pendingAR: ar,
             pendingAP: ap,
-            totalAR: ar.reduce((s, t) => s + t.amount, 0),
-            totalAP: ap.reduce((s, t) => s + t.amount, 0),
+            totalAR: ar.reduce((s, t) => s + (t.amount ?? 0), 0),
+            totalAP: ap.reduce((s, t) => s + (t.amount ?? 0), 0),
             recurringCount: transactions.filter(t => t.isRecurring).length,
             overdueCount: transactions.filter(t => t.status === 'overdue').length,
         };

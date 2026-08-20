@@ -13,17 +13,20 @@ export interface PeriodMetrics {
 }
 
 export function computePeriodMetrics(transactions: Transaction[]): PeriodMetrics {
-    const income  = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+    const income  = transactions.filter(t => t.type === 'income').reduce((s, t) => s + (t.amount ?? 0), 0);
     // Loan principal repayments aren't a P&L expense under GAAP/IFRS — only
     // interest is (finance.ts computeEnhancedPnL). Excluded here too so
     // this screen's Profit/Costs agree with Reports for the same period.
-    const expense = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount - (t.principalPortion || 0), 0);
+    const expense = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + (t.amount ?? 0) - (t.principalPortion || 0), 0);
     const profit  = income - expense;
     const margin  = income > 0 ? (profit / income) * 100 : 0;
 
     const catMap = (type: 'income' | 'expense') => {
         const m = new Map<string, number>();
-        transactions.filter(t => t.type === type).forEach(t => m.set(t.category, (m.get(t.category) ?? 0) + t.amount - (type === 'expense' ? (t.principalPortion || 0) : 0)));
+        transactions.filter(t => t.type === type).forEach(t => {
+            const cat = t.category || 'Uncategorized';
+            m.set(cat, (m.get(cat) ?? 0) + (t.amount ?? 0) - (type === 'expense' ? (t.principalPortion || 0) : 0));
+        });
         return m;
     };
 
@@ -85,7 +88,10 @@ export function analyseRootCause(
     // Build category diff maps
     const buildCatMap = (txs: Transaction[], type: 'income' | 'expense') => {
         const m = new Map<string, number>();
-        txs.filter(t => t.type === type).forEach(t => m.set(t.category, (m.get(t.category) ?? 0) + t.amount - (type === 'expense' ? (t.principalPortion || 0) : 0)));
+        txs.filter(t => t.type === type).forEach(t => {
+            const cat = t.category || 'Uncategorized';
+            m.set(cat, (m.get(cat) ?? 0) + (t.amount ?? 0) - (type === 'expense' ? (t.principalPortion || 0) : 0));
+        });
         return m;
     };
 

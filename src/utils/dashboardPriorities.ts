@@ -137,13 +137,13 @@ export function buildDashboardPriorities(input: {
     // into a single card the same way overdue invoices are, rather than
     // letting them pass through PASSTHROUGH_ALERT_TYPES one row per lender.
     if (overdueLoans.length > 0) {
-        const total = Math.round(overdueLoans.reduce((s, l) => s + monthlyPayment(l.principal, l.interestRate, l.termMonths), 0));
+        const total = Math.round(overdueLoans.reduce((s, l) => s + monthlyPayment(l.principal, l.interestRate ?? 0, l.termMonths), 0));
         items.push({
             id: 'priority-overdue-loan-payments',
             kind: 'overdue_loan_payments',
             tier: 'attention',
             title: `${overdueLoans.length} Loan Payment${overdueLoans.length > 1 ? 's' : ''} Overdue`,
-            subtitle: `${currency}${total.toLocaleString()} owed to ${overdueLoans.length > 1 ? 'your lenders' : overdueLoans[0].lenderName}`,
+            subtitle: `${currency}${total.toLocaleString()} owed to ${overdueLoans.length > 1 ? 'your lenders' : (overdueLoans[0].lenderName || 'your lender')}`,
             impactAmount: total,
         });
     }
@@ -153,7 +153,7 @@ export function buildDashboardPriorities(input: {
     // anything linked to an invoice, so this never double-counts against
     // the overdue-invoices card above.
     if (overdueTransactions.length > 0) {
-        const total = overdueTransactions.reduce((s, t) => s + t.amount, 0);
+        const total = overdueTransactions.reduce((s, t) => s + (t.amount ?? 0), 0);
         items.push({
             id: 'priority-overdue-transactions',
             kind: 'overdue_transactions',
@@ -169,7 +169,7 @@ export function buildDashboardPriorities(input: {
     // overdue invoice or loan payment, there's no certainty this was
     // actually missed rather than just not re-logged.
     if (overdueRecurringTransactions.length > 0) {
-        const total = overdueRecurringTransactions.reduce((s, t) => s + t.amount, 0);
+        const total = overdueRecurringTransactions.reduce((s, t) => s + (t.amount ?? 0), 0);
         items.push({
             id: 'priority-recurring-transactions-overdue',
             kind: 'recurring_transaction_overdue',
@@ -201,7 +201,7 @@ export function buildDashboardPriorities(input: {
     // fast seller still well above its threshold. impactAmount is the
     // items' real current inventory value, not a lost-sales estimate.
     if (stockoutRiskItems.length > 0) {
-        const total = stockoutRiskItems.reduce((s, i) => s + i.quantity * i.costPrice, 0);
+        const total = stockoutRiskItems.reduce((s, i) => s + i.quantity * (i.costPrice ?? 0), 0);
         items.push({
             id: 'priority-inventory-stockout-risk',
             kind: 'inventory_stockout_risk',
@@ -217,7 +217,7 @@ export function buildDashboardPriorities(input: {
     // moving, rather than stock about to run out. impactAmount is the
     // items' real current inventory value, same never-fabricate rule.
     if (slowMovingItems.length > 0) {
-        const total = slowMovingItems.reduce((s, i) => s + i.quantity * i.costPrice, 0);
+        const total = slowMovingItems.reduce((s, i) => s + i.quantity * (i.costPrice ?? 0), 0);
         items.push({
             id: 'priority-inventory-slow-moving',
             kind: 'inventory_slow_moving',

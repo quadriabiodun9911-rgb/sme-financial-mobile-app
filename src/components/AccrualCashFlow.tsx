@@ -15,7 +15,7 @@ export default function AccrualCashFlow({ transactions, invoices, finance, curre
     // ── Section 1 — Accrual Revenue ───────────────────────────────────────────
     const cashIncome = transactions
         .filter(t => t.type === 'income' && t.status === 'paid')
-        .reduce((s, t) => s + t.amount, 0);
+        .reduce((s, t) => s + (t.amount ?? 0), 0);
 
     const unpaidInvoicesTotal = invoices
         .filter(inv => inv.status === 'sent' || inv.status === 'overdue')
@@ -26,11 +26,11 @@ export default function AccrualCashFlow({ transactions, invoices, finance, curre
     // ── Section 2 — Accrual Expenses ─────────────────────────────────────────
     const cashExpenses = transactions
         .filter(t => t.type === 'expense' && t.status === 'paid')
-        .reduce((s, t) => s + t.amount, 0);
+        .reduce((s, t) => s + (t.amount ?? 0), 0);
 
     const unpaidExpenses = transactions
         .filter(t => t.type === 'expense' && (t.status === 'pending' || t.status === 'overdue'))
-        .reduce((s, t) => s + t.amount, 0);
+        .reduce((s, t) => s + (t.amount ?? 0), 0);
 
     const accrualExpenses = cashExpenses + unpaidExpenses;
 
@@ -55,7 +55,7 @@ export default function AccrualCashFlow({ transactions, invoices, finance, curre
     const trailing30AccrualRevenue =
         transactions
             .filter(t => t.type === 'income' && t.status === 'paid' && t.date >= trailing30CutoffStr)
-            .reduce((s, t) => s + t.amount, 0) +
+            .reduce((s, t) => s + (t.amount ?? 0), 0) +
         invoices
             .filter(inv => (inv.status === 'sent' || inv.status === 'overdue') && inv.issueDate >= trailing30CutoffStr)
             .reduce((s, inv) => s + (inv.total ?? (inv as any).totalAmount ?? 0), 0);

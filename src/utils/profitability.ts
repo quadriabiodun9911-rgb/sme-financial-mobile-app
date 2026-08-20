@@ -33,7 +33,7 @@ function filterByPeriod(transactions: Transaction[], start: Date, end: Date): Tr
 // only interest is a real P&L cost) so every profit/margin/momentum figure
 // this file produces stays consistent with computeFinance/computeEnhancedPnL.
 function sumByType(txs: Transaction[], type: 'income' | 'expense'): number {
-    return txs.filter(t => t.type === type).reduce((s, t) => s + t.amount - (type === 'expense' ? (t.principalPortion || 0) : 0), 0);
+    return txs.filter(t => t.type === type).reduce((s, t) => s + (t.amount ?? 0) - (type === 'expense' ? (t.principalPortion || 0) : 0), 0);
 }
 
 export function computeProfitWaterfall(transactions: Transaction[]): WaterfallItem[] {
@@ -92,8 +92,8 @@ function buildDimensionItems(
     for (const tx of transactions) {
         const key = keyFn(tx) ?? 'Unknown';
         const entry = map.get(key) ?? { revenue: 0, cost: 0 };
-        if (tx.type === 'income')  entry.revenue += tx.amount;
-        else                       entry.cost    += tx.amount - (tx.principalPortion || 0);
+        if (tx.type === 'income')  entry.revenue += (tx.amount ?? 0);
+        else                       entry.cost    += (tx.amount ?? 0) - (tx.principalPortion || 0);
         map.set(key, entry);
     }
 
@@ -153,8 +153,8 @@ export function computeBreakeven(transactions: Transaction[], settings: Business
     const expenses = currTxs.filter(t => t.type === 'expense');
 
     // Loan principal excluded -- not a real operating cost (GAAP/IFRS).
-    const fixedCosts    = expenses.filter(isFixedCost).reduce((s, t) => s + t.amount - (t.principalPortion || 0), 0);
-    const variableCosts = expenses.filter(t => !isFixedCost(t)).reduce((s, t) => s + t.amount - (t.principalPortion || 0), 0);
+    const fixedCosts    = expenses.filter(isFixedCost).reduce((s, t) => s + (t.amount ?? 0) - (t.principalPortion || 0), 0);
+    const variableCosts = expenses.filter(t => !isFixedCost(t)).reduce((s, t) => s + (t.amount ?? 0) - (t.principalPortion || 0), 0);
 
     const variableCostRatio = currentRevenue > 0 ? variableCosts / currentRevenue : 0;
     const contributionMarginRatio = 1 - variableCostRatio;
@@ -225,13 +225,13 @@ export function identifyProfitDrivers(transactions: Transaction[]): ProfitDriver
     for (const tx of currTxs) {
         if (tx.type === 'income') {
             const k = tx.category ?? 'Unknown';
-            currRevByCategory.set(k, (currRevByCategory.get(k) ?? 0) + tx.amount);
+            currRevByCategory.set(k, (currRevByCategory.get(k) ?? 0) + (tx.amount ?? 0));
         }
     }
     for (const tx of prevTxs) {
         if (tx.type === 'income') {
             const k = tx.category ?? 'Unknown';
-            prevRevByCategory.set(k, (prevRevByCategory.get(k) ?? 0) + tx.amount);
+            prevRevByCategory.set(k, (prevRevByCategory.get(k) ?? 0) + (tx.amount ?? 0));
         }
     }
 
@@ -260,13 +260,13 @@ export function identifyProfitDrivers(transactions: Transaction[]): ProfitDriver
     for (const tx of currTxs) {
         if (tx.type === 'expense') {
             const k = tx.category ?? 'Unknown';
-            currCostByCategory.set(k, (currCostByCategory.get(k) ?? 0) + tx.amount - (tx.principalPortion || 0));
+            currCostByCategory.set(k, (currCostByCategory.get(k) ?? 0) + (tx.amount ?? 0) - (tx.principalPortion || 0));
         }
     }
     for (const tx of prevTxs) {
         if (tx.type === 'expense') {
             const k = tx.category ?? 'Unknown';
-            prevCostByCategory.set(k, (prevCostByCategory.get(k) ?? 0) + tx.amount - (tx.principalPortion || 0));
+            prevCostByCategory.set(k, (prevCostByCategory.get(k) ?? 0) + (tx.amount ?? 0) - (tx.principalPortion || 0));
         }
     }
 
@@ -294,12 +294,12 @@ export function identifyProfitDrivers(transactions: Transaction[]): ProfitDriver
 
     for (const tx of currTxs) {
         if (tx.type === 'income' && tx.vendorCustomer) {
-            currByVendor.set(tx.vendorCustomer, (currByVendor.get(tx.vendorCustomer) ?? 0) + tx.amount);
+            currByVendor.set(tx.vendorCustomer, (currByVendor.get(tx.vendorCustomer) ?? 0) + (tx.amount ?? 0));
         }
     }
     for (const tx of prevTxs) {
         if (tx.type === 'income' && tx.vendorCustomer) {
-            prevByVendor.set(tx.vendorCustomer, (prevByVendor.get(tx.vendorCustomer) ?? 0) + tx.amount);
+            prevByVendor.set(tx.vendorCustomer, (prevByVendor.get(tx.vendorCustomer) ?? 0) + (tx.amount ?? 0));
         }
     }
 
@@ -366,7 +366,7 @@ export function computeMomentum(transactions: Transaction[]): MomentumResult {
     const avgRevenue = activeMonths.length > 0 ? activeMonths.reduce((s, m) => s + m.revenue, 0) / activeMonths.length : 0;
     const avgProfit  = activeMonths.length > 0 ? activeMonths.reduce((s, m) => s + m.profit, 0) / activeMonths.length : 0;
     const totalTxs   = transactions.length;
-    const totalRev   = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+    const totalRev   = transactions.filter(t => t.type === 'income').reduce((s, t) => s + (t.amount ?? 0), 0);
     const avgTxValue = totalTxs > 0 ? totalRev / totalTxs : 0;
 
     // Growth % compares the two most recent months that actually HAVE
@@ -472,10 +472,11 @@ export function computeTopPerformers(transactions: Transaction[]): TopPerformers
     // Categories
     const catMap = new Map<string, { revenue: number; cost: number }>();
     transactions.forEach(t => {
-        const e = catMap.get(t.category) ?? { revenue: 0, cost: 0 };
-        if (t.type === 'income')  e.revenue += t.amount;
-        else                      e.cost    += t.amount - (t.principalPortion || 0);
-        catMap.set(t.category, e);
+        const cat = t.category || 'Uncategorized';
+        const e = catMap.get(cat) ?? { revenue: 0, cost: 0 };
+        if (t.type === 'income')  e.revenue += (t.amount ?? 0);
+        else                      e.cost    += (t.amount ?? 0) - (t.principalPortion || 0);
+        catMap.set(cat, e);
     });
 
     const allCategories: TopCategory[] = [...catMap.entries()].map(([name, { revenue, cost }]) => {

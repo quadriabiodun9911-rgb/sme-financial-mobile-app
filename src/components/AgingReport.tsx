@@ -106,7 +106,7 @@ export default function AgingReport() {
                                 </View>
                                 <View style={styles.txRight}>
                                     <Text style={[styles.txAmount, { color: activeTab === 'ar' ? Colors.income : Colors.expense }]}>
-                                        {currency}{tx.amount.toLocaleString()}
+                                        {currency}{(tx.amount ?? 0).toLocaleString()}
                                     </Text>
                                     <TouchableOpacity style={styles.markPaidBtn} onPress={() => markPaid(tx)}>
                                         <Text style={styles.markPaidText}>Mark Paid</Text>

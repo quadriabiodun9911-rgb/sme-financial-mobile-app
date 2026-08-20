@@ -76,7 +76,7 @@ export default function RecurringTransactionManager({
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Amount</Text>
                 <Text style={[styles.detailValue, { color: item.type === 'income' ? '#10b981' : '#ef4444' }]}>
-                  {item.type === 'income' ? '+' : '-'}{currency}{Math.round(item.amount).toLocaleString()}
+                  {item.type === 'income' ? '+' : '-'}{currency}{Math.round(item.amount ?? 0).toLocaleString()}
                 </Text>
               </View>
               <View style={styles.detailRow}>

@@ -42,7 +42,7 @@ export default function ProductPerformance({ transactions, inventory, currency }
                 categoryMap.set(category, { revenue: 0, transactionCount: 0, inventoryItems: [] });
             }
             const data = categoryMap.get(category)!;
-            data.revenue += tx.amount;
+            data.revenue += (tx.amount ?? 0);
             data.transactionCount += 1;
         }
 

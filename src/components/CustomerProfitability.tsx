@@ -50,7 +50,7 @@ export default function CustomerProfitability({ invoices, transactions, currency
         // Calculate metrics for each customer
         const metrics: CustomerData[] = Array.from(customerMap.entries()).map(([name, { invoices: custInvoices, expenses }]) => {
             const revenue = custInvoices.reduce((sum, inv) => sum + inv.total, 0);
-            const expensesTotal = expenses.reduce((sum, exp) => sum + exp.amount, 0);
+            const expensesTotal = expenses.reduce((sum, exp) => sum + (exp.amount ?? 0), 0);
             const profit = revenue - expensesTotal;
             const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
             const paid = custInvoices.filter(inv => inv.status === 'paid').length;

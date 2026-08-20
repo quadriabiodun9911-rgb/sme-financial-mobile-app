@@ -44,5 +44,5 @@ export function transactionsInRange(transactions: Transaction[], startStr: strin
 }
 
 export function sumByType(transactions: Transaction[], type: 'income' | 'expense'): number {
-    return transactions.filter(t => t.type === type).reduce((s, t) => s + t.amount, 0);
+    return transactions.filter(t => t.type === type).reduce((s, t) => s + (t.amount ?? 0), 0);
 }

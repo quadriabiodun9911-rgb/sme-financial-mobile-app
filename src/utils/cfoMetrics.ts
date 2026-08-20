@@ -48,21 +48,22 @@ export function computeTrailingAccrualFigures(transactions: Transaction[], now: 
     for (const t of transactions) {
         const in30 = t.date >= cutoff30Str;
         const in90 = t.date >= cutoff90Str;
+        const amt = t.amount ?? 0;
         if (t.type === 'income') {
             if (t.status === 'paid') {
-                if (in30) { trailing30Revenue += t.amount; trailing30AccrualRevenue += t.amount; }
-                if (in90) trailing90AccrualRevenue += t.amount;
+                if (in30) { trailing30Revenue += amt; trailing30AccrualRevenue += amt; }
+                if (in90) trailing90AccrualRevenue += amt;
             } else if (t.status === 'pending' || t.status === 'overdue') {
-                unpaidIncome += t.amount;
-                if (in30) trailing30AccrualRevenue += t.amount;
-                if (in90) trailing90AccrualRevenue += t.amount;
+                unpaidIncome += amt;
+                if (in30) trailing30AccrualRevenue += amt;
+                if (in90) trailing90AccrualRevenue += amt;
             }
         } else if (t.type === 'expense') {
             if (t.status === 'paid') {
-                if (in30) trailing30AccrualExpenses += t.amount;
+                if (in30) trailing30AccrualExpenses += amt;
             } else if (t.status === 'pending' || t.status === 'overdue') {
-                unpaidExpenses += t.amount;
-                if (in30) trailing30AccrualExpenses += t.amount;
+                unpaidExpenses += amt;
+                if (in30) trailing30AccrualExpenses += amt;
             }
         }
     }

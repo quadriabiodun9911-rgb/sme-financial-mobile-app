@@ -85,10 +85,10 @@ const EMPTY_FORM: FormState = {
 function formFromTx(tx: Transaction): FormState {
     const { name, phone } = parseVendorCustomer(tx.vendorCustomer);
     return {
-        description:        tx.description,
-        amount:             String(tx.amount),
+        description:        tx.description ?? '',
+        amount:             tx.amount != null ? String(tx.amount) : '',
         type:               tx.type,
-        category:           tx.category,
+        category:           tx.category ?? '',
         reference:          tx.reference ?? '',
         vendorCustomer:     name,
         phone:              phone,
@@ -160,7 +160,7 @@ export default function TransactionsScreen() {
                 (tx.category ?? '').toLowerCase().includes(q) ||
                 (tx.vendorCustomer?.toLowerCase().includes(q) ?? false) ||
                 (tx.reference?.toLowerCase().includes(q) ?? false) ||
-                String(tx.amount).includes(q)
+                (tx.amount != null && String(tx.amount).includes(q))
             )) return false;
             return true;
         });
@@ -173,7 +173,7 @@ export default function TransactionsScreen() {
             const daysA = Math.floor((Date.now() - new Date((a.dueDate || a.date) + 'T00:00:00').getTime()) / 86400000);
             const daysB = Math.floor((Date.now() - new Date((b.dueDate || b.date) + 'T00:00:00').getTime()) / 86400000);
             if (daysB !== daysA) return daysB - daysA;
-            return b.amount - a.amount;
+            return (b.amount ?? 0) - (a.amount ?? 0);
         });
     }, [filtered, typeFilter]);
 
@@ -186,8 +186,8 @@ export default function TransactionsScreen() {
     const totals = useMemo(() => {
         let income = 0, expense = 0;
         for (const t of filtered) {
-            if (t.type === 'income') income += t.amount;
-            else expense += t.amount;
+            if (t.type === 'income') income += (t.amount ?? 0);
+            else expense += (t.amount ?? 0);
         }
         return { income, expense, net: income - expense };
     }, [filtered]);
@@ -568,7 +568,7 @@ export default function TransactionsScreen() {
                                         })()}
                                         <TouchableOpacity
                                             style={styles.deleteBtn}
-                                            onPress={() => handleDelete(tx.id, tx.description)}
+                                            onPress={() => handleDelete(tx.id, tx.description || 'this transaction')}
                                             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                                         >
                                             <Icon name="trash-2" size={11} color={Colors.expense} />

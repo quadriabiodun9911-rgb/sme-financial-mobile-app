@@ -250,7 +250,7 @@ export default function DashboardScreen() {
                 if (!isBudgetActiveForPeriod(b, monthStr)) return null;
                 const spent = transactions
                     .filter(t => t.type === 'expense' && t.category === b.category && t.date.startsWith(monthStr))
-                    .reduce((s, t) => s + t.amount, 0);
+                    .reduce((s, t) => s + (t.amount ?? 0), 0);
                 return spent > b.monthlyAmount ? { ...b, spent, overage: spent - b.monthlyAmount } : null;
             })
             .filter((b): b is OverspentBudget => b !== null);
@@ -345,7 +345,7 @@ export default function DashboardScreen() {
     useEffect(() => {
         if (isDemoMode || loansDueSoon.length === 0) return;
         const [soonest, ...rest] = loansDueSoon;
-        notifyLoanPaymentDueSoon(soonest.loan.lenderName, soonest.daysUntilDue, rest.length).catch(() => {});
+        notifyLoanPaymentDueSoon(soonest.loan.lenderName || 'your lender', soonest.daysUntilDue, rest.length).catch(() => {});
     }, [isDemoMode, loansDueSoon]);
 
     // Month-granular, not date-precise -- see payrollReminders.ts for why
@@ -359,7 +359,7 @@ export default function DashboardScreen() {
 
     useEffect(() => {
         if (isDemoMode || overdueTransactions.length === 0) return;
-        const total = overdueTransactions.reduce((s, t) => s + t.amount, 0);
+        const total = overdueTransactions.reduce((s, t) => s + (t.amount ?? 0), 0);
         notifyOverdueTransactionsFound(overdueTransactions.length, total, settings?.currency ?? '₦').catch(() => {});
     }, [isDemoMode, overdueTransactions, settings?.currency]);
 
@@ -436,7 +436,7 @@ export default function DashboardScreen() {
     );
     useEffect(() => {
         if (isDemoMode || stockoutRiskItems.length === 0) return;
-        const total = stockoutRiskItems.reduce((s, i) => s + i.quantity * i.costPrice, 0);
+        const total = stockoutRiskItems.reduce((s, i) => s + i.quantity * (i.costPrice ?? 0), 0);
         notifyStockoutRisk(stockoutRiskItems.length, total, settings?.currency ?? '₦').catch(() => {});
     }, [isDemoMode, stockoutRiskItems, settings?.currency]);
 
@@ -449,7 +449,7 @@ export default function DashboardScreen() {
     );
     useEffect(() => {
         if (isDemoMode || slowMovingItems.length === 0) return;
-        const total = slowMovingItems.reduce((s, i) => s + i.quantity * i.costPrice, 0);
+        const total = slowMovingItems.reduce((s, i) => s + i.quantity * (i.costPrice ?? 0), 0);
         notifySlowMovingStock(slowMovingItems.length, total, settings?.currency ?? '₦').catch(() => {});
     }, [isDemoMode, slowMovingItems, settings?.currency]);
 

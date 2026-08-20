@@ -64,22 +64,27 @@ export class FinanceComputer {
         // SINGLE PASS through all transactions
         for (const transaction of this.transactions) {
             const amount = Number(transaction.amount) || 0;
+            // A category that failed to decrypt (see ENCRYPTED_FIELDS in
+            // encryption.ts) arrives as `undefined` at runtime despite the
+            // type saying string -- fall back to a real label rather than
+            // a raw `undefined` Map key or a crash in isCOGS's toLowerCase.
+            const category = transaction.category || 'Uncategorized';
 
             if (transaction.type === 'income') {
                 // Income revenue
                 aggregates.revenue += amount;
 
                 // Track by category
-                const current = aggregates.incomeByCategory.get(transaction.category) ?? 0;
-                aggregates.incomeByCategory.set(transaction.category, current + amount);
+                const current = aggregates.incomeByCategory.get(category) ?? 0;
+                aggregates.incomeByCategory.set(category, current + amount);
             } else {
                 // Expense: classify as COGS or SGA
-                if (this.isCOGS(transaction.category)) {
-                    const current = aggregates.cogsMap.get(transaction.category) ?? 0;
-                    aggregates.cogsMap.set(transaction.category, current + amount);
+                if (this.isCOGS(category)) {
+                    const current = aggregates.cogsMap.get(category) ?? 0;
+                    aggregates.cogsMap.set(category, current + amount);
                 } else {
-                    const current = aggregates.sgaMap.get(transaction.category) ?? 0;
-                    aggregates.sgaMap.set(transaction.category, current + amount);
+                    const current = aggregates.sgaMap.get(category) ?? 0;
+                    aggregates.sgaMap.set(category, current + amount);
                 }
             }
         }

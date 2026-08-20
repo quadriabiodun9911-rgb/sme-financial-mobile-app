@@ -44,7 +44,7 @@ export default function TaxPlanningTab() {
                     const txMonth = parseInt(tx.date.split('-')[1], 10);
                     return txYear === currentYear && quarter.months.includes(txMonth) && tx.type === 'income';
                 })
-                .reduce((sum, tx) => sum + tx.amount, 0);
+                .reduce((sum, tx) => sum + (tx.amount ?? 0), 0);
 
             const expenses = transactions
                 .filter(tx => {
@@ -57,7 +57,7 @@ export default function TaxPlanningTab() {
                 // Without this exclusion, a quarter with a loan payment
                 // showed inflated expenses and understated estimated tax,
                 // disagreeing with every other profit figure in the app.
-                .reduce((sum, tx) => sum + tx.amount - (tx.principalPortion || 0), 0);
+                .reduce((sum, tx) => sum + (tx.amount ?? 0) - (tx.principalPortion || 0), 0);
 
             const profit = income - expenses;
             const quarterDeductions = deductions

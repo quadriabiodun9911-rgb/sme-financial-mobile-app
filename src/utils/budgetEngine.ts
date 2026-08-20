@@ -23,7 +23,7 @@ export function computeTrailingCategoryAverages(
             const cat = t.category || 'Other';
             const month = (t.date || '').slice(0, 7);
             if (!acc[cat]) acc[cat] = { total: 0, months: new Set() };
-            acc[cat].total += t.amount;
+            acc[cat].total += (t.amount ?? 0);
             if (month) acc[cat].months.add(month);
         });
 

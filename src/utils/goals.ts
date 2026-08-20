@@ -19,7 +19,7 @@ export function computeGoalCurrent(
         case 'cash_reserve': return finance.cashBalance;
         case 'reduce_overdue_ar': {
             const overdue = transactions.filter(t => t.type === 'income' && t.status === 'overdue');
-            return overdue.reduce((s, t) => s + t.amount, 0);
+            return overdue.reduce((s, t) => s + (t.amount ?? 0), 0);
         }
         case 'custom': return goal.currentValue;
         default: return 0;
@@ -87,7 +87,7 @@ export function generateStrategy(
     const topExpenses = getTopCategories(transactions, 'expense', 3);
     const topIncome = getTopCategories(transactions, 'income', 3);
     const overdueAR = transactions.filter(t => t.type === 'income' && t.status === 'overdue');
-    const overdueARTotal = overdueAR.reduce((s, t) => s + t.amount, 0);
+    const overdueARTotal = overdueAR.reduce((s, t) => s + (t.amount ?? 0), 0);
 
     switch (goal.type) {
 
@@ -400,7 +400,7 @@ export function goalDefaults(
         case 'reduce_overdue_ar': {
             const overdueAR = transactions
                 .filter(t => t.type === 'income' && t.status === 'overdue')
-                .reduce((s, t) => s + t.amount, 0);
+                .reduce((s, t) => s + (t.amount ?? 0), 0);
             return {
                 title: 'Eliminate Overdue Receivables',
                 description: 'Collect all outstanding overdue invoices and keep AR current.',

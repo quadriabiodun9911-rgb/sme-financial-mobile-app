@@ -65,7 +65,7 @@ export default function InventoryScreen() {
     const lowStockItems = inventory.filter(item => item.quantity <= item.lowStockThreshold);
 
     // ── Analytics calculations ────────────────────────────────────────────────
-    const totalPotentialRevenue = inventory.reduce((sum, item) => sum + item.quantity * item.sellingPrice, 0);
+    const totalPotentialRevenue = inventory.reduce((sum, item) => sum + item.quantity * (item.sellingPrice ?? 0), 0);
     const grossProfitIfAllSold = totalPotentialRevenue - totalStockValue;
     const overallMargin = totalPotentialRevenue > 0 ? (grossProfitIfAllSold / totalPotentialRevenue) * 100 : 0;
 
@@ -79,7 +79,7 @@ export default function InventoryScreen() {
     const categories = Array.from(categoryMap.entries()).map(([cat, { items }]) => {
         const stockVal = computeInventoryValue(items);
         const avgMargin = items.length > 0
-            ? items.reduce((s, i) => s + (i.sellingPrice > 0 ? ((i.sellingPrice - i.costPrice) / i.sellingPrice) * 100 : 0), 0) / items.length
+            ? items.reduce((s, i) => s + ((i.sellingPrice ?? 0) > 0 ? (((i.sellingPrice ?? 0) - (i.costPrice ?? 0)) / (i.sellingPrice ?? 0)) * 100 : 0), 0) / items.length
             : 0;
         return { cat, count: items.length, stockVal, avgMargin };
     });
@@ -96,7 +96,7 @@ export default function InventoryScreen() {
     // Best margin items (top 3)
     const itemsWithMargin = inventory.map(item => ({
         ...item,
-        margin: item.sellingPrice > 0 ? ((item.sellingPrice - item.costPrice) / item.sellingPrice) * 100 : 0,
+        margin: (item.sellingPrice ?? 0) > 0 ? (((item.sellingPrice ?? 0) - (item.costPrice ?? 0)) / (item.sellingPrice ?? 0)) * 100 : 0,
     }));
     const bestMarginItems = [...itemsWithMargin].sort((a, b) => b.margin - a.margin).slice(0, 3);
     const lowMarginItems  = itemsWithMargin.filter(i => i.margin < 10);
@@ -122,8 +122,8 @@ export default function InventoryScreen() {
             category: item.category,
             quantity: String(item.quantity),
             unit: item.unit,
-            costPrice: String(item.costPrice),
-            sellingPrice: String(item.sellingPrice),
+            costPrice: item.costPrice != null ? String(item.costPrice) : '',
+            sellingPrice: item.sellingPrice != null ? String(item.sellingPrice) : '',
             lowStockThreshold: String(item.lowStockThreshold),
         });
         setModalOpen(true);
@@ -177,7 +177,7 @@ export default function InventoryScreen() {
         updateInventoryItem(item.id, { quantity: item.quantity - qty });
         addTransaction({
             type: 'income',
-            amount: qty * item.sellingPrice,
+            amount: qty * (item.sellingPrice ?? 0),
             description: `Sale: ${item.name}`,
             category: 'Sales',
             date: new Date().toISOString().split('T')[0],
@@ -293,10 +293,10 @@ export default function InventoryScreen() {
 
                         {/* Item list */}
                         {inventory.map(item => {
-                            const margin = item.sellingPrice > 0
-                                ? ((item.sellingPrice - item.costPrice) / item.sellingPrice) * 100
+                            const margin = (item.sellingPrice ?? 0) > 0
+                                ? (((item.sellingPrice ?? 0) - (item.costPrice ?? 0)) / (item.sellingPrice ?? 0)) * 100
                                 : 0;
-                            const stockVal = item.quantity * item.costPrice;
+                            const stockVal = item.quantity * (item.costPrice ?? 0);
                             const velocity = velocityByItemId.get(item.id)!;
 
                             return (
@@ -328,11 +328,11 @@ export default function InventoryScreen() {
                                         </View>
                                         <View style={styles.metricCell}>
                                             <Text style={styles.metricLabel}>Cost/unit</Text>
-                                            <Text style={styles.metricVal}>{currency}{item.costPrice.toLocaleString()}</Text>
+                                            <Text style={styles.metricVal}>{currency}{(item.costPrice ?? 0).toLocaleString()}</Text>
                                         </View>
                                         <View style={styles.metricCell}>
                                             <Text style={styles.metricLabel}>Sell/unit</Text>
-                                            <Text style={styles.metricVal}>{currency}{item.sellingPrice.toLocaleString()}</Text>
+                                            <Text style={styles.metricVal}>{currency}{(item.sellingPrice ?? 0).toLocaleString()}</Text>
                                         </View>
                                         <View style={styles.metricCell}>
                                             <Text style={styles.metricLabel}>Margin</Text>

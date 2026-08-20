@@ -152,7 +152,7 @@ export function buildFutureFinancialStatements(
         ? recentMonths.reduce((s, m) => {
             const salariesInMonth = transactions
                 .filter(t => t.type === 'expense' && t.category === 'Salaries' && (t.date || '').slice(0, 7) === m.month)
-                .reduce((sum, t) => sum + t.amount, 0);
+                .reduce((sum, t) => sum + (t.amount ?? 0), 0);
             return s + salariesInMonth;
         }, 0) / recentMonths.length
         : 0;
@@ -161,7 +161,7 @@ export function buildFutureFinancialStatements(
     const wc = computeWorkingCapitalMetrics(transactions);
     const unpaidInventoryPurchases = transactions
         .filter(t => t.type === 'expense' && t.transactionCategory === 'purchase' && (t.status === 'pending' || t.status === 'overdue'))
-        .reduce((s, t) => s + t.amount, 0);
+        .reduce((s, t) => s + (t.amount ?? 0), 0);
     const dsoMonths = wc.dso / 30;
     const dpoMonths = wc.dpo / 30;
 
@@ -172,7 +172,7 @@ export function buildFutureFinancialStatements(
     // convention elsewhere in the app.
     const loanStates = activeLoans.map(l => ({
         balance: outstandingLoanBalance(l),
-        rate: l.interestRate,
+        rate: l.interestRate ?? 0,
         payment: monthlyPayment(l.principal, l.interestRate, l.termMonths),
     }));
 

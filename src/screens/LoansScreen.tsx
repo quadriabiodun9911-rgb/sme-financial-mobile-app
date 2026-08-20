@@ -129,8 +129,8 @@ export default function LoansScreen() {
     // to every LoanCard as the `onEdit` prop without each one wrapping it
     // in a fresh per-render closure (see the LoanCard React.memo note below).
     const openEdit = useCallback((l: Loan) => {
-        setLender(l.lenderName); setPurpose(l.purpose);
-        setPrincipal(String(l.principal)); setRate(String(l.interestRate));
+        setLender(l.lenderName ?? ''); setPurpose(l.purpose);
+        setPrincipal(String(l.principal)); setRate(l.interestRate != null ? String(l.interestRate) : '');
         setTerm(String(l.termMonths)); setStart(l.startDate);
         setStatus(l.status); setFromMarketplace(!!l.fromMarketplace); setEditingId(l.id); setShowForm(true);
     }, []);
@@ -675,7 +675,7 @@ const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transa
                 {/* Key metrics row */}
                 <View style={s.metricsRow}>
                     <Metric label={t(language, 'monthlyMetricLabel')} value={`${currency}${monthly.toFixed(0)}`} />
-                    <Metric label={t(language, 'rateMetricLabel')} value={`${loan.interestRate}% p.a.`} />
+                    <Metric label={t(language, 'rateMetricLabel')} value={`${loan.interestRate ?? 0}% p.a.`} />
                     <Metric label={t(language, 'totalInterestMetricLabel')} value={`${currency}${interest.toFixed(0)}`} color={Colors.expense} />
                     <Metric label={t(language, 'payoffDateMetricLabel')} value={payoffDate(loan)} />
                 </View>
@@ -753,9 +753,9 @@ const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transa
                                 <TouchableOpacity style={s.linkLenderRow} onPress={() => onLinkLender(loan.id)} activeOpacity={0.7}>
                                     <Icon name="link" size={14} color={Colors.primary} />
                                     <View style={{ flex: 1 }}>
-                                        <Text style={s.linkLenderLabel}>Link to {loan.lenderName} on Quad360</Text>
+                                        <Text style={s.linkLenderLabel}>Link to {loan.lenderName || 'this lender'} on Quad360</Text>
                                         <Text style={s.marketplaceToggleHint}>
-                                            If {loan.lenderName} is registered on Quad360, linking lets you share this status with them on an ongoing basis — not just a one-time export.
+                                            If {loan.lenderName || 'this lender'} is registered on Quad360, linking lets you share this status with them on an ongoing basis — not just a one-time export.
                                         </Text>
                                     </View>
                                 </TouchableOpacity>
@@ -765,7 +765,7 @@ const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transa
                                         {loan.shareWithLenderConsent && <Icon name="check-circle" size={13} color="#fff" />}
                                     </View>
                                     <View style={{ flex: 1 }}>
-                                        <Text style={s.marketplaceToggleLabel}>Keep {loan.lenderName} updated on this loan's status</Text>
+                                        <Text style={s.marketplaceToggleLabel}>Keep {loan.lenderName || 'this lender'} updated on this loan's status</Text>
                                         <Text style={s.marketplaceToggleHint}>
                                             Only the status above (Healthy/Watch/At Risk), the trend, and which signals are flagged — never transaction data, exact figures, or account details. Updates automatically as your numbers change. Revocable any time.
                                         </Text>

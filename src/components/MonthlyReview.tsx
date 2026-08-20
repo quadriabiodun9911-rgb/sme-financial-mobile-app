@@ -48,7 +48,8 @@ export default function MonthlyReview({ visible, onClose }: Props) {
         // Top 3 expense categories
         const catMap: Record<string, number> = {};
         thisTxs.filter(t => t.type === 'expense').forEach(t => {
-            catMap[t.category] = (catMap[t.category] || 0) + (Number(t.amount) || 0);
+            const cat = t.category || 'Uncategorized';
+            catMap[cat] = (catMap[cat] || 0) + (Number(t.amount) || 0);
         });
         const topExpenses = Object.entries(catMap)
             .sort((a, b) => b[1] - a[1])
@@ -56,7 +57,7 @@ export default function MonthlyReview({ visible, onClose }: Props) {
 
         // Unpaid invoices
         const unpaidInvoices = invoices.filter(inv => inv.status === 'sent' || inv.status === 'overdue');
-        const unpaidTotal = unpaidInvoices.reduce((s, inv) => s + inv.total, 0);
+        const unpaidTotal = unpaidInvoices.reduce((s, inv) => s + (inv.total ?? 0), 0);
         const overdueInvoices = unpaidInvoices.filter(inv => inv.status === 'overdue');
 
         // Goal progress

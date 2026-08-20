@@ -141,16 +141,17 @@ export function computeCostExposure(transactions: Transaction[], windowMonths = 
         const inPrior = !inCurrent && priorMonths.has(month);
         if (!inCurrent && !inPrior) continue;
 
+        const amt = t.amount ?? 0;
         if (t.type === 'income') {
-            if (inCurrent) currentRevenue += t.amount;
-            else priorRevenue += t.amount;
+            if (inCurrent) currentRevenue += amt;
+            else priorRevenue += amt;
         } else {
             const category = t.category || 'Other';
             if (inCurrent) {
-                currentByCategory.set(category, (currentByCategory.get(category) ?? 0) + t.amount);
-                currentTotalExpense += t.amount;
+                currentByCategory.set(category, (currentByCategory.get(category) ?? 0) + amt);
+                currentTotalExpense += amt;
             } else {
-                priorByCategory.set(category, (priorByCategory.get(category) ?? 0) + t.amount);
+                priorByCategory.set(category, (priorByCategory.get(category) ?? 0) + amt);
             }
         }
     }

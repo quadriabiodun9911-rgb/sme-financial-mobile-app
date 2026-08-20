@@ -142,7 +142,10 @@ function CostForm({ onRun, currency }: { onRun: (r: ScenarioResult) => void; cur
         // Loan principal isn't a cuttable operating cost (only interest is)
         // -- excluded so "Category to cut" never suggests trimming 20% off
         // a loan repayment, same exclusion as computePeriodMetrics below.
-        transactions.filter(t => t.type === 'expense').forEach(t => m.set(t.category, (m.get(t.category) ?? 0) + t.amount - (t.principalPortion || 0)));
+        transactions.filter(t => t.type === 'expense').forEach(t => {
+            const c = t.category || 'Uncategorized';
+            m.set(c, (m.get(c) ?? 0) + (t.amount ?? 0) - (t.principalPortion || 0));
+        });
         const monthsSet = new Set(transactions.map(t => (t.date || '').slice(0, 7)).filter(Boolean));
         const monthCount = Math.max(1, monthsSet.size);
         return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([c, total]) => [c, total / monthCount] as [string, number]);

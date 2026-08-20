@@ -79,7 +79,7 @@ export default function AssetsScreen() {
     const openAdd = () => { resetForm(); setShowForm(true); };
 
     const openEdit = useCallback((a: Asset) => {
-        setName(a.name); setCategory(a.category); setDesc(a.description);
+        setName(a.name); setCategory(a.category); setDesc(a.description ?? '');
         setPDate(a.purchaseDate); setPCost(String(a.purchaseCost));
         setLife(String(a.usefulLifeYears)); setResidual(String(a.residualValue));
         setEditingId(a.id); setShowForm(true);

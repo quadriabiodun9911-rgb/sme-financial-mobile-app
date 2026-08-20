@@ -60,7 +60,7 @@ function matchTransactions(bankTxs: BankTx[], appTxs: Transaction[]) {
         const candidate = appTxs.find(a => {
             if (usedAppIds.has(a.id)) return false;
             if (a.type !== bType) return false;
-            const diff = Math.abs(a.amount - bAmt) / Math.max(bAmt, 1);
+            const diff = Math.abs((a.amount ?? 0) - bAmt) / Math.max(bAmt, 1);
             if (diff > 0.02) return false;
             const daysDiff = Math.abs(new Date(a.date).getTime() - bDate) / 86400000;
             return daysDiff <= 5;
@@ -100,7 +100,7 @@ export default function ReconciliationScreen() {
     const [addManualModal, setAddManualModal] = useState(false);
 
     const sym = settings.currency || '₦';
-    const fmt = (n: number) => `${sym}${n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+    const fmt = (n: number) => `${sym}${(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
     const { matched, unmatchedBank, unmatchedApp } = useMemo(() => {
         if (bankTxs.length === 0) return { matched: [], unmatchedBank: [], unmatchedApp: [] };
@@ -389,7 +389,7 @@ export default function ReconciliationScreen() {
                                             style={[styles.importBtn, { backgroundColor: Colors.warning + '22' }]}
                                             onPress={() => confirmAction(
                                                 'App-only Transaction',
-                                                `"${a.description}" exists in your app but not in the bank statement.\n\nPossible reasons:\n• Cash payment not via bank\n• Pending bank clearance\n• Entry error — check Transactions screen`,
+                                                `"${a.description || 'This transaction'}" exists in your app but not in the bank statement.\n\nPossible reasons:\n• Cash payment not via bank\n• Pending bank clearance\n• Entry error — check Transactions screen`,
                                                 'Review in Transactions →',
                                                 () => setCurrentScreen('transactions'),
                                                 false,

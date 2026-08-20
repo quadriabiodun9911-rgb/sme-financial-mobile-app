@@ -84,7 +84,7 @@ export default function DailyReportModal({ visible, onClose, transactions, goals
     if (todaySales === 0) {
         actions.push('Log all your sales tomorrow — it only takes 30 seconds per sale');
     } else if (!revenueOk && dailyRevenueTarget > 0) {
-        const topIncomeCategory = todayTxns.filter(t => t.type === 'income').sort((a, b) => b.amount - a.amount)[0]?.category || 'your top category';
+        const topIncomeCategory = todayTxns.filter(t => t.type === 'income').sort((a, b) => (b.amount ?? 0) - (a.amount ?? 0))[0]?.category || 'your top category';
         const gap = dailyRevenueTarget - todayRevenue;
         actions.push(`Try to make at least ${currency}${Math.round(isNaN(gap) ? 0 : gap).toLocaleString()} more tomorrow — focus on ${topIncomeCategory}`);
     }

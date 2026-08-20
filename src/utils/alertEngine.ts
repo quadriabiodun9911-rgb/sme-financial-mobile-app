@@ -268,10 +268,10 @@ export class AlertEngine {
           type: 'overdue_invoice',
           priority,
           title: `📧 Overdue Invoice: ${invoice.invoiceNumber}`,
-          description: `Invoice ${invoice.invoiceNumber} for ${this.formatCurrency(invoice.total)} is ${daysOverdue} days overdue from ${invoice.clientName}`,
+          description: `Invoice ${invoice.invoiceNumber} for ${this.formatCurrency(invoice.total)} is ${daysOverdue} days overdue from ${invoice.clientName || 'this customer'}`,
           amount: invoice.total,
           recommendations: [
-            `Send payment reminder to ${invoice.clientName}`,
+            `Send payment reminder to ${invoice.clientName || 'this customer'}`,
             'Call to confirm payment status',
             'Offer payment plan if needed',
           ],
@@ -293,15 +293,15 @@ export class AlertEngine {
   private detectOverdueTransactionAlerts(): ForecastAlert[] {
     return getUninvoicedOverdueTransactions(this.transactions, this.invoices).map(({ transaction, daysOverdue }) => {
       const priority = daysOverdue > 30 ? 'high' : daysOverdue > 14 ? 'medium' : 'low';
-      const who = transaction.vendorCustomer || transaction.description;
+      const who = transaction.vendorCustomer || transaction.description || 'this customer';
 
       return {
         id: `alert-overdue-tx-${transaction.id}`,
         type: 'overdue_transaction',
         priority,
         title: `💰 Payment Overdue — ${who}`,
-        description: `${transaction.description} (${this.formatCurrency(transaction.amount)}) is ${daysOverdue} day${daysOverdue === 1 ? '' : 's'} overdue.`,
-        amount: transaction.amount,
+        description: `${transaction.description || 'This transaction'} (${this.formatCurrency(transaction.amount)}) is ${daysOverdue} day${daysOverdue === 1 ? '' : 's'} overdue.`,
+        amount: transaction.amount ?? 0,
         affectedDate: transaction.dueDate,
         recommendations: [
           'Follow up with the customer directly',
@@ -333,7 +333,7 @@ export class AlertEngine {
           t.date &&
           this.isDaysAhead(new Date(t.date), this.thresholds.largeExpenseComing)
       )
-      .reduce((sum, t) => sum + t.amount, 0);
+      .reduce((sum, t) => sum + (t.amount ?? 0), 0);
 
     if (upcomingExpenses > largeExpenseThreshold) {
       // Stable id, same reasoning as the low-cash alert above.
@@ -382,8 +382,8 @@ export class AlertEngine {
           id: `alert-loan-overdue-${loan.id}`,
           type: 'loan_payment_overdue',
           priority: daysOverdue > 14 ? 'high' : 'medium',
-          title: `📉 Loan Payment Overdue — ${loan.lenderName}`,
-          description: `Your payment to ${loan.lenderName} was due ${nextLoanPaymentDueDate(loan).toISOString().split('T')[0]} and is now ${daysOverdue} day${daysOverdue === 1 ? '' : 's'} overdue.`,
+          title: `📉 Loan Payment Overdue — ${loan.lenderName || 'your lender'}`,
+          description: `Your payment to ${loan.lenderName || 'your lender'} was due ${nextLoanPaymentDueDate(loan).toISOString().split('T')[0]} and is now ${daysOverdue} day${daysOverdue === 1 ? '' : 's'} overdue.`,
           affectedDate: nextLoanPaymentDueDate(loan).toISOString().split('T')[0],
           recommendations: [
             'Log the payment as soon as it clears to keep the payoff schedule accurate',
@@ -396,8 +396,8 @@ export class AlertEngine {
           id: `alert-loan-due-soon-${loan.id}`,
           type: 'loan_payment_due_soon',
           priority: 'medium',
-          title: `📅 Loan Payment Due Soon — ${loan.lenderName}`,
-          description: `Your payment to ${loan.lenderName} is due in ${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'}.`,
+          title: `📅 Loan Payment Due Soon — ${loan.lenderName || 'your lender'}`,
+          description: `Your payment to ${loan.lenderName || 'your lender'} is due in ${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'}.`,
           affectedDate: nextLoanPaymentDueDate(loan).toISOString().split('T')[0],
           createdAt: new Date().toISOString(),
         });
@@ -568,9 +568,9 @@ export class AlertEngine {
           id: `alert-recurring-overdue-${tx.id}`,
           type: 'recurring_transaction_overdue',
           priority: daysOverdue > 30 ? 'medium' : 'low',
-          title: `🔁 Recurring ${kind} Due — ${tx.description}`,
-          description: `"${tx.description}" (${this.formatCurrency(tx.amount)}, ${tx.recurringFrequency}) was expected around ${dueDate} and hasn't been logged again since.`,
-          amount: tx.amount,
+          title: `🔁 Recurring ${kind} Due — ${tx.description || 'this transaction'}`,
+          description: `"${tx.description || 'This transaction'}" (${this.formatCurrency(tx.amount)}, ${tx.recurringFrequency}) was expected around ${dueDate} and hasn't been logged again since.`,
+          amount: tx.amount ?? 0,
           affectedDate: dueDate,
           recommendations: [
             "Log this period's transaction if it happened",
@@ -583,8 +583,8 @@ export class AlertEngine {
           id: `alert-recurring-due-soon-${tx.id}`,
           type: 'recurring_transaction_due_soon',
           priority: 'low',
-          title: `🔁 Recurring ${kind} Coming Up — ${tx.description}`,
-          description: `"${tx.description}" (${this.formatCurrency(tx.amount)}) is due again in ${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'}.`,
+          title: `🔁 Recurring ${kind} Coming Up — ${tx.description || 'this transaction'}`,
+          description: `"${tx.description || 'This transaction'}" (${this.formatCurrency(tx.amount)}) is due again in ${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'}.`,
           affectedDate: dueDate,
           createdAt: new Date().toISOString(),
         });
@@ -670,7 +670,7 @@ export class AlertEngine {
         priority: daysLeft <= 7 ? 'medium' : 'low',
         title: `📦 Selling Out Fast — ${item.name}`,
         description: `"${item.name}" has about ${daysLeft} day${daysLeft === 1 ? '' : 's'} of stock left at its current sales pace.`,
-        amount: item.quantity * item.costPrice,
+        amount: item.quantity * (item.costPrice ?? 0),
         recommendations: ['Reorder now to avoid a stockout while it\'s still selling well'],
         createdAt: new Date().toISOString(),
       });
@@ -703,7 +703,7 @@ export class AlertEngine {
         priority: 'low',
         title: `🐌 Slow Mover — ${item.name}`,
         description: velocity.summary,
-        amount: item.quantity * item.costPrice,
+        amount: item.quantity * (item.costPrice ?? 0),
         recommendations: ['Consider a discount or bundle to free up the cash tied up in this stock'],
         createdAt: new Date().toISOString(),
       });
@@ -900,7 +900,7 @@ export const buildForecastInput = (
     currentExpenses: currentMonth?.expense ?? 0,
     transactions: transactions.map(t => ({
       date: t.date,
-      amount: t.amount,
+      amount: t.amount ?? 0,
       type: t.type,
       isRecurring: !!t.isRecurring,
       frequency: t.recurringFrequency,

@@ -716,7 +716,7 @@ function DailyActionsSection({ goal, transactions, currency }: { goal: Financial
         } else {
             const gap = dailyTarget - todayRevenue;
             const topCat = [...transactions.filter(t => t.type === 'income')]
-                .sort((a, b) => b.amount - a.amount)[0]?.category ?? 'your best product';
+                .sort((a, b) => (b.amount ?? 0) - (a.amount ?? 0))[0]?.category ?? 'your best product';
             actions.push({ num: actions.length + 1, text: `Make ${fmt(gap)} more today to hit your daily target of ${fmt(dailyTarget)} — focus on ${topCat}` });
         }
     }

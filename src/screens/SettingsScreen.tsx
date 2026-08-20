@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
     TouchableOpacity, StyleSheet, Modal, Share, Platform, useWindowDimensions,
@@ -19,6 +19,7 @@ import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { trackDataExported } from '../utils/analytics';
 import { isFinancingAdmin } from '../utils/financingAdmin';
 import { PRIMARY_GOAL_OPTIONS } from '../utils/primaryGoals';
+import { auditDataIntegrity } from '../utils/dataIntegrity';
 
 const CURRENCIES = [
     { label: 'USD ($)',    value: '$',   code: 'USD' },
@@ -72,7 +73,17 @@ export default function SettingsScreen() {
         language, setLanguage,
         transactions, user, updateProfile,
         finance, assets, loans, isDemoMode,
+        invoices, inventory, goals, budgets,
     } = useApp() as ReturnType<typeof useApp>;
+
+    // Drives the Data & Backup card below -- it must never claim data is
+    // safely backed up while records it can't actually decrypt are sitting
+    // in the account (see DataIntegrityScreen). Skipped in demo mode, whose
+    // sample data was never encrypted and would always read as broken.
+    const integrityIssueCount = useMemo(
+        () => isDemoMode ? 0 : auditDataIntegrity({ transactions, invoices, assets, inventory, goals, loans, budgets }).length,
+        [isDemoMode, transactions, invoices, assets, inventory, goals, loans, budgets]
+    );
 
     // Feature flags
     const enableTeam = process.env.EXPO_PUBLIC_ENABLE_TEAM !== 'false';
@@ -766,18 +777,35 @@ export default function SettingsScreen() {
                         </Section>
                     </CollapsibleSection>
 
-                    {/* Data Safety notice — shown only when user has transactions */}
+                    {/* Data Safety notice — shown only when user has transactions.
+                        Must never claim everything is fine while integrityIssueCount
+                        says otherwise sitting right below it in Security -- that
+                        exact contradiction (a green "synced to cloud" checkmark next
+                        to a screen listing unreadable records) is what broke a real
+                        user's trust in the app. */}
                     {transactions.length > 0 && (
-                        <View style={styles.dataSafetyCard}>
-                            <View style={styles.btnIconRow}>
-                                <Icon name="lock" size={14} color={Colors.textPrimary} />
-                                <Text style={styles.dataSafetyTitle}>Your Data is Safe</Text>
+                        integrityIssueCount === 0 ? (
+                            <View style={styles.dataSafetyCard}>
+                                <View style={styles.btnIconRow}>
+                                    <Icon name="lock" size={14} color={Colors.textPrimary} />
+                                    <Text style={styles.dataSafetyTitle}>Your Data is Safe</Text>
+                                </View>
+                                <Text style={styles.dataSafetyBody}>
+                                    All your data is backed up to the cloud automatically. Even if you lose your phone, log in from any device to restore it.
+                                </Text>
+                                <Text style={styles.dataSafetyStatus}>Last backup: synced to cloud ✓</Text>
                             </View>
-                            <Text style={styles.dataSafetyBody}>
-                                All your data is backed up to the cloud automatically. Even if you lose your phone, log in from any device to restore it.
-                            </Text>
-                            <Text style={styles.dataSafetyStatus}>Last backup: synced to cloud ✓</Text>
-                        </View>
+                        ) : (
+                            <TouchableOpacity style={styles.dataWarningCard} onPress={() => setCurrentScreen('data-integrity')}>
+                                <View style={styles.btnIconRow}>
+                                    <Icon name="alert-triangle" size={14} color={Colors.expense} />
+                                    <Text style={styles.dataWarningTitle}>{integrityIssueCount} Record{integrityIssueCount === 1 ? '' : 's'} Need Attention</Text>
+                                </View>
+                                <Text style={styles.dataWarningBody}>
+                                    Everything else is backed up to the cloud normally, but {integrityIssueCount === 1 ? 'this record' : 'these records'} were encrypted before a past PIN reset and can't be decrypted on this device. Tap to review and clean them up.
+                                </Text>
+                            </TouchableOpacity>
+                        )
                     )}
 
                     {/* Role info for non-owners */}
@@ -1053,6 +1081,9 @@ const styles = StyleSheet.create({
     dataSafetyTitle:  { fontSize: 14, fontWeight: '700', color: Colors.textPrimary },
     dataSafetyBody:   { fontSize: 12, color: Colors.textSecondary, lineHeight: 18, marginBottom: Spacing.sm, marginTop: Spacing.xs },
     dataSafetyStatus: { fontSize: 12, color: Colors.income, fontWeight: '600' },
+    dataWarningCard:  { backgroundColor: Colors.expense + '14', borderWidth: 1, borderColor: Colors.expense, borderRadius: Radius.md, padding: Spacing.lg, marginBottom: Spacing.lg },
+    dataWarningTitle: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary },
+    dataWarningBody:  { fontSize: 12, color: Colors.textSecondary, lineHeight: 18, marginTop: Spacing.xs },
 
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
     modalCard:    { backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Spacing.xxl, paddingBottom: 36, ...Shadow.md },

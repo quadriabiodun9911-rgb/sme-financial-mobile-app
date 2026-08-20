@@ -812,14 +812,14 @@ function InventoryReportTab({ inventory, finance, transactions, currency }: {
     // actually changes.
     const { totalStockCost, potentialRevenue, potentialProfit, grossMargin } = useMemo(() => {
         const stockCost = computeInventoryValue(inventory);
-        const revenue = inventory.reduce((s, i) => s + i.quantity * i.sellingPrice, 0);
+        const revenue = inventory.reduce((s, i) => s + i.quantity * (i.sellingPrice ?? 0), 0);
         const profit = revenue - stockCost;
         const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
         return { totalStockCost: stockCost, potentialRevenue: revenue, potentialProfit: profit, grossMargin: margin };
     }, [inventory]);
 
     const totalRevenue = useMemo(
-        () => transactions.filter(t => t.type === 'income').reduce((s: number, t: any) => s + t.amount, 0),
+        () => transactions.filter(t => t.type === 'income').reduce((s: number, t: any) => s + (t.amount ?? 0), 0),
         [transactions],
     );
     const stockToRevRatio = totalRevenue > 0 ? (totalStockCost / totalRevenue) * 100 : 0;
@@ -835,8 +835,8 @@ function InventoryReportTab({ inventory, finance, transactions, currency }: {
         }
         return Array.from(catMap.entries()).map(([cat, { items }]) => {
             const units     = items.reduce((s, i) => s + i.quantity, 0);
-            const stockCost = items.reduce((s, i) => s + i.quantity * i.costPrice, 0);
-            const sellVal   = items.reduce((s, i) => s + i.quantity * i.sellingPrice, 0);
+            const stockCost = items.reduce((s, i) => s + i.quantity * (i.costPrice ?? 0), 0);
+            const sellVal   = items.reduce((s, i) => s + i.quantity * (i.sellingPrice ?? 0), 0);
             const margin    = sellVal > 0 ? ((sellVal - stockCost) / sellVal) * 100 : 0;
             return { cat, count: items.length, units, stockCost, sellVal, margin };
         });
@@ -893,14 +893,14 @@ function InventoryReportTab({ inventory, finance, transactions, currency }: {
                     <Text style={[invStyles.colVal, invStyles.headerText]}>Value</Text>
                 </View>
                 {inventory.map(item => {
-                    const margin = item.sellingPrice > 0 ? ((item.sellingPrice - item.costPrice) / item.sellingPrice) * 100 : 0;
-                    const stockVal = item.quantity * item.costPrice;
+                    const margin = (item.sellingPrice ?? 0) > 0 ? (((item.sellingPrice ?? 0) - (item.costPrice ?? 0)) / (item.sellingPrice ?? 0)) * 100 : 0;
+                    const stockVal = item.quantity * (item.costPrice ?? 0);
                     return (
                         <View key={item.id} style={invStyles.tableRow}>
                             <Text style={[invStyles.colItem, invStyles.cellText]} numberOfLines={1}>{item.name}</Text>
                             <Text style={[invStyles.colNum, invStyles.cellText]}>{item.quantity}</Text>
-                            <Text style={[invStyles.colVal, invStyles.cellText]}>{currency}{item.costPrice.toLocaleString()}</Text>
-                            <Text style={[invStyles.colVal, invStyles.cellText]}>{currency}{item.sellingPrice.toLocaleString()}</Text>
+                            <Text style={[invStyles.colVal, invStyles.cellText]}>{currency}{(item.costPrice ?? 0).toLocaleString()}</Text>
+                            <Text style={[invStyles.colVal, invStyles.cellText]}>{currency}{(item.sellingPrice ?? 0).toLocaleString()}</Text>
                             <Text style={[invStyles.colNum, { color: margin >= 20 ? Colors.income : margin >= 10 ? Colors.warning : Colors.expense, fontSize: 11 }]}>{margin.toFixed(1)}%</Text>
                             <Text style={[invStyles.colVal, invStyles.cellText]}>{currency}{stockVal.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
                         </View>

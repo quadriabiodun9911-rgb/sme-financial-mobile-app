@@ -52,13 +52,14 @@ export default function CashFlowScreen() {
         const overdueByClient = new Map<string, number>();
         for (const i of invoices) {
             if (i.status === 'overdue') {
-                overdueByClient.set(i.clientName, (overdueByClient.get(i.clientName) ?? 0) + 1);
+                const client = i.clientName || 'Unknown';
+                overdueByClient.set(client, (overdueByClient.get(client) ?? 0) + 1);
             }
         }
         const now = Date.now();
         const unpaid = invoices.filter(i => i.status === 'sent' || i.status === 'overdue');
         return unpaid.map(inv => {
-            const overdueHistory = overdueByClient.get(inv.clientName) ?? 0;
+            const overdueHistory = overdueByClient.get(inv.clientName || 'Unknown') ?? 0;
             const daysUntilDue = inv.dueDate
                 ? Math.ceil((new Date(inv.dueDate).getTime() - now) / 86400000)
                 : null;
