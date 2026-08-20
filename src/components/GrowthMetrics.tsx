@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { Colors } from '../theme/colors';
 import { Transaction } from '../types';
+import TrendSparkline from './TrendSparkline';
 
 interface Props {
     transactions: Transaction[];
@@ -193,6 +194,13 @@ export default function GrowthMetrics({ transactions, currency, finance }: Props
                         color={growthMetrics.quarterlyGrowthRate > 0 ? Colors.income : Colors.expense}
                     />
                 </View>
+
+                {monthlyRevenue.length >= 2 && (
+                    <View style={styles.sparkCard}>
+                        <Text style={styles.sparkLabel}>Revenue, last {monthlyRevenue.length} months</Text>
+                        <TrendSparkline data={monthlyRevenue.map(m => m.revenue)} color={trendColor} height={56} />
+                    </View>
+                )}
 
                 {/* Trend Indicator */}
                 <View style={[styles.trendCard, { borderLeftColor: trendColor }]}>
@@ -451,6 +459,17 @@ const styles = StyleSheet.create({
     metricValue: {
         fontSize: 16,
         fontWeight: 'bold',
+    },
+    sparkCard: {
+        backgroundColor: Colors.surface,
+        borderRadius: 10,
+        padding: 12,
+        marginBottom: 12,
+    },
+    sparkLabel: {
+        fontSize: 11,
+        color: Colors.textSecondary,
+        marginBottom: 8,
     },
     trendCard: {
         backgroundColor: Colors.surface,

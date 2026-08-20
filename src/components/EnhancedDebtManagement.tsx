@@ -9,6 +9,7 @@ import LoanROICalculator from './LoanROICalculator';
 import BuyVsFinanceCalculator from './BuyVsFinanceCalculator';
 import GrowthAffordabilityCalculator from './GrowthAffordabilityCalculator';
 import LoanAffordabilityChecker from './LoanAffordabilityChecker';
+import RadialGauge from './RadialGauge';
 
 interface Props {
     finance: FinanceData;
@@ -142,21 +143,19 @@ export default function EnhancedDebtManagement({ finance, currency, loans = [], 
         <View>
             {/* Debt Health Score Card */}
             <View style={[styles.healthCard, { borderColor: health.color }]}>
-                <View style={styles.healthHeader}>
+                <RadialGauge
+                    displayValue={health.score.toFixed(0)}
+                    label="/ 100"
+                    progress={health.score / 100}
+                    color={health.color}
+                    size={84}
+                />
+                <View style={styles.healthTextCol}>
                     <Text style={styles.healthLabel}>Debt Health Score</Text>
-                    <Text style={[styles.healthScore, { color: health.color }]}>{health.score.toFixed(0)}/100</Text>
+                    <Text style={[styles.healthStatus, { color: health.color }]}>
+                        Status: {health.status.charAt(0).toUpperCase() + health.status.slice(1)}
+                    </Text>
                 </View>
-                <View style={[styles.healthBar, { backgroundColor: Colors.border }]}>
-                    <View
-                        style={[
-                            styles.healthBarFill,
-                            { width: `${health.score}%`, backgroundColor: health.color },
-                        ]}
-                    />
-                </View>
-                <Text style={[styles.healthStatus, { color: health.color }]}>
-                    Status: {health.status.charAt(0).toUpperCase() + health.status.slice(1)}
-                </Text>
             </View>
 
             {/* Key Debt Metrics */}
@@ -327,30 +326,18 @@ const styles = StyleSheet.create({
         padding: 16,
         marginBottom: 12,
         borderWidth: 2,
-    },
-    healthHeader: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginBottom: 12,
+        alignItems: 'center',
+        gap: 16,
+    },
+    healthTextCol: {
+        flex: 1,
     },
     healthLabel: {
         fontSize: 14,
         fontWeight: '600',
         color: Colors.textSecondary,
-    },
-    healthScore: {
-        fontSize: 24,
-        fontWeight: 'bold',
-    },
-    healthBar: {
-        height: 8,
-        borderRadius: 4,
-        marginBottom: 8,
-        overflow: 'hidden',
-    },
-    healthBarFill: {
-        height: '100%',
-        borderRadius: 4,
+        marginBottom: 6,
     },
     healthStatus: {
         fontSize: 13,

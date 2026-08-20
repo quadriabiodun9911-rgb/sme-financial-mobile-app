@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Colors } from '../theme/colors';
 import { computeRainyDayFundPlan } from '../utils/rainyDayFund';
+import RadialGauge from './RadialGauge';
 
 interface Props {
     currency: string;
@@ -66,24 +67,28 @@ export default function RainyDayFundPlanner({ currency, currentCashBalance, dail
             </View>
 
             <View style={s.statRow}>
-                <View style={s.stat}>
-                    <Text style={s.statLabel}>Target Reserve</Text>
-                    <Text style={s.statVal}>{fmt(currency, plan.targetAmount)}</Text>
-                </View>
-                <View style={s.stat}>
-                    <Text style={s.statLabel}>Current Reserve</Text>
-                    <Text style={s.statVal}>{fmt(currency, plan.currentReserve)}</Text>
-                </View>
-                <View style={s.stat}>
-                    <Text style={s.statLabel}>Months Covered Now</Text>
-                    <Text style={s.statVal}>{isFinite(plan.monthsOfCoverageNow) ? plan.monthsOfCoverageNow.toFixed(1) : '∞'}</Text>
+                <RadialGauge
+                    displayValue={`${progressPct.toFixed(0)}%`}
+                    label="of target"
+                    progress={progressPct / 100}
+                    color={plan.onTrack ? Colors.income : Colors.warning}
+                    size={72}
+                />
+                <View style={s.statCol}>
+                    <View style={s.stat}>
+                        <Text style={s.statLabel}>Target Reserve</Text>
+                        <Text style={s.statVal}>{fmt(currency, plan.targetAmount)}</Text>
+                    </View>
+                    <View style={s.stat}>
+                        <Text style={s.statLabel}>Current Reserve</Text>
+                        <Text style={s.statVal}>{fmt(currency, plan.currentReserve)}</Text>
+                    </View>
+                    <View style={s.stat}>
+                        <Text style={s.statLabel}>Months Covered Now</Text>
+                        <Text style={s.statVal}>{isFinite(plan.monthsOfCoverageNow) ? plan.monthsOfCoverageNow.toFixed(1) : '∞'}</Text>
+                    </View>
                 </View>
             </View>
-
-            <View style={s.progressTrack}>
-                <View style={[s.progressFill, { width: `${progressPct}%`, backgroundColor: plan.onTrack ? Colors.income : Colors.warning }]} />
-            </View>
-            <Text style={s.progressLabel}>{progressPct.toFixed(0)}% of target reserve</Text>
 
             <View style={[s.verdictBox, { borderColor: plan.onTrack ? Colors.income : Colors.warning }]}>
                 {plan.onTrack ? (
@@ -112,14 +117,11 @@ const s = StyleSheet.create({
     chipText: { fontSize: 12, color: Colors.textSecondary, fontWeight: '600' },
     chipTextSelected: { color: Colors.primary },
 
-    statRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
-    stat: { flex: 1, backgroundColor: Colors.bg, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, padding: 10 },
+    statRow: { flexDirection: 'row', gap: 12, marginTop: 8, alignItems: 'center' },
+    statCol: { flex: 1, gap: 8 },
+    stat: { backgroundColor: Colors.bg, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, padding: 10 },
     statLabel: { fontSize: 10, color: Colors.textMuted, marginBottom: 4, lineHeight: 13 },
     statVal: { fontSize: 13.5, fontWeight: '800', color: Colors.textPrimary },
-
-    progressTrack: { height: 8, backgroundColor: Colors.bg, borderRadius: 4, overflow: 'hidden', marginTop: 12 },
-    progressFill: { height: 8, borderRadius: 4 },
-    progressLabel: { fontSize: 10.5, color: Colors.textMuted, marginTop: 4 },
 
     verdictBox: { borderRadius: 10, borderWidth: 1.5, padding: 12, marginTop: 12 },
     verdictText: { fontSize: 12.5, lineHeight: 18, fontWeight: '600' },

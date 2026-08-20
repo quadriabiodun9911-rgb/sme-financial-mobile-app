@@ -4,6 +4,8 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { computeCostExposure, CostCategorySignal, ExposureBand } from '../utils/costExposure';
 import { computeExternalRiskInsights, ExternalRiskInsight } from '../utils/externalRiskInsights';
+import RadialGauge from './RadialGauge';
+import BarList from './BarList';
 
 const BAND_COLOR: Record<ExposureBand, string> = {
     Excellent: Colors.income,
@@ -53,8 +55,7 @@ export default function CostExposureTab() {
             {/* Score card */}
             <View style={[s.scoreCard, { borderTopColor: bandColor }]}>
                 <Text style={s.scoreLabel}>Cost Exposure</Text>
-                <Text style={[s.scoreValue, { color: bandColor }]}>{result.score}</Text>
-                <Text style={[s.scoreBand, { color: bandColor }]}>{result.band}</Text>
+                <RadialGauge displayValue={String(result.score)} label={result.band} progress={result.score / 100} color={bandColor} size={104} strokeWidth={9} />
                 <Text style={s.verdict}>{result.verdict}</Text>
             </View>
 
@@ -106,6 +107,24 @@ export default function CostExposureTab() {
                     </Text>
                 </TouchableOpacity>
             )}
+
+            {/* Share of revenue, ranked -- the same categories as the table
+                below, but the shape a reader actually wants first: who's
+                biggest right now. */}
+            <View style={s.card}>
+                <Text style={s.cardTitle}>Share of Revenue, Ranked</Text>
+                <BarList
+                    color={Colors.expense}
+                    items={result.signals
+                        .slice()
+                        .sort((a, b) => b.currentPctOfRevenue - a.currentPctOfRevenue)
+                        .map(sig => ({
+                            label: sig.category,
+                            value: sig.currentPctOfRevenue,
+                            displayValue: `${sig.currentPctOfRevenue.toFixed(1)}%`,
+                        }))}
+                />
+            </View>
 
             {/* Signal comparison table */}
             <View style={s.card}>
@@ -179,10 +198,8 @@ const s = StyleSheet.create({
     emptySub: { fontSize: 12, color: Colors.textMuted, textAlign: 'center' },
 
     scoreCard: { backgroundColor: Colors.surface, borderRadius: 14, borderTopWidth: 4, padding: 20, marginBottom: 14, alignItems: 'center' },
-    scoreLabel: { fontSize: 13, color: Colors.textSecondary, marginBottom: 4 },
-    scoreValue: { fontSize: 44, fontWeight: '800' },
-    scoreBand: { fontSize: 15, fontWeight: '700', marginBottom: 12 },
-    verdict: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center', lineHeight: 19 },
+    scoreLabel: { fontSize: 13, color: Colors.textSecondary, marginBottom: 10 },
+    verdict: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center', lineHeight: 19, marginTop: 12 },
 
     impactCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14, borderLeftWidth: 4, borderLeftColor: Colors.warning },
     impactText: { fontSize: 13, color: Colors.textSecondary, lineHeight: 20, marginBottom: 10 },

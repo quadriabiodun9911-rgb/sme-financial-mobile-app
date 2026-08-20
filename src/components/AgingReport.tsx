@@ -4,6 +4,7 @@ import { useApp } from '../contexts/AppContext';
 import { computeAgingBuckets } from '../utils/finance';
 import { Colors } from '../theme/colors';
 import { Transaction } from '../types';
+import BarList from './BarList';
 
 export default function AgingReport() {
     const { transactions, settings, updateTransaction, invoices, markInvoiceStatus } = useApp();
@@ -122,19 +123,18 @@ export default function AgingReport() {
             {hasAny && (
                 <View style={styles.summaryBar}>
                     <Text style={styles.summaryBarTitle}>Aging Breakdown</Text>
-                    {buckets.map((b, i) => {
-                        const pct = totalOutstanding > 0 ? (b.total / totalOutstanding) * 100 : 0;
-                        const barColor = i === 0 ? Colors.income : i === 1 ? Colors.warning : Colors.expense;
-                        return (
-                            <View key={b.label} style={styles.barRow}>
-                                <Text style={styles.barLabel}>{b.label}</Text>
-                                <View style={styles.barTrack}>
-                                    <View style={[styles.barFill, { width: `${pct}%` as any, backgroundColor: barColor }]} />
-                                </View>
-                                <Text style={[styles.barPct, { color: barColor }]}>{pct.toFixed(0)}%</Text>
-                            </View>
-                        );
-                    })}
+                    <BarList
+                        items={buckets.map((b, i) => {
+                            const pct = totalOutstanding > 0 ? (b.total / totalOutstanding) * 100 : 0;
+                            // Aging severity is a fixed, reserved status scale
+                            // (current -> overdue), not a rank -- each bucket
+                            // keeps its own status color rather than the
+                            // sequential rank ramp.
+                            const barColor = i === 0 ? Colors.income : i === 1 ? Colors.warning : Colors.expense;
+                            return { label: b.label, value: pct, displayValue: `${pct.toFixed(0)}%`, color: barColor };
+                        })}
+                        maxValue={100}
+                    />
                 </View>
             )}
         </View>
@@ -172,9 +172,4 @@ const styles = StyleSheet.create({
     markPaidText: { fontSize: 11, color: Colors.income, fontWeight: '600' },
     summaryBar: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 12 },
     summaryBarTitle: { fontSize: 14, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 12 },
-    barRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 8 },
-    barLabel: { fontSize: 11, color: Colors.textMuted, width: 100 },
-    barTrack: { flex: 1, height: 8, backgroundColor: Colors.bg, borderRadius: 4, overflow: 'hidden' },
-    barFill: { height: 8, borderRadius: 4 },
-    barPct: { fontSize: 11, fontWeight: '600', width: 32, textAlign: 'right' },
 });

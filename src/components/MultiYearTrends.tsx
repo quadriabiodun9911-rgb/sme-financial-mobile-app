@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { analyzeTrend, MonthlyTrendPoint } from '../utils/trendAnalysis';
+import GroupedBarChart from './GroupedBarChart';
 
 type RangeKey = '12' | '24' | '36' | 'all';
 const RANGES: { key: RangeKey; label: string }[] = [
@@ -29,11 +30,6 @@ export default function MultiYearTrends() {
         const n = Number(range);
         return trend.monthly.slice(-n);
     }, [trend.monthly, range]);
-
-    const maxAbs = useMemo(
-        () => Math.max(1, ...visibleMonths.map(m => Math.max(m.revenue, m.expense))),
-        [visibleMonths]
-    );
 
     const fmt = (n: number) => `${currency}${Math.round(n).toLocaleString()}`;
     const fmtPct = (n: number | null) => n === null ? '—' : `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`;
@@ -132,23 +128,14 @@ export default function MultiYearTrends() {
                     {/* Monthly revenue vs expense chart */}
                     <View style={s.card}>
                         <Text style={s.cardTitle}>Revenue vs Expenses by Month</Text>
-                        <View style={s.legendRow}>
-                            <View style={s.legendItem}><View style={[s.legendDot, { backgroundColor: Colors.income }]} /><Text style={s.legendText}>Revenue</Text></View>
-                            <View style={s.legendItem}><View style={[s.legendDot, { backgroundColor: Colors.expense }]} /><Text style={s.legendText}>Expenses</Text></View>
-                        </View>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                            <View style={s.chartRow}>
-                                {visibleMonths.map(m => (
-                                    <View key={m.month} style={s.chartCol}>
-                                        <View style={s.barPair}>
-                                            <View style={[s.bar, { height: Math.max(3, (m.revenue / maxAbs) * 100), backgroundColor: Colors.income }]} />
-                                            <View style={[s.bar, { height: Math.max(3, (m.expense / maxAbs) * 100), backgroundColor: Colors.expense }]} />
-                                        </View>
-                                        <Text style={s.chartMonthLabel}>{MONTH_LABEL(m.month)}</Text>
-                                    </View>
-                                ))}
-                            </View>
-                        </ScrollView>
+                        <GroupedBarChart
+                            height={100}
+                            labels={visibleMonths.map(m => MONTH_LABEL(m.month))}
+                            series={[
+                                { label: 'Revenue', color: Colors.income, values: visibleMonths.map(m => m.revenue) },
+                                { label: 'Expenses', color: Colors.expense, values: visibleMonths.map(m => m.expense) },
+                            ]}
+                        />
                     </View>
 
                     {/* Yearly summary table */}
@@ -213,17 +200,6 @@ const s = StyleSheet.create({
     rangeBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
     rangeBtnText: { fontSize: 12, fontWeight: '600', color: Colors.textMuted },
     rangeBtnTextActive: { color: '#fff' },
-
-    legendRow: { flexDirection: 'row', gap: 16, marginBottom: 10 },
-    legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-    legendDot: { width: 8, height: 8, borderRadius: 4 },
-    legendText: { fontSize: 11, color: Colors.textMuted },
-
-    chartRow: { flexDirection: 'row', alignItems: 'flex-end', height: 140, paddingTop: 10 },
-    chartCol: { width: 40, alignItems: 'center', marginRight: 4 },
-    barPair: { flexDirection: 'row', gap: 3, alignItems: 'flex-end', height: 100 },
-    bar: { width: 14, borderRadius: 3 },
-    chartMonthLabel: { fontSize: 9, color: Colors.textMuted, marginTop: 6, transform: [{ rotate: '-40deg' }] },
 
     tableHeader: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: Colors.border, paddingBottom: 8, marginBottom: 6 },
     th: { flex: 1, fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase' },

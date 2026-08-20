@@ -4,6 +4,7 @@ import { Colors } from '../theme/colors';
 import { FinanceData, Transaction } from '../types';
 import { computeMonthlyTrend } from '../utils/finance';
 import NextStepLink from './NextStepLink';
+import GroupedBarChart from './GroupedBarChart';
 
 interface Props {
     finance: FinanceData;
@@ -63,7 +64,6 @@ export default function BudgetForecast({ finance, transactions, currency, target
     }, [horizon, avgMonthlyIncome, avgMonthlyExpense, customIncome, customCost]);
 
     const active = scenarios.find(s => s.key === activeScenario)!;
-    const maxBar = Math.max(...active.months.flatMap(p => [p.income, p.expense]), 1);
 
     const targetM = parseFloat(targetMargin) || 0;
 
@@ -143,25 +143,13 @@ export default function BudgetForecast({ finance, transactions, currency, target
             {/* Bar chart for active scenario */}
             <View style={s.card}>
                 <Text style={s.cardTitle}>Monthly Projection — {SCENARIO_CONFIG[activeScenario].label}</Text>
-                <View style={s.chart}>
-                    {active.months.map((pt, i) => {
-                        const incH = Math.round((pt.income  / maxBar) * 80);
-                        const expH = Math.round((pt.expense / maxBar) * 80);
-                        return (
-                            <View key={i} style={s.col}>
-                                <View style={s.bars}>
-                                    <View style={[s.bar, { height: Math.max(incH, 2), backgroundColor: Colors.income,  marginRight: 2 }]} />
-                                    <View style={[s.bar, { height: Math.max(expH, 2), backgroundColor: Colors.expense }]} />
-                                </View>
-                                <Text style={s.colLabel}>{pt.label}</Text>
-                            </View>
-                        );
-                    })}
-                </View>
-                <View style={s.legend}>
-                    <LDot color={Colors.income}  label="Revenue" />
-                    <LDot color={Colors.expense} label="Cost" />
-                </View>
+                <GroupedBarChart
+                    labels={active.months.map(pt => pt.label)}
+                    series={[
+                        { label: 'Revenue', color: Colors.income, values: active.months.map(pt => pt.income) },
+                        { label: 'Cost', color: Colors.expense, values: active.months.map(pt => pt.expense) },
+                    ]}
+                />
             </View>
 
             {/* Month-by-month table */}
@@ -220,15 +208,6 @@ function KpiCard({ label, value, color }: { label: string; value: string; color:
     );
 }
 
-function LDot({ color, label }: { color: string; label: string }) {
-    return (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }} />
-            <Text style={{ fontSize: 10, color: Colors.textMuted }}>{label}</Text>
-        </View>
-    );
-}
-
 const s = StyleSheet.create({
     intro:    { fontSize: 12, color: Colors.textMuted, lineHeight: 17 },
     row:      { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
@@ -260,13 +239,6 @@ const s = StyleSheet.create({
     compRow:     { flexDirection: 'row', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border },
     compRowActive:{ backgroundColor: Colors.bg, borderRadius: 6 },
     compCell:    { flex: 1, fontSize: 12, color: Colors.textMuted, textAlign: 'right' },
-
-    chart:    { flexDirection: 'row', alignItems: 'flex-end', height: 100, gap: 2, marginBottom: 8 },
-    col:      { flex: 1, alignItems: 'center' },
-    bars:     { flexDirection: 'row', alignItems: 'flex-end' },
-    bar:      { width: 8, borderRadius: 2 },
-    colLabel: { fontSize: 8, color: Colors.textMuted, marginTop: 3 },
-    legend:   { flexDirection: 'row', gap: 16, justifyContent: 'center', marginTop: 4 },
 
     tableHeader: { flexDirection: 'row', paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: Colors.border, marginBottom: 2 },
     tableRow:    { flexDirection: 'row', paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: Colors.border },

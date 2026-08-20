@@ -2,6 +2,8 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { FinanceData, Asset } from '../types';
+import RadialGauge from './RadialGauge';
+import BarList from './BarList';
 
 interface Props {
     finance: FinanceData;
@@ -131,21 +133,19 @@ export default function AssetProductivityAnalysis({ finance, assets, currency }:
         <View>
             {/* Asset Health Score */}
             <View style={[styles.healthCard, { borderColor: health.color }]}>
-                <View style={styles.healthHeader}>
+                <RadialGauge
+                    displayValue={health.score.toFixed(0)}
+                    label="/ 100"
+                    progress={health.score / 100}
+                    color={health.color}
+                    size={84}
+                />
+                <View style={styles.healthTextCol}>
                     <Text style={styles.healthLabel}>Asset Productivity Score</Text>
-                    <Text style={[styles.healthScore, { color: health.color }]}>{health.score.toFixed(0)}/100</Text>
+                    <Text style={[styles.healthStatus, { color: health.color }]}>
+                        Status: {health.status.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                    </Text>
                 </View>
-                <View style={[styles.healthBar, { backgroundColor: Colors.border }]}>
-                    <View
-                        style={[
-                            styles.healthBarFill,
-                            { width: `${health.score}%`, backgroundColor: health.color },
-                        ]}
-                    />
-                </View>
-                <Text style={[styles.healthStatus, { color: health.color }]}>
-                    Status: {health.status.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
-                </Text>
             </View>
 
             {/* Key Metrics */}
@@ -227,6 +227,17 @@ export default function AssetProductivityAnalysis({ finance, assets, currency }:
             {categoryAnalysis.length > 0 && (
                 <View style={styles.card}>
                     <Text style={styles.cardTitle}>🏭 Asset Breakdown by Category</Text>
+                    <BarList
+                        items={categoryAnalysis
+                            .slice()
+                            .sort((a, b) => b.value - a.value)
+                            .map(cat => ({
+                                label: cat.category,
+                                value: cat.value,
+                                displayValue: `${currency}${cat.value.toLocaleString()}`,
+                            }))}
+                        color={Colors.asset}
+                    />
                     {categoryAnalysis.map((cat, i) => (
                         <View key={i} style={styles.categoryRow}>
                             <View style={{ flex: 1 }}>
@@ -364,30 +375,18 @@ const styles = StyleSheet.create({
         padding: 16,
         marginBottom: 12,
         borderWidth: 2,
-    },
-    healthHeader: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginBottom: 12,
+        alignItems: 'center',
+        gap: 16,
+    },
+    healthTextCol: {
+        flex: 1,
     },
     healthLabel: {
         fontSize: 14,
         fontWeight: '600',
         color: Colors.textSecondary,
-    },
-    healthScore: {
-        fontSize: 24,
-        fontWeight: 'bold',
-    },
-    healthBar: {
-        height: 8,
-        borderRadius: 4,
-        marginBottom: 8,
-        overflow: 'hidden',
-    },
-    healthBarFill: {
-        height: '100%',
-        borderRadius: 4,
+        marginBottom: 6,
     },
     healthStatus: {
         fontSize: 13,

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Transaction, Asset } from '../types';
 import { Colors } from '../theme/colors';
 import { computeProperCashFlow, computeMonthlyTrend } from '../utils/finance';
+import BarList from './BarList';
 
 interface Props {
     transactions: Transaction[];
@@ -83,21 +84,20 @@ export default function CashFlowStatement({ transactions, assets, currency }: Pr
                 <View>
                     <View style={s.card}>
                         <Text style={s.cardTitle}>Monthly Profit / Loss (last 6 months)</Text>
-                        {trend.map((pt, i) => {
-                            const barW = Math.round((Math.abs(pt.profit) / maxAbsProfit) * 100);
-                            const pos  = pt.profit >= 0;
-                            return (
-                                <View key={i} style={s.monthRow}>
-                                    <Text style={s.monthLabel}>{pt.label}</Text>
-                                    <View style={s.barTrack}>
-                                        <View style={[s.barFill, { width: `${barW}%` as any, backgroundColor: pos ? Colors.income : Colors.expense }]} />
-                                    </View>
-                                    <Text style={[s.monthVal, { color: pos ? Colors.income : Colors.expense }]}>
-                                        {pos ? '+' : ''}{currency}{Math.abs(pt.profit).toLocaleString()}
-                                    </Text>
-                                </View>
-                            );
-                        })}
+                        <BarList
+                            maxValue={maxAbsProfit}
+                            items={trend.map(pt => {
+                                const pos = pt.profit >= 0;
+                                return {
+                                    label: pt.label,
+                                    value: Math.abs(pt.profit),
+                                    displayValue: `${pos ? '+' : '-'}${currency}${Math.abs(pt.profit).toLocaleString()}`,
+                                    // Diverging by sign (profit vs loss), not a
+                                    // rank -- each row keeps its own status color.
+                                    color: pos ? Colors.income : Colors.expense,
+                                };
+                            })}
+                        />
                     </View>
 
                     <View style={s.card}>
@@ -197,11 +197,7 @@ const s = StyleSheet.create({
     chipLabel:   { fontSize: 10, color: Colors.textMuted, marginBottom: 2 },
     chipValue:   { fontSize: 12, fontWeight: '700' },
 
-    monthRow:   { flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 8 },
     monthLabel: { fontSize: 12, color: Colors.textMuted, width: 30 },
-    barTrack:   { flex: 1, height: 8, backgroundColor: Colors.bg, borderRadius: 4, overflow: 'hidden' },
-    barFill:    { height: 8, borderRadius: 4, minWidth: 2 },
-    monthVal:   { fontSize: 12, fontWeight: '600', width: 80, textAlign: 'right' },
 
     breakdownHeader: { flexDirection: 'row', paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: Colors.border, marginBottom: 4 },
     breakdownRow:    { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: Colors.border },

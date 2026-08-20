@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Colors } from '../theme/colors';
 import { Invoice, Transaction } from '../types';
+import BarList from './BarList';
 
 interface Props {
     invoices: Invoice[];
@@ -142,6 +143,24 @@ export default function CustomerProfitability({ invoices, transactions, currency
                 </TouchableOpacity>
             </View>
 
+            {/* Best Customers -- ranked by the active sort metric */}
+            <View style={styles.bestCard}>
+                <Text style={styles.summaryLabel}>
+                    Best Customers by {sortBy === 'profit' ? 'Profit' : sortBy === 'revenue' ? 'Revenue' : 'Margin'}
+                </Text>
+                <View style={{ marginTop: 8 }}>
+                    <BarList
+                        items={customerMetrics.slice(0, 8).map(c => {
+                            const metricValue = sortBy === 'revenue' ? c.totalRevenue : sortBy === 'margin' ? c.margin : c.netProfit;
+                            const displayValue = sortBy === 'margin'
+                                ? `${metricValue.toFixed(1)}%`
+                                : `${currency}${Math.round(metricValue).toLocaleString()}`;
+                            return { label: c.name, value: metricValue, displayValue };
+                        })}
+                    />
+                </View>
+            </View>
+
             {/* Customer List */}
             <View>
                 {customerMetrics.map((customer, idx) => (
@@ -259,6 +278,12 @@ const styles = StyleSheet.create({
     summaryValue: {
         fontSize: 18,
         fontWeight: 'bold',
+    },
+    bestCard: {
+        backgroundColor: Colors.surface,
+        borderRadius: 10,
+        padding: 12,
+        marginBottom: 16,
     },
     sortRow: {
         flexDirection: 'row',

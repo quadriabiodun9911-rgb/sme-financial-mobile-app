@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import { Colors } from '../theme/colors';
 import { Transaction, InventoryItem } from '../types';
 import { computeInventoryValue } from '../utils/stockVelocity';
+import BarList from './BarList';
 
 interface Props {
     transactions: Transaction[];
@@ -145,6 +146,29 @@ export default function ProductPerformance({ transactions, inventory, currency }
                 </TouchableOpacity>
             </View>
 
+            {/* Best Products -- ranked by the active sort metric */}
+            <View style={styles.bestProductsCard}>
+                <Text style={styles.summaryLabel}>
+                    Best Products by {sortBy === 'profit' ? 'Profit' : sortBy === 'revenue' ? 'Revenue' : sortBy === 'margin' ? 'Margin' : 'Velocity'}
+                </Text>
+                <View style={{ marginTop: 8 }}>
+                    <BarList
+                        items={productMetrics.slice(0, 8).map(p => {
+                            const metricValue = sortBy === 'profit' ? p.netProfit
+                                : sortBy === 'revenue' ? p.totalRevenue
+                                : sortBy === 'margin' ? p.margin
+                                : p.stockTurnover;
+                            const displayValue = sortBy === 'margin'
+                                ? `${metricValue.toFixed(1)}%`
+                                : sortBy === 'turnover'
+                                    ? metricValue.toFixed(2)
+                                    : `${currency}${Math.round(metricValue).toLocaleString()}`;
+                            return { label: p.category, value: metricValue, displayValue };
+                        })}
+                    />
+                </View>
+            </View>
+
             {/* Product Categories */}
             <View>
                 {productMetrics.map((product, idx) => (
@@ -174,25 +198,20 @@ export default function ProductPerformance({ transactions, inventory, currency }
                             <Metric label="Stock Value" value={`${currency}${product.stockValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} />
                         </View>
 
-                        {/* Profitability Bar */}
+                        {/* Profitability Bar -- a margin health reading (good/
+                            watch/poor), not a rank, so it keeps the fixed
+                            status color rather than the sequential ramp. */}
                         <View style={styles.barContainer}>
-                            <View style={styles.barLabel}>
-                                <Text style={styles.barText}>Profit Margin</Text>
-                                <Text style={[styles.barPercent, { color: product.margin > 40 ? Colors.income : product.margin > 25 ? Colors.warning : Colors.expense }]}>
-                                    {product.margin.toFixed(1)}%
-                                </Text>
-                            </View>
-                            <View style={[styles.bar, { backgroundColor: Colors.border }]}>
-                                <View
-                                    style={[
-                                        styles.barFill,
-                                        {
-                                            width: `${Math.min(100, product.margin)}%`,
-                                            backgroundColor: product.margin > 40 ? Colors.income : product.margin > 25 ? Colors.warning : Colors.expense,
-                                        },
-                                    ]}
-                                />
-                            </View>
+                            <BarList
+                                maxValue={100}
+                                barHeight={6}
+                                items={[{
+                                    label: 'Profit Margin',
+                                    value: Math.min(100, product.margin),
+                                    displayValue: `${product.margin.toFixed(1)}%`,
+                                    color: product.margin > 40 ? Colors.income : product.margin > 25 ? Colors.warning : Colors.expense,
+                                }]}
+                            />
                         </View>
                     </View>
                 ))}
@@ -327,6 +346,12 @@ const styles = StyleSheet.create({
         borderRadius: 10,
         padding: 12,
     },
+    bestProductsCard: {
+        backgroundColor: Colors.surface,
+        borderRadius: 10,
+        padding: 12,
+        marginBottom: 16,
+    },
     summaryLabel: {
         fontSize: 12,
         color: Colors.textSecondary,
@@ -415,29 +440,6 @@ const styles = StyleSheet.create({
     },
     barContainer: {
         marginTop: 8,
-    },
-    barLabel: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 4,
-    },
-    barText: {
-        fontSize: 11,
-        color: Colors.textSecondary,
-    },
-    barPercent: {
-        fontSize: 12,
-        fontWeight: '600',
-    },
-    bar: {
-        height: 6,
-        borderRadius: 3,
-        overflow: 'hidden',
-    },
-    barFill: {
-        height: '100%',
-        borderRadius: 3,
     },
     insightCard: {
         backgroundColor: Colors.surface,

@@ -36,6 +36,7 @@ import AccrualCashFlow from '../components/AccrualCashFlow';
 import ProfitAndLossStatement from '../components/ProfitAndLossStatement';
 import BalanceSheetStatement from '../components/BalanceSheetStatement';
 import CashFlowFormalStatement from '../components/CashFlowFormalStatement';
+import GroupedBarChart from '../components/GroupedBarChart';
 import { computeBalanceSheetTrend } from '../utils/balanceSheetTrend';
 import { computeAllTimeMonthlyBuckets } from '../utils/trendAnalysis';
 import { filterByPeriod, filterByDateRange, getPreviousPeriodRange, computeFinance, computeAssetCurrentValue, computeMonthlyTrend, computeEnhancedPnL, computeProperCashFlow, computeWorkingCapitalMetrics, classifyBusinessSize, sizeLabel, transactionsToCSV, ReportPeriod, MonthlyPoint, DateRange } from '../utils/finance';
@@ -1141,37 +1142,16 @@ function KpiRow({ items }: { items: { label: string; value: string; color: strin
 }
 
 function MonthlyChart({ trend, currency }: { trend: MonthlyPoint[]; currency: string }) {
-    const maxVal = Math.max(...trend.flatMap(p => [p.income, p.expense]), 1);
-    const BAR_H = 120;
-
     return (
         <View style={chartStyles.card}>
             <Text style={chartStyles.title}>Monthly Revenue vs Expenses (last 6 months)</Text>
-            <View style={chartStyles.chart}>
-                {trend.map((pt, i) => {
-                    const incH = Math.round((pt.income / maxVal) * BAR_H);
-                    const expH = Math.round((pt.expense / maxVal) * BAR_H);
-                    return (
-                        <View key={i} style={chartStyles.col}>
-                            <View style={chartStyles.bars}>
-                                <View style={[chartStyles.bar, { height: Math.max(incH, 2), backgroundColor: Colors.income, marginRight: 2 }]} />
-                                <View style={[chartStyles.bar, { height: Math.max(expH, 2), backgroundColor: Colors.expense }]} />
-                            </View>
-                            <Text style={chartStyles.monthLabel}>{pt.label}</Text>
-                        </View>
-                    );
-                })}
-            </View>
-            <View style={chartStyles.legend}>
-                <View style={chartStyles.legendItem}>
-                    <View style={[chartStyles.dot, { backgroundColor: Colors.income }]} />
-                    <Text style={chartStyles.legendText}>Revenue</Text>
-                </View>
-                <View style={chartStyles.legendItem}>
-                    <View style={[chartStyles.dot, { backgroundColor: Colors.expense }]} />
-                    <Text style={chartStyles.legendText}>Expenses</Text>
-                </View>
-            </View>
+            <GroupedBarChart
+                labels={trend.map(p => p.label)}
+                series={[
+                    { label: 'Revenue', color: Colors.income, values: trend.map(p => p.income) },
+                    { label: 'Expenses', color: Colors.expense, values: trend.map(p => p.expense) },
+                ]}
+            />
             {trend.every(p => p.income === 0 && p.expense === 0) && (
                 <Text style={chartStyles.empty}>No transactions in the last 6 months</Text>
             )}
@@ -1280,14 +1260,5 @@ const kpiStyles = StyleSheet.create({
 const chartStyles = StyleSheet.create({
     card:        { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 16 },
     title:       { fontSize: 14, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 12 },
-    chart:       { flexDirection: 'row', alignItems: 'flex-end', height: 140, gap: 4 },
-    col:         { flex: 1, alignItems: 'center' },
-    bars:        { flexDirection: 'row', alignItems: 'flex-end' },
-    bar:         { width: 10, borderRadius: 3 },
-    monthLabel:  { fontSize: 9, color: Colors.textMuted, marginTop: 4 },
-    legend:      { flexDirection: 'row', gap: 16, marginTop: 12, justifyContent: 'center' },
-    legendItem:  { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    dot:         { width: 8, height: 8, borderRadius: 4 },
-    legendText:  { fontSize: 11, color: Colors.textMuted },
     empty:       { fontSize: 12, color: Colors.textMuted, textAlign: 'center', marginTop: 8 },
 });

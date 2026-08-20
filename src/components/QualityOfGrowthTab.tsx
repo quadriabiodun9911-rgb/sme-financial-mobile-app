@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { Transaction, Asset, Loan } from '../types';
 import { computeQualityOfGrowth, GrowthSignal, QualityBand } from '../utils/qualityOfGrowth';
+import RadialGauge from './RadialGauge';
 
 interface Props {
     transactions: Transaction[];
@@ -56,8 +57,7 @@ export default function QualityOfGrowthTab({ transactions, assets, loans, curren
             {/* Score card */}
             <View style={[s.scoreCard, { borderTopColor: bandColor }]}>
                 <Text style={s.scoreLabel}>Quality of Growth</Text>
-                <Text style={[s.scoreValue, { color: bandColor }]}>{result.score}</Text>
-                <Text style={[s.scoreBand, { color: bandColor }]}>{result.band}</Text>
+                <RadialGauge displayValue={String(result.score)} label={result.band} progress={result.score / 100} color={bandColor} size={104} strokeWidth={9} />
                 <Text style={s.verdict}>{result.verdict}</Text>
             </View>
 
@@ -114,10 +114,8 @@ const s = StyleSheet.create({
     emptySub: { fontSize: 12, color: Colors.textMuted, textAlign: 'center' },
 
     scoreCard: { backgroundColor: Colors.surface, borderRadius: 14, borderTopWidth: 4, padding: 20, marginBottom: 14, alignItems: 'center' },
-    scoreLabel: { fontSize: 13, color: Colors.textSecondary, marginBottom: 4 },
-    scoreValue: { fontSize: 44, fontWeight: '800' },
-    scoreBand: { fontSize: 15, fontWeight: '700', marginBottom: 12 },
-    verdict: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center', lineHeight: 19 },
+    scoreLabel: { fontSize: 13, color: Colors.textSecondary, marginBottom: 10 },
+    verdict: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center', lineHeight: 19, marginTop: 12 },
 
     flagsCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14, borderLeftWidth: 4, borderLeftColor: Colors.expense },
     flagRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },

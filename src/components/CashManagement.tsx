@@ -6,6 +6,7 @@ import { computeAgingBuckets } from '../utils/finance';
 import { computeCashRunway } from '../utils/cashRunway';
 import CashFlowStressTester from './CashFlowStressTester';
 import RainyDayFundPlanner from './RainyDayFundPlanner';
+import BarList from './BarList';
 
 interface Props {
     finance: FinanceData;
@@ -91,20 +92,18 @@ export default function CashManagement({ finance, transactions, currency, minRes
             {totalAR > 0 && (
                 <View style={styles.card}>
                     <Text style={styles.cardTitle}>Receivables Aging</Text>
-                    {arBuckets.map((b, i) => {
-                        if (b.total === 0) return null;
-                        const pct = totalAR > 0 ? (b.total / totalAR) * 100 : 0;
-                        const barColor = i === 0 ? Colors.income : i === 1 ? Colors.warning : Colors.expense;
-                        return (
-                            <View key={b.label} style={styles.barRow}>
-                                <Text style={styles.barLabel}>{b.label}</Text>
-                                <View style={styles.barTrack}>
-                                    <View style={[styles.barFill, { width: `${pct}%` as any, backgroundColor: barColor }]} />
-                                </View>
-                                <Text style={[styles.barAmt, { color: barColor }]}>{currency}{b.total.toLocaleString()}</Text>
-                            </View>
-                        );
-                    })}
+                    <BarList
+                        items={arBuckets
+                            .map((b, i) => ({
+                                label: b.label,
+                                value: b.total,
+                                displayValue: `${currency}${b.total.toLocaleString()}`,
+                                // Fixed aging-severity status color per bucket
+                                // (current -> overdue), not a rank ramp.
+                                color: i === 0 ? Colors.income : i === 1 ? Colors.warning : Colors.expense,
+                            }))
+                            .filter(item => item.value > 0)}
+                    />
                     <Text style={styles.hint}>Collect aged receivables to improve cash position immediately.</Text>
                 </View>
             )}
@@ -190,10 +189,5 @@ const styles = StyleSheet.create({
     card:      { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 12 },
     cardTitle: { fontSize: 15, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 12 },
 
-    barRow:   { flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 8 },
-    barLabel: { fontSize: 10, color: Colors.textMuted, width: 100 },
-    barTrack: { flex: 1, height: 8, backgroundColor: Colors.bg, borderRadius: 4, overflow: 'hidden' },
-    barFill:  { height: 8, borderRadius: 4, minWidth: 2 },
-    barAmt:   { fontSize: 11, fontWeight: '600', width: 70, textAlign: 'right' },
     hint:     { fontSize: 11, color: Colors.textMuted, marginTop: 8, fontStyle: 'italic' },
 });
