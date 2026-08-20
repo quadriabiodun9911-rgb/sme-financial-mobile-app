@@ -489,6 +489,15 @@ export default function SettingsScreen() {
                                 <Text style={styles.dataBtnText}>Set Up Extra Security Lock</Text>
                             </TouchableOpacity>
                         </Section>
+
+                        <Section title="Data Integrity Check">
+                            <Text style={styles.hint}>
+                                A password reset can occasionally leave a few records unreadable. Check whether any of yours were affected and clean them up.
+                            </Text>
+                            <TouchableOpacity style={styles.dataBtn} onPress={() => setCurrentScreen('data-integrity')}>
+                                <Text style={styles.dataBtnText}>Run Data Integrity Check</Text>
+                            </TouchableOpacity>
+                        </Section>
                     </CollapsibleSection>
 
                     {/* Team (Operations category) */}

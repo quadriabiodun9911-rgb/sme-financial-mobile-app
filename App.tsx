@@ -46,6 +46,7 @@ import ActionTrackerScreen from './src/screens/ActionTrackerScreen';
 import FinancingMarketplaceScreen from './src/screens/FinancingMarketplaceScreen';
 import FinancingAdminScreen from './src/screens/FinancingAdminScreen';
 import OnboardingChoiceScreen from './src/screens/OnboardingChoiceScreen';
+import DataIntegrityScreen from './src/screens/DataIntegrityScreen';
 import LenderPipelineScreen from './src/screens/LenderPipelineScreen';
 import RestrictedAccessScreen from './src/screens/RestrictedAccessScreen';
 import { isScreenAllowedForRole } from './src/utils/rolePermissions';
@@ -193,6 +194,7 @@ function NavigatorContent() {
             {currentScreen === 'financing-marketplace' && <FinancingMarketplaceScreen />}
             {currentScreen === 'financing-admin' && <FinancingAdminScreen />}
             {currentScreen === 'onboarding-choice' && <OnboardingChoiceScreen />}
+            {currentScreen === 'data-integrity' && <DataIntegrityScreen />}
         </View>
     );
 }

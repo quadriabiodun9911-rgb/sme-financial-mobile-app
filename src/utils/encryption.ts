@@ -11,7 +11,7 @@ import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
 const ENCRYPTION_KEY_STORAGE = '@quad360/encryption-key';
-const ENCRYPTED_FIELDS = {
+export const ENCRYPTED_FIELDS = {
     transactions: ['amount', 'description', 'category'],
     invoices: ['amount', 'description', 'clientName', 'clientEmail'],
     assets: ['description', 'purchasePrice', 'currentValue'],
@@ -476,4 +476,25 @@ export function verifyEncryptionKey(key: string): boolean {
     } catch {
         return false;
     }
+}
+
+/**
+ * Which of a record's encrypted fields failed to decrypt (wrong/missing
+ * key). Every decryptX() above deliberately leaves the raw `${field}_encrypted`
+ * ciphertext in place whenever decryptValue() comes back empty -- it only
+ * ever *sets* the plain `field` on success, never deletes the ciphertext on
+ * failure -- so a field with `${field}_encrypted` present but no `field`
+ * value is unambiguously "this device's key couldn't read it," not "this
+ * was never filled in." That's the one reliable signal a corrupted-by-key-
+ * rotation record leaves behind after going through decryptTransaction/
+ * decryptInvoice/etc., which is what lets a cleanup screen tell those apart
+ * from ordinary empty fields.
+ */
+export function getUndecryptedFields(
+    record: Record<string, any>,
+    entityType: keyof typeof ENCRYPTED_FIELDS,
+): string[] {
+    return ENCRYPTED_FIELDS[entityType].filter(
+        field => record[`${field}_encrypted`] && record[field] === undefined
+    );
 }
