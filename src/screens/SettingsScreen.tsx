@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
-    TouchableOpacity, StyleSheet, Modal, Share, Platform,
+    TouchableOpacity, StyleSheet, Modal, Share, Platform, useWindowDimensions,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors, ColorThemeMode, getColorThemeMode, setColorThemeMode } from '../theme/colors';
@@ -59,6 +59,12 @@ const LEGAL_ENTITY_TYPES: { label: string; value: NonNullable<BusinessSettings['
 ];
 
 export default function SettingsScreen() {
+    // Modal renders via a portal on web, outside App.tsx's width constraint --
+    // see FooterNav.tsx for the reference fix. Applied here to the bottom
+    // sheets so they don't stretch full-bleed on desktop.
+    const { width: windowWidth } = useWindowDimensions();
+    const constrainSheetWidth = Platform.OS === 'web' && windowWidth >= 720;
+
     const {
         settings, updateSettings, setCurrentScreen,
         changePin, exportData, importData, clearData, resetBusinessData, deleteAccount, logout,
@@ -793,7 +799,7 @@ export default function SettingsScreen() {
             {/* Invite Modal */}
             <Modal visible={inviteModal} animationType="slide" transparent>
                 <View style={styles.modalOverlay}>
-                    <View style={styles.modalCard}>
+                    <View style={[styles.modalCard, constrainSheetWidth && styles.modalCardWide]}>
                         <Text style={styles.modalTitle}>Invite Team Member</Text>
                         {pendingCode ? (
                             <>
@@ -852,7 +858,7 @@ export default function SettingsScreen() {
             {/* Import Modal */}
             <Modal visible={importModal} animationType="slide" transparent>
                 <View style={styles.modalOverlay}>
-                    <View style={styles.modalCard}>
+                    <View style={[styles.modalCard, constrainSheetWidth && styles.modalCardWide]}>
                         <Text style={styles.modalTitle}>Import Backup</Text>
                         <Text style={styles.hint}>Paste your Quad360 JSON backup below.</Text>
                         <TextInput
@@ -879,7 +885,7 @@ export default function SettingsScreen() {
             {/* Reset Business Data Modal */}
             <Modal visible={resetModal} animationType="slide" transparent onRequestClose={() => setResetModal(false)}>
                 <View style={styles.modalOverlay}>
-                    <View style={styles.modalCard}>
+                    <View style={[styles.modalCard, constrainSheetWidth && styles.modalCardWide]}>
                         <Text style={styles.modalTitle}>Reset Business Data</Text>
                         <Text style={[styles.hint, { marginBottom: 12 }]}>
                             This permanently deletes all transactions, invoices, goals, assets, loans, and inventory.
@@ -913,7 +919,7 @@ export default function SettingsScreen() {
             {/* Delete Account Modal */}
             <Modal visible={deleteModal} animationType="slide" transparent onRequestClose={() => setDeleteModal(false)}>
                 <View style={styles.modalOverlay}>
-                    <View style={styles.modalCard}>
+                    <View style={[styles.modalCard, constrainSheetWidth && styles.modalCardWide]}>
                         <Text style={styles.modalTitle}>Delete Account</Text>
                         <Text style={[styles.hint, { marginBottom: 12 }]}>
                             This permanently removes your account and ALL business data from the cloud.
@@ -1041,6 +1047,7 @@ const styles = StyleSheet.create({
 
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
     modalCard:    { backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Spacing.xxl, paddingBottom: 36, ...Shadow.md },
+    modalCardWide: { maxWidth: 480, width: '100%', alignSelf: 'center' },
     modalTitle:   { fontSize: 17, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: Spacing.sm },
     importArea:   { height: 180, marginBottom: Spacing.lg },
     modalBtns:    { flexDirection: 'row', gap: Spacing.md, alignItems: 'center' },

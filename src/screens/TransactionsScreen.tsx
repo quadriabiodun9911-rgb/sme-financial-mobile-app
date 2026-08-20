@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
-    TouchableOpacity, Modal, StyleSheet, Share, Linking, FlatList, Platform,
+    TouchableOpacity, Modal, StyleSheet, Share, Linking, FlatList, Platform, useWindowDimensions,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -126,6 +126,12 @@ function formatDateHeader(iso: string): string {
 export default function TransactionsScreen() {
     const { transactions, addTransaction, deleteTransaction, updateTransaction, settings, setCurrentScreen, navParams, invoices, markInvoiceStatus, navigate, language, isDemoMode } = useApp();
     const { currency, defaultTaxRate } = settings;
+
+    // Modal renders via a portal on web, outside App.tsx's width constraint --
+    // see FooterNav.tsx for the reference fix. Applied here to the bottom
+    // sheets so they don't stretch full-bleed on desktop.
+    const { width: windowWidth } = useWindowDimensions();
+    const constrainSheetWidth = Platform.OS === 'web' && windowWidth >= 720;
 
     const [modalOpen, setModalOpen]   = useState(false);
     const [editingId, setEditingId]   = useState<string | null>(null);
@@ -584,7 +590,7 @@ export default function TransactionsScreen() {
                 onRequestClose={() => setCsvModalOpen(false)}
             >
                 <View style={styles.overlay}>
-                    <View style={styles.modalSheet}>
+                    <View style={[styles.modalSheet, constrainSheetWidth && styles.modalSheetWide]}>
                         <View style={styles.handle} />
                         <Text style={styles.modalTitle}>{t(language, 'importTransactionsTitle')}</Text>
                         <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
@@ -640,7 +646,7 @@ export default function TransactionsScreen() {
                 onRequestClose={() => setModalOpen(false)}
             >
                 <View style={styles.overlay}>
-                    <View style={styles.modalSheet}>
+                    <View style={[styles.modalSheet, constrainSheetWidth && styles.modalSheetWide]}>
                         {/* Handle */}
                         <View style={styles.handle} />
 
@@ -1108,6 +1114,7 @@ const styles = StyleSheet.create({
     // Modal
     overlay:    { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
     modalSheet: { backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, paddingHorizontal: Spacing.xl, paddingBottom: 44, maxHeight: '92%' },
+    modalSheetWide: { maxWidth: 560, width: '100%', alignSelf: 'center' },
     handle:     { width: 40, height: 4, backgroundColor: Colors.border, borderRadius: 2, alignSelf: 'center', marginTop: 10, marginBottom: 14 },
     modalTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary, textAlign: 'center', marginBottom: Spacing.xs },
 

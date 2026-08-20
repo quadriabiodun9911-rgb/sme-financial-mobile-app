@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import {
     Modal, View, Text, TouchableOpacity,
-    StyleSheet, ScrollView, SafeAreaView,
+    StyleSheet, ScrollView, SafeAreaView, Platform, useWindowDimensions,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -14,6 +14,12 @@ interface Props {
 export default function MonthlyReview({ visible, onClose }: Props) {
     const { transactions, invoices, goals, finance, settings, setCurrentScreen } = useApp();
     const currency = settings.currency;
+
+    // Modal renders via a portal on web, outside App.tsx's width constraint --
+    // see FooterNav.tsx for the reference fix. Applied here to the full-page
+    // content so it doesn't stretch full-bleed on desktop.
+    const { width: windowWidth } = useWindowDimensions();
+    const constrainModalWidth = Platform.OS === 'web' && windowWidth >= 720;
 
     const now = new Date();
     const thisMonth = now.toISOString().slice(0, 7);
@@ -90,6 +96,7 @@ export default function MonthlyReview({ visible, onClose }: Props) {
     return (
         <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
             <SafeAreaView style={styles.root}>
+              <View style={[{ flex: 1, width: '100%' }, constrainModalWidth && styles.constrainedColumn]}>
                 {/* Header */}
                 <View style={styles.header}>
                     <View>
@@ -227,6 +234,7 @@ export default function MonthlyReview({ visible, onClose }: Props) {
                     </View>
 
                 </ScrollView>
+              </View>
             </SafeAreaView>
         </Modal>
     );
@@ -234,6 +242,7 @@ export default function MonthlyReview({ visible, onClose }: Props) {
 
 const styles = StyleSheet.create({
     root:   { flex: 1, backgroundColor: Colors.bg },
+    constrainedColumn: { maxWidth: 720, alignSelf: 'center' },
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border },
     headerTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary },
     headerSub:   { fontSize: 12, color: Colors.textMuted },

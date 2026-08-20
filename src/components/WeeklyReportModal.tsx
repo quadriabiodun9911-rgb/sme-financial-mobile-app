@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, Platform, useWindowDimensions } from 'react-native';
 import { Colors } from '../theme/colors';
 import DataQualityBadge from './DataQualityBadge';
 import MissionVisionCard from './MissionVisionCard';
@@ -20,6 +20,12 @@ interface Props {
 export default function WeeklyReportModal({ visible, onClose, onEditMission, transactions, invoices, finance, loans, settings }: Props) {
     const currency = settings.currency || '₦';
 
+    // Modal renders via a portal on web, outside App.tsx's width constraint --
+    // see FooterNav.tsx for the reference fix. Applied here to the bottom
+    // sheet so it doesn't stretch full-bleed on desktop.
+    const { width: windowWidth } = useWindowDimensions();
+    const constrainSheetWidth = Platform.OS === 'web' && windowWidth >= 720;
+
     const summary = useMemo(
         () => computeWeeklySummary(transactions, invoices, finance, loans),
         [transactions, invoices, finance, loans]
@@ -32,7 +38,7 @@ export default function WeeklyReportModal({ visible, onClose, onEditMission, tra
     return (
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
             <View style={s.overlay}>
-                <View style={s.sheet}>
+                <View style={[s.sheet, constrainSheetWidth && s.sheetWide]}>
                     <ScrollView showsVerticalScrollIndicator={false}>
                         <Text style={s.title}>🗓️ Weekly Dashboard</Text>
                         <Text style={s.subtitle}>{summary.weekLabel} — a summary of this week, so far</Text>
@@ -155,6 +161,7 @@ function BulletRow({ text, num }: { text: string; num?: number }) {
 const s = StyleSheet.create({
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'flex-end' },
     sheet: { backgroundColor: Colors.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16, paddingBottom: 24, maxHeight: '92%' },
+    sheetWide: { maxWidth: 560, width: '100%', alignSelf: 'center' },
     title: { fontSize: 20, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 4 },
     subtitle: { fontSize: 13, color: Colors.textSecondary, marginBottom: 16 },
     metricRow: { flexDirection: 'row', gap: 10, marginBottom: 10, flexWrap: 'wrap' },

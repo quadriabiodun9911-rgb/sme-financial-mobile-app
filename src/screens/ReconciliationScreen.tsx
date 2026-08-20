@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
     ScrollView, View, Text, TouchableOpacity,
-    StyleSheet, TextInput, Modal, Platform,
+    StyleSheet, TextInput, Modal, Platform, useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from '../contexts/AppContext';
@@ -86,6 +86,13 @@ const SAMPLE_CSV = `date,description,amount,type
 
 export default function ReconciliationScreen() {
     const { transactions, addTransaction, settings, setCurrentScreen } = useApp();
+
+    // Modal renders via a portal on web, outside App.tsx's width constraint --
+    // see FooterNav.tsx for the reference fix. presentationStyle="pageSheet"
+    // has no effect on web, so this still needs the constraint applied.
+    const { width: windowWidth } = useWindowDimensions();
+    const constrainModalWidth = Platform.OS === 'web' && windowWidth >= 720;
+
     const [tab, setTab] = useState<Tab>('import');
     const [bankTxs, setBankTxs] = useState<BankTx[]>([]);
     const [csvText, setCsvText] = useState('');
@@ -403,35 +410,37 @@ export default function ReconciliationScreen() {
             {/* ── Manual Bank TX Modal ───────────────────────────────────── */}
             <Modal visible={addManualModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setAddManualModal(false)}>
                 <SafeAreaView style={styles.modalSafe}>
-                    <View style={styles.modalHeader}>
-                        <Text style={styles.modalTitle}>Add Bank Transaction</Text>
-                        <TouchableOpacity onPress={() => setAddManualModal(false)} activeOpacity={0.7}>
-                            <Icon name="x" size={20} color={Colors.textMuted} />
-                        </TouchableOpacity>
-                    </View>
-                    <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
-                        <Text style={styles.fieldLabel}>Date</Text>
-                        <TextInput style={styles.input} value={manualForm.date} onChangeText={v => setManualForm(p => ({ ...p, date: v }))} placeholder="YYYY-MM-DD" placeholderTextColor={Colors.textMuted} />
-
-                        <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Description</Text>
-                        <TextInput style={styles.input} value={manualForm.description} onChangeText={v => setManualForm(p => ({ ...p, description: v }))} placeholder="e.g. Customer payment" placeholderTextColor={Colors.textMuted} />
-
-                        <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Amount</Text>
-                        <TextInput style={styles.input} value={manualForm.amount} onChangeText={v => setManualForm(p => ({ ...p, amount: v }))} placeholder="e.g. 50000" placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" />
-
-                        <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Type</Text>
-                        <View style={styles.segmentRow}>
-                            {(['credit', 'debit'] as const).map(t => (
-                                <TouchableOpacity key={t} style={[styles.segment, manualForm.type === t && styles.segmentActive]} onPress={() => setManualForm(p => ({ ...p, type: t }))} activeOpacity={0.75}>
-                                    <Text style={[styles.segmentText, manualForm.type === t && styles.segmentTextActive]}>{t === 'credit' ? 'Credit (Money In)' : 'Debit (Money Out)'}</Text>
-                                </TouchableOpacity>
-                            ))}
+                    <View style={[{ flex: 1, width: '100%' }, constrainModalWidth && styles.modalConstrainedColumn]}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Add Bank Transaction</Text>
+                            <TouchableOpacity onPress={() => setAddManualModal(false)} activeOpacity={0.7}>
+                                <Icon name="x" size={20} color={Colors.textMuted} />
+                            </TouchableOpacity>
                         </View>
+                        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+                            <Text style={styles.fieldLabel}>Date</Text>
+                            <TextInput style={styles.input} value={manualForm.date} onChangeText={v => setManualForm(p => ({ ...p, date: v }))} placeholder="YYYY-MM-DD" placeholderTextColor={Colors.textMuted} />
 
-                        <TouchableOpacity style={[styles.primaryBtn, { marginTop: 24 }]} onPress={addManualBankTx} activeOpacity={0.8}>
-                            <Text style={styles.primaryBtnText}>Add Transaction</Text>
-                        </TouchableOpacity>
-                    </ScrollView>
+                            <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Description</Text>
+                            <TextInput style={styles.input} value={manualForm.description} onChangeText={v => setManualForm(p => ({ ...p, description: v }))} placeholder="e.g. Customer payment" placeholderTextColor={Colors.textMuted} />
+
+                            <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Amount</Text>
+                            <TextInput style={styles.input} value={manualForm.amount} onChangeText={v => setManualForm(p => ({ ...p, amount: v }))} placeholder="e.g. 50000" placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" />
+
+                            <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Type</Text>
+                            <View style={styles.segmentRow}>
+                                {(['credit', 'debit'] as const).map(t => (
+                                    <TouchableOpacity key={t} style={[styles.segment, manualForm.type === t && styles.segmentActive]} onPress={() => setManualForm(p => ({ ...p, type: t }))} activeOpacity={0.75}>
+                                        <Text style={[styles.segmentText, manualForm.type === t && styles.segmentTextActive]}>{t === 'credit' ? 'Credit (Money In)' : 'Debit (Money Out)'}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
+                            <TouchableOpacity style={[styles.primaryBtn, { marginTop: 24 }]} onPress={addManualBankTx} activeOpacity={0.8}>
+                                <Text style={styles.primaryBtnText}>Add Transaction</Text>
+                            </TouchableOpacity>
+                        </ScrollView>
+                    </View>
                 </SafeAreaView>
             </Modal>
 
@@ -505,6 +514,7 @@ const styles = StyleSheet.create({
     importBtnText: { color: Colors.primary, fontWeight: '700', fontSize: 12 },
 
     modalSafe:    { flex: 1, backgroundColor: Colors.bg },
+    modalConstrainedColumn: { maxWidth: 720, alignSelf: 'center' },
     modalHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: Spacing.lg, borderBottomWidth: 1, borderBottomColor: Colors.border },
     modalTitle:   { fontSize: 18, fontWeight: '800', color: Colors.textPrimary },
     fieldLabel:   { fontSize: 13, fontWeight: '600', color: Colors.textSecondary, marginBottom: 6 },

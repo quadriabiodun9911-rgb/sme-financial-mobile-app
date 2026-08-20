@@ -5,10 +5,10 @@ import { BUILD_STAMP } from '../utils/buildInfo';
 import { captureCrash } from '../utils/sentry';
 
 interface Props { children: ReactNode }
-interface State { error: Error | null; stack: string }
+interface State { error: Error | null; stack: string; jsStack: string }
 
 export default class ErrorBoundary extends Component<Props, State> {
-    state: State = { error: null, stack: '' };
+    state: State = { error: null, stack: '', jsStack: '' };
 
     static getDerivedStateFromError(error: Error): Partial<State> {
         return { error };
@@ -25,11 +25,21 @@ export default class ErrorBoundary extends Component<Props, State> {
             .filter(Boolean)
             .slice(0, 6)
             .join('\n');
-        this.setState({ stack: top });
+        // The component stack only shows *which components* were rendering,
+        // not *which line* threw -- error.stack is the actual JS stack (function
+        // names + minified file:line:col) and is what actually pinpoints the
+        // bug from a screenshot, since we don't have direct access to Sentry.
+        const jsTop = (error.stack || '')
+            .split('\n')
+            .map(l => l.trim())
+            .filter(Boolean)
+            .slice(0, 8)
+            .join('\n');
+        this.setState({ stack: top, jsStack: jsTop });
     }
 
     render() {
-        const { error, stack } = this.state;
+        const { error, stack, jsStack } = this.state;
         if (!error) return this.props.children;
 
         return (
@@ -39,12 +49,13 @@ export default class ErrorBoundary extends Component<Props, State> {
                     <Text style={s.title}>Something went wrong</Text>
                     <Text style={s.message}>{error.message}</Text>
                     <Text style={s.buildStamp}>build {BUILD_STAMP}</Text>
-                    {!!stack && (
+                    {!!(jsStack || stack) && (
                         <ScrollView style={s.stackBox} contentContainerStyle={{ padding: 10 }}>
-                            <Text style={s.stackText}>{stack}</Text>
+                            {!!jsStack && <Text style={s.stackText}>{jsStack}</Text>}
+                            {!!stack && <Text style={s.stackText}>{stack}</Text>}
                         </ScrollView>
                     )}
-                    <TouchableOpacity style={s.btn} onPress={() => this.setState({ error: null, stack: '' })}>
+                    <TouchableOpacity style={s.btn} onPress={() => this.setState({ error: null, stack: '', jsStack: '' })}>
                         <Text style={s.btnText}>Try Again</Text>
                     </TouchableOpacity>
                 </View>

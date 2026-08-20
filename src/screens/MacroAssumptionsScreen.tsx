@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { SafeAreaView, ScrollView, View, Text, TouchableOpacity, StyleSheet, TextInput, Modal } from 'react-native';
+import { SafeAreaView, ScrollView, View, Text, TouchableOpacity, StyleSheet, TextInput, Modal, Platform, useWindowDimensions } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
@@ -32,6 +32,12 @@ function driverMeta(driver: MacroDriver) {
 export default function MacroAssumptionsScreen() {
     const { transactions, settings, updateSettings, navigate } = useApp();
     const assumptions = settings.macroAssumptions ?? [];
+
+    // Modal renders via a portal on web, outside App.tsx's width constraint --
+    // see FooterNav.tsx for the reference fix. Applied here to the bottom
+    // sheet so it doesn't stretch full-bleed on desktop.
+    const { width: windowWidth } = useWindowDimensions();
+    const constrainSheetWidth = Platform.OS === 'web' && windowWidth >= 720;
 
     const knownCategories = useMemo(() => {
         const fromTxs = Array.from(new Set(transactions.filter(t => t.type === 'expense').map(t => t.category)));
@@ -168,7 +174,7 @@ export default function MacroAssumptionsScreen() {
 
             <Modal visible={showForm} transparent animationType="slide" onRequestClose={() => setShowForm(false)}>
                 <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setShowForm(false)} />
-                <View style={s.sheet}>
+                <View style={[s.sheet, constrainSheetWidth && s.sheetWide]}>
                     <ScrollView contentContainerStyle={{ paddingBottom: 8 }}>
                         <View style={s.sheetHandle} />
                         <Text style={s.sheetTitle}>{editingId ? 'Edit Assumption' : 'Add Assumption'}</Text>
@@ -297,6 +303,7 @@ const s = StyleSheet.create({
 
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
     sheet: { backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Spacing.xxl, paddingBottom: 30, maxHeight: '85%' },
+    sheetWide: { maxWidth: 560, width: '100%', alignSelf: 'center' },
     sheetHandle: { width: 40, height: 4, backgroundColor: Colors.border, borderRadius: 2, alignSelf: 'center', marginBottom: Spacing.lg },
     sheetTitle: { fontSize: 18, fontWeight: '700', color: Colors.textPrimary, marginBottom: Spacing.lg },
 

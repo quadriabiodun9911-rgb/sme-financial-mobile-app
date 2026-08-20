@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { SafeAreaView, ScrollView, View, Text, TextInput, TouchableOpacity, StyleSheet, Modal } from 'react-native';
+import { SafeAreaView, ScrollView, View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, Platform, useWindowDimensions } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
@@ -22,6 +22,12 @@ import { FinancingProductForm, emptyFinancingProduct, LENDER_TYPES, Field } from
 export default function FinancingAdminScreen() {
     const { user, navigate } = useApp();
     const admin = isFinancingAdmin(user?.email);
+
+    // Modal renders via a portal on web, outside App.tsx's width constraint --
+    // see FooterNav.tsx for the reference fix. Applied here to the bottom
+    // sheet so it doesn't stretch full-bleed on desktop.
+    const { width: windowWidth } = useWindowDimensions();
+    const constrainSheetWidth = Platform.OS === 'web' && windowWidth >= 720;
 
     const [tab, setTab] = useState<'listings' | 'lenders'>('listings');
 
@@ -319,7 +325,7 @@ export default function FinancingAdminScreen() {
 
             <Modal visible={showForm} animationType="slide" transparent>
                 <View style={s.overlay}>
-                    <View style={s.sheet}>
+                    <View style={[s.sheet, constrainSheetWidth && s.sheetWide]}>
                         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: Spacing.xl, paddingBottom: 60 }}>
                             <TouchableOpacity onPress={() => setShowForm(false)}>
                                 <Text style={{ color: Colors.primary, fontSize: 14, marginBottom: 12 }}>✕ Close</Text>
@@ -382,6 +388,7 @@ const s = StyleSheet.create({
 
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
     sheet: { backgroundColor: Colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '92%', ...Shadow.md },
+    sheetWide: { maxWidth: 640, width: '100%', alignSelf: 'center' },
     formTitle: { fontSize: 18, fontWeight: '700', color: Colors.textPrimary, marginBottom: 16 },
     fieldLabel: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 },
     numFieldLabel: { fontSize: 11, color: Colors.textMuted, marginBottom: 4 },

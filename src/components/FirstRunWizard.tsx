@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
     View, Text, TextInput, TouchableOpacity, StyleSheet,
-    Modal, KeyboardAvoidingView, Platform, ScrollView,
+    Modal, KeyboardAvoidingView, Platform, ScrollView, useWindowDimensions,
 } from 'react-native';
 import { Colors } from '../theme/colors';
 import { useApp } from '../contexts/AppContext';
@@ -20,6 +20,12 @@ const WHAT_I_SELL = [
 export default function FirstRunWizard({ visible, onDone }: Props) {
     const { addTransaction, settings } = useApp();
     const currency = settings.currency;
+
+    // Modal renders via a portal on web, outside App.tsx's width constraint --
+    // see FooterNav.tsx for the reference fix. Applied here to the full-page
+    // content so it doesn't stretch full-bleed on desktop.
+    const { width: windowWidth } = useWindowDimensions();
+    const constrainModalWidth = Platform.OS === 'web' && windowWidth >= 720;
 
     const [step, setStep]         = useState(0);
     const [whatISell, setWhatISell] = useState('');
@@ -72,6 +78,7 @@ export default function FirstRunWizard({ visible, onDone }: Props) {
                 style={styles.root}
                 behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             >
+              <View style={[{ flex: 1, width: '100%' }, constrainModalWidth && styles.constrainedColumn]}>
                 <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
 
                     {/* ── Done / profit reveal screen ───────────────────────── */}
@@ -219,6 +226,7 @@ export default function FirstRunWizard({ visible, onDone }: Props) {
                         </>
                     )}
                 </ScrollView>
+              </View>
             </KeyboardAvoidingView>
         </Modal>
     );
@@ -226,6 +234,7 @@ export default function FirstRunWizard({ visible, onDone }: Props) {
 
 const styles = StyleSheet.create({
     root:   { flex: 1, backgroundColor: Colors.bg },
+    constrainedColumn: { maxWidth: 720, alignSelf: 'center' },
     scroll: { flexGrow: 1, padding: 24, paddingTop: 60, justifyContent: 'center' },
 
     dots:      { flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 32 },

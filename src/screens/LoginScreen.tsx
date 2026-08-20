@@ -84,6 +84,10 @@ export default function LoginScreen() {
     // two-column layout without cramping the brand panel.
     const { width: windowWidth } = useWindowDimensions();
     const isWideWebSetup = Platform.OS === 'web' && windowWidth >= 900;
+    // Modal renders via a portal on web, outside App.tsx's width constraint --
+    // see FooterNav.tsx for the reference fix. Applied to the currency picker
+    // sheet so it doesn't stretch full-bleed on desktop.
+    const constrainSheetWidth = Platform.OS === 'web' && windowWidth >= 720;
     // LandingScreen's Login/Sign Up/Try Demo/Join as Lender buttons pass an
     // explicit starting mode via navParams so each button opens the form it
     // promised, rather than this screen guessing from isFirstLaunch (which
@@ -869,7 +873,7 @@ export default function LoginScreen() {
         const currencyModal = (
             <Modal visible={currencyModalOpen} transparent animationType="slide" onRequestClose={() => setCurrencyModalOpen(false)}>
                 <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setCurrencyModalOpen(false)}>
-                    <View style={styles.currencyModal}>
+                    <View style={[styles.currencyModal, constrainSheetWidth && styles.currencyModalWide]}>
                         <Text style={styles.currencyModalTitle}>Select Currency</Text>
                         <ScrollView>
                             {CURRENCIES.map(c => (
@@ -1212,6 +1216,7 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.surface, borderTopLeftRadius: 18, borderTopRightRadius: 18,
         paddingTop: 16, paddingHorizontal: 16, maxHeight: '60%',
     },
+    currencyModalWide: { maxWidth: 440, width: '100%', alignSelf: 'center' },
     currencyModalTitle: { fontSize: 16, fontWeight: '700', color: Colors.textPrimary, marginBottom: 12, textAlign: 'center' },
     currencyOption: {
         flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',

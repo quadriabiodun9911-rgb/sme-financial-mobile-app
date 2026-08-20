@@ -15,7 +15,7 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { SafeAreaView, ScrollView, View, Text, TextInput, TouchableOpacity, StyleSheet, Modal } from 'react-native';
+import { SafeAreaView, ScrollView, View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, Platform, useWindowDimensions } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Icon from '../components/ui/Icon';
@@ -472,6 +472,12 @@ function PortfolioTab({ isLenderDemo }: { isLenderDemo: boolean }) {
 // migration 011 are what actually scope writes to this org, not anything
 // enforced here.
 function ListingsTab({ lenderOrgId, createdByEmail }: { lenderOrgId: string | null; createdByEmail: string }) {
+    // Modal renders via a portal on web, outside App.tsx's width constraint --
+    // see FooterNav.tsx for the reference fix. Applied here to the bottom sheet
+    // so it doesn't stretch full-bleed on desktop.
+    const { width: windowWidth } = useWindowDimensions();
+    const constrainSheetWidth = Platform.OS === 'web' && windowWidth >= 720;
+
     const [products, setProducts] = useState<FinancingProduct[]>([]);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
@@ -583,7 +589,7 @@ function ListingsTab({ lenderOrgId, createdByEmail }: { lenderOrgId: string | nu
 
             <Modal visible={showForm} animationType="slide" transparent>
                 <View style={s.overlay}>
-                    <View style={s.sheet}>
+                    <View style={[s.sheet, constrainSheetWidth && s.sheetWide]}>
                         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: Spacing.xl, paddingBottom: 60 }}>
                             <TouchableOpacity onPress={() => setShowForm(false)}>
                                 <Text style={{ color: Colors.primary, fontSize: 14, marginBottom: 12 }}>✕ Close</Text>
@@ -684,6 +690,7 @@ const s = StyleSheet.create({
 
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
     sheet: { backgroundColor: Colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '92%', ...Shadow.md },
+    sheetWide: { maxWidth: 640, width: '100%', alignSelf: 'center' },
     formTitle: { fontSize: 18, fontWeight: '700', color: Colors.textPrimary, marginBottom: 16 },
     saveBtn: { backgroundColor: Colors.primary, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
     saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },

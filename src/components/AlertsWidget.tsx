@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, Modal, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, Modal, ScrollView, Platform, useWindowDimensions } from 'react-native';
 import { Colors } from '../theme/colors';
 import { Radius, Shadow } from '../theme/tokens';
 import { ForecastAlert } from '../types/forecast';
@@ -20,6 +20,12 @@ interface Props {
 export default function AlertsWidget({ alerts, currency = '₦', onAlertPress, onDismiss, canNotify, onNotify }: Props) {
   const [showModal, setShowModal] = useState(false);
   const [selectedAlert, setSelectedAlert] = useState<ForecastAlert | null>(null);
+
+  // Modal renders via a portal on web, outside App.tsx's width constraint --
+  // see FooterNav.tsx for the reference fix. Applied here to both modals so
+  // they don't stretch full-bleed on desktop.
+  const { width: windowWidth } = useWindowDimensions();
+  const constrainModalWidth = Platform.OS === 'web' && windowWidth >= 720;
 
   const criticalCount = alerts.filter(a => a.priority === 'high').length;
   const warningCount = alerts.filter(a => a.priority === 'medium').length;
@@ -74,7 +80,7 @@ export default function AlertsWidget({ alerts, currency = '₦', onAlertPress, o
       {/* Alerts Modal */}
       <Modal visible={showModal} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, constrainModalWidth && styles.modalContentWide]}>
             {/* Header */}
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>🔔 Alerts</Text>
@@ -181,7 +187,7 @@ export default function AlertsWidget({ alerts, currency = '₦', onAlertPress, o
       {selectedAlert && (
         <Modal visible={selectedAlert !== null} animationType="slide" transparent={true}>
           <View style={styles.detailOverlay}>
-            <View style={styles.detailContent}>
+            <View style={[styles.detailContent, constrainModalWidth && styles.detailContentWide]}>
               <TouchableOpacity
                 style={styles.detailCloseBtn}
                 onPress={() => setSelectedAlert(null)}>
@@ -305,6 +311,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     paddingTop: 16,
   },
+  modalContentWide: { maxWidth: 640, width: '100%', alignSelf: 'center' },
 
   modalHeader: {
     flexDirection: 'row',
@@ -459,6 +466,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingTop: 16,
   },
+  detailContentWide: { maxWidth: 720, width: '100%', alignSelf: 'center' },
   detailCloseBtn: {
     paddingHorizontal: 16,
     paddingVertical: 8,

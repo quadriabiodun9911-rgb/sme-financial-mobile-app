@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text,
-    TouchableOpacity, StyleSheet, TextInput, Modal,
+    TouchableOpacity, StyleSheet, TextInput, Modal, Platform, useWindowDimensions,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -30,6 +30,12 @@ const EXPENSE_CATEGORIES = [
 export default function BudgetScreen() {
     const { transactions, budgets, addBudget, updateBudget, deleteBudget, settings, navigate, finance, loans, invoices, inventory } = useApp();
     const { currency } = settings;
+
+    // Modal renders via a portal on web, outside App.tsx's width constraint --
+    // see FooterNav.tsx for the reference fix. Applied here to the bottom
+    // sheets so they don't stretch full-bleed on desktop.
+    const { width: windowWidth } = useWindowDimensions();
+    const constrainSheetWidth = Platform.OS === 'web' && windowWidth >= 720;
 
     const now = new Date();
     const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -564,7 +570,7 @@ export default function BudgetScreen() {
             {/* Add/Edit modal */}
             <Modal visible={showForm} transparent animationType="slide" onRequestClose={() => setShowForm(false)}>
                 <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setShowForm(false)} />
-                <View style={s.sheet}>
+                <View style={[s.sheet, constrainSheetWidth && s.sheetWide]}>
                     <View style={s.sheetHandle} />
                     <Text style={s.sheetTitle}>{editingId ? 'Edit Budget' : 'Add Budget'}</Text>
 
@@ -633,7 +639,7 @@ export default function BudgetScreen() {
             {/* Auto-generate review modal */}
             <Modal visible={showAutoGen} transparent animationType="slide" onRequestClose={() => setShowAutoGen(false)}>
                 <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setShowAutoGen(false)} />
-                <View style={s.sheet}>
+                <View style={[s.sheet, constrainSheetWidth && s.sheetWide]}>
                     <View style={s.sheetHandle} />
                     <View style={s.sheetTitleRow}>
                         <Icon name="cpu" size={16} color={Colors.textPrimary} />
@@ -814,6 +820,7 @@ const s = StyleSheet.create({
 
     overlay:      { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
     sheet:        { backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Spacing.xl, paddingBottom: Spacing.huge, ...Shadow.md },
+    sheetWide:    { maxWidth: 560, width: '100%', alignSelf: 'center' },
     sheetHandle:  { width: 40, height: 4, backgroundColor: Colors.border, borderRadius: 2, alignSelf: 'center', marginBottom: Spacing.lg },
     sheetTitle:   { fontSize: 18, fontWeight: '700', color: Colors.textPrimary, marginBottom: Spacing.lg },
     sheetTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.lg },

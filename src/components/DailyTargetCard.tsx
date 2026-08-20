@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, Platform, useWindowDimensions } from 'react-native';
 import { Colors } from '../theme/colors';
 import { FinancialGoal, Transaction } from '../types';
 import { showAlert, confirmAction } from '../utils/webAlert';
@@ -21,6 +21,12 @@ function fmt(n: number, currency: string) {
 }
 
 export default function DailyTargetCard({ goals, transactions, currency, onSetGoal, onEditGoal, onDeleteGoal }: Props) {
+    // Modal renders via a portal on web, outside App.tsx's width constraint --
+    // see FooterNav.tsx for the reference fix. Applied here to the bottom
+    // sheet so it doesn't stretch full-bleed on desktop.
+    const { width: windowWidth } = useWindowDimensions();
+    const constrainSheetWidth = Platform.OS === 'web' && windowWidth >= 720;
+
     const [editOpen, setEditOpen] = useState(false);
     const [editTitle, setEditTitle] = useState('');
     const [editTarget, setEditTarget] = useState('');
@@ -200,7 +206,7 @@ export default function DailyTargetCard({ goals, transactions, currency, onSetGo
             {/* Edit modal */}
             <Modal visible={editOpen} transparent animationType="slide" onRequestClose={() => setEditOpen(false)}>
                 <View style={s.overlay}>
-                    <View style={s.editSheet}>
+                    <View style={[s.editSheet, constrainSheetWidth && s.editSheetWide]}>
                         <Text style={s.editTitle}>Edit Daily Target</Text>
 
                         <Text style={s.fieldLabel}>Goal Name</Text>
@@ -271,6 +277,7 @@ const s = StyleSheet.create({
     arrow: { fontSize: 18, color: Colors.primary },
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
     editSheet: { backgroundColor: Colors.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
+    editSheetWide: { maxWidth: 440, width: '100%', alignSelf: 'center' },
     editTitle: { fontSize: 17, fontWeight: '800', color: Colors.textPrimary, marginBottom: 16 },
     fieldLabel: { fontSize: 12, color: Colors.textMuted, marginBottom: 4, marginTop: 10 },
     input: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: 8, padding: 10, color: Colors.textPrimary, fontSize: 14 },

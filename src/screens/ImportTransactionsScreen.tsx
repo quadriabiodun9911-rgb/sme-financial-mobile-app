@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
     View, Text, TouchableOpacity, ScrollView, StyleSheet,
-    Alert, ActivityIndicator, FlatList, Modal, Platform,
+    Alert, ActivityIndicator, FlatList, Modal, Platform, useWindowDimensions,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
@@ -383,6 +383,12 @@ const CATEGORY_OPTIONS: { label: string; category: TxCategory; subCategory: stri
 export default function ImportTransactionsScreen() {
     const { navigate, goBack, addTransaction, transactions, invoices, finance, settings, loans, inventory } = useApp();
     const currency = (settings as any).currency || '₦';
+
+    // Modal renders via a portal on web, outside App.tsx's width constraint --
+    // see FooterNav.tsx for the reference fix. Applied here to the bottom
+    // sheet so it doesn't stretch full-bleed on desktop.
+    const { width: windowWidth } = useWindowDimensions();
+    const constrainSheetWidth = Platform.OS === 'web' && windowWidth >= 720;
 
     const [step,       setStep]       = useState<'upload' | 'preview' | 'done'>('upload');
     const [loading,    setLoading]    = useState(false);
@@ -1046,7 +1052,7 @@ export default function ImportTransactionsScreen() {
             {/* Category picker modal */}
             <Modal visible={!!pickerRow} transparent animationType="slide" onRequestClose={() => setPickerRow(null)}>
                 <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setPickerRow(null)}>
-                    <View style={styles.modalSheet}>
+                    <View style={[styles.modalSheet, constrainSheetWidth && styles.modalSheetWide]}>
                         <Text style={styles.modalTitle}>Select Category</Text>
                         <ScrollView>
                             {CATEGORY_OPTIONS.map(opt => (
@@ -1150,6 +1156,7 @@ const styles = StyleSheet.create({
     // Category picker modal
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
     modalSheet:   { backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Spacing.xl, maxHeight: '70%' },
+    modalSheetWide: { maxWidth: 480, width: '100%', alignSelf: 'center' },
     modalTitle:   { fontSize: 16, fontWeight: '800', color: Colors.textPrimary, marginBottom: Spacing.lg },
     catOption:    { paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: Colors.border },
     catOptionText: { fontSize: 14, color: Colors.textPrimary },

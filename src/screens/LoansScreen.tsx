@@ -12,7 +12,7 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
-    TouchableOpacity, StyleSheet, Modal,
+    TouchableOpacity, StyleSheet, Modal, Platform, useWindowDimensions,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -61,6 +61,12 @@ const isOverdue = isLoanPaymentOverdue;
 export default function LoansScreen() {
     const { loans, addLoan, updateLoan, deleteLoan, addLoanPayment, settings, navigate, finance, navParams, transactions, readinessHistory, user, language } = useApp();
     const { currency } = settings;
+
+    // Modal renders via a portal on web, outside App.tsx's width constraint --
+    // see FooterNav.tsx for the reference fix. Applied here to the bottom
+    // sheets so they don't stretch full-bleed on desktop.
+    const { width: windowWidth } = useWindowDimensions();
+    const constrainSheetWidth = Platform.OS === 'web' && windowWidth >= 720;
 
     // Feature flag for merchant financing
     const enableFinancing = process.env.EXPO_PUBLIC_ENABLE_FINANCING !== 'false';
@@ -353,7 +359,7 @@ export default function LoansScreen() {
             {/* Add / Edit Loan Modal */}
             <Modal visible={showForm} animationType="slide" transparent>
                 <View style={s.overlay}>
-                    <View style={s.sheet}>
+                    <View style={[s.sheet, constrainSheetWidth && s.sheetWide]}>
                         <ScrollView keyboardShouldPersistTaps="handled">
                             <Text style={s.modalTitle}>{editingId ? t(language, 'editLoanTitle') : t(language, 'addLoanTitle')}</Text>
 
@@ -470,7 +476,7 @@ export default function LoansScreen() {
             {showPayment && (
                 <Modal visible animationType="slide" transparent>
                     <View style={s.overlay}>
-                        <View style={[s.sheet, { maxHeight: 380 }]}>
+                        <View style={[s.sheet, { maxHeight: 380 }, constrainSheetWidth && s.sheetWide]}>
                             <Text style={s.modalTitle}>{t(language, 'recordPaymentTitle')}</Text>
 
                             <FieldLabel text={`${t(language, 'amountPaidLabel')} (${currency})`} />
@@ -501,7 +507,7 @@ export default function LoansScreen() {
             {linkingLoanId && (
                 <Modal visible animationType="slide" transparent>
                     <View style={s.overlay}>
-                        <View style={[s.sheet, { maxHeight: 480 }]}>
+                        <View style={[s.sheet, { maxHeight: 480 }, constrainSheetWidth && s.sheetWide]}>
                             <Text style={s.modalTitle}>{t(language, 'linkToYourLenderTitle')}</Text>
                             <Text style={s.linkModalHint}>
                                 {t(language, 'linkModalHintText')}
@@ -927,6 +933,7 @@ const s = StyleSheet.create({
 
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
     sheet: { backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Spacing.xl, maxHeight: '92%', ...Shadow.md },
+    sheetWide: { maxWidth: 640, width: '100%', alignSelf: 'center' },
     modalTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: Spacing.lg },
 
     fieldLabel: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary, marginBottom: 5, marginTop: 10 },

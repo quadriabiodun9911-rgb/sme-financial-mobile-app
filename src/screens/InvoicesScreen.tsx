@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
-    TouchableOpacity, StyleSheet, Alert, Modal, Share, Linking, Platform,
+    TouchableOpacity, StyleSheet, Alert, Modal, Share, Linking, Platform, useWindowDimensions,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -120,6 +120,12 @@ ${inv.notes ? `<div class="notes" style="clear:both;margin-top:60px"><b>Notes:</
 export default function InvoicesScreen() {
     const { invoices, addInvoice, updateInvoice, deleteInvoice, markInvoiceStatus, settings, user, navigate, language } = useApp();
     const currency = settings.currency;
+
+    // Modal renders via a portal on web, outside App.tsx's width constraint --
+    // see FooterNav.tsx for the reference fix. Applied here to the full-page
+    // form/view modals and the centered reminder dialog.
+    const { width: windowWidth } = useWindowDimensions();
+    const constrainModalWidth = Platform.OS === 'web' && windowWidth >= 720;
 
     const [filter, setFilter]       = useState<InvoiceStatus | 'all'>('all');
     const [showForm, setShowForm]   = useState(false);
@@ -423,7 +429,7 @@ export default function InvoicesScreen() {
             {reminderQueue && (
                 <Modal visible transparent animationType="fade" onRequestClose={() => setReminderQueue(null)}>
                     <View style={styles.reminderOverlay}>
-                        <View style={styles.reminderCard}>
+                        <View style={[styles.reminderCard, constrainModalWidth && styles.reminderCardWide]}>
                             {reminderIdx < reminderQueue.length ? (
                                 <ReminderStep
                                     due={reminderQueue[reminderIdx]}
@@ -452,7 +458,7 @@ export default function InvoicesScreen() {
             <Modal visible={showForm} animationType="slide">
                 <SafeAreaView style={styles.safe}>
                     <ScrollView keyboardShouldPersistTaps="handled">
-                        <View style={styles.pad}>
+                        <View style={[styles.pad, constrainModalWidth && styles.modalConstrainedColumn]}>
                             <View style={styles.titleRow}>
                                 <Text style={styles.title}>{editId ? t(language, 'editInvoiceTitle') : t(language, 'newInvoiceTitle')}</Text>
                                 <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }}>
@@ -535,7 +541,7 @@ export default function InvoicesScreen() {
                 <Modal visible animationType="slide">
                     <SafeAreaView style={styles.safe}>
                         <ScrollView>
-                            <View style={styles.pad}>
+                            <View style={[styles.pad, constrainModalWidth && styles.modalConstrainedColumn]}>
                                 <View style={styles.titleRow}>
                                     <Text style={styles.title}>{viewInv.invoiceNumber}</Text>
                                     <TouchableOpacity onPress={() => setViewInv(null)}>
@@ -811,6 +817,8 @@ const styles = StyleSheet.create({
 
     reminderOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', padding: Spacing.xl },
     reminderCard:    { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.xl, ...Shadow.md },
+    reminderCardWide: { maxWidth: 440, width: '100%', alignSelf: 'center' },
+    modalConstrainedColumn: { maxWidth: 720, alignSelf: 'center', width: '100%' },
     reminderHeadRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.sm },
     reminderTitle:   { fontSize: 15, fontWeight: 'bold', color: Colors.textPrimary },
     reminderCloseText: { fontSize: 13, color: Colors.textMuted },

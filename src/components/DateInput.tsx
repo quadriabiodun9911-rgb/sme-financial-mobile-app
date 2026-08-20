@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Platform, TextInput, StyleSheet, TouchableOpacity, View, Text, Modal } from 'react-native';
+import { Platform, TextInput, StyleSheet, TouchableOpacity, View, Text, Modal, useWindowDimensions } from 'react-native';
 import { Colors } from '../theme/colors';
 
 interface Props {
@@ -26,6 +26,12 @@ function daysInMonth(year: number, month: number) {
 
 export default function DateInput({ value, onChange, style }: Props) {
     const [pickerOpen, setPickerOpen] = useState(false);
+
+    // Modal renders via a portal on web, outside App.tsx's width constraint --
+    // see FooterNav.tsx for the reference fix. Applied here to the dialog card
+    // so it doesn't stretch full-bleed on desktop.
+    const { width: windowWidth } = useWindowDimensions();
+    const constrainDialogWidth = Platform.OS === 'web' && windowWidth >= 720;
 
     const today = new Date();
     const parsed = value && value.match(/^\d{4}-\d{2}-\d{2}$/)
@@ -89,7 +95,7 @@ export default function DateInput({ value, onChange, style }: Props) {
 
             <Modal visible={pickerOpen} transparent animationType="fade" onRequestClose={() => setPickerOpen(false)}>
                 <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setPickerOpen(false)} />
-                <View style={styles.pickerCard}>
+                <View style={[styles.pickerCard, constrainDialogWidth && styles.pickerCardWide]}>
                     <Text style={styles.pickerTitle}>Pick a Date</Text>
 
                     <View style={styles.pickerRow}>
@@ -155,6 +161,17 @@ const styles = StyleSheet.create({
         top: '30%',
         left: 24,
         right: 24,
+    },
+    // On desktop web the plain left/right anchoring above stretches this
+    // dialog to the full window width (e.g. ~1950px on a 2000px screen).
+    // Clear left/right and center a fixed-width card instead.
+    pickerCardWide: {
+        left: undefined,
+        right: undefined,
+        marginHorizontal: 0,
+        width: 440,
+        maxWidth: 440,
+        alignSelf: 'center',
     },
     pickerTitle: { fontSize: 17, fontWeight: 'bold', color: Colors.textPrimary, textAlign: 'center', marginBottom: 20 },
     pickerRow:   { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 24 },

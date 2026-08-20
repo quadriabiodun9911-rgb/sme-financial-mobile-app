@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
     View, Text, TouchableOpacity, StyleSheet,
-    Modal, TextInput, Platform, Share,
+    Modal, TextInput, Platform, Share, useWindowDimensions,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -13,6 +13,13 @@ export default function TaxPlanningTab() {
     const { transactions, settings, navigate, finance, user } = useApp();
     const { currency } = settings;
     const taxRatePct = getTaxRatePercent(settings.defaultTaxRate);
+
+    // Modal renders via a portal on web, outside App.tsx's width constraint --
+    // see FooterNav.tsx for the reference fix. Applied here to the bottom
+    // sheet so it doesn't stretch full-bleed on desktop.
+    const { width: windowWidth } = useWindowDimensions();
+    const constrainSheetWidth = Platform.OS === 'web' && windowWidth >= 720;
+
     const [showDeductionModal, setShowDeductionModal] = useState(false);
     const [selectedQuarter, setSelectedQuarter] = useState<1 | 2 | 3 | 4>(1);
     const [deductionName, setDeductionName] = useState('');
@@ -275,7 +282,7 @@ NOTES
             {/* Add Deduction Modal */}
             <Modal visible={showDeductionModal} animationType="slide" transparent>
                 <View style={s.modalOverlay}>
-                    <View style={s.modalContent}>
+                    <View style={[s.modalContent, constrainSheetWidth && s.modalContentWide]}>
                         <Text style={s.modalTitle}>Add Tax Deduction</Text>
 
                         <Text style={s.label}>Deduction Name</Text>
@@ -433,6 +440,7 @@ const s = StyleSheet.create({
     infoText: { fontSize: 12, color: Colors.textSecondary, flex: 1 },
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
     modalContent: { backgroundColor: Colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 },
+    modalContentWide: { maxWidth: 480, width: '100%', alignSelf: 'center' },
     modalTitle: { fontSize: 18, fontWeight: '600', color: Colors.textPrimary, marginBottom: 16 },
     label: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary, marginBottom: 6 },
     input: { backgroundColor: Colors.bg, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, color: Colors.textPrimary, marginBottom: 16, borderWidth: 1, borderColor: Colors.muted },

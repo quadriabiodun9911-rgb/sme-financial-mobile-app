@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
     ScrollView, View, Text, TouchableOpacity,
-    StyleSheet, TextInput, Modal,
+    StyleSheet, TextInput, Modal, Platform, useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from '../contexts/AppContext';
@@ -28,6 +28,13 @@ const EMPTY_STAFF: Omit<StaffMember, 'id' | 'createdAt'> = {
 
 export default function PayrollScreen() {
     const { staff, addStaff, updateStaff, deleteStaff, payrollRuns, runPayroll, deletePayrollRun, settings, updateSettings, setCurrentScreen, finance } = useApp();
+
+    // Modal renders via a portal on web, outside App.tsx's width constraint --
+    // see FooterNav.tsx for the reference fix. presentationStyle="pageSheet"
+    // has no effect on web, so this still needs the constraint applied.
+    const { width: windowWidth } = useWindowDimensions();
+    const constrainModalWidth = Platform.OS === 'web' && windowWidth >= 720;
+
     const [tab, setTab] = useState<Tab>('staff');
     const [staffModal, setStaffModal] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -314,6 +321,7 @@ export default function PayrollScreen() {
             {/* ── Add / Edit Staff Modal ─────────────────────────────────── */}
             <Modal visible={staffModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setStaffModal(false)}>
                 <SafeAreaView style={styles.modalSafe}>
+                  <View style={[{ flex: 1, width: '100%' }, constrainModalWidth && styles.modalConstrainedColumn]}>
                     <View style={styles.modalHeader}>
                         <Text style={styles.modalTitle}>{editingId ? 'Edit Staff' : 'Add Staff'}</Text>
                         <TouchableOpacity onPress={() => setStaffModal(false)} activeOpacity={0.7}>
@@ -375,6 +383,7 @@ export default function PayrollScreen() {
                             <Text style={styles.runBtnText}>{editingId ? 'Save Changes' : 'Add Staff Member'}</Text>
                         </TouchableOpacity>
                     </ScrollView>
+                  </View>
                 </SafeAreaView>
             </Modal>
 
@@ -454,6 +463,7 @@ const styles = StyleSheet.create({
 
     // Modal
     modalSafe: { flex: 1, backgroundColor: Colors.bg },
+    modalConstrainedColumn: { maxWidth: 720, alignSelf: 'center' },
     modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: Colors.border },
     modalTitle: { fontSize: 18, fontWeight: '800', color: Colors.textPrimary },
     modalClose: { fontSize: 18, color: Colors.textMuted, fontWeight: '700' },

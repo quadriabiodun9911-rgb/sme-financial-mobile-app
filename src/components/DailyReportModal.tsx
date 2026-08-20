@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-    Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet,
+    Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, Platform, useWindowDimensions,
 } from 'react-native';
 import { Colors } from '../theme/colors';
 import { Transaction, FinancialGoal, FinanceData, BusinessSettings } from '../types';
@@ -17,6 +17,12 @@ interface Props {
 }
 
 export default function DailyReportModal({ visible, onClose, transactions, goals, finance, settings, currency }: Props) {
+    // Modal renders via a portal on web, outside App.tsx's width constraint --
+    // see FooterNav.tsx for the reference fix. Applied here to the bottom
+    // sheet so it doesn't stretch full-bleed on desktop.
+    const { width: windowWidth } = useWindowDimensions();
+    const constrainSheetWidth = Platform.OS === 'web' && windowWidth >= 720;
+
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0];
     const dateLabel = today.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
@@ -133,7 +139,7 @@ export default function DailyReportModal({ visible, onClose, transactions, goals
     return (
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
             <View style={s.overlay}>
-                <View style={s.sheet}>
+                <View style={[s.sheet, constrainSheetWidth && s.sheetWide]}>
                     <ScrollView showsVerticalScrollIndicator={false}>
                         {/* Header */}
                         <Text style={s.heading}>End of Day — {dateLabel}</Text>
@@ -196,6 +202,7 @@ export default function DailyReportModal({ visible, onClose, transactions, goals
 const s = StyleSheet.create({
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'flex-end' },
     sheet: { backgroundColor: Colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 44, maxHeight: '90%' },
+    sheetWide: { maxWidth: 560, width: '100%', alignSelf: 'center' },
     heading: { fontSize: 17, fontWeight: 'bold', color: Colors.textPrimary, textAlign: 'center', marginBottom: 12 },
     divider: { height: 1, backgroundColor: Colors.border, marginBottom: 16 },
     sectionTitle: { fontSize: 10, fontWeight: '800', color: Colors.textMuted, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10, marginTop: 4 },

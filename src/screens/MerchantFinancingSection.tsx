@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
-    TouchableOpacity, StyleSheet, Modal,
+    TouchableOpacity, StyleSheet, Modal, Platform, useWindowDimensions,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -704,6 +704,12 @@ function ApplyForFinancingModal({ visible, maxLoan, minLoan, monthlyProfit, curr
     const [purpose, setPurpose] = useState<LoanPurpose>('inventory');
     const [step, setStep] = useState<'amount' | 'purpose' | 'review'>('amount');
 
+    // Modal renders via a portal on web, outside App.tsx's width constraint --
+    // see FooterNav.tsx for the reference fix. Applied here to the bottom
+    // sheet so it doesn't stretch full-bleed on desktop.
+    const { width: windowWidth } = useWindowDimensions();
+    const constrainSheetWidth = Platform.OS === 'web' && windowWidth >= 720;
+
     const estimatedMonthlyPayment = calculateMonthlyPayment(amount, 18, 60); // 18% APR, 60 months
     const capacityRatio = monthlyProfit / estimatedMonthlyPayment;
     const canAfford = capacityRatio >= 1.5;
@@ -720,7 +726,7 @@ function ApplyForFinancingModal({ visible, maxLoan, minLoan, monthlyProfit, curr
     return (
         <Modal visible={visible} animationType="slide" transparent>
             <View style={s.modalOverlay}>
-                <View style={s.modalSheet}>
+                <View style={[s.modalSheet, constrainSheetWidth && s.modalSheetWide]}>
                     <ScrollView keyboardShouldPersistTaps="handled">
                         {/* Header */}
                         <View style={s.modalHeader}>
@@ -1552,6 +1558,7 @@ const s = StyleSheet.create({
         paddingBottom: Spacing.xl,
         ...Shadow.md,
     },
+    modalSheetWide: { maxWidth: 560, width: '100%', alignSelf: 'center' },
     modalHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',

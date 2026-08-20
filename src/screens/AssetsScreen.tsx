@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
-    TouchableOpacity, StyleSheet, Modal,
+    TouchableOpacity, StyleSheet, Modal, Platform, useWindowDimensions,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -37,6 +37,12 @@ type FilterTab = 'active' | 'disposed' | 'all';
 export default function AssetsScreen() {
     const { assets, addAsset, updateAsset, deleteAsset, disposeAsset, settings, language, setCurrentScreen, navigate, finance, addLoan, addTransaction } = useApp();
     const { currency } = settings;
+
+    // Modal renders via a portal on web, outside App.tsx's width constraint --
+    // see FooterNav.tsx for the reference fix. Applied here to the bottom
+    // sheets so they don't stretch full-bleed on desktop.
+    const { width: windowWidth } = useWindowDimensions();
+    const constrainSheetWidth = Platform.OS === 'web' && windowWidth >= 720;
 
     // Financing terms for the acquisition strategy comparison
     const [acqTerm, setAcqTerm] = useState('24');
@@ -269,7 +275,7 @@ export default function AssetsScreen() {
             {/* Add / Edit Modal */}
             <Modal visible={showForm} animationType="slide" transparent>
                 <View style={s.overlay}>
-                    <View style={s.sheet}>
+                    <View style={[s.sheet, constrainSheetWidth && s.sheetWide]}>
                         <ScrollView keyboardShouldPersistTaps="handled">
                             <Text style={s.modalTitle}>{editingId ? t(language, 'edit') : t(language, 'addAsset')}</Text>
 
@@ -408,7 +414,7 @@ export default function AssetsScreen() {
             {showDispose && (
                 <Modal visible animationType="slide" transparent>
                     <View style={s.overlay}>
-                        <View style={[s.sheet, { maxHeight: 320 }]}>
+                        <View style={[s.sheet, { maxHeight: 320 }, constrainSheetWidth && s.sheetWide]}>
                             <Text style={s.modalTitle}>{t(language, 'disposeAsset')}</Text>
 
                             <Label text={t(language, 'disposalDate')} />
@@ -576,6 +582,7 @@ const s = StyleSheet.create({
         backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl,
         padding: Spacing.xxl, maxHeight: '90%',
     },
+    sheetWide: { maxWidth: 640, width: '100%', alignSelf: 'center' },
     modalTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 16 },
 
     label: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary, marginBottom: 5, marginTop: 10 },

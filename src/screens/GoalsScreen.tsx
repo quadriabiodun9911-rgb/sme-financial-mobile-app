@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
-    TouchableOpacity, Modal, StyleSheet,
+    TouchableOpacity, Modal, StyleSheet, Platform, useWindowDimensions,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -68,6 +68,12 @@ const RISK_SEVERITY_COLORS: Record<GoalRiskSeverity, string> = { high: Colors.ex
 export default function GoalsScreen() {
     const { goals, addGoal, deleteGoal, updateGoal, finance, transactions, invoices, settings, navParams, navigate, setCurrentScreen, loans, inventory } = useApp();
     const { currency } = settings;
+
+    // Modal renders via a portal on web, outside App.tsx's width constraint --
+    // see FooterNav.tsx for the reference fix. Applied here to the bottom
+    // sheets so they don't stretch full-bleed on desktop.
+    const { width: windowWidth } = useWindowDimensions();
+    const constrainSheetWidth = Platform.OS === 'web' && windowWidth >= 720;
 
     const [addModalOpen, setAddModalOpen] = useState(false);
     const [editGoal, setEditGoal]         = useState<FinancialGoal | null>(null);
@@ -358,7 +364,7 @@ export default function GoalsScreen() {
             <Modal visible={addModalOpen} animationType="slide" transparent onRequestClose={() => setAddModalOpen(false)}>
                 <View style={styles.overlay}>
                     <ScrollView keyboardShouldPersistTaps="handled">
-                        <View style={styles.modal}>
+                        <View style={[styles.modal, constrainSheetWidth && styles.modalWide]}>
                             <View style={styles.modalTitleRow}>
                                 {selectedType && <Icon name={GOAL_TYPES.find(g => g.type === selectedType)!.icon} size={18} color={Colors.textPrimary} />}
                                 <Text style={styles.modalTitle}>
@@ -402,7 +408,7 @@ export default function GoalsScreen() {
             <Modal visible={!!editGoal} animationType="slide" transparent onRequestClose={() => setEditGoal(null)}>
                 <View style={styles.overlay}>
                     <ScrollView keyboardShouldPersistTaps="handled">
-                        <View style={styles.modal}>
+                        <View style={[styles.modal, constrainSheetWidth && styles.modalWide]}>
                             <Text style={styles.modalTitle}>Edit Goal</Text>
 
                             <FieldLabel>Goal Title</FieldLabel>
@@ -445,7 +451,7 @@ export default function GoalsScreen() {
             <Modal visible={!!planGoalId} animationType="slide" transparent onRequestClose={() => setPlanGoalId(null)}>
                 <View style={styles.overlay}>
                     <ScrollView>
-                        <View style={styles.modal}>
+                        <View style={[styles.modal, constrainSheetWidth && styles.modalWide]}>
                             {planGoal && (
                                 <>
                                     <Text style={styles.modalTitle}>Plan: {planGoal.title}</Text>
@@ -948,6 +954,7 @@ const styles = StyleSheet.create({
     typeDesc: { fontSize: 11, color: Colors.textMuted, lineHeight: 16 },
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'flex-end' },
     modal: { backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Spacing.xxl, paddingBottom: 44 },
+    modalWide: { maxWidth: 640, width: '100%', alignSelf: 'center' },
     modalTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: Spacing.lg },
     modalTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary, textAlign: 'center' },
     label: { fontSize: 12, color: Colors.textSecondary, fontWeight: '600', marginBottom: 6, marginTop: Spacing.md },

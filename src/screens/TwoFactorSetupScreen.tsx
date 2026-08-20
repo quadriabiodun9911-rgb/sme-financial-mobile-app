@@ -21,6 +21,7 @@ import {
     ActivityIndicator,
     TextInput,
     Platform,
+    useWindowDimensions,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -57,6 +58,13 @@ const SETUP_STEPS: SetupStep[] = [
 
 export default function TwoFactorSetupScreen() {
     const { user, language } = useApp();
+
+    // Modal renders via a portal on web, outside App.tsx's width constraint --
+    // see FooterNav.tsx for the reference fix. Applied here to the full-page
+    // backup codes modal so it doesn't stretch full-bleed on desktop.
+    const { width: windowWidth } = useWindowDimensions();
+    const constrainModalWidth = Platform.OS === 'web' && windowWidth >= 720;
+
     const [status, setStatus] = useState<'disabled' | 'enabled' | 'setup'>('disabled');
     const [loading, setLoading] = useState(true);
     const [setupStep, setSetupStep] = useState(0);
@@ -348,20 +356,22 @@ export default function TwoFactorSetupScreen() {
             {/* Backup Codes Modal */}
             <Modal visible={showBackupCodes} transparent animationType="slide">
                 <SafeAreaView style={styles.modalSafe}>
-                    <View style={styles.modalHeader}>
-                        <Text style={styles.modalTitle}>Backup Codes</Text>
-                        <TouchableOpacity onPress={() => setShowBackupCodes(false)}>
-                            <Icon name="x" size={18} color={Colors.textMuted} />
-                        </TouchableOpacity>
+                    <View style={[{ flex: 1, width: '100%' }, constrainModalWidth && styles.modalConstrainedColumn]}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Backup Codes</Text>
+                            <TouchableOpacity onPress={() => setShowBackupCodes(false)}>
+                                <Icon name="x" size={18} color={Colors.textMuted} />
+                            </TouchableOpacity>
+                        </View>
+                        <ScrollView style={styles.modalContent}>
+                            {backupCodes.map((code, index) => (
+                                <View key={index} style={styles.codeRow}>
+                                    <Text style={styles.codeNum}>{index + 1}.</Text>
+                                    <Text style={styles.codeText}>{code}</Text>
+                                </View>
+                            ))}
+                        </ScrollView>
                     </View>
-                    <ScrollView style={styles.modalContent}>
-                        {backupCodes.map((code, index) => (
-                            <View key={index} style={styles.codeRow}>
-                                <Text style={styles.codeNum}>{index + 1}.</Text>
-                                <Text style={styles.codeText}>{code}</Text>
-                            </View>
-                        ))}
-                    </ScrollView>
                 </SafeAreaView>
             </Modal>
         </SafeAreaView>
@@ -553,6 +563,7 @@ const styles = StyleSheet.create({
     primaryBtn: { backgroundColor: Colors.primary },
 
     modalSafe: { flex: 1, backgroundColor: Colors.bg },
+    modalConstrainedColumn: { maxWidth: 720, alignSelf: 'center' },
     modalHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',

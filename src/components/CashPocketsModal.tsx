@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal, TextInput, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Modal, TextInput, ScrollView, Platform, useWindowDimensions } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { showAlert, confirmAction } from '../utils/webAlert';
@@ -9,6 +9,13 @@ interface Props { visible: boolean; onClose: () => void; }
 export default function CashPocketsModal({ visible, onClose }: Props) {
     const { cashPockets, addCashPocket, updateCashPocket, deleteCashPocket, settings } = useApp();
     const { currency } = settings;
+
+    // Modal renders via a portal on web, outside App.tsx's width constraint --
+    // see FooterNav.tsx for the reference fix. Applied here to the bottom
+    // sheet so it doesn't stretch full-bleed on desktop.
+    const { width: windowWidth } = useWindowDimensions();
+    const constrainSheetWidth = Platform.OS === 'web' && windowWidth >= 720;
+
     const [newName, setNewName] = useState('');
     const [newAmount, setNewAmount] = useState('');
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -40,7 +47,7 @@ export default function CashPocketsModal({ visible, onClose }: Props) {
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
             <View style={s.overlay}>
-                <View style={s.sheet}>
+                <View style={[s.sheet, constrainSheetWidth && s.sheetWide]}>
                     <View style={s.header}>
                         <Text style={s.title}>💵 My Cash Pockets</Text>
                         <TouchableOpacity onPress={onClose}><Text style={s.close}>✕</Text></TouchableOpacity>
@@ -111,6 +118,7 @@ export default function CashPocketsModal({ visible, onClose }: Props) {
 const s = StyleSheet.create({
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
     sheet: { backgroundColor: Colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 32 },
+    sheetWide: { maxWidth: 480, width: '100%', alignSelf: 'center' },
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
     title: { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary },
     close: { fontSize: 18, color: Colors.textMuted, padding: 4 },

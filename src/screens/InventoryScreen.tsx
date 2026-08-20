@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text,
     TouchableOpacity, StyleSheet, Modal,
-    TextInput, KeyboardAvoidingView, Platform,
+    TextInput, KeyboardAvoidingView, Platform, useWindowDimensions,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -45,6 +45,12 @@ const EMPTY_FORM: FormState = {
 export default function InventoryScreen() {
     const { inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem, settings, navigate, addTransaction, transactions } = useApp();
     const { currency } = settings;
+
+    // Modal renders via a portal on web, outside App.tsx's width constraint --
+    // see FooterNav.tsx for the reference fix. Applied here to the bottom
+    // sheets so they don't stretch full-bleed on desktop.
+    const { width: windowWidth } = useWindowDimensions();
+    const constrainSheetWidth = Platform.OS === 'web' && windowWidth >= 720;
 
     const [activeTab, setActiveTab] = useState<InventoryTab>('stock');
     const [modalOpen, setModalOpen] = useState(false);
@@ -505,7 +511,7 @@ export default function InventoryScreen() {
             {/* ── Add / Edit Modal ─────────────────────────────────────────────── */}
             <Modal visible={modalOpen} transparent animationType="slide" onRequestClose={closeModal}>
                 <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={closeModal} />
-                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalSheet}>
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.modalSheet, constrainSheetWidth && styles.modalSheetWide]}>
                     <View style={styles.modalHandle} />
                     <Text style={styles.modalTitle}>{editingId ? 'Edit Item' : 'Add Inventory Item'}</Text>
 
@@ -611,7 +617,7 @@ export default function InventoryScreen() {
             {/* ── Sell Stock Modal ──────────────────────────────────────────────── */}
             <Modal visible={!!sellModal} transparent animationType="slide" onRequestClose={() => setSellModal(null)}>
                 <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setSellModal(null)} />
-                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalSheet}>
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.modalSheet, constrainSheetWidth && styles.modalSheetWide]}>
                     <View style={styles.modalHandle} />
                     <Text style={styles.modalTitle}>Record Sale</Text>
                     {sellModal && (
@@ -735,6 +741,7 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl,
         padding: Spacing.xxl, paddingBottom: Spacing.huge, maxHeight: '90%',
     },
+    modalSheetWide: { maxWidth: 560, width: '100%', alignSelf: 'center' },
     modalHandle: { width: 40, height: 4, backgroundColor: Colors.border, borderRadius: 2, alignSelf: 'center', marginBottom: Spacing.lg },
     modalTitle:  { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: Spacing.lg },
     inputRow:    { flexDirection: 'row' },

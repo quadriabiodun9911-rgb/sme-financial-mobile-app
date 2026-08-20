@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text,
     TouchableOpacity, StyleSheet, ActivityIndicator,
-    Modal, TextInput, KeyboardAvoidingView, Platform, Animated,
+    Modal, TextInput, KeyboardAvoidingView, Platform, Animated, useWindowDimensions,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../contexts/AppContext';
@@ -103,6 +103,12 @@ const PRIORITY_KIND_META: Record<PriorityKind, { icon: IconName; screen: Screen 
 export default function DashboardScreen() {
     const { finance, settings, goals, transactions, invoices, assets, loans, staff, payrollRuns, navigate, setCurrentScreen, navParams, language: rawLanguage, isLoading, addTransaction, isDemoMode, exitDemo, cashPockets, addGoal, deleteGoal, updateGoal, budgets, inventory, user, financing, canViewFinancials, readinessHistory } = useApp();
     const language = rawLanguage as Language;
+
+    // Modal renders via a portal on web, outside App.tsx's width constraint --
+    // see FooterNav.tsx for the reference fix. Applied here to the bottom
+    // sheets so they don't stretch full-bleed on desktop.
+    const { width: windowWidth } = useWindowDimensions();
+    const constrainSheetWidth = Platform.OS === 'web' && windowWidth >= 720;
 
     const [fabOpen, setFabOpen]           = useState(false);
     const [qaType, setQaType]             = useState<'income' | 'expense'>('income');
@@ -1409,7 +1415,7 @@ export default function DashboardScreen() {
             {/* ── Quick-add modal ──────────────────────────────────────────── */}
             <Modal visible={fabOpen} transparent animationType="slide" onRequestClose={() => setFabOpen(false)}>
                 <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setFabOpen(false)} />
-                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalSheet}>
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.modalSheet, constrainSheetWidth && styles.modalSheetWide]}>
                     <View style={styles.modalHandle} />
                     <Text style={styles.modalTitle}>Quick Add</Text>
 
@@ -1496,7 +1502,7 @@ export default function DashboardScreen() {
             {/* ── End of Day quick-log modal ───────────────────────────────── */}
             <Modal visible={eodOpen} transparent animationType="slide" onRequestClose={() => setEodOpen(false)}>
                 <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setEodOpen(false)} />
-                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalSheet}>
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.modalSheet, constrainSheetWidth && styles.modalSheetWide]}>
                     <View style={styles.modalHandle} />
                     <Text style={styles.modalTitle}>🌙 End of Day Quick Log</Text>
                     <Text style={[styles.insightAction, { marginBottom: 16 }]}>Just two numbers — quick and done</Text>
@@ -2049,6 +2055,7 @@ const styles = StyleSheet.create({
 
     modalOverlay:     { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
     modalSheet:       { backgroundColor: Colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 40 },
+    modalSheetWide:   { maxWidth: 480, width: '100%', alignSelf: 'center' },
     modalHandle:      { width: 40, height: 4, backgroundColor: Colors.border, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
     modalTitle:       { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 16 },
     typeRow:          { flexDirection: 'row', gap: 10, marginBottom: 14 },
