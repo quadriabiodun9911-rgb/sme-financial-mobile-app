@@ -934,6 +934,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Detect a Supabase password-recovery link at the top level, not inside
+  // LoginScreen -- LoginScreen only runs its own version of this check
+  // while it happens to be the mounted screen, but a device with a saved
+  // profile (the common case: clicking the reset-email link on the same
+  // browser you're already logged in on) has the boot effect below route
+  // straight to 'dashboard' before LoginScreen ever mounts, silently
+  // dropping the recovery intent -- the user lands on their dashboard
+  // having never seen the "set a new PIN" screen, PIN unchanged, with no
+  // indication anything went wrong. Forcing 'login'+reset-pin here, from a
+  // listener that's always mounted, wins that race and also overrides an
+  // already-shown dashboard if the event arrives after routeAfterAuth().
+  // Read synchronously by the boot effect below, which otherwise has no way
+  // to know a recovery link was just detected -- it unconditionally calls
+  // routeAfterAuth() when a saved profile exists, which would overwrite the
+  // 'login' screen this effect just switched to a moment before. Since this
+  // effect is declared first, its body (including the synchronous hash
+  // check) runs before the boot effect's async chain can resolve far enough
+  // to reach that call, so the ref is reliably set in time.
+  const recoveryDetectedRef = useRef(false);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const goToResetPinScreen = () => {
+      recoveryDetectedRef.current = true;
+      setCurrentScreenState('login');
+      setNavParams({ mode: 'reset-pin', resetStep: 'complete-web' });
+    };
+    const hash = window.location.hash;
+    const params = new URLSearchParams(hash.replace('#', '?'));
+    const type = params.get('type');
+    if ((type === 'recovery' || type === 'signup') && params.get('access_token')) {
+      goToResetPinScreen();
+    }
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') goToResetPinScreen();
+    });
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
   // Initialize auth state on mount: restore a saved profile as the logged-in
   // user, or flag first launch so LoginScreen shows account setup, not login.
   useEffect(() => {
@@ -968,7 +1007,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             // A signed-in user who lands directly on a shared /blog link
             // should see the article, not get bounced to their dashboard.
             const isPublicBlogRoute = getInitialScreenFromUrl() === 'blog' || getInitialScreenFromUrl() === 'blog-post';
-            if (!isPublicBlogRoute) await routeAfterAuth();
+            // Same reasoning: don't stomp the reset-pin screen the recovery
+            // effect above just switched to for a device that also happens
+            // to have a saved profile -- see that effect's comment.
+            if (!isPublicBlogRoute && !recoveryDetectedRef.current) await routeAfterAuth();
           }
         } else {
           setIsFirstLaunch(true);

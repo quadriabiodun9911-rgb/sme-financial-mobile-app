@@ -205,7 +205,10 @@ export default function LoginScreen() {
     const [resetNewPin, setResetNewPin]       = useState('');
     const [resetConfirmPin, setResetConfirmPin] = useState('');
     const [resetOtp, setResetOtp]             = useState('');
-    const [resetStep, setResetStep]           = useState<'request' | 'verify' | 'complete-web'>('request');
+    // Read from navParams so a recovery link detected at the top level
+    // (AuthProvider, see the matching comment there) can land directly on
+    // the "set a new PIN" step instead of the request-email step.
+    const [resetStep, setResetStep]           = useState<'request' | 'verify' | 'complete-web'>((navParams?.resetStep as any) ?? 'request');
     const [resetSubmitting, setResetSubmitting] = useState(false);
 
     // Alert.alert doesn't render on Expo web — every call site in this screen
