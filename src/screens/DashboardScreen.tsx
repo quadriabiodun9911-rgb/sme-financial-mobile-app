@@ -1084,30 +1084,22 @@ export default function DashboardScreen() {
                 </View>
                 )}
 
-                {/* SECTION 4: QUICK ACTIONS - One-tap operations */}
+                {/* SECTION 4: QUICK ACTIONS - One-tap operations.
+                    Log Sales/Send Invoice/Record Expense removed -- the
+                    floating + button (openFab) and the Invoices tab already
+                    cover those, so this section is just the one action that
+                    had no other easy entry point. */}
+                {canViewFinancials && (
                 <View style={styles.operationsSection}>
                   <Text style={styles.operationsSectionTitle}>⚡ QUICK ACTIONS</Text>
                   <View style={styles.actionsGrid}>
-                    <TouchableOpacity style={styles.actionCard} activeOpacity={0.7} onPress={() => openFab('income')}>
-                      <Text style={styles.actionEmoji}>💵</Text>
-                      <Text style={styles.actionLabel}>Log Sales</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionCard} activeOpacity={0.7} onPress={() => setCurrentScreen('invoices')}>
-                      <Text style={styles.actionEmoji}>📄</Text>
-                      <Text style={styles.actionLabel}>Send Invoice</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionCard} activeOpacity={0.7} onPress={() => openFab('expense')}>
-                      <Text style={styles.actionEmoji}>💸</Text>
-                      <Text style={styles.actionLabel}>Record Expense</Text>
-                    </TouchableOpacity>
-                    {canViewFinancials && (
-                    <TouchableOpacity style={styles.actionCard} activeOpacity={0.7} onPress={() => setCurrentScreen('import-transactions')}>
+                    <TouchableOpacity style={[styles.actionCard, styles.actionCardFull]} activeOpacity={0.7} onPress={() => setCurrentScreen('import-transactions')}>
                       <Text style={styles.actionEmoji}>🏦</Text>
                       <Text style={styles.actionLabel}>Import Bank Statement</Text>
                     </TouchableOpacity>
-                    )}
                   </View>
                 </View>
+                )}
 
                 {/* SECTION 4B: AI FINANCIAL ENGINE - Assessment & Action Planning
                     Every destination here (diagnosis, weekly priorities, goal
@@ -1956,6 +1948,9 @@ const styles = StyleSheet.create({
       alignItems: 'center',
       borderWidth: 1.5,
       borderColor: Colors.primary,
+    },
+    actionCardFull: {
+      width: '100%',
     },
     actionEmoji: {
       fontSize: 32,
