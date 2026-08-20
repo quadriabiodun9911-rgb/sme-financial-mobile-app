@@ -2,7 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Transaction, Asset } from '../types';
 import { Colors } from '../theme/colors';
-import { computeProperCashFlow, computeMonthlyTrend } from '../utils/finance';
+import { computeProperCashFlow } from '../utils/finance';
+import { computeDailyTrend, computeWeeklyTrend, computeAllTimeMonthlyBuckets, computeQuarterlyTrend, computeYearlyTrend } from '../utils/trendAnalysis';
 import BarList from './BarList';
 
 interface Props {
@@ -12,19 +13,65 @@ interface Props {
 }
 
 type CfView = 'statement' | 'monthly';
+type Grouping = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
+
+const GROUPINGS: { key: Grouping; label: string }[] = [
+    { key: 'daily', label: 'Daily' },
+    { key: 'weekly', label: 'Weekly' },
+    { key: 'monthly', label: 'Monthly' },
+    { key: 'quarterly', label: 'Quarterly' },
+    { key: 'yearly', label: 'Yearly' },
+];
+
+const MONTH_LABEL = (m: string) => {
+    const [y, mo] = m.split('-');
+    return new Date(Number(y), Number(mo) - 1, 1).toLocaleString('default', { month: 'short' }) + ` '${y.slice(2)}`;
+};
+const DAY_LABEL = (d: string) => {
+    const [y, mo, day] = d.split('-').map(Number);
+    return new Date(y, mo - 1, day).toLocaleString('default', { month: 'short', day: 'numeric' });
+};
+
+const PERIOD_NOUN: Record<Grouping, string> = { daily: 'day', weekly: 'week', monthly: 'month', quarterly: 'quarter', yearly: 'year' };
+// Both charts below are a vertical list, one row per period -- fine at 6-12
+// rows, unreadable at the hundreds of rows "every day, all recorded
+// history" could produce. Capped to a sensible trailing window per
+// granularity instead, the same way the fixed "last 6 months" behavior this
+// replaces was itself always a trailing window, just a single hardcoded one.
+const WINDOW: Record<Grouping, number> = { daily: 30, weekly: 12, monthly: 12, quarterly: 8, yearly: 20 };
 
 export default function CashFlowStatement({ transactions, assets, currency }: Props) {
     const [view, setView] = useState<CfView>('statement');
+    const [grouping, setGrouping] = useState<Grouping>('monthly');
 
-    const cf    = useMemo(() => computeProperCashFlow(transactions, assets), [transactions, assets]);
-    const trend = useMemo(() => computeMonthlyTrend(transactions, 6), [transactions]);
-    const maxAbsProfit = Math.max(...trend.map(p => Math.abs(p.profit)), 1);
+    const cf = useMemo(() => computeProperCashFlow(transactions, assets), [transactions, assets]);
+
+    // Revenue/expense/profit trend, same all-recorded-history shape (and the
+    // same daily/weekly/monthly/quarterly/yearly granularities) as Reports >
+    // Profit & Loss's trend table -- this section used to be locked to a
+    // fixed trailing 6 months with no way to zoom in or see further back.
+    const daily = useMemo(() => computeDailyTrend(transactions), [transactions]);
+    const weekly = useMemo(() => computeWeeklyTrend(daily), [daily]);
+    const monthly = useMemo(() => computeAllTimeMonthlyBuckets(transactions), [transactions]);
+    const quarterly = useMemo(() => computeQuarterlyTrend(monthly), [monthly]);
+    const yearly = useMemo(() => computeYearlyTrend(monthly), [monthly]);
+
+    const trend = useMemo(() => {
+        if (grouping === 'daily') return daily.map(d => ({ label: DAY_LABEL(d.date), income: d.revenue, expense: d.expense, profit: d.profit }));
+        if (grouping === 'weekly') return weekly.map(w => ({ label: w.label, income: w.revenue, expense: w.expense, profit: w.profit }));
+        if (grouping === 'monthly') return monthly.map(m => ({ label: MONTH_LABEL(m.month), income: m.revenue, expense: m.expense, profit: m.profit }));
+        if (grouping === 'quarterly') return quarterly.map(q => ({ label: q.label, income: q.revenue, expense: q.expense, profit: q.profit }));
+        return yearly.map(y => ({ label: y.year, income: y.revenue, expense: y.expense, profit: y.profit }));
+    }, [grouping, daily, weekly, monthly, quarterly, yearly]);
+
+    const windowedTrend = useMemo(() => trend.slice(-WINDOW[grouping]), [trend, grouping]);
+    const maxAbsProfit = Math.max(...windowedTrend.map(p => Math.abs(p.profit)), 1);
 
     return (
         <View>
             <View style={s.toggle}>
                 <ToggleBtn label="Cash Summary" active={view === 'statement'} onPress={() => setView('statement')} />
-                <ToggleBtn label="Month by Month" active={view === 'monthly'} onPress={() => setView('monthly')} />
+                <ToggleBtn label="By Period" active={view === 'monthly'} onPress={() => setView('monthly')} />
             </View>
 
             {view === 'statement' && (
@@ -82,11 +129,19 @@ export default function CashFlowStatement({ transactions, assets, currency }: Pr
 
             {view === 'monthly' && (
                 <View>
+                    <View style={s.groupingRow}>
+                        {GROUPINGS.map(g => (
+                            <TouchableOpacity key={g.key} style={[s.groupingBtn, grouping === g.key && s.groupingBtnActive]} onPress={() => setGrouping(g.key)}>
+                                <Text style={[s.groupingText, grouping === g.key && s.groupingTextActive]}>{g.label}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+
                     <View style={s.card}>
-                        <Text style={s.cardTitle}>Monthly Profit / Loss (last 6 months)</Text>
+                        <Text style={s.cardTitle}>Profit / Loss (last {windowedTrend.length} {PERIOD_NOUN[grouping]}{windowedTrend.length === 1 ? '' : 's'})</Text>
                         <BarList
                             maxValue={maxAbsProfit}
-                            items={trend.map(pt => {
+                            items={windowedTrend.map(pt => {
                                 const pos = pt.profit >= 0;
                                 return {
                                     label: pt.label,
@@ -101,14 +156,14 @@ export default function CashFlowStatement({ transactions, assets, currency }: Pr
                     </View>
 
                     <View style={s.card}>
-                        <Text style={s.cardTitle}>Monthly Breakdown</Text>
+                        <Text style={s.cardTitle}>Breakdown</Text>
                         <View style={s.breakdownHeader}>
-                            <Text style={[s.monthLabel, { fontWeight: '700', color: Colors.textPrimary }]}>Month</Text>
+                            <Text style={[s.monthLabel, { fontWeight: '700', color: Colors.textPrimary }]}>{PERIOD_NOUN[grouping][0].toUpperCase()}{PERIOD_NOUN[grouping].slice(1)}</Text>
                             <Text style={[s.breakVal, { color: Colors.income }]}>Revenue</Text>
                             <Text style={[s.breakVal, { color: Colors.expense }]}>Costs</Text>
                             <Text style={[s.breakVal, { color: Colors.textPrimary }]}>Net</Text>
                         </View>
-                        {trend.map((pt, i) => (
+                        {windowedTrend.map((pt, i) => (
                             <View key={i} style={s.breakdownRow}>
                                 <Text style={s.monthLabel}>{pt.label}</Text>
                                 <Text style={[s.breakVal, { color: Colors.income }]}>+{currency}{pt.income.toLocaleString()}</Text>
@@ -175,6 +230,12 @@ const s = StyleSheet.create({
     toggleText:      { color: Colors.textMuted, fontSize: 13, fontWeight: '500' },
     toggleTextActive:{ color: Colors.textPrimary, fontWeight: 'bold' },
 
+    groupingRow:        { flexDirection: 'row', flexWrap: 'wrap', backgroundColor: Colors.bg, borderRadius: 9, padding: 3, marginBottom: 12, alignSelf: 'flex-start', gap: 2 },
+    groupingBtn:        { paddingVertical: 6, paddingHorizontal: 11, borderRadius: 7 },
+    groupingBtnActive:  { backgroundColor: Colors.primary },
+    groupingText:       { fontSize: 11.5, fontWeight: '700', color: Colors.textMuted },
+    groupingTextActive: { color: '#fff' },
+
     card:      { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 12 },
     cardTitle: { fontSize: 14, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 10 },
 
@@ -197,7 +258,7 @@ const s = StyleSheet.create({
     chipLabel:   { fontSize: 10, color: Colors.textMuted, marginBottom: 2 },
     chipValue:   { fontSize: 12, fontWeight: '700' },
 
-    monthLabel: { fontSize: 12, color: Colors.textMuted, width: 30 },
+    monthLabel: { fontSize: 11, color: Colors.textMuted, width: 62 },
 
     breakdownHeader: { flexDirection: 'row', paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: Colors.border, marginBottom: 4 },
     breakdownRow:    { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: Colors.border },
