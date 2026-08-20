@@ -15,33 +15,37 @@ const isNative = Platform.OS !== 'web';
 // there's no storage mechanism on web that's actually equivalent to
 // SecureStore on native — anything in the page's origin (localStorage,
 // sessionStorage, indexedDB) is readable by any script that runs there,
-// e.g. via XSS. AsyncStorage's web backend is plain localStorage, which
-// persists indefinitely; that turns a one-time XSS/device-compromise into
-// a standing credential an attacker can use anytime after, not just while
-// the tab is open. sessionStorage carries the same read exposure while a
-// tab is open, but is cleared when the tab/browser closes — so these three
-// secrets (PIN, session token, auth secret; the ones that gate account
-// access) use it on web, trading "stay signed in across browser restarts"
-// for a materially smaller exposure window. Everything else (cached
-// business data) still uses localStorage via AsyncStorage, since it isn't
-// itself a credential and losing offline persistence on every browser
-// restart would be a poor tradeoff for data that isn't the attack target.
+// e.g. via XSS.
+//
+// This used to be sessionStorage specifically to shrink that exposure
+// window (cleared on tab/browser close, at the cost of "stay signed in").
+// In practice that traded a security nicety for a broken product: every
+// browser gives each tab (not just each browser session) its own separate
+// sessionStorage bucket. Since the PIN-reset email link always opens in a
+// *new* tab -- normal browser behavior, not something this app controls --
+// a device could complete a reset and still never regain access: the
+// secret it just saved lived only in that one throwaway tab, invisible to
+// the tab the user actually kept using afterward. That's not a rare edge
+// case, it's what happens on every single reset. localStorage (like the
+// rest of the app's cached data via AsyncStorage) fixes that by being
+// shared across tabs on the same origin -- the credential now persists
+// exactly as long as everything else already effectively does.
 const webSecureStorage = {
     async getItem(key: string): Promise<string | null> {
         try {
-            return window.sessionStorage.getItem(key);
+            return window.localStorage.getItem(key);
         } catch {
             return null;
         }
     },
     async setItem(key: string, value: string): Promise<void> {
         try {
-            window.sessionStorage.setItem(key, value);
+            window.localStorage.setItem(key, value);
         } catch { /* private-browsing / storage disabled — nothing to persist to */ }
     },
     async removeItem(key: string): Promise<void> {
         try {
-            window.sessionStorage.removeItem(key);
+            window.localStorage.removeItem(key);
         } catch { /* nothing to remove */ }
     },
 };

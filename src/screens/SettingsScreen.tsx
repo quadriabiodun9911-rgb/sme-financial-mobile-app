@@ -706,7 +706,7 @@ export default function SettingsScreen() {
                     {/* Bank & Mobile Money */}
                     <CollapsibleSection title="Bank & Mobile Money" defaultOpen={false}>
                         <Text style={styles.hint}>
-                            Upload a bank statement to import your transactions.
+                            Upload a bank statement file, or scan a photo of a statement/receipt, to import your transactions.
                         </Text>
 
                         {/* Auto-connect (Bank Aggregator / Connect Bank) removed from
@@ -716,7 +716,7 @@ export default function SettingsScreen() {
                         <TouchableOpacity style={styles.dataBtn} onPress={() => setCurrentScreen('import-transactions')}>
                             <View style={styles.btnIconRow}>
                                 <Icon name="folder" size={14} color={Colors.primary} />
-                                <Text style={styles.dataBtnText}>Import Bank Statement (CSV / Excel / PDF) ✓</Text>
+                                <Text style={styles.dataBtnText}>Import Bank Statement or Scan a Photo →</Text>
                             </View>
                         </TouchableOpacity>
                     </CollapsibleSection>
