@@ -6,7 +6,6 @@ const rateLimit = require('express-rate-limit');
 
 const pngmeRoutes           = require('./routes/pngme');
 const transactionsRoutes    = require('./routes/transactions');
-const financialHealthRoutes = require('./routes/financial-health');
 const paymentsRoutes        = require('./routes/payments');
 const { requireAuth }       = require('./middleware/auth');
 const { ConnectionPool }    = require('./utils/connection-pool');
@@ -100,10 +99,13 @@ app.use(async (req, res, next) => {
   }
 });
 
-// Routes — payment routes require valid Supabase session token
+// Routes — payment routes require valid Supabase session token.
+// /paystack/initialize and /korapay/initialize now live in
+// supabase/functions/payment-init instead (see that function's header) --
+// this router keeps only /webhook and /verify, which aren't called from
+// the client and haven't been migrated.
 app.use('/api/payments', requireAuth, paymentsRoutes);
 app.use('/api/transactions', requireAuth, transactionsRoutes);
-app.use('/api/financial-health', requireAuth, financialHealthRoutes);
 // Webhooks don't require auth (server callbacks)
 app.use('/pngme', pngmeRoutes);
 

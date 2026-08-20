@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useApp } from '../contexts/OptimizedContexts';
 import { Colors } from '../theme/colors';
-import { Config } from '../config';
+import { supabase } from '../utils/supabase';
 import NextStepLink from '../components/NextStepLink';
 import Icon from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
@@ -75,20 +75,27 @@ export default function FinancialHealthScreen() {
 
         setLoading(true);
         try {
-            const res = await fetch(
-                `${Config.BACKEND_URL}/api/financial-health/${encodeURIComponent(phone)}?currencyCode=${currencyCode}`
-            );
+            const { data: result, error } = await supabase.functions.invoke('financial-health', {
+                body: { phone, currencyCode },
+            });
+            if (error) {
+                // See aiAdvisor.ts's askAdvisor for why .context is checked this
+                // way -- the edge function always replies with { error }, so
+                // surface that instead of a generic non-2xx message.
+                const errResponse = (error as { context?: Response }).context;
+                const body = errResponse && typeof errResponse.json === 'function'
+                    ? await errResponse.json().catch(() => null)
+                    : null;
+                throw new Error(body?.error || error.message || 'The scoring service is temporarily unavailable.');
+            }
 
-            if (!res.ok) throw new Error('The scoring service is temporarily unavailable.');
+            setData({ ...result, fetchedAt: new Date().toISOString() });
 
-            const json = await res.json();
-            setData({ ...json, fetchedAt: new Date().toISOString() });
-
-            if (json.errors?.length) {
-                console.warn('Pngme partial errors:', json.errors);
+            if (result.errors?.length) {
+                console.warn('Pngme partial errors:', result.errors);
             }
         } catch (err: any) {
-            showAlert('Could Not Load Data', 'We couldn\'t reach the Financial Health scoring service right now. Please try again shortly.');
+            showAlert('Could Not Load Data', err?.message || 'We couldn\'t reach the Financial Health scoring service right now. Please try again shortly.');
             console.error('[FinancialHealthScreen] fetch failed:', err);
         } finally {
             setLoading(false);

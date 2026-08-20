@@ -2,9 +2,6 @@
 // When rotating tokens, update ONLY this file.
 
 export const Config = {
-    // Backend URL — deployed on Render
-    BACKEND_URL: 'https://quad360-backend.onrender.com',
-
     // Pngme SDK token — loaded from environment variables only (never hardcode here).
     // Set EXPO_PUBLIC_PNGME_SDK_TOKEN_TEST and EXPO_PUBLIC_PNGME_SDK_TOKEN_PROD in .env.local
     // Rotate tokens at: admin.pngme.com → API & SDK Integration → SDK Tokens

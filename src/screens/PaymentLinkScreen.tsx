@@ -5,10 +5,25 @@ import {
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
-import { apiFetch } from '../utils/api';
+import { supabase } from '../utils/supabase';
 import Icon from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { confirmAction } from '../utils/webAlert';
+
+// Same shape as aiAdvisor.ts's askAdvisor -- the edge function always
+// replies with a JSON { error } body on failure, so surface that instead
+// of a generic "Edge Function returned a non-2xx status code".
+async function invokePaymentInit(body: Record<string, unknown>): Promise<any> {
+    const { data, error } = await supabase.functions.invoke('payment-init', { body });
+    if (error) {
+        const errResponse = (error as { context?: Response }).context;
+        const errBody = errResponse && typeof errResponse.json === 'function'
+            ? await errResponse.json().catch(() => null)
+            : null;
+        throw new Error(errBody?.error || error.message || 'Could not start payment.');
+    }
+    return data;
+}
 
 export default function PaymentLinkScreen() {
     const { settings, user, navigate, goBack, navParams, addTransaction, markInvoiceStatus } = useApp() as any;
@@ -135,15 +150,13 @@ export default function PaymentLinkScreen() {
         setLoadingMsg('Opening Paystack… please wait');
         const wakeTimer = setTimeout(() => setLoadingMsg('Server starting up, please wait ~30s…'), 5000);
         try {
-            const data = await apiFetch('/api/payments/paystack/initialize', {
-                method: 'POST',
-                body: JSON.stringify({
-                    amount: amountNum,
-                    email: customerEmail,
-                    name: customerName,
-                    description: description || `Payment to ${businessName}`,
-                    currency: currencyCode,
-                }),
+            const data = await invokePaymentInit({
+                provider: 'paystack',
+                amount: amountNum,
+                email: customerEmail,
+                name: customerName,
+                description: description || `Payment to ${businessName}`,
+                currency: currencyCode,
             });
             const authUrl = data.authorization_url || data.data?.authorization_url;
             if (!authUrl) throw new Error('No payment URL returned from server');
@@ -192,13 +205,11 @@ export default function PaymentLinkScreen() {
         const wakeTimer = setTimeout(() => setLoadingMsg('Server starting up, please wait ~30s…'), 5000);
         try {
             const ref  = `QD360-${Date.now()}`;
-            const data = await apiFetch('/api/payments/korapay/initialize', {
-                method: 'POST',
-                body: JSON.stringify({
-                    amount: amountNum, currency: currencyCode,
-                    email: customerEmail, name: customerName,
-                    reference: ref, narration: description || `Payment to ${businessName}`,
-                }),
+            const data = await invokePaymentInit({
+                provider: 'korapay',
+                amount: amountNum, currency: currencyCode,
+                email: customerEmail, name: customerName,
+                reference: ref, narration: description || `Payment to ${businessName}`,
             });
             if (!data.checkoutUrl) throw new Error(data.error || 'No checkout URL returned');
             if (payWin && !payWin.closed) {
