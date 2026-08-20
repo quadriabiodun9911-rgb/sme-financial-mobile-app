@@ -792,13 +792,18 @@ export class AlertEngine {
    * Format currency (simplified)
    */
   private formatCurrency(amount: number): string {
-    if (Math.abs(amount) >= 1000000) {
-      return `${this.currency}${(amount / 1000000).toFixed(1)}M`;
+    // Several callers pass fields (invoice.total, transaction.amount) that
+    // can be undefined for legacy/imported records -- amount.toFixed()
+    // below would otherwise throw "Cannot read properties of undefined"
+    // and crash the whole alert bell with a white error screen.
+    const n = amount ?? 0;
+    if (Math.abs(n) >= 1000000) {
+      return `${this.currency}${(n / 1000000).toFixed(1)}M`;
     }
-    if (Math.abs(amount) >= 1000) {
-      return `${this.currency}${(amount / 1000).toFixed(0)}K`;
+    if (Math.abs(n) >= 1000) {
+      return `${this.currency}${(n / 1000).toFixed(0)}K`;
     }
-    return `${this.currency}${amount.toFixed(0)}`;
+    return `${this.currency}${n.toFixed(0)}`;
   }
 }
 
