@@ -192,14 +192,14 @@ export interface WorkingCapitalMetrics {
 }
 
 export function computeWorkingCapitalMetrics(transactions: Transaction[]): WorkingCapitalMetrics {
-    const ar = transactions.filter(t => t.type === 'income'  && (t.status === 'pending' || t.status === 'overdue')).reduce((s, t) => s + t.amount, 0);
-    const ap = transactions.filter(t => t.type === 'expense' && (t.status === 'pending' || t.status === 'overdue')).reduce((s, t) => s + t.amount, 0);
+    const ar = transactions.filter(t => t.type === 'income'  && (t.status === 'pending' || t.status === 'overdue')).reduce((s, t) => s + (t.amount ?? 0), 0);
+    const ap = transactions.filter(t => t.type === 'expense' && (t.status === 'pending' || t.status === 'overdue')).reduce((s, t) => s + (t.amount ?? 0), 0);
 
     const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 90);
     const cutStr = cutoff.toISOString().split('T')[0];
 
-    const rev90  = transactions.filter(t => t.type === 'income'  && t.date >= cutStr && t.status === 'paid').reduce((s, t) => s + t.amount, 0);
-    const cost90 = transactions.filter(t => t.type === 'expense' && t.date >= cutStr && t.status === 'paid').reduce((s, t) => s + t.amount, 0);
+    const rev90  = transactions.filter(t => t.type === 'income'  && t.date >= cutStr && t.status === 'paid').reduce((s, t) => s + (t.amount ?? 0), 0);
+    const cost90 = transactions.filter(t => t.type === 'expense' && t.date >= cutStr && t.status === 'paid').reduce((s, t) => s + (t.amount ?? 0), 0);
 
     const dailyRev  = rev90  / 90;
     const dailyCost = cost90 / 90;

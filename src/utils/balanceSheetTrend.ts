@@ -90,7 +90,8 @@ function cashOnHandAsOf(transactions: Transaction[], endDate: string): number {
     for (const t of transactions) {
         if (!t.date || t.date > endDate) continue;
         if ((t.status ?? 'paid') !== 'paid') continue;
-        cash += t.type === 'income' ? t.amount : -t.amount;
+        const amount = t.amount ?? 0;
+        cash += t.type === 'income' ? amount : -amount;
     }
     return cash;
 }
@@ -101,13 +102,13 @@ function cashOnHandAsOf(transactions: Transaction[], endDate: string): number {
 function accountsReceivableAsOf(transactions: Transaction[], endDate: string): number {
     return transactions
         .filter(t => t.type === 'income' && t.date && t.date <= endDate && (t.status === 'pending' || t.status === 'overdue'))
-        .reduce((sum, t) => sum + t.amount, 0);
+        .reduce((sum, t) => sum + (t.amount ?? 0), 0);
 }
 
 function accountsPayableAsOf(transactions: Transaction[], endDate: string): number {
     return transactions
         .filter(t => t.type === 'expense' && t.date && t.date <= endDate && (t.status === 'pending' || t.status === 'overdue'))
-        .reduce((sum, t) => sum + t.amount, 0);
+        .reduce((sum, t) => sum + (t.amount ?? 0), 0);
 }
 
 function equipmentValueAsOf(assets: Asset[], endDate: string): number {

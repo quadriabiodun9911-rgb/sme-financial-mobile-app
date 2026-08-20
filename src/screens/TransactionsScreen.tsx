@@ -198,12 +198,14 @@ export default function TransactionsScreen() {
         const expenseMap = new Map<string, number>();
         let totalIncome = 0, totalExpense = 0;
         for (const t of filtered) {
+            const category = t.category ?? 'Uncategorized';
+            const amount = t.amount ?? 0;
             if (t.type === 'income') {
-                incomeMap.set(t.category, (incomeMap.get(t.category) ?? 0) + t.amount);
-                totalIncome += t.amount;
+                incomeMap.set(category, (incomeMap.get(category) ?? 0) + amount);
+                totalIncome += amount;
             } else {
-                expenseMap.set(t.category, (expenseMap.get(t.category) ?? 0) + t.amount);
-                totalExpense += t.amount;
+                expenseMap.set(category, (expenseMap.get(category) ?? 0) + amount);
+                totalExpense += amount;
             }
         }
         return { incomeMap, expenseMap, totalIncome, totalExpense };
