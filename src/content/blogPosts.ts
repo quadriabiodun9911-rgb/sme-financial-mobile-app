@@ -25,6 +25,66 @@ export interface BlogPost {
 
 export const BLOG_POSTS: BlogPost[] = [
     {
+        slug: 'what-was-our-profit-margin-last-month',
+        title: 'The One Question Every Business Owner and Employee Should Be Able to Answer',
+        excerpt: "If nobody on your team can confidently answer \"What was our profit margin last month?\", you may have more than an accounting problem — you may have a business visibility problem.",
+        publishedDate: '2026-08-20',
+        author: 'Quad360 Team',
+        body: [
+            { type: 'heading', text: 'What Was Our Profit Margin Last Month?' },
+            { type: 'paragraph', text: 'At the beginning of every month, businesses review their sales, check the bank balance and look at their accounts. Someone eventually says: "We had a good month."' },
+            { type: 'paragraph', text: 'But one question can reveal whether that is actually true: "What was our profit margin last month?"' },
+            { type: 'paragraph', text: 'If nobody can answer confidently, you may have more than an accounting problem. You may have a business visibility problem. Because knowing how much you sold is not the same as knowing how well your business performed.' },
+
+            { type: 'heading', text: 'Revenue Shows Growth. Margin Shows the Quality of That Growth.' },
+            { type: 'paragraph', text: 'Imagine your business generated 50 million in revenue last month. After paying for inventory, salaries, logistics, rent, marketing and other expenses, suppose you made 5 million in net profit.' },
+            { type: 'paragraph', text: 'Your net profit margin is: 5m ÷ 50m × 100 = 10%' },
+            { type: 'paragraph', text: "For every 100 in revenue, you kept 10 as profit. But the real question isn't whether 10% is good or bad. It is: Is our margin improving, declining or staying stable?" },
+            { type: 'paragraph', text: 'Consider: In January, revenue was 42m with a margin of 18%; in February, revenue was 46m with a margin of 16%; in March, revenue was 51m with a margin of 12%.' },
+            { type: 'paragraph', text: "Revenue is growing. But profitability is falling. The business is selling more while keeping less. That's when management needs to ask: Why?" },
+
+            { type: 'heading', text: 'What Is Driving the Change?' },
+            { type: 'paragraph', text: 'It could be:' },
+            { type: 'list', items: [
+                'Rising supplier costs',
+                'Exchange-rate movements',
+                'Higher salaries or logistics costs',
+                'Aggressive discounting',
+                'Changes in customer behaviour',
+                'Waste and operational inefficiency',
+                'Rising financing costs',
+            ] },
+            { type: 'paragraph', text: 'The margin tells you what happened. The analysis tells you why. And the next question should be: What should we do about it?' },
+            { type: 'paragraph', text: "That's where financial intelligence becomes valuable." },
+
+            { type: 'heading', text: "Profit Isn't the Same as Cash" },
+            { type: 'paragraph', text: 'A business can be profitable and still run out of money. Imagine you made 10 million in profit, but customers owe you 15 million. Your suppliers need payment. Payroll is due. Rent is due. Inventory needs to be replenished.' },
+            { type: 'paragraph', text: "On paper, you're profitable. In reality, cash may be tight. That's why businesses need to understand more than profit. They need to know:" },
+            { type: 'list', items: [
+                'How much cash do we have?',
+                'Where is our money tied up?',
+                'Can we afford our current growth?',
+                'What risks could affect us next?',
+            ] },
+
+            { type: 'heading', text: 'Five Questions Every Business Should Ask Every Month' },
+            { type: 'list', items: [
+                'What was our profit margin?',
+                'Why did it change?',
+                'How much cash did we generate?',
+                'What risks could affect our performance?',
+                'What should we do next?',
+            ] },
+            { type: 'paragraph', text: 'These questions move a business from simply recording numbers to using numbers to make decisions.' },
+
+            { type: 'heading', text: 'So, Ask Your Team This Month:' },
+            { type: 'paragraph', text: '"What was our profit margin last month?" Then ask: "Why?" And finally: "What should we do about it?"' },
+            { type: 'paragraph', text: "Because the goal isn't simply to know your numbers. The goal is to use them to make better decisions and build a stronger business." },
+            { type: 'paragraph', text: 'Know your numbers. Understand your business. Anticipate risk. Make better decisions. Grow with confidence — Quad360' },
+            { type: 'paragraph', text: 'Ready to move from data to intelligence? Visit quad360financial.com to learn how we help SMEs understand their financial health, anticipate risks, and access the right capital to grow.' },
+        ],
+    },
+    {
         slug: 'ebid-signal-sme-capital-readiness',
         title: 'EBID Is Sending a Signal About Where Capital Is Going',
         excerpt: "EBID's new GRO Strategy is directing more institutional capital toward West African SMEs. But capital availability isn't the same as capital accessibility — and closing that gap is the real opportunity ahead.",
