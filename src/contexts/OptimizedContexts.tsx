@@ -1025,8 +1025,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             // before auto-routing to the dashboard closes that gap; when
             // there isn't one, this falls through to the ordinary
             // PIN-unlock login screen instead.
+            // Supabase normalizes/lowercases the session's email, but the
+            // locally-saved profile keeps whatever case the user originally
+            // typed -- comparing them case-sensitively would wrongly treat
+            // a perfectly valid session as absent for any mixed-case email.
             const { data: { session } } = await supabase.auth.getSession().catch(() => ({ data: { session: null } } as any));
-            if (session?.user?.email === profile.email) {
+            if (session?.user?.email?.toLowerCase() === profile.email.toLowerCase()) {
               writeTabIdentity(profile.email);
               setUser({ email: profile.email, businessName: profile.businessName, phone: profile.phone, role: 'Administrator', createdAt: profile.createdAt });
               // A signed-in user who lands directly on a shared /blog link
