@@ -56,6 +56,26 @@ export async function generateEncryptionKey(): Promise<string> {
     return key;
 }
 
+/**
+ * Persist an explicit encryption key that was already decided elsewhere
+ * (e.g. pulled from Supabase user_metadata during syncFieldEncryptionKey,
+ * see storage.ts) — same storage locations as generateEncryptionKey, but
+ * for a caller-supplied key instead of a freshly random one.
+ */
+export async function setEncryptionKey(key: string): Promise<void> {
+    if (Platform.OS !== 'web') {
+        try {
+            await SecureStore.setItemAsync(ENCRYPTION_KEY_STORAGE, key);
+            return;
+        } catch { /* fall through to web storage */ }
+    }
+    try {
+        if (typeof window !== 'undefined') window.localStorage.setItem(ENCRYPTION_KEY_STORAGE, key);
+    } catch {
+        console.warn('[Quad360] Could not persist encryption key — encrypted data will be unreadable after restart');
+    }
+}
+
 // A per-device random key (generateEncryptionKey above) can never be the
 // real answer for data that's meant to sync across a business's devices --
 // whichever device saves first would encrypt with a key no other device

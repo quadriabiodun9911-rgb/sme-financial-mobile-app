@@ -7,7 +7,7 @@ import { enqueue } from './syncQueue';
 import {
     getFieldEncryptionKey, encryptGoal, decryptGoal, encryptLoan, decryptLoan, encryptBudget, decryptBudget,
     encryptTransaction, decryptTransaction, encryptInvoice, decryptInvoice, encryptAsset, decryptAsset,
-    encryptInventoryItem, decryptInventoryItem,
+    encryptInventoryItem, decryptInventoryItem, deriveFieldEncryptionKey, generateEncryptionKey, setEncryptionKey,
 } from './encryption';
 
 // Corrupt/partial storage must never crash a loader — parse defensively.
@@ -810,6 +810,43 @@ export async function loadAuthSecret(): Promise<string | null> {
 }
 export async function clearAuthSecret(): Promise<void> {
     await clearAuthSecretSecurely();
+}
+
+// ─── Field-encryption key sync ─────────────────────────────────────────────
+// getFieldEncryptionKey() (encryption.ts) derived the AES key straight from
+// authSecret -- fine until a password reset calls generateAuthSecret() again
+// to mint a brand-new one (by design: a reset re-establishes trust with a
+// fresh high-entropy secret, see LoginScreen.tsx). That regeneration also
+// silently swapped out the encryption key underneath every row already
+// synced to Supabase with the OLD secret, which no longer decrypts --
+// amount/description/category (and every other encrypted field) come back
+// as undefined, which is what crashed every screen reading them and made
+// the account look wiped after a reset.
+//
+// Fix: keep one canonical field-encryption key per account in Supabase
+// user_metadata, completely decoupled from the auth password. Call this
+// once a live session exists (signup, and critically before a password
+// reset's local secret gets overwritten) -- it pulls the existing key if
+// Supabase already has one, or (first time only) adopts whatever this
+// device can currently derive and publishes that as canonical so every
+// future device/reset converges on the same key instead of each reset
+// minting a new, incompatible one.
+export async function syncFieldEncryptionKey(): Promise<void> {
+    try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const remoteKey = user.user_metadata?.field_encryption_key as string | undefined;
+        if (remoteKey) {
+            await setEncryptionKey(remoteKey);
+            return;
+        }
+        const currentAuthSecret = await loadAuthSecret();
+        const key = currentAuthSecret ? deriveFieldEncryptionKey(currentAuthSecret) : await generateEncryptionKey();
+        await setEncryptionKey(key);
+        await supabase.auth.updateUser({ data: { field_encryption_key: key } }).catch(() => {});
+    } catch (e) {
+        logSyncError('encryptionKey', 'sync', e);
+    }
 }
 
 // ─── Profile ──────────────────────────────────────────────────────────────────

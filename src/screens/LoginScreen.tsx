@@ -11,7 +11,7 @@ import { t, LANGUAGES, Language } from '../utils/i18n';
 import { DEMO_BUSINESSES } from '../utils/demoData';
 import { trackUserLoggedIn, identifyUser } from '../utils/analytics';
 import { supabase } from '../utils/supabase';
-import { savePin, saveProfile, generateAuthSecret, saveAuthSecret, loadAuthSecret } from '../utils/storage';
+import { savePin, saveProfile, generateAuthSecret, saveAuthSecret, loadAuthSecret, syncFieldEncryptionKey } from '../utils/storage';
 import { Industry } from '../types';
 
 const CURRENCIES = [
@@ -420,6 +420,14 @@ export default function LoginScreen() {
                 setResetSubmitting(false);
                 return;
             }
+            // Capture this account's field-encryption key BEFORE overwriting
+            // the local auth secret below -- if this device still holds the
+            // pre-reset secret and Supabase has no canonical key yet (e.g.
+            // this is the very first reset since the fix shipped), this is
+            // the last moment it can be recovered and published for every
+            // future device/reset to converge on, instead of the new secret
+            // silently minting an incompatible key and orphaning existing data.
+            await syncFieldEncryptionKey().catch(() => {});
             // Save PIN + the new secret locally and auto-login
             const email = session.user.email ?? '';
             await savePin(resetNewPin).catch(() => {});
@@ -466,6 +474,9 @@ export default function LoginScreen() {
                 setResetSubmitting(false);
                 return;
             }
+            // See the matching comment in handleWebResetComplete -- must run
+            // before the local secret is overwritten below.
+            await syncFieldEncryptionKey().catch(() => {});
             const email = resetEmail.trim();
             await savePin(resetNewPin).catch(() => {});
             await saveAuthSecret(newAuthSecret).catch(() => {});

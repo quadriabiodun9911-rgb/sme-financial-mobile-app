@@ -34,7 +34,7 @@ import {
   clearLocalFinancialCache,
   syncFinancingToSupabase,
   saveProfile, loadProfile, savePin, loadPin,
-  generateAuthSecret, saveAuthSecret, loadAuthSecret,
+  generateAuthSecret, saveAuthSecret, loadAuthSecret, syncFieldEncryptionKey,
   clearAllData, exportAllData, importAllData, deleteAccountData, recordConsent,
   inviteTeamMember, removeTeamMember, loadTeamMembers, joinTeamWithCode,
   setWorkspaceOwner, clearWorkspaceOwner,
@@ -1135,6 +1135,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           } else {
             await supabase.auth.signInWithPassword({ email, password: authSecret }).catch(() => {});
             await saveAuthSecret(authSecret).catch(() => {});
+            // Establishes this account's one canonical field-encryption key in
+            // Supabase user_metadata now, while it's still simply "brand new"
+            // data with nothing to lose -- see syncFieldEncryptionKey's own
+            // comment for why this can't be left to derive from authSecret
+            // each time (a later PIN reset regenerates authSecret and would
+            // otherwise silently orphan everything already encrypted).
+            await syncFieldEncryptionKey().catch(() => {});
           }
         } catch (e: any) {
           if ((e?.message ?? '').includes('already registered')) throw e;
@@ -1168,6 +1175,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       recoverAccount: async (email, pin) => {
         // Called after a successful Supabase sign-in — pull this user's profile
         // (or create a local one) so their data (synced by email/session) loads.
+        // Idempotent safety net: the PIN-reset call sites already sync this
+        // explicitly (see LoginScreen.tsx), but this covers every other path
+        // into recoverAccount (e.g. handleEmailLogin's new-device restore) too
+        // — must run before the cache clear below so the hydrate effects that
+        // follow decrypt with the right key instead of silently going empty.
+        await syncFieldEncryptionKey().catch(() => {});
         // Clear stale local cache first: Supabase is authoritative here, and the
         // FinanceProvider/GoalProvider/etc. hydrate effects will immediately
         // re-pull this user's real data from the cloud once `user` changes.
