@@ -331,14 +331,14 @@ export function computeFinance(
 ): FinanceData {
     const income = transactions
         .filter(t => t.type === 'income')
-        .reduce((sum, t) => sum + t.amount, 0);
+        .reduce((sum, t) => sum + (t.amount ?? 0), 0);
 
     // Loan principal repayments are excluded here (GAAP/IFRS: only interest
     // is a P&L expense) but stay in full below in paidExpense/cashBalance,
     // which is cash-basis and correctly includes them.
     const expense = transactions
         .filter(t => t.type === 'expense')
-        .reduce((sum, t) => sum + t.amount - (t.principalPortion || 0), 0);
+        .reduce((sum, t) => sum + (t.amount ?? 0) - (t.principalPortion || 0), 0);
 
     // Annual depreciation prorated to the period covered by transactions
     const annualDepreciation = activeAssets.reduce((s, a) => s + (computeAssetAnnualDepreciation(a) || 0), 0);
@@ -355,10 +355,10 @@ export function computeFinance(
     // used across entry points), so this doesn't understate normal usage.
     const paidIncome = transactions
         .filter(t => t.type === 'income' && (t.status ?? 'paid') === 'paid')
-        .reduce((sum, t) => sum + t.amount, 0);
+        .reduce((sum, t) => sum + (t.amount ?? 0), 0);
     const paidExpense = transactions
         .filter(t => t.type === 'expense' && (t.status ?? 'paid') === 'paid')
-        .reduce((sum, t) => sum + t.amount, 0);
+        .reduce((sum, t) => sum + (t.amount ?? 0), 0);
     const cashBalance = paidIncome - paidExpense; // not reduced by non-cash depreciation
 
     const openingAssets = parseFloat(settings.openingAssets) || 0;

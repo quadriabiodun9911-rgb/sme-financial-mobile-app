@@ -429,7 +429,7 @@ export default function TransactionsScreen() {
 
             {typeFilter !== 'collect' && overdueCollections.length > 0 && (
                 <NextStepLink
-                    text={`${overdueCollections.length} payment${overdueCollections.length > 1 ? 's' : ''} overdue — ${currency}${overdueCollections.reduce((s, o) => s + o.transaction.amount, 0).toLocaleString()} to collect`}
+                    text={`${overdueCollections.length} payment${overdueCollections.length > 1 ? 's' : ''} overdue — ${currency}${overdueCollections.reduce((s, o) => s + (o.transaction.amount ?? 0), 0).toLocaleString()} to collect`}
                     onPress={() => { setTypeFilter('collect'); setPage(1); }}
                     emphasis="button"
                 />
@@ -496,7 +496,7 @@ export default function TransactionsScreen() {
                                 <View style={styles.txTop}>
                                     <Text style={styles.txDesc} numberOfLines={1}>{tx.description}</Text>
                                     <Text style={tx.type === 'income' ? styles.incAmt : styles.expAmt}>
-                                        {tx.type === 'income' ? '+' : '-'}{currency}{tx.amount.toLocaleString()}
+                                        {tx.type === 'income' ? '+' : '-'}{currency}{(tx.amount ?? 0).toLocaleString()}
                                     </Text>
                                 </View>
 
