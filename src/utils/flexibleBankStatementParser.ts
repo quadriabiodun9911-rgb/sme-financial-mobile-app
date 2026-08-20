@@ -404,8 +404,7 @@ function normalizeDate(dateStr: string): string {
           month = parseInt(match[2]);
         } else {
           // Ambiguous (both <=12) — default to DD/MM/YYYY, this app's
-          // NGN/Nigerian bank-statement format, not US MM/DD/YYYY. See the
-          // matching fix and full explanation in bankStatementParser.ts.
+          // NGN/Nigerian bank-statement format, not US MM/DD/YYYY.
           day = parseInt(match[1]);
           month = parseInt(match[2]);
         }
@@ -414,7 +413,7 @@ function normalizeDate(dateStr: string): string {
       // Build the date string directly rather than round-tripping through
       // `new Date(...).toISOString()`, which shifts the date by a day for
       // any positive UTC offset (local midnight becomes the previous UTC
-      // day) — see the full explanation in bankStatementParser.ts.
+      // day).
       return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     }
   }

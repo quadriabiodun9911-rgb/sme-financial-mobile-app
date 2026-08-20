@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
     ScrollView, View, Text, TouchableOpacity,
     StyleSheet, TextInput, Modal, Platform, useWindowDimensions,
@@ -14,6 +14,7 @@ import { Transaction } from '../types';
 import { autoDetectColumns, parseCSVWithMapping } from '../utils/flexibleBankStatementParser';
 import { isDuplicateTransaction } from '../utils/transactionDedup';
 import { showAlert, confirmAction } from '../utils/webAlert';
+import { classifyByDescription, loadLearnedRules } from '../utils/transactionCategorization';
 
 // Bank transaction as imported from a statement or manual entry
 interface BankTx {
@@ -86,6 +87,8 @@ const SAMPLE_CSV = `date,description,amount,type
 
 export default function ReconciliationScreen() {
     const { transactions, addTransaction, settings, setCurrentScreen } = useApp();
+
+    useEffect(() => { loadLearnedRules(); }, []);
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
     // see FooterNav.tsx for the reference fix. presentationStyle="pageSheet"
@@ -191,11 +194,18 @@ export default function ReconciliationScreen() {
         }
 
         confirmAction('Import as Transaction', `Add "${b.description}" (${fmt(b.amount)}) to your app transactions?`, 'Import', () => {
+            // Same keyword-based categorization the main Import screen uses
+            // (see transactionCategorization.ts) -- this used to hardcode
+            // every credit as 'Sales' and every debit as 'Operating Expense'
+            // regardless of description, so the same real transaction could
+            // land in a different category depending on which screen it was
+            // imported from.
+            const { subCategory } = classifyByDescription(b.description, txType);
             addTransaction({
                 date: b.date,
                 description: b.description,
                 type: txType,
-                category: b.type === 'credit' ? 'Sales' : 'Operating Expense',
+                category: subCategory,
                 amount: b.amount,
                 status: 'paid',
             });

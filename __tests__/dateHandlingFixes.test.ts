@@ -3,7 +3,6 @@
 // round-trips through `new Date(...).toISOString()` silently shifting
 // calendar dates by a day.
 
-import { parseCSVBankStatement } from '../src/utils/bankStatementParser';
 import { computeRecurringDates, computeSeasonalRisk, computeAgingBuckets } from '../src/utils/finance';
 import { Transaction } from '../src/types';
 
@@ -11,21 +10,6 @@ const makeTx = (overrides: Partial<Transaction>): Transaction => ({
     id: 'tx', date: '2024-01-01', description: 'Test', type: 'income',
     category: 'Sales', amount: 1000, status: 'paid',
     ...overrides,
-});
-
-describe('parseCSVBankStatement — ambiguous dates default to DD/MM/YYYY, not MM/DD/YYYY', () => {
-    it('reads "05/03/2024" as 5 March, not May 3rd', () => {
-        const csv = 'Date,Description,Amount,Type\n05/03/2024,Test Payment,1000,credit';
-        const result = parseCSVBankStatement(csv);
-        expect(result.transactions).toHaveLength(1);
-        expect(result.transactions[0].date).toBe('2024-03-05');
-    });
-
-    it('still reads an unambiguous "25/03/2024" as DD/MM (day > 12 forces it)', () => {
-        const csv = 'Date,Description,Amount,Type\n25/03/2024,Test Payment,1000,credit';
-        const result = parseCSVBankStatement(csv);
-        expect(result.transactions[0].date).toBe('2024-03-25');
-    });
 });
 
 describe('computeRecurringDates — no UTC round-trip date shift', () => {

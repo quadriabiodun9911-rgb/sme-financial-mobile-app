@@ -63,4 +63,18 @@ describe('parseCSVWithMapping', () => {
         expect(byDesc['Sale of goods to walk-in customer'].type).toBe('income');
         expect(byDesc['Vendor supplier payment for stock'].type).toBe('expense');
     });
+
+    it('reads an ambiguous date as DD/MM/YYYY (this app\'s NGN/Nigerian format), not US MM/DD/YYYY', () => {
+        const csv = `date,description,amount,type
+05/03/2024,Test Payment,1000,credit
+25/03/2024,Test Payment,1000,credit`;
+        const rows = csv.trim().split('\n');
+        const mapping = autoDetectColumns(rows)!;
+
+        const { transactions } = parseCSVWithMapping(csv, mapping);
+        // 05/03 is genuinely ambiguous (both <=12) -- must default to DD/MM (5 March), not MM/DD (May 3rd).
+        expect(transactions[0].date).toBe('2024-03-05');
+        // 25/03 is unambiguous (day > 12 forces DD/MM regardless of the default).
+        expect(transactions[1].date).toBe('2024-03-25');
+    });
 });

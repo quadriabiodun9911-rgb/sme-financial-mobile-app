@@ -6,7 +6,6 @@ import {
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import Papa from 'papaparse';
 import ExcelJS from 'exceljs';
 import { useApp } from '../contexts/AppContext';
@@ -19,10 +18,9 @@ import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { getMonthlyExpenseAverage } from '../utils/finance';
 import { scanStatementImage, ScannedTransaction, ScanMediaType } from '../utils/statementScan';
 import { confirmAction } from '../utils/webAlert';
+import { TxCategory, classifyByDescription, loadLearnedRules, learnCategory, normalise } from '../utils/transactionCategorization';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-
-type TxCategory = 'income' | 'expense' | 'cost' | 'asset' | 'unknown';
 
 interface ParsedRow {
     id:          string;
@@ -51,66 +49,11 @@ const CREDIT_ALIASES = [
 const AMOUNT_ALIASES  = ['amount', 'transaction amount', 'value'];
 const BALANCE_ALIASES = ['balance', 'running balance', 'closing balance', 'available balance', 'ledger balance', 'balance (ngn)'];
 
-// ─── Keyword → sub-category map ──────────────────────────────────────────────
-
-const CATEGORY_RULES: { keywords: string[]; category: TxCategory; subCategory: string }[] = [
-    { keywords: ['salary', 'payroll', 'wage', 'staff pay'],                                         category: 'expense',  subCategory: 'Payroll' },
-    { keywords: ['rent', 'lease', 'office rent'],                                                   category: 'expense',  subCategory: 'Rent' },
-    { keywords: ['diesel', 'fuel', 'petrol', 'gas station'],                                        category: 'expense',  subCategory: 'Fuel & Generator' },
-    { keywords: ['airtime', 'data', 'mtn', 'airtel', 'glo', '9mobile', 'etisalat'],                category: 'expense',  subCategory: 'Utilities' },
-    { keywords: ['electricity', 'nepa', 'phcn', 'eko electric', 'ikedc', 'aedc', 'kedco'],         category: 'expense',  subCategory: 'Utilities' },
-    { keywords: ['water', 'lawma', 'waste'],                                                        category: 'expense',  subCategory: 'Utilities' },
-    { keywords: ['internet', 'wifi', 'spectranet', 'smile', 'ipnx', 'swift'],                      category: 'expense',  subCategory: 'Internet' },
-    { keywords: ['supplier', 'stock', 'inventory', 'goods', 'raw material', 'merchandise'],        category: 'cost',     subCategory: 'Cost of Goods' },
-    { keywords: ['equipment', 'laptop', 'machine', 'vehicle', 'generator', 'furniture', 'asset'],  category: 'asset',    subCategory: 'Asset Purchase' },
-    { keywords: ['software', 'license', 'licence', 'subscription', 'saas', 'renewal', 'app store', 'play store'], category: 'expense', subCategory: 'Software & Subscriptions' },
-    { keywords: ['advert', 'marketing', 'promotion', 'flyer', 'banner', 'social media', 'google'], category: 'expense',  subCategory: 'Marketing' },
-    { keywords: ['transport', 'uber', 'bolt', 'taxi', 'logistics', 'dispatch', 'delivery'],        category: 'expense',  subCategory: 'Transport' },
-    { keywords: ['pos purchase', 'pos payment', 'pos trxn'],                                       category: 'expense',  subCategory: 'POS Purchase' },
-    { keywords: ['loan repayment', 'loan payment', 'emi', 'mortgage repayment'],                   category: 'expense',  subCategory: 'Loan Repayment' },
-    { keywords: ['bank charge', 'sms charge', 'maintenance fee', 'card fee', 'vat charge'],        category: 'expense',  subCategory: 'Bank Charges' },
-    // Income signals
-    { keywords: ['invoice', 'sales', 'revenue', 'payment received', 'customer payment', 'client payment'], category: 'income', subCategory: 'Sales Revenue' },
-    { keywords: ['consulting', 'consultation', 'retainer', 'professional fee', 'service fee', 'contract payment', 'freelance', 'commission'], category: 'income', subCategory: 'Service Income' },
-    { keywords: ['transfer from', 'trf from', 'payment from'],                                     category: 'income',   subCategory: 'Transfer Received' },
-    { keywords: ['interest earned', 'interest credit'],                                             category: 'income',   subCategory: 'Interest' },
-    { keywords: ['refund', 'reversal'],                                                             category: 'income',   subCategory: 'Refund' },
-    // Internal transfers -- money moving to the business's own savings/
-    // reserve account, not actually leaving the business. Not a P&L
-    // expense, but the row still needs a bucket to land in without being
-    // flagged, since a user can't correctly guess what category "Transfer
-    // to Savings Account" belongs in any more than the app can.
-    { keywords: ['transfer to savings', 'transfer to reserve', 'trf to savings', 'own account transfer', 'internal transfer'], category: 'expense', subCategory: 'Internal Transfer' },
-];
-
-// ─── Learned rules ────────────────────────────────────────────────────────────
-// Persisted to AsyncStorage so a category correction made in one import
-// session still applies to future statement uploads, not just this one.
-const LEARNED_RULES_KEY = 'quad360_learned_category_rules_v1';
-const learnedRules: Map<string, { category: TxCategory; subCategory: string }> = new Map();
-let learnedRulesLoaded = false;
-
-async function loadLearnedRules(): Promise<void> {
-    if (learnedRulesLoaded) return;
-    learnedRulesLoaded = true;
-    try {
-        const raw = await AsyncStorage.getItem(LEARNED_RULES_KEY);
-        if (raw) {
-            const entries: [string, { category: TxCategory; subCategory: string }][] = JSON.parse(raw);
-            entries.forEach(([k, v]) => learnedRules.set(k, v));
-        }
-    } catch { /* ignore corrupt/missing cache */ }
-}
-
-function persistLearnedRules(): void {
-    AsyncStorage.setItem(LEARNED_RULES_KEY, JSON.stringify(Array.from(learnedRules.entries()))).catch(() => {});
-}
-
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function normalise(s: string) {
-    return (s || '').toLowerCase().trim();
-}
+// Category keyword rules, learned-rules cache, and classifyByDescription now
+// live in ../utils/transactionCategorization so ReconciliationScreen's
+// unmatched-bank-row import shares the exact same categorization instead of
+// its own (previously much cruder) copy.
 
 function findCol(headers: string[], aliases: string[]): string | null {
     for (const h of headers) {
@@ -186,24 +129,6 @@ const SUMMARY_ROW_KEYWORDS = [
 function isSummaryRow(desc: string): boolean {
     const d = normalise(desc);
     return SUMMARY_ROW_KEYWORDS.some(k => d.includes(k));
-}
-
-function classifyByDescription(desc: string, direction: 'income' | 'expense'): { category: TxCategory; subCategory: string; flagged: boolean } {
-    const d = normalise(desc);
-
-    // Check learned rules first
-    for (const [pattern, result] of learnedRules.entries()) {
-        if (d.includes(pattern)) return { ...result, flagged: false };
-    }
-
-    for (const rule of CATEGORY_RULES) {
-        if (rule.keywords.some(k => d.includes(k))) {
-            return { category: rule.category, subCategory: rule.subCategory, flagged: false };
-        }
-    }
-
-    // Default to direction with unknown sub-category → flagged for review
-    return { category: direction, subCategory: direction === 'income' ? 'Other Income' : 'Other Expense', flagged: true };
 }
 
 // ─── CSV/Excel parser ─────────────────────────────────────────────────────────
@@ -672,16 +597,9 @@ export default function ImportTransactionsScreen() {
     const applyCategory = (rowId: string, opt: typeof CATEGORY_OPTIONS[number]) => {
         setRows(prev => prev.map(r => {
             if (r.id !== rowId) return r;
-            // Learn for future imports — except "Not sure", which is an
-            // honest non-answer and must not get memorized as if it were
-            // the correct category for similar transactions later.
-            if (opt.category !== 'unknown') {
-                const key = normalise(r.description).split(' ').slice(0, 4).join(' ');
-                learnedRules.set(key, { category: opt.category, subCategory: opt.subCategory });
-            }
+            learnCategory(r.description, opt.category, opt.subCategory);
             return { ...r, category: opt.category, subCategory: opt.subCategory, flagged: false };
         }));
-        persistLearnedRules();
         setPickerRow(null);
     };
 
