@@ -33,6 +33,8 @@ import WeeklyReportModal from '../components/WeeklyReportModal';
 import { showAlert } from '../utils/webAlert';
 import Icon, { IconName } from '../components/ui/Icon';
 import StatTile from '../components/ui/StatTile';
+import RadialGauge from '../components/RadialGauge';
+import TrendSparkline from '../components/TrendSparkline';
 import { buildFinancingFitInput } from '../utils/financingFit';
 import { recommendFinancingTypes } from '../utils/financingRecommendation';
 import { computeReadinessDelta } from '../utils/readinessHistory';
@@ -695,6 +697,34 @@ export default function DashboardScreen() {
     const runwayDays = dashboardDailyBurn > 0 ? computedRunwayDays : null;
     const runwayColor = runwayDays === null ? Colors.income : runwayDays < 30 ? Colors.expense : runwayDays < 60 ? Colors.warning : Colors.income;
 
+    // Last 30 days of cash balance, reconstructed by walking today's real
+    // balance (finance.cashBalance) backward through paid transactions in
+    // the window, then forward day-by-day -- same cash-basis definition
+    // computeFinance's cashBalance already uses (paid-only, full amount,
+    // no principalPortion subtraction), so the chart's last point always
+    // matches the Cash in Hand figure shown right above it.
+    const cashTrend = useMemo(() => {
+        const days = 30;
+        const today = new Date();
+        const dates: string[] = [];
+        for (let i = days - 1; i >= 0; i--) {
+            const d = new Date(today); d.setDate(today.getDate() - i);
+            dates.push(d.toISOString().split('T')[0]);
+        }
+        const startStr = dates[0];
+        const netByDay = new Map<string, number>();
+        let netInWindow = 0;
+        for (const t of transactions) {
+            if ((t.status ?? 'paid') !== 'paid') continue;
+            if (!t.date || t.date < startStr) continue;
+            const signed = t.type === 'income' ? (t.amount ?? 0) : -(t.amount ?? 0);
+            netByDay.set(t.date, (netByDay.get(t.date) ?? 0) + signed);
+            netInWindow += signed;
+        }
+        let running = finance.cashBalance - netInWindow;
+        return dates.map(d => { running += netByDay.get(d) ?? 0; return running; });
+    }, [transactions, finance.cashBalance]);
+
     // Sync label (how recently data was saved)
     const syncLabel = (() => {
         const diffMin = Math.floor((Date.now() - lastSynced.getTime()) / 60000);
@@ -786,11 +816,21 @@ export default function DashboardScreen() {
                         <Text style={styles.vitalValue}>{currency}{Math.round(finance.cashBalance).toLocaleString()}</Text>
                         <Text style={styles.vitalSubtext}>+{currency}{Math.round(totalCash).toLocaleString()} in pockets</Text>
                       </View>
-                      <View style={[styles.runwayBadge, { backgroundColor: runwayColor + '22', borderColor: runwayColor }]}>
-                        <Text style={[styles.runwayBadgeValue, { color: runwayColor }]}>{runwayDays || '?'}</Text>
-                        <Text style={styles.runwayBadgeLabel}>days</Text>
-                      </View>
+                      <RadialGauge
+                        displayValue={runwayDays === null ? '∞' : String(runwayDays)}
+                        label="days"
+                        progress={runwayDays === null ? 1 : runwayDays / 90}
+                        color={runwayColor}
+                        size={64}
+                        strokeWidth={6}
+                      />
                     </View>
+                    {cashTrend.length >= 2 && (
+                      <View style={styles.cashTrendWrap}>
+                        <TrendSparkline data={cashTrend} color={Colors.primary} height={44} />
+                        <Text style={styles.cashTrendCaption}>Cash, last 30 days</Text>
+                      </View>
+                    )}
                     <View style={styles.vitalDivider} />
                     <View style={styles.vitalCardBottom}>
                       <View style={styles.vitalMetric}>
@@ -1837,25 +1877,17 @@ const styles = StyleSheet.create({
       fontSize: 10,
       color: Colors.textSecondary,
     },
-    runwayBadge: {
-      paddingHorizontal: 14,
-      paddingVertical: 10,
-      borderRadius: Radius.md,
-      borderWidth: 2,
-      alignItems: 'center',
-      justifyContent: 'center',
+    cashTrendWrap: {
+      paddingHorizontal: 16,
+      paddingTop: 4,
+      paddingBottom: 12,
+      backgroundColor: Colors.primary + '08',
     },
-    runwayBadgeValue: {
-      fontSize: 28,
-      fontWeight: '800',
-      lineHeight: 30,
-    },
-    runwayBadgeLabel: {
-      fontSize: 9,
-      fontWeight: '700',
+    cashTrendCaption: {
+      fontSize: 10,
       color: Colors.textMuted,
+      fontWeight: '600',
       marginTop: 2,
-      textTransform: 'uppercase',
     },
     vitalDivider: {
       height: 1,
