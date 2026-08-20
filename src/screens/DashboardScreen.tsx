@@ -764,6 +764,31 @@ export default function DashboardScreen() {
                     </View>
                 )}
 
+                {/* Import Bank Statement entry point — previously only
+                    reachable via Settings or an empty-state CTA buried
+                    inside Reports > Growth Analytics, which a real user
+                    never found; every report and chart in the app is
+                    useless without transaction history, so this needs to be
+                    the first prominent thing an account with little to no
+                    history sees, not something discovered by accident three
+                    screens deep. Stops nudging once there's enough history
+                    for the app to actually be useful — the existing Quick
+                    Actions tile below stays available for re-imports after
+                    that. */}
+                {canViewFinancials && !isDemoMode && transactions.length < 5 && (
+                    <TouchableOpacity
+                        style={styles.solveBanner}
+                        onPress={() => setCurrentScreen('import-transactions')}
+                        activeOpacity={0.8}
+                    >
+                        <Icon name="upload" size={16} color="#fff" />
+                        <Text style={styles.solveBannerText}>
+                            {transactions.length === 0 ? 'Import Your Bank Statement to Get Started' : 'Import Bank Statement'}
+                        </Text>
+                        <Icon name="arrow-right" size={16} color="#fff" />
+                    </TouchableOpacity>
+                )}
+
                 {/* Business Passport entry point — the continuously-updating
                     financial identity (health, risk, credit readiness,
                     investment readiness, growth, actions) in one place,
