@@ -553,6 +553,10 @@ export default function InventoryScreen() {
                                 <Text style={[styles.analyticsVal, { fontWeight: 'bold' }]}>{currency}{totalWorkingCapitalTiedUp.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
                             </View>
 
+                            <Text style={styles.intelligenceAdvisory}>
+                                {currency}{tiedUpInInventory.toLocaleString(undefined, { maximumFractionDigits: 0 })} of your business capital is currently tied up in inventory. Consider your sales velocity and upcoming cash needs before purchasing additional stock.
+                            </Text>
+
                             {inventoryInsights.map((insight, i) => (
                                 <View key={i} style={[styles.insightBanner, { borderColor: insightColor(insight.tier) }]}>
                                     <Text style={[styles.insightTitle, { color: insightColor(insight.tier) }]}>{insight.icon} {insight.title}</Text>
@@ -1277,6 +1281,7 @@ const styles = StyleSheet.create({
 
     intelligenceHeadline: { fontSize: 32, fontWeight: '800', color: Colors.asset, marginTop: 6 },
     intelligenceSub:      { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
+    intelligenceAdvisory: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17, marginTop: Spacing.md },
     insightBanner: { borderWidth: 1, borderRadius: 10, padding: Spacing.md, marginTop: Spacing.sm },
     insightTitle:  { fontSize: 13, fontWeight: '700', marginBottom: 3 },
     insightDetail: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
