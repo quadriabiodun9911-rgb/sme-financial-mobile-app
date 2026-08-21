@@ -2,16 +2,17 @@
  * Stock-turn signal per inventory item — how fast it's actually selling,
  * and how many days of stock remain at that pace.
  *
- * There's no per-item sale history field on Transaction (no inventoryItemId
- * link), so this reconstructs it the same honest way inventorySalesTrend.ts
- * does: only sales recorded through Inventory's "Sell" button are counted,
- * identified by the exact `Sale: {item.name}` description InventoryScreen
- * writes and transactionCategory === 'sale'. Units sold in a match is
- * inferred as amount / item.sellingPrice — an approximation if the selling
- * price changed since that sale, not an exact reconstruction. Sales logged
- * any other way (manual transaction entry, a renamed item) are invisible
- * to this and undercount velocity — same caveat already surfaced in
- * inventorySalesTrend.ts for the same underlying data gap.
+ * Sales recorded through Inventory's "Sell" button since inventoryItemId
+ * was added are matched precisely by that link. Older sales (recorded
+ * before that field existed) are matched the previous, looser way: the
+ * exact `Sale: {item.name}` description InventoryScreen writes, combined
+ * with transactionCategory === 'sale' — which breaks if the item was later
+ * renamed. Units sold in a match is inferred as amount / item.sellingPrice
+ * — an approximation if the selling price changed since that sale, not an
+ * exact reconstruction. Sales logged any other way (manual transaction
+ * entry) are invisible to this and undercount velocity — same caveat
+ * already surfaced in inventorySalesTrend.ts for the same underlying gap
+ * in sales recorded outside Inventory.
  */
 
 import { InventoryItem, Transaction } from '../types';
@@ -49,12 +50,10 @@ export function computeStockVelocity(
     const cutoffStr = cutoff.toISOString().split('T')[0];
 
     const saleDescription = `Sale: ${item.name}`;
-    const matches = transactions.filter(t =>
-        t.type === 'income' &&
-        t.transactionCategory === 'sale' &&
-        t.description === saleDescription &&
-        t.date >= cutoffStr,
-    );
+    const matches = transactions.filter(t => {
+        if (t.type !== 'income' || t.transactionCategory !== 'sale' || t.date < cutoffStr) return false;
+        return t.inventoryItemId ? t.inventoryItemId === item.id : t.description === saleDescription;
+    });
 
     const totalRevenue = matches.reduce((sum, t) => sum + (t.amount ?? 0), 0);
     const unitsSoldInWindow = item.sellingPrice > 0 ? totalRevenue / item.sellingPrice : 0;

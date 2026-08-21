@@ -46,6 +46,7 @@ import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { canViewFinancials as computeCanViewFinancials } from '../utils/rolePermissions';
 import { getMyLenderMembership, joinLenderWithCode } from '../utils/lenderAuth';
 import { Language } from '../utils/i18n';
+import { applyStockIn } from '../utils/inventoryCosting';
 import CryptoJS from 'crypto-js';
 
 const PIN_SALT = 'Q360_SME_2025';
@@ -136,6 +137,12 @@ interface FinanceContextValue {
   addInventoryItem: (item: Omit<InventoryItem, 'id' | 'createdAt' | 'updatedAt'> & { id?: string; createdAt?: string; updatedAt?: string }) => void;
   updateInventoryItem: (id: string, item: Partial<InventoryItem>) => void;
   deleteInventoryItem: (id: string) => void;
+  // Receives more stock: blends costPerUnit into the item's weighted-average
+  // costPrice (see inventoryCosting.applyStockIn) rather than overwriting
+  // it, and -- unlike updateInventoryItem's plain edit -- optionally posts
+  // the matching cash-outflow transaction, since buying inventory is a real
+  // Cash ↓ / Inventory ↑ event the app previously never recorded.
+  stockInInventory: (id: string, params: { quantityAdded: number; costPerUnit: number; supplier?: string; purchaseDate: string; recordCashPurchase: boolean }) => void;
 
   staff: StaffMember[];
   payrollRuns: PayrollRun[];
@@ -467,6 +474,34 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       deleteInventoryItem: (id) => setInventory((prev) =>
         prev.filter((i) => i.id !== id)
       ),
+      stockInInventory: (id, { quantityAdded, costPerUnit, supplier, purchaseDate, recordCashPurchase }) => {
+        const item = inventory.find((i) => i.id === id);
+        if (!item) return;
+        const { quantity: newQuantity, costPrice: newCostPrice } = applyStockIn(item, quantityAdded, costPerUnit);
+        setInventory((prev) =>
+          prev.map((i) => (i.id === id ? {
+            ...i,
+            quantity: newQuantity,
+            costPrice: newCostPrice,
+            supplier: supplier || i.supplier,
+            updatedAt: new Date().toISOString(),
+          } : i))
+        );
+        if (recordCashPurchase) {
+          setTransactions((prev) => [...prev, {
+            id: genId(),
+            date: purchaseDate,
+            description: `Stock In: ${item.name}`,
+            type: 'expense',
+            category: 'Inventory',
+            amount: quantityAdded * costPerUnit,
+            status: 'paid',
+            transactionCategory: 'purchase',
+            vendorCustomer: supplier || undefined,
+            inventoryItemId: id,
+          } as Transaction]);
+        }
+      },
 
       staff,
       payrollRuns,
@@ -1887,6 +1922,7 @@ export function useApp() {
     updateInventoryItem: finance?.updateInventoryItem || (() => {}),
     addInventoryItem: finance?.addInventoryItem || (() => {}),
     deleteInventoryItem: finance?.deleteInventoryItem || (() => {}),
+    stockInInventory: finance?.stockInInventory || (() => {}),
     updateCashPocket: finance?.updateCashPocket || (() => {}),
     addCashPocket: finance?.addCashPocket || (() => {}),
     deleteCashPocket: finance?.deleteCashPocket || (() => {}),

@@ -185,6 +185,13 @@ export interface Transaction {
     // way to reconstruct their cost basis after the fact, so they're
     // treated as unknown (0), not silently assumed to have zero cost.
     costOfGoodsSold?: number;
+    // Set on transactions created by Inventory's Sell and Stock In actions --
+    // the precise link stockVelocity.ts and any future per-item purchase/
+    // sale history need. Transactions written before this field existed (or
+    // logged manually outside Inventory) don't have it; consumers fall back
+    // to the older `description === "Sale: {item.name}"` string match for
+    // those, same as before this field was introduced.
+    inventoryItemId?: string;
 }
 
 export interface FinanceData {
@@ -327,12 +334,22 @@ export interface Asset {
 export interface InventoryItem {
     id: string;
     name: string;
+    sku?: string;
     category: string;
     quantity: number;
     unit: string; // 'pcs', 'kg', 'litres', etc.
-    costPrice: number;     // what you paid per unit
+    // Weighted-average cost per unit across everything currently in stock --
+    // not simply "what the last purchase cost". Stock In (see
+    // inventoryCosting.applyStockIn) blends this with each new purchase's
+    // cost, proportionally to quantity, so it stays a true average cost
+    // rather than snapping to whatever was bought most recently.
+    costPrice: number;
     sellingPrice: number;  // what you sell for per unit
+    // Reorder point -- kept as the pre-existing field name (renaming would
+    // touch every screen/engine that already reads it) but shown to the
+    // user as "Reorder Level".
     lowStockThreshold: number;
+    supplier?: string; // most recent supplier this item was bought from
     createdAt: string;
     updatedAt: string;
 }

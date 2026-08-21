@@ -80,6 +80,24 @@ describe('computeStockVelocity', () => {
         const result = computeStockVelocity(item, txs, 30);
         expect(result.unitsSoldInWindow).toBeCloseTo(3, 5);
     });
+
+    it('matches by inventoryItemId when present, ignoring a mismatched description', () => {
+        const item = makeItem({ id: 'item1', quantity: 10, sellingPrice: 100 });
+        const txs: Transaction[] = [
+            { ...makeSaleTx('Old Product Name', 100, 5), inventoryItemId: 'item1' },
+        ];
+        const result = computeStockVelocity(item, txs, 30);
+        expect(result.unitsSoldInWindow).toBeCloseTo(1, 5);
+    });
+
+    it('does not fall back to name matching once inventoryItemId is present and points elsewhere', () => {
+        const item = makeItem({ id: 'item1', quantity: 10, sellingPrice: 100 });
+        const txs: Transaction[] = [
+            { ...makeSaleTx(item.name, 100, 5), inventoryItemId: 'some-other-item' },
+        ];
+        const result = computeStockVelocity(item, txs, 30);
+        expect(result.tier).toBe('no-data');
+    });
 });
 
 describe('computeInventoryValue', () => {

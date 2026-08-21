@@ -14,8 +14,10 @@ import NextStepLink from '../components/NextStepLink';
 import PeriodComparisonTable from '../components/PeriodComparisonTable';
 import { suggestSolution } from '../utils/impactChain';
 import { computeStockVelocity, computeInventoryValue } from '../utils/stockVelocity';
+import { applyStockIn } from '../utils/inventoryCosting';
 import RecipeCostCalculator from '../components/RecipeCostCalculator';
 import ProductionCostCalculator from '../components/ProductionCostCalculator';
+import DateInput from '../components/DateInput';
 import { InventoryItem } from '../types';
 import { showAlert, confirmAction } from '../utils/webAlert';
 
@@ -23,27 +25,47 @@ type InventoryTab = 'stock' | 'analytics';
 
 type FormState = {
     name: string;
+    sku: string;
     category: string;
     quantity: string;
     unit: string;
     costPrice: string;
     sellingPrice: string;
     lowStockThreshold: string;
+    supplier: string;
 };
 
 const EMPTY_FORM: FormState = {
     name: '',
+    sku: '',
     category: '',
     quantity: '',
     unit: '',
     costPrice: '',
     sellingPrice: '',
     lowStockThreshold: '5',
+    supplier: '',
 };
+
+type StockInForm = {
+    quantityAdded: string;
+    costPerUnit: string;
+    supplier: string;
+    purchaseDate: string;
+    recordCashPurchase: boolean;
+};
+
+const emptyStockInForm = (item: InventoryItem): StockInForm => ({
+    quantityAdded: '',
+    costPerUnit: item.costPrice != null ? String(item.costPrice) : '',
+    supplier: item.supplier ?? '',
+    purchaseDate: new Date().toISOString().split('T')[0],
+    recordCashPurchase: true,
+});
 
 
 export default function InventoryScreen() {
-    const { inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem, settings, navigate, addTransaction, transactions } = useApp();
+    const { inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem, stockInInventory, settings, navigate, addTransaction, transactions } = useApp();
     const { currency } = settings;
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
@@ -58,6 +80,8 @@ export default function InventoryScreen() {
     const [form, setForm] = useState<FormState>(EMPTY_FORM);
     const [sellModal, setSellModal] = useState<{ item: InventoryItem } | null>(null);
     const [sellQty, setSellQty] = useState('');
+    const [stockInModal, setStockInModal] = useState<{ item: InventoryItem } | null>(null);
+    const [stockInForm, setStockInForm] = useState<StockInForm | null>(null);
 
     // ── Summary calculations ──────────────────────────────────────────────────
     const totalStockValue = computeInventoryValue(inventory);
@@ -119,12 +143,14 @@ export default function InventoryScreen() {
         setEditingId(item.id);
         setForm({
             name: item.name,
+            sku: item.sku ?? '',
             category: item.category,
             quantity: String(item.quantity),
             unit: item.unit,
             costPrice: item.costPrice != null ? String(item.costPrice) : '',
             sellingPrice: item.sellingPrice != null ? String(item.sellingPrice) : '',
             lowStockThreshold: String(item.lowStockThreshold),
+            supplier: item.supplier ?? '',
         });
         setModalOpen(true);
     };
@@ -148,12 +174,14 @@ export default function InventoryScreen() {
 
         const payload = {
             name: form.name.trim(),
+            sku: form.sku.trim() || undefined,
             category: form.category.trim() || 'General',
             quantity: qty,
             unit: form.unit.trim() || 'pcs',
             costPrice: cost,
             sellingPrice: sell,
             lowStockThreshold: threshold,
+            supplier: form.supplier.trim() || undefined,
         };
 
         if (editingId) {
@@ -184,10 +212,35 @@ export default function InventoryScreen() {
             status: 'paid',
             transactionCategory: 'sale',
             costOfGoodsSold: qty * (item.costPrice ?? 0),
+            inventoryItemId: item.id,
         });
         setSellModal(null);
         setSellQty('');
         showAlert('Recorded', `${qty} ${item.unit} of ${item.name} sold.`);
+    };
+
+    const openStockIn = (item: InventoryItem) => {
+        setStockInModal({ item });
+        setStockInForm(emptyStockInForm(item));
+    };
+
+    const confirmStockIn = () => {
+        if (!stockInModal || !stockInForm) return;
+        const { item } = stockInModal;
+        const qtyAdded = parseFloat(stockInForm.quantityAdded);
+        const cost = parseFloat(stockInForm.costPerUnit);
+        if (isNaN(qtyAdded) || qtyAdded <= 0) { showAlert('Validation', 'Enter a valid quantity received.'); return; }
+        if (isNaN(cost) || cost < 0) { showAlert('Validation', 'Enter a valid cost per unit.'); return; }
+        stockInInventory(item.id, {
+            quantityAdded: qtyAdded,
+            costPerUnit: cost,
+            supplier: stockInForm.supplier.trim() || undefined,
+            purchaseDate: stockInForm.purchaseDate || new Date().toISOString().split('T')[0],
+            recordCashPurchase: stockInForm.recordCashPurchase,
+        });
+        setStockInModal(null);
+        setStockInForm(null);
+        showAlert('Stock In Recorded', `${qtyAdded} ${item.unit} added to ${item.name}.`);
     };
 
     // ── Stock colour helper ───────────────────────────────────────────────────
@@ -305,9 +358,12 @@ export default function InventoryScreen() {
                                     <View style={styles.itemHeader}>
                                         <View style={styles.flex}>
                                             <Text style={styles.itemName}>{item.name}</Text>
-                                            <Text style={styles.itemCategory}>{item.category}</Text>
+                                            <Text style={styles.itemCategory}>{item.category}{item.sku ? ` · ${item.sku}` : ''}</Text>
                                         </View>
                                         <View style={styles.itemActions}>
+                                            <TouchableOpacity style={styles.actionBtn} onPress={() => openStockIn(item)}>
+                                                <Icon name="download" size={14} color={Colors.textPrimary} />
+                                            </TouchableOpacity>
                                             <TouchableOpacity style={[styles.actionBtn, { backgroundColor: Colors.income }]} onPress={() => { setSellModal({ item }); setSellQty(''); }}>
                                                 <Text style={[styles.actionBtnText, { color: '#fff' }]}>Sell</Text>
                                             </TouchableOpacity>
@@ -524,12 +580,28 @@ export default function InventoryScreen() {
                             value={form.name}
                             onChangeText={v => setForm(f => ({ ...f, name: v }))}
                         />
+                        <View style={styles.inputRow}>
+                            <TextInput
+                                style={[styles.input, styles.flex, { marginRight: 8 }]}
+                                placeholder="SKU / product code (optional)"
+                                placeholderTextColor={Colors.textMuted}
+                                value={form.sku}
+                                onChangeText={v => setForm(f => ({ ...f, sku: v }))}
+                            />
+                            <TextInput
+                                style={[styles.input, styles.flex]}
+                                placeholder="Category (e.g. Electronics, Food)"
+                                placeholderTextColor={Colors.textMuted}
+                                value={form.category}
+                                onChangeText={v => setForm(f => ({ ...f, category: v }))}
+                            />
+                        </View>
                         <TextInput
                             style={styles.input}
-                            placeholder="Category (e.g. Electronics, Food)"
+                            placeholder="Supplier (optional)"
                             placeholderTextColor={Colors.textMuted}
-                            value={form.category}
-                            onChangeText={v => setForm(f => ({ ...f, category: v }))}
+                            value={form.supplier}
+                            onChangeText={v => setForm(f => ({ ...f, supplier: v }))}
                         />
                         <View style={styles.inputRow}>
                             <TextInput
@@ -566,7 +638,7 @@ export default function InventoryScreen() {
                         />
                         <TextInput
                             style={styles.input}
-                            placeholder="Low stock alert at (default 5)"
+                            placeholder="Reorder level — alert below this (default 5)"
                             placeholderTextColor={Colors.textMuted}
                             keyboardType="number-pad"
                             value={form.lowStockThreshold}
@@ -645,6 +717,105 @@ export default function InventoryScreen() {
                             </TouchableOpacity>
                         </>
                     )}
+                </KeyboardAvoidingView>
+            </Modal>
+
+            {/* ── Stock In Modal ────────────────────────────────────────────────── */}
+            <Modal visible={!!stockInModal} transparent animationType="slide" onRequestClose={() => { setStockInModal(null); setStockInForm(null); }}>
+                <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => { setStockInModal(null); setStockInForm(null); }} />
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.modalSheet, constrainSheetWidth && styles.modalSheetWide]}>
+                    <View style={styles.modalHandle} />
+                    <Text style={styles.modalTitle}>Stock In</Text>
+                    {stockInModal && stockInForm && (() => {
+                        const { item } = stockInModal;
+                        const qtyAdded = parseFloat(stockInForm.quantityAdded);
+                        const cost = parseFloat(stockInForm.costPerUnit);
+                        const preview = !isNaN(qtyAdded) && qtyAdded > 0 && !isNaN(cost) && cost >= 0
+                            ? applyStockIn(item, qtyAdded, cost)
+                            : null;
+
+                        return (
+                            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                                <Text style={{ color: Colors.textSecondary, marginBottom: 8 }}>
+                                    {item.name} — {item.quantity} {item.unit} in stock at {currency}{(item.costPrice ?? 0).toLocaleString()}/unit
+                                </Text>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder={`Quantity received (${item.unit})`}
+                                    placeholderTextColor={Colors.textMuted}
+                                    keyboardType="decimal-pad"
+                                    value={stockInForm.quantityAdded}
+                                    onChangeText={v => setStockInForm(f => f && ({ ...f, quantityAdded: v }))}
+                                />
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder={`Cost per unit (${currency})`}
+                                    placeholderTextColor={Colors.textMuted}
+                                    keyboardType="decimal-pad"
+                                    value={stockInForm.costPerUnit}
+                                    onChangeText={v => setStockInForm(f => f && ({ ...f, costPerUnit: v }))}
+                                />
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Supplier (optional)"
+                                    placeholderTextColor={Colors.textMuted}
+                                    value={stockInForm.supplier}
+                                    onChangeText={v => setStockInForm(f => f && ({ ...f, supplier: v }))}
+                                />
+                                <DateInput value={stockInForm.purchaseDate} onChange={v => setStockInForm(f => f && ({ ...f, purchaseDate: v }))} />
+
+                                <TouchableOpacity
+                                    style={styles.cashPurchaseToggleRow}
+                                    onPress={() => setStockInForm(f => f && ({ ...f, recordCashPurchase: !f.recordCashPurchase }))}
+                                    activeOpacity={0.7}
+                                >
+                                    <View style={[styles.checkbox, stockInForm.recordCashPurchase && styles.checkboxChecked]}>
+                                        {stockInForm.recordCashPurchase && <Icon name="check" size={13} color="#fff" />}
+                                    </View>
+                                    <View style={styles.flex}>
+                                        <Text style={styles.cashPurchaseToggleLabel}>Record as cash purchase</Text>
+                                        <Text style={styles.cashPurchaseToggleHint}>
+                                            Logs an expense for this purchase now. Turn off if you already recorded it, or if it's on supplier credit.
+                                        </Text>
+                                    </View>
+                                </TouchableOpacity>
+
+                                {preview && (
+                                    <View style={styles.stockInPreview}>
+                                        <View style={styles.stockInPreviewRow}>
+                                            <Text style={styles.stockInPreviewLabel}>Previous stock</Text>
+                                            <Text style={styles.stockInPreviewVal}>{item.quantity} {item.unit}</Text>
+                                        </View>
+                                        <View style={styles.stockInPreviewRow}>
+                                            <Text style={styles.stockInPreviewLabel}>+ Received</Text>
+                                            <Text style={styles.stockInPreviewVal}>{qtyAdded} {item.unit}</Text>
+                                        </View>
+                                        <View style={[styles.stockInPreviewRow, styles.stockInPreviewBorderTop]}>
+                                            <Text style={[styles.stockInPreviewLabel, { fontWeight: '700', color: Colors.textPrimary }]}>New stock</Text>
+                                            <Text style={[styles.stockInPreviewVal, { fontWeight: '700' }]}>{preview.quantity} {item.unit}</Text>
+                                        </View>
+                                        <View style={styles.stockInPreviewRow}>
+                                            <Text style={styles.stockInPreviewLabel}>New avg. cost/unit</Text>
+                                            <Text style={styles.stockInPreviewVal}>{currency}{preview.costPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}</Text>
+                                        </View>
+                                        <View style={styles.stockInPreviewRow}>
+                                            <Text style={styles.stockInPreviewLabel}>New stock value</Text>
+                                            <Text style={[styles.stockInPreviewVal, { color: Colors.asset }]}>
+                                                {currency}{(preview.quantity * preview.costPrice).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                            </Text>
+                                        </View>
+                                    </View>
+                                )}
+
+                                <TouchableOpacity style={styles.submitBtn} onPress={confirmStockIn}>
+                                    <Text style={styles.submitBtnText}>Confirm Stock In</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.cancelBtn} onPress={() => { setStockInModal(null); setStockInForm(null); }}>
+                                    <Text style={styles.cancelBtnText}>Cancel</Text>
+                                </TouchableOpacity>
+                            </ScrollView>
+                        );
+                    })()}
                 </KeyboardAvoidingView>
             </Modal>
         </SafeAreaView>
@@ -761,4 +932,16 @@ const styles = StyleSheet.create({
     marginPreviewSolution: { fontSize: 11, color: Colors.textSecondary, lineHeight: 16 },
     cancelBtn:     { paddingVertical: Spacing.md, borderRadius: 10, alignItems: 'center', marginTop: Spacing.sm },
     cancelBtnText: { color: Colors.textMuted, fontSize: 14 },
+
+    checkbox: { width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
+    checkboxChecked: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+    cashPurchaseToggleRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', marginTop: Spacing.sm, marginBottom: Spacing.md },
+    cashPurchaseToggleLabel: { fontSize: 13, fontWeight: '600', color: Colors.textPrimary, marginBottom: 2 },
+    cashPurchaseToggleHint: { fontSize: 11, color: Colors.textMuted, lineHeight: 15 },
+
+    stockInPreview:        { backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: 10, padding: Spacing.md, marginBottom: Spacing.md },
+    stockInPreviewRow:      { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 },
+    stockInPreviewLabel:    { fontSize: 12, color: Colors.textSecondary },
+    stockInPreviewVal:      { fontSize: 12, color: Colors.textPrimary },
+    stockInPreviewBorderTop:{ borderTopWidth: 1, borderTopColor: Colors.border, marginTop: 2, paddingTop: 7 },
 });
