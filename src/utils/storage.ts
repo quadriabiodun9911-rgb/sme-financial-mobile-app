@@ -1030,6 +1030,18 @@ export async function clearLocalFinancialCache(): Promise<void> {
         KEYS.assets, KEYS.loans, KEYS.staff, KEYS.payrollRuns,
         '@quad360/inventory', '@quad360/budgets', CASH_POCKETS_KEY, CAPITAL_COMMITMENTS_KEY,
         'quad360_tactic_executions_v1', 'quad360_tactic_outcomes_v1', '@quad360/financing',
+        // getWorkspaceOwnerId() falls back to this cached id before the
+        // current session's own user id -- every one of the 27 call sites
+        // keyed off it (every save/load in this file) would otherwise keep
+        // reading and writing whichever OTHER account this device last
+        // pointed at (e.g. from an earlier team-join test), even after a
+        // brand-new identity signs in here via setup/recover/join. This was
+        // the one key clearLocalFinancialCache's own "whenever the
+        // signed-in identity changes" contract didn't actually keep --
+        // exactly the bug where a PIN reset for one account, on a device
+        // that had ever pointed at a different account's workspace,
+        // silently lands the owner in the OTHER account's data instead.
+        KEYS.workspaceOwner,
     ]);
     // See the matching note in clearAllData above -- same reasoning applies
     // whenever the signed-in identity changes, not just on explicit logout.

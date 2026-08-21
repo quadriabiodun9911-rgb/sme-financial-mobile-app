@@ -1356,10 +1356,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         if (!authUserId) throw new Error('Could not authenticate.');
         const { ownerId, role } = await joinTeamWithCode(authUserId, inviteCode);
-        await setWorkspaceOwner(ownerId);
         // Joining a team on this device must not carry over any previous
-        // identity's locally-cached data.
+        // identity's locally-cached data -- must run BEFORE setWorkspaceOwner
+        // below, since clearLocalFinancialCache() now also clears the
+        // workspace-owner pointer (see its own comment) and would otherwise
+        // immediately wipe out the one this join just established.
         await clearLocalFinancialCache().catch(() => {});
+        await setWorkspaceOwner(ownerId);
         await savePin(pin);
         await saveProfile({ email, businessName: 'Team Member', createdAt: new Date().toISOString() });
         setIsFirstLaunch(false);

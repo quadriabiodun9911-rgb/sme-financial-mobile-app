@@ -62,6 +62,8 @@ import {
     loadTransactions,
     saveGoals,
     loadGoals,
+    setWorkspaceOwner,
+    clearLocalFinancialCache,
 } from '../src/utils/storage';
 
 // ─── Test data helpers ────────────────────────────────────────────────────────
@@ -245,5 +247,21 @@ describe('saveGoals / loadGoals', () => {
         expect(loaded).toHaveLength(1);
         expect(loaded![0].id).toBe('g-new');
         expect(loaded![0].type).toBe('cash_reserve');
+    });
+});
+
+// ─── Workspace-owner cache ─────────────────────────────────────────────────────
+// getWorkspaceOwnerId() falls back to this cached pointer before the current
+// session's own user id -- every save/load in this file keys off it. If it
+// survives an identity change (setup/recover/join), the new account keeps
+// reading and writing whichever OTHER account this device last pointed at.
+describe('clearLocalFinancialCache', () => {
+    it('clears the cached workspace-owner pointer along with the other cached financial data', async () => {
+        await setWorkspaceOwner('other-account-owner-id');
+        expect(await AsyncStorage.getItem('@quad360/workspaceOwner')).toBe('other-account-owner-id');
+
+        await clearLocalFinancialCache();
+
+        expect(await AsyncStorage.getItem('@quad360/workspaceOwner')).toBeNull();
     });
 });
