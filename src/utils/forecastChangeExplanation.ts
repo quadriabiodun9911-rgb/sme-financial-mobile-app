@@ -43,6 +43,7 @@ const WATERFALL: { label: string; fields: (keyof ForecastAdjustments)[] }[] = [
     { label: 'Customer payment delay', fields: ['receivableDelayDays'] },
     { label: 'Inventory purchase', fields: ['oneOffInventoryPurchase'] },
     { label: 'New loan', fields: ['newLoanAmount', 'newLoanAnnualRatePct', 'newLoanTermMonths'] },
+    { label: 'Seasonal adjustment', fields: ['applySeasonality'] },
 ];
 
 export function explainForecastChange(
@@ -66,7 +67,7 @@ export function explainForecastChange(
 
     for (const stepDef of WATERFALL) {
         const next = { ...running };
-        for (const f of stepDef.fields) (next[f] as number) = adjustments[f];
+        for (const f of stepDef.fields) (next as Record<string, number | boolean>)[f] = adjustments[f];
         if (stepDef.fields.every(f => next[f] === running[f])) continue;
 
         const nextCash = summarize(next);

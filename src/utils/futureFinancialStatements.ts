@@ -30,6 +30,7 @@ import { monthlyPayment, outstandingLoanBalance } from './loanMath';
 import { monthlySalaryCost } from './structuralSnapshot';
 import { computeCostExposure } from './costExposure';
 import { computeExternalRiskInsights, ExternalRiskInsight } from './externalRiskInsights';
+import { computeSeasonalityPattern, seasonalIndexForCalendarMonth, calendarMonthForOffset, SeasonalityResult } from './seasonality';
 
 export interface ForecastAdjustments {
     revenueGrowthPctPerMonth: number;  // compounding, can be negative — from a price change, volume change, or new-customer push
@@ -41,6 +42,7 @@ export interface ForecastAdjustments {
     discountPctChange: number;         // percentage points added to (or, negative, subtracted from) the average discount rate — a flat haircut on revenue every month, distinct in shape from compounding revenue growth
     receivableDelayDays: number;       // extra days added to the business's own observed DSO — how much slower customers pay, can be negative to model faster collection
     oneOffInventoryPurchase: number;   // a one-time extra stock buy at month 1 — a cash-to-inventory swap, not an expense, so it doesn't touch P&L
+    applySeasonality: boolean;         // scale each projected month's organic revenue by that calendar month's own historical index (see seasonality.ts) — off by default, same "show it, let the owner decide" principle as every other lever here
 }
 
 export const NO_ADJUSTMENTS: ForecastAdjustments = {
@@ -53,6 +55,7 @@ export const NO_ADJUSTMENTS: ForecastAdjustments = {
     discountPctChange: 0,
     receivableDelayDays: 0,
     oneOffInventoryPurchase: 0,
+    applySeasonality: false,
 };
 
 export interface ProjectedMonth {
@@ -105,6 +108,7 @@ export interface FutureFinancialStatements {
     riskAdjustedCategoryWindowMonths: number;   // the window that growth rate applies to, so a caller can recompute the projection at any horizon
     riskAdjustedCategoryInsight: ExternalRiskInsight | null; // set when a macro assumption is linked and corroborated
     includedFutureEvents: (FutureEvent & { startMonth: number })[]; // every Known Future Event that actually falls within this horizon, so the UI can show what's already baked in
+    seasonality: SeasonalityResult; // the business's own detected month-of-year revenue pattern, gated on data sufficiency -- see seasonality.ts
     months: ProjectedMonth[];
 }
 
@@ -242,6 +246,8 @@ export function buildFutureFinancialStatements(
     const includedFutureEvents = eventsWithStartMonth.filter(ev => ev.startMonth <= horizonMonths);
     let cumulativeOneOffEventOutflowAssets = 0;
 
+    const seasonality = computeSeasonalityPattern(transactions);
+
     // A flatter haircut than the compounding growth rate above -- every
     // month's revenue takes the same proportional discount hit, rather than
     // one that widens (or narrows) over the horizon the way compounding
@@ -265,7 +271,13 @@ export function buildFutureFinancialStatements(
         }
         cumulativeOneOffEventOutflowAssets += eventOneTimeOutflow;
 
-        const revenue = baselineMonthlyRevenue * Math.pow(1 + adjustments.revenueGrowthPctPerMonth / 100, m) * discountMultiplier + eventRevenue;
+        // Seasonality scales only the organic, growth/discount-adjusted
+        // baseline -- a Known Future Event is a specific known amount, not
+        // subject to the business's general month-of-year pattern.
+        const seasonalMultiplier = adjustments.applySeasonality
+            ? seasonalIndexForCalendarMonth(seasonality, calendarMonthForOffset(m))
+            : 1;
+        const revenue = baselineMonthlyRevenue * Math.pow(1 + adjustments.revenueGrowthPctPerMonth / 100, m) * discountMultiplier * seasonalMultiplier + eventRevenue;
         // The at-risk category compounds at its own observed pace (per
         // costExposureWindowMonths, not per single month — spendGrowthPct is
         // defined over that window) instead of being smoothed into the flat
@@ -357,6 +369,7 @@ export function buildFutureFinancialStatements(
         riskAdjustedCategory, riskAdjustedCategoryMonthlySpend, riskAdjustedCategoryGrowthPct,
         riskAdjustedCategoryWindowMonths: costExposureWindowMonths, riskAdjustedCategoryInsight,
         includedFutureEvents,
+        seasonality,
         months,
     };
 }

@@ -21,6 +21,7 @@ import { computeDiscountTrend, computeMarginRiskWarning, DiscountTrend, MarginRi
 import { computeInventoryForecast, InventoryForecast } from './inventoryForecast';
 import { computeFinancialHealthForecast, FinancialHealthForecast } from './financialHealthForecast';
 import { computeExternalRiskInsights } from './externalRiskInsights';
+import { SeasonalityResult } from './seasonality';
 import {
     computeExternalFactorsPanel, computeRiskRadar, computeCombinedInsights,
     ExternalFactorsPanel, RiskRadarRow, CombinedInsight,
@@ -94,6 +95,7 @@ export interface ForecastSummary {
     combinedInsights: CombinedInsight[];
     detectedRevenueGrowthPctPerMonth: number | null;
     includedFutureEvents: (FutureEvent & { startMonth: number })[];
+    seasonality: SeasonalityResult;
     confidencePct: number;
 }
 
@@ -301,6 +303,7 @@ export function computeForecastSummary(
         discountTrend, marginRisk, inventoryForecast, healthForecast,
         externalFactors, riskRadar, combinedInsights, detectedRevenueGrowthPctPerMonth,
         includedFutureEvents: stmts.includedFutureEvents,
+        seasonality: stmts.seasonality,
         confidencePct,
     };
 }

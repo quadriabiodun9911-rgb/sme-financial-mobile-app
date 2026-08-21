@@ -65,6 +65,7 @@ export default function FutureFinancialStatementsScreen() {
     const [discountChange, setDiscountChange] = useState('0');
     const [receivableDelay, setReceivableDelay] = useState('0');
     const [inventoryPurchase, setInventoryPurchase] = useState('0');
+    const [applySeasonality, setApplySeasonality] = useState(false);
 
     const adjustments: ForecastAdjustments = useMemo(() => ({
         revenueGrowthPctPerMonth: parseFloat(revenueGrowth) || 0,
@@ -76,7 +77,8 @@ export default function FutureFinancialStatementsScreen() {
         discountPctChange: parseFloat(discountChange) || 0,
         receivableDelayDays: parseFloat(receivableDelay) || 0,
         oneOffInventoryPurchase: parseFloat(inventoryPurchase) || 0,
-    }), [revenueGrowth, expenseGrowth, extraMonthlyCost, newLoanAmount, newLoanRate, newLoanTerm, discountChange, receivableDelay, inventoryPurchase]);
+        applySeasonality,
+    }), [revenueGrowth, expenseGrowth, extraMonthlyCost, newLoanAmount, newLoanRate, newLoanTerm, discountChange, receivableDelay, inventoryPurchase, applySeasonality]);
 
     const hasAdjustments = JSON.stringify(adjustments) !== JSON.stringify(NO_ADJUSTMENTS);
 
@@ -563,6 +565,48 @@ export default function FutureFinancialStatementsScreen() {
                             )}
                         </View>
 
+                        {/* Seasonality */}
+                        <View style={s.card}>
+                            <Text style={s.cardTitle}>📅 Seasonality</Text>
+                            {!forecastSummary.seasonality.available ? (
+                                <Text style={s.baselineNote}>
+                                    Not enough history yet to detect a month-of-year pattern — you have {forecastSummary.seasonality.monthsOfHistory} recorded month{forecastSummary.seasonality.monthsOfHistory === 1 ? '' : 's'},
+                                    {' '}need at least {forecastSummary.seasonality.minMonthsRequired}. Once you do, this will show whether certain months of the year historically run above or below your average.
+                                </Text>
+                            ) : forecastSummary.seasonality.peakMonths.length === 0 && forecastSummary.seasonality.troughMonths.length === 0 ? (
+                                <Text style={s.baselineNote}>
+                                    Based on {forecastSummary.seasonality.monthsOfHistory} months of history, your revenue doesn't show a strong month-of-year pattern — no single month consistently runs far above or below your average.
+                                </Text>
+                            ) : (
+                                <>
+                                    <Text style={s.baselineNote}>
+                                        Based on {forecastSummary.seasonality.monthsOfHistory} months of history, compared to your own monthly average:
+                                    </Text>
+                                    {forecastSummary.seasonality.peakMonths.map(pm => (
+                                        <View key={`peak-${pm.month}`} style={s.factorRow}>
+                                            <View style={s.factorHeaderRow}>
+                                                <Text style={s.factorLabel}>{pm.monthName}</Text>
+                                                <Text style={[s.factorBadgeText, { color: Colors.income }]}>+{Math.round((pm.index - 1) * 100)}% typical</Text>
+                                            </View>
+                                            <Text style={s.factorSentence}>Based on {pm.sampleCount} year{pm.sampleCount === 1 ? '' : 's'} of {pm.monthName} in your records.</Text>
+                                        </View>
+                                    ))}
+                                    {forecastSummary.seasonality.troughMonths.map(tm => (
+                                        <View key={`trough-${tm.month}`} style={s.factorRow}>
+                                            <View style={s.factorHeaderRow}>
+                                                <Text style={s.factorLabel}>{tm.monthName}</Text>
+                                                <Text style={[s.factorBadgeText, { color: Colors.expense }]}>{Math.round((tm.index - 1) * 100)}% typical</Text>
+                                            </View>
+                                            <Text style={s.factorSentence}>Based on {tm.sampleCount} year{tm.sampleCount === 1 ? '' : 's'} of {tm.monthName} in your records.</Text>
+                                        </View>
+                                    ))}
+                                    <Text style={[s.baselineNote, { marginTop: Spacing.sm, marginBottom: 0 }]}>
+                                        Not applied to the numbers above unless you turn on "Adjust for seasonality" in What If? below.
+                                    </Text>
+                                </>
+                            )}
+                        </View>
+
                         {/* Risk Radar */}
                         {forecastSummary.riskRadar.length > 0 && (
                             <View style={s.card}>
@@ -617,6 +661,14 @@ export default function FutureFinancialStatementsScreen() {
                                     <AdjustmentInput label="Loan interest rate" value={newLoanRate} onChange={setNewLoanRate} suffix="%/yr" />
                                     <AdjustmentInput label="Loan term" value={newLoanTerm} onChange={setNewLoanTerm} suffix="months" />
                                 </>
+                            )}
+                            {forecastSummary.seasonality.available && (
+                                <TouchableOpacity style={s.seasonalityToggleRow} onPress={() => setApplySeasonality(v => !v)}>
+                                    <View style={[s.checkbox, applySeasonality && s.checkboxActive]}>
+                                        {applySeasonality && <Icon name="check" size={12} color="#fff" />}
+                                    </View>
+                                    <Text style={s.checkboxLabel}>Adjust for seasonality (based on your own month-of-year history, see above)</Text>
+                                </TouchableOpacity>
                             )}
                         </View>
 
@@ -890,6 +942,11 @@ const s = StyleSheet.create({
     factorBadge: { borderWidth: 1, borderRadius: 999, paddingHorizontal: Spacing.sm, paddingVertical: 2 },
     factorBadgeText: { fontSize: 10.5, fontWeight: '700' },
     factorSentence: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
+
+    seasonalityToggleRow: { flexDirection: 'row', gap: 10, alignItems: 'center', marginTop: Spacing.sm },
+    checkbox: { width: 20, height: 20, borderRadius: 5, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.surfaceVariant },
+    checkboxActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+    checkboxLabel: { flex: 1, fontSize: 12, color: Colors.textSecondary, lineHeight: 16 },
 
     radarHeaderRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: Colors.border, paddingBottom: 6, marginBottom: 4 },
     radarHeaderText: { fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase' as const, fontSize: 9.5 },

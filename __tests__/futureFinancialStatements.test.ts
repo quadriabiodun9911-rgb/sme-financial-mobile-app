@@ -1,5 +1,6 @@
 import { buildFutureFinancialStatements, NO_ADJUSTMENTS, ForecastAdjustments } from '../src/utils/futureFinancialStatements';
 import { Transaction, FinanceData, MacroAssumption, FutureEvent } from '../src/types';
+import { computeSeasonalityPattern, calendarMonthForOffset } from '../src/utils/seasonality';
 
 // A date string exactly `n` whole calendar months from today, on the 1st --
 // matches monthsAheadFromToday's own (year*12+month) arithmetic exactly,
@@ -262,5 +263,56 @@ describe('buildFutureFinancialStatements — Known Future Events', () => {
         const pastDue = makeFutureEvent({ date: '2020-01-01' });
         const result = buildFutureFinancialStatements(txsWithFlatCosts(), [], finance, NO_ADJUSTMENTS, 2, [], [], [pastDue]);
         expect(result.includedFutureEvents[0].startMonth).toBe(1);
+    });
+});
+
+describe('buildFutureFinancialStatements — seasonality', () => {
+    function dateInPastMonth(monthIndex0: number, yearsAgo: number): string {
+        const now = new Date();
+        const year = now.getFullYear() - yearsAgo;
+        return `${year}-${String(monthIndex0 + 1).padStart(2, '0')}-15`;
+    }
+
+    it('leaves projected revenue unscaled when applySeasonality is off, even with a detectable pattern in history', () => {
+        const targetMonth = calendarMonthForOffset(1);
+        const otherMonths = Array.from({ length: 12 }, (_, i) => i).filter(m => m !== targetMonth).slice(0, 10);
+        const transactions: Transaction[] = [
+            ...otherMonths.map(m => makeTx({ date: dateInPastMonth(m, 1), amount: 100000 })),
+            makeTx({ date: dateInPastMonth(targetMonth, 2), amount: 150000 }),
+            makeTx({ date: dateInPastMonth(targetMonth, 1), amount: 150000 }),
+        ];
+        const pattern = computeSeasonalityPattern(transactions);
+        expect(pattern.available).toBe(true); // sanity check the fixture actually produces a detectable pattern
+
+        const result = buildFutureFinancialStatements(transactions, [], finance, NO_ADJUSTMENTS, 1);
+        expect(result.seasonality.available).toBe(true);
+        // NO_ADJUSTMENTS.applySeasonality is false -- month 1's revenue is
+        // just the plain baseline, not scaled by the target month's index.
+        expect(result.months[0].revenue).toBeCloseTo(result.baselineMonthlyRevenue, 0);
+    });
+
+    it('scales the matching projected month\'s revenue by its detected seasonal index when applySeasonality is on', () => {
+        const targetMonth = calendarMonthForOffset(1); // the calendar month landing at projected month 1
+        const otherMonths = Array.from({ length: 12 }, (_, i) => i).filter(m => m !== targetMonth).slice(0, 10);
+        const transactions: Transaction[] = [
+            ...otherMonths.map(m => makeTx({ date: dateInPastMonth(m, 1), amount: 100000 })),
+            makeTx({ date: dateInPastMonth(targetMonth, 2), amount: 150000 }),
+            makeTx({ date: dateInPastMonth(targetMonth, 1), amount: 150000 }),
+        ];
+
+        const withoutSeasonality = buildFutureFinancialStatements(transactions, [], finance, NO_ADJUSTMENTS, 1);
+        const withSeasonality = buildFutureFinancialStatements(transactions, [], finance, { ...NO_ADJUSTMENTS, applySeasonality: true }, 1);
+
+        const pattern = computeSeasonalityPattern(transactions);
+        const targetIndex = pattern.indices.find(i => i.month === targetMonth)!.index;
+
+        expect(withSeasonality.months[0].revenue).toBeCloseTo(withoutSeasonality.months[0].revenue * targetIndex, 5);
+    });
+
+    it('reports "not available" when there is not enough history, with no effect on projected revenue', () => {
+        const transactions = [makeTx({ date: dateInPastMonth(0, 1) })];
+        const result = buildFutureFinancialStatements(transactions, [], finance, { ...NO_ADJUSTMENTS, applySeasonality: true }, 1);
+        expect(result.seasonality.available).toBe(false);
+        expect(result.months[0].revenue).toBeCloseTo(result.baselineMonthlyRevenue, 0);
     });
 });
