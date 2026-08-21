@@ -11,7 +11,7 @@ import { t, LANGUAGES, Language } from '../utils/i18n';
 import { DEMO_BUSINESSES } from '../utils/demoData';
 import { trackUserLoggedIn, identifyUser } from '../utils/analytics';
 import { supabase } from '../utils/supabase';
-import { savePin, saveProfile, generateAuthSecret, saveAuthSecret, loadAuthSecret, syncFieldEncryptionKey } from '../utils/storage';
+import { savePin, saveProfile, generateAuthSecret, saveAuthSecret, loadAuthSecret, loadProfile, localProfileMatchesEmail, syncFieldEncryptionKey } from '../utils/storage';
 import { Industry } from '../types';
 
 const CURRENCIES = [
@@ -353,7 +353,12 @@ export default function LoginScreen() {
                 // Secret didn't match this email (e.g. a different account was
                 // set up on this device most recently) — fall through below.
             }
-            const ok = await login(emailLoginPin);
+            // login(pin) is a PURELY LOCAL check -- see
+            // localProfileMatchesEmail's comment (storage.ts) for why it
+            // must not run here unless the locally cached profile actually
+            // belongs to the email that was typed.
+            const localProfile = await loadProfile();
+            const ok = localProfileMatchesEmail(localProfile, email) && await login(emailLoginPin);
             if (ok) { navigating = true; identifyUser(email); trackUserLoggedIn('email'); return; }
             // A brand-new device holds neither a local profile nor the
             // account's real secret, so this failure is expected, not a

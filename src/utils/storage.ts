@@ -878,6 +878,19 @@ export async function loadProfile(): Promise<StoredProfile | null> {
     return safeParse<StoredProfile>(raw);
 }
 
+// login(pin) (OptimizedContexts.tsx) is a PURELY LOCAL check -- it verifies
+// a PIN against whatever profile happens to be cached on this device and
+// has no way to know which email the caller actually intends. On the
+// email+PIN sign-in form, calling it unconditionally used to mean: type a
+// DIFFERENT email than the one cached on this device, but the SAME PIN
+// (easy to do by accident when testing multiple accounts with a memorable
+// PIN), and this device would silently unlock the OTHER, cached account
+// instead -- the email typed was never actually checked against anything.
+// Callers must gate the local PIN fallback on this matching first.
+export function localProfileMatchesEmail(profile: StoredProfile | null, email: string): boolean {
+    return !!profile && profile.email.trim().toLowerCase() === email.trim().toLowerCase();
+}
+
 // ─── Consent tracking ─────────────────────────────────────────────────────────
 // Append-only: a new row per acceptance, matching user_consents' schema (see
 // migration 013). Never overwrites a prior acceptance, so re-consenting after

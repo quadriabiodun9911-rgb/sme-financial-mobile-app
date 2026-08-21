@@ -64,6 +64,7 @@ import {
     loadGoals,
     setWorkspaceOwner,
     clearLocalFinancialCache,
+    localProfileMatchesEmail,
 } from '../src/utils/storage';
 
 // ─── Test data helpers ────────────────────────────────────────────────────────
@@ -263,5 +264,30 @@ describe('clearLocalFinancialCache', () => {
         await clearLocalFinancialCache();
 
         expect(await AsyncStorage.getItem('@quad360/workspaceOwner')).toBeNull();
+    });
+});
+
+// ─── Cross-account login guard ─────────────────────────────────────────────────
+// The email+PIN sign-in form falls back to a purely local PIN check
+// (OptimizedContexts.tsx's login()) whenever the device doesn't hold this
+// account's real Supabase secret. That local check has no way to know which
+// email the caller intends -- localProfileMatchesEmail is the gate that
+// stops it from silently unlocking whichever OTHER account happens to be
+// cached on this device, e.g. two test accounts sharing the same PIN.
+describe('localProfileMatchesEmail', () => {
+    it('matches when the cached profile email equals the typed email', () => {
+        expect(localProfileMatchesEmail({ email: 'a@example.com', businessName: 'A' }, 'a@example.com')).toBe(true);
+    });
+
+    it('is case-insensitive and trims whitespace on both sides', () => {
+        expect(localProfileMatchesEmail({ email: 'A@Example.com', businessName: 'A' }, '  a@example.com  ')).toBe(true);
+    });
+
+    it('does not match a different account\'s email, even with matching PIN elsewhere', () => {
+        expect(localProfileMatchesEmail({ email: 'account-a@example.com', businessName: 'A' }, 'account-b@example.com')).toBe(false);
+    });
+
+    it('does not match when there is no local profile at all', () => {
+        expect(localProfileMatchesEmail(null, 'anyone@example.com')).toBe(false);
     });
 });
