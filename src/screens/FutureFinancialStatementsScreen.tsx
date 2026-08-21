@@ -7,6 +7,7 @@ import FooterNav from '../components/FooterNav';
 import Icon from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { buildFutureFinancialStatements, NO_ADJUSTMENTS, ForecastAdjustments } from '../utils/futureFinancialStatements';
+import { computeForecastSummary, ForecastPeriod, PERIOD_LABELS } from '../utils/forecastSummary';
 import { getEconomicReference } from '../utils/economicContext';
 import { DRIVER_LABEL } from '../utils/externalRiskInsights';
 
@@ -47,6 +48,7 @@ export default function FutureFinancialStatementsScreen() {
     const [activeStatement, setActiveStatement] = useState<Statement>('pnl');
     const [horizon, setHorizon] = useState<6 | 12>(6);
     const [selectedMonthIdx, setSelectedMonthIdx] = useState(0);
+    const [forecastPeriod, setForecastPeriod] = useState<ForecastPeriod>('90d');
 
     const [revenueGrowth, setRevenueGrowth] = useState('0');
     const [expenseGrowth, setExpenseGrowth] = useState('0');
@@ -75,6 +77,14 @@ export default function FutureFinancialStatementsScreen() {
         () => buildFutureFinancialStatements(transactions, loans, finance, NO_ADJUSTMENTS, horizon, staff, macroAssumptions),
         [transactions, loans, finance, horizon, staff, macroAssumptions],
     );
+    // Headline summary + revenue/expense/profit breakdowns, driven by the
+    // same adjustments as the detailed statements below but on the
+    // shorter, glance-friendly 30/60/90-day/12-month periods this section
+    // is framed around, rather than the 6/12-month statement horizon.
+    const forecastSummary = useMemo(
+        () => computeForecastSummary(transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments),
+        [transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments],
+    );
 
     const notEnoughData = forecast.baselineMonthsUsed === 0;
     const econRef = useMemo(() => getEconomicReference(currency), [currency]);
@@ -83,18 +93,26 @@ export default function FutureFinancialStatementsScreen() {
 
     const fmt = (n: number) => `${currency}${Math.round(n).toLocaleString()}`;
 
+    const actualRevRows = forecastSummary.revenueTable.filter(r => r.actual !== null);
+    const forecastRevRows = forecastSummary.revenueTable.filter(r => r.forecast !== null);
+    const avgActualRevenue = actualRevRows.length > 0 ? actualRevRows.reduce((s, r) => s + (r.actual ?? 0), 0) / actualRevRows.length : 0;
+    const avgForecastRevenue = forecastRevRows.length > 0 ? forecastRevRows.reduce((s, r) => s + (r.forecast ?? 0), 0) / forecastRevRows.length : 0;
+    const revenueChangePct = avgActualRevenue > 0 ? ((avgForecastRevenue - avgActualRevenue) / avgActualRevenue) * 100 : 0;
+    const largestExpenseCategory = forecastSummary.expenseByCategory[0];
+    const pb = forecastSummary.profitBridge;
+
     return (
         <SafeAreaView style={s.safe}>
             <Header />
             <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
                 <TouchableOpacity onPress={goBack}><Text style={s.back}>← Back</Text></TouchableOpacity>
                 <View style={s.titleRow}>
-                    <Icon name="trending-up" size={22} color={Colors.textPrimary} />
-                    <Text style={s.title}>Future Financial Statements</Text>
+                    <Text style={s.titleEmoji}>🔮</Text>
+                    <Text style={s.title}>Financial Forecast</Text>
                 </View>
                 <Text style={s.subtitle}>
-                    A projection, not a guarantee — built from your recent revenue and costs, plus whatever
-                    adjustments you enter below.
+                    See where your business is heading before you make your next decision. A projection, not a
+                    guarantee — built from your recent revenue and costs, plus whatever adjustments you enter below.
                 </Text>
 
                 {notEnoughData ? (
@@ -107,6 +125,102 @@ export default function FutureFinancialStatementsScreen() {
                     </View>
                 ) : (
                     <>
+                        {/* Period selector */}
+                        <View style={s.periodRow}>
+                            {(Object.keys(PERIOD_LABELS) as ForecastPeriod[]).map(p => (
+                                <TouchableOpacity
+                                    key={p}
+                                    style={[s.periodBtn, forecastPeriod === p && s.periodBtnActive]}
+                                    onPress={() => setForecastPeriod(p)}
+                                >
+                                    <Text style={[s.periodBtnText, forecastPeriod === p && s.periodBtnTextActive]}>{PERIOD_LABELS[p]}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
+                        {/* Headline numbers */}
+                        <View style={s.headlineGrid}>
+                            <View style={s.headlineBox}>
+                                <Text style={s.headlineLabel}>Expected Revenue</Text>
+                                <Text style={[s.headlineVal, { color: Colors.income }]}>{fmt(forecastSummary.headline.expectedRevenue)}</Text>
+                            </View>
+                            <View style={s.headlineBox}>
+                                <Text style={s.headlineLabel}>Expected Expenses</Text>
+                                <Text style={[s.headlineVal, { color: Colors.expense }]}>{fmt(forecastSummary.headline.expectedExpenses)}</Text>
+                            </View>
+                            <View style={s.headlineBox}>
+                                <Text style={s.headlineLabel}>Expected Profit</Text>
+                                <Text style={[s.headlineVal, { color: forecastSummary.headline.expectedProfit >= 0 ? Colors.income : Colors.expense }]}>
+                                    {fmt(forecastSummary.headline.expectedProfit)}
+                                </Text>
+                            </View>
+                            <View style={s.headlineBox}>
+                                <Text style={s.headlineLabel}>Expected Cash Position</Text>
+                                <Text style={[s.headlineVal, { color: Colors.asset }]}>{fmt(forecastSummary.headline.expectedCashPosition)}</Text>
+                            </View>
+                        </View>
+
+                        {/* Revenue Forecast */}
+                        <View style={s.card}>
+                            <Text style={s.cardTitle}>📈 Revenue Forecast</Text>
+                            <Text style={s.baselineNote}>Next {PERIOD_LABELS[forecastPeriod]}</Text>
+                            <View style={s.tableHeaderRow}>
+                                <Text style={[s.tableCell, s.tableHeaderText, { flex: 1.3 }]}>Period</Text>
+                                <Text style={[s.tableCell, s.tableHeaderText]}>Actual</Text>
+                                <Text style={[s.tableCell, s.tableHeaderText]}>Forecast</Text>
+                            </View>
+                            {forecastSummary.revenueTable.map((row, i) => (
+                                <View key={i} style={s.tableRow}>
+                                    <Text style={[s.tableCell, { flex: 1.3, color: Colors.textSecondary }]}>{row.monthLabel}</Text>
+                                    <Text style={s.tableCell}>{row.actual != null ? fmt(row.actual) : '—'}</Text>
+                                    <Text style={[s.tableCell, { color: Colors.income }]}>{row.forecast != null ? fmt(row.forecast) : '—'}</Text>
+                                </View>
+                            ))}
+                            {avgActualRevenue > 0 && (
+                                <View style={s.insightBox}>
+                                    <Text style={s.insightBoxTitle}>🤖 Quad360 Insight</Text>
+                                    <Text style={s.insightBoxText}>
+                                        Revenue is projected to {revenueChangePct >= 0 ? 'increase' : 'decrease'} approximately {Math.abs(revenueChangePct).toFixed(0)}%
+                                        over the next {PERIOD_LABELS[forecastPeriod].toLowerCase()}, based on your recent sales trend.
+                                    </Text>
+                                    <Text style={s.confidenceText}>Forecast confidence: {forecastSummary.confidencePct}%</Text>
+                                </View>
+                            )}
+                        </View>
+
+                        {/* Expense Forecast */}
+                        <View style={s.card}>
+                            <Text style={s.cardTitle}>💸 Expense Forecast</Text>
+                            <Text style={s.baselineNote}>Expected next {PERIOD_LABELS[forecastPeriod].toLowerCase()}</Text>
+                            {forecastSummary.expenseByCategory.map(c => (
+                                <Row key={c.category} label={c.category} value={fmt(c.amount)} />
+                            ))}
+                            <Row label="Total projected expenses" value={fmt(forecastSummary.headline.expectedExpenses)} bold />
+                            {largestExpenseCategory && (
+                                <Text style={s.insightLine}>
+                                    ⚠️ {largestExpenseCategory.category} purchases are expected to be your largest cash outflow over the next {PERIOD_LABELS[forecastPeriod].toLowerCase()}.
+                                </Text>
+                            )}
+                        </View>
+
+                        {/* Profit Forecast */}
+                        <View style={s.card}>
+                            <Text style={s.cardTitle}>📊 Profit Forecast</Text>
+                            <Row label="Projected Revenue" value={fmt(pb.revenue)} />
+                            <Row label="Projected COGS" value={`−${fmt(pb.cogs)}`} valueColor={Colors.expense} />
+                            <Row label="Gross Profit" value={fmt(pb.grossProfit)} bold />
+                            <Row label="Operating Expenses" value={`−${fmt(pb.operatingExpenses)}`} valueColor={Colors.expense} />
+                            <Row label="Projected Net Profit" value={fmt(pb.netProfit)} valueColor={pb.netProfit >= 0 ? Colors.income : Colors.expense} bold />
+                            <Row label="Projected Margin" value={`${pb.forecastMarginPct.toFixed(1)}%`} />
+                            <View style={s.marginCompareBox}>
+                                <Text style={s.marginCompareLine}>Current margin: {pb.currentMarginPct.toFixed(1)}%</Text>
+                                <Text style={s.marginCompareLine}>Forecast margin: {pb.forecastMarginPct.toFixed(1)}%</Text>
+                                <Text style={[s.marginCompareDelta, { color: pb.marginDeltaPct >= 0 ? Colors.income : Colors.expense }]}>
+                                    {pb.marginDeltaPct >= 0 ? '🟢 +' : '🔴 '}{pb.marginDeltaPct.toFixed(1)} percentage points
+                                </Text>
+                            </View>
+                        </View>
+
                         <View style={s.card}>
                             <Text style={s.cardTitle}>Already factored in from your data</Text>
                             <Text style={s.baselineNote}>
@@ -296,8 +410,38 @@ const s = StyleSheet.create({
     pad: { padding: Spacing.lg, paddingBottom: 100 },
     back: { color: Colors.primary, fontSize: 15, marginBottom: Spacing.sm },
     titleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.xs },
+    titleEmoji: { fontSize: 22 },
     title: { fontSize: 24, fontWeight: 'bold', color: Colors.textPrimary },
     subtitle: { fontSize: 13, color: Colors.textSecondary, marginBottom: Spacing.lg, lineHeight: 18 },
+
+    periodRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md },
+    periodBtn: { flex: 1, paddingVertical: Spacing.sm, borderRadius: Radius.sm, backgroundColor: Colors.surfaceVariant, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
+    periodBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+    periodBtnText: { fontSize: 12, color: Colors.textSecondary, fontWeight: '600' },
+    periodBtnTextActive: { color: '#fff' },
+
+    headlineGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: 14 },
+    headlineBox: {
+        flexBasis: '47%', flexGrow: 1, backgroundColor: Colors.surface, borderRadius: 14, padding: Spacing.md,
+        borderWidth: 1, borderColor: Colors.border, ...Shadow.sm,
+    },
+    headlineLabel: { fontSize: 11, color: Colors.textSecondary, marginBottom: 4, textTransform: 'uppercase' as const, letterSpacing: 0.3 },
+    headlineVal: { fontSize: 20, fontWeight: '800' },
+
+    tableHeaderRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: Colors.border, paddingBottom: 6, marginBottom: 4 },
+    tableHeaderText: { fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase' as const, fontSize: 10 },
+    tableRow: { flexDirection: 'row', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    tableCell: { flex: 1, fontSize: 13, color: Colors.textPrimary },
+
+    insightBox: { backgroundColor: Colors.surfaceVariant, borderRadius: Radius.md, padding: Spacing.md, marginTop: Spacing.md },
+    insightBoxTitle: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: 4 },
+    insightBoxText: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18, marginBottom: 6 },
+    confidenceText: { fontSize: 11.5, fontWeight: '600', color: Colors.textMuted },
+    insightLine: { fontSize: 12.5, color: Colors.warning, lineHeight: 18, marginTop: Spacing.sm },
+
+    marginCompareBox: { backgroundColor: Colors.surfaceVariant, borderRadius: Radius.md, padding: Spacing.md, marginTop: Spacing.sm },
+    marginCompareLine: { fontSize: 12.5, color: Colors.textSecondary, marginBottom: 2 },
+    marginCompareDelta: { fontSize: 13, fontWeight: '700', marginTop: 4 },
     card: {
         backgroundColor: Colors.surface, borderRadius: 14, padding: Spacing.lg, marginBottom: 14,
         borderWidth: 1, borderColor: Colors.border, ...Shadow.sm,
