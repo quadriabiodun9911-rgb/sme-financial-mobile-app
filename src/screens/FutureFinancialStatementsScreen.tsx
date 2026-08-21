@@ -13,6 +13,7 @@ import { DRIVER_LABEL } from '../utils/externalRiskInsights';
 import { RiskScore, RISK_BAND_STYLE, getMonthlyExpenseAverage } from '../utils/finance';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan } from '../utils/actionRecommendationEngine';
+import { scenarioAdjustments, summarizeScenario, SCENARIO_SWING, ScenarioName } from '../utils/scenarioForecast';
 
 type Statement = 'pnl' | 'cashflow' | 'balance';
 
@@ -102,6 +103,24 @@ export default function FutureFinancialStatementsScreen() {
         () => computeForecastSummary(transactions, loans, finance, forecastPeriod, staff, macroAssumptions, NO_ADJUSTMENTS, inventory),
         [transactions, loans, finance, forecastPeriod, staff, macroAssumptions, inventory],
     );
+    // Conservative/Optimistic apply a fixed swing on top of whatever What
+    // If? adjustments are already dialed in above -- so the range answers
+    // "how resilient is THIS plan," not three numbers disconnected from
+    // the rest of the screen. "Expected" is forecastSummary itself, not a
+    // fourth computation, so it can never drift from the headline above.
+    const conservativeSummary = useMemo(
+        () => computeForecastSummary(transactions, loans, finance, forecastPeriod, staff, macroAssumptions, scenarioAdjustments(adjustments, 'conservative'), inventory),
+        [transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory],
+    );
+    const optimisticSummary = useMemo(
+        () => computeForecastSummary(transactions, loans, finance, forecastPeriod, staff, macroAssumptions, scenarioAdjustments(adjustments, 'optimistic'), inventory),
+        [transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory],
+    );
+    const scenarioRange = useMemo(() => [
+        summarizeScenario(conservativeSummary, 'conservative', 'Conservative', '🔴'),
+        summarizeScenario(forecastSummary, 'expected', 'Expected', '🟡'),
+        summarizeScenario(optimisticSummary, 'optimistic', 'Optimistic', '🟢'),
+    ], [conservativeSummary, forecastSummary, optimisticSummary]);
 
     const notEnoughData = forecast.baselineMonthsUsed === 0;
     const econRef = useMemo(() => getEconomicReference(currency), [currency]);
@@ -125,6 +144,11 @@ export default function FutureFinancialStatementsScreen() {
         Moderate: Colors.warning,
         Weak: '#fb923c',
         Critical: Colors.expense,
+    };
+    const SCENARIO_ACCENT: Record<ScenarioName, string> = {
+        conservative: Colors.expense,
+        expected: Colors.warning,
+        optimistic: Colors.income,
     };
 
     // Same lightweight diagnosis + action-plan pipeline CreditWorthinessScreen
@@ -463,6 +487,29 @@ export default function FutureFinancialStatementsScreen() {
                             </View>
                         )}
 
+                        {/* Scenario Range */}
+                        <View style={s.card}>
+                            <Text style={s.cardTitle}>🎯 Scenario Range</Text>
+                            <Text style={s.baselineNote}>
+                                How resilient is the plan above? Conservative assumes sales growth {Math.abs(SCENARIO_SWING.conservative.revenueGrowthDeltaPp)} points slower and costs growing {Math.abs(SCENARIO_SWING.conservative.expenseGrowthDeltaPp)} points faster than what you've entered; Optimistic assumes sales {Math.abs(SCENARIO_SWING.optimistic.revenueGrowthDeltaPp)} points faster, costs unchanged.
+                            </Text>
+                            {scenarioRange.map(sc => (
+                                <View key={sc.name} style={[s.scenarioCard, { borderLeftColor: SCENARIO_ACCENT[sc.name] }]}>
+                                    <Text style={s.scenarioTitle}>{sc.emoji} {sc.label}</Text>
+                                    <Row label="Revenue" value={fmt(sc.revenue)} />
+                                    <Row label="Expenses" value={fmt(sc.expenses)} />
+                                    <Row label="Profit" value={fmt(sc.profit)} valueColor={sc.profit >= 0 ? Colors.income : Colors.expense} bold />
+                                    <Row label="Ending cash" value={fmt(sc.endingCash)} bold />
+                                    <Row label="Financial health" value={`${RISK_BAND_STYLE[sc.healthBand].emoji} ${RISK_BAND_STYLE[sc.healthBand].label}`} valueColor={BAND_COLOR[sc.healthBand]} />
+                                    {sc.pressuredMonths > 0 && (
+                                        <Text style={s.scenarioPressureNote}>
+                                            ⚠️ Cash comes under pressure in {sc.pressuredMonths} of the {forecastSummary.cashFlowMonths.length} projected month{forecastSummary.cashFlowMonths.length === 1 ? '' : 's'}.
+                                        </Text>
+                                    )}
+                                </View>
+                            ))}
+                        </View>
+
                         {/* AI recommendation box */}
                         {topActions.length > 0 && (
                             <View style={s.aiCard}>
@@ -641,6 +688,13 @@ const s = StyleSheet.create({
     healthDriverName: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary },
     healthDriverExplanation: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
     healthUnchangedNote: { fontSize: 11, color: Colors.textMuted, lineHeight: 16, marginTop: Spacing.sm },
+
+    scenarioCard: {
+        backgroundColor: Colors.surfaceVariant, borderRadius: Radius.md, padding: Spacing.md,
+        marginBottom: Spacing.sm, borderLeftWidth: 3,
+    },
+    scenarioTitle: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 },
+    scenarioPressureNote: { fontSize: 11.5, color: Colors.warning, lineHeight: 16, marginTop: 6 },
 
     aiCard: {
         backgroundColor: Colors.surface, borderRadius: 14, padding: Spacing.lg, marginBottom: 14,
