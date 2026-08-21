@@ -288,6 +288,39 @@ describe('clearLocalFinancialCache', () => {
 
         expect(await AsyncStorage.getItem('@quad360/workspaceOwner')).toBeNull();
     });
+
+    // Regression test for a second account (e.g. via the switcher, or a
+    // fresh setup/recover on a device that previously had a different
+    // account active) rendering the FIRST account's data as its own.
+    // READINESS_HISTORY_KEY specifically has no Supabase table backing it
+    // (see storage.ts's own comment) -- if it isn't cleared here, there is
+    // NO other mechanism that will ever overwrite it with the new
+    // account's own (empty) history, unlike cloud-backed entities that
+    // self-correct once the new session's own data loads.
+    it('clears every business-data key a second account on this device must never inherit', async () => {
+        const leftoverKeys = [
+            '@quad360/readinessHistory',
+            'quad360_learned_category_rules_v1',
+            '@smeApp_bankProfiles',
+            '@quad360/celebrated_goal_ids',
+            '@quad360/monthly_mission',
+            '@quad360/dismissed_alerts',
+            '@quad360/milestones_seen',
+            '@quad360/streak_date',
+            '@quad360/streak_count',
+            '@quad360/retention_last_seen',
+            '@quad360/invoice_reminder_state',
+        ];
+        for (const key of leftoverKeys) {
+            await AsyncStorage.setItem(key, JSON.stringify(['leftover-from-account-a']));
+        }
+
+        await clearLocalFinancialCache();
+
+        for (const key of leftoverKeys) {
+            expect(await AsyncStorage.getItem(key)).toBeNull();
+        }
+    });
 });
 
 // ─── Cross-account login guard ─────────────────────────────────────────────────

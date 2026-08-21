@@ -1130,6 +1130,48 @@ export async function importAllData(json: string): Promise<AppBackup> {
     return parsed;
 }
 
+// Every locally-cached key that holds business/account-specific data,
+// shared by clearAllData and clearLocalFinancialCache below so the two
+// can't drift apart (each used to maintain its own separate copy of this
+// list, which is exactly how READINESS_HISTORY_KEY ended up missing from
+// both — a second account on this device, or even the switcher's Switch
+// Account, would render the FIRST account's readiness-score history as
+// its own, since that key has no Supabase table backing it and nothing
+// was ever clearing the stale local copy). Most of these are cheap,
+// low-severity "which UI element has this device already dismissed"
+// bookkeeping -- included anyway since a second account inheriting a
+// stranger's dismissed alerts, celebrated goals, or usage streak is a
+// real (if minor) correctness bug, and the cost of clearing one extra
+// key is effectively zero. LEARNED_RULES_KEY and the bank-profile cache
+// are the one AsyncStorage keys here that leak real business identity
+// (supplier/customer name patterns, which bank the account uses) rather
+// than just app UI state.
+const FINANCIAL_CACHE_KEYS = [
+    KEYS.transactions, KEYS.settings, KEYS.goals, KEYS.invoices,
+    KEYS.assets, KEYS.loans, KEYS.staff, KEYS.payrollRuns,
+    '@quad360/inventory', '@quad360/budgets', CASH_POCKETS_KEY, CAPITAL_COMMITMENTS_KEY,
+    'quad360_tactic_executions_v1', 'quad360_tactic_outcomes_v1', '@quad360/financing',
+    READINESS_HISTORY_KEY,
+    // transactionCategorization.ts's learned category-correction rules --
+    // keyed by transaction description text, so this can otherwise leak
+    // one business's actual supplier/customer names into another
+    // account's auto-categorization on this device.
+    'quad360_learned_category_rules_v1',
+    // bankProfileManager.ts's saved column-mapping profiles -- reveals
+    // which bank(s) this business uses, not just app UI state.
+    '@smeApp_bankProfiles',
+    // DashboardScreen.tsx
+    '@quad360/celebrated_goal_ids', '@quad360/monthly_mission',
+    // Header.tsx -- dismissed alert ids
+    '@quad360/dismissed_alerts',
+    // RetentionNudges.tsx -- usage streak/milestone state; a second
+    // account inheriting a stranger's streak is exactly the kind of
+    // "looks like MY data" bug this device already had enough of.
+    '@quad360/milestones_seen', '@quad360/streak_date', '@quad360/streak_count', '@quad360/retention_last_seen',
+    // invoiceReminders.ts
+    '@quad360/invoice_reminder_state',
+];
+
 // Clears local storage only — Supabase data is preserved so user can sign back in and recover.
 // Wipes every locally-cached key. Used on logout/account switch so a new
 // identity on the same device never inherits the previous user's cached data
@@ -1138,11 +1180,8 @@ export async function importAllData(json: string): Promise<AppBackup> {
 // the logout-specific variant that also preserves nothing).
 export async function clearAllData(): Promise<void> {
     await AsyncStorage.multiRemove([
-        KEYS.transactions, KEYS.settings, KEYS.goals, KEYS.invoices,
-        KEYS.assets, KEYS.loans, KEYS.pin, KEYS.profile, KEYS.language,
-        KEYS.workspaceOwner, KEYS.staff, KEYS.payrollRuns,
-        '@quad360/inventory', '@quad360/budgets', CASH_POCKETS_KEY, CAPITAL_COMMITMENTS_KEY,
-        'quad360_tactic_executions_v1', 'quad360_tactic_outcomes_v1', '@quad360/financing',
+        ...FINANCIAL_CACHE_KEYS,
+        KEYS.pin, KEYS.profile, KEYS.language, KEYS.workspaceOwner,
     ]);
     await clearAllSecureData();
     // Without this, the in-memory delta-sync snapshot (see "Delta-sync
@@ -1159,10 +1198,7 @@ export async function clearAllData(): Promise<void> {
 // so a different account never renders or re-uploads a previous user's data.
 export async function clearLocalFinancialCache(): Promise<void> {
     await AsyncStorage.multiRemove([
-        KEYS.transactions, KEYS.settings, KEYS.goals, KEYS.invoices,
-        KEYS.assets, KEYS.loans, KEYS.staff, KEYS.payrollRuns,
-        '@quad360/inventory', '@quad360/budgets', CASH_POCKETS_KEY, CAPITAL_COMMITMENTS_KEY,
-        'quad360_tactic_executions_v1', 'quad360_tactic_outcomes_v1', '@quad360/financing',
+        ...FINANCIAL_CACHE_KEYS,
         // getWorkspaceOwnerId() falls back to this cached id before the
         // current session's own user id -- every one of the 27 call sites
         // keyed off it (every save/load in this file) would otherwise keep
