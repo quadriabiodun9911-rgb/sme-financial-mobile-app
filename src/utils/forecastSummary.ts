@@ -20,6 +20,11 @@ import { classifyExpenseLine } from './finance';
 import { computeDiscountTrend, computeMarginRiskWarning, DiscountTrend, MarginRiskWarning } from './discountForecast';
 import { computeInventoryForecast, InventoryForecast } from './inventoryForecast';
 import { computeFinancialHealthForecast, FinancialHealthForecast } from './financialHealthForecast';
+import { computeExternalRiskInsights } from './externalRiskInsights';
+import {
+    computeExternalFactorsPanel, computeRiskRadar, computeCombinedInsights,
+    ExternalFactorsPanel, RiskRadarRow, CombinedInsight,
+} from './externalFactorsPanel';
 
 export type ForecastPeriod = '30d' | '60d' | '90d' | '12m';
 
@@ -84,6 +89,9 @@ export interface ForecastSummary {
     marginRisk: MarginRiskWarning;
     inventoryForecast: InventoryForecast;
     healthForecast: FinancialHealthForecast;
+    externalFactors: ExternalFactorsPanel;
+    riskRadar: RiskRadarRow[];
+    combinedInsights: CombinedInsight[];
     confidencePct: number;
 }
 
@@ -246,6 +254,22 @@ export function computeForecastSummary(
         loans, transactions, inventory,
     );
 
+    // Internal x external intelligence layer: the owner's own Macro
+    // Assumptions scored against what's actually happening in the
+    // business (externalFactors, riskRadar), then combined with the
+    // forecast's own internal signals (revenue trend, margin risk,
+    // planned inventory purchases, existing/planned debt) into the small,
+    // fixed set of paired insights computeCombinedInsights supports.
+    const externalFactors = computeExternalFactorsPanel(transactions, macroAssumptions);
+    const riskRadar = computeRiskRadar(externalFactors);
+    const externalInsights = computeExternalRiskInsights(transactions, macroAssumptions).insights;
+    const combinedInsights = computeCombinedInsights({
+        transactions, macroAssumptions, marginRisk, externalInsights,
+        expectedInventoryPurchases: inventoryForecast.expectedPurchases,
+        existingLoanMonthlyPayment: stmts.existingLoanMonthlyPayment,
+        newLoanAmount: adjustments.newLoanAmount,
+    });
+
     return {
         period, monthsInPeriod, baselineMonthsUsed: stmts.baselineMonthsUsed,
         headline: { expectedRevenue, expectedExpenses, expectedProfit, expectedCashPosition },
@@ -253,6 +277,7 @@ export function computeForecastSummary(
         profitBridge: { revenue: expectedRevenue, cogs, grossProfit, operatingExpenses, netProfit, forecastMarginPct, currentMarginPct, marginDeltaPct: forecastMarginPct - currentMarginPct },
         cashFlowMonths,
         discountTrend, marginRisk, inventoryForecast, healthForecast,
+        externalFactors, riskRadar, combinedInsights,
         confidencePct,
     };
 }

@@ -14,6 +14,8 @@ import { RiskScore, RISK_BAND_STYLE, getMonthlyExpenseAverage } from '../utils/f
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan } from '../utils/actionRecommendationEngine';
 import { scenarioAdjustments, summarizeScenario, SCENARIO_SWING, ScenarioName } from '../utils/scenarioForecast';
+import { computeExternalScenarioStress, ImpactLevel, ProbabilityLevel } from '../utils/externalFactorsPanel';
+import { explainForecastChange } from '../utils/forecastChangeExplanation';
 
 type Statement = 'pnl' | 'cashflow' | 'balance';
 
@@ -103,24 +105,43 @@ export default function FutureFinancialStatementsScreen() {
         () => computeForecastSummary(transactions, loans, finance, forecastPeriod, staff, macroAssumptions, NO_ADJUSTMENTS, inventory),
         [transactions, loans, finance, forecastPeriod, staff, macroAssumptions, inventory],
     );
+    // Real, corroborated external pressure (from the same Macro
+    // Assumptions the External Factors panel below reads) folds into the
+    // scenario swing -- Conservative gets worse by however much cost
+    // pressure is already showing up in the business's own spending, and
+    // by any demand headwind; Optimistic only improves from a genuine
+    // demand tailwind, matching the product vision's own Downside/Upside
+    // examples (exchange rate, demand) rather than a purely internal ±10%.
+    const externalStress = useMemo(
+        () => computeExternalScenarioStress(forecastSummary.externalFactors),
+        [forecastSummary.externalFactors],
+    );
     // Conservative/Optimistic apply a fixed swing on top of whatever What
     // If? adjustments are already dialed in above -- so the range answers
     // "how resilient is THIS plan," not three numbers disconnected from
     // the rest of the screen. "Expected" is forecastSummary itself, not a
     // fourth computation, so it can never drift from the headline above.
     const conservativeSummary = useMemo(
-        () => computeForecastSummary(transactions, loans, finance, forecastPeriod, staff, macroAssumptions, scenarioAdjustments(adjustments, 'conservative'), inventory),
-        [transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory],
+        () => computeForecastSummary(transactions, loans, finance, forecastPeriod, staff, macroAssumptions, scenarioAdjustments(adjustments, 'conservative', externalStress), inventory),
+        [transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory, externalStress],
     );
     const optimisticSummary = useMemo(
-        () => computeForecastSummary(transactions, loans, finance, forecastPeriod, staff, macroAssumptions, scenarioAdjustments(adjustments, 'optimistic'), inventory),
-        [transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory],
+        () => computeForecastSummary(transactions, loans, finance, forecastPeriod, staff, macroAssumptions, scenarioAdjustments(adjustments, 'optimistic', externalStress), inventory),
+        [transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory, externalStress],
     );
     const scenarioRange = useMemo(() => [
         summarizeScenario(conservativeSummary, 'conservative', 'Conservative', '🔴'),
         summarizeScenario(forecastSummary, 'expected', 'Expected', '🟡'),
         summarizeScenario(optimisticSummary, 'optimistic', 'Optimistic', '🟢'),
     ], [conservativeSummary, forecastSummary, optimisticSummary]);
+    // "Why did the forecast change" -- a waterfall of computeForecastSummary
+    // calls, one lever at a time, so the breakdown reconciles exactly to
+    // the cash-position delta the "If this happens" card above already
+    // shows, rather than a second, hand-derived estimate.
+    const changeExplanation = useMemo(
+        () => explainForecastChange(transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory),
+        [transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory],
+    );
 
     const notEnoughData = forecast.baselineMonthsUsed === 0;
     const econRef = useMemo(() => getEconomicReference(currency), [currency]);
@@ -149,6 +170,12 @@ export default function FutureFinancialStatementsScreen() {
         conservative: Colors.expense,
         expected: Colors.warning,
         optimistic: Colors.income,
+    };
+    const LEVEL_COLOR: Record<ImpactLevel | ProbabilityLevel, string> = {
+        high: Colors.expense,
+        medium: Colors.warning,
+        low: Colors.textMuted,
+        positive: Colors.income,
     };
 
     // Same lightweight diagnosis + action-plan pipeline CreditWorthinessScreen
@@ -442,6 +469,80 @@ export default function FutureFinancialStatementsScreen() {
                             </Text>
                         </View>
 
+                        {/* External Factors */}
+                        <View style={s.card}>
+                            <Text style={s.cardTitle}>🌍 External Factors</Text>
+                            {forecastSummary.externalFactors.items.length === 0 ? (
+                                <>
+                                    <Text style={s.baselineNote}>
+                                        Nothing outside the business is factored in yet. Add a Macro Assumption
+                                        (inflation, FX, fuel costs, market demand...) to see its potential impact
+                                        on this forecast — it's never applied automatically, only when you add it.
+                                    </Text>
+                                    <TouchableOpacity onPress={() => navigate('macro-assumptions')}>
+                                        <Text style={s.aiCardLink}>Add a Macro Assumption →</Text>
+                                    </TouchableOpacity>
+                                </>
+                            ) : (
+                                <>
+                                    {forecastSummary.externalFactors.items.map(item => (
+                                        <View key={item.id} style={s.factorRow}>
+                                            <View style={s.factorHeaderRow}>
+                                                <Text style={s.factorLabel}>{item.label}</Text>
+                                                <View style={[s.factorBadge, { borderColor: LEVEL_COLOR[item.impactLevel] }]}>
+                                                    <Text style={[s.factorBadgeText, { color: LEVEL_COLOR[item.impactLevel] }]}>
+                                                        {item.impactLevel === 'positive' ? '🟢 Positive' : `${item.impactLevel === 'high' ? '🔴' : item.impactLevel === 'medium' ? '🟠' : '⚪'} ${item.impactLevel[0].toUpperCase()}${item.impactLevel.slice(1)} impact`}
+                                                    </Text>
+                                                </View>
+                                            </View>
+                                            <Text style={s.factorSentence}>{item.sentence}</Text>
+                                        </View>
+                                    ))}
+                                    {forecastSummary.externalFactors.summarySentence && (
+                                        <View style={s.insightBox}>
+                                            <Text style={s.insightBoxTitle}>Potential Forecast Impact</Text>
+                                            <Text style={s.insightBoxText}>{forecastSummary.externalFactors.summarySentence}</Text>
+                                        </View>
+                                    )}
+                                </>
+                            )}
+                        </View>
+
+                        {/* Risk Radar */}
+                        {forecastSummary.riskRadar.length > 0 && (
+                            <View style={s.card}>
+                                <Text style={s.cardTitle}>📡 Risk Radar</Text>
+                                <Text style={s.baselineNote}>Impact: how much this could affect the business. Probability: how much your own numbers back it up. Exposure: how much of your business runs through it.</Text>
+                                <View style={s.radarHeaderRow}>
+                                    <Text style={[s.radarCell, s.radarHeaderText, { flex: 1.4 }]}>Factor</Text>
+                                    <Text style={[s.radarCell, s.radarHeaderText]}>Impact</Text>
+                                    <Text style={[s.radarCell, s.radarHeaderText]}>Probability</Text>
+                                    <Text style={[s.radarCell, s.radarHeaderText]}>Exposure</Text>
+                                </View>
+                                {forecastSummary.riskRadar.map((row, i) => (
+                                    <View key={i} style={s.radarRow}>
+                                        <Text style={[s.radarCell, { flex: 1.4, color: Colors.textPrimary }]}>{row.label}</Text>
+                                        <Text style={[s.radarCell, { color: LEVEL_COLOR[row.impact] }]}>{row.impact === 'positive' ? '—' : row.impact[0].toUpperCase() + row.impact.slice(1)}</Text>
+                                        <Text style={[s.radarCell, { color: LEVEL_COLOR[row.probability] }]}>{row.probability[0].toUpperCase() + row.probability.slice(1)}</Text>
+                                        <Text style={[s.radarCell, { color: LEVEL_COLOR[row.exposure] }]}>{row.exposure[0].toUpperCase() + row.exposure.slice(1)}</Text>
+                                    </View>
+                                ))}
+                            </View>
+                        )}
+
+                        {/* Internal + External combined insights */}
+                        {forecastSummary.combinedInsights.length > 0 && (
+                            <View style={s.card}>
+                                <Text style={s.cardTitle}>🔗 What's Happening Inside &amp; Outside</Text>
+                                {forecastSummary.combinedInsights.map((insight, i) => (
+                                    <View key={i} style={[s.combinedInsightRow, insight.tone === 'opportunity' && s.combinedInsightRowOpportunity]}>
+                                        <Text style={s.combinedInsightTitle}>{insight.icon} {insight.title}</Text>
+                                        <Text style={s.combinedInsightText}>{insight.text}</Text>
+                                    </View>
+                                ))}
+                            </View>
+                        )}
+
                         <View style={s.card}>
                             <Text style={s.cardTitle}>🧪 What If? Scenario Planner</Text>
                             <Text style={s.baselineNote}>
@@ -484,6 +585,24 @@ export default function FutureFinancialStatementsScreen() {
                                         {fmt(forecastSummary.headline.expectedCashPosition - noAdjustmentsSummary.headline.expectedCashPosition)})
                                     </Text>
                                 </Text>
+                            </View>
+                        )}
+
+                        {hasAdjustments && changeExplanation.drivers.length > 0 && (
+                            <View style={s.card}>
+                                <Text style={s.cardTitle}>Why did the cash position change?</Text>
+                                <Text style={s.baselineNote}>
+                                    Projected cash position {changeExplanation.totalImpact >= 0 ? 'increased' : 'decreased'} by {fmt(Math.abs(changeExplanation.totalImpact))} because:
+                                </Text>
+                                {changeExplanation.drivers.map((d, i) => (
+                                    <Row
+                                        key={i}
+                                        label={d.label}
+                                        value={`${d.cashImpact >= 0 ? '+' : ''}${fmt(d.cashImpact)}`}
+                                        valueColor={d.cashImpact >= 0 ? Colors.income : Colors.expense}
+                                    />
+                                ))}
+                                <Row label="Total impact" value={`${changeExplanation.totalImpact >= 0 ? '+' : ''}${fmt(changeExplanation.totalImpact)}`} bold valueColor={changeExplanation.totalImpact >= 0 ? Colors.income : Colors.expense} />
                             </View>
                         )}
 
@@ -706,6 +825,26 @@ const s = StyleSheet.create({
     aiActionDesc: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 17, marginBottom: 4 },
     aiActionImpact: { fontSize: 12, fontWeight: '600' },
     aiCardLink: { fontSize: 13, fontWeight: '700', color: Colors.primary, marginTop: Spacing.md },
+
+    factorRow: { marginBottom: Spacing.md, paddingBottom: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    factorHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, gap: Spacing.sm },
+    factorLabel: { fontSize: 13.5, fontWeight: '700', color: Colors.textPrimary, flexShrink: 1 },
+    factorBadge: { borderWidth: 1, borderRadius: 999, paddingHorizontal: Spacing.sm, paddingVertical: 2 },
+    factorBadgeText: { fontSize: 10.5, fontWeight: '700' },
+    factorSentence: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
+
+    radarHeaderRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: Colors.border, paddingBottom: 6, marginBottom: 4 },
+    radarHeaderText: { fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase' as const, fontSize: 9.5 },
+    radarRow: { flexDirection: 'row', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    radarCell: { flex: 1, fontSize: 12, fontWeight: '600' },
+
+    combinedInsightRow: {
+        backgroundColor: Colors.surfaceVariant, borderRadius: Radius.md, padding: Spacing.md,
+        marginBottom: Spacing.sm, borderLeftWidth: 3, borderLeftColor: Colors.warning,
+    },
+    combinedInsightRowOpportunity: { borderLeftColor: Colors.income },
+    combinedInsightTitle: { fontSize: 13.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: 4 },
+    combinedInsightText: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
 
     marginCompareBox: { backgroundColor: Colors.surfaceVariant, borderRadius: Radius.md, padding: Spacing.md, marginTop: Spacing.sm },
     marginCompareLine: { fontSize: 12.5, color: Colors.textSecondary, marginBottom: 2 },

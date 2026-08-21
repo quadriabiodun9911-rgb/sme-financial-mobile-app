@@ -58,6 +58,7 @@ export const DRIVER_LABEL: Record<MacroDriver, string> = {
     commodity: 'Commodity Price',
     regulation: 'Regulatory',
     supplyChain: 'Supply Chain',
+    demand: 'Market Demand',
 };
 
 const DRIVER_ACTIONS: Record<MacroDriver, string[]> = {
@@ -101,6 +102,12 @@ const DRIVER_ACTIONS: Record<MacroDriver, string[]> = {
         'Diversify suppliers for your most critical inputs where possible.',
         'Build buffer stock ahead of known disruption windows.',
         'Review lead times and reorder points.',
+        'Protect your minimum cash reserve.',
+    ],
+    demand: [
+        'Review whether current stock and staffing can support a demand shift.',
+        'Watch whether the trend shows up in your own sales before committing spend to it.',
+        'Revisit pricing if demand is softening faster than costs.',
         'Protect your minimum cash reserve.',
     ],
 };

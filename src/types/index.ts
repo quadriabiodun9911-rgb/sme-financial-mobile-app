@@ -254,8 +254,11 @@ export type Industry = 'general' | 'retail' | 'food-service' | 'manufacturing' |
 
 // What kind of external, outside-the-business factor this assumption tracks —
 // drives which icon/framing the resulting insight uses (e.g. "Energy Risk"
-// vs "FX Risk") and lets the UI group assumptions sensibly.
-export type MacroDriver = 'energy' | 'fx' | 'interestRate' | 'inflation' | 'commodity' | 'regulation' | 'supplyChain';
+// vs "FX Risk") and lets the UI group assumptions sensibly. 'demand' is the
+// one non-cost driver -- a belief about market demand strengthening or
+// weakening, not a cost pressure, so it reads as a tailwind/headwind on
+// revenue rather than a risk on an expense category.
+export type MacroDriver = 'energy' | 'fx' | 'interestRate' | 'inflation' | 'commodity' | 'regulation' | 'supplyChain' | 'demand';
 
 // An owner-entered belief about an external factor (e.g. "diesel prices are
 // up 20% this quarter"), manually maintained since this app has no live
@@ -263,14 +266,16 @@ export type MacroDriver = 'energy' | 'fx' | 'interestRate' | 'inflation' | 'comm
 // the business-intelligence layer turn "diesel is up nationally" into
 // "your diesel spend is up and here's what that means for you" instead of
 // showing every business owner the same generic headline regardless of
-// whether it actually touches their cost structure.
+// whether it actually touches their cost structure. For driver: 'demand',
+// linkedCategories is not required -- a demand belief isn't corroborated
+// against a specific expense category the way a cost driver is.
 export interface MacroAssumption {
     id: string;
     driver: MacroDriver;
     label: string;              // e.g. "Diesel price" or a user-defined label
-    changePct: number;          // % change the owner has observed/expects over periodMonths
+    changePct: number;          // % change the owner has observed/expects over periodMonths -- for 'demand', positive means demand is strengthening
     periodMonths: number;       // the window the changePct applies to, e.g. 3
-    linkedCategories: string[]; // transaction categories this driver affects, e.g. ["Fuel","Utilities"]
+    linkedCategories: string[]; // transaction categories this driver affects, e.g. ["Fuel","Utilities"]; unused for 'demand'
     note?: string;
     updatedAt: string;          // ISO date, so a stale assumption can be flagged
 }

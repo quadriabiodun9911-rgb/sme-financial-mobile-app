@@ -19,24 +19,42 @@
 import { ForecastAdjustments } from './futureFinancialStatements';
 import { ForecastSummary } from './forecastSummary';
 import { RiskScore } from './finance';
+import { ExternalScenarioStress, NO_EXTERNAL_STRESS } from './externalFactorsPanel';
 
 export type ScenarioName = 'conservative' | 'expected' | 'optimistic';
 
 // A swing on top of whatever revenue/expense growth the user has already
 // dialed in -- not an independent assumption. Kept as named constants so
 // the UI can state exactly what each scenario assumes, rather than the
-// number being buried in the math.
-export const SCENARIO_SWING: Record<'conservative' | 'optimistic', { revenueGrowthDeltaPp: number; expenseGrowthDeltaPp: number }> = {
-    conservative: { revenueGrowthDeltaPp: -10, expenseGrowthDeltaPp: 10 },
-    optimistic: { revenueGrowthDeltaPp: 10, expenseGrowthDeltaPp: 0 },
+// number being buried in the math. receivableDelayDays mirrors the
+// product vision's own Downside/Upside examples (customers pay 15 days
+// slower in the downside case, collections improve in the upside case).
+export const SCENARIO_SWING: Record<'conservative' | 'optimistic', { revenueGrowthDeltaPp: number; expenseGrowthDeltaPp: number; receivableDelayDeltaDays: number }> = {
+    conservative: { revenueGrowthDeltaPp: -10, expenseGrowthDeltaPp: 10, receivableDelayDeltaDays: 15 },
+    optimistic: { revenueGrowthDeltaPp: 10, expenseGrowthDeltaPp: 0, receivableDelayDeltaDays: -10 },
 };
 
-export function scenarioAdjustments(base: ForecastAdjustments, scenario: 'conservative' | 'optimistic'): ForecastAdjustments {
+// externalStress folds in real, corroborated external pressure (see
+// externalFactorsPanel.ts) on top of the fixed swing above: Conservative
+// gets worse by however much cost pressure is ALREADY showing up in the
+// business's own spending, and by however much a demand assumption says
+// demand is weakening; Optimistic only gets better from a genuine demand
+// tailwind, never from cost pressure the owner has themselves logged.
+export function scenarioAdjustments(
+    base: ForecastAdjustments,
+    scenario: 'conservative' | 'optimistic',
+    externalStress: ExternalScenarioStress = NO_EXTERNAL_STRESS,
+): ForecastAdjustments {
     const swing = SCENARIO_SWING[scenario];
+    const extraExpenseFromExternal = scenario === 'conservative' ? Math.max(0, externalStress.costStressPct) : 0;
+    const extraRevenueFromDemandTailwind = scenario === 'optimistic' ? Math.max(0, externalStress.demandSwingPct) : 0;
+    const extraRevenueHitFromDemandHeadwind = scenario === 'conservative' ? Math.max(0, -externalStress.demandSwingPct) : 0;
+
     return {
         ...base,
-        revenueGrowthPctPerMonth: base.revenueGrowthPctPerMonth + swing.revenueGrowthDeltaPp,
-        expenseGrowthPctPerMonth: base.expenseGrowthPctPerMonth + swing.expenseGrowthDeltaPp,
+        revenueGrowthPctPerMonth: base.revenueGrowthPctPerMonth + swing.revenueGrowthDeltaPp + extraRevenueFromDemandTailwind - extraRevenueHitFromDemandHeadwind,
+        expenseGrowthPctPerMonth: base.expenseGrowthPctPerMonth + swing.expenseGrowthDeltaPp + extraExpenseFromExternal,
+        receivableDelayDays: base.receivableDelayDays + swing.receivableDelayDeltaDays,
     };
 }
 

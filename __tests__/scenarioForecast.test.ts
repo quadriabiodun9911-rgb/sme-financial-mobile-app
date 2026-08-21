@@ -1,6 +1,7 @@
 import { scenarioAdjustments, summarizeScenario, SCENARIO_SWING } from '../src/utils/scenarioForecast';
 import { computeForecastSummary } from '../src/utils/forecastSummary';
 import { NO_ADJUSTMENTS, ForecastAdjustments } from '../src/utils/futureFinancialStatements';
+import { ExternalScenarioStress, NO_EXTERNAL_STRESS } from '../src/utils/externalFactorsPanel';
 import { Transaction, FinanceData } from '../src/types';
 
 const makeTx = (overrides: Partial<Transaction>): Transaction => ({
@@ -33,14 +34,14 @@ function flatMonths(): Transaction[] {
 }
 
 describe('scenarioAdjustments', () => {
-    it('applies the conservative swing on top of the base adjustments, leaving other fields untouched', () => {
+    it('applies the conservative swing (including the receivable-delay swing) on top of the base adjustments, leaving unrelated fields untouched', () => {
         const base: ForecastAdjustments = { ...NO_ADJUSTMENTS, revenueGrowthPctPerMonth: 5, oneOffInventoryPurchase: 20000 };
         const result = scenarioAdjustments(base, 'conservative');
         expect(result.revenueGrowthPctPerMonth).toBe(5 + SCENARIO_SWING.conservative.revenueGrowthDeltaPp);
         expect(result.expenseGrowthPctPerMonth).toBe(0 + SCENARIO_SWING.conservative.expenseGrowthDeltaPp);
+        expect(result.receivableDelayDays).toBe(0 + SCENARIO_SWING.conservative.receivableDelayDeltaDays);
         // Every other lever (including the user's own one-off inventory
-        // purchase) carries through unchanged -- the scenario swing only
-        // touches revenue/expense growth.
+        // purchase) carries through unchanged.
         expect(result.oneOffInventoryPurchase).toBe(20000);
     });
 
@@ -49,6 +50,37 @@ describe('scenarioAdjustments', () => {
         const result = scenarioAdjustments(base, 'optimistic');
         expect(result.revenueGrowthPctPerMonth).toBe(0 + SCENARIO_SWING.optimistic.revenueGrowthDeltaPp);
         expect(result.expenseGrowthPctPerMonth).toBe(3 + SCENARIO_SWING.optimistic.expenseGrowthDeltaPp);
+        expect(result.receivableDelayDays).toBe(0 + SCENARIO_SWING.optimistic.receivableDelayDeltaDays);
+    });
+
+    it('adds real corroborated external cost stress on top of the Conservative swing, but not the Optimistic one', () => {
+        const stress: ExternalScenarioStress = { costStressPct: 6, demandSwingPct: 0 };
+        const conservative = scenarioAdjustments(NO_ADJUSTMENTS, 'conservative', stress);
+        const optimistic = scenarioAdjustments(NO_ADJUSTMENTS, 'optimistic', stress);
+        expect(conservative.expenseGrowthPctPerMonth).toBe(SCENARIO_SWING.conservative.expenseGrowthDeltaPp + 6);
+        expect(optimistic.expenseGrowthPctPerMonth).toBe(SCENARIO_SWING.optimistic.expenseGrowthDeltaPp);
+    });
+
+    it('lets a genuine demand tailwind improve Optimistic, and a demand headwind worsen Conservative', () => {
+        const tailwind: ExternalScenarioStress = { costStressPct: 0, demandSwingPct: 12 };
+        const headwind: ExternalScenarioStress = { costStressPct: 0, demandSwingPct: -12 };
+
+        const optimisticWithTailwind = scenarioAdjustments(NO_ADJUSTMENTS, 'optimistic', tailwind);
+        expect(optimisticWithTailwind.revenueGrowthPctPerMonth).toBe(SCENARIO_SWING.optimistic.revenueGrowthDeltaPp + 12);
+
+        const conservativeWithHeadwind = scenarioAdjustments(NO_ADJUSTMENTS, 'conservative', headwind);
+        expect(conservativeWithHeadwind.revenueGrowthPctPerMonth).toBe(SCENARIO_SWING.conservative.revenueGrowthDeltaPp - 12);
+
+        // A demand TAILWIND never helps Conservative, and a HEADWIND never hurts Optimistic --
+        // each scenario only gets worse (never better) from the direction that matches its own bias.
+        const conservativeWithTailwind = scenarioAdjustments(NO_ADJUSTMENTS, 'conservative', tailwind);
+        expect(conservativeWithTailwind.revenueGrowthPctPerMonth).toBe(SCENARIO_SWING.conservative.revenueGrowthDeltaPp);
+        const optimisticWithHeadwind = scenarioAdjustments(NO_ADJUSTMENTS, 'optimistic', headwind);
+        expect(optimisticWithHeadwind.revenueGrowthPctPerMonth).toBe(SCENARIO_SWING.optimistic.revenueGrowthDeltaPp);
+    });
+
+    it('defaults to no external stress when none is passed', () => {
+        expect(scenarioAdjustments(NO_ADJUSTMENTS, 'conservative')).toEqual(scenarioAdjustments(NO_ADJUSTMENTS, 'conservative', NO_EXTERNAL_STRESS));
     });
 });
 

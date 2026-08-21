@@ -18,6 +18,7 @@ const DRIVER_OPTIONS: { value: MacroDriver; label: string; icon: IconName }[] = 
     { value: 'commodity', label: 'Commodity Price', icon: 'package' },
     { value: 'regulation', label: 'Regulation', icon: 'file-text' },
     { value: 'supplyChain', label: 'Supply Chain', icon: 'truck' },
+    { value: 'demand', label: 'Market Demand', icon: 'activity' },
 ];
 
 const DEFAULT_CATEGORIES = [
@@ -87,7 +88,10 @@ export default function MacroAssumptionsScreen() {
         if (!trimmedLabel) { showAlert('Error', 'Give this assumption a label, e.g. "Diesel price".'); return; }
         if (isNaN(pct)) { showAlert('Error', 'Enter the % change you\'ve observed or expect.'); return; }
         if (!months || months <= 0) { showAlert('Error', 'Enter the number of months that % change applies to.'); return; }
-        if (linkedCategories.length === 0) { showAlert('Error', 'Link at least one expense category so this can be matched against your actual spending.'); return; }
+        // Market Demand isn't corroborated against a specific expense
+        // category the way a cost driver is (there's nothing in the books
+        // to match a demand belief against), so it doesn't require one.
+        if (driver !== 'demand' && linkedCategories.length === 0) { showAlert('Error', 'Link at least one expense category so this can be matched against your actual spending.'); return; }
 
         const next: MacroAssumption = {
             id: editingId ?? generateId(),
@@ -155,14 +159,16 @@ export default function MacroAssumptionsScreen() {
                                         <Text style={s.cardLabel}>{a.label}</Text>
                                         <Text style={s.cardDriver}>{meta.label}</Text>
                                     </View>
-                                    <Text style={[s.cardChange, { color: a.changePct >= 0 ? Colors.expense : Colors.income }]}>
+                                    <Text style={[s.cardChange, { color: (a.changePct >= 0) === (a.driver === 'demand') ? Colors.income : Colors.expense }]}>
                                         {a.changePct >= 0 ? '+' : ''}{a.changePct}% / {a.periodMonths}mo
                                     </Text>
                                 </View>
                                 <View style={s.chipRow}>
-                                    {a.linkedCategories.map(c => (
-                                        <View key={c} style={s.catChip}><Text style={s.catChipText}>{c}</Text></View>
-                                    ))}
+                                    {a.driver === 'demand'
+                                        ? <View style={s.catChip}><Text style={s.catChipText}>Applies business-wide</Text></View>
+                                        : a.linkedCategories.map(c => (
+                                            <View key={c} style={s.catChip}><Text style={s.catChipText}>{c}</Text></View>
+                                        ))}
                                 </View>
                                 {a.note ? <Text style={s.cardNote}>{a.note}</Text> : null}
                                 <Text style={s.cardUpdated}>Updated {new Date(a.updatedAt).toLocaleDateString()}</Text>
@@ -202,6 +208,9 @@ export default function MacroAssumptionsScreen() {
                             value={label}
                             onChangeText={setLabel}
                         />
+                        {driver === 'demand' && (
+                            <Text style={s.demandHint}>For Market Demand, a positive % means demand is strengthening — the opposite of a cost driver, where positive means costs are rising.</Text>
+                        )}
                         <View style={s.row2}>
                             <TextInput
                                 style={[s.input, { flex: 1 }]}
@@ -221,18 +230,22 @@ export default function MacroAssumptionsScreen() {
                             />
                         </View>
 
-                        <Text style={s.fieldLabel}>Which expense categories does this affect?</Text>
-                        <View style={s.chipRow}>
-                            {knownCategories.map(cat => (
-                                <TouchableOpacity
-                                    key={cat}
-                                    style={[s.catChip, linkedCategories.includes(cat) && s.catChipActive]}
-                                    onPress={() => toggleCategory(cat)}
-                                >
-                                    <Text style={[s.catChipText, linkedCategories.includes(cat) && s.catChipTextActive]}>{cat}</Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
+                        {driver !== 'demand' && (
+                            <>
+                                <Text style={s.fieldLabel}>Which expense categories does this affect?</Text>
+                                <View style={s.chipRow}>
+                                    {knownCategories.map(cat => (
+                                        <TouchableOpacity
+                                            key={cat}
+                                            style={[s.catChip, linkedCategories.includes(cat) && s.catChipActive]}
+                                            onPress={() => toggleCategory(cat)}
+                                        >
+                                            <Text style={[s.catChipText, linkedCategories.includes(cat) && s.catChipTextActive]}>{cat}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </>
+                        )}
 
                         <TextInput
                             style={[s.input, s.noteInput]}
@@ -308,6 +321,7 @@ const s = StyleSheet.create({
     sheetTitle: { fontSize: 18, fontWeight: '700', color: Colors.textPrimary, marginBottom: Spacing.lg },
 
     fieldLabel: { fontSize: 12, fontWeight: '700', color: Colors.textSecondary, marginBottom: Spacing.sm, marginTop: Spacing.xs },
+    demandHint: { fontSize: 11.5, color: Colors.textMuted, lineHeight: 16, marginBottom: Spacing.sm },
     driverGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: 14 },
     driverChip: { backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm, paddingHorizontal: 10, paddingVertical: Spacing.sm },
     driverChipActive: { backgroundColor: Colors.primary + '20', borderColor: Colors.primary },
