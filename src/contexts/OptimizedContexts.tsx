@@ -979,6 +979,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if ((type === 'recovery' || type === 'signup') && params.get('access_token')) {
       goToResetPinScreen();
     }
+    // A magic-link (device verification) landing on a brand-new device --
+    // no local profile, so the boot effect below never touches
+    // currentScreen at all and this is the only thing routing away from
+    // whatever getInitialScreenFromUrl() defaulted to (typically the
+    // marketing landing page, not login). LoginScreen reads navParams to
+    // land on 'confirm-device' directly instead of the request-email step.
+    if (type === 'magiclink' && params.get('access_token')) {
+      recoveryDetectedRef.current = true;
+      setCurrentScreenState('login');
+      setNavParams({ mode: 'reset-pin', resetStep: 'confirm-device', resetIntent: 'verify-device' });
+    }
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') goToResetPinScreen();
     });

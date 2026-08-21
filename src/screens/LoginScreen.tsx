@@ -135,6 +135,18 @@ export default function LoginScreen() {
             });
             window.history.replaceState(null, '', window.location.pathname);
         }
+        // A magic-link landing (device verification, not a PIN reset) has no
+        // distinct auth event the way PASSWORD_RECOVERY does -- signInWithOtp
+        // just fires a plain SIGNED_IN, which is too generic to key off
+        // (ordinary password logins fire it too). This hash check is the
+        // only reliable signal, same best-effort caveat as the recovery
+        // check above.
+        if (type === 'magiclink' && accessToken) {
+            setResetIntent('verify-device');
+            setMode('reset-pin');
+            setResetStep('confirm-device');
+            window.history.replaceState(null, '', window.location.pathname);
+        }
 
         const { data: sub } = supabase.auth.onAuthStateChange((event) => {
             if (event === 'PASSWORD_RECOVERY') {
@@ -208,8 +220,18 @@ export default function LoginScreen() {
     // Read from navParams so a recovery link detected at the top level
     // (AuthProvider, see the matching comment there) can land directly on
     // the "set a new PIN" step instead of the request-email step.
-    const [resetStep, setResetStep]           = useState<'request' | 'verify' | 'complete-web'>((navParams?.resetStep as any) ?? 'request');
+    const [resetStep, setResetStep]           = useState<'request' | 'verify' | 'complete-web' | 'confirm-device'>((navParams?.resetStep as any) ?? 'request');
     const [resetSubmitting, setResetSubmitting] = useState(false);
+    // Distinguishes "I forgot my PIN" (resetPasswordForEmail — rotates this
+    // account's real Supabase credential, correctly invalidating any other
+    // device's stored secret) from "this is a new device" (signInWithOtp —
+    // a magic link that authenticates without touching the shared
+    // credential at all). Conflating these used to mean verifying a second
+    // device silently broke sign-in on the first one, since Supabase only
+    // has one password per account and every PIN-unlock re-derives a
+    // session from whichever device's secret is currently set. See
+    // handleResetRequest and the 'confirm-device' step below.
+    const [resetIntent, setResetIntent]       = useState<'forgot-pin' | 'verify-device'>((navParams?.resetIntent as any) ?? 'forgot-pin');
 
     // Alert.alert doesn't render on Expo web — every call site in this screen
     // used it unguarded, so PIN/email validation errors and reset/join-team
@@ -343,7 +365,7 @@ export default function LoginScreen() {
             showAlert('Sign In Failed', 'This device doesn\'t recognize that email and PIN yet. Verify your email to set it up here.', [
                 { text: 'Verify Email', onPress: () => {
                     setResetEmail(email); setResetNewPin(''); setResetConfirmPin(''); setResetOtp('');
-                    setResetStep('request'); setMode('reset-pin');
+                    setResetIntent('verify-device'); setResetStep('request'); setMode('reset-pin');
                 } },
                 { text: 'Try Again', style: 'cancel' },
             ]);
@@ -390,10 +412,17 @@ export default function LoginScreen() {
             const redirectTo = Platform.OS === 'web' && typeof window !== 'undefined'
                 ? window.location.origin + '/'
                 : undefined;
-            const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), { redirectTo });
+            // verify-device (a new phone/laptop, PIN unchanged) uses a magic
+            // link, which authenticates without touching this account's real
+            // Supabase credential at all -- forgot-pin uses the password
+            // reset, which deliberately does rotate it. See the resetIntent
+            // state comment for why conflating these broke multi-device use.
+            const { error } = resetIntent === 'verify-device'
+                ? await supabase.auth.signInWithOtp({ email: resetEmail.trim(), options: { emailRedirectTo: redirectTo, shouldCreateUser: false } })
+                : await supabase.auth.resetPasswordForEmail(resetEmail.trim(), { redirectTo });
             if (error) {
                 const msg = error.message.toLowerCase();
-                if (msg.includes('user not found') || msg.includes('not found')) {
+                if (msg.includes('user not found') || msg.includes('not found') || msg.includes('signups not allowed')) {
                     showAlert('No Account Found', 'No account exists with that email address. Please check and try again.');
                 } else {
                     showAlert('Could Not Send Reset Link', error.message);
@@ -509,6 +538,39 @@ export default function LoginScreen() {
         setResetSubmitting(false);
     };
 
+    // Called after a magic-link click sets a session automatically via the
+    // URL hash — device verification, not a password reset, so this never
+    // touches the account's shared Supabase credential (see the resetIntent
+    // comment). The click already proved this device can read the account's
+    // email; this step just confirms the user knows the existing PIN and
+    // saves it as this device's own local unlock. login()'s cloud
+    // reconnection is best-effort and never gates its return value (see its
+    // comment in OptimizedContexts.tsx), so leaving this device without its
+    // own auth secret is fine — the session this magic link just established
+    // is what keeps it synced going forward, refreshed automatically by
+    // Supabase like any other session, not by repeated password sign-ins.
+    const handleDeviceVerifyComplete = async () => {
+        if (!/^\d{6}$/.test(resetNewPin)) { showAlert('Error', 'Enter your 6-digit PIN.'); return; }
+        setResetSubmitting(true);
+        try {
+            await new Promise(r => setTimeout(r, 800));
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                showAlert('Link Expired', 'This verification link has expired. Please request a new one.', [
+                    { text: 'OK', onPress: () => { setResetStep('request'); setResetNewPin(''); } }
+                ]);
+                setResetSubmitting(false);
+                return;
+            }
+            const email = session.user.email ?? '';
+            try { await recoverAccount(email, resetNewPin); } catch {}
+            setResetStep('request'); setResetNewPin('');
+        } catch (e: any) {
+            showAlert('Error', e?.message ?? 'Verification failed. Please try again.');
+        }
+        setResetSubmitting(false);
+    };
+
     // ── Recover existing account on new device ────────────────────────────────
     if (mode === 'recover') {
         return (
@@ -553,7 +615,7 @@ export default function LoginScreen() {
 
                         <TouchableOpacity style={styles.switchBtn} onPress={() => {
                             setResetEmail(''); setResetNewPin(''); setResetConfirmPin(''); setResetStep('request');
-                            setMode('reset-pin');
+                            setResetIntent('forgot-pin'); setMode('reset-pin');
                         }}>
                             <Text style={styles.resetText}>Forgot your PIN? Reset it →</Text>
                         </TouchableOpacity>
@@ -604,23 +666,33 @@ export default function LoginScreen() {
             <SafeAreaView style={styles.safe}>
                 <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
                     <View style={styles.card}>
-                        <Text style={styles.title}>Forgot Your PIN?</Text>
+                        <Text style={styles.title}>
+                            {resetIntent === 'verify-device' ? 'Verify This Device' : 'Forgot Your PIN?'}
+                        </Text>
                         <Text style={styles.subtitle}>
                             {resetStep === 'request'
-                                ? 'No problem. Follow the steps below and you\'ll be back in 2 minutes.'
+                                ? (resetIntent === 'verify-device'
+                                    ? 'One-time check for a device that hasn\'t signed in before. Your PIN won\'t change.'
+                                    : 'No problem. Follow the steps below and you\'ll be back in 2 minutes.')
                                 : resetStep === 'complete-web'
                                 ? 'Identity confirmed. Now set your new PIN.'
+                                : resetStep === 'confirm-device'
+                                ? 'Identity confirmed. Set a PIN to unlock this device.'
                                 : 'Almost done — just check your email.'}
                         </Text>
 
-                        {resetStep === 'request' ? (
+                        {resetStep === 'request' && (
                             <>
                                 <View style={styles.stepsBox}>
                                     <Text style={styles.stepsTitle}>How it works:</Text>
                                     <Text style={styles.stepsItem}>1. Enter your account email below</Text>
-                                    <Text style={styles.stepsItem}>2. We send a reset link to your email</Text>
+                                    <Text style={styles.stepsItem}>2. We send a {resetIntent === 'verify-device' ? 'verification' : 'reset'} link to your email</Text>
                                     <Text style={styles.stepsItem}>3. Open the email on this device and tap the link</Text>
-                                    <Text style={styles.stepsItem}>4. The link brings you back here to set your new PIN</Text>
+                                    <Text style={styles.stepsItem}>
+                                        4. {resetIntent === 'verify-device'
+                                            ? 'The link brings you back here to set a PIN for this device'
+                                            : 'The link brings you back here to set your new PIN'}
+                                    </Text>
                                 </View>
                                 <Field label="Your Account Email">
                                     <TextInput style={styles.input} value={resetEmail} onChangeText={setResetEmail}
@@ -631,21 +703,25 @@ export default function LoginScreen() {
                                     onPress={handleResetRequest} disabled={resetSubmitting}>
                                     {resetSubmitting
                                         ? <ActivityIndicator color="#fff" />
-                                        : <Text style={styles.btnText}>Send Reset Link to My Email</Text>}
+                                        : <Text style={styles.btnText}>
+                                            {resetIntent === 'verify-device' ? 'Send Verification Link' : 'Send Reset Link to My Email'}
+                                        </Text>}
                                 </TouchableOpacity>
                             </>
-                        ) : (
+                        )}
+
+                        {resetStep === 'verify' && (
                             <>
                                 <View style={styles.infoBox}>
                                     <Text style={styles.infoBoxTitle}>Check your email</Text>
                                     <Text style={styles.infoText}>
-                                        We sent a reset link to:{'\n'}
+                                        We sent a {resetIntent === 'verify-device' ? 'verification' : 'reset'} link to:{'\n'}
                                         <Text style={{ fontWeight: 'bold', color: Colors.textPrimary }}>{resetEmail}</Text>
                                     </Text>
                                     <View style={styles.infoSteps}>
                                         <Text style={styles.infoStep}>1. Open your email app now</Text>
                                         <Text style={styles.infoStep}>2. Find the email from Quad360</Text>
-                                        <Text style={styles.infoStep}>3. Tap "Reset Password" in the email</Text>
+                                        <Text style={styles.infoStep}>3. Tap the link in the email</Text>
                                         <Text style={styles.infoStep}>4. It will bring you back here automatically</Text>
                                     </View>
                                     <Text style={styles.infoNote}>Link expires in 1 hour. Check your spam folder if you don't see it.</Text>
@@ -677,8 +753,27 @@ export default function LoginScreen() {
                             </>
                         )}
 
+                        {resetStep === 'confirm-device' && (
+                            <>
+                                <Field label="PIN for This Device (6 digits)">
+                                    <TextInput style={styles.input} value={resetNewPin} onChangeText={setResetNewPin}
+                                        placeholder="••••••" placeholderTextColor={Colors.muted}
+                                        secureTextEntry keyboardType="number-pad" maxLength={6} />
+                                </Field>
+                                <Text style={{ fontSize: 12, color: Colors.textMuted, marginBottom: 16, marginTop: -8 }}>
+                                    This just unlocks the app on this device — it doesn't need to match the PIN on your other devices.
+                                </Text>
+                                <TouchableOpacity style={[styles.btn, resetSubmitting && styles.btnDisabled]}
+                                    onPress={handleDeviceVerifyComplete} disabled={resetSubmitting}>
+                                    {resetSubmitting
+                                        ? <ActivityIndicator color="#fff" />
+                                        : <Text style={styles.btnText}>Confirm This Device</Text>}
+                                </TouchableOpacity>
+                            </>
+                        )}
+
                         <TouchableOpacity style={styles.switchBtn}
-                            onPress={() => { setMode('owner-login'); setResetStep('request'); }}>
+                            onPress={() => { setMode('owner-login'); setResetStep('request'); setResetIntent('forgot-pin'); }}>
                             <Text style={styles.switchText}>← Back to Login</Text>
                         </TouchableOpacity>
                     </View>
@@ -1078,7 +1173,7 @@ export default function LoginScreen() {
             </TouchableOpacity>
             <TouchableOpacity style={styles.resetBtn} onPress={() => {
                 setResetEmail(''); setResetNewPin(''); setResetConfirmPin(''); setResetOtp(''); setResetStep('request');
-                setMode('reset-pin');
+                setResetIntent('forgot-pin'); setMode('reset-pin');
             }}>
                 <Text style={styles.resetText}>Forgot your PIN? Reset it in 2 minutes →</Text>
             </TouchableOpacity>
