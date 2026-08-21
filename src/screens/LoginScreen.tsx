@@ -564,10 +564,31 @@ export default function LoginScreen() {
                 // Switch Account wouldn't list this account until the next
                 // full reload.
                 await refreshLocalAccounts().catch(() => {});
+                const resetPinForSwitch = resetNewPin;
                 showAlert(
                     'PIN Reset Successful',
-                    `${email}'s PIN has been reset. This device is still signed in to ${activeProfile!.email} — open the Email tab or use Switch Account on the Welcome Back screen to sign in as ${email}.`,
-                    [{ text: 'OK', onPress: () => { setResetStep('request'); setResetNewPin(''); setResetConfirmPin(''); setMode('owner-login'); } }],
+                    `${email}'s PIN has been reset. This device is still signed in to ${activeProfile!.email}.`,
+                    [
+                        { text: 'Switch to ' + email, onPress: async () => {
+                            // The user just proved they know this account's
+                            // new PIN by setting it -- that's as explicit a
+                            // signal to switch as asking again would be, so
+                            // do it directly instead of sending them to find
+                            // the Email tab or Switch Account themselves and
+                            // retype what they just typed.
+                            const result = await switchAccount(email, resetPinForSwitch);
+                            if (result !== 'ok') {
+                                // Very unlikely (the PIN was just set moments
+                                // ago) -- fall back to a pre-filled Email tab
+                                // rather than leaving the user stuck.
+                                setLoginMethod('email'); setEmailLoginEmail(email); setEmailLoginPin('');
+                            }
+                            setResetStep('request'); setResetNewPin(''); setResetConfirmPin(''); setMode('owner-login');
+                        } },
+                        { text: `Stay signed in to ${activeProfile!.email}`, style: 'cancel', onPress: () => {
+                            setResetStep('request'); setResetNewPin(''); setResetConfirmPin(''); setMode('owner-login');
+                        } },
+                    ],
                 );
                 return;
             }
@@ -710,10 +731,22 @@ export default function LoginScreen() {
                 // Switch Account wouldn't list this account until the next
                 // full reload.
                 await refreshLocalAccounts().catch(() => {});
+                const devicePinForSwitch = resetNewPin;
                 showAlert(
                     'Device Verified',
-                    `${email} is now available on this device. This device is still signed in to ${activeProfile!.email} — use Switch Account on the Welcome Back screen to sign in as ${email}.`,
-                    [{ text: 'OK', onPress: () => { setResetStep('request'); setResetNewPin(''); setMode('owner-login'); } }],
+                    `${email} is now available on this device. This device is still signed in to ${activeProfile!.email}.`,
+                    [
+                        { text: 'Switch to ' + email, onPress: async () => {
+                            const result = await switchAccount(email, devicePinForSwitch);
+                            if (result !== 'ok') {
+                                setLoginMethod('email'); setEmailLoginEmail(email); setEmailLoginPin('');
+                            }
+                            setResetStep('request'); setResetNewPin(''); setMode('owner-login');
+                        } },
+                        { text: `Stay signed in to ${activeProfile!.email}`, style: 'cancel', onPress: () => {
+                            setResetStep('request'); setResetNewPin(''); setMode('owner-login');
+                        } },
+                    ],
                 );
                 return;
             }
