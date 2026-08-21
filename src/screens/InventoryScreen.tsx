@@ -15,6 +15,8 @@ import PeriodComparisonTable from '../components/PeriodComparisonTable';
 import { suggestSolution } from '../utils/impactChain';
 import { computeStockVelocity, computeInventoryValue } from '../utils/stockVelocity';
 import { applyStockIn } from '../utils/inventoryCosting';
+import { computeDiscountAmount, DiscountType } from '../utils/saleDiscount';
+import { computeDiscountSummary } from '../utils/inventorySalesTrend';
 import RecipeCostCalculator from '../components/RecipeCostCalculator';
 import ProductionCostCalculator from '../components/ProductionCostCalculator';
 import DateInput from '../components/DateInput';
@@ -80,6 +82,8 @@ export default function InventoryScreen() {
     const [form, setForm] = useState<FormState>(EMPTY_FORM);
     const [sellModal, setSellModal] = useState<{ item: InventoryItem } | null>(null);
     const [sellQty, setSellQty] = useState('');
+    const [discountType, setDiscountType] = useState<DiscountType>('percentage');
+    const [discountValue, setDiscountValue] = useState('');
     const [stockInModal, setStockInModal] = useState<{ item: InventoryItem } | null>(null);
     const [stockInForm, setStockInForm] = useState<StockInForm | null>(null);
 
@@ -116,6 +120,11 @@ export default function InventoryScreen() {
         () => new Map(inventory.map(item => [item.id, computeStockVelocity(item, transactions)])),
         [inventory, transactions],
     );
+
+    // All-time discount impact across every sale recorded through the Sell
+    // button (same "Sell-only" scope as the rest of this screen's sales
+    // analytics -- see inventorySalesTrend.ts).
+    const discountSummary = useMemo(() => computeDiscountSummary(transactions), [transactions]);
 
     // Best margin items (top 3)
     const itemsWithMargin = inventory.map(item => ({
@@ -196,16 +205,31 @@ export default function InventoryScreen() {
         confirmAction('Delete Item', `Remove "${item.name}" from inventory?`, 'Delete', () => deleteInventoryItem(item.id));
     };
 
+    const openSell = (item: InventoryItem) => {
+        setSellModal({ item });
+        setSellQty('');
+        setDiscountType('percentage');
+        setDiscountValue('');
+    };
+
+    const closeSellModal = () => {
+        setSellModal(null);
+        setSellQty('');
+        setDiscountValue('');
+    };
+
     const confirmSell = () => {
         if (!sellModal) return;
         const { item } = sellModal;
         const qty = parseFloat(sellQty);
         if (isNaN(qty) || qty <= 0) { showAlert('Validation', 'Enter a valid quantity.'); return; }
         if (qty > item.quantity) { showAlert('Validation', `Only ${item.quantity} ${item.unit} in stock.`); return; }
+        const subtotal = qty * (item.sellingPrice ?? 0);
+        const discAmount = computeDiscountAmount(subtotal, discountType, parseFloat(discountValue) || 0);
         updateInventoryItem(item.id, { quantity: item.quantity - qty });
         addTransaction({
             type: 'income',
-            amount: qty * (item.sellingPrice ?? 0),
+            amount: subtotal - discAmount,
             description: `Sale: ${item.name}`,
             category: 'Sales',
             date: new Date().toISOString().split('T')[0],
@@ -213,9 +237,10 @@ export default function InventoryScreen() {
             transactionCategory: 'sale',
             costOfGoodsSold: qty * (item.costPrice ?? 0),
             inventoryItemId: item.id,
+            unitsSold: qty,
+            discountAmount: discAmount > 0 ? discAmount : undefined,
         });
-        setSellModal(null);
-        setSellQty('');
+        closeSellModal();
         showAlert('Recorded', `${qty} ${item.unit} of ${item.name} sold.`);
     };
 
@@ -364,7 +389,7 @@ export default function InventoryScreen() {
                                             <TouchableOpacity style={styles.actionBtn} onPress={() => openStockIn(item)}>
                                                 <Icon name="download" size={14} color={Colors.textPrimary} />
                                             </TouchableOpacity>
-                                            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: Colors.income }]} onPress={() => { setSellModal({ item }); setSellQty(''); }}>
+                                            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: Colors.income }]} onPress={() => openSell(item)}>
                                                 <Text style={[styles.actionBtnText, { color: '#fff' }]}>Sell</Text>
                                             </TouchableOpacity>
                                             <TouchableOpacity style={styles.actionBtn} onPress={() => openEdit(item)}>
@@ -445,6 +470,48 @@ export default function InventoryScreen() {
                                 </Text>
                             </View>
                         </View>
+
+                        {/* Discount Impact */}
+                        {discountSummary.totalSaleCount > 0 && (
+                            <View style={styles.analyticsCard}>
+                                <Text style={styles.analyticsCardTitle}>Discount Impact</Text>
+                                <View style={styles.analyticsRow}>
+                                    <Text style={styles.analyticsLabel}>Gross Sales</Text>
+                                    <Text style={styles.analyticsVal}>
+                                        {currency}{discountSummary.grossSales.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                    </Text>
+                                </View>
+                                <View style={styles.analyticsRow}>
+                                    <Text style={styles.analyticsLabel}>Less: Discounts</Text>
+                                    <Text style={[styles.analyticsVal, { color: Colors.warning }]}>
+                                        −{currency}{discountSummary.discounts.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                    </Text>
+                                </View>
+                                <View style={[styles.analyticsRow, styles.analyticsBorderTop]}>
+                                    <Text style={[styles.analyticsLabel, { fontWeight: '700', color: Colors.textPrimary }]}>Net Sales</Text>
+                                    <Text style={[styles.analyticsVal, { fontWeight: 'bold', color: Colors.income }]}>
+                                        {currency}{discountSummary.netSales.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                    </Text>
+                                </View>
+                                {discountSummary.discountedSaleCount > 0 ? (
+                                    <>
+                                        <View style={styles.analyticsRow}>
+                                            <Text style={styles.analyticsLabel}>Margin: standard vs. realised</Text>
+                                            <Text style={styles.analyticsVal}>
+                                                <Text style={{ color: marginColor(discountSummary.normalMarginPct) }}>{discountSummary.normalMarginPct.toFixed(1)}%</Text>
+                                                {'  →  '}
+                                                <Text style={{ color: marginColor(discountSummary.actualMarginPct) }}>{discountSummary.actualMarginPct.toFixed(1)}%</Text>
+                                            </Text>
+                                        </View>
+                                        <Text style={styles.discountInsight}>
+                                            {discountSummary.discountedSaleCount} of {discountSummary.totalSaleCount} sale{discountSummary.totalSaleCount !== 1 ? 's' : ''} included a discount, averaging {discountSummary.avgDiscountPct.toFixed(1)}% off. That's {currency}{discountSummary.discounts.toLocaleString(undefined, { maximumFractionDigits: 0 })} of revenue given up so far.
+                                        </Text>
+                                    </>
+                                ) : (
+                                    <Text style={styles.discountInsight}>No discounts given yet — every sale was at standard price.</Text>
+                                )}
+                            </View>
+                        )}
 
                         {/* Category Breakdown */}
                         <View style={styles.analyticsCard}>
@@ -688,8 +755,8 @@ export default function InventoryScreen() {
             </Modal>
 
             {/* ── Sell Stock Modal ──────────────────────────────────────────────── */}
-            <Modal visible={!!sellModal} transparent animationType="slide" onRequestClose={() => setSellModal(null)}>
-                <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setSellModal(null)} />
+            <Modal visible={!!sellModal} transparent animationType="slide" onRequestClose={closeSellModal}>
+                <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={closeSellModal} />
                 <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.modalSheet, constrainSheetWidth && styles.modalSheetWide]}>
                     <View style={styles.modalHandle} />
                     <Text style={styles.modalTitle}>Record Sale</Text>
@@ -697,17 +764,20 @@ export default function InventoryScreen() {
                         const { item } = sellModal;
                         const qty = parseFloat(sellQty);
                         const hasQty = !isNaN(qty) && qty > 0;
-                        const revenue = hasQty ? qty * (item.sellingPrice ?? 0) : 0;
+                        const subtotal = hasQty ? qty * (item.sellingPrice ?? 0) : 0;
+                        const discAmount = hasQty ? computeDiscountAmount(subtotal, discountType, parseFloat(discountValue) || 0) : 0;
+                        const revenue = subtotal - discAmount;
                         const cogs = hasQty ? qty * (item.costPrice ?? 0) : 0;
                         const grossProfit = revenue - cogs;
                         const marginPct = revenue > 0 ? (grossProfit / revenue) * 100 : 0;
+                        const normalGrossProfit = subtotal - cogs;
                         const belowCost = hasQty && grossProfit < 0;
                         const exceedsStock = hasQty && qty > item.quantity;
 
                         return (
                             <>
                                 <Text style={{ color: Colors.textSecondary, marginBottom: 8 }}>
-                                    {item.name} — {item.quantity} {item.unit} in stock
+                                    {item.name} — {item.quantity} {item.unit} in stock at {currency}{(item.sellingPrice ?? 0).toLocaleString()}/unit
                                 </Text>
                                 <TextInput
                                     style={styles.input}
@@ -718,17 +788,53 @@ export default function InventoryScreen() {
                                     onChangeText={setSellQty}
                                 />
 
+                                <Text style={styles.discountLabel}>Discount (optional)</Text>
+                                <View style={styles.discountTypeRow}>
+                                    <TouchableOpacity
+                                        style={[styles.discountTypePill, discountType === 'percentage' && styles.discountTypePillActive]}
+                                        onPress={() => setDiscountType('percentage')}
+                                    >
+                                        <Text style={[styles.discountTypePillText, discountType === 'percentage' && styles.discountTypePillTextActive]}>％ Percentage</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[styles.discountTypePill, discountType === 'fixed' && styles.discountTypePillActive]}
+                                        onPress={() => setDiscountType('fixed')}
+                                    >
+                                        <Text style={[styles.discountTypePillText, discountType === 'fixed' && styles.discountTypePillTextActive]}>{currency} Fixed amount</Text>
+                                    </TouchableOpacity>
+                                </View>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder={discountType === 'percentage' ? 'Discount %' : `Discount amount (${currency})`}
+                                    placeholderTextColor={Colors.textMuted}
+                                    keyboardType="decimal-pad"
+                                    value={discountValue}
+                                    onChangeText={setDiscountValue}
+                                />
+
                                 {hasQty && (
                                     <View style={styles.previewCard}>
                                         <View style={styles.previewRow}>
-                                            <Text style={styles.previewLabel}>Revenue</Text>
-                                            <Text style={[styles.previewVal, { color: Colors.income }]}>{currency}{revenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                                            <Text style={styles.previewLabel}>Subtotal</Text>
+                                            <Text style={styles.previewVal}>{currency}{subtotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                                        </View>
+                                        {discAmount > 0 && (
+                                            <View style={styles.previewRow}>
+                                                <Text style={styles.previewLabel}>Discount</Text>
+                                                <Text style={[styles.previewVal, { color: Colors.warning }]}>−{currency}{discAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                                            </View>
+                                        )}
+                                        <View style={[styles.previewRow, styles.previewBorderTop]}>
+                                            <Text style={[styles.previewLabel, { fontWeight: '700', color: Colors.textPrimary }]}>
+                                                {discAmount > 0 ? 'Customer pays' : 'Revenue'}
+                                            </Text>
+                                            <Text style={[styles.previewVal, { fontWeight: '700', color: Colors.income }]}>{currency}{revenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
                                         </View>
                                         <View style={styles.previewRow}>
                                             <Text style={styles.previewLabel}>Cost of goods sold</Text>
                                             <Text style={[styles.previewVal, { color: Colors.expense }]}>−{currency}{cogs.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
                                         </View>
-                                        <View style={[styles.previewRow, styles.previewBorderTop]}>
+                                        <View style={styles.previewRow}>
                                             <Text style={[styles.previewLabel, { fontWeight: '700', color: Colors.textPrimary }]}>Gross profit</Text>
                                             <Text style={[styles.previewVal, { fontWeight: '700', color: grossProfit >= 0 ? Colors.income : Colors.expense }]}>
                                                 {currency}{grossProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}
@@ -741,12 +847,22 @@ export default function InventoryScreen() {
                                     </View>
                                 )}
 
+                                {discAmount > 0 && normalGrossProfit > 0 && !belowCost && (
+                                    <View style={[styles.marginPreview, { borderColor: Colors.warning }]}>
+                                        <View style={styles.marginPreviewNoteRow}>
+                                            <Icon name="alert-triangle" size={12} color={Colors.warning} />
+                                            <Text style={[styles.marginPreviewNote, { color: Colors.warning }]}>
+                                                This discount cuts gross profit from {currency}{normalGrossProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })} to {currency}{grossProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })} ({Math.round((discAmount / normalGrossProfit) * 100)}% less).
+                                            </Text>
+                                        </View>
+                                    </View>
+                                )}
                                 {belowCost && (
                                     <View style={[styles.marginPreview, { borderColor: Colors.expense }]}>
                                         <View style={styles.marginPreviewNoteRow}>
                                             <Icon name="alert-triangle" size={12} color={Colors.expense} />
                                             <Text style={[styles.marginPreviewNote, { color: Colors.expense }]}>
-                                                This sale is below cost — it loses {currency}{Math.abs(grossProfit).toLocaleString(undefined, { maximumFractionDigits: 0 })}. You can still record it if that's correct.
+                                                This sale is below cost{discAmount > 0 ? ', after the discount,' : ''} — it loses {currency}{Math.abs(grossProfit).toLocaleString(undefined, { maximumFractionDigits: 0 })}. You can still record it if that's correct.
                                             </Text>
                                         </View>
                                     </View>
@@ -760,7 +876,7 @@ export default function InventoryScreen() {
                                 <TouchableOpacity style={[styles.submitBtn, { backgroundColor: Colors.income }]} onPress={confirmSell}>
                                     <Text style={styles.submitBtnText}>Record Sale</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity style={styles.cancelBtn} onPress={() => setSellModal(null)}>
+                                <TouchableOpacity style={styles.cancelBtn} onPress={closeSellModal}>
                                     <Text style={styles.cancelBtnText}>Cancel</Text>
                                 </TouchableOpacity>
                             </>
@@ -937,6 +1053,7 @@ const styles = StyleSheet.create({
     analyticsLabel:     { fontSize: 13, color: Colors.textSecondary, flex: 1 },
     analyticsVal:       { fontSize: 13, fontWeight: '600' },
     analyticsEmpty:     { fontSize: 12, color: Colors.textMuted, fontStyle: 'italic' },
+    discountInsight:    { fontSize: 12, color: Colors.textSecondary, lineHeight: 17, marginTop: 6 },
 
     categoryRow:  { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: Colors.border },
     categoryName: { fontSize: 13, fontWeight: '600', color: Colors.textPrimary },
@@ -987,6 +1104,13 @@ const styles = StyleSheet.create({
     cashPurchaseToggleRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', marginTop: Spacing.sm, marginBottom: Spacing.md },
     cashPurchaseToggleLabel: { fontSize: 13, fontWeight: '600', color: Colors.textPrimary, marginBottom: 2 },
     cashPurchaseToggleHint: { fontSize: 11, color: Colors.textMuted, lineHeight: 15 },
+
+    discountLabel:      { fontSize: 12, fontWeight: '600', color: Colors.textSecondary, marginBottom: 6 },
+    discountTypeRow:    { flexDirection: 'row', gap: 8, marginBottom: Spacing.md },
+    discountTypePill:       { flex: 1, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm, paddingVertical: 9, alignItems: 'center' },
+    discountTypePillActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+    discountTypePillText:       { fontSize: 12, fontWeight: '600', color: Colors.textSecondary },
+    discountTypePillTextActive: { color: '#fff' },
 
     previewCard:        { backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: 10, padding: Spacing.md, marginBottom: Spacing.md },
     previewRow:      { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 },

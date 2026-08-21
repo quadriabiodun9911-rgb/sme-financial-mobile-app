@@ -127,3 +127,47 @@ export function computeInventorySalesTrend(grouping: InventorySalesGrouping, tra
     // yearly
     return rollUp(monthly, m => m.key.slice(0, 4), key => key);
 }
+
+export interface DiscountSummary {
+    grossSales: number;      // revenue before any discount (amount + discountAmount)
+    discounts: number;       // total ₦ given up to discounts
+    netSales: number;        // actual revenue received (sum of amount) -- what stockSold/totalRevenue represent elsewhere
+    costOfGoodsSold: number;
+    normalMarginPct: number; // margin if no sale had been discounted: (grossSales - cogs) / grossSales
+    actualMarginPct: number; // margin actually realised: (netSales - cogs) / netSales
+    discountedSaleCount: number;
+    totalSaleCount: number;
+    avgDiscountPct: number;  // average discount rate across discounted sales only, 0 if none
+}
+
+// All-time (not windowed/trended like the points above) -- same scope as
+// the "Cost of Goods Summary" card in InventoryScreen's Analytics tab this
+// backs. Same caveat as the rest of this file: only sales recorded through
+// Inventory's "Sell" button are counted.
+export function computeDiscountSummary(transactions: Transaction[]): DiscountSummary {
+    let grossSales = 0, discounts = 0, netSales = 0, costOfGoodsSold = 0;
+    let discountedSaleCount = 0, totalSaleCount = 0, discountPctSum = 0;
+
+    for (const t of transactions) {
+        if (t.type !== 'income' || t.transactionCategory !== 'sale') continue;
+        totalSaleCount++;
+        const disc = t.discountAmount ?? 0;
+        const gross = (t.amount ?? 0) + disc;
+        grossSales += gross;
+        discounts += disc;
+        netSales += (t.amount ?? 0);
+        costOfGoodsSold += (t.costOfGoodsSold ?? 0);
+        if (disc > 0) {
+            discountedSaleCount++;
+            discountPctSum += gross > 0 ? (disc / gross) * 100 : 0;
+        }
+    }
+
+    return {
+        grossSales, discounts, netSales, costOfGoodsSold,
+        normalMarginPct: grossSales > 0 ? ((grossSales - costOfGoodsSold) / grossSales) * 100 : 0,
+        actualMarginPct: netSales > 0 ? ((netSales - costOfGoodsSold) / netSales) * 100 : 0,
+        discountedSaleCount, totalSaleCount,
+        avgDiscountPct: discountedSaleCount > 0 ? discountPctSum / discountedSaleCount : 0,
+    };
+}

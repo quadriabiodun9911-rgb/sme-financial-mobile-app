@@ -98,6 +98,18 @@ describe('computeStockVelocity', () => {
         const result = computeStockVelocity(item, txs, 30);
         expect(result.tier).toBe('no-data');
     });
+
+    it('uses unitsSold instead of amount/sellingPrice when present, so a discounted sale is not undercounted', () => {
+        // 3 units at sellingPrice 100 would normally be 300 revenue, but a
+        // discount brought the actual amount down to 210 -- inferring units
+        // from amount/sellingPrice would (wrongly) read this as 2.1 units.
+        const item = makeItem({ id: 'item1', quantity: 10, sellingPrice: 100 });
+        const txs: Transaction[] = [
+            { ...makeSaleTx(item.name, 210, 5), inventoryItemId: 'item1', unitsSold: 3, discountAmount: 90 },
+        ];
+        const result = computeStockVelocity(item, txs, 30);
+        expect(result.unitsSoldInWindow).toBeCloseTo(3, 5);
+    });
 });
 
 describe('computeInventoryValue', () => {

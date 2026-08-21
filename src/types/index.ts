@@ -192,6 +192,24 @@ export interface Transaction {
     // to the older `description === "Sale: {item.name}"` string match for
     // those, same as before this field was introduced.
     inventoryItemId?: string;
+    // Set on an Inventory "Sell" transaction: the exact units sold, as
+    // entered -- not something later code should reconstruct from amount /
+    // item.sellingPrice, because a discounted sale's `amount` is lower than
+    // qty * sellingPrice for the same quantity, which would silently
+    // undercount units in anything (e.g. stockVelocity.ts) that divides
+    // revenue back out to estimate quantity. Undefined on transactions
+    // recorded before this field existed; those still fall back to the
+    // revenue/sellingPrice estimate, same as before.
+    unitsSold?: number;
+    // Set on an Inventory "Sell" transaction when a discount was applied:
+    // the ₦ amount taken off qty * item.sellingPrice for this specific
+    // sale. `amount` is always the actual, discounted revenue (what the
+    // customer paid) -- never the standard price -- so gross (undiscounted)
+    // revenue for a sale is always recoverable as `amount + discountAmount`.
+    // Never rewritten after the sale: a later price or discount policy
+    // change must not alter what a completed sale is recorded as having
+    // earned.
+    discountAmount?: number;
 }
 
 export interface FinanceData {
