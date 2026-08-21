@@ -77,7 +77,7 @@ type Mode = 'owner-setup' | 'owner-login' | 'join-team' | 'join-lender' | 'reset
 type LoginMethod = 'pin' | 'email';
 
 export default function LoginScreen() {
-    const { isFirstLaunch, setupAccount, login, joinTeam, joinAsLender, enterDemo, language, setLanguage, updateSettings, resetApp, isLockedOut, lockoutUntil, recoverAccount, navParams, recordConsent, navigate, localAccounts, switchAccount } = useApp();
+    const { isFirstLaunch, setupAccount, login, joinTeam, joinAsLender, enterDemo, language, setLanguage, updateSettings, resetApp, isLockedOut, lockoutUntil, recoverAccount, navParams, recordConsent, navigate, localAccounts, switchAccount, refreshLocalAccounts } = useApp();
     // The split-screen setup layout only applies on wide web viewports --
     // narrow/native rendering is untouched, so the primary mobile
     // experience carries zero risk from this. 900px comfortably fits the
@@ -405,6 +405,21 @@ export default function LoginScreen() {
             const localProfile = await loadProfile();
             const ok = localProfileMatchesEmail(localProfile, email) && await login(emailLoginPin);
             if (ok) { navigating = true; identifyUser(email); trackUserLoggedIn('email'); return; }
+            // Neither the active session nor the active local profile is
+            // this email -- but this device may still know it as a SECOND
+            // registered account (e.g. just reset or verified while a
+            // different account was active here, see the PIN-reset/
+            // device-verify flows). switchAccount checks the on-device
+            // registry directly rather than only the single active slot,
+            // so a known second account signs in here exactly like the
+            // first one would, instead of wrongly reporting this device
+            // as never having seen it.
+            const switchResult = await switchAccount(email, emailLoginPin);
+            if (switchResult === 'ok') { navigating = true; identifyUser(email); trackUserLoggedIn('switch-account'); return; }
+            if (switchResult === 'wrong-pin') {
+                showAlert(t(language, 'error'), 'Incorrect PIN. Please try again.');
+                return;
+            }
             // A brand-new device holds neither a local profile nor the
             // account's real secret, so this failure is expected, not a
             // dead end -- verifying by email (the flow below) is the actual
@@ -543,6 +558,12 @@ export default function LoginScreen() {
                 // the Switch Account list instead; nothing about the
                 // currently active account is touched.
                 await registerLocalAccount(email, '', resetNewPin, newAuthSecret, new Date().toISOString()).catch(() => {});
+                // Registering directly via storage.ts bypasses every
+                // context method that would normally refresh the
+                // AuthProvider's own localAccounts state -- without this,
+                // Switch Account wouldn't list this account until the next
+                // full reload.
+                await refreshLocalAccounts().catch(() => {});
                 showAlert(
                     'PIN Reset Successful',
                     `${email}'s PIN has been reset. This device is still signed in to ${activeProfile!.email} — open the Email tab or use Switch Account on the Welcome Back screen to sign in as ${email}.`,
@@ -683,6 +704,12 @@ export default function LoginScreen() {
                     return;
                 }
                 await registerLocalAccount(email, '', resetNewPin, newAuthSecret, new Date().toISOString()).catch(() => {});
+                // Registering directly via storage.ts bypasses every
+                // context method that would normally refresh the
+                // AuthProvider's own localAccounts state -- without this,
+                // Switch Account wouldn't list this account until the next
+                // full reload.
+                await refreshLocalAccounts().catch(() => {});
                 showAlert(
                     'Device Verified',
                     `${email} is now available on this device. This device is still signed in to ${activeProfile!.email} — use Switch Account on the Welcome Back screen to sign in as ${email}.`,

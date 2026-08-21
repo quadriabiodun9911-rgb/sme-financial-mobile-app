@@ -889,6 +889,15 @@ interface AuthContextValue {
   // replacement for, the single active pin/profile/authSecret slots above.
   localAccounts: LocalAccountSummary[];
   switchAccount: (email: string, pin: string) => Promise<'ok' | 'wrong-pin' | 'not-found'>;
+  // Re-reads the on-device account registry into `localAccounts` above.
+  // Needed because LoginScreen's PIN-reset/device-verify flows register a
+  // SECOND account directly via storage.ts (registerLocalAccount) when a
+  // different account is already active here -- that bypasses every
+  // context method that would normally trigger this refresh itself
+  // (setupAccount/recoverAccount/switchAccount), so without calling this
+  // explicitly afterward, the newly-registered account wouldn't appear in
+  // the Switch Account list until the next full reload.
+  refreshLocalAccounts: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -1358,6 +1367,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setCurrentScreenState('dashboard');
       },
       localAccounts,
+      refreshLocalAccounts,
       switchAccount: async (email: string, pin: string) => {
         const result = await switchLocalAccount(email, pin);
         if (result !== 'ok') return result;
@@ -2009,6 +2019,7 @@ export function useApp() {
     deleteAccount: auth.deleteAccount || (() => Promise.resolve()),
     recoverAccount: auth.recoverAccount,
     localAccounts: auth.localAccounts ?? [],
+    refreshLocalAccounts: auth.refreshLocalAccounts ?? (() => Promise.resolve()),
     switchAccount: auth.switchAccount,
     importData: async (json) => { await importAllData(json); if (typeof window !== 'undefined' && window.location) window.location.reload(); },
     exportData: () => exportAllData({
