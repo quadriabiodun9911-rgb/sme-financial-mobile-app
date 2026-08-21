@@ -18,6 +18,8 @@ import { applyStockIn } from '../utils/inventoryCosting';
 import { computeDiscountAmount, DiscountType } from '../utils/saleDiscount';
 import { computeDiscountSummary } from '../utils/inventorySalesTrend';
 import { appendPriceChange, computeMarginPct } from '../utils/priceHistory';
+import { computeInventoryPace, computeSlowMovingValue } from '../utils/inventoryIntelligence';
+import { computeWorkingCapitalMetrics } from '../utils/finance';
 import RecipeCostCalculator from '../components/RecipeCostCalculator';
 import ProductionCostCalculator from '../components/ProductionCostCalculator';
 import DateInput from '../components/DateInput';
@@ -78,6 +80,9 @@ const emptyPriceChangeForm = (item: InventoryItem): PriceChangeForm => ({
     reason: '',
 });
 
+type InventoryInsightTier = 'good' | 'warning' | 'critical';
+interface InventoryInsight { tier: InventoryInsightTier; icon: string; title: string; detail: string; }
+
 const PRICE_CHANGE_REASONS = [
     'Supplier cost increased',
     'Market price changed',
@@ -87,7 +92,7 @@ const PRICE_CHANGE_REASONS = [
 ];
 
 export default function InventoryScreen() {
-    const { inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem, stockInInventory, settings, navigate, addTransaction, transactions } = useApp();
+    const { inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem, stockInInventory, settings, navigate, addTransaction, transactions, finance } = useApp();
     const { currency } = settings;
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
@@ -147,6 +152,43 @@ export default function InventoryScreen() {
     // button (same "Sell-only" scope as the rest of this screen's sales
     // analytics -- see inventorySalesTrend.ts).
     const discountSummary = useMemo(() => computeDiscountSummary(transactions), [transactions]);
+
+    // Inventory Intelligence: how much cash is tied up, and whether it's
+    // becoming a problem (slow-moving stock, purchases outpacing sales).
+    const inventoryPace = useMemo(() => computeInventoryPace(transactions), [transactions]);
+    const slowMovingValue = useMemo(() => computeSlowMovingValue(inventory, transactions), [inventory, transactions]);
+    const workingCapital = useMemo(() => computeWorkingCapitalMetrics(transactions), [transactions]);
+    const tiedUpInInventory = computeInventoryValue(inventory);
+    const totalWorkingCapitalTiedUp = (finance?.cashBalance ?? 0) + tiedUpInInventory + workingCapital.accountsReceivable;
+
+    const inventoryInsights: InventoryInsight[] = useMemo(() => {
+        const list: InventoryInsight[] = [];
+        const riskyCount = inventory.filter(i => i.quantity <= i.lowStockThreshold).length;
+        if (riskyCount > 0) {
+            list.push({
+                tier: 'critical', icon: '🔴', title: 'Low-stock risk',
+                detail: `${riskyCount} product${riskyCount !== 1 ? 's are' : ' is'} approaching or at stock-out.`,
+            });
+        }
+        if (slowMovingValue > 0) {
+            list.push({
+                tier: 'warning', icon: '🟠', title: 'Cash tied up in slow-moving stock',
+                detail: `${currency}${slowMovingValue.toLocaleString(undefined, { maximumFractionDigits: 0 })} of inventory has had limited movement over the last 30 days.`,
+            });
+        }
+        const { purchaseGrowthPct, salesGrowthPct } = inventoryPace;
+        if (purchaseGrowthPct !== null && salesGrowthPct !== null && purchaseGrowthPct > salesGrowthPct) {
+            list.push({
+                tier: 'warning', icon: '⚠️', title: 'Inventory growing faster than sales',
+                detail: `Stock purchases ${purchaseGrowthPct >= 0 ? 'rose' : 'fell'} ${Math.abs(purchaseGrowthPct).toFixed(0)}% this month, while sales ${salesGrowthPct >= 0 ? 'grew' : 'fell'} ${Math.abs(salesGrowthPct).toFixed(0)}%.`,
+            });
+        }
+        if (list.length === 0) {
+            list.push({ tier: 'good', icon: '🟢', title: 'Healthy Stock', detail: 'Your inventory level is within a healthy range, and nothing is moving unusually slowly.' });
+        }
+        return list;
+    }, [inventory, slowMovingValue, inventoryPace, currency]);
+    const insightColor = (tier: InventoryInsightTier) => tier === 'good' ? Colors.income : tier === 'critical' ? Colors.expense : Colors.warning;
 
     // Best margin items (top 3)
     const itemsWithMargin = inventory.map(item => ({
@@ -485,6 +527,40 @@ export default function InventoryScreen() {
                 {/* ── ANALYTICS TAB ──────────────────────────────────────── */}
                 {activeTab === 'analytics' && (
                     <>
+                        {/* Inventory Intelligence */}
+                        <View style={styles.analyticsCard}>
+                            <Text style={styles.analyticsCardTitle}>Inventory Intelligence</Text>
+                            <Text style={styles.intelligenceHeadline}>
+                                {currency}{tiedUpInInventory.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            </Text>
+                            <Text style={styles.intelligenceSub}>of your business's money is currently tied up in inventory.</Text>
+
+                            <Text style={[styles.discountLabel, { marginTop: Spacing.lg, marginBottom: 4 }]}>Where your money is tied up</Text>
+                            <View style={styles.analyticsRow}>
+                                <Text style={styles.analyticsLabel}>Cash</Text>
+                                <Text style={styles.analyticsVal}>{currency}{(finance?.cashBalance ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                            </View>
+                            <View style={styles.analyticsRow}>
+                                <Text style={styles.analyticsLabel}>Inventory</Text>
+                                <Text style={[styles.analyticsVal, { color: Colors.asset }]}>{currency}{tiedUpInInventory.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                            </View>
+                            <View style={styles.analyticsRow}>
+                                <Text style={styles.analyticsLabel}>Receivables</Text>
+                                <Text style={styles.analyticsVal}>{currency}{workingCapital.accountsReceivable.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                            </View>
+                            <View style={[styles.analyticsRow, styles.analyticsBorderTop]}>
+                                <Text style={[styles.analyticsLabel, { fontWeight: '700', color: Colors.textPrimary }]}>Total Working Capital Tied Up</Text>
+                                <Text style={[styles.analyticsVal, { fontWeight: 'bold' }]}>{currency}{totalWorkingCapitalTiedUp.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                            </View>
+
+                            {inventoryInsights.map((insight, i) => (
+                                <View key={i} style={[styles.insightBanner, { borderColor: insightColor(insight.tier) }]}>
+                                    <Text style={[styles.insightTitle, { color: insightColor(insight.tier) }]}>{insight.icon} {insight.title}</Text>
+                                    <Text style={styles.insightDetail}>{insight.detail}</Text>
+                                </View>
+                            ))}
+                        </View>
+
                         {/* Cost of Goods Summary */}
                         <View style={styles.analyticsCard}>
                             <Text style={styles.analyticsCardTitle}>Cost of Goods Summary</Text>
@@ -1198,6 +1274,12 @@ const styles = StyleSheet.create({
     analyticsVal:       { fontSize: 13, fontWeight: '600' },
     analyticsEmpty:     { fontSize: 12, color: Colors.textMuted, fontStyle: 'italic' },
     discountInsight:    { fontSize: 12, color: Colors.textSecondary, lineHeight: 17, marginTop: 6 },
+
+    intelligenceHeadline: { fontSize: 32, fontWeight: '800', color: Colors.asset, marginTop: 6 },
+    intelligenceSub:      { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
+    insightBanner: { borderWidth: 1, borderRadius: 10, padding: Spacing.md, marginTop: Spacing.sm },
+    insightTitle:  { fontSize: 13, fontWeight: '700', marginBottom: 3 },
+    insightDetail: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
 
     categoryRow:  { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: Colors.border },
     categoryName: { fontSize: 13, fontWeight: '600', color: Colors.textPrimary },
