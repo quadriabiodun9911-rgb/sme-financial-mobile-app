@@ -693,30 +693,79 @@ export default function InventoryScreen() {
                 <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.modalSheet, constrainSheetWidth && styles.modalSheetWide]}>
                     <View style={styles.modalHandle} />
                     <Text style={styles.modalTitle}>Record Sale</Text>
-                    {sellModal && (
-                        <>
-                            <Text style={{ color: Colors.textSecondary, marginBottom: 8 }}>
-                                {sellModal.item.name} — {sellModal.item.quantity} {sellModal.item.unit} in stock
-                            </Text>
-                            <TextInput
-                                style={styles.input}
-                                placeholder={`Quantity sold (${sellModal.item.unit})`}
-                                placeholderTextColor={Colors.textMuted}
-                                keyboardType="decimal-pad"
-                                value={sellQty}
-                                onChangeText={setSellQty}
-                            />
-                            <Text style={{ color: Colors.textMuted, fontSize: 12, marginBottom: 12 }}>
-                                Revenue: {currency}{sellQty ? (parseFloat(sellQty) * sellModal.item.sellingPrice || 0).toLocaleString() : '0'}
-                            </Text>
-                            <TouchableOpacity style={[styles.submitBtn, { backgroundColor: Colors.income }]} onPress={confirmSell}>
-                                <Text style={styles.submitBtnText}>Record Sale</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.cancelBtn} onPress={() => setSellModal(null)}>
-                                <Text style={styles.cancelBtnText}>Cancel</Text>
-                            </TouchableOpacity>
-                        </>
-                    )}
+                    {sellModal && (() => {
+                        const { item } = sellModal;
+                        const qty = parseFloat(sellQty);
+                        const hasQty = !isNaN(qty) && qty > 0;
+                        const revenue = hasQty ? qty * (item.sellingPrice ?? 0) : 0;
+                        const cogs = hasQty ? qty * (item.costPrice ?? 0) : 0;
+                        const grossProfit = revenue - cogs;
+                        const marginPct = revenue > 0 ? (grossProfit / revenue) * 100 : 0;
+                        const belowCost = hasQty && grossProfit < 0;
+                        const exceedsStock = hasQty && qty > item.quantity;
+
+                        return (
+                            <>
+                                <Text style={{ color: Colors.textSecondary, marginBottom: 8 }}>
+                                    {item.name} — {item.quantity} {item.unit} in stock
+                                </Text>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder={`Quantity sold (${item.unit})`}
+                                    placeholderTextColor={Colors.textMuted}
+                                    keyboardType="decimal-pad"
+                                    value={sellQty}
+                                    onChangeText={setSellQty}
+                                />
+
+                                {hasQty && (
+                                    <View style={styles.previewCard}>
+                                        <View style={styles.previewRow}>
+                                            <Text style={styles.previewLabel}>Revenue</Text>
+                                            <Text style={[styles.previewVal, { color: Colors.income }]}>{currency}{revenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                                        </View>
+                                        <View style={styles.previewRow}>
+                                            <Text style={styles.previewLabel}>Cost of goods sold</Text>
+                                            <Text style={[styles.previewVal, { color: Colors.expense }]}>−{currency}{cogs.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                                        </View>
+                                        <View style={[styles.previewRow, styles.previewBorderTop]}>
+                                            <Text style={[styles.previewLabel, { fontWeight: '700', color: Colors.textPrimary }]}>Gross profit</Text>
+                                            <Text style={[styles.previewVal, { fontWeight: '700', color: grossProfit >= 0 ? Colors.income : Colors.expense }]}>
+                                                {currency}{grossProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                            </Text>
+                                        </View>
+                                        <View style={styles.previewRow}>
+                                            <Text style={styles.previewLabel}>Margin</Text>
+                                            <Text style={[styles.previewVal, { color: marginColor(marginPct) }]}>{marginPct.toFixed(1)}%</Text>
+                                        </View>
+                                    </View>
+                                )}
+
+                                {belowCost && (
+                                    <View style={[styles.marginPreview, { borderColor: Colors.expense }]}>
+                                        <View style={styles.marginPreviewNoteRow}>
+                                            <Icon name="alert-triangle" size={12} color={Colors.expense} />
+                                            <Text style={[styles.marginPreviewNote, { color: Colors.expense }]}>
+                                                This sale is below cost — it loses {currency}{Math.abs(grossProfit).toLocaleString(undefined, { maximumFractionDigits: 0 })}. You can still record it if that's correct.
+                                            </Text>
+                                        </View>
+                                    </View>
+                                )}
+                                {exceedsStock && (
+                                    <Text style={{ color: Colors.expense, fontSize: 12, marginBottom: 8 }}>
+                                        Only {item.quantity} {item.unit} in stock.
+                                    </Text>
+                                )}
+
+                                <TouchableOpacity style={[styles.submitBtn, { backgroundColor: Colors.income }]} onPress={confirmSell}>
+                                    <Text style={styles.submitBtnText}>Record Sale</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.cancelBtn} onPress={() => setSellModal(null)}>
+                                    <Text style={styles.cancelBtnText}>Cancel</Text>
+                                </TouchableOpacity>
+                            </>
+                        );
+                    })()}
                 </KeyboardAvoidingView>
             </Modal>
 
@@ -781,26 +830,26 @@ export default function InventoryScreen() {
                                 </TouchableOpacity>
 
                                 {preview && (
-                                    <View style={styles.stockInPreview}>
-                                        <View style={styles.stockInPreviewRow}>
-                                            <Text style={styles.stockInPreviewLabel}>Previous stock</Text>
-                                            <Text style={styles.stockInPreviewVal}>{item.quantity} {item.unit}</Text>
+                                    <View style={styles.previewCard}>
+                                        <View style={styles.previewRow}>
+                                            <Text style={styles.previewLabel}>Previous stock</Text>
+                                            <Text style={styles.previewVal}>{item.quantity} {item.unit}</Text>
                                         </View>
-                                        <View style={styles.stockInPreviewRow}>
-                                            <Text style={styles.stockInPreviewLabel}>+ Received</Text>
-                                            <Text style={styles.stockInPreviewVal}>{qtyAdded} {item.unit}</Text>
+                                        <View style={styles.previewRow}>
+                                            <Text style={styles.previewLabel}>+ Received</Text>
+                                            <Text style={styles.previewVal}>{qtyAdded} {item.unit}</Text>
                                         </View>
-                                        <View style={[styles.stockInPreviewRow, styles.stockInPreviewBorderTop]}>
-                                            <Text style={[styles.stockInPreviewLabel, { fontWeight: '700', color: Colors.textPrimary }]}>New stock</Text>
-                                            <Text style={[styles.stockInPreviewVal, { fontWeight: '700' }]}>{preview.quantity} {item.unit}</Text>
+                                        <View style={[styles.previewRow, styles.previewBorderTop]}>
+                                            <Text style={[styles.previewLabel, { fontWeight: '700', color: Colors.textPrimary }]}>New stock</Text>
+                                            <Text style={[styles.previewVal, { fontWeight: '700' }]}>{preview.quantity} {item.unit}</Text>
                                         </View>
-                                        <View style={styles.stockInPreviewRow}>
-                                            <Text style={styles.stockInPreviewLabel}>New avg. cost/unit</Text>
-                                            <Text style={styles.stockInPreviewVal}>{currency}{preview.costPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}</Text>
+                                        <View style={styles.previewRow}>
+                                            <Text style={styles.previewLabel}>New avg. cost/unit</Text>
+                                            <Text style={styles.previewVal}>{currency}{preview.costPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}</Text>
                                         </View>
-                                        <View style={styles.stockInPreviewRow}>
-                                            <Text style={styles.stockInPreviewLabel}>New stock value</Text>
-                                            <Text style={[styles.stockInPreviewVal, { color: Colors.asset }]}>
+                                        <View style={styles.previewRow}>
+                                            <Text style={styles.previewLabel}>New stock value</Text>
+                                            <Text style={[styles.previewVal, { color: Colors.asset }]}>
                                                 {currency}{(preview.quantity * preview.costPrice).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                             </Text>
                                         </View>
@@ -939,9 +988,9 @@ const styles = StyleSheet.create({
     cashPurchaseToggleLabel: { fontSize: 13, fontWeight: '600', color: Colors.textPrimary, marginBottom: 2 },
     cashPurchaseToggleHint: { fontSize: 11, color: Colors.textMuted, lineHeight: 15 },
 
-    stockInPreview:        { backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: 10, padding: Spacing.md, marginBottom: Spacing.md },
-    stockInPreviewRow:      { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 },
-    stockInPreviewLabel:    { fontSize: 12, color: Colors.textSecondary },
-    stockInPreviewVal:      { fontSize: 12, color: Colors.textPrimary },
-    stockInPreviewBorderTop:{ borderTopWidth: 1, borderTopColor: Colors.border, marginTop: 2, paddingTop: 7 },
+    previewCard:        { backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: 10, padding: Spacing.md, marginBottom: Spacing.md },
+    previewRow:      { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 },
+    previewLabel:    { fontSize: 12, color: Colors.textSecondary },
+    previewVal:      { fontSize: 12, color: Colors.textPrimary },
+    previewBorderTop:{ borderTopWidth: 1, borderTopColor: Colors.border, marginTop: 2, paddingTop: 7 },
 });
