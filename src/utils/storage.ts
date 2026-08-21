@@ -683,6 +683,7 @@ export async function saveInventory(items: InventoryItem[]): Promise<void> {
             selling_price: item.sellingPrice,
             low_stock_threshold: item.lowStockThreshold,
             supplier: item.supplier ?? null,
+            price_history: item.priceHistory ?? [],
             created_at: item.createdAt,
             updated_at: item.updatedAt,
         })) : [];
@@ -734,6 +735,7 @@ export async function loadInventory(): Promise<InventoryItem[] | null> {
                     sellingPrice: row.selling_price,
                     lowStockThreshold: row.low_stock_threshold,
                     supplier: row.supplier ?? undefined,
+                    priceHistory: row.price_history && row.price_history.length > 0 ? row.price_history : undefined,
                     createdAt: row.created_at,
                     updatedAt: row.updated_at,
                 } as InventoryItem));

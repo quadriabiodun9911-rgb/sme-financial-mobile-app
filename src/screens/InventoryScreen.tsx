@@ -17,6 +17,7 @@ import { computeStockVelocity, computeInventoryValue } from '../utils/stockVeloc
 import { applyStockIn } from '../utils/inventoryCosting';
 import { computeDiscountAmount, DiscountType } from '../utils/saleDiscount';
 import { computeDiscountSummary } from '../utils/inventorySalesTrend';
+import { appendPriceChange, computeMarginPct } from '../utils/priceHistory';
 import RecipeCostCalculator from '../components/RecipeCostCalculator';
 import ProductionCostCalculator from '../components/ProductionCostCalculator';
 import DateInput from '../components/DateInput';
@@ -65,6 +66,25 @@ const emptyStockInForm = (item: InventoryItem): StockInForm => ({
     recordCashPurchase: true,
 });
 
+type PriceChangeForm = {
+    newPrice: string;
+    effectiveDate: string;
+    reason: string;
+};
+
+const emptyPriceChangeForm = (item: InventoryItem): PriceChangeForm => ({
+    newPrice: item.sellingPrice != null ? String(item.sellingPrice) : '',
+    effectiveDate: new Date().toISOString().split('T')[0],
+    reason: '',
+});
+
+const PRICE_CHANGE_REASONS = [
+    'Supplier cost increased',
+    'Market price changed',
+    'Promotional pricing',
+    'Business decision',
+    'Other',
+];
 
 export default function InventoryScreen() {
     const { inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem, stockInInventory, settings, navigate, addTransaction, transactions } = useApp();
@@ -86,6 +106,8 @@ export default function InventoryScreen() {
     const [discountValue, setDiscountValue] = useState('');
     const [stockInModal, setStockInModal] = useState<{ item: InventoryItem } | null>(null);
     const [stockInForm, setStockInForm] = useState<StockInForm | null>(null);
+    const [priceModal, setPriceModal] = useState<{ item: InventoryItem } | null>(null);
+    const [priceForm, setPriceForm] = useState<PriceChangeForm | null>(null);
 
     // ── Summary calculations ──────────────────────────────────────────────────
     const totalStockValue = computeInventoryValue(inventory);
@@ -268,6 +290,24 @@ export default function InventoryScreen() {
         showAlert('Stock In Recorded', `${qtyAdded} ${item.unit} added to ${item.name}.`);
     };
 
+    const openPriceChange = (item: InventoryItem) => {
+        setPriceModal({ item });
+        setPriceForm(emptyPriceChangeForm(item));
+    };
+
+    const confirmPriceChange = () => {
+        if (!priceModal || !priceForm) return;
+        const { item } = priceModal;
+        const newPrice = parseFloat(priceForm.newPrice);
+        if (isNaN(newPrice) || newPrice < 0) { showAlert('Validation', 'Enter a valid selling price.'); return; }
+        if (newPrice === item.sellingPrice) { showAlert('Validation', 'Enter a price different from the current one.'); return; }
+        const priceHistory = appendPriceChange(item, newPrice, priceForm.effectiveDate || new Date().toISOString().split('T')[0], priceForm.reason || undefined);
+        updateInventoryItem(item.id, { sellingPrice: newPrice, priceHistory });
+        setPriceModal(null);
+        setPriceForm(null);
+        showAlert('Price Updated', `${item.name} is now ${currency}${newPrice.toLocaleString()}/unit.`);
+    };
+
     // ── Stock colour helper ───────────────────────────────────────────────────
     const stockColor = (item: InventoryItem): string => {
         if (item.quantity <= item.lowStockThreshold) return Colors.expense;
@@ -391,6 +431,9 @@ export default function InventoryScreen() {
                                             </TouchableOpacity>
                                             <TouchableOpacity style={[styles.actionBtn, { backgroundColor: Colors.income }]} onPress={() => openSell(item)}>
                                                 <Text style={[styles.actionBtnText, { color: '#fff' }]}>Sell</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity style={styles.actionBtn} onPress={() => openPriceChange(item)}>
+                                                <Icon name="tag" size={14} color={Colors.textPrimary} />
                                             </TouchableOpacity>
                                             <TouchableOpacity style={styles.actionBtn} onPress={() => openEdit(item)}>
                                                 <Icon name="edit-2" size={14} color={Colors.textPrimary} />
@@ -983,6 +1026,107 @@ export default function InventoryScreen() {
                     })()}
                 </KeyboardAvoidingView>
             </Modal>
+
+            {/* ── Change Price Modal ────────────────────────────────────────────── */}
+            <Modal visible={!!priceModal} transparent animationType="slide" onRequestClose={() => { setPriceModal(null); setPriceForm(null); }}>
+                <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => { setPriceModal(null); setPriceForm(null); }} />
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.modalSheet, constrainSheetWidth && styles.modalSheetWide]}>
+                    <View style={styles.modalHandle} />
+                    <Text style={styles.modalTitle}>Change Price</Text>
+                    {priceModal && priceForm && (() => {
+                        const { item } = priceModal;
+                        const newPrice = parseFloat(priceForm.newPrice);
+                        const hasNewPrice = !isNaN(newPrice) && newPrice >= 0;
+                        const currentMargin = computeMarginPct(item.sellingPrice, item.costPrice);
+                        const newMargin = hasNewPrice ? computeMarginPct(newPrice, item.costPrice) : currentMargin;
+                        const belowCost = hasNewPrice && newPrice < item.costPrice;
+                        const history = [...(item.priceHistory ?? [])].reverse();
+
+                        return (
+                            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                                <Text style={{ color: Colors.textSecondary, marginBottom: 8 }}>
+                                    {item.name} — current price {currency}{item.sellingPrice.toLocaleString()}/unit
+                                </Text>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder={`New selling price (${currency})`}
+                                    placeholderTextColor={Colors.textMuted}
+                                    keyboardType="decimal-pad"
+                                    value={priceForm.newPrice}
+                                    onChangeText={v => setPriceForm(f => f && ({ ...f, newPrice: v }))}
+                                />
+                                <DateInput value={priceForm.effectiveDate} onChange={v => setPriceForm(f => f && ({ ...f, effectiveDate: v }))} />
+
+                                <Text style={[styles.discountLabel, { marginTop: Spacing.md }]}>Reason (optional)</Text>
+                                <View style={styles.reasonWrap}>
+                                    {PRICE_CHANGE_REASONS.map(r => (
+                                        <TouchableOpacity
+                                            key={r}
+                                            style={[styles.reasonPill, priceForm.reason === r && styles.reasonPillActive]}
+                                            onPress={() => setPriceForm(f => f && ({ ...f, reason: f.reason === r ? '' : r }))}
+                                        >
+                                            <Text style={[styles.reasonPillText, priceForm.reason === r && styles.reasonPillTextActive]}>{r}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+
+                                {hasNewPrice && (
+                                    <View style={styles.previewCard}>
+                                        <View style={styles.previewRow}>
+                                            <Text style={styles.previewLabel}>Current margin</Text>
+                                            <Text style={[styles.previewVal, { color: marginColor(currentMargin) }]}>{currentMargin.toFixed(1)}%</Text>
+                                        </View>
+                                        <View style={[styles.previewRow, styles.previewBorderTop]}>
+                                            <Text style={[styles.previewLabel, { fontWeight: '700', color: Colors.textPrimary }]}>New margin</Text>
+                                            <Text style={[styles.previewVal, { fontWeight: '700', color: marginColor(newMargin) }]}>{newMargin.toFixed(1)}%</Text>
+                                        </View>
+                                    </View>
+                                )}
+
+                                {belowCost && (
+                                    <View style={[styles.marginPreview, { borderColor: Colors.expense }]}>
+                                        <View style={styles.marginPreviewNoteRow}>
+                                            <Icon name="alert-triangle" size={12} color={Colors.expense} />
+                                            <Text style={[styles.marginPreviewNote, { color: Colors.expense }]}>
+                                                This price is below cost ({currency}{item.costPrice.toLocaleString()}/unit) — every sale at this price loses money. You can still set it if that's correct.
+                                            </Text>
+                                        </View>
+                                    </View>
+                                )}
+
+                                {history.length > 0 && (
+                                    <View style={styles.previewCard}>
+                                        <Text style={[styles.discountLabel, { marginBottom: 8 }]}>Price History</Text>
+                                        <View style={styles.historyHeaderRow}>
+                                            <Text style={[styles.historyCell, styles.historyHeaderText, { flex: 1.2 }]}>Date</Text>
+                                            <Text style={[styles.historyCell, styles.historyHeaderText]}>Price</Text>
+                                            <Text style={[styles.historyCell, styles.historyHeaderText]}>Cost</Text>
+                                            <Text style={[styles.historyCell, styles.historyHeaderText]}>Margin</Text>
+                                        </View>
+                                        {history.map((h, i) => (
+                                            <View key={`${h.date}-${i}`} style={styles.historyRow}>
+                                                <Text style={[styles.historyCell, { flex: 1.2, color: Colors.textSecondary }]}>{h.date}</Text>
+                                                <Text style={styles.historyCell}>{currency}{h.sellingPrice.toLocaleString()}</Text>
+                                                <Text style={styles.historyCell}>{currency}{h.costPrice.toLocaleString()}</Text>
+                                                <Text style={[styles.historyCell, { color: marginColor(computeMarginPct(h.sellingPrice, h.costPrice)) }]}>
+                                                    {computeMarginPct(h.sellingPrice, h.costPrice).toFixed(1)}%
+                                                </Text>
+                                            </View>
+                                        ))}
+                                    </View>
+                                )}
+
+                                <TouchableOpacity style={styles.submitBtn} onPress={confirmPriceChange}>
+                                    <Text style={styles.submitBtnText}>Confirm Price Change</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.cancelBtn} onPress={() => { setPriceModal(null); setPriceForm(null); }}>
+                                    <Text style={styles.cancelBtnText}>Cancel</Text>
+                                </TouchableOpacity>
+                            </ScrollView>
+                        );
+                    })()}
+                </KeyboardAvoidingView>
+            </Modal>
         </SafeAreaView>
     );
 }
@@ -1111,6 +1255,17 @@ const styles = StyleSheet.create({
     discountTypePillActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
     discountTypePillText:       { fontSize: 12, fontWeight: '600', color: Colors.textSecondary },
     discountTypePillTextActive: { color: '#fff' },
+
+    reasonWrap:      { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: Spacing.md },
+    reasonPill:          { borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, paddingHorizontal: 12, paddingVertical: 7 },
+    reasonPillActive:    { backgroundColor: Colors.primary, borderColor: Colors.primary },
+    reasonPillText:      { fontSize: 12, color: Colors.textSecondary },
+    reasonPillTextActive:{ color: '#fff', fontWeight: '600' },
+
+    historyHeaderRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: Colors.border, paddingBottom: 6, marginBottom: 4 },
+    historyHeaderText:{ fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase' as const, fontSize: 10 },
+    historyRow:       { flexDirection: 'row', paddingVertical: 5 },
+    historyCell:      { flex: 1, fontSize: 12, color: Colors.textPrimary },
 
     previewCard:        { backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: 10, padding: Spacing.md, marginBottom: Spacing.md },
     previewRow:      { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 },

@@ -370,6 +370,22 @@ export interface InventoryItem {
     supplier?: string; // most recent supplier this item was bought from
     createdAt: string;
     updatedAt: string;
+    // Every deliberate selling-price change (via Inventory's "Change Price"
+    // action, not a plain Edit), oldest first. costPrice on each entry is
+    // the cost AT THAT TIME -- price changes never touch cost, so this is
+    // what makes each entry's margin honest even after costPrice has since
+    // moved on via later Stock In purchases. The item's original price is
+    // backfilled as the first entry the first time a price change is made,
+    // so the table shows "where pricing started" too, not just changes
+    // made after this feature shipped.
+    priceHistory?: PriceHistoryEntry[];
+}
+
+export interface PriceHistoryEntry {
+    date: string;        // ISO date, effective from
+    sellingPrice: number;
+    costPrice: number;    // cost at the time of this price change
+    reason?: string;
 }
 
 export interface TeamMember {
