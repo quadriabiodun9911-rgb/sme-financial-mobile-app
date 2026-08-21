@@ -44,6 +44,12 @@ export const FEATURE_INDEX: FeatureEntry[] = [
         screen: 'macro-assumptions',
     },
     {
+        id: 'future-events', label: 'Known Future Events', icon: '📅',
+        description: 'Add planned expansions, hires, contracts or equipment purchases so the forecast places them in the right month',
+        keywords: ['future events', 'known future events', 'planned expansion', 'new hire', 'new branch', 'equipment purchase', 'signed contract', 'upcoming plans'],
+        screen: 'future-events',
+    },
+    {
         id: 'pricing-optimizer', label: 'Pricing Optimization', icon: '💰',
         description: 'Model price increases, cost cuts, their effect on profit, and the price increase needed to protect margin after a cost rise',
         keywords: ['price', 'margin', 'profit per customer', 'scenario', 'cost increase', 'price adjustment', 'inflation'],

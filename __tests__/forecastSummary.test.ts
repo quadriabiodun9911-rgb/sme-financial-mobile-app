@@ -1,4 +1,4 @@
-import { computeForecastSummary, computeCashFlowForecastMonths, describeCashFlowPressure } from '../src/utils/forecastSummary';
+import { computeForecastSummary, computeCashFlowForecastMonths, describeCashFlowPressure, computeDetectedRevenueGrowthPctPerMonth } from '../src/utils/forecastSummary';
 import { buildFutureFinancialStatements, NO_ADJUSTMENTS, ForecastAdjustments } from '../src/utils/futureFinancialStatements';
 import { Transaction, FinanceData } from '../src/types';
 
@@ -216,5 +216,48 @@ describe('describeCashFlowPressure', () => {
         const month2 = cashFlowMonths[1];
         expect(month2.pressured).toBe(true);
         expect(describeCashFlowPressure(month2)).toContain('loan repayment');
+    });
+});
+
+describe('computeDetectedRevenueGrowthPctPerMonth', () => {
+    it('returns 0 for flat revenue across recent buckets', () => {
+        const buckets = [{ revenue: 1000000 }, { revenue: 1000000 }, { revenue: 1000000 }];
+        expect(computeDetectedRevenueGrowthPctPerMonth(buckets)).toBeCloseTo(0, 5);
+    });
+
+    it('returns a compounding per-month rate, not a cumulative first-vs-last percentage', () => {
+        // 1,000,000 -> 1,210,000 over 2 one-month gaps is +10%/mo compounding
+        // (1.1^2 = 1.21), NOT the cumulative +21% a naive first-vs-last read
+        // would suggest -- the whole point of this function over a simpler
+        // one.
+        const buckets = [{ revenue: 1000000 }, { revenue: 1100000 }, { revenue: 1210000 }];
+        expect(computeDetectedRevenueGrowthPctPerMonth(buckets)).toBeCloseTo(10, 5);
+    });
+
+    it('returns null with fewer than 2 buckets', () => {
+        expect(computeDetectedRevenueGrowthPctPerMonth([{ revenue: 1000000 }])).toBeNull();
+        expect(computeDetectedRevenueGrowthPctPerMonth([])).toBeNull();
+    });
+
+    it('returns null when the first or last bucket has no revenue to compute a rate from', () => {
+        expect(computeDetectedRevenueGrowthPctPerMonth([{ revenue: 0 }, { revenue: 500000 }])).toBeNull();
+        expect(computeDetectedRevenueGrowthPctPerMonth([{ revenue: 500000 }, { revenue: 0 }])).toBeNull();
+    });
+});
+
+describe('computeForecastSummary.detectedRevenueGrowthPctPerMonth', () => {
+    it('is null when there is no recorded history at all', () => {
+        const result = computeForecastSummary([], [], finance, '30d');
+        expect(result.detectedRevenueGrowthPctPerMonth).toBeNull();
+    });
+
+    it('reflects real growth in the recent monthly buckets', () => {
+        const txs: Transaction[] = [];
+        for (const [m, amt] of [['2026-05', 1000000], ['2026-06', 1100000], ['2026-07', 1210000]] as [string, number][]) {
+            txs.push(makeTx({ date: `${m}-01`, type: 'income', category: 'Sales', amount: amt }));
+            txs.push(makeTx({ date: `${m}-01`, type: 'expense', category: 'Rent', amount: 100000 }));
+        }
+        const result = computeForecastSummary(txs, [], finance, '30d');
+        expect(result.detectedRevenueGrowthPctPerMonth).toBeCloseTo(10, 0);
     });
 });

@@ -1,5 +1,28 @@
 import { buildFutureFinancialStatements, NO_ADJUSTMENTS, ForecastAdjustments } from '../src/utils/futureFinancialStatements';
-import { Transaction, FinanceData, MacroAssumption } from '../src/types';
+import { Transaction, FinanceData, MacroAssumption, FutureEvent } from '../src/types';
+
+// A date string exactly `n` whole calendar months from today, on the 1st --
+// matches monthsAheadFromToday's own (year*12+month) arithmetic exactly,
+// so an event dated monthsFromNowDate(3) always lands as startMonth 3
+// regardless of what day of the month the tests happen to run on.
+const monthsFromNowDate = (n: number): string => {
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() + n);
+    return d.toISOString().slice(0, 10);
+};
+
+const makeFutureEvent = (overrides: Partial<FutureEvent>): FutureEvent => ({
+    id: `fe-${Math.random()}`,
+    label: 'Test event',
+    category: 'other',
+    amount: 100000,
+    direction: 'outflow',
+    recurring: false,
+    date: monthsFromNowDate(1),
+    createdAt: '2026-01-01T00:00:00.000Z',
+    ...overrides,
+});
 
 const makeTx = (overrides: Partial<Transaction>): Transaction => ({
     id: `tx-${Math.random()}`,
@@ -166,5 +189,78 @@ describe('buildFutureFinancialStatements — What If? levers', () => {
         // 40000 -- equity is unaffected by the purchase itself.
         expect(withPurchase.months[0].otherAssets).toBeCloseTo(baseline.months[0].otherAssets + 40000, 0);
         expect(withPurchase.months[0].equity).toBeCloseTo(baseline.months[0].equity, 0);
+    });
+});
+
+describe('buildFutureFinancialStatements — Known Future Events', () => {
+    it('applies a recurring outflow (e.g. a new hire) starting only from its own start month onward', () => {
+        const event = makeFutureEvent({ direction: 'outflow', recurring: true, amount: 50000, date: monthsFromNowDate(2) });
+        const baseline = buildFutureFinancialStatements(txsWithFlatCosts(), [], finance, NO_ADJUSTMENTS, 4, [], [], []);
+        const withEvent = buildFutureFinancialStatements(txsWithFlatCosts(), [], finance, NO_ADJUSTMENTS, 4, [], [], [event]);
+
+        expect(withEvent.months[0].operatingExpenses).toBeCloseTo(baseline.months[0].operatingExpenses, 0); // month 1: not yet started
+        expect(withEvent.months[1].operatingExpenses).toBeCloseTo(baseline.months[1].operatingExpenses + 50000, 0); // month 2: starts
+        expect(withEvent.months[2].operatingExpenses).toBeCloseTo(baseline.months[2].operatingExpenses + 50000, 0); // month 3: still active
+        expect(withEvent.months[1].profit).toBeCloseTo(baseline.months[1].profit - 50000, 0);
+    });
+
+    it('applies a recurring inflow (e.g. a new recurring contract) starting only from its own start month onward', () => {
+        const event = makeFutureEvent({ direction: 'inflow', recurring: true, amount: 80000, date: monthsFromNowDate(3) });
+        const baseline = buildFutureFinancialStatements(txsWithFlatCosts(), [], finance, NO_ADJUSTMENTS, 4, [], [], []);
+        const withEvent = buildFutureFinancialStatements(txsWithFlatCosts(), [], finance, NO_ADJUSTMENTS, 4, [], [], [event]);
+
+        expect(withEvent.months[1].revenue).toBeCloseTo(baseline.months[1].revenue, 0); // month 2: not yet started
+        expect(withEvent.months[2].revenue).toBeCloseTo(baseline.months[2].revenue + 80000, 0); // month 3: starts
+        expect(withEvent.months[3].revenue).toBeCloseTo(baseline.months[3].revenue + 80000, 0); // month 4: still active
+    });
+
+    it('applies a one-time outflow (e.g. equipment) only in its exact month, moving it into otherAssets from that month on -- not expenses, not earlier months', () => {
+        const event = makeFutureEvent({ label: 'Equipment purchase', category: 'equipment', direction: 'outflow', recurring: false, amount: 500000, date: monthsFromNowDate(2) });
+        const baseline = buildFutureFinancialStatements(txsWithFlatCosts(), [], finance, NO_ADJUSTMENTS, 3, [], [], []);
+        const withEvent = buildFutureFinancialStatements(txsWithFlatCosts(), [], finance, NO_ADJUSTMENTS, 3, [], [], [event]);
+
+        expect(withEvent.months[0].investingCashFlow).toBe(0); // month 1: too early
+        expect(withEvent.months[1].investingCashFlow).toBe(-500000); // month 2: the purchase
+        expect(withEvent.months[2].investingCashFlow).toBe(0); // month 3: one-time, doesn't repeat
+
+        // Doesn't touch P&L at all.
+        expect(withEvent.months[1].operatingExpenses).toBeCloseTo(baseline.months[1].operatingExpenses, 0);
+        expect(withEvent.months[1].profit).toBeCloseTo(baseline.months[1].profit, 0);
+
+        // otherAssets only picks it up from month 2 onward, not retroactively in month 1.
+        expect(withEvent.months[0].otherAssets).toBeCloseTo(baseline.months[0].otherAssets, 0);
+        expect(withEvent.months[1].otherAssets).toBeCloseTo(baseline.months[1].otherAssets + 500000, 0);
+        expect(withEvent.months[2].otherAssets).toBeCloseTo(baseline.months[2].otherAssets + 500000, 0);
+
+        // Balance sheet identity holds -- cash down, otherAssets up, equity unaffected by the purchase itself.
+        expect(withEvent.months[1].equity).toBeCloseTo(baseline.months[1].equity, 0);
+    });
+
+    it('applies a one-time inflow (e.g. a lump-sum contract payment) as a pure cash gain that raises equity', () => {
+        const event = makeFutureEvent({ label: 'Contract payment', category: 'contract', direction: 'inflow', recurring: false, amount: 800000, date: monthsFromNowDate(1) });
+        const baseline = buildFutureFinancialStatements(txsWithFlatCosts(), [], finance, NO_ADJUSTMENTS, 2, [], [], []);
+        const withEvent = buildFutureFinancialStatements(txsWithFlatCosts(), [], finance, NO_ADJUSTMENTS, 2, [], [], [event]);
+
+        expect(withEvent.months[0].investingCashFlow).toBe(800000);
+        expect(withEvent.months[0].endingCash).toBeCloseTo(baseline.months[0].endingCash + 800000, 0);
+        // No offsetting asset entry for an inflow -- it's a genuine gain, so equity rises with it.
+        expect(withEvent.months[0].otherAssets).toBeCloseTo(baseline.months[0].otherAssets, 0);
+        expect(withEvent.months[0].equity).toBeCloseTo(baseline.months[0].equity + 800000, 0);
+    });
+
+    it('only includes events that actually fall within the projected horizon, with the correct start month', () => {
+        const withinHorizon = makeFutureEvent({ label: 'Within horizon', date: monthsFromNowDate(2) });
+        const beyondHorizon = makeFutureEvent({ label: 'Beyond horizon', date: monthsFromNowDate(10) });
+        const result = buildFutureFinancialStatements(txsWithFlatCosts(), [], finance, NO_ADJUSTMENTS, 3, [], [], [withinHorizon, beyondHorizon]);
+
+        expect(result.includedFutureEvents).toHaveLength(1);
+        expect(result.includedFutureEvents[0].label).toBe('Within horizon');
+        expect(result.includedFutureEvents[0].startMonth).toBe(2);
+    });
+
+    it('clamps a past-due or current-month event to start month 1 rather than dropping it', () => {
+        const pastDue = makeFutureEvent({ date: '2020-01-01' });
+        const result = buildFutureFinancialStatements(txsWithFlatCosts(), [], finance, NO_ADJUSTMENTS, 2, [], [], [pastDue]);
+        expect(result.includedFutureEvents[0].startMonth).toBe(1);
     });
 });

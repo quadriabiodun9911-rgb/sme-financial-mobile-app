@@ -23,7 +23,7 @@
  * guarantee — the UI must keep saying so.
  */
 
-import { Transaction, Loan, FinanceData, StaffMember, MacroAssumption } from '../types';
+import { Transaction, Loan, FinanceData, StaffMember, MacroAssumption, FutureEvent } from '../types';
 import { computeWorkingCapitalMetrics } from './finance';
 import { computeAllTimeMonthlyBuckets } from './trendAnalysis';
 import { monthlyPayment, outstandingLoanBalance } from './loanMath';
@@ -104,7 +104,19 @@ export interface FutureFinancialStatements {
     riskAdjustedCategoryGrowthPct: number;      // its observed growth rate over riskAdjustedCategoryWindowMonths
     riskAdjustedCategoryWindowMonths: number;   // the window that growth rate applies to, so a caller can recompute the projection at any horizon
     riskAdjustedCategoryInsight: ExternalRiskInsight | null; // set when a macro assumption is linked and corroborated
+    includedFutureEvents: (FutureEvent & { startMonth: number })[]; // every Known Future Event that actually falls within this horizon, so the UI can show what's already baked in
     months: ProjectedMonth[];
+}
+
+// How many months ahead of today an event's date falls -- month 1 is the
+// nearest projected month (same convention forecastSummary.ts's
+// calendarMonthLabel uses), clamped to at least 1 so a past-due or
+// current-month event still lands somewhere in the projection rather than
+// vanishing.
+function monthsAheadFromToday(dateStr: string, today: Date = new Date()): number {
+    const d = new Date(`${dateStr}T00:00:00`);
+    const monthsAhead = (d.getFullYear() * 12 + d.getMonth()) - (today.getFullYear() * 12 + today.getMonth());
+    return Math.max(1, monthsAhead);
 }
 
 // Standard amortizing-loan monthly step: interest on the balance, the rest
@@ -133,6 +145,7 @@ export function buildFutureFinancialStatements(
     horizonMonths: number = 12,
     staff: StaffMember[] = [],
     macroAssumptions: MacroAssumption[] = [],
+    futureEvents: FutureEvent[] = [],
 ): FutureFinancialStatements {
     const monthly = computeAllTimeMonthlyBuckets(transactions);
     const recentMonths = monthly.slice(-3);
@@ -220,6 +233,15 @@ export function buildFutureFinancialStatements(
 
     const months: ProjectedMonth[] = [];
 
+    // Each event's start month, computed once -- a recurring event applies
+    // from that month onward, a one-time event applies only in that exact
+    // month. Added on top of the compounding/discount-adjusted baseline
+    // (not blended into it), since a known future contract or hire isn't
+    // part of the organic trend those levers model.
+    const eventsWithStartMonth = futureEvents.map(ev => ({ ...ev, startMonth: monthsAheadFromToday(ev.date) }));
+    const includedFutureEvents = eventsWithStartMonth.filter(ev => ev.startMonth <= horizonMonths);
+    let cumulativeOneOffEventOutflowAssets = 0;
+
     // A flatter haircut than the compounding growth rate above -- every
     // month's revenue takes the same proportional discount hit, rather than
     // one that widens (or narrows) over the horizon the way compounding
@@ -228,7 +250,22 @@ export function buildFutureFinancialStatements(
     const discountMultiplier = Math.max(0, 1 - adjustments.discountPctChange / 100);
 
     for (let m = 1; m <= horizonMonths; m++) {
-        const revenue = baselineMonthlyRevenue * Math.pow(1 + adjustments.revenueGrowthPctPerMonth / 100, m) * discountMultiplier;
+        // Known Future Events active this month -- a recurring event
+        // contributes every month from its start month onward; a one-time
+        // event contributes only in its exact start month.
+        let eventRevenue = 0, eventExpense = 0, eventOneTimeInflow = 0, eventOneTimeOutflow = 0;
+        for (const ev of eventsWithStartMonth) {
+            if (ev.recurring) {
+                if (m < ev.startMonth) continue;
+                if (ev.direction === 'inflow') eventRevenue += ev.amount; else eventExpense += ev.amount;
+            } else {
+                if (m !== ev.startMonth) continue;
+                if (ev.direction === 'inflow') eventOneTimeInflow += ev.amount; else eventOneTimeOutflow += ev.amount;
+            }
+        }
+        cumulativeOneOffEventOutflowAssets += eventOneTimeOutflow;
+
+        const revenue = baselineMonthlyRevenue * Math.pow(1 + adjustments.revenueGrowthPctPerMonth / 100, m) * discountMultiplier + eventRevenue;
         // The at-risk category compounds at its own observed pace (per
         // costExposureWindowMonths, not per single month — spendGrowthPct is
         // defined over that window) instead of being smoothed into the flat
@@ -238,9 +275,9 @@ export function buildFutureFinancialStatements(
         const operatingExpenses = riskAdjustedCategory
             ? restOfExpenseBaseline * Math.pow(1 + adjustments.expenseGrowthPctPerMonth / 100, m)
                 + riskAdjustedCategoryMonthlySpend * Math.pow(1 + riskAdjustedCategoryGrowthPct / 100, m / costExposureWindowMonths)
-                + adjustments.oneOffMonthlyCostAdd + payrollGapIncluded
+                + adjustments.oneOffMonthlyCostAdd + payrollGapIncluded + eventExpense
             : baselineMonthlyExpense * Math.pow(1 + adjustments.expenseGrowthPctPerMonth / 100, m)
-                + adjustments.oneOffMonthlyCostAdd + payrollGapIncluded;
+                + adjustments.oneOffMonthlyCostAdd + payrollGapIncluded + eventExpense;
         const profit = revenue - operatingExpenses;
         const profitMargin = revenue > 0 ? (profit / revenue) * 100 : 0;
 
@@ -278,9 +315,17 @@ export function buildFutureFinancialStatements(
         // A one-time extra stock buy, drawn down at month 1 — cash converts
         // into inventory, so it leaves cash but isn't an operating expense
         // (unlike a recurring cost, it doesn't touch profit) and isn't loan
-        // financing either, hence its own investingCashFlow line.
-        const investingCashFlow = m === 1 ? -adjustments.oneOffInventoryPurchase : 0;
-        const monthOtherAssets = otherAssets + adjustments.oneOffInventoryPurchase;
+        // financing either, hence its own investingCashFlow line. One-time
+        // Future Events share the same treatment: an outflow (e.g.
+        // equipment) swaps cash for another asset rather than reducing
+        // equity, so it accumulates into otherAssets from its own month
+        // onward, not retroactively into earlier months. A one-time inflow
+        // (e.g. a lump-sum contract payment) has no offsetting asset --
+        // it's a genuine cash gain, so it's left to raise equity like any
+        // other windfall this simplified model doesn't route through a P&L
+        // line.
+        const investingCashFlow = (m === 1 ? -adjustments.oneOffInventoryPurchase : 0) + eventOneTimeInflow - eventOneTimeOutflow;
+        const monthOtherAssets = otherAssets + adjustments.oneOffInventoryPurchase + cumulativeOneOffEventOutflowAssets;
 
         const netCashChange = operatingCashFlow + financingCashFlow + investingCashFlow;
         cash += netCashChange;
@@ -311,6 +356,7 @@ export function buildFutureFinancialStatements(
         knownPayables: wc.accountsPayable, knownReceivables: wc.accountsReceivable, existingLoanMonthlyPayment,
         riskAdjustedCategory, riskAdjustedCategoryMonthlySpend, riskAdjustedCategoryGrowthPct,
         riskAdjustedCategoryWindowMonths: costExposureWindowMonths, riskAdjustedCategoryInsight,
+        includedFutureEvents,
         months,
     };
 }

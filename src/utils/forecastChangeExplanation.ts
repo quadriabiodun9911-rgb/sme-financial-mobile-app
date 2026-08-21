@@ -21,7 +21,7 @@
  * most common levers a user actually adjusts.
  */
 
-import { Transaction, Loan, FinanceData, StaffMember, MacroAssumption, InventoryItem } from '../types';
+import { Transaction, Loan, FinanceData, StaffMember, MacroAssumption, InventoryItem, FutureEvent } from '../types';
 import { ForecastAdjustments, NO_ADJUSTMENTS } from './futureFinancialStatements';
 import { computeForecastSummary, ForecastPeriod } from './forecastSummary';
 
@@ -54,9 +54,10 @@ export function explainForecastChange(
     macroAssumptions: MacroAssumption[],
     adjustments: ForecastAdjustments,
     inventory: InventoryItem[],
+    futureEvents: FutureEvent[] = [],
 ): ForecastChangeExplanation {
     const summarize = (adj: ForecastAdjustments) =>
-        computeForecastSummary(transactions, loans, finance, period, staff, macroAssumptions, adj, inventory).headline.expectedCashPosition;
+        computeForecastSummary(transactions, loans, finance, period, staff, macroAssumptions, adj, inventory, futureEvents).headline.expectedCashPosition;
 
     const baselineCash = summarize(NO_ADJUSTMENTS);
     let running: ForecastAdjustments = { ...NO_ADJUSTMENTS };

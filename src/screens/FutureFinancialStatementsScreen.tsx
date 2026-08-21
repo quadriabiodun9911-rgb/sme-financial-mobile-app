@@ -81,29 +81,30 @@ export default function FutureFinancialStatementsScreen() {
     const hasAdjustments = JSON.stringify(adjustments) !== JSON.stringify(NO_ADJUSTMENTS);
 
     const macroAssumptions = settings.macroAssumptions ?? [];
+    const futureEvents = settings.futureEvents ?? [];
     const forecast = useMemo(
-        () => buildFutureFinancialStatements(transactions, loans, finance, adjustments, horizon, staff, macroAssumptions),
-        [transactions, loans, finance, adjustments, horizon, staff, macroAssumptions],
+        () => buildFutureFinancialStatements(transactions, loans, finance, adjustments, horizon, staff, macroAssumptions, futureEvents),
+        [transactions, loans, finance, adjustments, horizon, staff, macroAssumptions, futureEvents],
     );
     const baseline = useMemo(
-        () => buildFutureFinancialStatements(transactions, loans, finance, NO_ADJUSTMENTS, horizon, staff, macroAssumptions),
-        [transactions, loans, finance, horizon, staff, macroAssumptions],
+        () => buildFutureFinancialStatements(transactions, loans, finance, NO_ADJUSTMENTS, horizon, staff, macroAssumptions, futureEvents),
+        [transactions, loans, finance, horizon, staff, macroAssumptions, futureEvents],
     );
     // Headline summary + revenue/expense/profit breakdowns, driven by the
     // same adjustments as the detailed statements below but on the
     // shorter, glance-friendly 30/60/90-day/12-month periods this section
     // is framed around, rather than the 6/12-month statement horizon.
     const forecastSummary = useMemo(
-        () => computeForecastSummary(transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory),
-        [transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory],
+        () => computeForecastSummary(transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory, futureEvents),
+        [transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory, futureEvents],
     );
     // The same short period with no what-if levers applied, purely so the
     // What If? card can show "vs. no changes" next to the scenario numbers
     // above -- without this, a user would have to reset every input by
     // hand to see what they're being compared against.
     const noAdjustmentsSummary = useMemo(
-        () => computeForecastSummary(transactions, loans, finance, forecastPeriod, staff, macroAssumptions, NO_ADJUSTMENTS, inventory),
-        [transactions, loans, finance, forecastPeriod, staff, macroAssumptions, inventory],
+        () => computeForecastSummary(transactions, loans, finance, forecastPeriod, staff, macroAssumptions, NO_ADJUSTMENTS, inventory, futureEvents),
+        [transactions, loans, finance, forecastPeriod, staff, macroAssumptions, inventory, futureEvents],
     );
     // Real, corroborated external pressure (from the same Macro
     // Assumptions the External Factors panel below reads) folds into the
@@ -122,12 +123,12 @@ export default function FutureFinancialStatementsScreen() {
     // the rest of the screen. "Expected" is forecastSummary itself, not a
     // fourth computation, so it can never drift from the headline above.
     const conservativeSummary = useMemo(
-        () => computeForecastSummary(transactions, loans, finance, forecastPeriod, staff, macroAssumptions, scenarioAdjustments(adjustments, 'conservative', externalStress), inventory),
-        [transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory, externalStress],
+        () => computeForecastSummary(transactions, loans, finance, forecastPeriod, staff, macroAssumptions, scenarioAdjustments(adjustments, 'conservative', externalStress), inventory, futureEvents),
+        [transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory, externalStress, futureEvents],
     );
     const optimisticSummary = useMemo(
-        () => computeForecastSummary(transactions, loans, finance, forecastPeriod, staff, macroAssumptions, scenarioAdjustments(adjustments, 'optimistic', externalStress), inventory),
-        [transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory, externalStress],
+        () => computeForecastSummary(transactions, loans, finance, forecastPeriod, staff, macroAssumptions, scenarioAdjustments(adjustments, 'optimistic', externalStress), inventory, futureEvents),
+        [transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory, externalStress, futureEvents],
     );
     const scenarioRange = useMemo(() => [
         summarizeScenario(conservativeSummary, 'conservative', 'Conservative', '🔴'),
@@ -139,8 +140,8 @@ export default function FutureFinancialStatementsScreen() {
     // the cash-position delta the "If this happens" card above already
     // shows, rather than a second, hand-derived estimate.
     const changeExplanation = useMemo(
-        () => explainForecastChange(transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory),
-        [transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory],
+        () => explainForecastChange(transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory, futureEvents),
+        [transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory, futureEvents],
     );
 
     const notEnoughData = forecast.baselineMonthsUsed === 0;
@@ -299,6 +300,17 @@ export default function FutureFinancialStatementsScreen() {
                                         over the next {PERIOD_LABELS[forecastPeriod].toLowerCase()}, based on your recent sales trend.
                                     </Text>
                                     <Text style={s.confidenceText}>Forecast confidence: {forecastSummary.confidencePct}%</Text>
+                                </View>
+                            )}
+                            {forecastSummary.detectedRevenueGrowthPctPerMonth != null && Math.abs(forecastSummary.detectedRevenueGrowthPctPerMonth - (parseFloat(revenueGrowth) || 0)) >= 1 && (
+                                <View style={s.detectedTrendRow}>
+                                    <Text style={s.detectedTrendText}>
+                                        📈 Detected trend: sales have moved about {forecastSummary.detectedRevenueGrowthPctPerMonth >= 0 ? '+' : ''}{forecastSummary.detectedRevenueGrowthPctPerMonth.toFixed(1)}%/mo recently.
+                                        Not applied automatically — you decide.
+                                    </Text>
+                                    <TouchableOpacity onPress={() => setRevenueGrowth(forecastSummary.detectedRevenueGrowthPctPerMonth!.toFixed(1))}>
+                                        <Text style={s.detectedTrendLink}>Apply to Sales change →</Text>
+                                    </TouchableOpacity>
                                 </View>
                             )}
                         </View>
@@ -504,6 +516,49 @@ export default function FutureFinancialStatementsScreen() {
                                             <Text style={s.insightBoxText}>{forecastSummary.externalFactors.summarySentence}</Text>
                                         </View>
                                     )}
+                                </>
+                            )}
+                        </View>
+
+                        {/* Known Future Events */}
+                        <View style={s.card}>
+                            <Text style={s.cardTitle}>📅 Known Future Events</Text>
+                            {futureEvents.length === 0 ? (
+                                <>
+                                    <Text style={s.baselineNote}>
+                                        A new branch, a hire, a signed contract, an equipment purchase — plans you
+                                        already know about aren't in your transaction history yet. Add one so this
+                                        forecast can place it in the right month.
+                                    </Text>
+                                    <TouchableOpacity onPress={() => navigate('future-events')}>
+                                        <Text style={s.aiCardLink}>Add a Known Future Event →</Text>
+                                    </TouchableOpacity>
+                                </>
+                            ) : forecastSummary.includedFutureEvents.length === 0 ? (
+                                <Text style={s.baselineNote}>
+                                    You have {futureEvents.length} event{futureEvents.length === 1 ? '' : 's'} saved, but none fall within this {PERIOD_LABELS[forecastPeriod].toLowerCase()} window.
+                                </Text>
+                            ) : (
+                                <>
+                                    <Text style={s.baselineNote}>
+                                        Already factored into the numbers below, landing in the month you specified.
+                                    </Text>
+                                    {forecastSummary.includedFutureEvents.map(ev => (
+                                        <View key={ev.id} style={s.factorRow}>
+                                            <View style={s.factorHeaderRow}>
+                                                <Text style={s.factorLabel}>{ev.label}</Text>
+                                                <Text style={[s.factorBadgeText, { color: ev.direction === 'inflow' ? Colors.income : Colors.expense }]}>
+                                                    {ev.direction === 'inflow' ? '+' : '-'}{fmt(ev.amount)}{ev.recurring ? '/mo' : ''}
+                                                </Text>
+                                            </View>
+                                            <Text style={s.factorSentence}>
+                                                {ev.recurring ? 'Recurring from' : 'One-time in'} month {ev.startMonth} ({new Date(`${ev.date}T00:00:00`).toLocaleDateString()})
+                                            </Text>
+                                        </View>
+                                    ))}
+                                    <TouchableOpacity onPress={() => navigate('future-events')}>
+                                        <Text style={s.aiCardLink}>Manage Future Events →</Text>
+                                    </TouchableOpacity>
                                 </>
                             )}
                         </View>
@@ -795,6 +850,9 @@ const s = StyleSheet.create({
     insightBoxText: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18, marginBottom: 6 },
     confidenceText: { fontSize: 11.5, fontWeight: '600', color: Colors.textMuted },
     insightLine: { fontSize: 12.5, color: Colors.warning, lineHeight: 18, marginTop: Spacing.sm },
+    detectedTrendRow: { backgroundColor: Colors.surfaceVariant, borderRadius: Radius.md, padding: Spacing.md, marginTop: Spacing.sm },
+    detectedTrendText: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
+    detectedTrendLink: { fontSize: 12.5, fontWeight: '700', color: Colors.primary, marginTop: 6 },
     coverageInsightOk: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18, marginTop: Spacing.sm },
 
     healthScoreRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', marginBottom: Spacing.md },

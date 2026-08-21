@@ -431,6 +431,21 @@ export default function SettingsScreen() {
                             </TouchableOpacity>
                         </Section>
 
+                        <Section title="Known Future Events">
+                            <Text style={styles.hint}>
+                                Plans you already know about — a new branch, a hire, a signed contract, an equipment
+                                purchase — aren't in your transaction history yet. Add them so the forecast can
+                                place them in the right month, never applied silently.
+                            </Text>
+                            <TouchableOpacity style={styles.dataBtn} onPress={() => setCurrentScreen('future-events')}>
+                                <Text style={styles.dataBtnText}>
+                                    {(settings.futureEvents?.length ?? 0) > 0
+                                        ? `Manage Future Events (${settings.futureEvents!.length})`
+                                        : 'Add a Known Future Event'}
+                                </Text>
+                            </TouchableOpacity>
+                        </Section>
+
                         <Section title={t(language, 'language')}>
                             <View style={styles.optRow}>
                                 {LANGUAGES.map(l => (

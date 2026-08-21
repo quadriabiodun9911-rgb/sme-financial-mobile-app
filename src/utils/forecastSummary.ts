@@ -13,7 +13,7 @@
  * category split.
  */
 
-import { Transaction, Loan, FinanceData, StaffMember, MacroAssumption, InventoryItem } from '../types';
+import { Transaction, Loan, FinanceData, StaffMember, MacroAssumption, InventoryItem, FutureEvent } from '../types';
 import { buildFutureFinancialStatements, ForecastAdjustments, NO_ADJUSTMENTS, FutureFinancialStatements } from './futureFinancialStatements';
 import { computeAllTimeMonthlyBuckets } from './trendAnalysis';
 import { classifyExpenseLine } from './finance';
@@ -92,11 +92,30 @@ export interface ForecastSummary {
     externalFactors: ExternalFactorsPanel;
     riskRadar: RiskRadarRow[];
     combinedInsights: CombinedInsight[];
+    detectedRevenueGrowthPctPerMonth: number | null;
+    includedFutureEvents: (FutureEvent & { startMonth: number })[];
     confidencePct: number;
 }
 
 function monthLabel(y: number, m: number): string {
     return new Date(y, m - 1, 1).toLocaleString('default', { month: 'short' });
+}
+
+// A compounding per-month growth rate derived from the same recent
+// buckets the Revenue Forecast table already shows -- the correct rate to
+// pre-fill into the What If? "Sales change (%/mo)" field, as distinct
+// from a simple first-vs-last cumulative % (which overstates the monthly
+// rate whenever the buckets span more than one month gap). Never applied
+// automatically to the baseline forecast -- surfaced as a one-tap
+// suggestion only, the same "show it, let the owner decide" principle
+// Macro Assumptions already follows.
+export function computeDetectedRevenueGrowthPctPerMonth(recentBuckets: { revenue: number }[]): number | null {
+    if (recentBuckets.length < 2) return null;
+    const first = recentBuckets[0].revenue;
+    const last = recentBuckets[recentBuckets.length - 1].revenue;
+    if (first <= 0 || last <= 0) return null;
+    const gaps = recentBuckets.length - 1;
+    return (Math.pow(last / first, 1 / gaps) - 1) * 100;
 }
 
 function calendarMonthLabel(monthsFromNow: number): string {
@@ -175,9 +194,10 @@ export function computeForecastSummary(
     macroAssumptions: MacroAssumption[] = [],
     adjustments: ForecastAdjustments = NO_ADJUSTMENTS,
     inventory: InventoryItem[] = [],
+    futureEvents: FutureEvent[] = [],
 ): ForecastSummary {
     const monthsInPeriod = PERIOD_MONTHS[period];
-    const stmts = buildFutureFinancialStatements(transactions, loans, finance, adjustments, monthsInPeriod, staff, macroAssumptions);
+    const stmts = buildFutureFinancialStatements(transactions, loans, finance, adjustments, monthsInPeriod, staff, macroAssumptions, futureEvents);
     const months = stmts.months;
 
     const expectedRevenue = months.reduce((s, m) => s + m.revenue, 0);
@@ -270,6 +290,8 @@ export function computeForecastSummary(
         newLoanAmount: adjustments.newLoanAmount,
     });
 
+    const detectedRevenueGrowthPctPerMonth = computeDetectedRevenueGrowthPctPerMonth(recentBuckets);
+
     return {
         period, monthsInPeriod, baselineMonthsUsed: stmts.baselineMonthsUsed,
         headline: { expectedRevenue, expectedExpenses, expectedProfit, expectedCashPosition },
@@ -277,7 +299,8 @@ export function computeForecastSummary(
         profitBridge: { revenue: expectedRevenue, cogs, grossProfit, operatingExpenses, netProfit, forecastMarginPct, currentMarginPct, marginDeltaPct: forecastMarginPct - currentMarginPct },
         cashFlowMonths,
         discountTrend, marginRisk, inventoryForecast, healthForecast,
-        externalFactors, riskRadar, combinedInsights,
+        externalFactors, riskRadar, combinedInsights, detectedRevenueGrowthPctPerMonth,
+        includedFutureEvents: stmts.includedFutureEvents,
         confidencePct,
     };
 }

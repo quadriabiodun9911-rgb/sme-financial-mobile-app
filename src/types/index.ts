@@ -31,6 +31,7 @@ export type Screen =
     | 'business-passport'
     | 'scoreboard'
     | 'macro-assumptions'
+    | 'future-events'
     | 'financing-marketplace'
     | 'financing-admin'
     | 'contact'
@@ -280,6 +281,29 @@ export interface MacroAssumption {
     updatedAt: string;          // ISO date, so a stale assumption can be flagged
 }
 
+// A category label for a Known Future Event -- drives the icon/framing
+// used when listing it, purely cosmetic (the forecast math only cares
+// about direction/recurring/amount/date).
+export type FutureEventCategory = 'expansion' | 'hiring' | 'contract' | 'equipment' | 'marketing' | 'other';
+
+// Something the owner already knows is coming that historical transactions
+// can't predict -- a new branch, a new hire, a major contract, an
+// equipment purchase. Unlike a What If? adjustment (exploratory, screen-
+// local, never saved), a Known Future Event is a real plan the owner is
+// telling Quad360 about, so it persists like Macro Assumptions and is
+// always factored into the forecast rather than toggled on and off.
+export interface FutureEvent {
+    id: string;
+    label: string;                  // e.g. "New branch", "New employee — cashier", "Contract — Acme Corp"
+    category: FutureEventCategory;
+    amount: number;                 // magnitude in currency, always positive
+    direction: 'inflow' | 'outflow'; // whether this adds to cash/revenue or costs money
+    recurring: boolean;              // false = a one-time event (equipment purchase, a single contract payment); true = ongoing every month from `date` onward (a new hire's salary, a recurring contract)
+    date: string;                   // ISO date (YYYY-MM-DD) -- the month this is expected to start
+    note?: string;
+    createdAt: string;
+}
+
 export interface BusinessSettings {
     businessName?: string;
     businessType: 'product' | 'service' | 'both';
@@ -302,6 +326,7 @@ export interface BusinessSettings {
     nextTaxDeadline?: string;  // ISO date — next VAT/Corporation Tax (or local equivalent) filing deadline, used by Tax Filing Readiness
     legalEntityType?: LegalEntityType; // drives the generic compliance-obligations checklist on Tax Filing Readiness
     macroAssumptions?: MacroAssumption[]; // owner-entered external-factor beliefs, see MacroAssumption
+    futureEvents?: FutureEvent[]; // owner-entered known future plans, see FutureEvent
     // Asked once at onboarding (editable later in Settings) — the one thing
     // the owner said matters most right now. Only the values the app can
     // genuinely act on today are offered (see OnboardingChoiceScreen):
