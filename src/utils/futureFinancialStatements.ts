@@ -38,6 +38,9 @@ export interface ForecastAdjustments {
     newLoanAmount: number;             // drawn at month 1, 0 to skip
     newLoanAnnualRatePct: number;
     newLoanTermMonths: number;
+    discountPctChange: number;         // percentage points added to (or, negative, subtracted from) the average discount rate — a flat haircut on revenue every month, distinct in shape from compounding revenue growth
+    receivableDelayDays: number;       // extra days added to the business's own observed DSO — how much slower customers pay, can be negative to model faster collection
+    oneOffInventoryPurchase: number;   // a one-time extra stock buy at month 1 — a cash-to-inventory swap, not an expense, so it doesn't touch P&L
 }
 
 export const NO_ADJUSTMENTS: ForecastAdjustments = {
@@ -47,6 +50,9 @@ export const NO_ADJUSTMENTS: ForecastAdjustments = {
     newLoanAmount: 0,
     newLoanAnnualRatePct: 0,
     newLoanTermMonths: 0,
+    discountPctChange: 0,
+    receivableDelayDays: 0,
+    oneOffInventoryPurchase: 0,
 };
 
 export interface ProjectedMonth {
@@ -59,6 +65,7 @@ export interface ProjectedMonth {
     // Cash Flow Statement
     operatingCashFlow: number;
     financingCashFlow: number;
+    investingCashFlow: number; // the one-off inventory purchase, month 1 only — a cash-to-inventory swap, not an operating cost
     netCashChange: number;
     endingCash: number;
     // Balance Sheet
@@ -162,7 +169,7 @@ export function buildFutureFinancialStatements(
     const unpaidInventoryPurchases = transactions
         .filter(t => t.type === 'expense' && t.transactionCategory === 'purchase' && (t.status === 'pending' || t.status === 'overdue'))
         .reduce((s, t) => s + (t.amount ?? 0), 0);
-    const dsoMonths = wc.dso / 30;
+    const dsoMonths = Math.max(0, wc.dso + adjustments.receivableDelayDays) / 30;
     const dpoMonths = wc.dpo / 30;
 
     const activeLoans = loans.filter(l => (l.status ?? 'active') === 'active');
@@ -213,8 +220,15 @@ export function buildFutureFinancialStatements(
 
     const months: ProjectedMonth[] = [];
 
+    // A flatter haircut than the compounding growth rate above -- every
+    // month's revenue takes the same proportional discount hit, rather than
+    // one that widens (or narrows) over the horizon the way compounding
+    // growth does. Clamped so an entered discount swing can't push revenue
+    // negative.
+    const discountMultiplier = Math.max(0, 1 - adjustments.discountPctChange / 100);
+
     for (let m = 1; m <= horizonMonths; m++) {
-        const revenue = baselineMonthlyRevenue * Math.pow(1 + adjustments.revenueGrowthPctPerMonth / 100, m);
+        const revenue = baselineMonthlyRevenue * Math.pow(1 + adjustments.revenueGrowthPctPerMonth / 100, m) * discountMultiplier;
         // The at-risk category compounds at its own observed pace (per
         // costExposureWindowMonths, not per single month — spendGrowthPct is
         // defined over that window) instead of being smoothed into the flat
@@ -261,11 +275,18 @@ export function buildFutureFinancialStatements(
             financingCashFlow -= step.actualPayment;
         }
 
-        const netCashChange = operatingCashFlow + financingCashFlow;
+        // A one-time extra stock buy, drawn down at month 1 — cash converts
+        // into inventory, so it leaves cash but isn't an operating expense
+        // (unlike a recurring cost, it doesn't touch profit) and isn't loan
+        // financing either, hence its own investingCashFlow line.
+        const investingCashFlow = m === 1 ? -adjustments.oneOffInventoryPurchase : 0;
+        const monthOtherAssets = otherAssets + adjustments.oneOffInventoryPurchase;
+
+        const netCashChange = operatingCashFlow + financingCashFlow + investingCashFlow;
         cash += netCashChange;
 
         const loanBalance = loanStates.reduce((s, l) => s + l.balance, 0) + newLoanBalance;
-        const totalAssets = cash + receivables + otherAssets;
+        const totalAssets = cash + receivables + monthOtherAssets;
         const totalLiabilities = loanBalance + otherLiabilities;
         // Equity is the accounting identity (assets - liabilities), not
         // independently tracked — this forecast doesn't model owner draws,
@@ -276,8 +297,8 @@ export function buildFutureFinancialStatements(
         months.push({
             monthLabel: `Month ${m}`,
             revenue, operatingExpenses, profit, profitMargin,
-            operatingCashFlow, financingCashFlow, netCashChange, endingCash: cash,
-            receivables, payables, loanBalance, otherAssets, otherLiabilities,
+            operatingCashFlow, financingCashFlow, investingCashFlow, netCashChange, endingCash: cash,
+            receivables, payables, loanBalance, otherAssets: monthOtherAssets, otherLiabilities,
             totalAssets, totalLiabilities, equity,
         });
     }

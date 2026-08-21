@@ -99,6 +99,13 @@ describe('computeForecastSummary', () => {
         expect(result.profitBridge.marginDeltaPct).toBeGreaterThan(0);
     });
 
+    it('reduces expected revenue proportionally when a discount-change what-if is applied', () => {
+        const adjustments: ForecastAdjustments = { ...NO_ADJUSTMENTS, discountPctChange: 10 };
+        const baseline = computeForecastSummary(flatMonths(), [], finance, '30d');
+        const withDiscount = computeForecastSummary(flatMonths(), [], finance, '30d', [], [], adjustments);
+        expect(withDiscount.headline.expectedRevenue).toBeCloseTo(baseline.headline.expectedRevenue * 0.9, 0);
+    });
+
     it('gives higher confidence with more backing history, lower for a longer horizon', () => {
         const threeMonthHistory = computeForecastSummary(flatMonths(), [], finance, '30d');
         const oneMonthHistory = computeForecastSummary(flatMonths().slice(0, 3), [], finance, '30d');
@@ -147,6 +154,18 @@ describe('computeCashFlowForecastMonths', () => {
         expect(cashFlowMonths[1].loanRepayment).toBeCloseTo(-stmts.months[1].financingCashFlow, 0);
     });
 
+    it('reconstructs the inventory purchase as a month-1-only outflow line that still reconciles to net', () => {
+        const adjustments: ForecastAdjustments = { ...NO_ADJUSTMENTS, oneOffInventoryPurchase: 200000 };
+        const stmts = buildFutureFinancialStatements(flatMonths(), [], finance, adjustments, 3, []);
+        const cashFlowMonths = computeCashFlowForecastMonths(stmts, adjustments);
+
+        expect(cashFlowMonths[0].inventoryPurchase).toBe(200000);
+        expect(cashFlowMonths[1].inventoryPurchase).toBeCloseTo(0, 5);
+        cashFlowMonths.forEach((cf, i) => {
+            expect(cf.net).toBeCloseTo(stmts.months[i].netCashChange, 0);
+        });
+    });
+
     it('flags a month as pressured exactly when net is negative', () => {
         // Ramp expenses up fast enough to overtake flat revenue.
         const adjustments: ForecastAdjustments = { ...NO_ADJUSTMENTS, expenseGrowthPctPerMonth: 80 };
@@ -175,6 +194,16 @@ describe('describeCashFlowPressure', () => {
         const explanation = describeCashFlowPressure(pressuredMonth);
         expect(explanation).not.toBeNull();
         expect(explanation).toContain(pressuredMonth.monthLabel);
+    });
+
+    it('calls out the inventory purchase specifically when it dominates the outflow', () => {
+        // flatMonths() nets +600000/mo normally; an 800000 one-off purchase
+        // in month 1 alone is enough to flip it negative and dominate outflow.
+        const adjustments: ForecastAdjustments = { ...NO_ADJUSTMENTS, oneOffInventoryPurchase: 800000 };
+        const stmts = buildFutureFinancialStatements(flatMonths(), [], finance, adjustments, 1, []);
+        const [month] = computeCashFlowForecastMonths(stmts, adjustments);
+        expect(month.pressured).toBe(true);
+        expect(describeCashFlowPressure(month)).toContain('stock purchase');
     });
 
     it('calls out loan repayment specifically when it dominates the outflow', () => {

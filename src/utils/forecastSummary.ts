@@ -64,6 +64,7 @@ export interface CashFlowMonth {
     outflow: number;
     operatingOutflow: number;    // operating expenses adjusted for the payables timing effect
     loanRepayment: number;       // existing + new loan payments this month, reconstructed from financingCashFlow
+    inventoryPurchase: number;   // the one-off extra stock buy, reconstructed from investingCashFlow -- only nonzero in month 1
     net: number;                 // === the same month's ProjectedMonth.netCashChange, reconciled exactly
     endingCash: number;
     pressured: boolean;          // net < 0
@@ -118,14 +119,15 @@ export function computeCashFlowForecastMonths(stmts: FutureFinancialStatements, 
         // buildFutureFinancialStatements) -- solving for the payment here
         // rather than re-amortizing the loans a second time.
         const loanRepayment = newLoanDraw - m.financingCashFlow;
+        const inventoryPurchase = -m.investingCashFlow;
         const inflow = customerCollections + newLoanDraw;
-        const outflow = operatingOutflow + loanRepayment;
+        const outflow = operatingOutflow + loanRepayment + inventoryPurchase;
         const net = inflow - outflow;
 
         result.push({
             monthLabel: calendarMonthLabel(monthNum),
             inflow, customerCollections, newLoanDraw,
-            outflow, operatingOutflow, loanRepayment,
+            outflow, operatingOutflow, loanRepayment, inventoryPurchase,
             net, endingCash: m.endingCash,
             pressured: net < 0,
         });
@@ -144,6 +146,10 @@ export function computeCashFlowForecastMonths(stmts: FutureFinancialStatements, 
 export function describeCashFlowPressure(month: CashFlowMonth): string | null {
     if (!month.pressured) return null;
     const loanShare = month.outflow > 0 ? month.loanRepayment / month.outflow : 0;
+    const inventoryShare = month.outflow > 0 ? month.inventoryPurchase / month.outflow : 0;
+    if (inventoryShare >= 0.4) {
+        return `Your cash position may come under pressure in ${month.monthLabel} — the extra stock purchase you entered makes up a large share of expected outflow relative to projected inflow.`;
+    }
     if (loanShare >= 0.4) {
         return `Your cash position may come under pressure in ${month.monthLabel} — loan repayment makes up a large share of expected outflow relative to projected inflow.`;
     }

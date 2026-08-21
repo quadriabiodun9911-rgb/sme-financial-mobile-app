@@ -114,3 +114,57 @@ describe('buildFutureFinancialStatements — Cost Exposure risk adjustment', () 
         expect(forecast.months[0].operatingExpenses).toBeCloseTo(restAtMonth1 + utilitiesAtMonth1, 0);
     });
 });
+
+describe('buildFutureFinancialStatements — What If? levers', () => {
+    it('applies discountPctChange as a flat, non-compounding haircut on revenue every month', () => {
+        const baseline = buildFutureFinancialStatements(txsWithFlatCosts(), [], finance, NO_ADJUSTMENTS, 6, []);
+        const adjustments: ForecastAdjustments = { ...NO_ADJUSTMENTS, discountPctChange: 10 };
+        const discounted = buildFutureFinancialStatements(txsWithFlatCosts(), [], finance, adjustments, 6, []);
+        // Every month takes the same 10% haircut -- unlike revenueGrowthPctPerMonth,
+        // the ratio to baseline shouldn't widen or narrow across the horizon.
+        for (let i = 0; i < 6; i++) {
+            expect(discounted.months[i].revenue).toBeCloseTo(baseline.months[i].revenue * 0.9, 0);
+        }
+    });
+
+    it('clamps a discount swing so revenue never goes negative', () => {
+        const adjustments: ForecastAdjustments = { ...NO_ADJUSTMENTS, discountPctChange: 150 };
+        const forecast = buildFutureFinancialStatements(txsWithFlatCosts(), [], finance, adjustments, 1, []);
+        expect(forecast.months[0].revenue).toBe(0);
+    });
+
+    it('delays receivables collection without touching P&L when receivableDelayDays is set', () => {
+        // txsWithFlatCosts() is all 'paid', so DSO/DPO (and therefore
+        // projected receivables/payables) are 0 at baseline -- an added
+        // delay should show up as exactly revenue * (delayDays / 30).
+        const baseline = buildFutureFinancialStatements(txsWithFlatCosts(), [], finance, NO_ADJUSTMENTS, 1, []);
+        expect(baseline.months[0].receivables).toBeCloseTo(0, 0);
+
+        const adjustments: ForecastAdjustments = { ...NO_ADJUSTMENTS, receivableDelayDays: 30 };
+        const delayed = buildFutureFinancialStatements(txsWithFlatCosts(), [], finance, adjustments, 1, []);
+        expect(delayed.months[0].receivables).toBeCloseTo(delayed.months[0].revenue, 0);
+        // Revenue and profit themselves are untouched -- this is a cash
+        // timing effect, not a P&L one.
+        expect(delayed.months[0].revenue).toBeCloseTo(baseline.months[0].revenue, 0);
+        expect(delayed.months[0].profit).toBeCloseTo(baseline.months[0].profit, 0);
+    });
+
+    it('draws a one-off inventory purchase from cash in month 1 only, and moves it into otherAssets rather than expenses', () => {
+        const adjustments: ForecastAdjustments = { ...NO_ADJUSTMENTS, oneOffInventoryPurchase: 40000 };
+        const baseline = buildFutureFinancialStatements(txsWithFlatCosts(), [], finance, NO_ADJUSTMENTS, 2, []);
+        const withPurchase = buildFutureFinancialStatements(txsWithFlatCosts(), [], finance, adjustments, 2, []);
+
+        expect(withPurchase.months[0].investingCashFlow).toBe(-40000);
+        expect(withPurchase.months[1].investingCashFlow).toBe(0);
+        // Cash ends up exactly 40000 lower than baseline, every month --
+        // the purchase itself doesn't touch operatingExpenses or profit.
+        expect(withPurchase.months[0].endingCash).toBeCloseTo(baseline.months[0].endingCash - 40000, 0);
+        expect(withPurchase.months[1].endingCash).toBeCloseTo(baseline.months[1].endingCash - 40000, 0);
+        expect(withPurchase.months[0].operatingExpenses).toBeCloseTo(baseline.months[0].operatingExpenses, 0);
+        expect(withPurchase.months[0].profit).toBeCloseTo(baseline.months[0].profit, 0);
+        // The balance sheet identity holds: cash down 40000, otherAssets up
+        // 40000 -- equity is unaffected by the purchase itself.
+        expect(withPurchase.months[0].otherAssets).toBeCloseTo(baseline.months[0].otherAssets + 40000, 0);
+        expect(withPurchase.months[0].equity).toBeCloseTo(baseline.months[0].equity, 0);
+    });
+});

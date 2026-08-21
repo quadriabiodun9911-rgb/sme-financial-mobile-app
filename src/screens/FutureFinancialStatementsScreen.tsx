@@ -56,6 +56,9 @@ export default function FutureFinancialStatementsScreen() {
     const [newLoanAmount, setNewLoanAmount] = useState('0');
     const [newLoanRate, setNewLoanRate] = useState('0');
     const [newLoanTerm, setNewLoanTerm] = useState('0');
+    const [discountChange, setDiscountChange] = useState('0');
+    const [receivableDelay, setReceivableDelay] = useState('0');
+    const [inventoryPurchase, setInventoryPurchase] = useState('0');
 
     const adjustments: ForecastAdjustments = useMemo(() => ({
         revenueGrowthPctPerMonth: parseFloat(revenueGrowth) || 0,
@@ -64,7 +67,10 @@ export default function FutureFinancialStatementsScreen() {
         newLoanAmount: parseFloat(newLoanAmount) || 0,
         newLoanAnnualRatePct: parseFloat(newLoanRate) || 0,
         newLoanTermMonths: parseFloat(newLoanTerm) || 0,
-    }), [revenueGrowth, expenseGrowth, extraMonthlyCost, newLoanAmount, newLoanRate, newLoanTerm]);
+        discountPctChange: parseFloat(discountChange) || 0,
+        receivableDelayDays: parseFloat(receivableDelay) || 0,
+        oneOffInventoryPurchase: parseFloat(inventoryPurchase) || 0,
+    }), [revenueGrowth, expenseGrowth, extraMonthlyCost, newLoanAmount, newLoanRate, newLoanTerm, discountChange, receivableDelay, inventoryPurchase]);
 
     const hasAdjustments = JSON.stringify(adjustments) !== JSON.stringify(NO_ADJUSTMENTS);
 
@@ -84,6 +90,14 @@ export default function FutureFinancialStatementsScreen() {
     const forecastSummary = useMemo(
         () => computeForecastSummary(transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory),
         [transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory],
+    );
+    // The same short period with no what-if levers applied, purely so the
+    // What If? card can show "vs. no changes" next to the scenario numbers
+    // above -- without this, a user would have to reset every input by
+    // hand to see what they're being compared against.
+    const noAdjustmentsSummary = useMemo(
+        () => computeForecastSummary(transactions, loans, finance, forecastPeriod, staff, macroAssumptions, NO_ADJUSTMENTS, inventory),
+        [transactions, loans, finance, forecastPeriod, staff, macroAssumptions, inventory],
     );
 
     const notEnoughData = forecast.baselineMonthsUsed === 0;
@@ -339,22 +353,53 @@ export default function FutureFinancialStatementsScreen() {
                         </View>
 
                         <View style={s.card}>
-                            <Text style={s.cardTitle}>Adjust the business</Text>
+                            <Text style={s.cardTitle}>🧪 What If? Scenario Planner</Text>
                             <Text style={s.baselineNote}>
-                                Baseline: {fmt(forecast.baselineMonthlyRevenue)}/mo revenue, {fmt(forecast.baselineMonthlyExpense)}/mo
+                                Try a change and see how it plays out — nothing here is saved or applied to your
+                                real records. Baseline: {fmt(forecast.baselineMonthlyRevenue)}/mo revenue, {fmt(forecast.baselineMonthlyExpense)}/mo
                                 expenses — averaged over your last {forecast.baselineMonthsUsed} recorded month{forecast.baselineMonthsUsed === 1 ? '' : 's'}.
                             </Text>
-                            <AdjustmentInput label="Price / revenue adjustment" value={revenueGrowth} onChange={setRevenueGrowth} suffix="%/mo" />
-                            <AdjustmentInput label="Cost growth" value={expenseGrowth} onChange={setExpenseGrowth} suffix="%/mo" />
+                            <AdjustmentInput label="Sales change" value={revenueGrowth} onChange={setRevenueGrowth} suffix="%/mo" />
+                            <AdjustmentInput label="Expense change" value={expenseGrowth} onChange={setExpenseGrowth} suffix="%/mo" />
+                            <AdjustmentInput label="Discount change" value={discountChange} onChange={setDiscountChange} suffix="pp" />
                             <AdjustmentInput label="Extra new hire(s), beyond current staff" value={extraMonthlyCost} onChange={setExtraMonthlyCost} suffix={currency} />
-                            <AdjustmentInput label="New loan amount" value={newLoanAmount} onChange={setNewLoanAmount} suffix={currency} />
+                            <AdjustmentInput label="Buy more inventory now" value={inventoryPurchase} onChange={setInventoryPurchase} suffix={currency} />
+                            <AdjustmentInput label="Customer payments delayed by" value={receivableDelay} onChange={setReceivableDelay} suffix="days" />
+                            <AdjustmentInput label="Take a new loan" value={newLoanAmount} onChange={setNewLoanAmount} suffix={currency} />
                             {parseFloat(newLoanAmount) > 0 && (
                                 <>
                                     <AdjustmentInput label="Loan interest rate" value={newLoanRate} onChange={setNewLoanRate} suffix="%/yr" />
                                     <AdjustmentInput label="Loan term" value={newLoanTerm} onChange={setNewLoanTerm} suffix="months" />
                                 </>
                             )}
+                        </View>
 
+                        {hasAdjustments && (
+                            <View style={s.impactCard}>
+                                <Text style={s.impactTitle}>🤖 If this happens, over the next {PERIOD_LABELS[forecastPeriod].toLowerCase()}</Text>
+                                <Text style={s.impactLine}>
+                                    Revenue: {fmt(noAdjustmentsSummary.headline.expectedRevenue)} → {fmt(forecastSummary.headline.expectedRevenue)}
+                                </Text>
+                                <Text style={s.impactLine}>
+                                    Expenses: {fmt(noAdjustmentsSummary.headline.expectedExpenses)} → {fmt(forecastSummary.headline.expectedExpenses)}
+                                </Text>
+                                <Text style={s.impactLine}>
+                                    Profit: {fmt(noAdjustmentsSummary.headline.expectedProfit)} → {fmt(forecastSummary.headline.expectedProfit)}
+                                </Text>
+                                <Text style={s.impactLine}>
+                                    Cash position: {fmt(noAdjustmentsSummary.headline.expectedCashPosition)} → {fmt(forecastSummary.headline.expectedCashPosition)}
+                                    {'  '}
+                                    <Text style={{ color: forecastSummary.headline.expectedCashPosition >= noAdjustmentsSummary.headline.expectedCashPosition ? Colors.income : Colors.expense }}>
+                                        ({forecastSummary.headline.expectedCashPosition >= noAdjustmentsSummary.headline.expectedCashPosition ? '+' : ''}
+                                        {fmt(forecastSummary.headline.expectedCashPosition - noAdjustmentsSummary.headline.expectedCashPosition)})
+                                    </Text>
+                                </Text>
+                            </View>
+                        )}
+
+                        <View style={s.card}>
+                            <Text style={s.cardTitle}>Detailed month-by-month statements</Text>
+                            <Text style={s.baselineNote}>The same scenario above, broken out by full statement (P&L, Cash Flow, Balance Sheet) over a longer 6/12-month horizon.</Text>
                             <View style={s.horizonRow}>
                                 {([6, 12] as const).map(h => (
                                     <TouchableOpacity
