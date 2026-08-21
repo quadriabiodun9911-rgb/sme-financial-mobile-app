@@ -38,7 +38,7 @@ import {
   clearAllData, deleteAllBusinessRecords, exportAllData, importAllData, deleteAccountData, recordConsent,
   inviteTeamMember, removeTeamMember, loadTeamMembers, joinTeamWithCode,
   setWorkspaceOwner, clearWorkspaceOwner,
-  registerLocalAccount, listLocalAccounts, switchLocalAccount, clearLocalAccountsRegistry, LocalAccountSummary,
+  registerLocalAccount, listLocalAccounts, switchLocalAccount, switchLocalAccountDirect, clearLocalAccountsRegistry, LocalAccountSummary,
 } from '../utils/storage';
 import { TeamMember } from '../types';
 import { supabase } from '../utils/supabase';
@@ -889,6 +889,9 @@ interface AuthContextValue {
   // replacement for, the single active pin/profile/authSecret slots above.
   localAccounts: LocalAccountSummary[];
   switchAccount: (email: string, pin: string) => Promise<'ok' | 'wrong-pin' | 'not-found'>;
+  // In-app account switcher (Header) -- same effect as switchAccount, but
+  // for a session that's already unlocked, so no PIN is asked again.
+  switchAccountDirect: (email: string) => Promise<'ok' | 'not-found'>;
   // Re-reads the on-device account registry into `localAccounts` above.
   // Needed because LoginScreen's PIN-reset/device-verify flows register a
   // SECOND account directly via storage.ts (registerLocalAccount) when a
@@ -1004,6 +1007,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setCurrentScreenState('dashboard');
     }
   }, []);
+
+  // Shared tail of both switchAccount (PIN-verified, pre-login) and
+  // switchAccountDirect (in-app, no PIN) below -- once storage.ts has
+  // confirmed which account to become and mirrored it into the active
+  // slots, re-establishing everything downstream of "who is signed in" is
+  // identical either way.
+  const finishAccountSwitch = useCallback(async (email: string): Promise<'ok' | 'not-found'> => {
+    await clearWorkspaceOwner().catch(() => {});
+    await clearLocalFinancialCache().catch(() => {});
+    const secret = await loadAuthSecret();
+    if (secret) {
+      await supabase.auth.signInWithPassword({ email, password: secret }).catch(() => {});
+    }
+    await syncFieldEncryptionKey().catch(() => {});
+    const profile = await loadProfile();
+    if (!profile) return 'not-found';
+    setIsFirstLaunch(false);
+    writeTabIdentity(profile.email);
+    setUser({ email: profile.email, businessName: profile.businessName, phone: profile.phone, role: 'Administrator', createdAt: profile.createdAt });
+    await routeAfterAuth();
+    return 'ok';
+  }, [routeAfterAuth]);
 
   // Detect a Supabase password-recovery link at the top level, not inside
   // LoginScreen -- LoginScreen only runs its own version of this check
@@ -1370,26 +1395,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshLocalAccounts,
       switchAccount: async (email: string, pin: string) => {
         const result = await switchLocalAccount(email, pin);
-        if (result !== 'ok') return result;
         // Mirror joinTeam/recoverAccount's own reasoning: the target account
         // may be a team member on THIS device's cache from a previous
         // session, or this device may still be carrying the outgoing
         // account's workspace-owner pointer — either would silently point
-        // the freshly-switched-in account at the wrong data set.
-        await clearWorkspaceOwner().catch(() => {});
-        await clearLocalFinancialCache().catch(() => {});
-        const secret = await loadAuthSecret();
-        if (secret) {
-          await supabase.auth.signInWithPassword({ email, password: secret }).catch(() => {});
-        }
-        await syncFieldEncryptionKey().catch(() => {});
-        const profile = await loadProfile();
-        if (!profile) return 'not-found';
-        setIsFirstLaunch(false);
-        writeTabIdentity(profile.email);
-        setUser({ email: profile.email, businessName: profile.businessName, phone: profile.phone, role: 'Administrator', createdAt: profile.createdAt });
-        await routeAfterAuth();
-        return 'ok';
+        // the freshly-switched-in account at the wrong data set. Handled
+        // inside finishAccountSwitch, shared with switchAccountDirect below.
+        return result === 'ok' ? finishAccountSwitch(email) : result;
+      },
+      // In-app switcher (Header) -- see switchLocalAccountDirect's own
+      // comment in storage.ts for why no PIN is asked for here.
+      switchAccountDirect: async (email: string) => {
+        const result = await switchLocalAccountDirect(email);
+        return result === 'ok' ? finishAccountSwitch(email) : result;
       },
       joinTeam: async (email, pin, inviteCode) => {
         const authSecret = generateAuthSecret();
@@ -1607,7 +1625,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setTeamMembers(members);
       },
     }),
-    [user, isLoading, currentScreen, navParams, isDemoMode, demoBusinessId, teamMembers, isFirstLaunch, isLockedOut, lockoutUntil, pendingTwoFactorProfile, isLenderSession, lenderOrgId, lenderOrgName, isLenderDemo, routeAfterAuth, localAccounts, refreshLocalAccounts]
+    [user, isLoading, currentScreen, navParams, isDemoMode, demoBusinessId, teamMembers, isFirstLaunch, isLockedOut, lockoutUntil, pendingTwoFactorProfile, isLenderSession, lenderOrgId, lenderOrgName, isLenderDemo, routeAfterAuth, localAccounts, refreshLocalAccounts, finishAccountSwitch]
   );
 
   return (
@@ -2021,6 +2039,7 @@ export function useApp() {
     localAccounts: auth.localAccounts ?? [],
     refreshLocalAccounts: auth.refreshLocalAccounts ?? (() => Promise.resolve()),
     switchAccount: auth.switchAccount,
+    switchAccountDirect: auth.switchAccountDirect ?? (() => Promise.resolve('not-found' as const)),
     importData: async (json) => { await importAllData(json); if (typeof window !== 'undefined' && window.location) window.location.reload(); },
     exportData: () => exportAllData({
       transactions, settings: (settings?.settings as any), goals: goalsArray,

@@ -80,6 +80,7 @@ import {
     registerLocalAccount,
     listLocalAccounts,
     switchLocalAccount,
+    switchLocalAccountDirect,
     removeLocalAccount,
     loadPin,
     loadAuthSecret,
@@ -439,6 +440,28 @@ describe('switchLocalAccount', () => {
         // silently rehashed or dropped along the way.
         expect(await switchLocalAccount('a@example.com', '111111')).toBe('ok');
         expect(await switchLocalAccount('b@example.com', '222222')).toBe('ok');
+    });
+});
+
+// The in-app switcher (Header) -- no PIN, since the device is already
+// unlocked and rendering real data for one account by the time this is
+// reachable at all. Same mirroring behavior as switchLocalAccount, just
+// without the PIN gate.
+describe('switchLocalAccountDirect', () => {
+    it('mirrors the target account into the active slots without a PIN', async () => {
+        await registerLocalAccount('a@example.com', 'Biz A', '111111', 'secret-a', '2026-01-01T00:00:00.000Z');
+        await registerLocalAccount('b@example.com', 'Biz B', '222222', 'secret-b', '2026-01-02T00:00:00.000Z');
+
+        const result = await switchLocalAccountDirect('b@example.com');
+
+        expect(result).toBe('ok');
+        expect(await loadAuthSecret()).toBe('secret-b');
+        expect(await loadProfile()).toMatchObject({ email: 'b@example.com', businessName: 'Biz B' });
+    });
+
+    it('reports not-found for an email this device has never registered', async () => {
+        const result = await switchLocalAccountDirect('stranger@example.com');
+        expect(result).toBe('not-found');
     });
 });
 

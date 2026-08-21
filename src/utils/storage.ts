@@ -888,23 +888,45 @@ export async function listLocalAccounts(): Promise<LocalAccountSummary[]> {
     return accounts.map(({ email, businessName, createdAt }) => ({ email, businessName, createdAt }));
 }
 
+async function mirrorAccountIntoActiveSlots(account: LocalAccountRecord): Promise<void> {
+    await savePinSecurely(account.pinHash);
+    await saveAuthSecretSecurely(account.authSecret);
+    await AsyncStorage.setItem(KEYS.profile, JSON.stringify({
+        email: account.email, businessName: account.businessName, createdAt: account.createdAt,
+    } as StoredProfile));
+}
+
 // Verifies the PIN against a SPECIFIC registered account (not whichever one
 // happens to be active), and if it matches, mirrors that account into the
 // active pin/authSecret/profile slots every other function in this file
 // already reads from -- callers still go through the same
 // clearLocalFinancialCache + Supabase re-sign-in steps login()/recoverAccount()
 // already use, so switching an account active is otherwise identical to
-// logging into it fresh.
+// logging into it fresh. Used by the pre-login Welcome Back screen, where
+// nothing about this session has been verified yet.
 export async function switchLocalAccount(email: string, pin: string): Promise<'ok' | 'wrong-pin' | 'not-found'> {
     const accounts = await loadLocalAccountRecords();
     const account = accounts.find(a => a.email.toLowerCase() === email.trim().toLowerCase());
     if (!account) return 'not-found';
     if (hashPinValue(pin) !== account.pinHash) return 'wrong-pin';
-    await savePinSecurely(account.pinHash);
-    await saveAuthSecretSecurely(account.authSecret);
-    await AsyncStorage.setItem(KEYS.profile, JSON.stringify({
-        email: account.email, businessName: account.businessName, createdAt: account.createdAt,
-    } as StoredProfile));
+    await mirrorAccountIntoActiveSlots(account);
+    return 'ok';
+}
+
+// Same switch, no PIN check -- for the IN-APP account switcher (Header),
+// used only once a session is already unlocked and rendering real
+// financial data. Re-verifying a PIN to move between two accounts this
+// same device has already vouched for (each was itself established
+// through its own real signup/recovery/reset flow) adds friction without
+// adding security once the device itself is already trusted for this
+// session -- the same posture Google's or Slack's account switcher takes.
+// The PIN's actual job -- gating entry to the app in the first place --
+// already happened before this was ever reachable.
+export async function switchLocalAccountDirect(email: string): Promise<'ok' | 'not-found'> {
+    const accounts = await loadLocalAccountRecords();
+    const account = accounts.find(a => a.email.toLowerCase() === email.trim().toLowerCase());
+    if (!account) return 'not-found';
+    await mirrorAccountIntoActiveSlots(account);
     return 'ok';
 }
 

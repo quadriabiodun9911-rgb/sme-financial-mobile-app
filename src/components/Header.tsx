@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions, Modal, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useApp } from '../contexts/AppContext';
@@ -15,13 +15,35 @@ import { sendCashFlowAlert, sendOverdueInvoiceAlert } from '../utils/whatsappInt
 const DISMISSED_ALERTS_KEY = '@quad360/dismissed_alerts';
 
 export default function Header() {
-    const { user, logout, setCurrentScreen, goBack, currentScreen, finance, transactions, invoices, loans, staff, payrollRuns, settings, goals, budgets, assets, inventory } = useApp();
+    const { user, logout, setCurrentScreen, goBack, currentScreen, finance, transactions, invoices, loans, staff, payrollRuns, settings, goals, budgets, assets, inventory, localAccounts, switchAccountDirect } = useApp();
     const showBack = currentScreen !== 'dashboard' && currentScreen !== 'login';
     const { width } = useWindowDimensions();
     const isNarrow = width < 480;
     const [showSearch, setShowSearch] = useState(false);
     const [dismissedIds, setDismissedIds] = useState<string[]>([]);
     const currency = settings?.currency ?? '₦';
+
+    // In-app account switcher -- reachable without signing out first, and
+    // (unlike the pre-login Welcome Back screen's Switch Account) doesn't
+    // ask for a PIN again: this device is already unlocked and rendering
+    // real data for one account, so re-verifying to move to another
+    // account it already knows about adds friction without adding
+    // security. See switchLocalAccountDirect's comment in storage.ts.
+    const [switcherOpen, setSwitcherOpen] = useState(false);
+    const [switchingTo, setSwitchingTo] = useState<string | null>(null);
+    const otherAccounts = useMemo(
+        () => localAccounts.filter(a => a.email.toLowerCase() !== (user?.email ?? '').toLowerCase()),
+        [localAccounts, user?.email]
+    );
+    const handleSwitchTo = useCallback(async (email: string) => {
+        setSwitchingTo(email);
+        try {
+            const result = await switchAccountDirect(email);
+            if (result === 'ok') setSwitcherOpen(false);
+        } finally {
+            setSwitchingTo(null);
+        }
+    }, [switchAccountDirect]);
 
     useEffect(() => {
         AsyncStorage.getItem(DISMISSED_ALERTS_KEY).then(raw => {
@@ -105,6 +127,11 @@ export default function Header() {
                     canNotify={canNotify}
                     onNotify={handleNotify}
                 />
+                {otherAccounts.length > 0 && isNarrow && (
+                    <TouchableOpacity style={styles.iconBtn} onPress={() => setSwitcherOpen(true)} activeOpacity={0.7}>
+                        <Icon name="repeat" size={16} color={Colors.textSecondary} />
+                    </TouchableOpacity>
+                )}
                 <TouchableOpacity style={styles.iconBtn} onPress={() => setShowSearch(true)} activeOpacity={0.7}>
                     <Icon name="search" size={16} color={Colors.textSecondary} />
                 </TouchableOpacity>
@@ -112,16 +139,69 @@ export default function Header() {
                     <Icon name="settings" size={16} color={Colors.textSecondary} />
                 </TouchableOpacity>
                 {!isNarrow && (
-                    <View style={styles.userBlock}>
-                        <Text style={styles.userText}>{user?.email?.split('@')[0] || 'Admin'}</Text>
+                    <TouchableOpacity
+                        style={styles.userBlock}
+                        onPress={() => otherAccounts.length > 0 && setSwitcherOpen(true)}
+                        activeOpacity={otherAccounts.length > 0 ? 0.7 : 1}
+                    >
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                            <Text style={styles.userText}>{user?.email?.split('@')[0] || 'Admin'}</Text>
+                            {otherAccounts.length > 0 && <Icon name="chevron-down" size={12} color={Colors.textMuted} />}
+                        </View>
                         <Text style={styles.userRole}>{user?.role || 'Administrator'}</Text>
-                    </View>
+                    </TouchableOpacity>
                 )}
                 <TouchableOpacity style={styles.signOutBtn} onPress={logout} activeOpacity={0.8}>
                     <Text style={styles.signOutText}>{isNarrow ? 'Out' : 'Sign Out'}</Text>
                 </TouchableOpacity>
             </View>
             <GlobalSearch visible={showSearch} onClose={() => setShowSearch(false)} />
+            <Modal
+                visible={switcherOpen}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setSwitcherOpen(false)}
+            >
+                <TouchableOpacity style={styles.switcherBackdrop} activeOpacity={1} onPress={() => setSwitcherOpen(false)}>
+                    <TouchableOpacity activeOpacity={1} style={styles.switcherSheet}>
+                        <Text style={styles.switcherTitle}>Switch Account</Text>
+                        <View style={styles.switcherCurrentRow}>
+                            <View style={[styles.switcherAvatar, styles.switcherAvatarCurrent]}>
+                                <Text style={styles.switcherAvatarText}>{(user?.businessName || '?').trim().charAt(0).toUpperCase()}</Text>
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.switcherName} numberOfLines={1}>{user?.businessName}</Text>
+                                <Text style={styles.switcherEmail} numberOfLines={1}>{user?.email} · Current</Text>
+                            </View>
+                            <Icon name="check" size={16} color={Colors.primary} />
+                        </View>
+                        {otherAccounts.map(acct => (
+                            <TouchableOpacity
+                                key={acct.email}
+                                style={styles.switcherRow}
+                                onPress={() => handleSwitchTo(acct.email)}
+                                disabled={switchingTo !== null}
+                                activeOpacity={0.7}
+                            >
+                                <View style={styles.switcherAvatar}>
+                                    <Text style={styles.switcherAvatarText}>{acct.businessName.trim().charAt(0).toUpperCase() || '?'}</Text>
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.switcherName} numberOfLines={1}>{acct.businessName}</Text>
+                                    <Text style={styles.switcherEmail} numberOfLines={1}>{acct.email}</Text>
+                                </View>
+                                {switchingTo === acct.email
+                                    ? <ActivityIndicator size="small" color={Colors.primary} />
+                                    : <Icon name="chevron-right" size={16} color={Colors.textMuted} />
+                                }
+                            </TouchableOpacity>
+                        ))}
+                        <TouchableOpacity style={styles.switcherCancelBtn} onPress={() => setSwitcherOpen(false)} disabled={switchingTo !== null}>
+                            <Text style={styles.switcherCancelText}>Cancel</Text>
+                        </TouchableOpacity>
+                    </TouchableOpacity>
+                </TouchableOpacity>
+            </Modal>
         </View>
     );
 }
@@ -166,4 +246,38 @@ const styles = StyleSheet.create({
         borderRadius: Radius.pill,
     },
     signOutText: { color: Colors.textSecondary, fontSize: 11, fontWeight: '700' },
+
+    switcherBackdrop: {
+        flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
+        alignItems: 'center', justifyContent: 'flex-start',
+        paddingTop: 70, paddingHorizontal: Spacing.lg,
+    },
+    switcherSheet: {
+        width: '100%', maxWidth: 340, backgroundColor: Colors.surface,
+        borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border,
+        padding: Spacing.md, ...Shadow.lg,
+    },
+    switcherTitle: {
+        fontSize: 11, fontWeight: '700', color: Colors.textMuted,
+        textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10, paddingHorizontal: 2,
+    },
+    switcherCurrentRow: {
+        flexDirection: 'row', alignItems: 'center', gap: 10,
+        paddingVertical: 8, paddingHorizontal: 4,
+        backgroundColor: Colors.bg, borderRadius: Radius.md, marginBottom: 4,
+    },
+    switcherRow: {
+        flexDirection: 'row', alignItems: 'center', gap: 10,
+        paddingVertical: 10, paddingHorizontal: 4,
+    },
+    switcherAvatar: {
+        width: 34, height: 34, borderRadius: 17, backgroundColor: Colors.surfaceVariant,
+        alignItems: 'center', justifyContent: 'center',
+    },
+    switcherAvatarCurrent: { backgroundColor: Colors.primary + '22' },
+    switcherAvatarText: { fontSize: 14, fontWeight: '700', color: Colors.primary },
+    switcherName: { fontSize: 14, fontWeight: '600', color: Colors.textPrimary },
+    switcherEmail: { fontSize: 11.5, color: Colors.textMuted, marginTop: 1 },
+    switcherCancelBtn: { paddingVertical: 12, alignItems: 'center', marginTop: 4 },
+    switcherCancelText: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
 });
