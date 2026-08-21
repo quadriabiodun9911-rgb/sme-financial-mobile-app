@@ -10,8 +10,8 @@ import Icon from '../components/ui/Icon';
 import { t, LANGUAGES, Language } from '../utils/i18n';
 import { DEMO_BUSINESSES } from '../utils/demoData';
 import { trackUserLoggedIn, identifyUser } from '../utils/analytics';
-import { supabase } from '../utils/supabase';
-import { savePin, saveProfile, generateAuthSecret, saveAuthSecret, loadAuthSecret, loadProfile, localProfileMatchesEmail, syncFieldEncryptionKey } from '../utils/storage';
+import { supabase, createEphemeralAuthClient } from '../utils/supabase';
+import { savePin, saveProfile, generateAuthSecret, saveAuthSecret, loadAuthSecret, loadProfile, localProfileMatchesEmail, syncFieldEncryptionKey, registerLocalAccount } from '../utils/storage';
 import { Industry } from '../types';
 
 const CURRENCIES = [
@@ -111,28 +111,28 @@ export default function LoginScreen() {
         setMode(isFirstLaunch ? 'owner-setup' : 'owner-login');
     }, [isFirstLaunch, navParams]);
 
-    // On web: detect Supabase recovery callback. Two paths land here:
-    // the manual hash check below only matches the classic implicit-flow
-    // shape (#access_token=...&type=recovery) -- but supabase-js's own
-    // client (detectSessionInUrl: true, see utils/supabase.ts) processes
-    // the URL itself on load and may consume/clear the hash (or receive a
-    // PKCE-style ?code=... link instead, which has no hash at all) before
-    // this effect's plain string check ever sees it. The PASSWORD_RECOVERY
-    // auth event is what Supabase actually recommends relying on for a
-    // reset landing page -- it fires however the client parsed the link --
-    // so it's the authoritative path; the hash check just short-circuits
-    // that same UI switch a tick sooner when its shape does match.
+    // On web: detect a Supabase recovery/magic-link callback via the URL
+    // hash's classic implicit-flow shape (#access_token=...&type=...).
+    // The tokens are captured into recoveryTokens (state, above) rather
+    // than left for handleWebResetComplete/handleDeviceVerifyComplete to
+    // re-read window.location.hash later -- replaceState below clears the
+    // hash immediately, long before the user finishes typing a new PIN and
+    // submits. The main `supabase` client deliberately does NOT auto-adopt
+    // this token itself (detectSessionInUrl is off -- see utils/supabase.ts
+    // for why); the reset/verify handlers exchange it for a session on an
+    // isolated client instead, so landing on this link can never silently
+    // swap which account this browser's shared session is signed in as.
     useEffect(() => {
         if (Platform.OS !== 'web') return;
         const hash = window.location.hash;
         const params = new URLSearchParams(hash.replace('#', '?'));
         const type = params.get('type');
         const accessToken = params.get('access_token');
-        if ((type === 'recovery' || type === 'signup') && accessToken) {
-            supabase.auth.getSession().then(() => {
-                setMode('reset-pin');
-                setResetStep('complete-web');
-            });
+        const refreshToken = params.get('refresh_token');
+        if ((type === 'recovery' || type === 'signup') && accessToken && refreshToken) {
+            setRecoveryTokens({ accessToken, refreshToken });
+            setMode('reset-pin');
+            setResetStep('complete-web');
             window.history.replaceState(null, '', window.location.pathname);
         }
         // A magic-link landing (device verification, not a PIN reset) has no
@@ -141,21 +141,13 @@ export default function LoginScreen() {
         // (ordinary password logins fire it too). This hash check is the
         // only reliable signal, same best-effort caveat as the recovery
         // check above.
-        if (type === 'magiclink' && accessToken) {
+        if (type === 'magiclink' && accessToken && refreshToken) {
+            setRecoveryTokens({ accessToken, refreshToken });
             setResetIntent('verify-device');
             setMode('reset-pin');
             setResetStep('confirm-device');
             window.history.replaceState(null, '', window.location.pathname);
         }
-
-        const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-            if (event === 'PASSWORD_RECOVERY') {
-                setMode('reset-pin');
-                setResetStep('complete-web');
-                window.history.replaceState(null, '', window.location.pathname);
-            }
-        });
-        return () => sub.subscription.unsubscribe();
     }, []);
 
     // Update lockout timer
@@ -270,6 +262,14 @@ export default function LoginScreen() {
     // session from whichever device's secret is currently set. See
     // handleResetRequest and the 'confirm-device' step below.
     const [resetIntent, setResetIntent]       = useState<'forgot-pin' | 'verify-device'>((navParams?.resetIntent as any) ?? 'forgot-pin');
+    // Captured from the recovery/magic-link URL hash the moment it's seen
+    // (see the hash-detection effect below) -- the hash gets cleared via
+    // history.replaceState right after, well before the user finishes
+    // typing a new PIN and submits, so handleWebResetComplete/
+    // handleDeviceVerifyComplete can't just re-read window.location.hash
+    // themselves. These are exchanged for a session on a throwaway client
+    // (see createEphemeralAuthClient's comment) rather than the shared one.
+    const [recoveryTokens, setRecoveryTokens] = useState<{ accessToken: string; refreshToken: string } | null>(null);
 
     // Alert.alert doesn't render on Expo web — every call site in this screen
     // used it unguarded, so PIN/email validation errors and reset/join-team
@@ -486,59 +486,101 @@ export default function LoginScreen() {
         setResetSubmitting(false);
     };
 
-    // Called after user clicks email link on web — Supabase auto-sets session from URL hash
+    // Called after the user clicks the reset-email link on web, which opens
+    // in a fresh tab -- possibly while a DIFFERENT account is still active
+    // in another tab on this same browser. The recovery token is exchanged
+    // for a session on a throwaway client (see createEphemeralAuthClient's
+    // comment in utils/supabase.ts) specifically so that never touches this
+    // browser's shared session -- only once we know WHICH account this link
+    // was for do we decide whether it's safe to make it the active one here.
     const handleWebResetComplete = async () => {
         if (!/^\d{6}$/.test(resetNewPin)) { showAlert('Error', 'New PIN must be exactly 6 digits.'); return; }
         if (resetNewPin !== resetConfirmPin) { showAlert('Error', 'PINs do not match.'); return; }
+        if (!recoveryTokens) {
+            showAlert('Link Expired', 'This reset link has expired. Please request a new one.', [
+                { text: 'OK', onPress: () => { setResetStep('request'); setResetNewPin(''); setResetConfirmPin(''); } }
+            ]);
+            return;
+        }
         setResetSubmitting(true);
+        const ephemeral = createEphemeralAuthClient();
         try {
-            // Wait briefly for Supabase to process the URL hash token
-            await new Promise(r => setTimeout(r, 800));
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) {
+            const { data: { session }, error: sessionError } = await ephemeral.auth.setSession({
+                access_token: recoveryTokens.accessToken,
+                refresh_token: recoveryTokens.refreshToken,
+            });
+            if (sessionError || !session) {
                 showAlert('Link Expired', 'This reset link has expired. Please request a new one.', [
                     { text: 'OK', onPress: () => { setResetStep('request'); setResetNewPin(''); setResetConfirmPin(''); } }
                 ]);
-                setResetSubmitting(false);
                 return;
             }
             // A password reset is exactly the moment a device (re)establishes
             // trust with the account — the point to (re)generate this
             // device's high-entropy secret rather than ever deriving the
-            // real Supabase password from the PIN.
+            // real Supabase password from the PIN. Applied on the ephemeral
+            // client -- it's this account's real credential either way,
+            // regardless of which browser/tab happens to be doing the reset.
             const newAuthSecret = generateAuthSecret();
-            const { error } = await supabase.auth.updateUser({ password: newAuthSecret });
+            const { error } = await ephemeral.auth.updateUser({ password: newAuthSecret });
             if (error) {
                 showAlert('Reset Failed', error.message + '\n\nPlease request a new reset link.', [
                     { text: 'Try Again', onPress: () => setResetStep('request') }
                 ]);
-                setResetSubmitting(false);
                 return;
             }
-            // Capture this account's field-encryption key BEFORE overwriting
-            // the local auth secret below -- if this device still holds the
-            // pre-reset secret and Supabase has no canonical key yet (e.g.
-            // this is the very first reset since the fix shipped), this is
-            // the last moment it can be recovered and published for every
-            // future device/reset to converge on, instead of the new secret
-            // silently minting an incompatible key and orphaning existing data.
-            await syncFieldEncryptionKey().catch(() => {});
-            // Save PIN + the new secret locally and auto-login
             const email = session.user.email ?? '';
+            const activeProfile = await loadProfile();
+            const isDifferentActiveAccount = !!activeProfile
+                && activeProfile.email.trim().toLowerCase() !== email.trim().toLowerCase();
+
+            if (isDifferentActiveAccount) {
+                // This browser is currently signed in to a DIFFERENT
+                // account -- overwriting the active pin/profile/authSecret
+                // slots (or this tab's live session) here would silently
+                // evict it, which is exactly the "resetting one account
+                // affects the other" bug. Just remember this account for
+                // the Switch Account list instead; nothing about the
+                // currently active account is touched.
+                await registerLocalAccount(email, '', resetNewPin, newAuthSecret, new Date().toISOString()).catch(() => {});
+                showAlert(
+                    'PIN Reset Successful',
+                    `${email}'s PIN has been reset. This device is still signed in to ${activeProfile!.email} — open the Email tab or use Switch Account on the Welcome Back screen to sign in as ${email}.`,
+                    [{ text: 'OK', onPress: () => { setResetStep('request'); setResetNewPin(''); setResetConfirmPin(''); setMode('owner-login'); } }],
+                );
+                return;
+            }
+
+            // Same account (or nothing else active on this device) — safe
+            // to become the active session here, same as before. Capture
+            // the field-encryption key on the ephemeral client BEFORE
+            // overwriting the local auth secret below -- if this device
+            // still holds the pre-reset secret and Supabase has no
+            // canonical key yet, this is the last moment it can be
+            // recovered and published for every future device/reset to
+            // converge on, instead of the new secret silently minting an
+            // incompatible key and orphaning existing data.
+            await syncFieldEncryptionKey(ephemeral).catch(() => {});
             await savePin(resetNewPin).catch(() => {});
             await saveAuthSecret(newAuthSecret).catch(() => {});
-            await saveProfile({ email, businessName: '' }).catch(() => {});
+            await saveProfile({ email, businessName: activeProfile?.businessName ?? '' }).catch(() => {});
             showAlert('PIN Reset Successful', 'Your new PIN is set. You are now logged in.', [
                 { text: 'Continue', onPress: async () => {
-                    try { await recoverAccount(email, resetNewPin); } catch {}
+                    try {
+                        await supabase.auth.signInWithPassword({ email, password: newAuthSecret });
+                        await recoverAccount(email, resetNewPin);
+                    } catch {}
                     setResetStep('request'); setResetNewPin(''); setResetConfirmPin('');
                 }}
             ]);
         } catch (e: any) {
             showAlert('Error', e?.message ?? 'Reset failed. Please try again.');
             setResetStep('request');
+        } finally {
+            setRecoveryTokens(null);
+            setResetSubmitting(false);
+            await ephemeral.auth.signOut().catch(() => {});
         }
-        setResetSubmitting(false);
     };
 
     const handleResetVerify = async () => {
@@ -588,37 +630,82 @@ export default function LoginScreen() {
         setResetSubmitting(false);
     };
 
-    // Called after a magic-link click sets a session automatically via the
-    // URL hash — device verification, not a password reset, so this never
-    // touches the account's shared Supabase credential (see the resetIntent
-    // comment). The click already proved this device can read the account's
-    // email; this step just confirms the user knows the existing PIN and
-    // saves it as this device's own local unlock. login()'s cloud
-    // reconnection is best-effort and never gates its return value (see its
-    // comment in OptimizedContexts.tsx), so leaving this device without its
-    // own auth secret is fine — the session this magic link just established
-    // is what keeps it synced going forward, refreshed automatically by
-    // Supabase like any other session, not by repeated password sign-ins.
+    // Called after a magic-link click — device verification, not a password
+    // reset, so in the common case this never touches the account's shared
+    // Supabase credential (see the resetIntent comment). The click already
+    // proved this device can read the account's email; this step just
+    // confirms the user knows the existing PIN and saves it as this
+    // device's own local unlock. login()'s cloud reconnection is
+    // best-effort and never gates its return value (see its comment in
+    // OptimizedContexts.tsx), so leaving this device without its own auth
+    // secret is fine in that case — the session this magic link just
+    // established is what keeps it synced going forward. As with PIN reset,
+    // the token is exchanged for a session on a throwaway client first so
+    // simply opening the link can never silently swap which account a
+    // DIFFERENT already-active tab on this browser is signed in as.
     const handleDeviceVerifyComplete = async () => {
         if (!/^\d{6}$/.test(resetNewPin)) { showAlert('Error', 'Enter your 6-digit PIN.'); return; }
+        if (!recoveryTokens) {
+            showAlert('Link Expired', 'This verification link has expired. Please request a new one.', [
+                { text: 'OK', onPress: () => { setResetStep('request'); setResetNewPin(''); } }
+            ]);
+            return;
+        }
         setResetSubmitting(true);
+        const ephemeral = createEphemeralAuthClient();
         try {
-            await new Promise(r => setTimeout(r, 800));
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) {
+            const { data: { session }, error: sessionError } = await ephemeral.auth.setSession({
+                access_token: recoveryTokens.accessToken,
+                refresh_token: recoveryTokens.refreshToken,
+            });
+            if (sessionError || !session) {
                 showAlert('Link Expired', 'This verification link has expired. Please request a new one.', [
                     { text: 'OK', onPress: () => { setResetStep('request'); setResetNewPin(''); } }
                 ]);
-                setResetSubmitting(false);
                 return;
             }
             const email = session.user.email ?? '';
+            const activeProfile = await loadProfile();
+            const isDifferentActiveAccount = !!activeProfile
+                && activeProfile.email.trim().toLowerCase() !== email.trim().toLowerCase();
+
+            if (isDifferentActiveAccount) {
+                // Adding a SECOND account to this device via device-verify,
+                // same situation as PIN-reset's cross-account branch. Unlike
+                // the common case above, this needs a real secret to be
+                // registered for Switch Account -- mint one via the same
+                // ephemeral client, again never touching this browser's
+                // live session or the currently active account's slots.
+                const newAuthSecret = generateAuthSecret();
+                const { error } = await ephemeral.auth.updateUser({ password: newAuthSecret });
+                if (error) {
+                    showAlert('Error', 'Could not verify this device: ' + error.message);
+                    return;
+                }
+                await registerLocalAccount(email, '', resetNewPin, newAuthSecret, new Date().toISOString()).catch(() => {});
+                showAlert(
+                    'Device Verified',
+                    `${email} is now available on this device. This device is still signed in to ${activeProfile!.email} — use Switch Account on the Welcome Back screen to sign in as ${email}.`,
+                    [{ text: 'OK', onPress: () => { setResetStep('request'); setResetNewPin(''); setMode('owner-login'); } }],
+                );
+                return;
+            }
+
+            // Same account (or nothing else active here) — persist this
+            // magic-link session on the shared client, exactly as before.
+            await supabase.auth.setSession({
+                access_token: recoveryTokens.accessToken,
+                refresh_token: recoveryTokens.refreshToken,
+            });
             try { await recoverAccount(email, resetNewPin); } catch {}
             setResetStep('request'); setResetNewPin('');
         } catch (e: any) {
             showAlert('Error', e?.message ?? 'Verification failed. Please try again.');
+        } finally {
+            setRecoveryTokens(null);
+            setResetSubmitting(false);
+            await ephemeral.auth.signOut().catch(() => {});
         }
-        setResetSubmitting(false);
     };
 
     // ── Recover existing account on new device ────────────────────────────────

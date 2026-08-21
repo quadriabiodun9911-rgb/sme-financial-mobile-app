@@ -946,19 +946,30 @@ export async function clearLocalAccountsRegistry(): Promise<void> {
 // device can currently derive and publishes that as canonical so every
 // future device/reset converges on the same key instead of each reset
 // minting a new, incompatible one.
-export async function syncFieldEncryptionKey(): Promise<void> {
+// `client` defaults to the shared app-wide session (every existing caller's
+// case: this account either already is, or is about to become, the active
+// session in this browser). The PIN-reset flow (LoginScreen.tsx) passes an
+// ephemeral, non-persisted client instead when it's resetting an account
+// that ISN'T the one currently active on this device -- see that client's
+// own comment for why. `trustLocalAuthSecret` must be false in that same
+// situation: loadAuthSecret() below returns whichever account is CURRENTLY
+// active on this device, which would be a completely different account's
+// secret, not the one being reset -- deriving a fallback key from it would
+// mint (and publish to Supabase as canonical) a key that doesn't actually
+// belong to this account.
+export async function syncFieldEncryptionKey(client: typeof supabase = supabase, trustLocalAuthSecret: boolean = true): Promise<void> {
     try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user } } = await client.auth.getUser();
         if (!user) return;
         const remoteKey = user.user_metadata?.field_encryption_key as string | undefined;
         if (remoteKey) {
             await setEncryptionKey(remoteKey);
             return;
         }
-        const currentAuthSecret = await loadAuthSecret();
+        const currentAuthSecret = trustLocalAuthSecret ? await loadAuthSecret() : null;
         const key = currentAuthSecret ? deriveFieldEncryptionKey(currentAuthSecret) : await generateEncryptionKey();
         await setEncryptionKey(key);
-        await supabase.auth.updateUser({ data: { field_encryption_key: key } }).catch(() => {});
+        await client.auth.updateUser({ data: { field_encryption_key: key } }).catch(() => {});
     } catch (e) {
         logSyncError('encryptionKey', 'sync', e);
     }
