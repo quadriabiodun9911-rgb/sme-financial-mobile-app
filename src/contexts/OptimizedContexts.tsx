@@ -38,6 +38,7 @@ import {
   clearAllData, deleteAllBusinessRecords, exportAllData, importAllData, deleteAccountData, recordConsent,
   inviteTeamMember, removeTeamMember, loadTeamMembers, joinTeamWithCode,
   setWorkspaceOwner, clearWorkspaceOwner,
+  registerLocalAccount, listLocalAccounts, switchLocalAccount, clearLocalAccountsRegistry, LocalAccountSummary,
 } from '../utils/storage';
 import { TeamMember } from '../types';
 import { supabase } from '../utils/supabase';
@@ -882,6 +883,12 @@ interface AuthContextValue {
   // lenderAuth membership.
   isLenderDemo: boolean;
   enterLenderDemo: () => void;
+  // Every account this device has ever set up or recovered — lets
+  // LoginScreen offer switching between them without a full reset. See the
+  // registry comment in storage.ts for why this is additive to, not a
+  // replacement for, the single active pin/profile/authSecret slots above.
+  localAccounts: LocalAccountSummary[];
+  switchAccount: (email: string, pin: string) => Promise<'ok' | 'wrong-pin' | 'not-found'>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -928,6 +935,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // verify a 2FA code before `user` is actually set — real enforcement:
   // 2FA config was previously saved to Supabase but never checked at login.
   const [pendingTwoFactorProfile, setPendingTwoFactorProfile] = useState<{ email: string; businessName: string; phone?: string; createdAt?: string } | null>(null);
+  // Every account this device has ever set up or recovered, kept in sync
+  // with the on-device registry in storage.ts — drives the "Switch Account"
+  // UI (LoginScreen only shows it once there's more than one entry here).
+  const [localAccounts, setLocalAccounts] = useState<LocalAccountSummary[]>([]);
+  const refreshLocalAccounts = useCallback(async () => {
+    const accounts = await listLocalAccounts().catch(() => []);
+    setLocalAccounts(accounts);
+  }, []);
 
   // In-app back stack: navigate()/setCurrentScreen() previously just
   // overwrote currentScreen with no history of where the user came from,
@@ -1036,10 +1051,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     (async () => {
       try {
-        const [profile, lockoutRaw] = await Promise.all([
+        const [profile, lockoutRaw, accounts] = await Promise.all([
           loadProfile(),
           AsyncStorage.getItem(LOCKOUT_KEY),
+          listLocalAccounts().catch(() => []),
         ]);
+        setLocalAccounts(accounts);
         if (profile) {
           const tabIdentity = readTabIdentity();
           if (tabIdentity && tabIdentity !== profile.email) {
@@ -1275,7 +1292,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await savePin(pin);
         // Stamp the real signup date so 'days active' reflects actual history
         // instead of always reading 0 (the field was never set anywhere before).
-        await saveProfile({ email, businessName, phone, createdAt: new Date().toISOString() });
+        const signupCreatedAt = new Date().toISOString();
+        await saveProfile({ email, businessName, phone, createdAt: signupCreatedAt });
+        // Remember this account in the on-device registry so it survives a
+        // later switch to (or reset of) a different account on this same
+        // browser — see registerLocalAccount's own comment for why this is
+        // additive to, not a replacement for, the single active-slot above.
+        await registerLocalAccount(email, businessName, pin, authSecret, signupCreatedAt).catch(() => {});
         // Persist signup choices (currency, industry) to storage BEFORE setUser
         // fires the settings-hydrate effect below (keyed on the user's email) —
         // that effect resets settings to DEFAULT_SETTINGS and then re-loads from
@@ -1287,6 +1310,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         setIsFirstLaunch(false);
         setUser({ email, businessName, role: 'Administrator', phone, createdAt: new Date().toISOString() });
+        await refreshLocalAccounts();
         trackUserRegistered(initialSettings?.currency ?? DEFAULT_SETTINGS.currency);
         // First-run choice — upload a statement or set a goal — rather than
         // dropping a brand-new user straight onto an empty Dashboard where
@@ -1318,10 +1342,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           profile = { ...profile, createdAt: new Date().toISOString() };
           await saveProfile(profile);
         }
+        // Every caller into recoverAccount (PIN reset, new-device restore)
+        // saves the freshly-established authSecret to the active slot just
+        // before calling this — read it back here so this account also lands
+        // in the on-device registry and can be switched back to later
+        // without repeating a full reset.
+        const recoveredAuthSecret = await loadAuthSecret();
+        if (recoveredAuthSecret) {
+          await registerLocalAccount(profile.email, profile.businessName, pin, recoveredAuthSecret, profile.createdAt).catch(() => {});
+        }
         setIsFirstLaunch(false);
         writeTabIdentity(profile.email);
         setUser({ email: profile.email, businessName: profile.businessName, phone: profile.phone, role: 'Administrator', createdAt: profile.createdAt });
+        await refreshLocalAccounts();
         setCurrentScreenState('dashboard');
+      },
+      localAccounts,
+      switchAccount: async (email: string, pin: string) => {
+        const result = await switchLocalAccount(email, pin);
+        if (result !== 'ok') return result;
+        // Mirror joinTeam/recoverAccount's own reasoning: the target account
+        // may be a team member on THIS device's cache from a previous
+        // session, or this device may still be carrying the outgoing
+        // account's workspace-owner pointer — either would silently point
+        // the freshly-switched-in account at the wrong data set.
+        await clearWorkspaceOwner().catch(() => {});
+        await clearLocalFinancialCache().catch(() => {});
+        const secret = await loadAuthSecret();
+        if (secret) {
+          await supabase.auth.signInWithPassword({ email, password: secret }).catch(() => {});
+        }
+        await syncFieldEncryptionKey().catch(() => {});
+        const profile = await loadProfile();
+        if (!profile) return 'not-found';
+        setIsFirstLaunch(false);
+        writeTabIdentity(profile.email);
+        setUser({ email: profile.email, businessName: profile.businessName, phone: profile.phone, role: 'Administrator', createdAt: profile.createdAt });
+        await routeAfterAuth();
+        return 'ok';
       },
       joinTeam: async (email, pin, inviteCode) => {
         const authSecret = generateAuthSecret();
@@ -1515,9 +1573,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
         setCurrentScreenState('login');
       },
-      clearData: async () => { await clearAllData(); reloadApp(); },
+      // Both of these wipe THIS DEVICE, not just the active account, so the
+      // on-device account registry goes with them — unlike deleteAccount
+      // below (which only removes the one account being deleted via
+      // deleteAccountData's own removeLocalAccount call).
+      clearData: async () => { await clearAllData(); await clearLocalAccountsRegistry().catch(() => {}); reloadApp(); },
       resetBusinessData: async () => { await deleteAllBusinessRecords(); reloadApp(); },
-      resetApp: async () => { await clearAllData(); setUser(null); reloadApp(); },
+      resetApp: async () => { await clearAllData(); await clearLocalAccountsRegistry().catch(() => {}); setUser(null); reloadApp(); },
       deleteAccount: async () => { await deleteAccountData(); setUser(null); setCurrentScreenState('login'); reloadApp(); },
       teamMembers,
       inviteMember: async (email, role) => {
@@ -1535,7 +1597,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setTeamMembers(members);
       },
     }),
-    [user, isLoading, currentScreen, navParams, isDemoMode, demoBusinessId, teamMembers, isFirstLaunch, isLockedOut, lockoutUntil, pendingTwoFactorProfile, isLenderSession, lenderOrgId, lenderOrgName, isLenderDemo, routeAfterAuth]
+    [user, isLoading, currentScreen, navParams, isDemoMode, demoBusinessId, teamMembers, isFirstLaunch, isLockedOut, lockoutUntil, pendingTwoFactorProfile, isLenderSession, lenderOrgId, lenderOrgName, isLenderDemo, routeAfterAuth, localAccounts, refreshLocalAccounts]
   );
 
   return (
@@ -1946,6 +2008,8 @@ export function useApp() {
     resetBusinessData: auth.resetBusinessData || (() => Promise.resolve()),
     deleteAccount: auth.deleteAccount || (() => Promise.resolve()),
     recoverAccount: auth.recoverAccount,
+    localAccounts: auth.localAccounts ?? [],
+    switchAccount: auth.switchAccount,
     importData: async (json) => { await importAllData(json); if (typeof window !== 'undefined' && window.location) window.location.reload(); },
     exportData: () => exportAllData({
       transactions, settings: (settings?.settings as any), goals: goalsArray,

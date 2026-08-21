@@ -38,13 +38,25 @@ jest.mock('../src/utils/syncQueue', () => ({
     enqueue: jest.fn(async () => {}),
 }));
 
-// ─── Mock secureStorage (used by clearAllData) ────────────────────────────────
-jest.mock('../src/utils/secureStorage', () => ({
-    savePinSecurely: jest.fn(async () => {}),
-    loadPinSecurely: jest.fn(async () => null),
-    clearPinSecurely: jest.fn(async () => {}),
-    clearAllSecureData: jest.fn(async () => {}),
-}));
+// ─── Mock secureStorage (used by clearAllData, and — for the account
+// registry below — by registerLocalAccount/switchLocalAccount/etc, which
+// need actual round-tripping rather than the always-null no-ops the other
+// secure values use, since those aren't exercised by any test in this file). ─
+jest.mock('../src/utils/secureStorage', () => {
+    let secureStore: Record<string, string> = {};
+    return {
+        savePinSecurely: jest.fn(async (v: string) => { secureStore.pin = v; }),
+        loadPinSecurely: jest.fn(async () => secureStore.pin ?? null),
+        clearPinSecurely: jest.fn(async () => { delete secureStore.pin; }),
+        saveAuthSecretSecurely: jest.fn(async (v: string) => { secureStore.authSecret = v; }),
+        loadAuthSecretSecurely: jest.fn(async () => secureStore.authSecret ?? null),
+        clearAuthSecretSecurely: jest.fn(async () => { delete secureStore.authSecret; }),
+        loadLocalAccountsSecurely: jest.fn(async () => secureStore.localAccounts ?? null),
+        saveLocalAccountsSecurely: jest.fn(async (json: string) => { secureStore.localAccounts = json; }),
+        clearLocalAccountsSecurely: jest.fn(async () => { delete secureStore.localAccounts; }),
+        clearAllSecureData: jest.fn(async () => { secureStore = {}; }),
+    };
+});
 
 // ─── Mock encryption (imports expo-secure-store which is ESM) ─────────────────
 jest.mock('../src/utils/encryption', () => ({
@@ -65,7 +77,15 @@ import {
     setWorkspaceOwner,
     clearLocalFinancialCache,
     localProfileMatchesEmail,
+    registerLocalAccount,
+    listLocalAccounts,
+    switchLocalAccount,
+    removeLocalAccount,
+    loadPin,
+    loadAuthSecret,
+    loadProfile,
 } from '../src/utils/storage';
+import * as secureStorageMock from '../src/utils/secureStorage';
 
 // ─── Test data helpers ────────────────────────────────────────────────────────
 
@@ -100,6 +120,9 @@ const makeGoal = (overrides: Partial<FinancialGoal> = {}): FinancialGoal => ({
 
 beforeEach(async () => {
     await AsyncStorage.clear();
+    await secureStorageMock.clearPinSecurely();
+    await secureStorageMock.clearAuthSecretSecurely();
+    await secureStorageMock.clearLocalAccountsSecurely();
     jest.clearAllMocks();
 });
 
@@ -289,5 +312,128 @@ describe('localProfileMatchesEmail', () => {
 
     it('does not match when there is no local profile at all', () => {
         expect(localProfileMatchesEmail(null, 'anyone@example.com')).toBe(false);
+    });
+});
+
+// ─── Multi-account switcher registry ───────────────────────────────────────
+// The single pin/authSecret/profile slots hold only whichever ONE account is
+// currently active on this device -- this additive registry is what lets a
+// second account sharing the same browser survive being temporarily not the
+// active one, and be switched back to without a full PIN reset.
+describe('registerLocalAccount / listLocalAccounts', () => {
+    it('registers a new account and lists it back as a safe summary', async () => {
+        await registerLocalAccount('owner@example.com', 'Owner Biz', '111111', 'secret-a', '2026-01-01T00:00:00.000Z');
+
+        const accounts = await listLocalAccounts();
+        expect(accounts).toEqual([
+            { email: 'owner@example.com', businessName: 'Owner Biz', createdAt: '2026-01-01T00:00:00.000Z' },
+        ]);
+        // Never leaks the PIN hash or the real Supabase secret into the
+        // UI-facing summary.
+        expect(accounts[0]).not.toHaveProperty('pinHash');
+        expect(accounts[0]).not.toHaveProperty('authSecret');
+    });
+
+    it('accumulates multiple distinct accounts', async () => {
+        await registerLocalAccount('a@example.com', 'Biz A', '111111', 'secret-a', '2026-01-01T00:00:00.000Z');
+        await registerLocalAccount('b@example.com', 'Biz B', '222222', 'secret-b', '2026-01-02T00:00:00.000Z');
+
+        const accounts = await listLocalAccounts();
+        expect(accounts.map(a => a.email)).toEqual(['a@example.com', 'b@example.com']);
+    });
+
+    it('upserts by email (case-insensitive) instead of duplicating', async () => {
+        await registerLocalAccount('owner@example.com', 'Old Name', '111111', 'secret-old', '2026-01-01T00:00:00.000Z');
+        await registerLocalAccount('Owner@Example.com', 'New Name', '222222', 'secret-new', '2026-01-01T00:00:00.000Z');
+
+        const accounts = await listLocalAccounts();
+        expect(accounts).toHaveLength(1);
+        expect(accounts[0].businessName).toBe('New Name');
+    });
+
+    it('preserves the existing business name when re-registered with a blank one', async () => {
+        await registerLocalAccount('owner@example.com', 'Real Business Name', '111111', 'secret-a', '2026-01-01T00:00:00.000Z');
+        // e.g. a recovery flow that only knows the email at this point.
+        await registerLocalAccount('owner@example.com', '', '333333', 'secret-rotated', '2026-01-01T00:00:00.000Z');
+
+        const accounts = await listLocalAccounts();
+        expect(accounts[0].businessName).toBe('Real Business Name');
+    });
+});
+
+describe('switchLocalAccount', () => {
+    it('mirrors the target account into the active pin/authSecret/profile slots on a correct PIN', async () => {
+        await registerLocalAccount('a@example.com', 'Biz A', '111111', 'secret-a', '2026-01-01T00:00:00.000Z');
+        await registerLocalAccount('b@example.com', 'Biz B', '222222', 'secret-b', '2026-01-02T00:00:00.000Z');
+
+        const result = await switchLocalAccount('b@example.com', '222222');
+
+        expect(result).toBe('ok');
+        expect(await loadAuthSecret()).toBe('secret-b');
+        expect(await loadProfile()).toMatchObject({ email: 'b@example.com', businessName: 'Biz B' });
+        // The stored PIN is the hash, not raw -- loadPin() returns whatever
+        // savePinSecurely was called with, matching what login() re-hashes
+        // and compares against.
+        expect(await loadPin()).toBeTruthy();
+    });
+
+    it('rejects a wrong PIN without touching the active slots', async () => {
+        await registerLocalAccount('a@example.com', 'Biz A', '111111', 'secret-a', '2026-01-01T00:00:00.000Z');
+
+        const result = await switchLocalAccount('a@example.com', '000000');
+
+        expect(result).toBe('wrong-pin');
+        expect(await loadAuthSecret()).toBeNull();
+        expect(await loadProfile()).toBeNull();
+    });
+
+    it('reports not-found for an email this device has never registered', async () => {
+        const result = await switchLocalAccount('stranger@example.com', '111111');
+        expect(result).toBe('not-found');
+    });
+
+    it('switching back and forth between two accounts does not corrupt either one', async () => {
+        await registerLocalAccount('a@example.com', 'Biz A', '111111', 'secret-a', '2026-01-01T00:00:00.000Z');
+        await registerLocalAccount('b@example.com', 'Biz B', '222222', 'secret-b', '2026-01-02T00:00:00.000Z');
+
+        await switchLocalAccount('a@example.com', '111111');
+        expect(await loadProfile()).toMatchObject({ email: 'a@example.com' });
+
+        await switchLocalAccount('b@example.com', '222222');
+        expect(await loadProfile()).toMatchObject({ email: 'b@example.com' });
+
+        // Both registrations survive the switching -- neither PIN was
+        // silently rehashed or dropped along the way.
+        expect(await switchLocalAccount('a@example.com', '111111')).toBe('ok');
+        expect(await switchLocalAccount('b@example.com', '222222')).toBe('ok');
+    });
+});
+
+describe('removeLocalAccount', () => {
+    it('removes only the target account, leaving the others registered', async () => {
+        await registerLocalAccount('a@example.com', 'Biz A', '111111', 'secret-a', '2026-01-01T00:00:00.000Z');
+        await registerLocalAccount('b@example.com', 'Biz B', '222222', 'secret-b', '2026-01-02T00:00:00.000Z');
+
+        await removeLocalAccount('a@example.com');
+
+        const accounts = await listLocalAccounts();
+        expect(accounts.map(a => a.email)).toEqual(['b@example.com']);
+    });
+
+    it('is a no-op for an email that was never registered', async () => {
+        await registerLocalAccount('a@example.com', 'Biz A', '111111', 'secret-a', '2026-01-01T00:00:00.000Z');
+
+        await removeLocalAccount('nobody@example.com');
+
+        expect(await listLocalAccounts()).toHaveLength(1);
+    });
+
+    it('is a no-op for a null/undefined email', async () => {
+        await registerLocalAccount('a@example.com', 'Biz A', '111111', 'secret-a', '2026-01-01T00:00:00.000Z');
+
+        await removeLocalAccount(undefined);
+        await removeLocalAccount(null);
+
+        expect(await listLocalAccounts()).toHaveLength(1);
     });
 });

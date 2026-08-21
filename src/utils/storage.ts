@@ -2,7 +2,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import CryptoJS from 'crypto-js';
 import { Transaction, BusinessSettings, FinancialGoal, Invoice, TeamMember, Language, Asset, InventoryItem, Loan, Budget, StaffMember, PayrollRun, FinancingContextData, CashPocket, CapitalCommitment, ReadinessSnapshot } from '../types';
 import { supabase } from './supabase';
-import { savePinSecurely, loadPinSecurely, clearPinSecurely, clearAllSecureData, saveAuthSecretSecurely, loadAuthSecretSecurely, clearAuthSecretSecurely } from './secureStorage';
+import {
+    savePinSecurely, loadPinSecurely, clearPinSecurely, clearAllSecureData, saveAuthSecretSecurely, loadAuthSecretSecurely, clearAuthSecretSecurely,
+    loadLocalAccountsSecurely, saveLocalAccountsSecurely, clearLocalAccountsSecurely,
+} from './secureStorage';
 import { enqueue } from './syncQueue';
 import {
     getFieldEncryptionKey, encryptGoal, decryptGoal, encryptLoan, decryptLoan, encryptBudget, decryptBudget,
@@ -788,10 +791,14 @@ export async function loadReadinessHistory(): Promise<ReadinessSnapshot[] | null
 
 // ─── PIN (local only — never sent to server) ──────────────────────────────────
 // PIN is now stored securely using expo-secure-store
+// Shared with registerLocalAccount/switchLocalAccount below so a PIN typed
+// against the multi-account registry hashes identically to one checked here.
+export function hashPinValue(pin: string): string {
+    return CryptoJS.SHA256(pin + 'Q360_SME_2025').toString(CryptoJS.enc.Hex) + '_Q360';
+}
 export async function savePin(pin: string): Promise<void> {
     // Store hash not raw PIN so plaintext never sits in storage
-    const hashed = CryptoJS.SHA256(pin + 'Q360_SME_2025').toString(CryptoJS.enc.Hex) + '_Q360';
-    await savePinSecurely(hashed);
+    await savePinSecurely(hashPinValue(pin));
 }
 export async function loadPin(): Promise<string | null> {
     return loadPinSecurely();
@@ -816,6 +823,108 @@ export async function loadAuthSecret(): Promise<string | null> {
 }
 export async function clearAuthSecret(): Promise<void> {
     await clearAuthSecretSecurely();
+}
+
+// ─── Multiple accounts on one device ───────────────────────────────────────
+// The pin/authSecret/profile above are a SINGLE slot holding whichever one
+// account is currently active on this device -- every login, PIN reset, or
+// device verification overwrites them. That's fine for the common case (one
+// business per device), but it means two owners (or one owner testing two
+// businesses) sharing a browser kept silently evicting each other: resetting
+// account B's PIN overwrote account A's locally-stored credential, even
+// though nothing about account A's real data ever changed server-side.
+//
+// This registry is additive, not a replacement -- everything above keeps
+// working exactly as before for the single-account case. Each entry holds
+// what's needed to both verify a returning PIN locally and re-establish that
+// account's cloud session without re-deriving the secret from the PIN (see
+// generateAuthSecret's own comment for why the PIN itself must never be the
+// real credential).
+export interface LocalAccountRecord {
+    email: string;
+    businessName: string;
+    pinHash: string;
+    authSecret: string;
+    createdAt: string;
+}
+
+// The UI-facing shape -- never includes pinHash/authSecret, so a component
+// that lists "other accounts on this device" can't accidentally leak them
+// into a render tree, log, or crash report.
+export interface LocalAccountSummary {
+    email: string;
+    businessName: string;
+    createdAt: string;
+}
+
+async function loadLocalAccountRecords(): Promise<LocalAccountRecord[]> {
+    const raw = await loadLocalAccountsSecurely();
+    return safeParse<LocalAccountRecord[]>(raw) ?? [];
+}
+
+// Called wherever an account's PIN/authSecret is (re)established on this
+// device -- setupAccount (brand new) and recoverAccount (PIN reset, device
+// verification, or an email+PIN login that re-derived a fresh secret) alike
+// -- so the NEXT time a different account becomes active here, this one is
+// still switchable back to instead of silently gone.
+export async function registerLocalAccount(email: string, businessName: string, pin: string, authSecret: string, createdAt: string): Promise<void> {
+    const accounts = await loadLocalAccountRecords();
+    const idx = accounts.findIndex(a => a.email.toLowerCase() === email.trim().toLowerCase());
+    // An in-progress recovery flow sometimes only knows the email (not the
+    // business name) at this point -- keep whatever name was already on
+    // file for this account rather than blanking it out.
+    const resolvedBusinessName = businessName.trim() || (idx >= 0 ? accounts[idx].businessName : 'My Business');
+    const record: LocalAccountRecord = {
+        email: email.trim(), businessName: resolvedBusinessName, pinHash: hashPinValue(pin), authSecret, createdAt,
+    };
+    if (idx >= 0) accounts[idx] = record; else accounts.push(record);
+    await saveLocalAccountsSecurely(JSON.stringify(accounts));
+}
+
+// For the account-switcher UI -- every account this device currently knows
+// how to unlock, safe to render directly.
+export async function listLocalAccounts(): Promise<LocalAccountSummary[]> {
+    const accounts = await loadLocalAccountRecords();
+    return accounts.map(({ email, businessName, createdAt }) => ({ email, businessName, createdAt }));
+}
+
+// Verifies the PIN against a SPECIFIC registered account (not whichever one
+// happens to be active), and if it matches, mirrors that account into the
+// active pin/authSecret/profile slots every other function in this file
+// already reads from -- callers still go through the same
+// clearLocalFinancialCache + Supabase re-sign-in steps login()/recoverAccount()
+// already use, so switching an account active is otherwise identical to
+// logging into it fresh.
+export async function switchLocalAccount(email: string, pin: string): Promise<'ok' | 'wrong-pin' | 'not-found'> {
+    const accounts = await loadLocalAccountRecords();
+    const account = accounts.find(a => a.email.toLowerCase() === email.trim().toLowerCase());
+    if (!account) return 'not-found';
+    if (hashPinValue(pin) !== account.pinHash) return 'wrong-pin';
+    await savePinSecurely(account.pinHash);
+    await saveAuthSecretSecurely(account.authSecret);
+    await AsyncStorage.setItem(KEYS.profile, JSON.stringify({
+        email: account.email, businessName: account.businessName, createdAt: account.createdAt,
+    } as StoredProfile));
+    return 'ok';
+}
+
+// Drops one account from the switcher list without touching any other
+// registered account -- used by "Delete Account" (that specific account
+// should stop being offered as a switch target; the others on this device
+// must stay exactly as they were).
+export async function removeLocalAccount(email: string | undefined | null): Promise<void> {
+    if (!email) return;
+    const accounts = await loadLocalAccountRecords();
+    const filtered = accounts.filter(a => a.email.toLowerCase() !== email.trim().toLowerCase());
+    if (filtered.length !== accounts.length) await saveLocalAccountsSecurely(JSON.stringify(filtered));
+}
+
+// Wipes the whole registry -- only for a genuine full-device reset ("Erase
+// local data" / "Reset app"), where forgetting every account this device
+// has ever known about is the actual intent, unlike a single logout or a
+// single account deletion.
+export async function clearLocalAccountsRegistry(): Promise<void> {
+    await clearLocalAccountsSecurely();
 }
 
 // ─── Field-encryption key sync ─────────────────────────────────────────────
@@ -1239,8 +1348,13 @@ export async function loadFinancingFromSupabase(userId: string): Promise<Financi
 // the account being deleted are ever touched unless authUserId IS the
 // workspace owner.
 export async function deleteAccountData(): Promise<void> {
+    // Captured before anything below signs this device out, so the deleted
+    // account can be dropped from the local multi-account registry (see
+    // registerLocalAccount) without disturbing any OTHER account this
+    // device also knows about.
+    const deletedEmail = (await loadProfile())?.email;
     const authUserId = await getAuthUserId();
-    if (!authUserId) { await clearAllData(); return; }
+    if (!authUserId) { await clearAllData(); await removeLocalAccount(deletedEmail); return; }
     const workspaceOwnerId = await getWorkspaceOwnerId();
     const isOwner = authUserId === workspaceOwnerId;
 
@@ -1300,5 +1414,6 @@ export async function deleteAccountData(): Promise<void> {
     }
 
     await clearAllData();
+    await removeLocalAccount(deletedEmail);
     await supabase.auth.signOut();
 }

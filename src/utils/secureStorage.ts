@@ -6,6 +6,7 @@ const SECURE_KEYS = {
     pin: '@quad360/secure/pin',
     sessionToken: '@quad360/secure/session',
     authSecret: '@quad360/secure/auth-secret',
+    localAccounts: '@quad360/secure/local-accounts',
 };
 
 // expo-secure-store has no web support — skip it entirely on web
@@ -144,4 +145,38 @@ export async function clearAllSecureData(): Promise<void> {
         clearSessionTokenSecurely(),
         clearAuthSecretSecurely(),
     ]);
+}
+
+// ─── Multiple accounts on one device ───────────────────────────────────────
+// The single pin/authSecret/profile slots above hold whichever ONE account
+// is currently active on this device -- every login, PIN reset, or device
+// verification overwrites them, which is exactly why switching between two
+// accounts on the same browser used to evict one every time the other
+// signed in. This is a separate, additive registry of every account this
+// device has ever set up or recovered, so a returning account's PIN hash
+// and auth secret survive being temporarily not-the-active-one. Stored as
+// one JSON blob (mirroring how the single pin/authSecret values are stored)
+// rather than one key per account, since SecureStore only tracks bounded
+// small values well and the account count per device is always small.
+export async function loadLocalAccountsSecurely(): Promise<string | null> {
+    return safeSecureStoreOperation(
+        () => SecureStore.getItemAsync(SECURE_KEYS.localAccounts),
+        () => webSecureStorage.getItem(SECURE_KEYS.localAccounts),
+    );
+}
+
+export async function saveLocalAccountsSecurely(json: string): Promise<void> {
+    await safeSecureStoreOperation(
+        () => SecureStore.setItemAsync(SECURE_KEYS.localAccounts, json),
+        () => webSecureStorage.setItem(SECURE_KEYS.localAccounts, json),
+    );
+}
+
+export async function clearLocalAccountsSecurely(): Promise<void> {
+    if (!isNative) { await webSecureStorage.removeItem(SECURE_KEYS.localAccounts); return; }
+    try {
+        await SecureStore.deleteItemAsync(SECURE_KEYS.localAccounts);
+    } catch {
+        await webSecureStorage.removeItem(SECURE_KEYS.localAccounts);
+    }
 }

@@ -77,7 +77,7 @@ type Mode = 'owner-setup' | 'owner-login' | 'join-team' | 'join-lender' | 'reset
 type LoginMethod = 'pin' | 'email';
 
 export default function LoginScreen() {
-    const { isFirstLaunch, setupAccount, login, joinTeam, joinAsLender, enterDemo, language, setLanguage, updateSettings, resetApp, isLockedOut, lockoutUntil, recoverAccount, navParams, recordConsent, navigate } = useApp();
+    const { isFirstLaunch, setupAccount, login, joinTeam, joinAsLender, enterDemo, language, setLanguage, updateSettings, resetApp, isLockedOut, lockoutUntil, recoverAccount, navParams, recordConsent, navigate, localAccounts, switchAccount } = useApp();
     // The split-screen setup layout only applies on wide web viewports --
     // narrow/native rendering is untouched, so the primary mobile
     // experience carries zero risk from this. 900px comfortably fits the
@@ -197,6 +197,44 @@ export default function LoginScreen() {
     const [returnPin, setReturnPin] = useState('');
     const [emailLoginEmail, setEmailLoginEmail] = useState('');
     const [emailLoginPin, setEmailLoginPin] = useState('');
+
+    // Switch Account — which of this device's other known accounts (if any)
+    // is currently being switched to, and its inline PIN prompt. See
+    // localAccounts/switchAccount (OptimizedContexts.tsx) for why this
+    // exists: the PIN-unlock screen only ever showed whichever ONE account
+    // was last active on this device, so a second account sharing the same
+    // browser had no way in without evicting the first.
+    const [activeAccountEmail, setActiveAccountEmail] = useState<string | null>(null);
+    const [switchTarget, setSwitchTarget] = useState<string | null>(null);
+    const [switchPin, setSwitchPin] = useState('');
+    const [switchSubmitting, setSwitchSubmitting] = useState(false);
+
+    useEffect(() => {
+        loadProfile().then(p => setActiveAccountEmail(p?.email ?? null)).catch(() => {});
+    }, [localAccounts]);
+
+    const otherLocalAccounts = localAccounts.filter(a => a.email.toLowerCase() !== (activeAccountEmail ?? '').toLowerCase());
+
+    const handleSwitchAccount = async (targetEmail: string) => {
+        if (!/^\d{6}$/.test(switchPin)) { showAlert(t(language, 'error'), 'Please enter your 6-digit PIN.'); return; }
+        setSwitchSubmitting(true);
+        try {
+            const result = await switchAccount(targetEmail, switchPin);
+            if (result === 'ok') {
+                setSwitchTarget(null); setSwitchPin('');
+                identifyUser(targetEmail);
+                trackUserLoggedIn('switch-account');
+            } else if (result === 'wrong-pin') {
+                showAlert(t(language, 'error'), 'Incorrect PIN for that account. Please try again.');
+                setSwitchPin('');
+            } else {
+                showAlert(t(language, 'error'), 'That account is no longer available on this device.');
+                setSwitchTarget(null); setSwitchPin('');
+            }
+        } finally {
+            setSwitchSubmitting(false);
+        }
+    };
 
     // Join team
     const [joinEmail, setJoinEmail]     = useState('');
@@ -1107,6 +1145,61 @@ export default function LoginScreen() {
                 </View>
             )}
 
+            {/* Switch Account — only appears once this device actually knows
+                more than one account, so the ~100% of single-account devices
+                see zero change here. */}
+            {otherLocalAccounts.length > 0 && (
+                <View style={styles.switchAccountBox}>
+                    <Text style={styles.switchAccountTitle}>Switch Account</Text>
+                    {otherLocalAccounts.map(acct => (
+                        <View key={acct.email} style={styles.switchAccountRow}>
+                            <TouchableOpacity
+                                style={styles.switchAccountRowMain}
+                                onPress={() => {
+                                    setSwitchTarget(switchTarget === acct.email ? null : acct.email);
+                                    setSwitchPin('');
+                                }}
+                            >
+                                <View style={styles.switchAccountAvatar}>
+                                    <Text style={styles.switchAccountAvatarText}>{acct.businessName.trim().charAt(0).toUpperCase() || '?'}</Text>
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.switchAccountName} numberOfLines={1}>{acct.businessName}</Text>
+                                    <Text style={styles.switchAccountEmail} numberOfLines={1}>{acct.email}</Text>
+                                </View>
+                                <Icon name={switchTarget === acct.email ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.muted} />
+                            </TouchableOpacity>
+                            {switchTarget === acct.email && (
+                                <View style={styles.switchAccountExpand}>
+                                    <TextInput
+                                        style={styles.switchAccountPinInput}
+                                        placeholder="Enter PIN for this account"
+                                        placeholderTextColor={Colors.muted}
+                                        secureTextEntry keyboardType="number-pad" maxLength={6}
+                                        value={switchPin} onChangeText={setSwitchPin}
+                                        onSubmitEditing={() => handleSwitchAccount(acct.email)}
+                                        autoFocus
+                                    />
+                                    <TouchableOpacity
+                                        style={[styles.switchAccountBtn, switchSubmitting && styles.btnDisabled]}
+                                        onPress={() => handleSwitchAccount(acct.email)}
+                                        disabled={switchSubmitting}
+                                    >
+                                        {switchSubmitting
+                                            ? <ActivityIndicator color="#fff" size="small" />
+                                            : <Text style={styles.switchAccountBtnText}>Switch</Text>
+                                        }
+                                    </TouchableOpacity>
+                                </View>
+                            )}
+                        </View>
+                    ))}
+                    <Text style={styles.switchAccountHint}>
+                        Adding a different account? Use the <Text style={{ color: Colors.primary }} onPress={() => setLoginMethod('email')}>Email tab</Text> below.
+                    </Text>
+                </View>
+            )}
+
             {/* Login Method Tabs */}
             <View style={styles.methodTabRow}>
                 <TouchableOpacity
@@ -1425,6 +1518,42 @@ const styles = StyleSheet.create({
         borderRadius: Radius.md, padding: 12, marginBottom: 16,
     },
     lockoutText: { flex: 1, color: Colors.danger, fontSize: 13, fontWeight: '600' },
+
+    switchAccountBox: {
+        backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border,
+        borderRadius: Radius.md, padding: 10, marginBottom: 16, gap: 4,
+    },
+    switchAccountTitle: {
+        fontSize: 11, fontWeight: '700', color: Colors.textMuted,
+        textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2, paddingHorizontal: 2,
+    },
+    switchAccountRow: { borderRadius: Radius.sm, overflow: 'hidden' },
+    switchAccountRowMain: {
+        flexDirection: 'row', alignItems: 'center', gap: 10,
+        paddingVertical: 8, paddingHorizontal: 4,
+    },
+    switchAccountAvatar: {
+        width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.primary + '22',
+        alignItems: 'center', justifyContent: 'center',
+    },
+    switchAccountAvatarText: { fontSize: 14, fontWeight: '700', color: Colors.primary },
+    switchAccountName: { fontSize: 13.5, fontWeight: '600', color: Colors.textPrimary },
+    switchAccountEmail: { fontSize: 11.5, color: Colors.textMuted, marginTop: 1 },
+    switchAccountExpand: {
+        flexDirection: 'row', alignItems: 'center', gap: 8,
+        paddingHorizontal: 4, paddingBottom: 10,
+    },
+    switchAccountPinInput: {
+        flex: 1, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm,
+        paddingVertical: 8, paddingHorizontal: 10, fontSize: 14, color: Colors.textPrimary,
+        backgroundColor: Colors.surface,
+    },
+    switchAccountBtn: {
+        backgroundColor: Colors.primary, borderRadius: Radius.sm,
+        paddingVertical: 8, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center',
+    },
+    switchAccountBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+    switchAccountHint: { fontSize: 11, color: Colors.textMuted, paddingHorizontal: 2, paddingTop: 2 },
 
     // Segmented control — a pill-shaped track with a solid active segment
     // reads as one deliberate control, unlike the flat two-button row this

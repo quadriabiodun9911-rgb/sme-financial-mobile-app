@@ -79,8 +79,8 @@ export function trackUserRegistered(currency: string) {
     send('user_registered', { currency });
 }
 
-/** Called on every successful PIN or email login */
-export function trackUserLoggedIn(method: 'pin' | 'email') {
+/** Called on every successful PIN, email, or account-switch login */
+export function trackUserLoggedIn(method: 'pin' | 'email' | 'switch-account') {
     send('user_logged_in', { method });
 }
 
