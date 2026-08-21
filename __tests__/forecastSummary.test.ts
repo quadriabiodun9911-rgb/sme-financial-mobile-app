@@ -1,5 +1,5 @@
-import { computeForecastSummary } from '../src/utils/forecastSummary';
-import { NO_ADJUSTMENTS, ForecastAdjustments } from '../src/utils/futureFinancialStatements';
+import { computeForecastSummary, computeCashFlowForecastMonths, describeCashFlowPressure } from '../src/utils/forecastSummary';
+import { buildFutureFinancialStatements, NO_ADJUSTMENTS, ForecastAdjustments } from '../src/utils/futureFinancialStatements';
 import { Transaction, FinanceData } from '../src/types';
 
 const makeTx = (overrides: Partial<Transaction>): Transaction => ({
@@ -107,5 +107,85 @@ describe('computeForecastSummary', () => {
         const shortHorizon = computeForecastSummary(flatMonths(), [], finance, '30d');
         const longHorizon = computeForecastSummary(flatMonths(), [], finance, '12m');
         expect(longHorizon.confidencePct).toBeLessThanOrEqual(shortHorizon.confidencePct);
+    });
+});
+
+describe('computeCashFlowForecastMonths', () => {
+    it('reconciles net exactly to the underlying month\'s netCashChange', () => {
+        const stmts = buildFutureFinancialStatements(flatMonths(), [], finance, NO_ADJUSTMENTS, 3, []);
+        const cashFlowMonths = computeCashFlowForecastMonths(stmts, NO_ADJUSTMENTS);
+        cashFlowMonths.forEach((cf, i) => {
+            expect(cf.net).toBeCloseTo(stmts.months[i].netCashChange, 0);
+            expect(cf.endingCash).toBeCloseTo(stmts.months[i].endingCash, 0);
+        });
+    });
+
+    it('splits inflow/outflow to exactly the accrual figures when there is no receivables/payables timing effect', () => {
+        // flatMonths() has every transaction status 'paid', so accounts
+        // receivable/payable (and therefore the DSO/DPO-driven projected
+        // receivables/payables) are all zero -- customerCollections should
+        // equal revenue exactly, operatingOutflow should equal
+        // operatingExpenses exactly.
+        const stmts = buildFutureFinancialStatements(flatMonths(), [], finance, NO_ADJUSTMENTS, 3, []);
+        const cashFlowMonths = computeCashFlowForecastMonths(stmts, NO_ADJUSTMENTS);
+        cashFlowMonths.forEach((cf, i) => {
+            expect(cf.customerCollections).toBeCloseTo(stmts.months[i].revenue, 0);
+            expect(cf.operatingOutflow).toBeCloseTo(stmts.months[i].operatingExpenses, 0);
+        });
+    });
+
+    it('draws the new loan amount as inflow only in month 1, and reconstructs its repayment from financingCashFlow', () => {
+        const adjustments: ForecastAdjustments = { ...NO_ADJUSTMENTS, newLoanAmount: 1200000, newLoanAnnualRatePct: 12, newLoanTermMonths: 12 };
+        const stmts = buildFutureFinancialStatements(flatMonths(), [], finance, adjustments, 3, []);
+        const cashFlowMonths = computeCashFlowForecastMonths(stmts, adjustments);
+
+        expect(cashFlowMonths[0].newLoanDraw).toBe(1200000);
+        expect(cashFlowMonths[1].newLoanDraw).toBe(0);
+        expect(cashFlowMonths[0].loanRepayment).toBeGreaterThan(0);
+        // Reconstructed loan repayment should match what financingCashFlow implies.
+        expect(cashFlowMonths[0].loanRepayment).toBeCloseTo(1200000 - stmts.months[0].financingCashFlow, 0);
+        expect(cashFlowMonths[1].loanRepayment).toBeCloseTo(-stmts.months[1].financingCashFlow, 0);
+    });
+
+    it('flags a month as pressured exactly when net is negative', () => {
+        // Ramp expenses up fast enough to overtake flat revenue.
+        const adjustments: ForecastAdjustments = { ...NO_ADJUSTMENTS, expenseGrowthPctPerMonth: 80 };
+        const stmts = buildFutureFinancialStatements(flatMonths(), [], finance, adjustments, 3, []);
+        const cashFlowMonths = computeCashFlowForecastMonths(stmts, adjustments);
+        const anyPressured = cashFlowMonths.some(m => m.pressured);
+        expect(anyPressured).toBe(true);
+        cashFlowMonths.forEach(m => {
+            expect(m.pressured).toBe(m.net < 0);
+        });
+    });
+});
+
+describe('describeCashFlowPressure', () => {
+    it('returns null for a healthy (non-pressured) month', () => {
+        const stmts = buildFutureFinancialStatements(flatMonths(), [], finance, NO_ADJUSTMENTS, 1, []);
+        const [month] = computeCashFlowForecastMonths(stmts, NO_ADJUSTMENTS);
+        expect(describeCashFlowPressure(month)).toBeNull();
+    });
+
+    it('explains a pressured month in plain language, mentioning the month name', () => {
+        const adjustments: ForecastAdjustments = { ...NO_ADJUSTMENTS, expenseGrowthPctPerMonth: 80 };
+        const stmts = buildFutureFinancialStatements(flatMonths(), [], finance, adjustments, 3, []);
+        const cashFlowMonths = computeCashFlowForecastMonths(stmts, adjustments);
+        const pressuredMonth = cashFlowMonths.find(m => m.pressured)!;
+        const explanation = describeCashFlowPressure(pressuredMonth);
+        expect(explanation).not.toBeNull();
+        expect(explanation).toContain(pressuredMonth.monthLabel);
+    });
+
+    it('calls out loan repayment specifically when it dominates the outflow', () => {
+        // Month 1's own big loan draw is itself a large inflow, so the loan's
+        // effect on cash pressure only shows up from month 2 onward, once
+        // there's a real repayment with no offsetting draw.
+        const adjustments: ForecastAdjustments = { ...NO_ADJUSTMENTS, newLoanAmount: 5000000, newLoanAnnualRatePct: 24, newLoanTermMonths: 6 };
+        const stmts = buildFutureFinancialStatements(flatMonths(), [], finance, adjustments, 2, []);
+        const cashFlowMonths = computeCashFlowForecastMonths(stmts, adjustments);
+        const month2 = cashFlowMonths[1];
+        expect(month2.pressured).toBe(true);
+        expect(describeCashFlowPressure(month2)).toContain('loan repayment');
     });
 });

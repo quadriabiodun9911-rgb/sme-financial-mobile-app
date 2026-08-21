@@ -7,7 +7,7 @@ import FooterNav from '../components/FooterNav';
 import Icon from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { buildFutureFinancialStatements, NO_ADJUSTMENTS, ForecastAdjustments } from '../utils/futureFinancialStatements';
-import { computeForecastSummary, ForecastPeriod, PERIOD_LABELS } from '../utils/forecastSummary';
+import { computeForecastSummary, describeCashFlowPressure, ForecastPeriod, PERIOD_LABELS } from '../utils/forecastSummary';
 import { getEconomicReference } from '../utils/economicContext';
 import { DRIVER_LABEL } from '../utils/externalRiskInsights';
 
@@ -158,6 +158,31 @@ export default function FutureFinancialStatementsScreen() {
                                 <Text style={s.headlineLabel}>Expected Cash Position</Text>
                                 <Text style={[s.headlineVal, { color: Colors.asset }]}>{fmt(forecastSummary.headline.expectedCashPosition)}</Text>
                             </View>
+                        </View>
+
+                        {/* Cash Flow Forecast — the centerpiece */}
+                        <View style={s.card}>
+                            <Text style={s.cardTitle}>💵 Cash Flow Forecast</Text>
+                            <Text style={s.baselineNote}>
+                                The most important number to watch — when cash actually comes in and goes out, month by month.
+                            </Text>
+                            {forecastSummary.cashFlowMonths.map((cf, i) => {
+                                const pressureText = describeCashFlowPressure(cf);
+                                return (
+                                    <View key={i} style={[s.cashFlowMonthCard, cf.pressured && s.cashFlowMonthCardPressured]}>
+                                        <Text style={s.cashFlowMonthTitle}>📅 {cf.monthLabel}</Text>
+                                        <Row label="Expected inflow" value={fmt(cf.inflow)} valueColor={Colors.income} />
+                                        <Row label="Expected outflow" value={fmt(cf.outflow)} valueColor={Colors.expense} />
+                                        <Row
+                                            label="Net cash movement"
+                                            value={`${cf.net >= 0 ? '+' : ''}${fmt(cf.net)}${cf.pressured ? ' ⚠️' : ''}`}
+                                            valueColor={cf.net >= 0 ? Colors.income : Colors.expense}
+                                            bold
+                                        />
+                                        {pressureText && <Text style={s.cashFlowPressureText}>{pressureText}</Text>}
+                                    </View>
+                                );
+                            })}
                         </View>
 
                         {/* Revenue Forecast */}
@@ -442,6 +467,14 @@ const s = StyleSheet.create({
     marginCompareBox: { backgroundColor: Colors.surfaceVariant, borderRadius: Radius.md, padding: Spacing.md, marginTop: Spacing.sm },
     marginCompareLine: { fontSize: 12.5, color: Colors.textSecondary, marginBottom: 2 },
     marginCompareDelta: { fontSize: 13, fontWeight: '700', marginTop: 4 },
+
+    cashFlowMonthCard: {
+        backgroundColor: Colors.surfaceVariant, borderRadius: Radius.md, padding: Spacing.md,
+        marginBottom: Spacing.sm, borderWidth: 1, borderColor: Colors.border,
+    },
+    cashFlowMonthCardPressured: { borderColor: Colors.warning },
+    cashFlowMonthTitle: { fontSize: 13.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: 4 },
+    cashFlowPressureText: { fontSize: 12, color: Colors.warning, lineHeight: 17, marginTop: 6 },
     card: {
         backgroundColor: Colors.surface, borderRadius: 14, padding: Spacing.lg, marginBottom: 14,
         borderWidth: 1, borderColor: Colors.border, ...Shadow.sm,

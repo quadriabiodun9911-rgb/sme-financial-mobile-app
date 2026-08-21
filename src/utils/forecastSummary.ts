@@ -14,7 +14,7 @@
  */
 
 import { Transaction, Loan, FinanceData, StaffMember, MacroAssumption } from '../types';
-import { buildFutureFinancialStatements, ForecastAdjustments, NO_ADJUSTMENTS } from './futureFinancialStatements';
+import { buildFutureFinancialStatements, ForecastAdjustments, NO_ADJUSTMENTS, FutureFinancialStatements } from './futureFinancialStatements';
 import { computeAllTimeMonthlyBuckets } from './trendAnalysis';
 import { classifyExpenseLine } from './finance';
 
@@ -52,6 +52,21 @@ export interface ProfitForecastBridge {
     marginDeltaPct: number;
 }
 
+export interface CashFlowMonth {
+    monthLabel: string; // real calendar month name, e.g. "September" -- distinct
+    // from ProjectedMonth.monthLabel ("Month 1") used by the detailed
+    // statement tabs elsewhere on the screen.
+    inflow: number;
+    customerCollections: number; // revenue adjusted for the receivables timing effect -- not all revenue becomes cash the same month it's earned
+    newLoanDraw: number;         // only nonzero in month 1, if a new loan adjustment is set
+    outflow: number;
+    operatingOutflow: number;    // operating expenses adjusted for the payables timing effect
+    loanRepayment: number;       // existing + new loan payments this month, reconstructed from financingCashFlow
+    net: number;                 // === the same month's ProjectedMonth.netCashChange, reconciled exactly
+    endingCash: number;
+    pressured: boolean;          // net < 0
+}
+
 export interface ForecastSummary {
     period: ForecastPeriod;
     monthsInPeriod: number;
@@ -60,11 +75,74 @@ export interface ForecastSummary {
     revenueTable: RevenueForecastRow[];
     expenseByCategory: ExpenseForecastCategory[];
     profitBridge: ProfitForecastBridge;
+    cashFlowMonths: CashFlowMonth[];
     confidencePct: number;
 }
 
 function monthLabel(y: number, m: number): string {
     return new Date(y, m - 1, 1).toLocaleString('default', { month: 'short' });
+}
+
+function calendarMonthLabel(monthsFromNow: number): string {
+    const d = new Date();
+    d.setDate(1); // avoid a 31st rolling into the wrong month when the month length changes
+    d.setMonth(d.getMonth() + monthsFromNow);
+    return d.toLocaleString('default', { month: 'long' });
+}
+
+// Decomposes each projected month's net cash change into gross inflow and
+// outflow, reconciled exactly to ProjectedMonth's own operatingCashFlow/
+// financingCashFlow/netCashChange -- not a separate estimate that could
+// disagree with the detailed Cash Flow statement tab elsewhere on this
+// screen. Doesn't split inflow into "sales" vs "invoice collections", or
+// outflow into named expense categories: the engine tracks revenue and
+// receivables as single running totals, not per-transaction origin, so a
+// finer split would be invented precision the underlying model can't
+// actually support.
+export function computeCashFlowForecastMonths(stmts: FutureFinancialStatements, adjustments: ForecastAdjustments): CashFlowMonth[] {
+    let prevReceivables = stmts.knownReceivables;
+    let prevPayables = stmts.knownPayables;
+    const result: CashFlowMonth[] = [];
+
+    stmts.months.forEach((m, idx) => {
+        const monthNum = idx + 1;
+        const customerCollections = m.revenue - (m.receivables - prevReceivables);
+        const operatingOutflow = m.operatingExpenses - (m.payables - prevPayables);
+        const newLoanDraw = monthNum === 1 && adjustments.newLoanAmount > 0 ? adjustments.newLoanAmount : 0;
+        // financingCashFlow = newLoanDraw - totalLoanPayment (see
+        // buildFutureFinancialStatements) -- solving for the payment here
+        // rather than re-amortizing the loans a second time.
+        const loanRepayment = newLoanDraw - m.financingCashFlow;
+        const inflow = customerCollections + newLoanDraw;
+        const outflow = operatingOutflow + loanRepayment;
+        const net = inflow - outflow;
+
+        result.push({
+            monthLabel: calendarMonthLabel(monthNum),
+            inflow, customerCollections, newLoanDraw,
+            outflow, operatingOutflow, loanRepayment,
+            net, endingCash: m.endingCash,
+            pressured: net < 0,
+        });
+
+        prevReceivables = m.receivables;
+        prevPayables = m.payables;
+    });
+
+    return result;
+}
+
+// A plain-language explanation for a pressured month -- null when the
+// month isn't pressured, since there's nothing to explain. Never claims
+// more certainty than "may" -- this is a projection built on stated
+// assumptions, not a guarantee (see this file's header).
+export function describeCashFlowPressure(month: CashFlowMonth): string | null {
+    if (!month.pressured) return null;
+    const loanShare = month.outflow > 0 ? month.loanRepayment / month.outflow : 0;
+    if (loanShare >= 0.4) {
+        return `Your cash position may come under pressure in ${month.monthLabel} — loan repayment makes up a large share of expected outflow relative to projected inflow.`;
+    }
+    return `Your cash position may come under pressure in ${month.monthLabel} because expected expenses are higher than projected cash inflows.`;
 }
 
 export function computeForecastSummary(
@@ -137,11 +215,14 @@ export function computeForecastSummary(
     // Never presented as a statistical guarantee (see this file's header).
     const confidencePct = Math.max(30, Math.min(90, 40 + stmts.baselineMonthsUsed * 15 - Math.max(0, monthsInPeriod - 3) * 2));
 
+    const cashFlowMonths = computeCashFlowForecastMonths(stmts, adjustments);
+
     return {
         period, monthsInPeriod, baselineMonthsUsed: stmts.baselineMonthsUsed,
         headline: { expectedRevenue, expectedExpenses, expectedProfit, expectedCashPosition },
         revenueTable, expenseByCategory,
         profitBridge: { revenue: expectedRevenue, cogs, grossProfit, operatingExpenses, netProfit, forecastMarginPct, currentMarginPct, marginDeltaPct: forecastMarginPct - currentMarginPct },
+        cashFlowMonths,
         confidencePct,
     };
 }
