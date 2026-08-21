@@ -66,7 +66,16 @@ export function autoDetectColumns(csvRows: string[]): ColumnMapping | null {
     'keterangan',
     'descripción',
   ];
-  const amountPatterns = ['amount', 'value', 'balance', 'jumlah', 'monto', 'ammount'];
+  // 'balance' deliberately excluded -- it already has its own home in
+  // balancePatterns below (the running/cumulative balance column, not a
+  // transaction amount). Including it here too let a bank statement's
+  // Balance column get matched into amountColumn instead of the real
+  // Amount column whenever it appeared later in the header row, silently
+  // overwriting the correct match in the loop below -- every transaction's
+  // "amount" then became that row's running account balance, and summing
+  // hundreds of those (rather than reading the one true amount) produced
+  // wildly, astronomically wrong totals.
+  const amountPatterns = ['amount', 'value', 'jumlah', 'monto', 'ammount'];
   const creditPatterns = ['credit', 'deposit', 'in', 'income', 'kredit', 'ingreso'];
   const debitPatterns = ['debit', 'withdrawal', 'out', 'expense', 'debet', 'gasto'];
   const referencePatterns = ['reference', 'ref', 'check', 'cheque', 'invoice', 'referensi'];

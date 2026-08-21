@@ -64,6 +64,27 @@ describe('parseCSVWithMapping', () => {
         expect(byDesc['Vendor supplier payment for stock'].type).toBe('expense');
     });
 
+    it('does not let a trailing running-Balance column overwrite the real Amount column', () => {
+        // Balance here is a large, ever-growing cumulative total -- exactly
+        // the shape that silently exploded totals when 'balance' was also
+        // listed as an amount pattern and, appearing after Amount in the
+        // header, overwrote the correct column match.
+        const csv = `date,description,amount,type,balance
+2024-01-15,CUSTOMER PAYMENT - ACME CORP,150000,credit,150000
+2024-01-16,SUPPLIER PAYMENT - QUICK GOODS,45000,debit,105000
+2024-01-18,BANK CHARGES,1500,debit,103500`;
+        const rows = csv.trim().split('\n');
+        const mapping = autoDetectColumns(rows)!;
+        expect(mapping).not.toBeNull();
+        expect(mapping.balanceColumn).toBeDefined();
+
+        const { transactions, summary } = parseCSVWithMapping(csv, mapping);
+        expect(transactions).toHaveLength(3);
+        expect(transactions.map(t => t.amount)).toEqual([150000, 45000, 1500]);
+        expect(summary.totalIncome).toBe(150000);
+        expect(summary.totalExpenses).toBe(46500);
+    });
+
     it('reads an ambiguous date as DD/MM/YYYY (this app\'s NGN/Nigerian format), not US MM/DD/YYYY', () => {
         const csv = `date,description,amount,type
 05/03/2024,Test Payment,1000,credit
