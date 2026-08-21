@@ -309,7 +309,12 @@ export default function LoginScreen() {
             );
             return;
         }
-        if (!returnPin) { showAlert(t(language, 'error'), 'Please enter your 6-digit PIN.'); return; }
+        // An incomplete PIN (e.g. Enter pressed before all 6 digits are
+        // typed) would otherwise still reach login() and burn one of the
+        // 5 attempts before the lockout on a submission that was never
+        // going to be correct -- validate the shape first, same as the
+        // signup form already does, so only a real guess counts.
+        if (!/^\d{6}$/.test(returnPin)) { showAlert(t(language, 'error'), 'Please enter your 6-digit PIN.'); return; }
         const ok = await login(returnPin);
         if (!ok) {
             showAlert(t(language, 'error'), 'Incorrect PIN. Please try again.');
@@ -326,7 +331,9 @@ export default function LoginScreen() {
             return;
         }
         if (!emailLoginEmail.trim()) { showAlert(t(language, 'error'), 'Please enter your email address.'); return; }
-        if (!emailLoginPin) { showAlert(t(language, 'error'), 'Please enter your 6-digit PIN.'); return; }
+        // Same reasoning as handleLogin above -- an incomplete PIN must not
+        // reach the local PIN check and burn one of the 5 lockout attempts.
+        if (!/^\d{6}$/.test(emailLoginPin)) { showAlert(t(language, 'error'), 'Please enter your 6-digit PIN.'); return; }
 
         setSubmitting(true);
         let navigating = false;
@@ -1095,7 +1102,7 @@ export default function LoginScreen() {
                 <View style={styles.lockoutBanner}>
                     <Icon name="lock" size={14} color={Colors.danger} />
                     <Text style={styles.lockoutText}>
-                        Too many failed attempts. Try again in {Math.ceil(timeRemaining / 60)}:{String(timeRemaining % 60).padStart(2, '0')}
+                        Too many failed attempts. Try again in {Math.floor(timeRemaining / 60)}:{String(timeRemaining % 60).padStart(2, '0')}
                     </Text>
                 </View>
             )}
