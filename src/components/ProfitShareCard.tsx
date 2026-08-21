@@ -40,7 +40,7 @@ ${isProfit ? '✅ Profit' : '⚠️ Loss'}:   ${currency}${Math.abs(profit).toLo
 📊 Margin:   ${margin.toFixed(1)}%
 
 Tracked with Quad360 — Free financial app for small businesses
-Try it free: quad360.vercel.app`;
+Try it free: quad360financial.com`;
 
         try {
             await Share.share({ message, title: `${monthName} Business Summary` });
@@ -75,7 +75,7 @@ Try it free: quad360.vercel.app`;
                 <View style={styles.brandRow}>
                     <Text style={styles.brandText}>Tracked with </Text>
                     <Text style={styles.brandName}>Quad360</Text>
-                    <Text style={styles.brandText}> · quad360.vercel.app</Text>
+                    <Text style={styles.brandText}> · quad360financial.com</Text>
                 </View>
 
                 {shared ? (

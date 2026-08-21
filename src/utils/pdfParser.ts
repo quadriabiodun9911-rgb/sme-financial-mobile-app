@@ -69,6 +69,11 @@ function findHeaderRow(rows: TextItem[][]): number {
 
 // ─── Map a data row to named columns using header positions ───────────────────
 
+const NUMERIC_COLS = new Set(['debit', 'credit', 'amount', 'balance']);
+// A text item that already looks like a complete currency figure on its own
+// (not a fragment of one broken across multiple PDF text runs by kerning).
+const LOOKS_LIKE_FULL_NUMBER = /^\d[\d,]*(\.\d{1,2})?$/;
+
 function mapRowToRecord(
     dataRow: TextItem[],
     headers: { col: string; x: number }[],
@@ -77,11 +82,28 @@ function mapRowToRecord(
     const result: Record<string, string> = {};
     for (const header of headers) {
         // Find text items closest to this header's X position
-        const bucketItems = dataRow.filter(item => {
+        let bucketItems = dataRow.filter(item => {
             const nextHeader = headers.find(h => h.x > header.x);
             const maxX = nextHeader ? nextHeader.x : pageWidth;
             return item.x >= header.x - 10 && item.x < maxX;
         });
+        // A numeric column (debit/credit/amount/balance) should hold a
+        // single figure. If imprecise column-width detection let a stray
+        // item from a neighbouring column (most often the running balance
+        // bleeding into the amount column) into this bucket, joining every
+        // item with a space and then stripping whitespace during parsing
+        // downstream would silently fuse two real numbers into one absurd
+        // one (e.g. "3,226,878.27" + "260,722,997,000.00" -> one number
+        // orders of magnitude too large). When more than one item in the
+        // bucket already looks like a complete number by itself, keep only
+        // the one closest to this header's own X position instead.
+        if (NUMERIC_COLS.has(header.col)) {
+            const fullNumbers = bucketItems.filter(i => LOOKS_LIKE_FULL_NUMBER.test(i.text));
+            if (fullNumbers.length > 1) {
+                bucketItems = [fullNumbers.reduce((closest, item) =>
+                    Math.abs(item.x - header.x) < Math.abs(closest.x - header.x) ? item : closest)];
+            }
+        }
         result[header.col] = bucketItems.map(i => i.text).join(' ').trim();
     }
     return result;

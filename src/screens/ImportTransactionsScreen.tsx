@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
     View, Text, TouchableOpacity, ScrollView, StyleSheet,
-    Alert, ActivityIndicator, FlatList, Modal, Platform, useWindowDimensions,
+    Alert, ActivityIndicator, FlatList, Modal, Platform, useWindowDimensions, TextInput,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
@@ -31,6 +31,7 @@ interface ParsedRow {
     category:    TxCategory;
     subCategory: string;
     flagged:     boolean;      // true = needs user attention
+    amountFlagged?: boolean;   // true = the amount itself looks like a parsing artifact (e.g. two columns fused together), not just an uncertain category
     raw:         Record<string, string>;
 }
 
@@ -71,7 +72,34 @@ function findCol(headers: string[], aliases: string[]): string | null {
 function parseAmount(raw: string): number {
     if (!raw) return 0;
     // Remove currency symbols, spaces, commas → parse float
-    return Math.abs(parseFloat(raw.replace(/[₦$€£,\s]/g, '')) || 0);
+    const cleaned = raw.replace(/[₦$€£,\s]/g, '');
+    // A real amount has at most one decimal point. More than one is the
+    // signature of two separate numbers having been fused together
+    // upstream (most commonly a PDF column-bucketing artifact where a
+    // stray item from an adjacent column — often the running balance —
+    // gets joined into the same cell, and the join space is then stripped
+    // by this very regex). parseFloat would otherwise silently keep only
+    // the digits up to the second '.', truncating the real value instead
+    // of failing loudly — treat it as unparseable so the row gets flagged
+    // for review rather than importing a wrong number.
+    if ((cleaned.match(/\./g) || []).length > 1) return 0;
+    return Math.abs(parseFloat(cleaned) || 0);
+}
+
+// A parsed amount wildly out of proportion with the rest of the same
+// statement is far more likely a parsing artifact (two adjacent columns
+// fused into one number, a running balance mistaken for a transaction
+// amount, etc.) than a genuine transaction — flag it for the owner to
+// check rather than silently importing a number that could be off by
+// orders of magnitude and corrupt every downstream revenue/profit total.
+function flagAmountOutliers(rows: ParsedRow[]): ParsedRow[] {
+    const amounts = rows.map(r => r.amount).filter(a => a > 0).sort((a, b) => a - b);
+    if (amounts.length < 3) return rows;
+    const median = amounts[Math.floor(amounts.length / 2)];
+    // 25x the statement's own median, floored so a handful of small
+    // transactions can't make a merely-large-but-real one look anomalous.
+    const threshold = Math.max(median * 25, 10000000);
+    return rows.map(r => r.amount > threshold ? { ...r, amountFlagged: true } : r);
 }
 
 function toDateString(dt: Date): string {
@@ -169,7 +197,13 @@ function parseRows(raw: Record<string, string>[]): {
     const extractBalance = (r: Record<string, string>): number | null => {
         const raw = balCol ? r[balCol] : Object.values(r).slice().reverse().find(v => /\d/.test(v || ''));
         if (!raw) return null;
-        const n = parseFloat(String(raw).replace(/[₦$€£,\s]/g, ''));
+        const cleaned = String(raw).replace(/[₦$€£,\s]/g, '');
+        // Same fused-numbers guard as parseAmount -- a balance figure with
+        // more than one decimal point is a parsing artifact, not a real
+        // value, and would otherwise silently poison every subsequent
+        // row's balance-delta calculation.
+        if ((cleaned.match(/\./g) || []).length > 1) return null;
+        const n = parseFloat(cleaned);
         return isNaN(n) ? null : n;
     };
 
@@ -240,7 +274,11 @@ function parseRows(raw: Record<string, string>[]): {
             prevBalance = bal;
         }
 
-        const amount    = credit > 0 ? credit : debit;
+        const amount = credit > 0 ? credit : debit;
+        // A zero amount here means either a no-op balance line (delta 0) or
+        // an amount that failed to parse (parseAmount's fused-numbers
+        // guard) — neither is a real transaction worth importing as noise.
+        if (amount <= 0) continue;
         const direction: 'income' | 'expense' = credit > 0 ? 'income' : 'expense';
         const { category, subCategory, flagged } = classifyByDescription(descRaw, direction);
 
@@ -261,7 +299,7 @@ function parseRows(raw: Record<string, string>[]): {
     // running balance (when available) is the closing position.
     if (closingBalance === undefined && prevBalance !== null) closingBalance = prevBalance;
 
-    return { rows, summaryRowsSkipped, openingBalance, closingBalance };
+    return { rows: flagAmountOutliers(rows), summaryRowsSkipped, openingBalance, closingBalance };
 }
 
 // ─── Scanned photo/PDF → preview rows ────────────────────────────────────────
@@ -269,7 +307,7 @@ function parseRows(raw: Record<string, string>[]): {
 // path uses, so a scanned receipt lands in the identical review step
 // (flagged rows, category picker, dedup) instead of a separate flow.
 function rowsFromScan(transactions: ScannedTransaction[]): ParsedRow[] {
-    return transactions.map((t, i) => {
+    const rows = transactions.map((t, i) => {
         const { category, subCategory, flagged } = classifyByDescription(t.description, t.direction);
         return {
             id:          `scan_${Date.now()}_${i}`,
@@ -283,6 +321,7 @@ function rowsFromScan(transactions: ScannedTransaction[]): ParsedRow[] {
             raw:         {},
         };
     }).filter(r => r.amount > 0);
+    return flagAmountOutliers(rows);
 }
 
 // ─── Category options shown in the picker ────────────────────────────────────
@@ -329,6 +368,8 @@ export default function ImportTransactionsScreen() {
     const [rows,       setRows]       = useState<ParsedRow[]>([]);
     const [error,      setError]      = useState('');
     const [pickerRow,  setPickerRow]  = useState<string | null>(null);
+    const [editAmountRow, setEditAmountRow] = useState<string | null>(null);
+    const [editAmountValue, setEditAmountValue] = useState('');
     const [skippedNote, setSkippedNote] = useState('');
     const [openingBalance, setOpeningBalance] = useState<number | undefined>(undefined);
     const [closingBalance, setClosingBalance] = useState<number | undefined>(undefined);
@@ -601,6 +642,21 @@ export default function ImportTransactionsScreen() {
             return { ...r, category: opt.category, subCategory: opt.subCategory, flagged: false };
         }));
         setPickerRow(null);
+    };
+
+    // ── Correct a row's amount ───────────────────────────────────────────────
+    // The escape hatch for a row a parser got wrong (e.g. an
+    // amountFlagged outlier from two columns getting fused together) --
+    // without this, the only fix was deleting the row and re-entering the
+    // real transaction by hand from the Transactions screen afterwards.
+    const openAmountEdit = (r: ParsedRow) => {
+        setEditAmountRow(r.id);
+        setEditAmountValue(String(r.amount));
+    };
+    const saveAmountEdit = () => {
+        const next = Math.abs(parseFloat(editAmountValue.replace(/[₦$€£,\s]/g, '')) || 0);
+        setRows(prev => prev.map(r => r.id === editAmountRow ? { ...r, amount: next, amountFlagged: false } : r));
+        setEditAmountRow(null);
     };
 
     // ── Final import ─────────────────────────────────────────────────────────
@@ -966,7 +1022,7 @@ export default function ImportTransactionsScreen() {
                 keyExtractor={r => r.id}
                 contentContainerStyle={{ padding: 12, paddingBottom: 120 }}
                 renderItem={({ item: r }) => (
-                    <View style={[styles.txRow, r.flagged && styles.txRowFlagged]}>
+                    <View style={[styles.txRow, (r.flagged || r.amountFlagged) && styles.txRowFlagged]}>
                         <View style={styles.txLeft}>
                             <Text style={styles.txDate}>
                                 {new Date(r.date).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })}
@@ -977,11 +1033,19 @@ export default function ImportTransactionsScreen() {
                                     {r.flagged ? '⚠️ Tap to categorise' : `${r.type === 'income' ? '💰' : '📤'} ${r.subCategory} ▾`}
                                 </Text>
                             </TouchableOpacity>
+                            {r.amountFlagged && (
+                                <Text style={styles.txAmountWarning}>⚠️ Unusually large — tap the amount to check it</Text>
+                            )}
                         </View>
                         <View style={styles.txRight}>
-                            <Text style={[styles.txAmount, { color: r.type === 'income' ? '#22c55e' : '#ef4444' }]}>
-                                {r.type === 'income' ? '+' : '-'}{fmt(r.amount)}
-                            </Text>
+                            <TouchableOpacity onPress={() => openAmountEdit(r)} activeOpacity={0.7}>
+                                <Text style={[
+                                    styles.txAmount,
+                                    { color: r.amountFlagged ? '#ef4444' : (r.type === 'income' ? '#22c55e' : '#ef4444') },
+                                ]}>
+                                    {r.type === 'income' ? '+' : '-'}{fmt(r.amount)}
+                                </Text>
+                            </TouchableOpacity>
                             <TouchableOpacity style={styles.removeBtn} onPress={() => removeRow(r.id)}>
                                 <Icon name="x" size={15} color={Colors.textMuted} />
                             </TouchableOpacity>
@@ -1016,6 +1080,28 @@ export default function ImportTransactionsScreen() {
                             ))}
                         </ScrollView>
                     </View>
+                </TouchableOpacity>
+            </Modal>
+
+            {/* Amount correction modal */}
+            <Modal visible={!!editAmountRow} transparent animationType="slide" onRequestClose={() => setEditAmountRow(null)}>
+                <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setEditAmountRow(null)}>
+                    <TouchableOpacity activeOpacity={1} style={[styles.modalSheet, constrainSheetWidth && styles.modalSheetWide]}>
+                        <Text style={styles.modalTitle}>Correct Amount</Text>
+                        <Text style={styles.amountEditHint}>
+                            If this looks wrong (e.g. far bigger than the rest of the statement), fix it here or remove the row instead.
+                        </Text>
+                        <TextInput
+                            style={styles.amountEditInput}
+                            value={editAmountValue}
+                            onChangeText={setEditAmountValue}
+                            keyboardType="numeric"
+                            autoFocus
+                        />
+                        <TouchableOpacity style={styles.amountEditSaveBtn} onPress={saveAmountEdit}>
+                            <Text style={styles.amountEditSaveBtnText}>Save Amount</Text>
+                        </TouchableOpacity>
+                    </TouchableOpacity>
                 </TouchableOpacity>
             </Modal>
         </View>
@@ -1096,6 +1182,7 @@ const styles = StyleSheet.create({
     txCatFlagged: { color: '#f59e0b' },
     txRight:      { alignItems: 'flex-end', gap: Spacing.sm },
     txAmount:     { fontSize: 14, fontWeight: '800' },
+    txAmountWarning: { fontSize: 11, color: '#ef4444', marginTop: 4, fontWeight: '600' },
     removeBtn:    { padding: 2 },
 
     // Fixed import bar
@@ -1110,6 +1197,15 @@ const styles = StyleSheet.create({
     modalTitle:   { fontSize: 16, fontWeight: '800', color: Colors.textPrimary, marginBottom: Spacing.lg },
     catOption:    { paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: Colors.border },
     catOptionText: { fontSize: 14, color: Colors.textPrimary },
+
+    // Amount correction modal
+    amountEditHint: { fontSize: 12.5, color: Colors.textSecondary, marginBottom: Spacing.md, lineHeight: 18 },
+    amountEditInput: {
+        backgroundColor: Colors.bg, borderRadius: Radius.sm, borderWidth: 1, borderColor: Colors.border,
+        padding: Spacing.md, color: Colors.textPrimary, fontSize: 18, fontWeight: '700', marginBottom: Spacing.lg,
+    },
+    amountEditSaveBtn: { backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: Radius.md, alignItems: 'center' },
+    amountEditSaveBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
 
     // Diagnosis preview on the Done screen
     diagnosisPreviewCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: Spacing.lg, marginTop: Spacing.xxl, width: '100%', maxWidth: 340, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
