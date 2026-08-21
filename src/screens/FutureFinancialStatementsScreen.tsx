@@ -42,7 +42,7 @@ function AdjustmentInput({ label, value, onChange, suffix }: { label: string; va
 }
 
 export default function FutureFinancialStatementsScreen() {
-    const { transactions, loans, finance, settings, staff, goBack } = useApp();
+    const { transactions, loans, finance, settings, staff, goBack, inventory } = useApp();
     const { currency } = settings;
 
     const [activeStatement, setActiveStatement] = useState<Statement>('pnl');
@@ -82,8 +82,8 @@ export default function FutureFinancialStatementsScreen() {
     // shorter, glance-friendly 30/60/90-day/12-month periods this section
     // is framed around, rather than the 6/12-month statement horizon.
     const forecastSummary = useMemo(
-        () => computeForecastSummary(transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments),
-        [transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments],
+        () => computeForecastSummary(transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory),
+        [transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory],
     );
 
     const notEnoughData = forecast.baselineMonthsUsed === 0;
@@ -244,6 +244,41 @@ export default function FutureFinancialStatementsScreen() {
                                     {pb.marginDeltaPct >= 0 ? '🟢 +' : '🔴 '}{pb.marginDeltaPct.toFixed(1)} percentage points
                                 </Text>
                             </View>
+                        </View>
+
+                        {/* Margin Risk — only shown when recent discounting has actually climbed */}
+                        {forecastSummary.marginRisk.show && (
+                            <View style={s.riskCard}>
+                                <View style={s.riskTitleRow}>
+                                    <Icon name="alert-triangle" size={14} color={Colors.warning} />
+                                    <Text style={[s.riskTitle, s.riskTitleInRow]}>Margin Risk</Text>
+                                </View>
+                                <Text style={s.riskText}>
+                                    Your average discount has climbed from{' '}
+                                    <Text style={s.riskBold}>{forecastSummary.discountTrend.priorRatePct.toFixed(1)}%</Text> to{' '}
+                                    <Text style={s.riskBold}>{forecastSummary.discountTrend.recentRatePct.toFixed(1)}%</Text> over the last 30 days.
+                                    If this pattern continues, it could reduce gross profit by approximately{' '}
+                                    <Text style={s.riskBold}>{fmt(forecastSummary.marginRisk.estimatedProfitImpact)}</Text> over the next {PERIOD_LABELS[forecastPeriod].toLowerCase()}.
+                                </Text>
+                            </View>
+                        )}
+
+                        {/* Inventory Forecast */}
+                        <View style={s.card}>
+                            <Text style={s.cardTitle}>📦 Inventory Forecast</Text>
+                            <Row label="Current inventory value" value={fmt(forecastSummary.inventoryForecast.currentInventoryValue)} />
+                            <Row label="Expected sales (at cost)" value={`−${fmt(forecastSummary.inventoryForecast.expectedSalesAtCost)}`} valueColor={Colors.expense} />
+                            <Row label="Expected inventory purchases" value={`+${fmt(forecastSummary.inventoryForecast.expectedPurchases)}`} valueColor={Colors.income} />
+                            <Row label="Projected inventory value" value={fmt(forecastSummary.inventoryForecast.projectedInventoryValue)} bold />
+                            {forecastSummary.inventoryForecast.atRiskItemCount > 0 ? (
+                                <Text style={s.insightLine}>
+                                    🔴 {forecastSummary.inventoryForecast.atRiskItemCount} product{forecastSummary.inventoryForecast.atRiskItemCount === 1 ? '' : 's'} may reach low-stock levels within 14 days.
+                                </Text>
+                            ) : forecastSummary.inventoryForecast.daysOfCoverage != null && (
+                                <Text style={s.coverageInsightOk}>
+                                    🟠 Sufficient stock for ~{Math.round(forecastSummary.inventoryForecast.daysOfCoverage)} days at your current sales pace.
+                                </Text>
+                            )}
                         </View>
 
                         <View style={s.card}>
@@ -463,6 +498,7 @@ const s = StyleSheet.create({
     insightBoxText: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18, marginBottom: 6 },
     confidenceText: { fontSize: 11.5, fontWeight: '600', color: Colors.textMuted },
     insightLine: { fontSize: 12.5, color: Colors.warning, lineHeight: 18, marginTop: Spacing.sm },
+    coverageInsightOk: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18, marginTop: Spacing.sm },
 
     marginCompareBox: { backgroundColor: Colors.surfaceVariant, borderRadius: Radius.md, padding: Spacing.md, marginTop: Spacing.sm },
     marginCompareLine: { fontSize: 12.5, color: Colors.textSecondary, marginBottom: 2 },

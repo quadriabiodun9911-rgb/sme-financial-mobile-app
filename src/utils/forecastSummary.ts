@@ -13,10 +13,12 @@
  * category split.
  */
 
-import { Transaction, Loan, FinanceData, StaffMember, MacroAssumption } from '../types';
+import { Transaction, Loan, FinanceData, StaffMember, MacroAssumption, InventoryItem } from '../types';
 import { buildFutureFinancialStatements, ForecastAdjustments, NO_ADJUSTMENTS, FutureFinancialStatements } from './futureFinancialStatements';
 import { computeAllTimeMonthlyBuckets } from './trendAnalysis';
 import { classifyExpenseLine } from './finance';
+import { computeDiscountTrend, computeMarginRiskWarning, DiscountTrend, MarginRiskWarning } from './discountForecast';
+import { computeInventoryForecast, InventoryForecast } from './inventoryForecast';
 
 export type ForecastPeriod = '30d' | '60d' | '90d' | '12m';
 
@@ -76,6 +78,9 @@ export interface ForecastSummary {
     expenseByCategory: ExpenseForecastCategory[];
     profitBridge: ProfitForecastBridge;
     cashFlowMonths: CashFlowMonth[];
+    discountTrend: DiscountTrend;
+    marginRisk: MarginRiskWarning;
+    inventoryForecast: InventoryForecast;
     confidencePct: number;
 }
 
@@ -153,6 +158,7 @@ export function computeForecastSummary(
     staff: StaffMember[] = [],
     macroAssumptions: MacroAssumption[] = [],
     adjustments: ForecastAdjustments = NO_ADJUSTMENTS,
+    inventory: InventoryItem[] = [],
 ): ForecastSummary {
     const monthsInPeriod = PERIOD_MONTHS[period];
     const stmts = buildFutureFinancialStatements(transactions, loans, finance, adjustments, monthsInPeriod, staff, macroAssumptions);
@@ -217,12 +223,17 @@ export function computeForecastSummary(
 
     const cashFlowMonths = computeCashFlowForecastMonths(stmts, adjustments);
 
+    const discountTrend = computeDiscountTrend(transactions);
+    const marginRisk = computeMarginRiskWarning(discountTrend, expectedRevenue);
+    const inventoryForecast = computeInventoryForecast(inventory, transactions, cogs, monthsInPeriod);
+
     return {
         period, monthsInPeriod, baselineMonthsUsed: stmts.baselineMonthsUsed,
         headline: { expectedRevenue, expectedExpenses, expectedProfit, expectedCashPosition },
         revenueTable, expenseByCategory,
         profitBridge: { revenue: expectedRevenue, cogs, grossProfit, operatingExpenses, netProfit, forecastMarginPct, currentMarginPct, marginDeltaPct: forecastMarginPct - currentMarginPct },
         cashFlowMonths,
+        discountTrend, marginRisk, inventoryForecast,
         confidencePct,
     };
 }
