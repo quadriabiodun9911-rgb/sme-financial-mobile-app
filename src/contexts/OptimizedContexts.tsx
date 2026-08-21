@@ -35,7 +35,7 @@ import {
   syncFinancingToSupabase,
   saveProfile, loadProfile, savePin, loadPin,
   generateAuthSecret, saveAuthSecret, loadAuthSecret, syncFieldEncryptionKey,
-  clearAllData, exportAllData, importAllData, deleteAccountData, recordConsent,
+  clearAllData, deleteAllBusinessRecords, exportAllData, importAllData, deleteAccountData, recordConsent,
   inviteTeamMember, removeTeamMember, loadTeamMembers, joinTeamWithCode,
   setWorkspaceOwner, clearWorkspaceOwner,
 } from '../utils/storage';
@@ -1478,7 +1478,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setCurrentScreenState('login');
       },
       clearData: async () => { await clearAllData(); reloadApp(); },
-      resetBusinessData: async () => { await clearAllData(); reloadApp(); },
+      resetBusinessData: async () => { await deleteAllBusinessRecords(); reloadApp(); },
       resetApp: async () => { await clearAllData(); setUser(null); reloadApp(); },
       deleteAccount: async () => { await deleteAccountData(); setUser(null); setCurrentScreenState('login'); reloadApp(); },
       teamMembers,

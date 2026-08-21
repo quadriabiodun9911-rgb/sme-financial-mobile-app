@@ -575,6 +575,14 @@ export default function SettingsScreen() {
 
                     {/* Danger Zone */}
                     <CollapsibleSection title="Danger Zone" defaultOpen={false}>
+                        {/* Owner-only: an invited accountant is meant to be
+                            read+export only, but resetBusinessData's real
+                            deletion is scoped to the account's own auth id
+                            matching the workspace owner's id (see
+                            deleteAllBusinessRecords in storage.ts) -- hiding
+                            the button for anyone else keeps that consistent
+                            at the UI layer too, not just silently no-op. */}
+                        {userRole === 'owner' && (
                         <Section title="Reset Business Data">
                             <Text style={styles.hint}>
                                 Permanently deletes all transactions, invoices, goals, assets, loans, and inventory. Your account and settings are kept — use this to start fresh without creating a new account.
@@ -583,6 +591,7 @@ export default function SettingsScreen() {
                                 <Text style={styles.dangerBtnText}>Reset Business Data</Text>
                             </TouchableOpacity>
                         </Section>
+                        )}
 
                         <Section title="Sign Out">
                             <Text style={styles.hint}>

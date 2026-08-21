@@ -1030,6 +1030,39 @@ export async function clearLocalFinancialCache(): Promise<void> {
     resetSyncDiffCache();
 }
 
+// Backs Settings' "Reset Business Data" action. Its own confirmation dialog
+// promises two things clearAllData() doesn't deliver: (1) it "permanently
+// deletes" transactions/invoices/goals/assets/loans/inventory -- but
+// clearAllData() only ever clears the local AsyncStorage cache, never
+// Supabase, so the "deleted" records simply resync right back down the next
+// time this device (or any other) reloads. deleteAccountData() had this
+// exact same bug and was already fixed for the "Delete Account" flow (see
+// its own comment); this was the equivalent fix for "Reset Business Data",
+// which never got it. (2) it promises "your account and settings are
+// kept" -- but clearAllData() also wipes the local PIN, profile, and
+// settings, signing the device out in the process.
+//
+// Owner-gated internally, not just by hiding the button in the UI: a team
+// member's getWorkspaceOwnerId() resolves to the OWNER's id (that's how
+// they see the shared workspace), so without this check an invited
+// accountant -- meant to be read+export only -- could wipe the owner's
+// entire business dataset.
+export async function deleteAllBusinessRecords(): Promise<void> {
+    const authUserId = await getAuthUserId();
+    const ownerId = await getWorkspaceOwnerId();
+    if (authUserId && ownerId && authUserId === ownerId) {
+        const tables = ['transactions', 'invoices', 'goals', 'assets', 'loans', 'inventory'];
+        const results = await Promise.all(
+            tables.map(table => supabase.from(table).delete().eq('user_id', ownerId))
+        );
+        results.forEach((r, i) => { if (r.error) logSyncError(tables[i], 'delete', r.error); });
+    }
+    await AsyncStorage.multiRemove([
+        KEYS.transactions, KEYS.goals, KEYS.invoices, KEYS.assets, KEYS.loans, '@quad360/inventory',
+    ]);
+    resetSyncDiffCache();
+}
+
 // ─── Staff ────────────────────────────────────────────────────────────────────
 // Cloud-first, mirroring the pattern used by transactions/loans/budgets/etc.:
 // save upserts to Supabase (and removes rows deleted locally), load prefers
