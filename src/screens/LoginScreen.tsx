@@ -333,7 +333,20 @@ export default function LoginScreen() {
             }
             const ok = await login(emailLoginPin);
             if (ok) { navigating = true; identifyUser(email); trackUserLoggedIn('email'); return; }
-            showAlert('Sign In Failed', 'This device doesn\'t recognize that email and PIN yet. If this is a new device, use "Forgot PIN?" to verify your email and set it up.');
+            // A brand-new device holds neither a local profile nor the
+            // account's real secret, so this failure is expected, not a
+            // dead end -- verifying by email (the flow below) is the actual
+            // way to authenticate on a device that's never seen this
+            // account before. Routing straight there with the email already
+            // filled in turns "read an error, go find the right button,
+            // retype your email" into one tap.
+            showAlert('Sign In Failed', 'This device doesn\'t recognize that email and PIN yet. Verify your email to set it up here.', [
+                { text: 'Verify Email', onPress: () => {
+                    setResetEmail(email); setResetNewPin(''); setResetConfirmPin(''); setResetOtp('');
+                    setResetStep('request'); setMode('reset-pin');
+                } },
+                { text: 'Try Again', style: 'cancel' },
+            ]);
         } catch (e: any) {
             showAlert('Sign In Failed', 'Could not connect. Please check your internet connection and try again.');
         } finally {
