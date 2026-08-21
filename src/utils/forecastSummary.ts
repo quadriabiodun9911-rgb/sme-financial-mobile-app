@@ -19,6 +19,7 @@ import { computeAllTimeMonthlyBuckets } from './trendAnalysis';
 import { classifyExpenseLine } from './finance';
 import { computeDiscountTrend, computeMarginRiskWarning, DiscountTrend, MarginRiskWarning } from './discountForecast';
 import { computeInventoryForecast, InventoryForecast } from './inventoryForecast';
+import { computeFinancialHealthForecast, FinancialHealthForecast } from './financialHealthForecast';
 
 export type ForecastPeriod = '30d' | '60d' | '90d' | '12m';
 
@@ -82,6 +83,7 @@ export interface ForecastSummary {
     discountTrend: DiscountTrend;
     marginRisk: MarginRiskWarning;
     inventoryForecast: InventoryForecast;
+    healthForecast: FinancialHealthForecast;
     confidencePct: number;
 }
 
@@ -233,13 +235,24 @@ export function computeForecastSummary(
     const marginRisk = computeMarginRiskWarning(discountTrend, expectedRevenue);
     const inventoryForecast = computeInventoryForecast(inventory, transactions, cogs, monthsInPeriod);
 
+    // Reuses the same computeRiskScore the rest of the app scores this
+    // business with -- "projected" just means computeRiskScore run again
+    // against this period's own projected revenue/profit/cash instead of
+    // the business's real current numbers, with transactions/loans/
+    // inventory unchanged (see financialHealthForecast.ts for why).
+    const healthForecast = computeFinancialHealthForecast(
+        { income: finance.income, profit: finance.profit, cashBalance: finance.cashBalance },
+        { income: expectedRevenue, profit: expectedProfit, cashBalance: expectedCashPosition },
+        loans, transactions, inventory,
+    );
+
     return {
         period, monthsInPeriod, baselineMonthsUsed: stmts.baselineMonthsUsed,
         headline: { expectedRevenue, expectedExpenses, expectedProfit, expectedCashPosition },
         revenueTable, expenseByCategory,
         profitBridge: { revenue: expectedRevenue, cogs, grossProfit, operatingExpenses, netProfit, forecastMarginPct, currentMarginPct, marginDeltaPct: forecastMarginPct - currentMarginPct },
         cashFlowMonths,
-        discountTrend, marginRisk, inventoryForecast,
+        discountTrend, marginRisk, inventoryForecast, healthForecast,
         confidencePct,
     };
 }

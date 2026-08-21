@@ -10,6 +10,9 @@ import { buildFutureFinancialStatements, NO_ADJUSTMENTS, ForecastAdjustments } f
 import { computeForecastSummary, describeCashFlowPressure, ForecastPeriod, PERIOD_LABELS } from '../utils/forecastSummary';
 import { getEconomicReference } from '../utils/economicContext';
 import { DRIVER_LABEL } from '../utils/externalRiskInsights';
+import { RiskScore, RISK_BAND_STYLE, getMonthlyExpenseAverage } from '../utils/finance';
+import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
+import { generateActionPlan } from '../utils/actionRecommendationEngine';
 
 type Statement = 'pnl' | 'cashflow' | 'balance';
 
@@ -42,7 +45,7 @@ function AdjustmentInput({ label, value, onChange, suffix }: { label: string; va
 }
 
 export default function FutureFinancialStatementsScreen() {
-    const { transactions, loans, finance, settings, staff, goBack, inventory } = useApp();
+    const { transactions, loans, finance, settings, staff, goBack, inventory, invoices, navigate } = useApp();
     const { currency } = settings;
 
     const [activeStatement, setActiveStatement] = useState<Statement>('pnl');
@@ -114,6 +117,28 @@ export default function FutureFinancialStatementsScreen() {
     const revenueChangePct = avgActualRevenue > 0 ? ((avgForecastRevenue - avgActualRevenue) / avgActualRevenue) * 100 : 0;
     const largestExpenseCategory = forecastSummary.expenseByCategory[0];
     const pb = forecastSummary.profitBridge;
+    const hf = forecastSummary.healthForecast;
+
+    const BAND_COLOR: Record<RiskScore['band'], string> = {
+        Excellent: Colors.income,
+        Strong: '#10b981',
+        Moderate: Colors.warning,
+        Weak: '#fb923c',
+        Critical: Colors.expense,
+    };
+
+    // Same lightweight diagnosis + action-plan pipeline CreditWorthinessScreen
+    // uses -- reused as-is rather than writing a third recommendation
+    // generator, so "what should I do" never disagrees between screens.
+    const diagnosis = useMemo(
+        () => performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), currency, loans, inventory),
+        [transactions, invoices, finance, currency, loans, inventory],
+    );
+    const actionPlan = useMemo(
+        () => generateActionPlan(diagnosis, diagnosis.metrics, currency),
+        [diagnosis, currency],
+    );
+    const topActions = (actionPlan.immediateActions.length > 0 ? actionPlan.immediateActions : actionPlan.shortTermActions).slice(0, 3);
 
     return (
         <SafeAreaView style={s.safe}>
@@ -295,6 +320,47 @@ export default function FutureFinancialStatementsScreen() {
                             )}
                         </View>
 
+                        {/* Financial Health Forecast */}
+                        <View style={s.card}>
+                            <Text style={s.cardTitle}>❤️ Financial Health Forecast</Text>
+                            <View style={s.healthScoreRow}>
+                                <View style={s.healthScoreBox}>
+                                    <Text style={s.healthScoreLabel}>Current Score</Text>
+                                    <Text style={[s.healthScoreVal, { color: BAND_COLOR[hf.currentScore.band] }]}>{hf.currentScore.score}/100</Text>
+                                    <Text style={[s.healthScoreBand, { color: BAND_COLOR[hf.currentScore.band] }]}>
+                                        {RISK_BAND_STYLE[hf.currentScore.band].emoji} {RISK_BAND_STYLE[hf.currentScore.band].label}
+                                    </Text>
+                                </View>
+                                <Text style={s.healthScoreArrow}>→</Text>
+                                <View style={s.healthScoreBox}>
+                                    <Text style={s.healthScoreLabel}>{PERIOD_LABELS[forecastPeriod]} Projected</Text>
+                                    <Text style={[s.healthScoreVal, { color: BAND_COLOR[hf.projectedScore.band] }]}>{hf.projectedScore.score}/100</Text>
+                                    <Text style={[s.healthScoreBand, { color: BAND_COLOR[hf.projectedScore.band] }]}>
+                                        {RISK_BAND_STYLE[hf.projectedScore.band].emoji} {RISK_BAND_STYLE[hf.projectedScore.band].label}
+                                    </Text>
+                                </View>
+                            </View>
+
+                            {hf.movedFactors.length > 0 ? (
+                                <>
+                                    <Text style={s.baselineNote}>What's driving the change:</Text>
+                                    {hf.movedFactors.map(f => (
+                                        <View key={f.name} style={s.healthDriverRow}>
+                                            <Text style={s.healthDriverName}>
+                                                {f.name}: {f.currentScore} → {f.projectedScore}
+                                            </Text>
+                                            <Text style={s.healthDriverExplanation}>{f.explanation}</Text>
+                                        </View>
+                                    ))}
+                                </>
+                            ) : (
+                                <Text style={s.baselineNote}>No change projected in the factors this forecast can speak to.</Text>
+                            )}
+                            <Text style={s.healthUnchangedNote}>
+                                Unchanged from today — not something a revenue/cash projection can predict: {hf.unchangedFactorNames.join(', ')}.
+                            </Text>
+                        </View>
+
                         <View style={s.card}>
                             <Text style={s.cardTitle}>Already factored in from your data</Text>
                             <Text style={s.baselineNote}>
@@ -394,6 +460,26 @@ export default function FutureFinancialStatementsScreen() {
                                         {fmt(forecastSummary.headline.expectedCashPosition - noAdjustmentsSummary.headline.expectedCashPosition)})
                                     </Text>
                                 </Text>
+                            </View>
+                        )}
+
+                        {/* AI recommendation box */}
+                        {topActions.length > 0 && (
+                            <View style={s.aiCard}>
+                                <Text style={s.aiCardTitle}>🤖 Quad360 Financial Intelligence</Text>
+                                <Text style={s.baselineNote}>Based on your forecast and recent numbers, here's what to focus on:</Text>
+                                {topActions.map(action => (
+                                    <View key={action.id} style={s.aiActionRow}>
+                                        <Text style={s.aiActionTitle}>{action.title}</Text>
+                                        <Text style={s.aiActionDesc}>{action.description}</Text>
+                                        <Text style={[s.aiActionImpact, { color: action.impactType === 'revenue' ? Colors.income : action.impactType === 'expense_reduction' ? Colors.income : Colors.asset }]}>
+                                            Potential impact: {fmt(action.expectedImpact)}{action.impactType === 'revenue' ? ' extra revenue' : action.impactType === 'expense_reduction' ? ' saved' : ' cash freed up'}
+                                        </Text>
+                                    </View>
+                                ))}
+                                <TouchableOpacity onPress={() => navigate('action-tracker')}>
+                                    <Text style={s.aiCardLink}>See full action plan →</Text>
+                                </TouchableOpacity>
                             </View>
                         )}
 
@@ -544,6 +630,28 @@ const s = StyleSheet.create({
     confidenceText: { fontSize: 11.5, fontWeight: '600', color: Colors.textMuted },
     insightLine: { fontSize: 12.5, color: Colors.warning, lineHeight: 18, marginTop: Spacing.sm },
     coverageInsightOk: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18, marginTop: Spacing.sm },
+
+    healthScoreRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', marginBottom: Spacing.md },
+    healthScoreBox: { alignItems: 'center', flex: 1 },
+    healthScoreLabel: { fontSize: 11, color: Colors.textSecondary, marginBottom: 4, textTransform: 'uppercase' as const, letterSpacing: 0.3 },
+    healthScoreVal: { fontSize: 24, fontWeight: '800' },
+    healthScoreBand: { fontSize: 12, fontWeight: '600', marginTop: 2 },
+    healthScoreArrow: { fontSize: 18, color: Colors.textMuted, paddingHorizontal: Spacing.sm },
+    healthDriverRow: { marginBottom: Spacing.sm },
+    healthDriverName: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary },
+    healthDriverExplanation: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
+    healthUnchangedNote: { fontSize: 11, color: Colors.textMuted, lineHeight: 16, marginTop: Spacing.sm },
+
+    aiCard: {
+        backgroundColor: Colors.surface, borderRadius: 14, padding: Spacing.lg, marginBottom: 14,
+        borderWidth: 1, borderColor: Colors.primary, ...Shadow.sm,
+    },
+    aiCardTitle: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 },
+    aiActionRow: { marginTop: Spacing.md, paddingTop: Spacing.md, borderTopWidth: 1, borderTopColor: Colors.border },
+    aiActionTitle: { fontSize: 13.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: 3 },
+    aiActionDesc: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 17, marginBottom: 4 },
+    aiActionImpact: { fontSize: 12, fontWeight: '600' },
+    aiCardLink: { fontSize: 13, fontWeight: '700', color: Colors.primary, marginTop: Spacing.md },
 
     marginCompareBox: { backgroundColor: Colors.surfaceVariant, borderRadius: Radius.md, padding: Spacing.md, marginTop: Spacing.sm },
     marginCompareLine: { fontSize: 12.5, color: Colors.textSecondary, marginBottom: 2 },
