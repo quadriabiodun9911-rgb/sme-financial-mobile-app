@@ -38,7 +38,7 @@ import {
   clearAllData, deleteAllBusinessRecords, exportAllData, importAllData, deleteAccountData, recordConsent,
   inviteTeamMember, removeTeamMember, loadTeamMembers, joinTeamWithCode,
   setWorkspaceOwner, clearWorkspaceOwner,
-  registerLocalAccount, listLocalAccounts, switchLocalAccount, switchLocalAccountDirect, clearLocalAccountsRegistry, LocalAccountSummary,
+  registerLocalAccount, listLocalAccounts, switchLocalAccount, switchLocalAccountDirect, ensureActiveAccountRegistered, clearLocalAccountsRegistry, LocalAccountSummary,
 } from '../utils/storage';
 import { TeamMember } from '../types';
 import { supabase } from '../utils/supabase';
@@ -1085,6 +1085,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     (async () => {
       try {
+        // Backfills the registry with whichever account is active on this
+        // device but predates the registry itself (see its own comment) --
+        // must resolve before listLocalAccounts() below so a device coming
+        // from before this feature shipped shows its own account in Switch
+        // Account starting with this very load, not just the next reset.
+        await ensureActiveAccountRegistered().catch(() => {});
         const [profile, lockoutRaw, accounts] = await Promise.all([
           loadProfile(),
           AsyncStorage.getItem(LOCKOUT_KEY),

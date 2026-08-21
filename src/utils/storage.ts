@@ -888,6 +888,28 @@ export async function listLocalAccounts(): Promise<LocalAccountSummary[]> {
     return accounts.map(({ email, businessName, createdAt }) => ({ email, businessName, createdAt }));
 }
 
+// Backfills the registry with whatever account is CURRENTLY active on this
+// device but never went through registerLocalAccount -- the account
+// registry was added well after the single active pin/profile/authSecret
+// slots it sits on top of, so any account whose most recent setup/
+// recovery/reset on this device predates the registry has a perfectly
+// working PIN and session but is completely invisible to Switch Account.
+// Called at boot (see AuthProvider) so this self-heals on the very next
+// load rather than needing another reset to fix itself. Uses the PIN HASH
+// already sitting in the active slot -- never the raw PIN, which isn't
+// (and shouldn't be) recoverable from local storage.
+export async function ensureActiveAccountRegistered(): Promise<void> {
+    const [profile, pinHash, authSecret] = await Promise.all([loadProfile(), loadPin(), loadAuthSecret()]);
+    if (!profile || !pinHash || !authSecret) return;
+    const accounts = await loadLocalAccountRecords();
+    if (accounts.some(a => a.email.toLowerCase() === profile.email.toLowerCase())) return;
+    accounts.push({
+        email: profile.email, businessName: profile.businessName, pinHash, authSecret,
+        createdAt: profile.createdAt ?? new Date().toISOString(),
+    });
+    await saveLocalAccountsSecurely(JSON.stringify(accounts));
+}
+
 async function mirrorAccountIntoActiveSlots(account: LocalAccountRecord): Promise<void> {
     await savePinSecurely(account.pinHash);
     await saveAuthSecretSecurely(account.authSecret);

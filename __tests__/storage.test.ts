@@ -82,6 +82,10 @@ import {
     switchLocalAccount,
     switchLocalAccountDirect,
     removeLocalAccount,
+    ensureActiveAccountRegistered,
+    savePin,
+    saveAuthSecret,
+    saveProfile,
     loadPin,
     loadAuthSecret,
     loadProfile,
@@ -462,6 +466,47 @@ describe('switchLocalAccountDirect', () => {
     it('reports not-found for an email this device has never registered', async () => {
         const result = await switchLocalAccountDirect('stranger@example.com');
         expect(result).toBe('not-found');
+    });
+});
+
+// The account registry (registerLocalAccount et al) shipped well after the
+// single active pin/profile/authSecret slots it sits on top of -- an
+// account whose most recent setup/recovery/reset on a device predates the
+// registry has a perfectly working PIN and session, but was never written
+// into it. Without this backfill, that account is invisible to Switch
+// Account until it happens to go through another reset.
+describe('ensureActiveAccountRegistered', () => {
+    it('backfills the currently active account when it is missing from the registry', async () => {
+        await savePin('444444');
+        await saveAuthSecret('secret-legacy');
+        await saveProfile({ email: 'legacy@example.com', businessName: 'Legacy Biz', createdAt: '2025-06-01T00:00:00.000Z' });
+        expect(await listLocalAccounts()).toEqual([]);
+
+        await ensureActiveAccountRegistered();
+
+        const accounts = await listLocalAccounts();
+        expect(accounts).toEqual([
+            { email: 'legacy@example.com', businessName: 'Legacy Biz', createdAt: '2025-06-01T00:00:00.000Z' },
+        ]);
+        // The backfilled record must verify against the SAME PIN this
+        // account already unlocks with, not a freshly (re)hashed one.
+        expect(await switchLocalAccountDirect('legacy@example.com')).toBe('ok');
+    });
+
+    it('does nothing when the active account is already registered', async () => {
+        await registerLocalAccount('a@example.com', 'Biz A', '111111', 'secret-a', '2026-01-01T00:00:00.000Z');
+        await savePin('111111');
+        await saveAuthSecret('secret-a');
+        await saveProfile({ email: 'a@example.com', businessName: 'Biz A', createdAt: '2026-01-01T00:00:00.000Z' });
+
+        await ensureActiveAccountRegistered();
+
+        expect(await listLocalAccounts()).toHaveLength(1);
+    });
+
+    it('is a no-op when there is no active profile at all', async () => {
+        await ensureActiveAccountRegistered();
+        expect(await listLocalAccounts()).toEqual([]);
     });
 });
 
