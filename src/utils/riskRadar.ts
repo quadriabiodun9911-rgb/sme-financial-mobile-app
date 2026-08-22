@@ -1,9 +1,9 @@
 /**
  * Business Risk Radar — pulls together risk signals that already exist
- * scattered across the app (debt coverage, customer/supplier concentration,
- * seasonal revenue patterns, macro-assumption-driven cost exposure) into
- * one glanceable overview, instead of each only ever surfacing on its own
- * deep-dive screen (CFO > Risk tab).
+ * scattered across the app (debt coverage, customer/supplier/lender
+ * concentration, seasonal revenue patterns, macro-assumption-driven cost
+ * exposure) into one glanceable overview, instead of each only ever
+ * surfacing on its own deep-dive screen (CFO > Risk tab).
  *
  * Deliberately does NOT include every category a generic "risk radar"
  * template might suggest (e.g. climate/weather risk) -- Quad360 has no real
@@ -15,13 +15,13 @@
  */
 
 import { Transaction, Loan, MacroAssumption } from '../types';
-import { computeDSCR, computeCustomerConcentration, computeSupplierConcentration, computeSeasonalRisk, SeasonalRisk } from './finance';
+import { computeDSCR, computeCustomerConcentration, computeSupplierConcentration, computeLenderConcentration, computeSeasonalRisk, SeasonalRisk } from './finance';
 import { computeExternalRiskInsights } from './externalRiskInsights';
 
 export type RiskLevel = 'low' | 'medium' | 'high' | 'no-data';
 
 export interface RiskRadarCategory {
-    key: 'debtCoverage' | 'customerConcentration' | 'supplierConcentration' | 'seasonal' | 'economic';
+    key: 'debtCoverage' | 'customerConcentration' | 'supplierConcentration' | 'lenderConcentration' | 'seasonal' | 'economic';
     label: string;
     level: RiskLevel;
     summary: string;
@@ -86,6 +86,22 @@ export function computeRiskRadar(
         summary: !topSupplier
             ? 'No expense transactions with supplier names recorded yet.'
             : `${topSupplier.supplier} is ${topSupplier.percentage.toFixed(0)}% of spend.`,
+    });
+
+    // Lender concentration -- "all growth rides on one bank line" is a
+    // real red flag distinct from debt coverage: a business can comfortably
+    // cover its payments (good DSCR) and still be one relationship change
+    // away from losing its only source of growth capital. Like debtCoverage
+    // above, no active loans is a real "nothing to be dependent on" fact,
+    // not a lack of data, so it's 'low' rather than 'no-data'.
+    const topLender = computeLenderConcentration(loans)[0];
+    categories.push({
+        key: 'lenderConcentration',
+        label: 'Lender Dependency',
+        level: !topLender ? 'low' : topLender.risk,
+        summary: !topLender
+            ? 'No active loans — no dependency on a single lender.'
+            : `${topLender.lenderName} holds ${topLender.percentage.toFixed(0)}% of outstanding debt.`,
     });
 
     // Seasonal -- only the next 2 calendar months matter for "what could

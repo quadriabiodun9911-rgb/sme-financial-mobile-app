@@ -980,6 +980,41 @@ export function computeSupplierConcentration(transactions: Transaction[]): Suppl
         });
 }
 
+export interface LenderConcentration {
+    lenderName: string;
+    outstandingBalance: number;
+    percentage: number;
+    risk: 'low' | 'medium' | 'high';
+}
+
+/**
+ * Mirrors computeCustomerConcentration/computeSupplierConcentration's
+ * grouping + risk-tier logic, applied to outstanding debt instead of
+ * transaction spend -- "is growth riding on one bank line" is the same
+ * shape of question as "is revenue riding on one customer," just measured
+ * against loan balances rather than transactions. Only active loans count:
+ * a paid-off or defaulted loan has no ongoing dependency to concentrate.
+ */
+export function computeLenderConcentration(loans: Loan[]): LenderConcentration[] {
+    const activeLoans = loans.filter(l => l.status === 'active');
+    const map = new Map<string, number>();
+    let total = 0;
+    for (const l of activeLoans) {
+        const balance = Math.max(0, l.principal - (l.payments ?? []).reduce((s, p) => s + p.amount, 0));
+        if (balance <= 0) continue;
+        const key = l.lenderName?.trim() || 'Unknown Lender';
+        map.set(key, (map.get(key) ?? 0) + balance);
+        total += balance;
+    }
+    return Array.from(map.entries())
+        .sort((a, b) => b[1] - a[1])
+        .map(([lenderName, outstandingBalance]) => {
+            const percentage = total > 0 ? (outstandingBalance / total) * 100 : 0;
+            const risk: LenderConcentration['risk'] = percentage >= 40 ? 'high' : percentage >= 20 ? 'medium' : 'low';
+            return { lenderName, outstandingBalance, percentage, risk };
+        });
+}
+
 // 7. Seasonal risk detection
 export interface SeasonalRisk {
     month: string;

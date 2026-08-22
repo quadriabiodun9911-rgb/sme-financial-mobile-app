@@ -10,8 +10,9 @@ import {
     getMonthlyExpenseAverage,
     computeTaxTotals,
     computeBudgetVsActual,
+    computeLenderConcentration,
 } from '../src/utils/finance';
-import { Transaction, Budget } from '../src/types';
+import { Transaction, Budget, Loan } from '../src/types';
 
 const makeTx = (overrides: Partial<Transaction>): Transaction => ({
     id: 'test',
@@ -434,5 +435,93 @@ describe('computeBudgetVsActual', () => {
         const txs = [makeTx({ type: 'expense', category: 'Marketing', amount: 10000, date: '2026-08-05' })];
         const result = computeBudgetVsActual(txs, budgets, '2026-08');
         expect(result).toHaveLength(1);
+    });
+});
+
+// ─── computeLenderConcentration ────────────────────────────────────────────
+
+const makeLoan = (overrides: Partial<Loan>): Loan => ({
+    id: `loan-${Math.random()}`,
+    lenderName: 'Test Bank',
+    purpose: 'Working capital',
+    principal: 100000,
+    interestRate: 15,
+    termMonths: 12,
+    startDate: '2026-01-01',
+    status: 'active',
+    payments: [],
+    createdAt: '2026-01-01T00:00:00.000Z',
+    ...overrides,
+});
+
+describe('computeLenderConcentration', () => {
+    it('returns an empty list with no active loans', () => {
+        expect(computeLenderConcentration([])).toEqual([]);
+    });
+
+    it('flags high risk when one lender holds all outstanding debt', () => {
+        const loans = [makeLoan({ lenderName: 'Only Bank', principal: 500000 })];
+        const result = computeLenderConcentration(loans);
+        expect(result).toHaveLength(1);
+        expect(result[0].lenderName).toBe('Only Bank');
+        expect(result[0].percentage).toBe(100);
+        expect(result[0].risk).toBe('high');
+    });
+
+    it('splits outstanding balance proportionally across lenders and ranks the largest first', () => {
+        const loans = [
+            makeLoan({ id: 'a', lenderName: 'Small Lender', principal: 100000 }),
+            makeLoan({ id: 'b', lenderName: 'Big Bank', principal: 900000 }),
+        ];
+        const result = computeLenderConcentration(loans);
+        expect(result[0].lenderName).toBe('Big Bank');
+        expect(result[0].percentage).toBe(90);
+        expect(result[0].risk).toBe('high');
+        expect(result[1].lenderName).toBe('Small Lender');
+        expect(result[1].percentage).toBe(10);
+        expect(result[1].risk).toBe('low');
+    });
+
+    it('excludes non-active loans (paid off / defaulted)', () => {
+        const loans = [
+            makeLoan({ id: 'a', lenderName: 'Old Bank', status: 'paid_off' }),
+            makeLoan({ id: 'b', lenderName: 'Active Bank', status: 'active', principal: 200000 }),
+        ];
+        const result = computeLenderConcentration(loans);
+        expect(result).toHaveLength(1);
+        expect(result[0].lenderName).toBe('Active Bank');
+    });
+
+    it('nets out payments already made against principal', () => {
+        const loans = [
+            makeLoan({
+                lenderName: 'Partly Repaid Bank',
+                principal: 100000,
+                payments: [{ id: 'p1', date: '2026-02-01', amount: 40000 }],
+            }),
+        ];
+        const result = computeLenderConcentration(loans);
+        expect(result[0].outstandingBalance).toBe(60000);
+    });
+
+    it('drops a lender whose loan is fully repaid down to zero balance', () => {
+        const loans = [
+            makeLoan({
+                lenderName: 'Fully Repaid Bank',
+                principal: 50000,
+                payments: [{ id: 'p1', date: '2026-02-01', amount: 50000 }],
+            }),
+        ];
+        expect(computeLenderConcentration(loans)).toEqual([]);
+    });
+
+    it('groups multiple active loans from the same lender together', () => {
+        const loans = [
+            makeLoan({ id: 'a', lenderName: 'Repeat Bank', principal: 100000 }),
+            makeLoan({ id: 'b', lenderName: 'Repeat Bank', principal: 50000 }),
+        ];
+        const result = computeLenderConcentration(loans);
+        expect(result).toHaveLength(1);
+        expect(result[0].outstandingBalance).toBe(150000);
     });
 });

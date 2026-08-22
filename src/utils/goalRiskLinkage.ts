@@ -8,7 +8,7 @@
  * a given goal type --
  *   - financialDiagnosisEngine's RootCauseAnalysis[] (severity, real
  *     financialImpact, root cause, opportunity), narrowed by `dimension`
- *   - riskRadar's categories (debt coverage, customer/supplier
+ *   - riskRadar's categories (debt coverage, customer/supplier/lender
  *     concentration, seasonal, economic), narrowed by category key
  * -- then combines that with Goal Bridge's already-computed
  * successProbability into one "Growth Readiness" score. No probability or
@@ -80,7 +80,7 @@ const GOAL_RELEVANT_RISK_CATEGORIES: Record<GoalType, RiskRadarCategory['key'][]
     revenue_growth: ['customerConcentration', 'economic', 'seasonal'],
     margin_improvement: ['economic', 'supplierConcentration'],
     cost_reduction: ['supplierConcentration', 'economic'],
-    cash_reserve: ['debtCoverage', 'seasonal'],
+    cash_reserve: ['debtCoverage', 'lenderConcentration', 'seasonal'],
     reduce_overdue_ar: ['customerConcentration'],
     custom: [],
 };
@@ -93,6 +93,7 @@ const RISK_CATEGORY_ACTION: Record<RiskRadarCategory['key'], string> = {
     debtCoverage: 'Improve income before taking on more debt-funded growth.',
     customerConcentration: "Diversify the customer base so this goal doesn't depend on one buyer.",
     supplierConcentration: 'Qualify a second supplier to protect this goal from a single vendor.',
+    lenderConcentration: "Line up a second lending relationship so this goal doesn't depend on one bank line.",
     seasonal: 'Time major pushes toward this goal around your strongest historical months.',
     economic: "Watch input costs closely — rising costs can erase progress toward this goal.",
 };

@@ -17,6 +17,7 @@
 import { Transaction, Asset, Loan } from '../types';
 import { computeAllTimeMonthlyBuckets, computeYearlyTrend } from './trendAnalysis';
 import { computeBalanceSheetTrend } from './balanceSheetTrend';
+import { computeProperCashFlow } from './finance';
 
 export interface GrowthSignal {
     key: 'revenue' | 'profit' | 'cash' | 'receivables' | 'debt';
@@ -109,14 +110,23 @@ export function computeQualityOfGrowth(transactions: Transaction[], assets: Asse
 
     const revenueGrowth = pctChange(currentYear.revenue, priorYear.revenue);
     const profitGrowth = pctChange(currentYear.profit, priorYear.profit);
-    const cashGrowth = pctChange(currentBS.cashOnHand, priorBS.cashOnHand);
+    // Real operating cash flow, not the cumulative cash-on-hand balance --
+    // a balance also moves with financing/investing activity (a fresh loan
+    // draw, an asset sale) that has nothing to do with whether the year's
+    // *earnings* actually turned into cash. Scoped to each year's own
+    // transactions so this is that year's OCF, not an all-time figure.
+    const currentYearTx = transactions.filter(t => (t.date || '').slice(0, 4) === currentYear.year);
+    const priorYearTx = transactions.filter(t => (t.date || '').slice(0, 4) === priorYear.year);
+    const currentOCF = computeProperCashFlow(currentYearTx, assets).operatingCF;
+    const priorOCF = computeProperCashFlow(priorYearTx, assets).operatingCF;
+    const cashGrowth = pctChange(currentOCF, priorOCF);
     const receivablesGrowth = pctChange(currentBS.accountsReceivable, priorBS.accountsReceivable);
     const debtGrowth = pctChange(currentBS.loansOutstanding, priorBS.loansOutstanding);
 
     const signals: GrowthSignal[] = [
         { key: 'revenue', label: 'Revenue', priorValue: priorYear.revenue, currentValue: currentYear.revenue, growthPct: revenueGrowth },
         { key: 'profit', label: 'Profit', priorValue: priorYear.profit, currentValue: currentYear.profit, growthPct: profitGrowth },
-        { key: 'cash', label: 'Cash on Hand', priorValue: priorBS.cashOnHand, currentValue: currentBS.cashOnHand, growthPct: cashGrowth },
+        { key: 'cash', label: 'Operating Cash Flow', priorValue: priorOCF, currentValue: currentOCF, growthPct: cashGrowth },
         { key: 'receivables', label: 'Receivables', priorValue: priorBS.accountsReceivable, currentValue: currentBS.accountsReceivable, growthPct: receivablesGrowth },
         { key: 'debt', label: 'Debt Outstanding', priorValue: priorBS.loansOutstanding, currentValue: currentBS.loansOutstanding, growthPct: debtGrowth },
     ];
@@ -142,7 +152,8 @@ export function computeQualityOfGrowth(transactions: Transaction[], assets: Asse
         flags.push(`Revenue grew ${rg.toFixed(0)}% but profit fell ${Math.abs(profitGrowth).toFixed(0)}% — growth is costing more than it's earning.`);
     }
 
-    // 2. Cash generation (25%) — is the business banking cash as it grows, or burning it?
+    // 2. Cash generation (25%) — is the business converting profit into real
+    // cash, or is the P&L profit figure not showing up in the bank?
     let cashScore: number;
     if (cashGrowth === null) {
         cashScore = 50;
@@ -152,7 +163,16 @@ export function computeQualityOfGrowth(transactions: Transaction[], assets: Asse
         cashScore = 45;
     } else {
         cashScore = 15;
-        flags.push(`Cash on hand fell ${Math.abs(cashGrowth).toFixed(0)}% even as revenue grew ${rg.toFixed(0)}% — growth is draining cash reserves.`);
+        // Classic earnings-quality red flag: profit holding steady or
+        // growing while operating cash flow falls means the profit isn't
+        // real cash yet (it's sitting in receivables, inventory, etc.) --
+        // a sharper, more specific warning than just "cash fell vs revenue"
+        // whenever it's the actual shape of what happened.
+        flags.push(
+            profitGrowth !== null && profitGrowth >= 0
+                ? `Profit ${profitGrowth === 0 ? 'held flat' : `grew ${profitGrowth.toFixed(0)}%`} while operating cash flow fell ${Math.abs(cashGrowth).toFixed(0)}% — the profit isn't converting into real cash, a classic earnings-quality warning.`
+                : `Operating cash flow fell ${Math.abs(cashGrowth).toFixed(0)}% even as revenue grew ${rg.toFixed(0)}% — growth is draining cash reserves.`
+        );
     }
 
     // 3. Receivables discipline (20%) — is more revenue sitting uncollected?

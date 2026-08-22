@@ -86,6 +86,37 @@ describe('computeRiskRadar — customer/supplier concentration', () => {
     });
 });
 
+describe('computeRiskRadar — lender concentration', () => {
+    it('reports low (not no-data) when there are no active loans', () => {
+        const radar = computeRiskRadar([], []);
+        const lender = radar.categories.find(c => c.key === 'lenderConcentration');
+        expect(lender?.level).toBe('low');
+        expect(lender?.summary).toContain('No active loans');
+    });
+
+    it('reports high when a single lender holds all outstanding debt', () => {
+        const loans = [makeLoan({ lenderName: 'Only Bank' })];
+        const radar = computeRiskRadar([], loans);
+        const lender = radar.categories.find(c => c.key === 'lenderConcentration');
+        expect(lender?.level).toBe('high');
+        expect(lender?.summary).toContain('Only Bank');
+    });
+
+    it('reports low when debt is split evenly across several lenders', () => {
+        const loans = [
+            makeLoan({ id: 'a', lenderName: 'Bank A', principal: 100000 }),
+            makeLoan({ id: 'b', lenderName: 'Bank B', principal: 100000 }),
+            makeLoan({ id: 'c', lenderName: 'Bank C', principal: 100000 }),
+            makeLoan({ id: 'd', lenderName: 'Bank D', principal: 100000 }),
+            makeLoan({ id: 'e', lenderName: 'Bank E', principal: 100000 }),
+            makeLoan({ id: 'f', lenderName: 'Bank F', principal: 100000 }),
+        ];
+        const radar = computeRiskRadar([], loans);
+        const lender = radar.categories.find(c => c.key === 'lenderConcentration');
+        expect(lender?.level).toBe('low');
+    });
+});
+
 describe('computeRiskRadar — seasonal', () => {
     it('reports no-data when there is no income history for the upcoming months', () => {
         const radar = computeRiskRadar([], []);

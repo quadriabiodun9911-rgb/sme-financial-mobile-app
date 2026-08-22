@@ -87,6 +87,26 @@ describe('computeQualityOfGrowth', () => {
         expect(result.flags.some(f => /debt grew/i.test(f))).toBe(true);
     });
 
+    it('flags the classic earnings-quality red flag: profit holding/growing while operating cash flow falls', () => {
+        const txs = [
+            // 2024: fully collected — profit and operating cash flow both 30k
+            makeTx({ id: '2024-inc', date: '2024-06-01', type: 'income', amount: 100000, status: 'paid' }),
+            makeTx({ id: '2024-exp', date: '2024-06-01', type: 'expense', amount: 70000, status: 'paid' }),
+            // 2025: profit grows to 35k on paper, but 60k of that revenue is
+            // still uncollected — operating cash flow actually goes negative
+            makeTx({ id: '2025-inc-paid', date: '2025-03-01', type: 'income', amount: 50000, status: 'paid' }),
+            makeTx({ id: '2025-inc-pending', date: '2025-06-01', type: 'income', amount: 60000, status: 'pending' }),
+            makeTx({ id: '2025-exp', date: '2025-06-01', type: 'expense', amount: 75000, status: 'paid' }),
+        ];
+        const result = computeQualityOfGrowth(txs, NO_ASSETS, []);
+        expect(result.available).toBe(true);
+        const ocfSignal = result.signals.find(s => s.key === 'cash');
+        expect(ocfSignal?.label).toBe('Operating Cash Flow');
+        expect(ocfSignal?.priorValue).toBe(30000);
+        expect(ocfSignal?.currentValue).toBe(-25000);
+        expect(result.flags.some(f => /profit grew 17%.*operating cash flow fell 183%.*isn't converting into real cash/i.test(f))).toBe(true);
+    });
+
     it('frames flat/declining revenue as a resilience check, not a growth-quality failure', () => {
         const txs = [
             makeTx({ id: '2024-inc', date: '2024-06-01', type: 'income', amount: 100000, status: 'paid' }),
