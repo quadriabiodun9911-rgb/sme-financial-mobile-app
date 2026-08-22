@@ -566,6 +566,25 @@ export default function FinancingMarketplaceScreen() {
 
                 <Text style={s.sectionTitle}>Your strongest matches</Text>
 
+                {/* There's no live "Apply" submission anywhere in this
+                    marketplace yet -- it's comparison-only -- so this can't
+                    be a real "you already applied elsewhere" gate keyed off
+                    actual application records. What IS true
+                    regardless: a business about to approach several of the
+                    lenders below is better served focusing on 1-2 strong
+                    matches than applying broadly -- a cluster of recent
+                    applications tends to raise questions with lenders rather
+                    than improve odds. Shown only when there's genuinely more
+                    than one lender to be tempted by. */}
+                {results.length > 1 && (
+                    <View style={s.multiApplyNotice}>
+                        <Icon name="alert-triangle" size={14} color={Colors.warning} />
+                        <Text style={s.multiApplyNoticeText}>
+                            Apply selectively, not broadly. Lenders can see a cluster of recent applications elsewhere, and it tends to raise questions rather than improve your odds — focus on your top 1-2 matches below before trying more.
+                        </Text>
+                    </View>
+                )}
+
                 {results.map(r => (
                     <ProductCard
                         key={r.product.id}
@@ -729,6 +748,12 @@ const s = StyleSheet.create({
     beforeApplyingLabel: { fontSize: 12.5, color: Colors.textSecondary, flex: 1, lineHeight: 17 },
 
     sectionTitle: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, marginBottom: 10 },
+    multiApplyNotice: {
+        flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+        backgroundColor: Colors.warning + '15', borderWidth: 1, borderColor: Colors.warning + '40',
+        borderRadius: Radius.md, padding: Spacing.md, marginBottom: 14,
+    },
+    multiApplyNoticeText: { flex: 1, fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
 
     productHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: Spacing.sm },
     productHeaderLeft: { flexDirection: 'row', alignItems: 'flex-start', flex: 1, marginRight: Spacing.sm },
