@@ -29,17 +29,28 @@ export default function BreakevenAnalysis({ result, currency }: Props) {
         surplusOrGap,
         monthsToBreakeven,
         pathsToProfitability,
+        costStructureUpsideDown,
     } = result;
 
-    const isAboveBreakeven = surplusOrGap >= 0;
-    const contributionMargin = ((1 - variableCostRatio) * 100).toFixed(1);
+    const isAboveBreakeven = !costStructureUpsideDown && surplusOrGap >= 0;
+    const contributionMarginPct = (1 - variableCostRatio) * 100;
+    const contributionMargin = contributionMarginPct.toFixed(1);
+    const contributionColor = contributionMarginPct >= 0 ? Colors.income : Colors.expense;
 
-    const maxBar = useMemo(() => Math.max(currentRevenue, breakevenRevenue, 1), [currentRevenue, breakevenRevenue]);
+    // breakevenRevenue is Infinity when costStructureUpsideDown -- there's
+    // no finite point to chart, so the bars are skipped entirely in that
+    // state rather than trying to render an infinite bar.
+    const maxBar = useMemo(
+        () => costStructureUpsideDown ? 1 : Math.max(currentRevenue, breakevenRevenue, 1),
+        [currentRevenue, breakevenRevenue, costStructureUpsideDown]
+    );
     const currentBarPct  = (currentRevenue / maxBar) * 100;
     const breakevenBarPct = (breakevenRevenue / maxBar) * 100;
 
-    const statusColor = isAboveBreakeven ? Colors.income : Colors.expense;
-    const statusText  = isAboveBreakeven ? 'ABOVE BREAKEVEN ✓' : 'BELOW BREAKEVEN ✗';
+    const statusColor = costStructureUpsideDown ? Colors.expense : isAboveBreakeven ? Colors.income : Colors.expense;
+    const statusText  = costStructureUpsideDown
+        ? 'COST STRUCTURE UPSIDE DOWN ✗'
+        : isAboveBreakeven ? 'ABOVE BREAKEVEN ✓' : 'BELOW BREAKEVEN ✗';
 
     return (
         <View style={styles.card}>
@@ -52,37 +63,57 @@ export default function BreakevenAnalysis({ result, currency }: Props) {
             <View style={[styles.statusRow, { borderColor: statusColor }]}>
                 <Text style={[styles.statusText, { color: statusColor }]}>{statusText}</Text>
                 <Text style={styles.cushionText}>
-                    {isAboveBreakeven
-                        ? `Profit Cushion: ${fmt(surplusOrGap, currency)}/month`
-                        : `Shortfall: ${fmt(Math.abs(surplusOrGap), currency)}/month`}
+                    {costStructureUpsideDown
+                        ? `Every sale loses money before fixed costs are even counted`
+                        : isAboveBreakeven
+                            ? `Profit Cushion: ${fmt(surplusOrGap, currency)}/month`
+                            : `Shortfall: ${fmt(Math.abs(surplusOrGap), currency)}/month`}
                 </Text>
             </View>
 
-            {/* Revenue vs Breakeven bars */}
-            <View style={styles.section}>
-                <View style={styles.barRow}>
-                    <Text style={styles.barLabel}>Current Revenue</Text>
-                    <View style={styles.barTrack}>
-                        <View style={[styles.barFill, { width: `${currentBarPct}%`, backgroundColor: Colors.income }]} />
+            {costStructureUpsideDown ? (
+                <>
+                    <View style={[styles.belowBox, { borderColor: Colors.expense, marginBottom: 12 }]}>
+                        <Text style={[styles.belowTitle, { color: Colors.expense }]}>WHY THERE'S NO BREAKEVEN POINT TO SHOW</Text>
+                        <Text style={styles.belowText}>
+                            Variable costs alone ({fmt(variableCostRatio * currentRevenue, currency)}) already exceed revenue
+                            ({fmt(currentRevenue, currency)}) this period — before fixed costs are even added. Selling more
+                            doesn't help here; it loses more, since each additional sale costs more than it brings in.
+                        </Text>
+                        <Text style={styles.belowAdvice}>
+                            Fix the cost per sale first — raise prices or cut variable costs — before volume can help.
+                        </Text>
                     </View>
-                    <Text style={[styles.barValue, { color: Colors.income }]}>{fmt(currentRevenue, currency)}</Text>
-                </View>
-                <View style={styles.barRow}>
-                    <Text style={styles.barLabel}>Breakeven Point</Text>
-                    <View style={styles.barTrack}>
-                        <View style={[styles.barFill, { width: `${breakevenBarPct}%`, backgroundColor: Colors.warning }]} />
+                </>
+            ) : (
+                <>
+                    {/* Revenue vs Breakeven bars */}
+                    <View style={styles.section}>
+                        <View style={styles.barRow}>
+                            <Text style={styles.barLabel}>Current Revenue</Text>
+                            <View style={styles.barTrack}>
+                                <View style={[styles.barFill, { width: `${currentBarPct}%`, backgroundColor: Colors.income }]} />
+                            </View>
+                            <Text style={[styles.barValue, { color: Colors.income }]}>{fmt(currentRevenue, currency)}</Text>
+                        </View>
+                        <View style={styles.barRow}>
+                            <Text style={styles.barLabel}>Breakeven Point</Text>
+                            <View style={styles.barTrack}>
+                                <View style={[styles.barFill, { width: `${breakevenBarPct}%`, backgroundColor: Colors.warning }]} />
+                            </View>
+                            <Text style={[styles.barValue, { color: Colors.warning }]}>{fmt(breakevenRevenue, currency)}</Text>
+                        </View>
+                        <View style={styles.gapRow}>
+                            <Text style={styles.gapLabel}>Gap:</Text>
+                            <Text style={[styles.gapValue, { color: statusColor }]}>
+                                {fmtSigned(surplusOrGap, currency)} ({isAboveBreakeven ? 'above breakeven' : 'below breakeven'})
+                            </Text>
+                        </View>
                     </View>
-                    <Text style={[styles.barValue, { color: Colors.warning }]}>{fmt(breakevenRevenue, currency)}</Text>
-                </View>
-                <View style={styles.gapRow}>
-                    <Text style={styles.gapLabel}>Gap:</Text>
-                    <Text style={[styles.gapValue, { color: statusColor }]}>
-                        {fmtSigned(surplusOrGap, currency)} ({isAboveBreakeven ? 'above breakeven' : 'below breakeven'})
-                    </Text>
-                </View>
-            </View>
 
-            <View style={styles.divider} />
+                    <View style={styles.divider} />
+                </>
+            )}
 
             {/* Cost structure */}
             <View style={styles.section}>
@@ -92,13 +123,15 @@ export default function BreakevenAnalysis({ result, currency }: Props) {
                 </View>
                 <View style={styles.detailRow}>
                     <Text style={styles.detailLabel}>Variable Cost Ratio</Text>
-                    <Text style={styles.detailValue}>{(variableCostRatio * 100).toFixed(1)}%</Text>
+                    <Text style={[styles.detailValue, { color: variableCostRatio > 1 ? Colors.expense : Colors.textPrimary }]}>
+                        {(variableCostRatio * 100).toFixed(1)}%
+                    </Text>
                 </View>
                 <View style={styles.detailRow}>
                     <Text style={styles.detailLabel}>Contribution Margin</Text>
-                    <Text style={[styles.detailValue, { color: Colors.income }]}>{contributionMargin}%</Text>
+                    <Text style={[styles.detailValue, { color: contributionColor }]}>{contributionMargin}%</Text>
                 </View>
-                {!isAboveBreakeven && monthsToBreakeven !== null && (
+                {!costStructureUpsideDown && !isAboveBreakeven && monthsToBreakeven !== null && (
                     <View style={styles.detailRow}>
                         <Text style={styles.detailLabel}>Est. Months to Breakeven</Text>
                         <Text style={[styles.detailValue, { color: Colors.warning }]}>{monthsToBreakeven} months</Text>
@@ -106,10 +139,11 @@ export default function BreakevenAnalysis({ result, currency }: Props) {
                 )}
             </View>
 
-            {/* Paths to more profit — only meaningful while there's still a gap to
+            {/* Paths to more profit — only meaningful while there's still a finite gap to
                 close; once above breakeven, revenueIncreaseNeeded/costReductionNeeded
-                are 0 and there's nothing to show here. */}
-            {!isAboveBreakeven && (
+                are 0 and there's nothing to show here. The "sell more" framing doesn't
+                apply at all when costStructureUpsideDown (that's the box above instead). */}
+            {!costStructureUpsideDown && !isAboveBreakeven && (
                 <>
                     <View style={styles.divider} />
                     <Text style={styles.sectionTitle}>PATHS TO BREAKEVEN</Text>
@@ -137,7 +171,7 @@ export default function BreakevenAnalysis({ result, currency }: Props) {
                 </>
             )}
 
-            {!isAboveBreakeven && (
+            {!costStructureUpsideDown && !isAboveBreakeven && (
                 <>
                     <View style={styles.divider} />
                     <View style={[styles.belowBox, { borderColor: Colors.expense }]}>

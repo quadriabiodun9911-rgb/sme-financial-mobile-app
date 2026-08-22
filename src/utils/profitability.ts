@@ -125,12 +125,23 @@ export function computeProfitByVendorCustomer(transactions: Transaction[]): Dime
 
 export interface BreakevenResult {
     fixedCosts: number;
-    variableCostRatio: number;   // 0-1
-    breakevenRevenue: number;
+    variableCostRatio: number;   // 0-1 in the normal case; can exceed 1 when costStructureUpsideDown
+    breakevenRevenue: number;    // Infinity when costStructureUpsideDown -- no finite volume reaches it
     currentRevenue: number;
-    surplusOrGap: number;        // positive = above, negative = below
+    surplusOrGap: number;        // positive = above, negative = below; -Infinity when costStructureUpsideDown
     breakevenMargin: number;     // % margin at breakeven
-    monthsToBreakeven: number | null; // null if already above
+    monthsToBreakeven: number | null; // null if already above (or unreachable)
+    // True when variable costs alone exceed revenue for the period (variable
+    // cost ratio >= 100%, contribution margin <= 0) -- every additional sale
+    // loses more than it brings in, before fixed costs are even considered.
+    // No sales volume reaches breakeven in that state (more volume makes the
+    // shortfall worse, not better), so this is reported as its own distinct
+    // condition rather than folded into the normal above/below-breakeven
+    // framing -- which previously (see the finite-fallback-to-0 this
+    // replaced) made breakevenRevenue read as 0 and surplusOrGap read as a
+    // positive "profit cushion," i.e. reported a business hemorrhaging money
+    // on every sale as comfortably profitable.
+    costStructureUpsideDown: boolean;
     pathsToProfitability: {
         revenueIncreaseNeeded: number;
         costReductionNeeded: number;
@@ -158,16 +169,23 @@ export function computeBreakeven(transactions: Transaction[], settings: Business
 
     const variableCostRatio = currentRevenue > 0 ? variableCosts / currentRevenue : 0;
     const contributionMarginRatio = 1 - variableCostRatio;
+    const costStructureUpsideDown = contributionMarginRatio <= 0;
 
-    const breakevenRevenue = contributionMarginRatio > 0 ? fixedCosts / contributionMarginRatio : 0;
-    const surplusOrGap     = currentRevenue - breakevenRevenue;
-    const breakevenMargin  = breakevenRevenue > 0
-        ? ((breakevenRevenue - fixedCosts - variableCostRatio * breakevenRevenue) / breakevenRevenue) * 100
-        : 0;
+    const breakevenRevenue = costStructureUpsideDown ? Infinity : fixedCosts / contributionMarginRatio;
+    // Computed directly rather than via `currentRevenue - breakevenRevenue`
+    // so the upside-down case is an explicit, honest -Infinity instead of a
+    // (currentRevenue - Infinity) subtraction that happens to also land on
+    // -Infinity -- the intent shouldn't depend on IEEE-754 arithmetic
+    // working out.
+    const surplusOrGap = costStructureUpsideDown ? -Infinity : currentRevenue - breakevenRevenue;
+    const breakevenMargin = costStructureUpsideDown
+        ? 0
+        : ((breakevenRevenue - fixedCosts - variableCostRatio * breakevenRevenue) / breakevenRevenue) * 100;
 
-    // Months to breakeven: only relevant if below; estimate using revenue trend
+    // Months to breakeven: only relevant if below AND reachable -- no
+    // revenue trend closes a gap that gets worse with every extra sale.
     let monthsToBreakeven: number | null = null;
-    if (surplusOrGap < 0) {
+    if (!costStructureUpsideDown && surplusOrGap < 0) {
         const { prevStart, prevEnd } = getPeriodBounds();
         const prevTxs = filterByPeriod(transactions, prevStart, prevEnd);
         const prevRevenue = sumByType(prevTxs, 'income');
@@ -177,7 +195,12 @@ export function computeBreakeven(transactions: Transaction[], settings: Business
         }
     }
 
-    const gap = Math.abs(Math.min(surplusOrGap, 0));
+    // pathsToProfitability's "sell more" / "cut costs by $X" framing doesn't
+    // apply when the cost structure itself is upside down (selling more
+    // makes it worse, and there's no single finite dollar gap to close) --
+    // left at zero here; the caller shows a dedicated message instead of
+    // these paths in that case (see costStructureUpsideDown).
+    const gap = costStructureUpsideDown ? 0 : Math.abs(Math.min(surplusOrGap, 0));
     const revenueIncreaseNeeded = contributionMarginRatio > 0 ? gap / contributionMarginRatio : gap;
     const costReductionNeeded   = gap;
     const combinedGap           = gap / 2;
@@ -190,6 +213,7 @@ export function computeBreakeven(transactions: Transaction[], settings: Business
         surplusOrGap,
         breakevenMargin,
         monthsToBreakeven,
+        costStructureUpsideDown,
         pathsToProfitability: {
             revenueIncreaseNeeded,
             costReductionNeeded,

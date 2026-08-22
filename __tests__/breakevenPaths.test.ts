@@ -71,3 +71,53 @@ describe('computeBreakeven pathsToProfitability', () => {
             .toBeLessThan(result.pathsToProfitability.revenueIncreaseNeeded);
     });
 });
+
+// Regression: when variable costs alone exceed revenue for the period
+// (contribution margin <= 0), computeBreakeven used to fall back to
+// breakevenRevenue = 0, which made surplusOrGap = currentRevenue - 0
+// always positive -- reporting a business that loses money on every sale
+// as comfortably "above breakeven" with a profit cushion equal to its
+// full revenue. Fixed to report this as its own explicit, unreachable
+// state instead.
+describe('computeBreakeven — cost structure upside down (negative contribution margin)', () => {
+    it('flags costStructureUpsideDown instead of reporting a fake profit cushion', () => {
+        const transactions: Transaction[] = [
+            makeTx({ type: 'income', amount: 10000, category: 'Sales' }),
+            makeTx({ type: 'expense', amount: 15000, category: 'Stock' }), // variable, exceeds revenue
+            makeTx({ type: 'expense', amount: 5000, category: 'Rent' }),   // fixed
+        ];
+        const result = computeBreakeven(transactions, settings);
+        expect(result.costStructureUpsideDown).toBe(true);
+        expect(result.breakevenRevenue).toBe(Infinity);
+        expect(result.surplusOrGap).toBe(-Infinity);
+        // No longer reads as "above breakeven" (surplusOrGap >= 0 would
+        // have been true under the old fallback-to-0 behavior).
+        expect(result.surplusOrGap >= 0).toBe(false);
+    });
+
+    it('reports no finite paths to profitability when unreachable by volume', () => {
+        const transactions: Transaction[] = [
+            makeTx({ type: 'income', amount: 10000, category: 'Sales' }),
+            makeTx({ type: 'expense', amount: 15000, category: 'Stock' }),
+            makeTx({ type: 'expense', amount: 5000, category: 'Rent' }),
+        ];
+        const result = computeBreakeven(transactions, settings);
+        expect(result.pathsToProfitability.revenueIncreaseNeeded).toBe(0);
+        expect(result.pathsToProfitability.costReductionNeeded).toBe(0);
+        expect(result.pathsToProfitability.combinedPath.revenueIncrease).toBe(0);
+        expect(result.pathsToProfitability.combinedPath.costReduction).toBe(0);
+        expect(result.monthsToBreakeven).toBeNull();
+        expect(result.breakevenMargin).toBe(0);
+    });
+
+    it('does not flag a normal below-breakeven business as upside down', () => {
+        const transactions: Transaction[] = [
+            makeTx({ type: 'income', amount: 10000, category: 'Sales' }),
+            makeTx({ type: 'expense', amount: 20000, category: 'Rent' }),
+            makeTx({ type: 'expense', amount: 5000, category: 'Stock' }),
+        ];
+        const result = computeBreakeven(transactions, settings);
+        expect(result.costStructureUpsideDown).toBe(false);
+        expect(Number.isFinite(result.breakevenRevenue)).toBe(true);
+    });
+});
