@@ -107,6 +107,38 @@ describe('computeQualityOfGrowth', () => {
         expect(result.flags.some(f => /profit grew 17%.*operating cash flow fell 183%.*isn't converting into real cash/i.test(f))).toBe(true);
     });
 
+    it("does not apply a current-year asset's depreciation add-back to the prior year's operating cash flow", () => {
+        // Regression: computeProperCashFlow's depreciation add-back was
+        // computed from the FULL, un-scoped assets array for both years,
+        // so an asset bought during the current year still inflated the
+        // PRIOR year's operating cash flow (it didn't exist yet). Identical
+        // profit both years with no asset would show 0% OCF growth (flat);
+        // an unscoped bug instead shows a fabricated swing driven purely by
+        // when the asset happens to appear in the array, not by anything
+        // that actually happened in the prior year.
+        const txs = [
+            makeTx({ id: '2024-inc', date: '2024-06-01', type: 'income', amount: 100000, status: 'paid' }),
+            makeTx({ id: '2024-exp', date: '2024-06-01', type: 'expense', amount: 70000, status: 'paid' }),
+            makeTx({ id: '2025-inc', date: '2025-06-01', type: 'income', amount: 100000, status: 'paid' }),
+            makeTx({ id: '2025-exp', date: '2025-06-01', type: 'expense', amount: 70000, status: 'paid' }),
+        ];
+        const assets: Asset[] = [{
+            id: 'a1', name: 'New Equipment', category: 'equipment', description: '',
+            purchaseDate: '2025-03-01', purchaseCost: 120000, usefulLifeYears: 5, residualValue: 0,
+            status: 'active', createdAt: '2025-03-01',
+        }];
+        const result = computeQualityOfGrowth(txs, assets, []);
+        expect(result.available).toBe(true);
+        const ocfSignal = result.signals.find(s => s.key === 'cash');
+        // Prior year (2024) predates the asset entirely -- its OCF must
+        // equal that year's own profit, not profit + a depreciation
+        // add-back for an asset that didn't exist yet.
+        expect(ocfSignal?.priorValue).toBe(30000);
+        // Current year (2025) does own the asset, so its OCF gets the
+        // depreciation add-back (30000 profit + 24000 depreciation).
+        expect(ocfSignal?.currentValue).toBe(54000);
+    });
+
     it('frames flat/declining revenue as a resilience check, not a growth-quality failure', () => {
         const txs = [
             makeTx({ id: '2024-inc', date: '2024-06-01', type: 'income', amount: 100000, status: 'paid' }),

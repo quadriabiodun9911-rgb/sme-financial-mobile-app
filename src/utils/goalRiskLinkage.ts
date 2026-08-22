@@ -166,9 +166,18 @@ export function assessGoalRisk(
     const readinessBand: GoalRiskAssessment['readinessBand'] =
         growthReadiness >= 70 ? 'Strong' : growthReadiness >= 45 ? 'Moderate' : 'Weak';
 
-    const narrative = risks.length === 0
+    // A 'low'-severity risk-radar item can mean "confirmed fine" rather
+    // than "a small amount of risk" (e.g. debtCoverage/lenderConcentration
+    // report 'low' for a business with no loans at all -- see riskRadar.ts)
+    // -- risks[0] can land on one of those when it's the only thing found,
+    // which would otherwise crown "no dependency on a single lender" as
+    // "your biggest constraint." The severity-based growthReadiness penalty
+    // already treats 'low' as no real risk (0 points docked); the narrative
+    // now agrees, and only names a risk that's actually medium/high.
+    const topRealRisk = risks.find(r => r.severity !== 'low');
+    const narrative = !topRealRisk
         ? 'No major risks currently threaten this goal — a clear runway to hit your target.'
-        : `Your biggest constraint right now isn't the goal itself — it's ${risks[0].shortLabel}.`;
+        : `Your biggest constraint right now isn't the goal itself — it's ${topRealRisk.shortLabel}.`;
 
     return { risks, growthReadiness, readinessBand, narrative };
 }

@@ -111,4 +111,30 @@ describe('assessGoalRisk', () => {
         expect(risks).toHaveLength(0);
         expect(narrative).toContain('No major risks');
     });
+
+    it("doesn't crown a 'low'-severity risk-radar item as the biggest constraint", () => {
+        // Regression: a 'low' risk-radar category can mean "confirmed
+        // fine" (e.g. debtCoverage/lenderConcentration report 'low' for a
+        // business with no loans at all, summary "No active loans..."). If
+        // it's the only item in `risks`, it used to become risks[0] and
+        // get named as "your biggest constraint" -- directly contradicting
+        // its own summary. The growthReadiness score already docks 0
+        // points for 'low' severity; the narrative should agree.
+        const radar = makeRiskRadar([
+            makeCategory({ key: 'debtCoverage', label: 'Debt Coverage', level: 'low', summary: 'No active loan repayments to cover.' }),
+        ]);
+        const { narrative, risks, growthReadiness } = assessGoalRisk('cash_reserve', [], radar, 0.9);
+        expect(risks).toHaveLength(1); // still surfaced in the list itself
+        expect(narrative).toContain('No major risks');
+        expect(growthReadiness).toBe(90);
+    });
+
+    it('still names a genuine medium/high risk even alongside a low-severity one', () => {
+        const radar = makeRiskRadar([
+            makeCategory({ key: 'debtCoverage', label: 'Debt Coverage', level: 'low', summary: 'No active loan repayments to cover.' }),
+            makeCategory({ key: 'seasonal', label: 'Seasonal Risk', level: 'high', summary: 'December is historically weak.' }),
+        ]);
+        const { narrative } = assessGoalRisk('cash_reserve', [], radar, 0.9);
+        expect(narrative).toContain('seasonal risk');
+    });
 });

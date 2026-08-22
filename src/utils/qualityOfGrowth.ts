@@ -117,8 +117,14 @@ export function computeQualityOfGrowth(transactions: Transaction[], assets: Asse
     // transactions so this is that year's OCF, not an all-time figure.
     const currentYearTx = transactions.filter(t => (t.date || '').slice(0, 4) === currentYear.year);
     const priorYearTx = transactions.filter(t => (t.date || '').slice(0, 4) === priorYear.year);
-    const currentOCF = computeProperCashFlow(currentYearTx, assets).operatingCF;
-    const priorOCF = computeProperCashFlow(priorYearTx, assets).operatingCF;
+    // Assets are also scoped per year -- computeProperCashFlow's
+    // depreciation add-back is a snapshot of whatever asset list it's
+    // given, so passing today's full roster to the PRIOR year would add
+    // back depreciation for assets that didn't exist yet, distorting
+    // exactly the divergence this check exists to catch.
+    const assetsAsOf = (year: string) => assets.filter(a => (a.purchaseDate || '').slice(0, 4) <= year);
+    const currentOCF = computeProperCashFlow(currentYearTx, assetsAsOf(currentYear.year)).operatingCF;
+    const priorOCF = computeProperCashFlow(priorYearTx, assetsAsOf(priorYear.year)).operatingCF;
     const cashGrowth = pctChange(currentOCF, priorOCF);
     const receivablesGrowth = pctChange(currentBS.accountsReceivable, priorBS.accountsReceivable);
     const debtGrowth = pctChange(currentBS.loansOutstanding, priorBS.loansOutstanding);
