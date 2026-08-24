@@ -163,7 +163,7 @@ export default function ScoreboardScreen() {
                 </View>
 
                 {/* Risk Radar */}
-                <TouchableOpacity style={s.card} onPress={() => navigate('cfo', { tab: 'risk' })} activeOpacity={0.85}>
+                <TouchableOpacity style={s.card} onPress={() => setCurrentScreen('risk-management')} activeOpacity={0.85}>
                     <View style={s.cardHeaderRow}>
                         <Icon name="radio" size={14} color={Colors.textMuted} />
                         <Text style={s.cardTitle}>Risk Radar</Text>

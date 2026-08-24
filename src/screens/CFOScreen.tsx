@@ -16,10 +16,7 @@ import {
     computeCashFlowForecast,
     computeFinancialRatios,
     computeDSCR,
-    computeInterestRateShock,
     computeBreakEven,
-    computeCustomerConcentration,
-    computeSeasonalRisk,
     computeDebtOptimiser,
     computePaymentOptimiser,
 } from '../utils/finance';
@@ -27,7 +24,7 @@ import { computeInventoryValue } from '../utils/stockVelocity';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 
-type Tab = 'pulse' | 'forecast' | 'finance' | 'risk' | 'growth' | 'questions';
+type Tab = 'pulse' | 'forecast' | 'finance' | 'growth' | 'questions';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmtRunway(days: number): string {
@@ -258,12 +255,6 @@ function FinanceTab() {
     const ratios = useMemo(() => computeFinancialRatios(finance, loans, transactions, inventoryValue), [finance, loans, transactions, inventoryValue]);
     const dscr   = useMemo(() => computeDSCR(transactions, loans), [transactions, loans]);
 
-    const [shockPoints, setShockPoints] = useState('0');
-    const rateShock = useMemo(
-        () => computeInterestRateShock(loans, transactions, parseFloat(shockPoints) || 0),
-        [loans, transactions, shockPoints]
-    );
-
     const [fixedCosts, setFixedCosts]     = useState('');
     const [varRate, setVarRate]           = useState('');
     const [pricePerUnit, setPricePerUnit] = useState('');
@@ -336,97 +327,17 @@ function FinanceTab() {
                 </View>
             ))}
 
-            {/* DSCR */}
-            <Text style={[s.sectionHdr, { marginTop: 8 }]}>Loan Coverage</Text>
-            <View style={[s.card, { borderLeftWidth: 3, borderLeftColor: statusColor(dscr.status) }]}>
-                <Text style={s.cardTitle}>Can You Afford Your Loans?</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
-                    <Text style={[s.bigNum, { color: statusColor(dscr.status) }]}>{dscr.dscr > 100 ? '∞' : dscr.dscr.toFixed(2)}x</Text>
-                    <Text style={[s.statusBadge, {
-                        backgroundColor: statusColor(dscr.status) + '20',
-                        color: statusColor(dscr.status),
-                    }]}>
-                        {dscr.status === 'healthy' ? 'HEALTHY' : dscr.status === 'warning' ? 'BORDERLINE' : 'AT RISK'}
-                    </Text>
-                </View>
-                <Text style={s.cardSub}>
-                    {dscr.status === 'healthy'
-                        ? '✓ Your income comfortably covers loan repayments.'
-                        : dscr.status === 'warning'
-                        ? '⚠ Your income barely covers loan repayments. Reduce debt or increase revenue.'
-                        : '✗ Income may not cover loan repayments. Act now.'}
-                </Text>
-                <Text style={s.dscrHint}>
-                    Above 1.0x = you cover repayments. Above 2.0x = excellent buffer.
-                </Text>
-                <View style={s.dscrRow}>
-                    <Text style={s.dscrLabel}>Net Operating Income</Text>
-                    <Text style={[s.dscrVal, { color: Colors.income }]}>{currency}{Math.round(dscr.netOperatingIncome).toLocaleString()}</Text>
-                </View>
-                <View style={s.dscrRow}>
-                    <Text style={s.dscrLabel}>Annual Debt Payments</Text>
-                    <Text style={[s.dscrVal, { color: Colors.expense }]}>{currency}{Math.round(dscr.totalDebtService).toLocaleString()}</Text>
-                </View>
-                {dscr.status !== 'healthy' && (
-                    <NextStepLink text="Review your loan repayment strategy" onPress={() => navigate('cfo', { tab: 'growth' })} />
-                )}
-            </View>
-
-            {/* Interest Rate Shock -- a forward-looking "what if my loans
-                repriced higher" stress test, distinct from the backward-
-                looking Economic Risk category on Risk Radar (which only
-                fires once a rate rise has already shown up in your books).
-                A user-set hypothetical, not a prediction -- same framing as
-                the Cash Flow Stress Tester. Applies uniformly to all active
-                loans since Quad360 doesn't track fixed vs. variable rate
-                per loan; treat this as the worst case if any of yours are
-                fixed. */}
-            {rateShock.hasActiveLoans && (
-                <View style={[s.card, { borderLeftWidth: 3, borderLeftColor: statusColor(rateShock.newStatus) }]}>
-                    <Text style={s.cardTitle}>Interest Rate Shock</Text>
+            {/* Loan Coverage -- DSCR, Interest Rate Shock, and the debt
+                payoff strategy all moved to Loans (their canonical home,
+                alongside the loans they're about) instead of living here
+                as a second copy. */}
+            {dscr.totalDebtService > 0 && (
+                <View style={[s.card, { borderLeftWidth: 3, borderLeftColor: statusColor(dscr.status) }]}>
+                    <Text style={s.cardTitle}>Loan Coverage</Text>
                     <Text style={s.cardSub}>
-                        What if your loans repriced higher? Model a rate rise across all active loans and see the effect on repayments and coverage.
+                        {dscr.status === 'healthy' ? '✓' : dscr.status === 'warning' ? '⚠' : '✗'} DSCR {dscr.dscr > 100 ? '∞' : dscr.dscr.toFixed(2)}x — {dscr.status === 'healthy' ? 'comfortably covers loan repayments' : dscr.status === 'warning' ? 'barely covers loan repayments' : 'may not cover loan repayments'}.
                     </Text>
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8, marginBottom: 10 }}>
-                        {[1, 2, 3, 5].map(p => (
-                            <TouchableOpacity
-                                key={p}
-                                style={[s.shockChip, shockPoints === String(p) && s.shockChipActive]}
-                                onPress={() => setShockPoints(String(p))}
-                            >
-                                <Text style={[s.shockChipText, shockPoints === String(p) && s.shockChipTextActive]}>+{p}pt</Text>
-                            </TouchableOpacity>
-                        ))}
-                    </View>
-                    <TextInput
-                        style={s.input}
-                        placeholder="or type a custom rate rise (percentage points)"
-                        placeholderTextColor={Colors.textMuted}
-                        keyboardType="decimal-pad"
-                        value={shockPoints === '0' ? '' : shockPoints}
-                        onChangeText={v => setShockPoints(v || '0')}
-                    />
-                    {(parseFloat(shockPoints) || 0) > 0 && (
-                        <>
-                            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 8, marginBottom: 4 }}>
-                                <Text style={[s.bigNum, { color: statusColor(rateShock.newStatus) }]}>{rateShock.newDSCR > 100 ? '∞' : rateShock.newDSCR.toFixed(2)}x</Text>
-                                <Text style={[s.statusBadge, { backgroundColor: statusColor(rateShock.newStatus) + '20', color: statusColor(rateShock.newStatus) }]}>
-                                    {rateShock.newStatus === 'healthy' ? 'HEALTHY' : rateShock.newStatus === 'warning' ? 'BORDERLINE' : 'AT RISK'}
-                                </Text>
-                                {rateShock.newStatus !== rateShock.currentStatus && (
-                                    <Text style={[s.dscrLabel, { color: Colors.textMuted }]}>was {rateShock.currentDSCR > 100 ? '∞' : rateShock.currentDSCR.toFixed(2)}x</Text>
-                                )}
-                            </View>
-                            <View style={s.dscrRow}>
-                                <Text style={s.dscrLabel}>New Monthly Debt Payments</Text>
-                                <Text style={[s.dscrVal, { color: Colors.expense }]}>{currency}{Math.round(rateShock.newMonthlyDebtService).toLocaleString()}</Text>
-                            </View>
-                            <View style={s.dscrRow}>
-                                <Text style={s.dscrLabel}>Extra Cost per Year</Text>
-                                <Text style={[s.dscrVal, { color: Colors.expense }]}>+{currency}{Math.round(rateShock.extraAnnualCost).toLocaleString()}</Text>
-                            </View>
-                        </>
-                    )}
+                    <NextStepLink text="Full DSCR detail, Interest Rate Shock & repayment strategy → Loans" onPress={() => navigate('loans')} />
                 </View>
             )}
 
@@ -463,108 +374,9 @@ function FinanceTab() {
     );
 }
 
-// ── Tab: Risk ─────────────────────────────────────────────────────────────────
-function RiskTab() {
-    const { transactions, loans, finance, navigate, inventory } = useApp();
-    const concentration = useMemo(() => computeCustomerConcentration(transactions), [transactions]);
-    const seasonal      = useMemo(() => computeSeasonalRisk(transactions), [transactions]);
-    const risk          = useMemo(() => computeRiskScore(finance, loans, transactions, inventory), [finance, loans, transactions, inventory]);
-
-    const MONTHS_GRID = [seasonal.slice(0, 6), seasonal.slice(6, 12)];
-
-    return (
-        <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
-            {/* Risk score */}
-            <View style={s.card}>
-                <Text style={s.cardTitle}>Business Risk Score</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-                    <View style={[s.riskGauge, { borderColor: riskLabel(risk.score).color }]}>
-                        <Text style={[s.riskGradeText, { color: riskLabel(risk.score).color }]}>{risk.grade}</Text>
-                        <Text style={s.riskScoreText}>{risk.score}/100</Text>
-                    </View>
-                    <View style={{ flex: 1, marginLeft: 16 }}>
-                        <Text style={[{ fontSize: 16, fontWeight: '700', color: riskLabel(risk.score).color, marginBottom: 4 }]}>
-                            {riskLabel(risk.score).label}
-                        </Text>
-                        <Text style={s.cardSub}>Lower score = more risk. Above 70 is solid.</Text>
-                    </View>
-                </View>
-                {risk.factors.map(f => (
-                    <View key={f.name} style={{ marginBottom: 10 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 3 }}>
-                            <Text style={[s.pillarDot, { color: statusColor(f.status) }]}>●</Text>
-                            <Text style={s.pillarName}>{f.name}</Text>
-                            <Text style={[s.pillarScore, { color: statusColor(f.status) }]}>{f.score}/100</Text>
-                        </View>
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                            <View style={{ width: 16 }} />
-                            <MiniBar pct={f.score} color={statusColor(f.status)} />
-                        </View>
-                        <Text style={{ fontSize: 11, color: Colors.textMuted, lineHeight: 15, marginTop: 3, marginLeft: 16 }}>
-                            {f.explanation}
-                        </Text>
-                    </View>
-                ))}
-            </View>
-
-            {/* Customer concentration */}
-            <View style={s.card}>
-                <Text style={s.cardTitle}>Customer Dependency Risk</Text>
-                <Text style={s.cardSub}>If one customer accounts for 40%+ of revenue, your business is exposed if they leave.</Text>
-                {concentration.length === 0 ? (
-                    <Text style={s.empty}>Add income transactions with customer names to see this.</Text>
-                ) : (
-                    concentration.slice(0, 8).map((c, i) => (
-                        <View key={i} style={s.concRow}>
-                            <View style={{ flex: 1 }}>
-                                <Text style={s.concName}>{c.customer}</Text>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
-                                    <MiniBar pct={c.percentage} color={c.risk === 'high' ? Colors.expense : c.risk === 'medium' ? Colors.warning : Colors.income} />
-                                    <Text style={[s.concPct, { marginLeft: 6 }]}>{c.percentage.toFixed(1)}%</Text>
-                                </View>
-                            </View>
-                            <View style={[s.riskBadge, { backgroundColor: c.risk === 'high' ? Colors.expense + '20' : c.risk === 'medium' ? Colors.warning + '20' : Colors.income + '20' }]}>
-                                <Text style={[s.riskBadgeText, { color: c.risk === 'high' ? Colors.expense : c.risk === 'medium' ? Colors.warning : Colors.income }]}>
-                                    {c.risk === 'high' ? '⚠ HIGH' : c.risk === 'medium' ? '! MED' : '✓ LOW'}
-                                </Text>
-                            </View>
-                        </View>
-                    ))
-                )}
-                {concentration.some(c => c.risk === 'high') && (
-                    <NextStepLink text="Review this customer's invoices" onPress={() => navigate('invoices')} />
-                )}
-            </View>
-
-            {/* Seasonal calendar */}
-            <View style={s.card}>
-                <Text style={s.cardTitle}>Seasonal Patterns</Text>
-                <Text style={s.cardSub}>Months where your revenue is historically low or high.</Text>
-                {MONTHS_GRID.map((row, ri) => (
-                    <View key={ri} style={s.seasonRow}>
-                        {row.map((m, i) => (
-                            <View key={i} style={[s.seasonCell, { borderColor: m.riskLevel === 'high' ? Colors.expense : m.riskLevel === 'medium' ? Colors.warning : m.riskLevel === 'unknown' ? Colors.border : Colors.income }]}>
-                                <Text style={s.seasonMonth}>{m.month}</Text>
-                                <Text style={[s.seasonRisk, { color: m.riskLevel === 'high' ? Colors.expense : m.riskLevel === 'medium' ? Colors.warning : m.riskLevel === 'unknown' ? Colors.textMuted : Colors.income }]}>
-                                    {m.riskLevel === 'high' ? '✗' : m.riskLevel === 'medium' ? '!' : m.riskLevel === 'unknown' ? '?' : '✓'}
-                                </Text>
-                            </View>
-                        ))}
-                    </View>
-                ))}
-                {seasonal.filter(m => m.hasData && m.riskLevel !== 'low').map((m, i) => (
-                    <Text key={i} style={[s.seasonWarning, { color: m.riskLevel === 'high' ? Colors.expense : Colors.warning }]}>
-                        {m.warning}
-                    </Text>
-                ))}
-            </View>
-        </ScrollView>
-    );
-}
-
 // ── Tab: Growth (was Debt) ────────────────────────────────────────────────────
 function GrowthTab() {
-    const { loans, transactions, invoices, finance, settings } = useApp();
+    const { loans, transactions, invoices, finance, settings, navigate } = useApp();
     const { currency } = settings;
     const debtOpt    = useMemo(() => computeDebtOptimiser(loans), [loans]);
     const payActions = useMemo(() => computePaymentOptimiser(transactions, invoices, finance.cashBalance), [transactions, invoices, finance.cashBalance]);
@@ -640,34 +452,15 @@ function GrowthTab() {
                 </View>
             </View>
 
-            {/* Debt repayment */}
+            {/* Debt repayment -- avalanche/snowball strategy, DSCR, and rate
+                shock now live together on Loans, so this is a link rather
+                than a second copy of the same computeDebtOptimiser output. */}
             {loans.filter(l => l.status === 'active').length > 0 && (
-                <View style={s.card}>
+                <TouchableOpacity style={s.card} onPress={() => navigate('loans')}>
                     <Text style={s.cardTitle}>Loan Repayment Strategy</Text>
-                    <Text style={s.cardSub}>Two proven methods — pick the one that suits you.</Text>
-                    <View style={s.debtMethodRow}>
-                        <View style={[s.debtMethod, { borderColor: Colors.primary }]}>
-                            <Text style={[s.debtMethodLabel, { color: Colors.primary }]}>AVALANCHE</Text>
-                            <Text style={s.debtMethodSub}>Pay highest interest first — saves most money long-term</Text>
-                            {debtOpt.avalanche.order.map((name, i) => (
-                                <Text key={i} style={s.debtLoan}>{i + 1}. {name}</Text>
-                            ))}
-                            <Text style={[s.debtSaved, { color: Colors.income }]}>Saves ~{currency}{Math.abs(debtOpt.avalanche.totalInterestSaved).toLocaleString()}</Text>
-                            <Text style={s.debtMonths}>{debtOpt.avalanche.monthsToPayoff} months</Text>
-                        </View>
-                        <View style={[s.debtMethod, { borderColor: Colors.border }]}>
-                            <Text style={[s.debtMethodLabel, { color: Colors.textMuted }]}>SNOWBALL</Text>
-                            <Text style={s.debtMethodSub}>Pay smallest balance first — easier motivation</Text>
-                            {debtOpt.snowball.order.map((name, i) => (
-                                <Text key={i} style={s.debtLoan}>{i + 1}. {name}</Text>
-                            ))}
-                            <Text style={s.debtMonths}>{debtOpt.snowball.monthsToPayoff} months</Text>
-                        </View>
-                    </View>
-                    <View style={s.recommendBox}>
-                        <Text style={s.recommendText}>💡 {debtOpt.recommendation}</Text>
-                    </View>
-                </View>
+                    <Text style={s.cardSub}>💡 {debtOpt.recommendation}</Text>
+                    <NextStepLink text="See the full avalanche vs. snowball breakdown → Loans" onPress={() => navigate('loans')} />
+                </TouchableOpacity>
             )}
 
             {/* Payment timing */}
@@ -701,14 +494,13 @@ function GrowthTab() {
 export default function CFOScreen() {
     const { navigate, transactions, setCurrentScreen, navParams } = useApp();
     const [activeTab, setActiveTab] = useState<Tab>(
-        (['pulse', 'forecast', 'finance', 'risk', 'growth', 'questions'] as Tab[]).includes(navParams?.tab) ? navParams.tab : 'pulse'
+        (['pulse', 'forecast', 'finance', 'growth', 'questions'] as Tab[]).includes(navParams?.tab) ? navParams.tab : 'pulse'
     );
 
     const TABS: { key: Tab; label: string; icon: string }[] = [
         { key: 'pulse',     label: 'Pulse',     icon: '❤️' },
         { key: 'forecast',  label: 'Forecast',  icon: '📅' },
         { key: 'finance',   label: 'Finance',   icon: '📊' },
-        { key: 'risk',      label: 'Risk',      icon: '🛡️' },
         { key: 'growth',    label: 'Growth',    icon: '🚀' },
         { key: 'questions', label: 'CFO Q&A',   icon: '❓' },
     ];
@@ -772,10 +564,9 @@ export default function CFOScreen() {
                             </TouchableOpacity>
                         ))}
                     </ScrollView>
-                    {activeTab === 'pulse'    && <PulseTab onOpenRisk={() => setActiveTab('risk')} />}
+                    {activeTab === 'pulse'    && <PulseTab onOpenRisk={() => setCurrentScreen('risk-management')} />}
                     {activeTab === 'forecast' && <ForecastTab />}
                     {activeTab === 'finance'  && <FinanceTab />}
-                    {activeTab === 'risk'     && <RiskTab />}
                     {activeTab === 'growth'   && <GrowthTab />}
                     {activeTab === 'questions' && <CFOQuestionsTab />}
                 </>
@@ -822,9 +613,7 @@ const s = StyleSheet.create({
     card:         { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 12 },
     cardTitle:    { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginBottom: 8 },
     cardSub:      { fontSize: 12, color: Colors.textMuted, marginBottom: 10, lineHeight: 18 },
-    bigNum:       { fontSize: 32, fontWeight: 'bold', color: Colors.textPrimary },
     empty:        { fontSize: 13, color: Colors.textMuted, textAlign: 'center', paddingVertical: 12 },
-    statusBadge:  { fontSize: 11, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
 
     healthLabel:  { fontSize: 22, fontWeight: 'bold' },
     healthScore:  { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
@@ -838,13 +627,9 @@ const s = StyleSheet.create({
     metricSub:     { fontSize: 10, color: Colors.textMuted, marginTop: 2, textAlign: 'center' },
     metricDivider: { width: 1, backgroundColor: Colors.border, alignSelf: 'stretch', marginHorizontal: 6 },
 
-    pillarDot:    { fontSize: 10, marginRight: 6 },
     pillarName:   { flex: 1, fontSize: 12, color: Colors.textSecondary },
     pillarScore:  { fontSize: 12, fontWeight: '700' },
 
-    riskGauge:     { alignItems: 'center', justifyContent: 'center', width: 80, height: 80, borderRadius: 40, borderWidth: 3 },
-    riskGradeText: { fontSize: 28, fontWeight: 'bold' },
-    riskScoreText: { fontSize: 11, color: Colors.textMuted },
     riskItem:      { fontSize: 13, color: Colors.expense, marginBottom: 6 },
     actionItem:    { fontSize: 13, color: Colors.income, marginBottom: 6 },
 
@@ -875,38 +660,11 @@ const s = StyleSheet.create({
     dscrVal:      { fontSize: 14, fontWeight: '700', color: Colors.textPrimary },
     dscrHint:     { fontSize: 11, color: Colors.textMuted, fontStyle: 'italic', marginTop: 4, marginBottom: 6, lineHeight: 16 },
 
-    shockChip:        { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 16, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.bg },
-    shockChipActive:  { backgroundColor: Colors.primary, borderColor: Colors.primary },
-    shockChipText:    { fontSize: 12.5, color: Colors.textSecondary, fontWeight: '600' },
-    shockChipTextActive: { color: '#fff' },
-
     input:        { backgroundColor: Colors.bg, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, padding: 12, color: Colors.textPrimary, marginBottom: 10, fontSize: 14 },
-
-    concRow:      { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderTopWidth: 1, borderTopColor: Colors.border },
-    concName:     { fontSize: 13, color: Colors.textPrimary, fontWeight: '600' },
-    concPct:      { fontSize: 11, color: Colors.textMuted },
-    riskBadge:    { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginLeft: 8 },
-    riskBadgeText:{ fontSize: 10, fontWeight: '700' },
-
-    seasonRow:    { flexDirection: 'row', gap: 4, marginBottom: 6 },
-    seasonCell:   { flex: 1, alignItems: 'center', borderRadius: 6, padding: 5, borderWidth: 1, backgroundColor: Colors.bg },
-    seasonMonth:  { fontSize: 8, color: Colors.textMuted },
-    seasonRisk:   { fontSize: 13, fontWeight: 'bold' },
-    seasonWarning:{ fontSize: 11, marginTop: 4, marginBottom: 2 },
 
     opportunityRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderTopWidth: 1, borderTopColor: Colors.border },
     oppLabel:       { fontSize: 13, color: Colors.textSecondary, flex: 1 },
     oppVal:         { fontSize: 15, fontWeight: '700' },
-
-    debtMethodRow:   { flexDirection: 'row', gap: 10, marginBottom: 12 },
-    debtMethod:      { flex: 1, borderWidth: 2, borderRadius: 12, padding: 12 },
-    debtMethodLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 1, marginBottom: 4 },
-    debtMethodSub:   { fontSize: 10, color: Colors.textMuted, marginBottom: 8, lineHeight: 14 },
-    debtLoan:        { fontSize: 12, color: Colors.textSecondary, marginBottom: 2 },
-    debtSaved:       { fontSize: 13, fontWeight: '700', marginTop: 8 },
-    debtMonths:      { fontSize: 11, color: Colors.textMuted },
-    recommendBox:    { backgroundColor: Colors.primary + '15', borderRadius: 8, padding: 12 },
-    recommendText:   { fontSize: 13, color: Colors.textSecondary, lineHeight: 18 },
 
     payRow:       { borderLeftWidth: 3, paddingLeft: 12, marginBottom: 12, paddingVertical: 4 },
     payTop:       { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },

@@ -15,6 +15,7 @@ import { isScreenAllowedForRole } from '../utils/rolePermissions';
 // ─── Icon accent colours per section ────────────────────────────────────────
 const ANALYTICS_ITEMS: { label: string; icon: IconName; screen: Screen; color: string }[] = [
     { label: 'Scoreboard', icon: 'activity',      screen: 'scoreboard', color: '#22d3ee' },
+    { label: 'Risk',     icon: 'radio',          screen: 'risk-management', color: '#ef4444' },
     { label: 'Insights', icon: 'zap',            screen: 'insights', color: '#f59e0b' },
     { label: 'Analysis', icon: 'pie-chart',       screen: 'analysis', color: '#3b82f6' },
     { label: 'Advisor',  icon: 'message-circle',  screen: 'cfo',      color: '#8b5cf6' },

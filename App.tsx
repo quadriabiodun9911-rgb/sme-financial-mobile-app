@@ -40,6 +40,7 @@ import CreditWorthinessScreen from './src/screens/CreditWorthinessScreen';
 import FinancialHealthScreen from './src/screens/FinancialHealthScreen';
 import BusinessPassportScreen from './src/screens/BusinessPassportScreen';
 import ScoreboardScreen from './src/screens/ScoreboardScreen';
+import RiskManagementScreen from './src/screens/RiskManagementScreen';
 import MacroAssumptionsScreen from './src/screens/MacroAssumptionsScreen';
 import FutureEventsScreen from './src/screens/FutureEventsScreen';
 import FinancialAssessmentScreen from './src/screens/FinancialAssessmentScreen';
@@ -189,6 +190,7 @@ function NavigatorContent() {
             {currentScreen === 'financial-health' && <FinancialHealthScreen />}
             {currentScreen === 'business-passport' && <BusinessPassportScreen />}
             {currentScreen === 'scoreboard'    && <ScoreboardScreen />}
+            {currentScreen === 'risk-management' && <RiskManagementScreen />}
             {currentScreen === 'macro-assumptions' && <MacroAssumptionsScreen />}
             {currentScreen === 'future-events' && <FutureEventsScreen />}
             {currentScreen === 'financial-assessment' && <FinancialAssessmentScreen />}

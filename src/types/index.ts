@@ -30,6 +30,7 @@ export type Screen =
     | 'financial-health'
     | 'business-passport'
     | 'scoreboard'
+    | 'risk-management'
     | 'macro-assumptions'
     | 'future-events'
     | 'financing-marketplace'
