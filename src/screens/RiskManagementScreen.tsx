@@ -85,6 +85,12 @@ export default function RiskManagementScreen() {
         () => computeExternalRiskInsights(transactions, settings.macroAssumptions ?? []),
         [transactions, settings.macroAssumptions]
     );
+    const topExternalInsight = useMemo(
+        () => [...externalRisk.insights].sort(
+            (a, b) => (b.projectedImpact?.observedGrowthPct ?? 0) - (a.projectedImpact?.observedGrowthPct ?? 0)
+        )[0],
+        [externalRisk.insights]
+    );
 
     const MONTHS_GRID = [seasonal.slice(0, 6), seasonal.slice(6, 12)];
 
@@ -280,13 +286,16 @@ export default function RiskManagementScreen() {
                                 <Text style={s.empty}>Add an assumption above to unlock this.</Text>
                             ) : externalRisk.insights.length === 0 ? (
                                 <Text style={s.empty}>No economic risks are currently showing up in your spending.</Text>
-                            ) : externalRisk.insights.map((ins, i) => (
-                                <View key={i} style={s.insightCard}>
-                                    <Text style={s.insightTitle}>{ins.title}</Text>
-                                    <Text style={s.insightBody}>{ins.whatChanged}</Text>
-                                    <Text style={s.insightBody}>{ins.whatCouldHappenNext}</Text>
+                            ) : (
+                                <View style={s.insightCard}>
+                                    <Text style={s.insightTitle}>{topExternalInsight.title}</Text>
+                                    <Text style={s.insightBody}>
+                                        {externalRisk.insights.length > 1
+                                            ? `+ ${externalRisk.insights.length - 1} more economic risk${externalRisk.insights.length - 1 > 1 ? 's' : ''} showing up in your spending.`
+                                            : topExternalInsight.whatChanged}
+                                    </Text>
                                 </View>
-                            ))}
+                            )}
                             <NextStepLink text="See the full forward cost trajectory → Sales" onPress={() => navigate('transactions', { tab: 'exposure' })} />
                         </View>
                     </>
