@@ -18,6 +18,7 @@ import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { t } from '../utils/i18n';
 import { trackDataExported } from '../utils/analytics';
 import { isOverdueIncomeTransaction, getOverdueIncomeTransactions } from '../utils/overdueTransactions';
+import CostExposureTab from '../components/CostExposureTab';
 
 type FilterType   = 'all' | 'income' | 'expense' | 'collect';
 type StatusFilter = 'all' | 'paid' | 'pending' | 'overdue';
@@ -125,6 +126,12 @@ function formatDateHeader(iso: string): string {
 
 export default function TransactionsScreen() {
     const { transactions, addTransaction, deleteTransaction, updateTransaction, settings, setCurrentScreen, navParams, invoices, markInvoiceStatus, navigate, language, isDemoMode } = useApp();
+
+    // Cost Exposure moved here from Inventory & Stock: it's fundamentally
+    // about sales/revenue erosion (a category eating a bigger share of
+    // every naira of revenue), so it lives alongside the transactions it's
+    // computed from rather than on the inventory side.
+    const [screenTab, setScreenTab] = useState<'list' | 'exposure'>(navParams?.tab === 'exposure' ? 'exposure' : 'list');
     const { currency, defaultTaxRate } = settings;
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
@@ -337,6 +344,24 @@ export default function TransactionsScreen() {
         <SafeAreaView style={styles.safe}>
             <Header />
 
+            {/* ── Screen tab bar ───────────────────────────────────────── */}
+            <View style={styles.screenTabBar}>
+                <TouchableOpacity style={[styles.screenTab, screenTab === 'list' && styles.screenTabActive]} onPress={() => setScreenTab('list')}>
+                    <Icon name="list" size={13} color={screenTab === 'list' ? Colors.primary : Colors.muted} />
+                    <Text style={[styles.screenTabText, screenTab === 'list' && styles.screenTabTextActive]}>Transactions</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.screenTab, screenTab === 'exposure' && styles.screenTabActive]} onPress={() => setScreenTab('exposure')}>
+                    <Icon name="alert-triangle" size={13} color={screenTab === 'exposure' ? Colors.primary : Colors.muted} />
+                    <Text style={[styles.screenTabText, screenTab === 'exposure' && styles.screenTabTextActive]}>Cost Exposure</Text>
+                </TouchableOpacity>
+            </View>
+
+            {screenTab === 'exposure' ? (
+                <ScrollView style={styles.scroll} contentContainerStyle={styles.pad}>
+                    <CostExposureTab />
+                </ScrollView>
+            ) : (
+            <>
             {/* ── Search + action bar ──────────────────────────────────── */}
             <View style={styles.topBar}>
                 <TextInput
@@ -581,6 +606,8 @@ export default function TransactionsScreen() {
                     </View>
                 )}
             />
+            </>
+            )}
 
             <FooterNav />
 
@@ -1048,6 +1075,12 @@ const styles = StyleSheet.create({
     scroll:  { flex: 1 },
     pad:     { padding: Spacing.md },
     recurringSection: { marginTop: Spacing.lg, marginBottom: Spacing.sm },
+
+    screenTabBar: { flexDirection: 'row', backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    screenTab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12 },
+    screenTabActive: { borderBottomWidth: 2, borderBottomColor: Colors.primary },
+    screenTabText: { fontSize: 13, color: Colors.muted, fontWeight: '600' },
+    screenTabTextActive: { color: Colors.primary },
 
     // flexWrap is the safety net: search (flex:1) + Export + Import CSV +
     // New Entry don't all fit one row on a phone-width screen -- confirmed

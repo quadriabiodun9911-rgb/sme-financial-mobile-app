@@ -35,7 +35,7 @@ export const FEATURE_INDEX: FeatureEntry[] = [
         id: 'cost-exposure', label: 'Cost Exposure', icon: '⚠️',
         description: 'Which expense category is taking a bigger share of revenue, and a multi-month forward projection of the profit impact if it keeps rising',
         keywords: ['cost concentration', 'energy risk', 'rising costs', 'expense category', 'margin erosion', 'early warning', 'forecast', 'trajectory'],
-        screen: 'inventory', navParams: { tab: 'exposure' },
+        screen: 'transactions', navParams: { tab: 'exposure' },
     },
     {
         id: 'macro-assumptions', label: 'Macro Assumptions', icon: '🌍',

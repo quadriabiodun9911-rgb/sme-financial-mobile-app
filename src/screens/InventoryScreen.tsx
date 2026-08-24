@@ -25,10 +25,9 @@ import ProductionCostCalculator from '../components/ProductionCostCalculator';
 import DateInput from '../components/DateInput';
 import { InventoryItem } from '../types';
 import { showAlert, confirmAction } from '../utils/webAlert';
-import CostExposureTab from '../components/CostExposureTab';
 import InventoryPricingTab from '../components/InventoryPricingTab';
 
-type InventoryTab = 'stock' | 'analytics' | 'exposure' | 'pricing';
+type InventoryTab = 'stock' | 'analytics' | 'pricing';
 
 type FormState = {
     name: string;
@@ -104,7 +103,7 @@ export default function InventoryScreen() {
     const constrainSheetWidth = Platform.OS === 'web' && windowWidth >= 720;
 
     const [activeTab, setActiveTab] = useState<InventoryTab>(
-        (['stock', 'analytics', 'exposure', 'pricing'] as InventoryTab[]).includes(navParams?.tab as InventoryTab) ? (navParams!.tab as InventoryTab) : 'stock'
+        (['stock', 'analytics', 'pricing'] as InventoryTab[]).includes(navParams?.tab as InventoryTab) ? (navParams!.tab as InventoryTab) : 'stock'
     );
     const [modalOpen, setModalOpen] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -399,12 +398,6 @@ export default function InventoryScreen() {
                     onPress={() => setActiveTab('analytics')}
                 >
                     <Text style={[styles.tabText, activeTab === 'analytics' && styles.tabTextActive]}>Analytics</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.tabBtn, activeTab === 'exposure' && styles.tabBtnActive]}
-                    onPress={() => setActiveTab('exposure')}
-                >
-                    <Text style={[styles.tabText, activeTab === 'exposure' && styles.tabTextActive]}>Cost Exposure</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                     style={[styles.tabBtn, activeTab === 'pricing' && styles.tabBtnActive]}
@@ -768,7 +761,6 @@ export default function InventoryScreen() {
                 )}
 
                 {/* ── COST EXPOSURE TAB ─────────────────────────────────── */}
-                {activeTab === 'exposure' && <CostExposureTab />}
 
                 {/* ── PRICING TAB ────────────────────────────────────────── */}
                 {activeTab === 'pricing' && <InventoryPricingTab />}
