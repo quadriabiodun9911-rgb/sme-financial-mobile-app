@@ -47,6 +47,6 @@ export function computeRequiredPriceIncrease(input: PriceAdjustmentInput): Price
         feasible: true,
         reason: requiredPriceIncreasePct <= 0
             ? 'Your current margin already covers this cost increase — no price change needed to hit the target.'
-            : `A ${requiredPriceIncreasePct.toFixed(1)}% price increase (assuming volume holds) would restore your ${targetMarginPct}% margin.`,
+            : `A ${requiredPriceIncreasePct.toFixed(1)}% price increase (assuming volume holds) would restore your ${targetMarginPct.toFixed(1)}% margin.`,
     };
 }

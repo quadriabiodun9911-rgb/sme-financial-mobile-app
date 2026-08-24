@@ -715,7 +715,7 @@ export default function InventoryScreen() {
                                 ))}
                                 <NextStepLink
                                     text="See pricing strategies to fix this"
-                                    onPress={() => navigate('reports', { reportSection: 'growth', reportTab: 'pricing' })}
+                                    onPress={() => setActiveTab('pricing')}
                                 />
                             </View>
                         )}
