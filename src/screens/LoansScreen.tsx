@@ -21,7 +21,7 @@ import FooterNav from '../components/FooterNav';
 import { Loan, LoanStatus, Transaction, ReadinessSnapshot } from '../types';
 import DateInput from '../components/DateInput';
 import MerchantFinancingSection from './MerchantFinancingSection';
-import { computeDebtOptimiser, computeDSCR, DSCRResult } from '../utils/finance';
+import { computeDebtOptimiser, computeDSCR, computeInterestRateShock, DSCRResult } from '../utils/finance';
 import { computePostFinancingMonitor, PostFinancingStatus } from '../utils/postFinancingMonitor';
 import { buildPostFinancingShareExport } from '../utils/lenderSummaryExport';
 import { generatePDF, sharePDF } from '../utils/pdfExport';
@@ -41,6 +41,12 @@ function totalPaid(loan: Loan): number {
 }
 
 const outstandingBalance = outstandingLoanBalance;
+
+function statusColorFor(status: 'healthy' | 'warning' | 'danger'): string {
+    if (status === 'healthy') return Colors.income;
+    if (status === 'warning') return Colors.warning;
+    return Colors.expense;
+}
 
 function nextDueDate(loan: Loan): string {
     return nextLoanPaymentDueDate(loan).toISOString().split('T')[0];
@@ -191,6 +197,18 @@ export default function LoansScreen() {
     const debtOpt = useMemo(() => computeDebtOptimiser(loans), [loans]);
     const dscr = useMemo(() => computeDSCR(transactions, loans), [transactions, loans]);
     const showDebtStrategy = activeLoans.length >= 2;
+    const dscrStatusColor = dscr.status === 'healthy' ? Colors.income : dscr.status === 'warning' ? Colors.warning : Colors.expense;
+
+    // Interest Rate Shock -- a forward-looking "what if my loans repriced
+    // higher" stress test, distinct from the payoff strategy above (which
+    // only reorders payments against today's rates). A user-set
+    // hypothetical, not a prediction. Applies uniformly across active
+    // loans since Quad360 doesn't track fixed vs. variable rate per loan.
+    const [shockPoints, setShockPoints] = useState('0');
+    const rateShock = useMemo(
+        () => computeInterestRateShock(loans, transactions, parseFloat(shockPoints) || 0),
+        [loans, transactions, shockPoints]
+    );
 
     return (
         <SafeAreaView style={s.safe}>
@@ -228,6 +246,91 @@ export default function LoansScreen() {
                         <SummaryCard label={t(language, 'monthlyRepaymentLabel')} value={`${currency}${totalMonthly.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} color={Colors.warning} />
                         <SummaryCard label={t(language, 'activeLoansLabel')} value={String(activeLoans.length)} color={Colors.textPrimary} />
                     </View>
+
+                    {/* Can You Afford Your Loans? -- Debt Service Coverage
+                        Ratio, the canonical "is income covering debt
+                        payments" answer used everywhere else in the app
+                        (Credit-Worthiness, Financing Marketplace, Risk
+                        Radar's Debt Coverage category). This is its one
+                        prominent, standalone home. */}
+                    {activeLoans.length > 0 && (
+                        <View style={[s.strategyCard, { borderLeftWidth: 3, borderLeftColor: dscrStatusColor }]}>
+                            <View style={s.strategyTitleRow}>
+                                <Icon name="shield" size={14} color={Colors.textPrimary} />
+                                <Text style={s.strategyTitle}>Can You Afford Your Loans?</Text>
+                            </View>
+                            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
+                                <Text style={[s.dscrBigNum, { color: dscrStatusColor }]}>{dscr.dscr > 100 ? '∞' : dscr.dscr.toFixed(2)}x</Text>
+                                <Text style={[s.dscrStatusBadge, { backgroundColor: dscrStatusColor + '20', color: dscrStatusColor }]}>
+                                    {dscr.status === 'healthy' ? 'HEALTHY' : dscr.status === 'warning' ? 'BORDERLINE' : 'AT RISK'}
+                                </Text>
+                            </View>
+                            <Text style={s.strategyRecommendation}>
+                                {dscr.status === 'healthy'
+                                    ? '✓ Your income comfortably covers loan repayments.'
+                                    : dscr.status === 'warning'
+                                    ? '⚠ Your income barely covers loan repayments. Reduce debt or increase revenue.'
+                                    : '✗ Income may not cover loan repayments. Act now.'}
+                                {' '}Above 1.0x = you cover repayments. Above 2.0x = excellent buffer.
+                            </Text>
+                            <View style={s.dscrDetailRow}>
+                                <Text style={s.dscrDetailLabel}>Net Operating Income</Text>
+                                <Text style={[s.dscrDetailVal, { color: Colors.income }]}>{currency}{Math.round(dscr.netOperatingIncome).toLocaleString()}</Text>
+                            </View>
+                            <View style={s.dscrDetailRow}>
+                                <Text style={s.dscrDetailLabel}>Annual Debt Payments</Text>
+                                <Text style={[s.dscrDetailVal, { color: Colors.expense }]}>{currency}{Math.round(dscr.totalDebtService).toLocaleString()}</Text>
+                            </View>
+                        </View>
+                    )}
+
+                    {/* Interest Rate Shock -- what if rates rose? */}
+                    {activeLoans.length > 0 && (
+                        <View style={[s.strategyCard, { borderLeftWidth: 3, borderLeftColor: statusColorFor(rateShock.newStatus) }]}>
+                            <View style={s.strategyTitleRow}>
+                                <Icon name="trending-up" size={14} color={Colors.textPrimary} />
+                                <Text style={s.strategyTitle}>Interest Rate Shock</Text>
+                            </View>
+                            <Text style={s.strategyRecommendation}>What if your loans repriced higher? Model a rate rise and see the effect on repayments and coverage.</Text>
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8, marginBottom: 10 }}>
+                                {[1, 2, 3, 5].map(p => (
+                                    <TouchableOpacity
+                                        key={p}
+                                        style={[s.shockChip, shockPoints === String(p) && s.shockChipActive]}
+                                        onPress={() => setShockPoints(String(p))}
+                                    >
+                                        <Text style={[s.shockChipText, shockPoints === String(p) && s.shockChipTextActive]}>+{p}pt</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                            <TextInput
+                                style={s.shockInput}
+                                placeholder="or type a custom rate rise (percentage points)"
+                                placeholderTextColor={Colors.textMuted}
+                                keyboardType="decimal-pad"
+                                value={shockPoints === '0' ? '' : shockPoints}
+                                onChangeText={v => setShockPoints(v || '0')}
+                            />
+                            {(parseFloat(shockPoints) || 0) > 0 && (
+                                <>
+                                    <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
+                                        <Text style={[s.dscrBigNum, { color: statusColorFor(rateShock.newStatus) }]}>{rateShock.newDSCR > 100 ? '∞' : rateShock.newDSCR.toFixed(2)}x</Text>
+                                        <Text style={[s.dscrStatusBadge, { backgroundColor: statusColorFor(rateShock.newStatus) + '20', color: statusColorFor(rateShock.newStatus) }]}>
+                                            {rateShock.newStatus === 'healthy' ? 'HEALTHY' : rateShock.newStatus === 'warning' ? 'BORDERLINE' : 'AT RISK'}
+                                        </Text>
+                                    </View>
+                                    <View style={s.dscrDetailRow}>
+                                        <Text style={s.dscrDetailLabel}>New Monthly Debt Payments</Text>
+                                        <Text style={[s.dscrDetailVal, { color: Colors.expense }]}>{currency}{Math.round(rateShock.newMonthlyDebtService).toLocaleString()}</Text>
+                                    </View>
+                                    <View style={s.dscrDetailRow}>
+                                        <Text style={s.dscrDetailLabel}>Extra Cost per Year</Text>
+                                        <Text style={[s.dscrDetailVal, { color: Colors.expense }]}>+{currency}{Math.round(rateShock.extraAnnualCost).toLocaleString()}</Text>
+                                    </View>
+                                </>
+                            )}
+                        </View>
+                    )}
 
                     {/* Debt Payoff Strategy — which loan to attack first and why,
                         with real interest saved, not just a flat list of loans. */}
@@ -883,6 +986,19 @@ const s = StyleSheet.create({
     strategyMethodLabel: { fontSize: 11, fontWeight: '700', color: Colors.textPrimary },
     strategyOrderItem: { fontSize: 11, color: Colors.textSecondary, marginBottom: 3 },
     strategySaved: { fontSize: 11, fontWeight: '800', marginTop: 6 },
+
+    dscrBigNum: { fontSize: 28, fontWeight: 'bold' },
+    dscrStatusBadge: { fontSize: 11, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+    dscrDetailRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6, borderTopWidth: 1, borderTopColor: Colors.border },
+    dscrDetailLabel: { fontSize: 12.5, color: Colors.textSecondary },
+    dscrDetailVal: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
+
+    shockChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 16, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.bg },
+    shockChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+    shockChipText: { fontSize: 12.5, color: Colors.textSecondary, fontWeight: '600' },
+    shockChipTextActive: { color: '#fff' },
+    shockInput: { backgroundColor: Colors.bg, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, padding: 12, color: Colors.textPrimary, marginBottom: 10, fontSize: 13 },
+
     summaryCard: { flex: 1, backgroundColor: Colors.surface, borderRadius: 10, padding: Spacing.md, alignItems: 'center' },
     summaryLabel: { fontSize: 10, color: Colors.textMuted, marginBottom: 3, textAlign: 'center' },
     summaryValue: { fontSize: 14, fontWeight: '700' },

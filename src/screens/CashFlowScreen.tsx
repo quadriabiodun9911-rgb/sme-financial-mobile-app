@@ -61,8 +61,8 @@ export default function CashFlowScreen() {
     // loans" belongs in the same place as runway and breakeven. Delegates
     // to the one canonical computeDSCR (also used by Loans, Credit-
     // Worthiness, and Financing Marketplace) rather than recomputing it;
-    // this is a teaser linking to CFO Advisor's full "Can You Afford Your
-    // Loans?" card, not a second copy of it.
+    // this is a teaser linking to the Loans screen's full "Can You Afford
+    // Your Loans?" card and Interest Rate Shock, not a second copy of them.
     const dscr = useMemo(() => computeDSCR(transactions, loans), [transactions, loans]);
     const dscrColor = dscr.status === 'healthy' ? Colors.income : dscr.status === 'warning' ? Colors.warning : Colors.expense;
 
@@ -258,7 +258,7 @@ export default function CashFlowScreen() {
                             </View>
                         </View>
 
-                        <TouchableOpacity style={[styles.dscrCard, { borderColor: dscrColor }]} onPress={() => navigate('cfo', { tab: 'finance' })} activeOpacity={0.85}>
+                        <TouchableOpacity style={[styles.dscrCard, { borderColor: dscrColor }]} onPress={() => navigate('loans')} activeOpacity={0.85}>
                             <View style={styles.dscrHeaderRow}>
                                 <Icon name="briefcase" size={13} color={Colors.muted} />
                                 <Text style={styles.dscrTitle}>Debt Coverage</Text>
@@ -274,7 +274,7 @@ export default function CashFlowScreen() {
                                     : dscr.status === 'warning'
                                     ? `Income barely covers your ${fmt(dscr.totalDebtService)}/year in loan payments (${dscr.dscr.toFixed(2)}x) — little room for a bad month.`
                                     : `Income may not fully cover your ${fmt(dscr.totalDebtService)}/year in loan payments (${dscr.dscr.toFixed(2)}x).`}
-                                {' '}Full breakdown on CFO Advisor →
+                                {' '}Full breakdown & Interest Rate Shock on Loans →
                             </Text>
                         </TouchableOpacity>
 
