@@ -17,6 +17,7 @@ import { scenarioAdjustments, summarizeScenario, SCENARIO_SWING, ScenarioName } 
 import { computeExternalScenarioStress, ImpactLevel, ProbabilityLevel } from '../utils/externalFactorsPanel';
 import { explainForecastChange } from '../utils/forecastChangeExplanation';
 import { generateForecastRiskActions } from '../utils/forecastRiskRecommendations';
+import { monthlyPayment } from '../utils/loanMath';
 
 type Statement = 'pnl' | 'cashflow' | 'balance';
 
@@ -109,6 +110,25 @@ export default function FutureFinancialStatementsScreen() {
         () => computeForecastSummary(transactions, loans, finance, forecastPeriod, staff, macroAssumptions, NO_ADJUSTMENTS, inventory, futureEvents),
         [transactions, loans, finance, forecastPeriod, staff, macroAssumptions, inventory, futureEvents],
     );
+    // Debt-service coverage under the What If? plan -- not part of
+    // forecastSummary itself, computed here from the same annualized
+    // projected profit plus the existing + any new loan's payment
+    // (forecast.existingLoanMonthlyPayment already reflects today's real
+    // active loans; the new loan's payment is the same monthlyPayment()
+    // math the projected statements below use for it).
+    const whatIfDscr = useMemo(() => {
+        const newLoanMonthly = adjustments.newLoanAmount > 0
+            ? monthlyPayment(adjustments.newLoanAmount, adjustments.newLoanAnnualRatePct, adjustments.newLoanTermMonths)
+            : 0;
+        const baseAnnualDebtService = forecast.existingLoanMonthlyPayment * 12;
+        const adjustedAnnualDebtService = (forecast.existingLoanMonthlyPayment + newLoanMonthly) * 12;
+        const baseAnnualProfit = (noAdjustmentsSummary.headline.expectedProfit / noAdjustmentsSummary.monthsInPeriod) * 12;
+        const adjustedAnnualProfit = (forecastSummary.headline.expectedProfit / forecastSummary.monthsInPeriod) * 12;
+        return {
+            base: baseAnnualDebtService > 0 ? baseAnnualProfit / baseAnnualDebtService : null,
+            adjusted: adjustedAnnualDebtService > 0 ? adjustedAnnualProfit / adjustedAnnualDebtService : null,
+        };
+    }, [adjustments.newLoanAmount, adjustments.newLoanAnnualRatePct, adjustments.newLoanTermMonths, forecast.existingLoanMonthlyPayment, noAdjustmentsSummary, forecastSummary]);
     // Real, corroborated external pressure (from the same Macro
     // Assumptions the External Factors panel below reads) folds into the
     // scenario swing -- Conservative gets worse by however much cost
@@ -703,6 +723,17 @@ export default function FutureFinancialStatementsScreen() {
                                         ({forecastSummary.headline.expectedCashPosition >= noAdjustmentsSummary.headline.expectedCashPosition ? '+' : ''}
                                         {fmt(forecastSummary.headline.expectedCashPosition - noAdjustmentsSummary.headline.expectedCashPosition)})
                                     </Text>
+                                </Text>
+                                <Text style={s.impactLine}>
+                                    Margin: {noAdjustmentsSummary.profitBridge.forecastMarginPct.toFixed(1)}% → {forecastSummary.profitBridge.forecastMarginPct.toFixed(1)}%
+                                </Text>
+                                {(whatIfDscr.base !== null || whatIfDscr.adjusted !== null) && (
+                                    <Text style={s.impactLine}>
+                                        Debt capacity (DSCR): {whatIfDscr.base !== null ? `${whatIfDscr.base.toFixed(2)}x` : 'No debt'} → {whatIfDscr.adjusted !== null ? `${whatIfDscr.adjusted.toFixed(2)}x` : 'No debt'}
+                                    </Text>
+                                )}
+                                <Text style={s.impactLine}>
+                                    Financial health: {RISK_BAND_STYLE[noAdjustmentsSummary.healthForecast.projectedScore.band].emoji} {noAdjustmentsSummary.healthForecast.projectedScore.score} → {RISK_BAND_STYLE[forecastSummary.healthForecast.projectedScore.band].emoji} {forecastSummary.healthForecast.projectedScore.score}
                                 </Text>
                             </View>
                         )}
