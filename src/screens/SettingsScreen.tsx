@@ -488,6 +488,15 @@ export default function SettingsScreen() {
 
                     {/* Security */}
                     <CollapsibleSection title="Security" defaultOpen={false}>
+                        <Section title="Your Financial Data">
+                            <Text style={styles.hint}>
+                                See what's actually protecting your data — encryption, data isolation, two-factor authentication and lender data sharing, all in one place.
+                            </Text>
+                            <TouchableOpacity style={styles.dataBtn} onPress={() => setCurrentScreen('security-center')}>
+                                <Text style={styles.dataBtnText}>Open Security Center</Text>
+                            </TouchableOpacity>
+                        </Section>
+
                         <Section title="Change PIN">
                             <FieldLabel>Current PIN</FieldLabel>
                             <TextInput style={styles.input} value={currentPin}

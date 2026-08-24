@@ -178,6 +178,26 @@ export function getDemoPortfolioShares(): LoanMonitoringShareRow[] {
     ];
 }
 
+// ─── Business-owner side ────────────────────────────────────────────────
+// For the Security Center's "who currently has an ongoing view of your
+// data" signal -- counts only what's genuinely still live (consent_active
+// = true), scoped by the owner-policy above to the caller's own rows.
+export async function countMyActiveLoanMonitoringShares(): Promise<number> {
+    try {
+        const userId = await getAuthUserId();
+        if (!userId) return 0;
+        const { count, error } = await supabase
+            .from('loan_monitoring_shares')
+            .select('id', { count: 'exact', head: true })
+            .eq('business_user_id', userId)
+            .eq('consent_active', true);
+        if (error) return 0;
+        return count ?? 0;
+    } catch {
+        return 0;
+    }
+}
+
 const LENDER_PORTFOLIO_LIMIT = 200;
 
 export async function loadPortfolioSharesForLender(): Promise<LoanMonitoringShareRow[]> {
