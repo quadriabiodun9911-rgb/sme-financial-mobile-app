@@ -40,10 +40,14 @@ export default function CustomerProfitability({ invoices, transactions, currency
             customerMap.get(customerName)!.invoices.push(inv);
         }
 
-        // Match transactions to customers (by category or reference)
+        // Match expenses to customers via the explicit vendorCustomer link
+        // only -- falling back to tx.category here used to misattribute
+        // ordinary overhead (an expense categorized "Marketing" or "Rent")
+        // to any customer whose name happened to match that category
+        // string, which has no real connection to that customer at all.
         for (const tx of transactions.filter(t => t.type === 'expense')) {
-            const customerRef = tx.vendorCustomer || tx.category;
-            if (customerMap.has(customerRef)) {
+            const customerRef = tx.vendorCustomer;
+            if (customerRef && customerMap.has(customerRef)) {
                 customerMap.get(customerRef)!.expenses.push(tx);
             }
         }
