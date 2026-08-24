@@ -13,26 +13,39 @@ import { Screen } from '../types';
 import { isScreenAllowedForRole } from '../utils/rolePermissions';
 
 // ─── Icon accent colours per section ────────────────────────────────────────
-const ANALYTICS_ITEMS: { label: string; icon: IconName; screen: Screen; color: string }[] = [
+// Grouped around the same 5-stage decision journey a business owner
+// actually moves through -- Understand where you stand, Anticipate what's
+// coming, Decide what to do, Act on it, and Fund the gap -- rather than a
+// flat, engineering-shaped list (what used to be one "Analytics" bucket
+// and one "Finance" bucket). Purely a regrouping of the same destinations:
+// every Screen id below is unchanged, so no route, deep link, or existing
+// screen is touched by this reorg.
+const UNDERSTAND_ITEMS: { label: string; icon: IconName; screen: Screen; color: string }[] = [
     { label: 'Scoreboard', icon: 'activity',      screen: 'scoreboard', color: '#22d3ee' },
-    { label: 'Risk',     icon: 'radio',          screen: 'risk-management', color: '#ef4444' },
     { label: 'Insights', icon: 'zap',            screen: 'insights', color: '#f59e0b' },
     { label: 'Analysis', icon: 'pie-chart',       screen: 'analysis', color: '#3b82f6' },
     { label: 'Advisor',  icon: 'message-circle',  screen: 'cfo',      color: '#8b5cf6' },
+];
+
+const ANTICIPATE_ITEMS: { label: string; icon: IconName; screen: Screen; color: string }[] = [
+    { label: 'Risk',     icon: 'radio',          screen: 'risk-management', color: '#ef4444' },
     { label: 'Forecast', icon: 'compass',         screen: 'future-statements', color: '#a855f7' },
     { label: 'Growth',   icon: 'trending-up',     screen: 'growth',   color: '#10b981' },
 ];
 
-const FINANCE_ITEMS: { label: string; icon: IconName; screen: Screen; color: string }[] = [
+const DECIDE_ITEMS: { label: string; icon: IconName; screen: Screen; color: string }[] = [
     { label: 'Goals',       icon: 'target',       screen: 'goals',             color: '#ef4444' },
     { label: 'Budget',      icon: 'dollar-sign',  screen: 'budget',            color: '#10b981' },
+];
+
+const FUND_ITEMS: { label: string; icon: IconName; screen: Screen; color: string }[] = [
     { label: 'Assets',      icon: 'briefcase',    screen: 'assets',            color: '#3b82f6' },
     { label: 'Loans',       icon: 'percent',      screen: 'loans',             color: '#f97316' },
     { label: 'Credit',      icon: 'credit-card',  screen: 'credit-worthiness', color: '#eab308' },
     { label: 'Financing',   icon: 'search',       screen: 'financing-marketplace', color: '#14b8a6' },
 ];
 
-const OPERATIONS_ITEMS: { label: string; icon: IconName; screen: Screen; color: string; desc: string }[] = [
+const ACT_ITEMS: { label: string; icon: IconName; screen: Screen; color: string; desc: string }[] = [
     { label: 'Inventory',      icon: 'package',      screen: 'inventory',      color: '#f59e0b', desc: 'Stock levels & margins' },
     { label: 'Cash Flow',      icon: 'droplet',       screen: 'cashflow',       color: '#3b82f6', desc: 'Forecast, runway & AR risk' },
     { label: 'Payroll',        icon: 'users',         screen: 'payroll',        color: '#10b981', desc: 'Staff & monthly pay runs' },
@@ -105,11 +118,11 @@ export default function FooterNav() {
         [enableReports, userRole]
     );
 
-    const visibleAnalytics = useMemo(() => ANALYTICS_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
-
-    const visibleFinance = useMemo(() => FINANCE_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
-
-    const visibleOperations = useMemo(() => OPERATIONS_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
+    const visibleUnderstand = useMemo(() => UNDERSTAND_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
+    const visibleAnticipate = useMemo(() => ANTICIPATE_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
+    const visibleDecide = useMemo(() => DECIDE_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
+    const visibleAct = useMemo(() => ACT_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
+    const visibleFund = useMemo(() => FUND_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
 
     const visibleAccount = useMemo(() =>
         ACCOUNT_ITEMS.filter(item => isScreenAllowedForRole(item.screen, userRole)),
@@ -224,10 +237,11 @@ export default function FooterNav() {
                             )}
                         </View>
 
-                        {/* ── Analytics ─────────────────────────────────── */}
-                        <Text style={styles.sectionHeader}>Analytics</Text>
+                        {/* ── Understand ────────────────────────────────── */}
+                        <Text style={styles.sectionHeader}>Understand</Text>
+                        <Text style={styles.sectionSubtitle}>Know where you stand</Text>
                         <View style={styles.gridCard}>
-                            {visibleAnalytics.map(item => (
+                            {visibleUnderstand.map(item => (
                                 <TouchableOpacity
                                     key={item.label}
                                     style={styles.gridItem}
@@ -242,10 +256,11 @@ export default function FooterNav() {
                             ))}
                         </View>
 
-                        {/* ── Finance ───────────────────────────────────── */}
-                        <Text style={styles.sectionHeader}>Finance</Text>
+                        {/* ── Anticipate ────────────────────────────────── */}
+                        <Text style={styles.sectionHeader}>Anticipate</Text>
+                        <Text style={styles.sectionSubtitle}>See what's coming</Text>
                         <View style={styles.gridCard}>
-                            {visibleFinance.map(item => (
+                            {visibleAnticipate.map(item => (
                                 <TouchableOpacity
                                     key={item.label}
                                     style={styles.gridItem}
@@ -260,10 +275,30 @@ export default function FooterNav() {
                             ))}
                         </View>
 
-                        {/* ── Operations ────────────────────────────────── */}
-                        <Text style={styles.sectionHeader}>Operations</Text>
+                        {/* ── Decide ────────────────────────────────────── */}
+                        <Text style={styles.sectionHeader}>Decide</Text>
+                        <Text style={styles.sectionSubtitle}>Plan your next move</Text>
+                        <View style={styles.gridCard}>
+                            {visibleDecide.map(item => (
+                                <TouchableOpacity
+                                    key={item.label}
+                                    style={styles.gridItem}
+                                    onPress={() => goTo(item.screen)}
+                                    activeOpacity={0.75}
+                                >
+                                    <View style={[styles.gridIconBox, { backgroundColor: item.color + '22' }]}>
+                                        <Icon name={item.icon} size={19} color={item.color} />
+                                    </View>
+                                    <Text style={styles.gridLabel}>{item.label}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
+                        {/* ── Act ───────────────────────────────────────── */}
+                        <Text style={styles.sectionHeader}>Act</Text>
+                        <Text style={styles.sectionSubtitle}>Get it done</Text>
                         <View style={styles.listCard}>
-                            {visibleOperations.map((item, i, arr) => (
+                            {visibleAct.map((item, i, arr) => (
                                 <TouchableOpacity
                                     key={item.label}
                                     style={[styles.listRow, i < arr.length - 1 && styles.listRowBorder]}
@@ -278,6 +313,25 @@ export default function FooterNav() {
                                         <Text style={styles.listDesc}>{item.desc}</Text>
                                     </View>
                                     <Icon name="chevron-right" size={18} color={Colors.textMuted} />
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
+                        {/* ── Fund ──────────────────────────────────────── */}
+                        <Text style={styles.sectionHeader}>Fund</Text>
+                        <Text style={styles.sectionSubtitle}>Access capital</Text>
+                        <View style={styles.gridCard}>
+                            {visibleFund.map(item => (
+                                <TouchableOpacity
+                                    key={item.label}
+                                    style={styles.gridItem}
+                                    onPress={() => goTo(item.screen)}
+                                    activeOpacity={0.75}
+                                >
+                                    <View style={[styles.gridIconBox, { backgroundColor: item.color + '22' }]}>
+                                        <Icon name={item.icon} size={19} color={item.color} />
+                                    </View>
+                                    <Text style={styles.gridLabel}>{item.label}</Text>
                                 </TouchableOpacity>
                             ))}
                         </View>
@@ -399,8 +453,14 @@ const styles = StyleSheet.create({
         color: Colors.textMuted,
         textTransform: 'uppercase',
         letterSpacing: 0.8,
-        marginBottom: Spacing.sm,
+        marginBottom: 2,
         marginTop: Spacing.xl,
+        marginLeft: Spacing.xl,
+    },
+    sectionSubtitle: {
+        fontSize: 11.5,
+        color: Colors.textSecondary,
+        marginBottom: Spacing.sm,
         marginLeft: Spacing.xl,
     },
 
