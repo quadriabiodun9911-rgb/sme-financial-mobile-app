@@ -15,7 +15,7 @@ import { sendCashFlowAlert, sendOverdueInvoiceAlert } from '../utils/whatsappInt
 const DISMISSED_ALERTS_KEY = '@quad360/dismissed_alerts';
 
 export default function Header() {
-    const { user, logout, setCurrentScreen, goBack, currentScreen, finance, transactions, invoices, loans, staff, payrollRuns, settings, goals, budgets, assets, inventory, localAccounts, switchAccountDirect } = useApp();
+    const { user, logout, setCurrentScreen, goBack, currentScreen, finance, transactions, invoices, loans, staff, payrollRuns, settings, goals, budgets, assets, inventory, localAccounts, switchAccountDirect, teamMemberships, refreshTeamMemberships, switchBusiness } = useApp();
     const showBack = currentScreen !== 'dashboard' && currentScreen !== 'login';
     const { width } = useWindowDimensions();
     const isNarrow = width < 480;
@@ -45,12 +45,31 @@ export default function Header() {
         }
     }, [switchAccountDirect]);
 
+    // Businesses this signed-in user has been invited into as a team
+    // member (as opposed to otherAccounts above, which are separate local
+    // logins on this device). Same switcher sheet, different action:
+    // switching business keeps the current login, just re-points which
+    // owner's data is active.
+    const [switchingToBusiness, setSwitchingToBusiness] = useState<string | null>(null);
+    const canSwitch = otherAccounts.length > 0 || teamMemberships.length > 0;
+    const handleSwitchBusiness = useCallback(async (ownerUserId: string) => {
+        setSwitchingToBusiness(ownerUserId);
+        try {
+            await switchBusiness(ownerUserId);
+            setSwitcherOpen(false);
+        } finally {
+            setSwitchingToBusiness(null);
+        }
+    }, [switchBusiness]);
+
     useEffect(() => {
         AsyncStorage.getItem(DISMISSED_ALERTS_KEY).then(raw => {
             if (raw) {
                 try { setDismissedIds(JSON.parse(raw)); } catch { /* corrupt value, start fresh */ }
             }
         });
+        refreshTeamMemberships().catch(() => {});
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const alerts = useMemo(
@@ -127,7 +146,7 @@ export default function Header() {
                     canNotify={canNotify}
                     onNotify={handleNotify}
                 />
-                {otherAccounts.length > 0 && isNarrow && (
+                {canSwitch && isNarrow && (
                     <TouchableOpacity style={styles.iconBtn} onPress={() => setSwitcherOpen(true)} activeOpacity={0.7}>
                         <Icon name="repeat" size={16} color={Colors.textSecondary} />
                     </TouchableOpacity>
@@ -141,12 +160,12 @@ export default function Header() {
                 {!isNarrow && (
                     <TouchableOpacity
                         style={styles.userBlock}
-                        onPress={() => otherAccounts.length > 0 && setSwitcherOpen(true)}
-                        activeOpacity={otherAccounts.length > 0 ? 0.7 : 1}
+                        onPress={() => canSwitch && setSwitcherOpen(true)}
+                        activeOpacity={canSwitch ? 0.7 : 1}
                     >
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                             <Text style={styles.userText}>{user?.email?.split('@')[0] || 'Admin'}</Text>
-                            {otherAccounts.length > 0 && <Icon name="chevron-down" size={12} color={Colors.textMuted} />}
+                            {canSwitch && <Icon name="chevron-down" size={12} color={Colors.textMuted} />}
                         </View>
                         <Text style={styles.userRole}>{user?.role || 'Administrator'}</Text>
                     </TouchableOpacity>
@@ -175,6 +194,35 @@ export default function Header() {
                             </View>
                             <Icon name="check" size={16} color={Colors.primary} />
                         </View>
+                        {teamMemberships.length > 0 && (
+                            <>
+                                <Text style={styles.switcherSectionLabel}>Businesses You're On</Text>
+                                {teamMemberships.map(m => (
+                                    <TouchableOpacity
+                                        key={m.membershipId}
+                                        style={styles.switcherRow}
+                                        onPress={() => handleSwitchBusiness(m.ownerUserId)}
+                                        disabled={switchingToBusiness !== null}
+                                        activeOpacity={0.7}
+                                    >
+                                        <View style={styles.switcherAvatar}>
+                                            <Text style={styles.switcherAvatarText}>{m.ownerBusinessName.trim().charAt(0).toUpperCase() || '?'}</Text>
+                                        </View>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={styles.switcherName} numberOfLines={1}>{m.ownerBusinessName}</Text>
+                                            <Text style={styles.switcherEmail} numberOfLines={1}>Your role: {m.role}</Text>
+                                        </View>
+                                        {switchingToBusiness === m.ownerUserId
+                                            ? <ActivityIndicator size="small" color={Colors.primary} />
+                                            : <Icon name="chevron-right" size={16} color={Colors.textMuted} />
+                                        }
+                                    </TouchableOpacity>
+                                ))}
+                            </>
+                        )}
+                        {otherAccounts.length > 0 && teamMemberships.length > 0 && (
+                            <Text style={styles.switcherSectionLabel}>Other Accounts</Text>
+                        )}
                         {otherAccounts.map(acct => (
                             <TouchableOpacity
                                 key={acct.email}
@@ -260,6 +308,11 @@ const styles = StyleSheet.create({
     switcherTitle: {
         fontSize: 11, fontWeight: '700', color: Colors.textMuted,
         textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10, paddingHorizontal: 2,
+    },
+    switcherSectionLabel: {
+        fontSize: 10, fontWeight: '700', color: Colors.textMuted,
+        textTransform: 'uppercase', letterSpacing: 0.5,
+        marginTop: 10, marginBottom: 2, paddingHorizontal: 4,
     },
     switcherCurrentRow: {
         flexDirection: 'row', alignItems: 'center', gap: 10,

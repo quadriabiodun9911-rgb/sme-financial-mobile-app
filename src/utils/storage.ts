@@ -622,6 +622,53 @@ export async function loadTeamMembers(): Promise<TeamMember[]> {
     }
 }
 
+// A team member joins per-invite (see joinTeamWithCode), one team_members
+// row per business they're invited into -- nothing stops the same
+// member_user_id having several ACTIVE rows across different owners, so a
+// member of more than one business is already a shape the data supports.
+// This is the "which businesses am I in" read: everything the in-app
+// Switch Business control needs to list, without the caller having to know
+// each owner's id up front.
+export interface MyTeamMembership {
+    membershipId: string;
+    ownerUserId: string;
+    ownerBusinessName: string;
+    role: 'accountant' | 'manager' | 'staff';
+}
+
+export async function loadMyTeamMemberships(): Promise<MyTeamMembership[]> {
+    const myId = await getAuthUserId();
+    if (!myId) return [];
+    try {
+        const { data, error } = await supabase
+            .from('team_members')
+            .select('id, owner_user_id, role')
+            .eq('member_user_id', myId)
+            .eq('status', 'active');
+        if (error || !data || data.length === 0) { if (error) logSyncError('team_members', 'load_memberships', error); return []; }
+
+        const ownerIds = data.map(r => r.owner_user_id);
+        const { data: ownerSettings, error: settingsErr } = await supabase
+            .from('settings')
+            .select('user_id, data')
+            .in('user_id', ownerIds);
+        if (settingsErr) logSyncError('settings', 'load_for_memberships', settingsErr);
+        const nameByOwner = new Map<string, string>(
+            (ownerSettings ?? []).map(r => [r.user_id, (r.data as Record<string, any>)?.businessName || 'Business'])
+        );
+
+        return data.map(r => ({
+            membershipId: r.id,
+            ownerUserId: r.owner_user_id,
+            ownerBusinessName: nameByOwner.get(r.owner_user_id) ?? 'Business',
+            role: r.role,
+        }));
+    } catch (e) {
+        logSyncError('team_members', 'load_memberships', e);
+        return [];
+    }
+}
+
 export async function inviteTeamMember(
     memberEmail: string,
     role: 'accountant' | 'manager' | 'staff',

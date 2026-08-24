@@ -37,6 +37,7 @@ import {
   generateAuthSecret, saveAuthSecret, loadAuthSecret, syncFieldEncryptionKey,
   clearAllData, deleteAllBusinessRecords, exportAllData, importAllData, deleteAccountData, recordConsent,
   inviteTeamMember, removeTeamMember, loadTeamMembers, joinTeamWithCode,
+  loadMyTeamMemberships, MyTeamMembership,
   setWorkspaceOwner, clearWorkspaceOwner,
   registerLocalAccount, listLocalAccounts, switchLocalAccount, switchLocalAccountDirect, ensureActiveAccountRegistered, clearLocalAccountsRegistry, LocalAccountSummary,
 } from '../utils/storage';
@@ -864,6 +865,14 @@ interface AuthContextValue {
   inviteMember: (email: string, role: 'accountant' | 'manager' | 'staff') => Promise<string>;
   removeMember: (id: string) => Promise<void>;
   refreshTeam: () => Promise<void>;
+  // The OTHER side of team membership: businesses THIS signed-in user has
+  // been invited into (as opposed to teamMembers above, which is people
+  // THIS user -- as an owner -- has invited). One auth login can hold an
+  // active team_members row for more than one owner, so this can list more
+  // than one business.
+  teamMemberships: MyTeamMembership[];
+  refreshTeamMemberships: () => Promise<void>;
+  switchBusiness: (ownerUserId: string) => Promise<void>;
   isFirstLaunch: boolean;
   isLockedOut: boolean;
   lockoutUntil: number | null;
@@ -936,6 +945,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isDemoMode, setIsDemoMode] = useState(false);
   const [demoBusinessId, setDemoBusinessId] = useState<string | null>(null);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [teamMemberships, setTeamMemberships] = useState<MyTeamMembership[]>([]);
   const [isFirstLaunch, setIsFirstLaunch] = useState(false);
   const [isLockedOut, setIsLockedOut] = useState(false);
   const [lockoutUntil, setLockoutUntil] = useState<number | null>(null);
@@ -1630,8 +1640,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const members = await loadTeamMembers();
         setTeamMembers(members);
       },
+      teamMemberships,
+      refreshTeamMemberships: async () => {
+        setTeamMemberships(await loadMyTeamMemberships());
+      },
+      // Stays signed in as the same auth user, just re-points which
+      // owner's data this device treats as the active workspace -- same
+      // reload-based re-hydration resetBusinessData/clearData already use
+      // rather than trying to reset every in-memory slice by hand.
+      // clearLocalFinancialCache() also clears the workspace-owner pointer
+      // (see its own comment), so it must run BEFORE setWorkspaceOwner,
+      // exactly like joinTeam above.
+      switchBusiness: async (ownerUserId: string) => {
+        await clearLocalFinancialCache().catch(() => {});
+        await setWorkspaceOwner(ownerUserId);
+        reloadApp();
+      },
     }),
-    [user, isLoading, currentScreen, navParams, isDemoMode, demoBusinessId, teamMembers, isFirstLaunch, isLockedOut, lockoutUntil, pendingTwoFactorProfile, isLenderSession, lenderOrgId, lenderOrgName, isLenderDemo, routeAfterAuth, localAccounts, refreshLocalAccounts, finishAccountSwitch]
+    [user, isLoading, currentScreen, navParams, isDemoMode, demoBusinessId, teamMembers, teamMemberships, isFirstLaunch, isLockedOut, lockoutUntil, pendingTwoFactorProfile, isLenderSession, lenderOrgId, lenderOrgName, isLenderDemo, routeAfterAuth, localAccounts, refreshLocalAccounts, finishAccountSwitch]
   );
 
   return (
@@ -2012,6 +2038,9 @@ export function useApp() {
     isLenderDemo: auth.isLenderDemo ?? false,
     enterLenderDemo: auth.enterLenderDemo || (() => {}),
     refreshTeam: auth.refreshTeam || (() => Promise.resolve()),
+    teamMemberships: auth.teamMemberships ?? [],
+    refreshTeamMemberships: auth.refreshTeamMemberships || (() => Promise.resolve()),
+    switchBusiness: auth.switchBusiness || (() => Promise.resolve()),
 
     // Other missing properties
     navParams: auth.navParams ?? EMPTY_NAV_PARAMS,
