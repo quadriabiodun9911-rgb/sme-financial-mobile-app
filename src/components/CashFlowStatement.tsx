@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Transaction, Asset } from '../types';
 import { Colors } from '../theme/colors';
 import { computeProperCashFlow } from '../utils/finance';
-import { computeDailyTrend, computeWeeklyTrend, computeAllTimeMonthlyBuckets, computeQuarterlyTrend, computeYearlyTrend } from '../utils/trendAnalysis';
+import { computeCashFlowTrend, CashFlowPeriodGrouping } from '../utils/cashFlowTrend';
 import BarList from './BarList';
 
 interface Props {
@@ -13,7 +13,7 @@ interface Props {
 }
 
 type CfView = 'statement' | 'monthly';
-type Grouping = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
+type Grouping = CashFlowPeriodGrouping;
 
 const GROUPINGS: { key: Grouping; label: string }[] = [
     { key: 'daily', label: 'Daily' },
@@ -22,15 +22,6 @@ const GROUPINGS: { key: Grouping; label: string }[] = [
     { key: 'quarterly', label: 'Quarterly' },
     { key: 'yearly', label: 'Yearly' },
 ];
-
-const MONTH_LABEL = (m: string) => {
-    const [y, mo] = m.split('-');
-    return new Date(Number(y), Number(mo) - 1, 1).toLocaleString('default', { month: 'short' }) + ` '${y.slice(2)}`;
-};
-const DAY_LABEL = (d: string) => {
-    const [y, mo, day] = d.split('-').map(Number);
-    return new Date(y, mo - 1, day).toLocaleString('default', { month: 'short', day: 'numeric' });
-};
 
 const PERIOD_NOUN: Record<Grouping, string> = { daily: 'day', weekly: 'week', monthly: 'month', quarterly: 'quarter', yearly: 'year' };
 // Both charts below are a vertical list, one row per period -- fine at 6-12
@@ -46,26 +37,16 @@ export default function CashFlowStatement({ transactions, assets, currency }: Pr
 
     const cf = useMemo(() => computeProperCashFlow(transactions, assets), [transactions, assets]);
 
-    // Revenue/expense/profit trend, same all-recorded-history shape (and the
-    // same daily/weekly/monthly/quarterly/yearly granularities) as Reports >
-    // Profit & Loss's trend table -- this section used to be locked to a
-    // fixed trailing 6 months with no way to zoom in or see further back.
-    const daily = useMemo(() => computeDailyTrend(transactions), [transactions]);
-    const weekly = useMemo(() => computeWeeklyTrend(daily), [daily]);
-    const monthly = useMemo(() => computeAllTimeMonthlyBuckets(transactions), [transactions]);
-    const quarterly = useMemo(() => computeQuarterlyTrend(monthly), [monthly]);
-    const yearly = useMemo(() => computeYearlyTrend(monthly), [monthly]);
-
-    const trend = useMemo(() => {
-        if (grouping === 'daily') return daily.map(d => ({ label: DAY_LABEL(d.date), income: d.revenue, expense: d.expense, profit: d.profit }));
-        if (grouping === 'weekly') return weekly.map(w => ({ label: w.label, income: w.revenue, expense: w.expense, profit: w.profit }));
-        if (grouping === 'monthly') return monthly.map(m => ({ label: MONTH_LABEL(m.month), income: m.revenue, expense: m.expense, profit: m.profit }));
-        if (grouping === 'quarterly') return quarterly.map(q => ({ label: q.label, income: q.revenue, expense: q.expense, profit: q.profit }));
-        return yearly.map(y => ({ label: y.year, income: y.revenue, expense: y.expense, profit: y.profit }));
-    }, [grouping, daily, weekly, monthly, quarterly, yearly]);
+    // Cash actually moving per period (money in vs money out, only paid
+    // transactions), not the accrual Revenue/Expense/Profit figures Reports
+    // > Profit & Loss already shows -- this used to reuse that P&L trend
+    // wholesale, which put "By Period" inside a cash flow statement but
+    // showed the wrong kind of number entirely. Same source as the Cash
+    // Flow Trend table under Reports > Accrual, so the two never disagree.
+    const trend = useMemo(() => computeCashFlowTrend(grouping, transactions), [grouping, transactions]);
 
     const windowedTrend = useMemo(() => trend.slice(-WINDOW[grouping]), [trend, grouping]);
-    const maxAbsProfit = Math.max(...windowedTrend.map(p => Math.abs(p.profit)), 1);
+    const maxAbsNetCashFlow = Math.max(...windowedTrend.map(p => Math.abs(p.netCashFlow)), 1);
 
     return (
         <View>
@@ -138,38 +119,41 @@ export default function CashFlowStatement({ transactions, assets, currency }: Pr
                     </View>
 
                     <View style={s.card}>
-                        <Text style={s.cardTitle}>Profit / Loss (last {windowedTrend.length} {PERIOD_NOUN[grouping]}{windowedTrend.length === 1 ? '' : 's'})</Text>
+                        <Text style={s.cardTitle}>Net Cash Flow (last {windowedTrend.length} {PERIOD_NOUN[grouping]}{windowedTrend.length === 1 ? '' : 's'})</Text>
                         <BarList
-                            maxValue={maxAbsProfit}
+                            maxValue={maxAbsNetCashFlow}
                             items={windowedTrend.map(pt => {
-                                const pos = pt.profit >= 0;
+                                const pos = pt.netCashFlow >= 0;
                                 return {
                                     label: pt.label,
-                                    value: Math.abs(pt.profit),
-                                    displayValue: `${pos ? '+' : '-'}${currency}${Math.abs(pt.profit).toLocaleString()}`,
-                                    // Diverging by sign (profit vs loss), not a
+                                    value: Math.abs(pt.netCashFlow),
+                                    displayValue: `${pos ? '+' : '-'}${currency}${Math.abs(pt.netCashFlow).toLocaleString()}`,
+                                    // Diverging by sign (net cash in vs out), not a
                                     // rank -- each row keeps its own status color.
                                     color: pos ? Colors.income : Colors.expense,
                                 };
                             })}
                         />
+                        <Text style={s.hint}>
+                            Only money that actually moved (paid transactions) — not the same as Revenue/Expenses on Profit &amp; Loss, which also counts unpaid ones.
+                        </Text>
                     </View>
 
                     <View style={s.card}>
                         <Text style={s.cardTitle}>Breakdown</Text>
                         <View style={s.breakdownHeader}>
                             <Text style={[s.monthLabel, { fontWeight: '700', color: Colors.textPrimary }]}>{PERIOD_NOUN[grouping][0].toUpperCase()}{PERIOD_NOUN[grouping].slice(1)}</Text>
-                            <Text style={[s.breakVal, { color: Colors.income }]}>Revenue</Text>
-                            <Text style={[s.breakVal, { color: Colors.expense }]}>Costs</Text>
+                            <Text style={[s.breakVal, { color: Colors.income }]}>Cash In</Text>
+                            <Text style={[s.breakVal, { color: Colors.expense }]}>Cash Out</Text>
                             <Text style={[s.breakVal, { color: Colors.textPrimary }]}>Net</Text>
                         </View>
                         {windowedTrend.map((pt, i) => (
                             <View key={i} style={s.breakdownRow}>
                                 <Text style={s.monthLabel}>{pt.label}</Text>
-                                <Text style={[s.breakVal, { color: Colors.income }]}>+{currency}{pt.income.toLocaleString()}</Text>
-                                <Text style={[s.breakVal, { color: Colors.expense }]}>-{currency}{pt.expense.toLocaleString()}</Text>
-                                <Text style={[s.breakVal, { color: pt.profit >= 0 ? Colors.income : Colors.expense }]}>
-                                    {pt.profit >= 0 ? '+' : ''}{currency}{Math.abs(pt.profit).toLocaleString()}
+                                <Text style={[s.breakVal, { color: Colors.income }]}>+{currency}{pt.cashIn.toLocaleString()}</Text>
+                                <Text style={[s.breakVal, { color: Colors.expense }]}>-{currency}{pt.cashOut.toLocaleString()}</Text>
+                                <Text style={[s.breakVal, { color: pt.netCashFlow >= 0 ? Colors.income : Colors.expense }]}>
+                                    {pt.netCashFlow >= 0 ? '+' : ''}{currency}{Math.abs(pt.netCashFlow).toLocaleString()}
                                 </Text>
                             </View>
                         ))}
