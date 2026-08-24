@@ -10,6 +10,7 @@ import Icon from '../components/ui/Icon';
 import { computeRiskScore, RISK_BAND_STYLE, getMonthlyExpenseAverage } from '../utils/finance';
 import { computeRiskRadar, RiskLevel } from '../utils/riskRadar';
 import { computeReadinessDelta } from '../utils/readinessHistory';
+import { computeBusinessExposure, computeBusinessResilience, describeHealthResilienceGap, ExposureLevel } from '../utils/businessExposure';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan } from '../utils/actionRecommendationEngine';
 import { calculateGoalBridge, mapSavedGoalToBridge } from '../utils/goalBridgeEngine';
@@ -32,6 +33,19 @@ const RISK_LEVEL_META: Record<RiskLevel, { color: string; dot: string }> = {
 };
 
 const FACTOR_STATUS_COLOR: Record<string, string> = { good: Colors.income, warning: Colors.warning, danger: Colors.expense };
+
+const EXPOSURE_LEVEL_META: Record<ExposureLevel, { color: string; dot: string }> = {
+    high:    { color: Colors.expense,  dot: '🔴' },
+    medium:  { color: Colors.warning,  dot: '🟡' },
+    low:     { color: Colors.income,   dot: '🟢' },
+    unknown: { color: Colors.textMuted, dot: '⚪' },
+};
+
+const RESILIENCE_BAND_COLOR: Record<string, string> = {
+    Strong: Colors.income,
+    Moderate: Colors.warning,
+    Weak: Colors.expense,
+};
 
 const READINESS_BAND_COLORS: Record<GoalRiskAssessment['readinessBand'], string> = {
     Strong: Colors.income,
@@ -70,6 +84,25 @@ export default function ScoreboardScreen() {
         () => computeRiskRadar(transactions, loans, settings?.macroAssumptions ?? []),
         [transactions, loans, settings?.macroAssumptions],
     );
+
+    const exposure = useMemo(
+        () => computeBusinessExposure(transactions, loans, inventory, settings?.macroAssumptions ?? [], finance, settings?.nextTaxDeadline, currency),
+        [transactions, loans, inventory, settings?.macroAssumptions, finance, settings?.nextTaxDeadline, currency],
+    );
+    const resilience = useMemo(() => computeBusinessResilience(exposure), [exposure]);
+    const resilienceGap = useMemo(() => describeHealthResilienceGap(risk.score, resilience), [risk.score, resilience]);
+
+    // Same worsened/improved factors CreditWorthinessScreen lists in full,
+    // condensed into the single flowing sentence next to the score itself
+    // ("fell from 76 to 72 primarily because...") -- the list view answers
+    // "what changed", this answers "why", right where the score already is.
+    const scoreChangeReason = useMemo(() => {
+        if (!readinessDelta || readinessDelta.trend === 'stable') return null;
+        const movers = readinessDelta.trend === 'declining' ? readinessDelta.worsenedFactors : readinessDelta.improvedFactors;
+        if (movers.length === 0) return null;
+        const names = movers.slice(0, 2).map(f => f.name.toLowerCase());
+        return names.length === 1 ? names[0] : `${names[0]} and ${names[1]}`;
+    }, [readinessDelta]);
 
     const goalCounts = useMemo(() => {
         const counts: Record<GoalStatus, number> = { on_track: 0, at_risk: 0, off_track: 0, achieved: 0 };
@@ -151,16 +184,50 @@ export default function ScoreboardScreen() {
                             s.trendNote,
                             { color: readinessDelta.trend === 'improving' ? Colors.income : readinessDelta.trend === 'declining' ? Colors.expense : Colors.textSecondary },
                         ]}>
-                            {readinessDelta.trend === 'improving' && `Improved from ${readinessDelta.fromScore} → ${readinessDelta.toScore} over ${readinessDelta.periodLabel}.`}
-                            {readinessDelta.trend === 'declining' && `Dropped from ${readinessDelta.fromScore} → ${readinessDelta.toScore} over ${readinessDelta.periodLabel}.`}
+                            {readinessDelta.trend === 'improving' && `Improved from ${readinessDelta.fromScore} → ${readinessDelta.toScore} over ${readinessDelta.periodLabel}${scoreChangeReason ? `, mainly thanks to ${scoreChangeReason}` : ''}.`}
+                            {readinessDelta.trend === 'declining' && `Dropped from ${readinessDelta.fromScore} → ${readinessDelta.toScore} over ${readinessDelta.periodLabel}${scoreChangeReason ? `, primarily because of ${scoreChangeReason}` : ''}.`}
                             {readinessDelta.trend === 'stable' && `Holding steady (${readinessDelta.fromScore} → ${readinessDelta.toScore}) over ${readinessDelta.periodLabel}.`}
                         </Text>
+                    )}
+
+                    {resilienceGap && (
+                        <Text style={[s.trendNote, { color: Colors.textSecondary, fontStyle: 'italic' }]}>{resilienceGap}</Text>
                     )}
 
                     <TouchableOpacity style={s.linkRow} onPress={() => setCurrentScreen('credit-worthiness')}>
                         <Text style={s.linkText}>See full readiness trend & breakdown →</Text>
                     </TouchableOpacity>
                 </View>
+
+                {/* Business Exposure & Resilience -- complements Health:
+                    Health asks "is the business doing well", this asks
+                    "how much would one bad event hurt it". */}
+                <TouchableOpacity style={s.card} onPress={() => setCurrentScreen('risk-management')} activeOpacity={0.85}>
+                    <View style={s.cardHeaderRow}>
+                        <Icon name="shield" size={14} color={Colors.textMuted} />
+                        <Text style={s.cardTitle}>Business Resilience</Text>
+                        <View style={[s.bandBadge, { backgroundColor: RESILIENCE_BAND_COLOR[resilience.band] + '22', marginLeft: 'auto' }]}>
+                            <Text style={[s.bandBadgeText, { color: RESILIENCE_BAND_COLOR[resilience.band] }]}>
+                                {resilience.score} · {resilience.band}
+                            </Text>
+                        </View>
+                    </View>
+                    <Text style={s.cardBodyText}>How much a single bad event — a lost customer, a rate move, slow-moving stock — would hurt the business right now.</Text>
+                    <View style={[s.factorChipsRow, { marginTop: Spacing.sm }]}>
+                        {exposure.factors.map(f => (
+                            <View key={f.key} style={s.factorChip}>
+                                <Text style={s.riskDot}>{EXPOSURE_LEVEL_META[f.level].dot}</Text>
+                                <Text style={s.factorChipText}>{f.label.replace(' Exposure', '')}</Text>
+                            </View>
+                        ))}
+                    </View>
+                    {resilience.topConcerns.length > 0 && (
+                        <Text style={s.cardBodyText}>
+                            <Text style={{ fontWeight: '700', color: Colors.textPrimary }}>Biggest exposure: </Text>
+                            {resilience.topConcerns[0].detail}
+                        </Text>
+                    )}
+                </TouchableOpacity>
 
                 {/* Risk Radar */}
                 <TouchableOpacity style={s.card} onPress={() => setCurrentScreen('risk-management')} activeOpacity={0.85}>

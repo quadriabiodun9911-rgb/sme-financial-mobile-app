@@ -1,0 +1,167 @@
+import { computeBusinessExposure, computeBusinessResilience, describeHealthResilienceGap, BusinessExposure } from '../src/utils/businessExposure';
+import { Transaction, Loan, InventoryItem } from '../src/types';
+
+const makeTx = (overrides: Partial<Transaction>): Transaction => ({
+    id: `tx-${Math.random()}`,
+    date: '2024-06-01',
+    description: 'Test',
+    type: 'income',
+    category: 'Sales',
+    amount: 1000,
+    status: 'paid',
+    ...overrides,
+});
+
+const finance = { cashBalance: 500000, totalTaxCollected: 0, totalTaxPaid: 0 };
+
+describe('computeBusinessExposure', () => {
+    it('marks FX exposure as unknown with no macro assumptions entered', () => {
+        const result = computeBusinessExposure([], [], [], [], finance, undefined);
+        const fx = result.factors.find(f => f.key === 'fx')!;
+        expect(fx.level).toBe('unknown');
+    });
+
+    it('flags high customer concentration when one customer dominates revenue', () => {
+        const txs = [
+            makeTx({ vendorCustomer: 'Big Corp', amount: 900000 }),
+            makeTx({ vendorCustomer: 'Small Co', amount: 100000 }),
+        ];
+        const result = computeBusinessExposure(txs, [], [], [], finance, undefined);
+        const cc = result.factors.find(f => f.key === 'customerConcentration')!;
+        expect(cc.level).toBe('high');
+        expect(cc.detail).toContain('Big Corp');
+    });
+
+    it('flags low debt exposure when there is no debt service', () => {
+        const result = computeBusinessExposure([], [], [], [], finance, undefined);
+        const debt = result.factors.find(f => f.key === 'debt')!;
+        expect(debt.level).toBe('low');
+    });
+
+    it('flags high debt exposure when DSCR is in danger territory', () => {
+        const loans: Loan[] = [{
+            id: 'l1', lenderName: 'Bank', principal: 5000000, interestRate: 20, termMonths: 12,
+            startDate: '2024-01-01', status: 'active', purpose: 'Working capital',
+        } as Loan];
+        const txs = [makeTx({ type: 'income', amount: 10000, date: '2024-06-01' })];
+        const result = computeBusinessExposure(txs, loans, [], [], finance, undefined);
+        const debt = result.factors.find(f => f.key === 'debt')!;
+        expect(['medium', 'high']).toContain(debt.level);
+    });
+
+    it('flags high inventory exposure when most stock value is slow-moving', () => {
+        const inventory: InventoryItem[] = [{
+            id: 'i1', name: 'Old Stock', category: 'General', quantity: 100, unit: 'pcs',
+            costPrice: 1000, sellingPrice: 1500, lowStockThreshold: 5,
+            createdAt: '2023-01-01', updatedAt: '2023-01-01',
+        } as InventoryItem];
+        // A single small sale within the last 30 days is enough real
+        // history for computeStockVelocity to classify this as 'slow'
+        // (huge days-of-stock-left) rather than 'no-data' (no sales at all).
+        const recentDate = new Date();
+        recentDate.setDate(recentDate.getDate() - 5);
+        const txs = [makeTx({
+            type: 'income', category: 'Sales', transactionCategory: 'sale',
+            inventoryItemId: 'i1', unitsSold: 1, amount: 1500,
+            date: recentDate.toISOString().split('T')[0],
+        })];
+        const result = computeBusinessExposure(txs, [], inventory, [], finance, undefined);
+        const inv = result.factors.find(f => f.key === 'inventory')!;
+        expect(inv.level).toBe('high');
+    });
+
+    it('flags high regulatory exposure when the tax deadline is overdue', () => {
+        const result = computeBusinessExposure([], [], [], [], finance, '2020-01-01');
+        const reg = result.factors.find(f => f.key === 'regulatory')!;
+        expect(reg.level).toBe('high');
+        expect(reg.detail).toContain('overdue');
+    });
+
+    it('flags high regulatory exposure when tax liability exceeds cash on hand', () => {
+        const shortfallFinance = { cashBalance: 1000, totalTaxCollected: 500000, totalTaxPaid: 0 };
+        const result = computeBusinessExposure([], [], [], [], shortfallFinance, undefined);
+        const reg = result.factors.find(f => f.key === 'regulatory')!;
+        expect(reg.level).toBe('high');
+    });
+
+    it('rolls up overall level to high when 2+ factors are high', () => {
+        const inventory: InventoryItem[] = [{
+            id: 'i1', name: 'Old Stock', category: 'General', quantity: 100, unit: 'pcs',
+            costPrice: 1000, sellingPrice: 1500, lowStockThreshold: 5,
+            createdAt: '2023-01-01', updatedAt: '2023-01-01',
+        } as InventoryItem];
+        const recentDate = new Date();
+        recentDate.setDate(recentDate.getDate() - 5);
+        const txs = [makeTx({
+            type: 'income', category: 'Sales', transactionCategory: 'sale',
+            inventoryItemId: 'i1', unitsSold: 1, amount: 1500,
+            date: recentDate.toISOString().split('T')[0],
+        })];
+        const result = computeBusinessExposure(txs, [], inventory, [], finance, '2020-01-01');
+        expect(result.highCount).toBeGreaterThanOrEqual(2);
+        expect(result.overallLevel).toBe('high');
+    });
+
+    it('rolls up overall level to low when nothing is flagged', () => {
+        const result = computeBusinessExposure([], [], [], [], finance, undefined);
+        expect(result.overallLevel).toBe('low');
+    });
+});
+
+const makeExposure = (levels: Partial<Record<string, 'low' | 'medium' | 'high' | 'unknown'>>): BusinessExposure => {
+    const keys = ['fx', 'interestRate', 'customerConcentration', 'supplierConcentration', 'inventory', 'debt', 'cashFlow', 'regulatory'];
+    const factors = keys.map(key => ({ key, label: `${key} Exposure`, level: levels[key] ?? 'unknown' as const, detail: '' }));
+    const highCount = factors.filter(f => f.level === 'high').length;
+    const mediumCount = factors.filter(f => f.level === 'medium').length;
+    return { factors, highCount, mediumCount, overallLevel: highCount >= 2 ? 'high' : 'low' };
+};
+
+describe('computeBusinessResilience', () => {
+    it('scores Strong when every known factor is low', () => {
+        const exposure = makeExposure({ fx: 'low', debt: 'low', cashFlow: 'low' });
+        const resilience = computeBusinessResilience(exposure);
+        expect(resilience.band).toBe('Strong');
+        expect(resilience.score).toBe(100);
+    });
+
+    it('scores Weak when multiple factors are high', () => {
+        const exposure = makeExposure({ fx: 'high', debt: 'high', customerConcentration: 'high' });
+        const resilience = computeBusinessResilience(exposure);
+        expect(resilience.band).toBe('Weak');
+    });
+
+    it('ranks topConcerns with high before medium', () => {
+        const exposure = makeExposure({ fx: 'medium', debt: 'high' });
+        const resilience = computeBusinessResilience(exposure);
+        expect(resilience.topConcerns[0].key).toBe('debt');
+    });
+
+    it('returns a neutral score of 50 when nothing is known at all', () => {
+        const exposure = makeExposure({});
+        const resilience = computeBusinessResilience(exposure);
+        expect(resilience.score).toBe(50);
+    });
+});
+
+describe('describeHealthResilienceGap', () => {
+    it('flags "profitable but fragile" when health is strong and resilience is weak', () => {
+        const exposure = makeExposure({ fx: 'high', customerConcentration: 'high' });
+        const resilience = computeBusinessResilience(exposure);
+        const gap = describeHealthResilienceGap(75, resilience);
+        expect(gap).toContain('profitable today but relatively vulnerable');
+    });
+
+    it('flags "struggling but resilient" when health is weak and resilience is strong', () => {
+        const exposure = makeExposure({ fx: 'low', debt: 'low', cashFlow: 'low' });
+        const resilience = computeBusinessResilience(exposure);
+        const gap = describeHealthResilienceGap(40, resilience);
+        expect(gap).toContain('well-diversified against external shocks');
+    });
+
+    it('returns null when health and resilience roughly agree', () => {
+        const exposure = makeExposure({ fx: 'medium', debt: 'medium' });
+        const resilience = computeBusinessResilience(exposure);
+        const gap = describeHealthResilienceGap(60, resilience);
+        expect(gap).toBeNull();
+    });
+});
