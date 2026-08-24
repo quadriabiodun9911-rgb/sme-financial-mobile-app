@@ -17,8 +17,7 @@ import TaxSummary from '../components/TaxSummary';
 import TaxFilingReadinessTab from '../components/TaxFilingReadinessTab';
 import TaxPlanningTab from '../components/TaxPlanningTab';
 import BudgetForecast from '../components/BudgetForecast';
-import CashFlowOutlook from '../components/CashFlowOutlook';
-import CashManagement from '../components/CashManagement';
+import CashFlowSafety from '../components/CashFlowSafety';
 import DebtAnalysis from '../components/DebtAnalysis';
 import EnhancedDebtManagement from '../components/EnhancedDebtManagement';
 import AssetProductivityAnalysis from '../components/AssetProductivityAnalysis';
@@ -64,7 +63,7 @@ type SubTab =
     | 'balancesheet' | 'pnl' | 'inventory' | 'accrual'
     | 'aging'
     | 'tax' | 'tax-filing' | 'tax-planning'
-    | 'budget' | 'cashflow' | 'outlook' | 'cashmgmt' | 'debt' | 'assets'
+    | 'budget' | 'cashflow' | 'cashsafety' | 'debt' | 'assets'
     | 'growth' | 'history' | 'quality' | 'exposure' | 'customers' | 'products' | 'pricing';
 
 const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
@@ -84,11 +83,10 @@ const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
         { key: 'tax-planning', label: 'Tax Planning' },
     ],
     planning: [
-        { key: 'budget',   label: 'Growth Scenarios' },
-        { key: 'outlook',  label: 'Cash Flow Outlook' },
-        { key: 'cashmgmt', label: 'Cash Safety' },
-        { key: 'debt',     label: 'Loans & Debt' },
-        { key: 'assets',   label: 'Assets' },
+        { key: 'budget',      label: 'Growth Scenarios' },
+        { key: 'cashsafety',  label: 'Cash Flow & Safety' },
+        { key: 'debt',        label: 'Loans & Debt' },
+        { key: 'assets',      label: 'Assets' },
     ],
     growth: [
         { key: 'growth',    label: 'Growth Trends' },
@@ -673,21 +671,12 @@ export default function ReportsScreen() {
                         </View>
                     )}
 
-                    {/* ── CASH FLOW OUTLOOK ────────────────────────────── */}
-                    {activeTab === 'outlook' && (
-                        <CashFlowOutlook
+                    {/* ── CASH FLOW & SAFETY ───────────────────────────── */}
+                    {activeTab === 'cashsafety' && (
+                        <CashFlowSafety
                             finance={allFinance}
                             transactions={transactions}
                             invoices={invoices}
-                            currency={currency}
-                        />
-                    )}
-
-                    {/* ── CASH MGMT ────────────────────────────────────── */}
-                    {activeTab === 'cashmgmt' && (
-                        <CashManagement
-                            finance={allFinance}
-                            transactions={transactions}
                             currency={currency}
                             minReserve={minReserve}
                             inventoryValue={inventoryValue}
