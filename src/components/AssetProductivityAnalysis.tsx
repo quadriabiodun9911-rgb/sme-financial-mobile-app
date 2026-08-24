@@ -14,12 +14,23 @@ interface Props {
     inventoryValue?: number;
 }
 
-export default function AssetProductivityAnalysis({ finance, assets, currency, accountsReceivable = 0, inventoryValue = 0 }: Props) {
+export interface AssetHealthResult {
+    score: number;
+    status: 'excellent' | 'good' | 'needs_improvement';
+    color: string;
+}
+
+// Exported so a summary teaser (e.g. Reports' Assets tab, which links here
+// rather than re-rendering the full analysis) can show the same score
+// without duplicating the scoring logic.
+export function computeAssetHealthScore(
+    finance: FinanceData,
+    assets: Asset[],
+    accountsReceivable: number = 0,
+    inventoryValue: number = 0,
+): AssetHealthResult {
     const activeAssets = assets.filter(a => a.status === 'active');
-    const totalAssetValue = useMemo(
-        () => activeAssets.reduce((sum, a) => sum + a.purchaseCost, 0),
-        [activeAssets],
-    );
+    const totalAssetValue = activeAssets.reduce((sum, a) => sum + a.purchaseCost, 0);
 
     // Asset turnover/revenue-per-asset deliberately stay scoped to the
     // registered asset list (totalAssetValue) -- a narrower, equipment-
@@ -31,32 +42,40 @@ export default function AssetProductivityAnalysis({ finance, assets, currency, a
     // different ROA than the Loans & Debt tab for the exact same business.
     const assetTurnover = finance.income > 0 ? finance.income / Math.max(1, totalAssetValue) : 0;
     const { returnOnAssets } = computeLeverageRatios(finance, [], accountsReceivable, 0, inventoryValue);
+
+    let score = 100;
+
+    // Asset turnover (higher is better)
+    if (assetTurnover < 0.5) score -= 30;
+    else if (assetTurnover < 1) score -= 15;
+    else if (assetTurnover < 1.5) score -= 5;
+
+    // ROA (higher is better)
+    if (returnOnAssets < 5) score -= 25;
+    else if (returnOnAssets < 10) score -= 10;
+    else if (returnOnAssets < 15) score -= 5;
+
+    // Asset utilization
+    if (activeAssets.length === 0) score -= 20;
+
+    const status = score >= 80 ? 'excellent' : score >= 60 ? 'good' : 'needs_improvement';
+    const color = status === 'excellent' ? Colors.income : status === 'good' ? Colors.warning : Colors.expense;
+
+    return { score: Math.max(0, Math.min(100, score)), status, color };
+}
+
+export default function AssetProductivityAnalysis({ finance, assets, currency, accountsReceivable = 0, inventoryValue = 0 }: Props) {
+    const activeAssets = assets.filter(a => a.status === 'active');
+    const totalAssetValue = useMemo(
+        () => activeAssets.reduce((sum, a) => sum + a.purchaseCost, 0),
+        [activeAssets],
+    );
+
+    const assetTurnover = finance.income > 0 ? finance.income / Math.max(1, totalAssetValue) : 0;
+    const { returnOnAssets } = computeLeverageRatios(finance, [], accountsReceivable, 0, inventoryValue);
     const profitMargin = finance.income > 0 ? (finance.profit / finance.income) * 100 : 0;
 
-    // Asset health score
-    const getAssetHealthScore = (): { score: number; status: 'excellent' | 'good' | 'needs_improvement'; color: string } => {
-        let score = 100;
-
-        // Asset turnover (higher is better)
-        if (assetTurnover < 0.5) score -= 30;
-        else if (assetTurnover < 1) score -= 15;
-        else if (assetTurnover < 1.5) score -= 5;
-
-        // ROA (higher is better)
-        if (returnOnAssets < 5) score -= 25;
-        else if (returnOnAssets < 10) score -= 10;
-        else if (returnOnAssets < 15) score -= 5;
-
-        // Asset utilization
-        if (activeAssets.length === 0) score -= 20;
-
-        const status = score >= 80 ? 'excellent' : score >= 60 ? 'good' : 'needs_improvement';
-        const color = status === 'excellent' ? Colors.income : status === 'good' ? Colors.warning : Colors.expense;
-
-        return { score: Math.max(0, Math.min(100, score)), status, color };
-    };
-
-    const health = getAssetHealthScore();
+    const health = computeAssetHealthScore(finance, assets, accountsReceivable, inventoryValue);
 
     // Revenue per asset
     const revenuePerAsset = activeAssets.length > 0 ? finance.income / activeAssets.length : 0;

@@ -18,7 +18,7 @@ import TaxFilingReadinessTab from '../components/TaxFilingReadinessTab';
 import TaxPlanningTab from '../components/TaxPlanningTab';
 import CashFlowSafety from '../components/CashFlowSafety';
 import LoansAndDebt from '../components/LoansAndDebt';
-import AssetProductivityAnalysis from '../components/AssetProductivityAnalysis';
+import { computeAssetHealthScore } from '../components/AssetProductivityAnalysis';
 import CustomerProfitability from '../components/CustomerProfitability';
 import ProductPerformance from '../components/ProductPerformance';
 import GrowthOutlook from '../components/GrowthOutlook';
@@ -678,16 +678,26 @@ export default function ReportsScreen() {
                         />
                     )}
 
-                    {/* ── ASSET PRODUCTIVITY ───────────────────────────── */}
-                    {activeTab === 'assets' && (
-                        <AssetProductivityAnalysis
-                            finance={allFinance}
-                            assets={assets}
-                            currency={currency}
-                            accountsReceivable={allTimeWcMetrics.accountsReceivable}
-                            inventoryValue={inventoryValue}
-                        />
-                    )}
+                    {/* ── ASSET PRODUCTIVITY ───────────────────────────── — the
+                        full analysis (health gauge, turnover/ROA, category
+                        breakdown, recommendations) lives on the Assets
+                        screen; this is a teaser using the same canonical
+                        computeAssetHealthScore rather than a second full
+                        copy of the component. */}
+                    {activeTab === 'assets' && (() => {
+                        const health = computeAssetHealthScore(allFinance, assets, allTimeWcMetrics.accountsReceivable, inventoryValue);
+                        return (
+                            <TouchableOpacity style={styles.assetTeaserCard} onPress={() => setCurrentScreen('assets')} activeOpacity={0.85}>
+                                <View style={styles.assetTeaserHeaderRow}>
+                                    <Text style={styles.assetTeaserTitle}>Asset Productivity</Text>
+                                    <View style={[styles.assetTeaserBadge, { backgroundColor: health.color + '20' }]}>
+                                        <Text style={[styles.assetTeaserBadgeText, { color: health.color }]}>{health.score}/100</Text>
+                                    </View>
+                                </View>
+                                <NextStepLink text="Full health score, turnover, ROA & recommendations → Assets" onPress={() => setCurrentScreen('assets')} />
+                            </TouchableOpacity>
+                        );
+                    })()}
 
 
                     {/* ── GROWTH OUTLOOK (trends + scenarios) ──────────── */}
@@ -1113,6 +1123,12 @@ const styles = StyleSheet.create({
     redirectCard:  { backgroundColor: Colors.surface, borderRadius: 14, padding: 20 },
     redirectTitle: { fontSize: 16, fontWeight: '800', color: Colors.textPrimary, marginBottom: 8 },
     redirectText:  { fontSize: 13, color: Colors.textSecondary, lineHeight: 19, marginBottom: 4 },
+
+    assetTeaserCard:      { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: Colors.border },
+    assetTeaserHeaderRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+    assetTeaserTitle:     { flex: 1, fontSize: 15, fontWeight: '700', color: Colors.textPrimary },
+    assetTeaserBadge:     { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+    assetTeaserBadgeText: { fontSize: 13, fontWeight: '800' },
 
     formalToggleBtn: {
         flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,

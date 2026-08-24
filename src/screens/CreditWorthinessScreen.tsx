@@ -415,22 +415,12 @@ export default function CreditWorthinessScreen() {
                     </Text>
                     <Text style={s.scoreRating}>{creditRating.label} Credit Profile</Text>
 
-                    {/* Score Breakdown — the same 7-pillar composition
-                        Financial Health and the Funding Readiness Pack use */}
-                    <View style={s.scoreBreakdown}>
-                        <Text style={s.breakdownLabel}>Score Composition:</Text>
-                        {risk.factors.map((factor, idx) => (
-                            <View key={idx} style={s.breakdownItem}>
-                                <View style={s.breakdownItemHeader}>
-                                    <Text style={s.breakdownName}>{factor.name}</Text>
-                                    <Text style={s.breakdownWeight}>
-                                        {Math.round(factor.score * factor.weight / 100)} ({Math.round(factor.weight)}%)
-                                    </Text>
-                                </View>
-                                <Text style={s.breakdownExplanation}>{factor.explanation}</Text>
-                            </View>
-                        ))}
-                    </View>
+                    {/* Score Composition — this score IS computeRiskScore
+                        (overallCreditScore = risk.score above), and the
+                        full factor-by-factor breakdown with explanations
+                        now lives on Risk Management; this links there
+                        instead of re-rendering the same list. */}
+                    <NextStepLink text="See the full factor-by-factor breakdown → Risk Management" onPress={() => navigate('risk-management')} />
                 </View>
 
                 {/* The Five C's of Credit — the classic lender framework the
@@ -899,13 +889,6 @@ const s = StyleSheet.create({
     scoreLabel: { fontSize: 14, color: Colors.textSecondary, marginBottom: 4 },
     scoreValue: { fontSize: 56, fontWeight: 'bold', marginBottom: 4 },
     scoreRating: { fontSize: 16, fontWeight: '600', color: Colors.textPrimary, marginBottom: 20, paddingTop: 12, borderTopWidth: 1, borderTopColor: Colors.muted, width: '100%', textAlign: 'center' },
-    scoreBreakdown: { width: '100%', marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: Colors.muted },
-    breakdownLabel: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary, marginBottom: 8 },
-    breakdownItem: { paddingVertical: 6, gap: 2 },
-    breakdownItemHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    breakdownName: { fontSize: 11, color: Colors.textPrimary, fontWeight: '600' },
-    breakdownWeight: { fontSize: 11, fontWeight: '600', color: Colors.primary },
-    breakdownExplanation: { fontSize: 10.5, color: Colors.textSecondary, lineHeight: 15 },
     section: { marginBottom: 24, backgroundColor: Colors.surface, borderRadius: 12, padding: 16, borderLeftWidth: 4, borderLeftColor: Colors.primary },
     sectionTitle: { fontSize: 16, fontWeight: '600', color: Colors.textPrimary, marginBottom: 12 },
 

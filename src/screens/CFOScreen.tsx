@@ -176,13 +176,14 @@ function PulseTab({ onOpenRisk }: { onOpenRisk: () => void }) {
 
 // ── Tab: Forecast ─────────────────────────────────────────────────────────────
 function ForecastTab() {
-    const { transactions, loans, invoices, budgets, settings, setCurrentScreen } = useApp();
+    const { transactions, loans, invoices, budgets, settings, setCurrentScreen, navigate } = useApp();
     const { currency } = settings;
     const [forecastMonths, setForecastMonths] = useState<3 | 6 | 12>(3);
 
     const forecast  = useMemo(() => computeRevenueForecast(transactions, forecastMonths), [transactions, forecastMonths]);
     const cashFlow  = useMemo(() => computeCashFlowForecast(transactions, loans, invoices, budgets), [transactions, loans, invoices, budgets]);
     const maxVal    = Math.max(...forecast.map(f => f.bestCase), 1);
+    const alertWeeks = cashFlow.filter(w => w.alert).length;
 
     return (
         <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
@@ -221,27 +222,19 @@ function ForecastTab() {
                 })}
             </View>
 
-            {/* 90-day cash flow */}
-            <View style={s.card}>
+            {/* 90-day cash flow -- full weekly table lives on Cash Flow
+                (the screen named for it, with the richer bar visualization);
+                this is a teaser on the same computeCashFlowForecast rather
+                than a second full copy of the same 13-week breakdown. */}
+            <TouchableOpacity style={s.card} onPress={() => navigate('cashflow')} activeOpacity={0.85}>
                 <Text style={s.cardTitle}>90-Day Cash Flow Outlook</Text>
-                <Text style={s.cardSub}>Weekly projection of money in vs out. Red weeks need attention.</Text>
-                <View style={s.tableHeader}>
-                    <Text style={[s.th, { flex: 2, textAlign: 'left' }]}>Week</Text>
-                    <Text style={s.th}>In</Text>
-                    <Text style={s.th}>Out</Text>
-                    <Text style={s.th}>Net</Text>
-                </View>
-                {cashFlow.map((w, i) => (
-                    <View key={i} style={[s.tableRow, w.alert && s.alertRow]}>
-                        <Text style={[s.td, { flex: 2, textAlign: 'left' }]}>{w.week}</Text>
-                        <Text style={[s.td, { color: Colors.income }]}>{w.projectedInflow > 0 ? `${currency}${Math.round(w.projectedInflow / 1000)}k` : '-'}</Text>
-                        <Text style={[s.td, { color: Colors.expense }]}>{currency}{Math.round(w.projectedOutflow / 1000)}k</Text>
-                        <Text style={[s.td, { color: w.netCash >= 0 ? Colors.income : Colors.expense, fontWeight: '700' }]}>
-                            {w.netCash >= 0 ? '+' : ''}{currency}{Math.round(Math.abs(w.netCash) / 1000)}k
-                        </Text>
-                    </View>
-                ))}
-            </View>
+                <Text style={s.cardSub}>
+                    {alertWeeks > 0
+                        ? `${alertWeeks} week${alertWeeks > 1 ? 's' : ''} with negative projected cash flow in the next 90 days.`
+                        : 'No weeks with negative projected cash flow in the next 90 days.'}
+                </Text>
+                <NextStepLink text="See the full week-by-week breakdown → Cash Flow" onPress={() => navigate('cashflow')} />
+            </TouchableOpacity>
             <NextStepLink text="See a full projected P&L, Cash Flow & Balance Sheet, adjustable to your plans" onPress={() => setCurrentScreen('future-statements')} />
         </ScrollView>
     );
@@ -643,12 +636,6 @@ const s = StyleSheet.create({
     forecastMonth: { fontSize: 12, color: Colors.textSecondary, width: 56 },
     forecastVal:   { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
     forecastRange: { fontSize: 10, color: Colors.textMuted, marginTop: 2 },
-
-    tableHeader:   { flexDirection: 'row', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: Colors.border },
-    th:            { flex: 1, fontSize: 10, color: Colors.textMuted, fontWeight: '700', textAlign: 'right' },
-    tableRow:      { flexDirection: 'row', paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: Colors.border + '80' },
-    alertRow:      { backgroundColor: Colors.expense + '10' },
-    td:            { flex: 1, fontSize: 11, color: Colors.textSecondary, textAlign: 'right' },
 
     ratioRow:     { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 10, padding: 14, marginBottom: 8, borderLeftWidth: 3 },
     ratioLabel:   { fontSize: 13, color: Colors.textPrimary, fontWeight: '600' },
