@@ -853,6 +853,60 @@ export function computeDSCR(transactions: Transaction[], loans: Loan[]): DSCRRes
     return { dscr, netOperatingIncome, totalDebtService, status };
 }
 
+// 4b. Interest rate shock
+export interface InterestRateShockResult {
+    shockPoints: number;
+    currentMonthlyDebtService: number;
+    newMonthlyDebtService: number;
+    extraMonthlyCost: number;
+    extraAnnualCost: number;
+    currentDSCR: number;
+    newDSCR: number;
+    currentStatus: DSCRResult['status'];
+    newStatus: DSCRResult['status'];
+    hasActiveLoans: boolean;
+}
+
+// A rate reset doesn't change a loan's principal or remaining term, only
+// the rate plugged into the same fixed amortization formula computeDSCR's
+// own totalDebtService already uses -- so at shockPoints=0 this reproduces
+// that exact figure, and the shocked figure is directly comparable to it
+// rather than a differently-derived number that happens to look similar.
+// A genuine "what if my loans repriced" stress test (distinct from the
+// backward-looking Economic Risk category, which only detects a rate rise
+// that's already shown up in the books) -- this is forward-looking and
+// user-set, same framing as the Cash Flow Stress Tester.
+export function computeInterestRateShock(
+    loans: Loan[],
+    transactions: Transaction[],
+    shockPoints: number,
+): InterestRateShockResult {
+    const activeLoans = loans.filter(l => l.status === 'active');
+    const dscr = computeDSCR(transactions, loans);
+
+    const newMonthlyDebtService = activeLoans.reduce(
+        (s, l) => s + loanMonthlyPayment(l.principal, Math.max(0, (l.interestRate || 0) + shockPoints), l.termMonths),
+        0,
+    );
+    const currentMonthlyDebtService = dscr.totalDebtService / 12;
+    const newAnnualDebtService = newMonthlyDebtService * 12;
+    const newDSCR = newAnnualDebtService > 0 ? dscr.netOperatingIncome / newAnnualDebtService : 999;
+    const newStatus: DSCRResult['status'] = newDSCR >= 1.25 ? 'healthy' : newDSCR >= 1.0 ? 'warning' : 'danger';
+
+    return {
+        shockPoints,
+        currentMonthlyDebtService,
+        newMonthlyDebtService,
+        extraMonthlyCost: newMonthlyDebtService - currentMonthlyDebtService,
+        extraAnnualCost: newAnnualDebtService - dscr.totalDebtService,
+        currentDSCR: dscr.dscr,
+        newDSCR,
+        currentStatus: dscr.status,
+        newStatus,
+        hasActiveLoans: activeLoans.length > 0,
+    };
+}
+
 // 5. Financial ratios
 export interface FinancialRatios {
     currentRatio: number;

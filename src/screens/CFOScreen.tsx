@@ -16,6 +16,7 @@ import {
     computeCashFlowForecast,
     computeFinancialRatios,
     computeDSCR,
+    computeInterestRateShock,
     computeBreakEven,
     computeCustomerConcentration,
     computeSeasonalRisk,
@@ -257,6 +258,12 @@ function FinanceTab() {
     const ratios = useMemo(() => computeFinancialRatios(finance, loans, transactions, inventoryValue), [finance, loans, transactions, inventoryValue]);
     const dscr   = useMemo(() => computeDSCR(transactions, loans), [transactions, loans]);
 
+    const [shockPoints, setShockPoints] = useState('0');
+    const rateShock = useMemo(
+        () => computeInterestRateShock(loans, transactions, parseFloat(shockPoints) || 0),
+        [loans, transactions, shockPoints]
+    );
+
     const [fixedCosts, setFixedCosts]     = useState('');
     const [varRate, setVarRate]           = useState('');
     const [pricePerUnit, setPricePerUnit] = useState('');
@@ -364,6 +371,64 @@ function FinanceTab() {
                     <NextStepLink text="Review your loan repayment strategy" onPress={() => navigate('cfo', { tab: 'growth' })} />
                 )}
             </View>
+
+            {/* Interest Rate Shock -- a forward-looking "what if my loans
+                repriced higher" stress test, distinct from the backward-
+                looking Economic Risk category on Risk Radar (which only
+                fires once a rate rise has already shown up in your books).
+                A user-set hypothetical, not a prediction -- same framing as
+                the Cash Flow Stress Tester. Applies uniformly to all active
+                loans since Quad360 doesn't track fixed vs. variable rate
+                per loan; treat this as the worst case if any of yours are
+                fixed. */}
+            {rateShock.hasActiveLoans && (
+                <View style={[s.card, { borderLeftWidth: 3, borderLeftColor: statusColor(rateShock.newStatus) }]}>
+                    <Text style={s.cardTitle}>Interest Rate Shock</Text>
+                    <Text style={s.cardSub}>
+                        What if your loans repriced higher? Model a rate rise across all active loans and see the effect on repayments and coverage.
+                    </Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8, marginBottom: 10 }}>
+                        {[1, 2, 3, 5].map(p => (
+                            <TouchableOpacity
+                                key={p}
+                                style={[s.shockChip, shockPoints === String(p) && s.shockChipActive]}
+                                onPress={() => setShockPoints(String(p))}
+                            >
+                                <Text style={[s.shockChipText, shockPoints === String(p) && s.shockChipTextActive]}>+{p}pt</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                    <TextInput
+                        style={s.input}
+                        placeholder="or type a custom rate rise (percentage points)"
+                        placeholderTextColor={Colors.textMuted}
+                        keyboardType="decimal-pad"
+                        value={shockPoints === '0' ? '' : shockPoints}
+                        onChangeText={v => setShockPoints(v || '0')}
+                    />
+                    {(parseFloat(shockPoints) || 0) > 0 && (
+                        <>
+                            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 8, marginBottom: 4 }}>
+                                <Text style={[s.bigNum, { color: statusColor(rateShock.newStatus) }]}>{rateShock.newDSCR > 100 ? '∞' : rateShock.newDSCR.toFixed(2)}x</Text>
+                                <Text style={[s.statusBadge, { backgroundColor: statusColor(rateShock.newStatus) + '20', color: statusColor(rateShock.newStatus) }]}>
+                                    {rateShock.newStatus === 'healthy' ? 'HEALTHY' : rateShock.newStatus === 'warning' ? 'BORDERLINE' : 'AT RISK'}
+                                </Text>
+                                {rateShock.newStatus !== rateShock.currentStatus && (
+                                    <Text style={[s.dscrLabel, { color: Colors.textMuted }]}>was {rateShock.currentDSCR > 100 ? '∞' : rateShock.currentDSCR.toFixed(2)}x</Text>
+                                )}
+                            </View>
+                            <View style={s.dscrRow}>
+                                <Text style={s.dscrLabel}>New Monthly Debt Payments</Text>
+                                <Text style={[s.dscrVal, { color: Colors.expense }]}>{currency}{Math.round(rateShock.newMonthlyDebtService).toLocaleString()}</Text>
+                            </View>
+                            <View style={s.dscrRow}>
+                                <Text style={s.dscrLabel}>Extra Cost per Year</Text>
+                                <Text style={[s.dscrVal, { color: Colors.expense }]}>+{currency}{Math.round(rateShock.extraAnnualCost).toLocaleString()}</Text>
+                            </View>
+                        </>
+                    )}
+                </View>
+            )}
 
             {/* Break-even calculator */}
             <Text style={[s.sectionHdr, { marginTop: 8 }]}>Break-Even Calculator — Plan a Price or Product</Text>
@@ -809,6 +874,11 @@ const s = StyleSheet.create({
     dscrLabel:    { fontSize: 13, color: Colors.textSecondary },
     dscrVal:      { fontSize: 14, fontWeight: '700', color: Colors.textPrimary },
     dscrHint:     { fontSize: 11, color: Colors.textMuted, fontStyle: 'italic', marginTop: 4, marginBottom: 6, lineHeight: 16 },
+
+    shockChip:        { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 16, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.bg },
+    shockChipActive:  { backgroundColor: Colors.primary, borderColor: Colors.primary },
+    shockChipText:    { fontSize: 12.5, color: Colors.textSecondary, fontWeight: '600' },
+    shockChipTextActive: { color: '#fff' },
 
     input:        { backgroundColor: Colors.bg, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, padding: 12, color: Colors.textPrimary, marginBottom: 10, fontSize: 14 },
 
