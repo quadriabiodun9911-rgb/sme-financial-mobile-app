@@ -1,6 +1,6 @@
-import { computeGoalBudgetAlignment, computeGoalForecastAlignment } from '../src/utils/goalAlignment';
+import { computeGoalBudgetAlignment, computeGoalForecastAlignment, computeRevenueMarginForecastAlignment } from '../src/utils/goalAlignment';
 import { FinancialGoal, FinanceData, Transaction, Budget, Loan } from '../src/types';
-import { CashFlowForecastWeek } from '../src/utils/finance';
+import { CashFlowForecastWeek, ForecastPoint } from '../src/utils/finance';
 
 const makeFinance = (overrides: Partial<FinanceData> = {}): FinanceData => ({
     income: 100000, expense: 60000, profit: 40000, margin: 40,
@@ -162,5 +162,93 @@ describe('computeGoalForecastAlignment', () => {
         const result = computeGoalForecastAlignment(goal, forecast, 40000);
         expect(result.onPace).toBe(false);
         expect(result.projectedCashAtHorizon).toBe(35000); // 40000 - 5000
+    });
+});
+
+describe('computeGoalBudgetAlignment (margin_improvement)', () => {
+    // income 100,000/mo, target margin 30% -> implied cost ceiling 70,000/mo
+    const goal = makeGoal({ type: 'margin_improvement', targetValue: 30, baselineValue: 20, currentValue: 25 });
+
+    it('reports no_active_budget when nothing is budgeted', () => {
+        const result = computeGoalBudgetAlignment(goal, [], threeMonthsOfTransactions(), makeFinance());
+        expect(result.applicable).toBe(true);
+        expect(result.status).toBe('no_active_budget');
+        expect(result.impliedMonthlyLimit).toBeCloseTo(70000);
+    });
+
+    it('reports aligned when the budget fits under the implied cost ceiling', () => {
+        const result = computeGoalBudgetAlignment(goal, [makeBudget(60000)], threeMonthsOfTransactions(), makeFinance());
+        expect(result.status).toBe('aligned');
+    });
+
+    it('reports budget_too_high when the budget exceeds the implied cost ceiling', () => {
+        const result = computeGoalBudgetAlignment(goal, [makeBudget(90000)], threeMonthsOfTransactions(), makeFinance());
+        expect(result.status).toBe('budget_too_high');
+        expect(result.gap).toBeCloseTo(20000);
+    });
+});
+
+describe('computeRevenueMarginForecastAlignment', () => {
+    const makePoint = (projected: number, month = 'm'): ForecastPoint => ({ month, projected, bestCase: projected, worstCase: projected });
+
+    it('is not applicable for goal types other than revenue_growth/margin_improvement', () => {
+        const result = computeRevenueMarginForecastAlignment(makeGoal({ type: 'cost_reduction' }), [makePoint(10000)], [], [], makeFinance());
+        expect(result.applicable).toBe(false);
+    });
+
+    it('is not applicable with an empty forecast', () => {
+        const result = computeRevenueMarginForecastAlignment(makeGoal({ type: 'revenue_growth' }), [], [], [], makeFinance());
+        expect(result.applicable).toBe(false);
+    });
+
+    describe('revenue_growth', () => {
+        // target 200,000, current 150,000, 6 months out => required ~8,333/mo
+        const goal = makeGoal({
+            type: 'revenue_growth', baselineValue: 100000, targetValue: 200000, currentValue: 150000,
+            deadline: (() => { const d = new Date(); d.setMonth(d.getMonth() + 6); return d.toISOString().split('T')[0]; })(),
+        });
+
+        it('reports already met when the target is reached', () => {
+            const met = makeGoal({ type: 'revenue_growth', targetValue: 200000, currentValue: 200000 });
+            const result = computeRevenueMarginForecastAlignment(met, [makePoint(1000)], [], [], makeFinance());
+            expect(result.onPace).toBe(true);
+        });
+
+        it('reports on pace when the forecast clears the required monthly rate', () => {
+            const result = computeRevenueMarginForecastAlignment(goal, [makePoint(10000), makePoint(10000)], [], [], makeFinance());
+            expect(result.applicable).toBe(true);
+            expect(result.projectedMonthlyRevenue).toBe(10000);
+            expect(result.onPace).toBe(true);
+        });
+
+        it('reports behind pace when the forecast falls short of the required rate', () => {
+            const result = computeRevenueMarginForecastAlignment(goal, [makePoint(5000), makePoint(5000)], [], [], makeFinance());
+            expect(result.onPace).toBe(false);
+        });
+    });
+
+    describe('margin_improvement', () => {
+        // target 30% margin
+        const goal = makeGoal({ type: 'margin_improvement', targetValue: 30, baselineValue: 20, currentValue: 25 });
+
+        it('reports on pace when forecasted revenue against trailing expense clears the target margin', () => {
+            // projected revenue 100,000, trailing monthly expense 60,000 -> 40% margin
+            const result = computeRevenueMarginForecastAlignment(goal, [makePoint(100000)], [], threeMonthsOfTransactions(), makeFinance());
+            expect(result.applicable).toBe(true);
+            expect(result.onPace).toBe(true);
+            expect(result.projectedMargin).toBeCloseTo(40);
+        });
+
+        it('reports behind pace when forecasted margin falls short', () => {
+            // projected revenue 70,000, trailing monthly expense 60,000 -> ~14.3% margin
+            const result = computeRevenueMarginForecastAlignment(goal, [makePoint(70000)], [], threeMonthsOfTransactions(), makeFinance());
+            expect(result.onPace).toBe(false);
+        });
+
+        it('prefers the active budget total over the trailing expense average when one is set', () => {
+            // projected revenue 100,000, budgeted expense 50,000 -> 50% margin (vs 40% using trailing expense)
+            const result = computeRevenueMarginForecastAlignment(goal, [makePoint(100000)], [makeBudget(50000)], threeMonthsOfTransactions(), makeFinance());
+            expect(result.projectedMargin).toBeCloseTo(50);
+        });
     });
 });

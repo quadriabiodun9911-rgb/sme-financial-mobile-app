@@ -17,11 +17,11 @@ import { calculateGoalBridge, mapSavedGoalToBridge, formatGoalMetric } from '../
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan } from '../utils/actionRecommendationEngine';
 import { suggestSolution, ImpactSource } from '../utils/impactChain';
-import { getMonthlyExpenseAverage, computeCashFlowForecast } from '../utils/finance';
+import { getMonthlyExpenseAverage, computeCashFlowForecast, computeRevenueForecast } from '../utils/finance';
 import { showAlert, confirmAction } from '../utils/webAlert';
 import { computeRiskRadar } from '../utils/riskRadar';
 import { assessGoalRisk, GoalRiskSeverity } from '../utils/goalRiskLinkage';
-import { computeGoalBudgetAlignment, computeGoalForecastAlignment } from '../utils/goalAlignment';
+import { computeGoalBudgetAlignment, computeGoalForecastAlignment, computeRevenueMarginForecastAlignment } from '../utils/goalAlignment';
 
 // Maps each goal type to the closest matching solution category — a
 // revenue/margin goal is fundamentally a pricing/growth problem, a cost or
@@ -177,7 +177,18 @@ export default function GoalsScreen() {
         return computeGoalForecastAlignment(planGoal, forecast, finance.cashBalance);
     }, [planGoal, transactions, loans, invoices, budgets, finance.cashBalance]);
 
-    const showAlignmentTab = planGoal?.type === 'cost_reduction' || planGoal?.type === 'cash_reserve';
+    // revenue_growth and margin_improvement compare against the near-term
+    // Revenue Forecast instead of the cash-flow forecast above -- see
+    // computeRevenueMarginForecastAlignment's own comment for why they
+    // need a different forecast shape than cash_reserve does.
+    const planRevenueMarginForecastAlignment = useMemo(() => {
+        if (!planGoal || (planGoal.type !== 'revenue_growth' && planGoal.type !== 'margin_improvement')) return null;
+        const revenueForecast = computeRevenueForecast(transactions, 3);
+        return computeRevenueMarginForecastAlignment(planGoal, revenueForecast, budgets, transactions, finance);
+    }, [planGoal, transactions, budgets, finance]);
+
+    const showAlignmentTab = planGoal?.type === 'cost_reduction' || planGoal?.type === 'cash_reserve'
+        || planGoal?.type === 'margin_improvement' || planGoal?.type === 'revenue_growth';
 
     // Auto-open add modal if navigated here with a goalType param, or the
     // plan modal if navigated here with a goalId — the latter mirrors the
@@ -705,25 +716,29 @@ export default function GoalsScreen() {
                                         </>
                                     )}
 
-                                    {planTab === 'alignment' && planBudgetAlignment?.applicable && (
+                                    {planTab === 'alignment' && (
                                         <>
-                                            <View style={styles.sectionTitleRow}>
-                                                <Icon name="git-merge" size={15} color={Colors.textPrimary} />
-                                                <Text style={[styles.sectionTitle, styles.sectionTitleInRow]}>Does Your Budget Support This Goal?</Text>
-                                            </View>
-                                            <View style={[styles.assessmentCard, { borderLeftColor: ALIGNMENT_STATUS_COLORS[planBudgetAlignment.status!] }]}>
-                                                <View style={styles.assessmentHeader}>
-                                                    <Text style={styles.assessmentLabel}>This Month's Budget</Text>
-                                                    <View style={[styles.feasibilityBadge, { backgroundColor: ALIGNMENT_STATUS_COLORS[planBudgetAlignment.status!] + '22', borderColor: ALIGNMENT_STATUS_COLORS[planBudgetAlignment.status!] }]}>
-                                                        <Text style={[styles.feasibilityText, { color: ALIGNMENT_STATUS_COLORS[planBudgetAlignment.status!] }]}>
-                                                            {planBudgetAlignment.status === 'aligned' ? 'ALIGNED' : planBudgetAlignment.status === 'budget_too_high' ? 'NOT ALIGNED' : 'NO BUDGET SET'}
-                                                        </Text>
+                                            {planBudgetAlignment?.applicable && (
+                                                <>
+                                                    <View style={styles.sectionTitleRow}>
+                                                        <Icon name="git-merge" size={15} color={Colors.textPrimary} />
+                                                        <Text style={[styles.sectionTitle, styles.sectionTitleInRow]}>Does Your Budget Support This Goal?</Text>
                                                     </View>
-                                                </View>
-                                                <Text style={styles.readinessNarrative}>{planBudgetAlignment.message}</Text>
-                                            </View>
-                                            {planBudgetAlignment.status !== 'aligned' && (
-                                                <NextStepLink text="Review your budget" onPress={() => { setPlanGoalId(null); setCurrentScreen('budget'); }} />
+                                                    <View style={[styles.assessmentCard, { borderLeftColor: ALIGNMENT_STATUS_COLORS[planBudgetAlignment.status!] }]}>
+                                                        <View style={styles.assessmentHeader}>
+                                                            <Text style={styles.assessmentLabel}>This Month's Budget</Text>
+                                                            <View style={[styles.feasibilityBadge, { backgroundColor: ALIGNMENT_STATUS_COLORS[planBudgetAlignment.status!] + '22', borderColor: ALIGNMENT_STATUS_COLORS[planBudgetAlignment.status!] }]}>
+                                                                <Text style={[styles.feasibilityText, { color: ALIGNMENT_STATUS_COLORS[planBudgetAlignment.status!] }]}>
+                                                                    {planBudgetAlignment.status === 'aligned' ? 'ALIGNED' : planBudgetAlignment.status === 'budget_too_high' ? 'NOT ALIGNED' : 'NO BUDGET SET'}
+                                                                </Text>
+                                                            </View>
+                                                        </View>
+                                                        <Text style={styles.readinessNarrative}>{planBudgetAlignment.message}</Text>
+                                                    </View>
+                                                    {planBudgetAlignment.status !== 'aligned' && (
+                                                        <NextStepLink text="Review your budget" onPress={() => { setPlanGoalId(null); setCurrentScreen('budget'); }} />
+                                                    )}
+                                                </>
                                             )}
 
                                             {planForecastAlignment?.applicable && (
@@ -745,6 +760,29 @@ export default function GoalsScreen() {
                                                     </View>
                                                     {!planForecastAlignment.onPace && (
                                                         <NextStepLink text="See the full cash flow forecast" onPress={() => { setPlanGoalId(null); setCurrentScreen('cashflow'); }} />
+                                                    )}
+                                                </>
+                                            )}
+
+                                            {planRevenueMarginForecastAlignment?.applicable && (
+                                                <>
+                                                    <View style={[styles.sectionTitleRow, { marginTop: 16 }]}>
+                                                        <Icon name="trending-up" size={15} color={Colors.textPrimary} />
+                                                        <Text style={[styles.sectionTitle, styles.sectionTitleInRow]}>Is Your Forecast On Pace?</Text>
+                                                    </View>
+                                                    <View style={[styles.assessmentCard, { borderLeftColor: planRevenueMarginForecastAlignment.onPace ? Colors.income : Colors.expense }]}>
+                                                        <View style={styles.assessmentHeader}>
+                                                            <Text style={styles.assessmentLabel}>Near-Term Revenue Forecast</Text>
+                                                            <View style={[styles.feasibilityBadge, { backgroundColor: (planRevenueMarginForecastAlignment.onPace ? Colors.income : Colors.expense) + '22', borderColor: planRevenueMarginForecastAlignment.onPace ? Colors.income : Colors.expense }]}>
+                                                                <Text style={[styles.feasibilityText, { color: planRevenueMarginForecastAlignment.onPace ? Colors.income : Colors.expense }]}>
+                                                                    {planRevenueMarginForecastAlignment.onPace ? 'ON PACE' : 'BEHIND PACE'}
+                                                                </Text>
+                                                            </View>
+                                                        </View>
+                                                        <Text style={styles.readinessNarrative}>{planRevenueMarginForecastAlignment.message}</Text>
+                                                    </View>
+                                                    {!planRevenueMarginForecastAlignment.onPace && (
+                                                        <NextStepLink text="See the full revenue forecast" onPress={() => { setPlanGoalId(null); navigate('cfo', { tab: 'forecast' }); }} />
                                                     )}
                                                 </>
                                             )}

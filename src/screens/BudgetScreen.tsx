@@ -61,15 +61,15 @@ export default function BudgetScreen() {
     // which is the moment to say so instead of just showing a bare table.
     const budgetPeriodLapsed = useMemo(() => isBudgetPeriodLapsed(budgets), [budgets]);
 
-    // Does this month's budget actually support any active cost-reduction
-    // or cash-reserve goal? Those are the only two goal types a budget can
-    // literally help or hurt (see goalAlignment.ts) -- flags the first one
-    // that isn't, so setting a budget and setting a goal don't silently
-    // drift apart from each other.
+    // Does this month's budget actually support any active cost-reduction,
+    // cash-reserve, or margin-improvement goal? Those are the goal types a
+    // budget can literally help or hurt (see goalAlignment.ts) -- revenue
+    // goals have no cost lever to check. Flags the first misaligned one so
+    // setting a budget and setting a goal don't silently drift apart.
     const misalignedGoal = useMemo(() => {
         for (const goal of goals ?? []) {
             if (goal.status === 'achieved') continue;
-            if (goal.type !== 'cost_reduction' && goal.type !== 'cash_reserve') continue;
+            if (goal.type !== 'cost_reduction' && goal.type !== 'cash_reserve' && goal.type !== 'margin_improvement') continue;
             const alignment = computeGoalBudgetAlignment(goal, budgets, transactions, finance, loans);
             if (alignment.applicable && alignment.status !== 'aligned') {
                 return { goal, alignment };
