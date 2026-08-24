@@ -33,9 +33,9 @@ export const FEATURE_INDEX: FeatureEntry[] = [
     },
     {
         id: 'cost-exposure', label: 'Cost Exposure', icon: '⚠️',
-        description: 'Which expense category is taking a bigger share of revenue, and the projected profit impact if it keeps rising',
-        keywords: ['cost concentration', 'energy risk', 'rising costs', 'expense category', 'margin erosion', 'early warning'],
-        screen: 'reports', navParams: { reportSection: 'growth', reportTab: 'exposure' },
+        description: 'Which expense category is taking a bigger share of revenue, and a multi-month forward projection of the profit impact if it keeps rising',
+        keywords: ['cost concentration', 'energy risk', 'rising costs', 'expense category', 'margin erosion', 'early warning', 'forecast', 'trajectory'],
+        screen: 'inventory', navParams: { tab: 'exposure' },
     },
     {
         id: 'macro-assumptions', label: 'Macro Assumptions', icon: '🌍',
@@ -51,9 +51,9 @@ export const FEATURE_INDEX: FeatureEntry[] = [
     },
     {
         id: 'pricing-optimizer', label: 'Pricing Optimization', icon: '💰',
-        description: 'Model price increases, cost cuts, their effect on profit, and the price increase needed to protect margin after a cost rise',
-        keywords: ['price', 'margin', 'profit per customer', 'scenario', 'cost increase', 'price adjustment', 'inflation'],
-        screen: 'reports', navParams: { reportSection: 'growth', reportTab: 'pricing' },
+        description: 'Set prices per product against real inventory and sales data, hit a revenue target, or protect your margin after a cost rise',
+        keywords: ['price', 'margin', 'scenario', 'cost increase', 'price adjustment', 'inflation', 'revenue target', 'inventory', 'goods'],
+        screen: 'inventory', navParams: { tab: 'pricing' },
     },
     {
         id: 'break-even', label: 'Break-Even Calculator (Plan a Price or Product)', icon: '⚖️',

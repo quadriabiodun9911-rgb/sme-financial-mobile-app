@@ -3,9 +3,11 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { computeCostExposure, CostCategorySignal, ExposureBand } from '../utils/costExposure';
+import { computeCostExposureForecast } from '../utils/costExposureForecast';
 import { computeExternalRiskInsights, ExternalRiskInsight } from '../utils/externalRiskInsights';
 import RadialGauge from './RadialGauge';
 import BarList from './BarList';
+import GroupedBarChart from './GroupedBarChart';
 
 const BAND_COLOR: Record<ExposureBand, string> = {
     Excellent: Colors.income,
@@ -30,6 +32,10 @@ export default function CostExposureTab() {
     const result = useMemo(() => computeCostExposure(transactions), [transactions]);
     const externalRisk = useMemo(
         () => computeExternalRiskInsights(transactions, settings.macroAssumptions ?? []),
+        [transactions, settings.macroAssumptions]
+    );
+    const forecast = useMemo(
+        () => computeCostExposureForecast(transactions, settings.macroAssumptions ?? [], 6),
         [transactions, settings.macroAssumptions]
     );
 
@@ -59,22 +65,43 @@ export default function CostExposureTab() {
                 <Text style={s.verdict}>{result.verdict}</Text>
             </View>
 
-            {/* Projected impact — the "if this keeps rising" card */}
-            {result.projectedImpact && (
+            {/* Forward Cost Trajectory — every category still flagged as
+                rising, projected forward together (not just the single
+                worst one), using the owner's own stated external
+                expectations wherever one is linked to a rising category. */}
+            {forecast.available && forecast.drivers.length > 0 && (
                 <View style={s.impactCard}>
-                    <Text style={s.cardTitle}>⚠️ If This Continues</Text>
-                    <Text style={s.impactText}>
-                        {result.projectedImpact.category} spend grew {result.projectedImpact.observedGrowthPct.toFixed(0)}%
-                        over the last {result.windowMonths} months. At that same pace, the next {result.windowMonths} months
-                        would push monthly {result.projectedImpact.category} spend from{' '}
-                        <Text style={s.impactBold}>{fmtCompact(currency, result.projectedImpact.currentMonthlySpend)}</Text> to{' '}
-                        <Text style={s.impactBold}>{fmtCompact(currency, result.projectedImpact.projectedNextPeriodMonthlySpend)}</Text>
-                        {' '}— cutting monthly operating profit from{' '}
-                        <Text style={s.impactBold}>{fmtCompact(currency, result.projectedImpact.currentMonthlyProfit)}</Text> to roughly{' '}
-                        <Text style={[s.impactBold, { color: Colors.expense }]}>{fmtCompact(currency, result.projectedImpact.projectedMonthlyProfit)}</Text>.
-                    </Text>
+                    <Text style={s.cardTitle}>📈 Forward Cost Trajectory — Next {forecast.horizonMonths} Months</Text>
+                    <Text style={s.impactText}>{forecast.verdict}</Text>
+
+                    <GroupedBarChart
+                        height={90}
+                        labels={forecast.months.map(m => `+${m.monthIndex}mo`)}
+                        series={[
+                            { label: 'Projected Monthly Profit', color: Colors.expense, values: forecast.months.map(m => m.projectedMonthlyProfit) },
+                        ]}
+                    />
+
+                    <Text style={[s.cardTitle, { fontSize: 12, marginTop: 14, marginBottom: 8 }]}>What's driving this projection</Text>
+                    {forecast.drivers.map(d => (
+                        <View key={d.category} style={s.driverRow}>
+                            <View style={s.flex1}>
+                                <Text style={s.driverCategory}>{d.category}</Text>
+                                <Text style={s.driverSource}>
+                                    {d.source === 'external'
+                                        ? `Projected from your "${d.externalLabel}" assumption`
+                                        : 'Projected from its own recent trend'}
+                                </Text>
+                            </View>
+                            <View style={[s.driverBadge, { backgroundColor: d.source === 'external' ? Colors.primary + '20' : Colors.textMuted + '20' }]}>
+                                <Text style={[s.driverBadgeText, { color: d.source === 'external' ? Colors.primary : Colors.textMuted }]}>
+                                    {d.source === 'external' ? 'External' : 'Internal'}
+                                </Text>
+                            </View>
+                        </View>
+                    ))}
                     <TouchableOpacity onPress={() => navigate('budget')}>
-                        <Text style={s.impactLink}>Set a budget alert for this category →</Text>
+                        <Text style={s.impactLink}>Set a budget alert for these categories →</Text>
                     </TouchableOpacity>
                 </View>
             )}
@@ -204,7 +231,14 @@ const s = StyleSheet.create({
     impactCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14, borderLeftWidth: 4, borderLeftColor: Colors.warning },
     impactText: { fontSize: 13, color: Colors.textSecondary, lineHeight: 20, marginBottom: 10 },
     impactBold: { fontWeight: '800', color: Colors.textPrimary },
-    impactLink: { fontSize: 12.5, color: Colors.primary, fontWeight: '700' },
+    impactLink: { fontSize: 12.5, color: Colors.primary, fontWeight: '700', marginTop: 10 },
+
+    flex1: { flex: 1 },
+    driverRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    driverCategory: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },
+    driverSource: { fontSize: 11, color: Colors.textMuted },
+    driverBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+    driverBadgeText: { fontSize: 10, fontWeight: '700' },
 
     flagsCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14, borderLeftWidth: 4, borderLeftColor: Colors.expense },
     flagRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },

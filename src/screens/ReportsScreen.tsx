@@ -24,8 +24,6 @@ import ProductPerformance from '../components/ProductPerformance';
 import GrowthOutlook from '../components/GrowthOutlook';
 import MultiYearTrends from '../components/MultiYearTrends';
 import QualityOfGrowthTab from '../components/QualityOfGrowthTab';
-import CostExposureTab from '../components/CostExposureTab';
-import PricingOptimizer from '../components/PricingOptimizer';
 import NextStepLink from '../components/NextStepLink';
 import CashFlowStatement from '../components/CashFlowStatement';
 import DataQualityBadge from '../components/DataQualityBadge';
@@ -62,7 +60,7 @@ type SubTab =
     | 'aging'
     | 'tax' | 'tax-filing' | 'tax-planning'
     | 'cashflow' | 'cashsafety' | 'debt' | 'assets'
-    | 'growth' | 'history' | 'quality' | 'exposure' | 'customers' | 'products' | 'pricing';
+    | 'growth' | 'history' | 'quality' | 'customers' | 'products';
 
 const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
     statements: [
@@ -89,10 +87,8 @@ const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
         { key: 'growth',    label: 'Growth Trends & Scenarios' },
         { key: 'history',   label: 'Multi-Year History' },
         { key: 'quality',   label: 'Quality of Growth' },
-        { key: 'exposure',  label: 'Cost Exposure' },
         { key: 'customers', label: 'Best Customers' },
         { key: 'products',  label: 'Best Products' },
-        { key: 'pricing',   label: 'Pricing Optimization' },
     ],
 };
 
@@ -718,9 +714,6 @@ export default function ReportsScreen() {
                         />
                     )}
 
-                    {/* ── COST EXPOSURE ────────────────────────────────── */}
-                    {activeTab === 'exposure' && <CostExposureTab />}
-
                     {/* ── CUSTOMER PROFITABILITY ───────────────────────── */}
                     {activeTab === 'customers' && (
                         <CustomerProfitability
@@ -737,23 +730,6 @@ export default function ReportsScreen() {
                             inventory={inventory}
                             currency={currency}
                         />
-                    )}
-
-                    {/* ── PRICING OPTIMIZER ────────────────────────────── */}
-                    {activeTab === 'pricing' && (
-                        <>
-                            <PricingOptimizer
-                                currentRevenue={allFinance.income}
-                                currentMargin={allFinance.margin}
-                                currency={currency}
-                                invoices={invoices}
-                                onSeeFullPicture={() => setCurrentScreen('business-passport')}
-                            />
-                            <NextStepLink
-                                text="After adjusting prices, see the effect on your Balance Sheet"
-                                onPress={() => { setSection('statements'); setActiveTab('balancesheet'); }}
-                            />
-                        </>
                     )}
 
                 </View>

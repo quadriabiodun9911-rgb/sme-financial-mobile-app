@@ -53,9 +53,17 @@ export interface CostExposureResult {
     projectedImpact: ProjectedImpact | null; // only set when the top category's spend is actually still rising
     flags: string[];
     verdict: string;
+    // Current-window baseline, exposed so a forward projection (see
+    // costExposureForecast.ts) doesn't have to re-derive it from raw
+    // transactions a second time.
+    currentMonthlyRevenue: number;
+    currentMonthlyProfit: number;
 }
 
-const MODEL = {
+// Exported so costExposureForecast.ts can score projected future months on
+// the exact same scale as today's score, instead of drifting onto a
+// second, subtly different model.
+export const MODEL = {
     weights: { severity: 0.6, breadth: 0.4 },
     bandCutoffs: { excellent: 85, strong: 70, moderate: 50, weak: 30 },
     // Percentage-point-of-revenue thresholds for how concentrated a single
@@ -78,7 +86,7 @@ function pctChange(current: number, prior: number): number | null {
     return ((current - prior) / Math.abs(prior)) * 100;
 }
 
-function bandForScore(score: number): ExposureBand {
+export function bandForScore(score: number): ExposureBand {
     if (score >= MODEL.bandCutoffs.excellent) return 'Excellent';
     if (score >= MODEL.bandCutoffs.strong) return 'Strong';
     if (score >= MODEL.bandCutoffs.moderate) return 'Moderate';
@@ -86,14 +94,14 @@ function bandForScore(score: number): ExposureBand {
     return 'Critical';
 }
 
-function severityScoreFor(pctPointChange: number): number {
+export function severityScoreFor(pctPointChange: number): number {
     for (const band of MODEL.severityBands) {
         if (pctPointChange <= band.maxPctPoints) return band.score;
     }
     return MODEL.severityFloor;
 }
 
-function breadthScoreFor(countOverThreshold: number): number {
+export function breadthScoreFor(countOverThreshold: number): number {
     if (countOverThreshold < MODEL.breadthScores.length) return MODEL.breadthScores[countOverThreshold];
     return MODEL.breadthFloor;
 }
@@ -110,6 +118,8 @@ const UNAVAILABLE = (reason: string, windowMonths: number): CostExposureResult =
     projectedImpact: null,
     flags: [],
     verdict: '',
+    currentMonthlyRevenue: 0,
+    currentMonthlyProfit: 0,
 });
 
 export function computeCostExposure(transactions: Transaction[], windowMonths = 3): CostExposureResult {
@@ -225,5 +235,7 @@ export function computeCostExposure(transactions: Transaction[], windowMonths = 
         projectedImpact,
         flags,
         verdict,
+        currentMonthlyRevenue: currentRevenue / windowMonths,
+        currentMonthlyProfit: (currentRevenue - currentTotalExpense) / windowMonths,
     };
 }

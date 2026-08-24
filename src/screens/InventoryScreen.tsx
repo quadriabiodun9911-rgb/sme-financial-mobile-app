@@ -25,8 +25,10 @@ import ProductionCostCalculator from '../components/ProductionCostCalculator';
 import DateInput from '../components/DateInput';
 import { InventoryItem } from '../types';
 import { showAlert, confirmAction } from '../utils/webAlert';
+import CostExposureTab from '../components/CostExposureTab';
+import InventoryPricingTab from '../components/InventoryPricingTab';
 
-type InventoryTab = 'stock' | 'analytics';
+type InventoryTab = 'stock' | 'analytics' | 'exposure' | 'pricing';
 
 type FormState = {
     name: string;
@@ -92,7 +94,7 @@ const PRICE_CHANGE_REASONS = [
 ];
 
 export default function InventoryScreen() {
-    const { inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem, stockInInventory, settings, navigate, addTransaction, transactions, finance } = useApp();
+    const { inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem, stockInInventory, settings, navigate, addTransaction, transactions, finance, navParams } = useApp();
     const { currency } = settings;
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
@@ -101,7 +103,9 @@ export default function InventoryScreen() {
     const { width: windowWidth } = useWindowDimensions();
     const constrainSheetWidth = Platform.OS === 'web' && windowWidth >= 720;
 
-    const [activeTab, setActiveTab] = useState<InventoryTab>('stock');
+    const [activeTab, setActiveTab] = useState<InventoryTab>(
+        (['stock', 'analytics', 'exposure', 'pricing'] as InventoryTab[]).includes(navParams?.tab as InventoryTab) ? (navParams!.tab as InventoryTab) : 'stock'
+    );
     const [modalOpen, setModalOpen] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [form, setForm] = useState<FormState>(EMPTY_FORM);
@@ -395,6 +399,18 @@ export default function InventoryScreen() {
                     onPress={() => setActiveTab('analytics')}
                 >
                     <Text style={[styles.tabText, activeTab === 'analytics' && styles.tabTextActive]}>Analytics</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={[styles.tabBtn, activeTab === 'exposure' && styles.tabBtnActive]}
+                    onPress={() => setActiveTab('exposure')}
+                >
+                    <Text style={[styles.tabText, activeTab === 'exposure' && styles.tabTextActive]}>Cost Exposure</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={[styles.tabBtn, activeTab === 'pricing' && styles.tabBtnActive]}
+                    onPress={() => setActiveTab('pricing')}
+                >
+                    <Text style={[styles.tabText, activeTab === 'pricing' && styles.tabTextActive]}>Pricing</Text>
                 </TouchableOpacity>
             </View>
 
@@ -750,6 +766,12 @@ export default function InventoryScreen() {
                         </TouchableOpacity>
                     </>
                 )}
+
+                {/* ── COST EXPOSURE TAB ─────────────────────────────────── */}
+                {activeTab === 'exposure' && <CostExposureTab />}
+
+                {/* ── PRICING TAB ────────────────────────────────────────── */}
+                {activeTab === 'pricing' && <InventoryPricingTab />}
 
             </ScrollView>
 
