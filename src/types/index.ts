@@ -160,6 +160,12 @@ export interface Transaction {
     category: string;
     amount: number;
     transactionCategory?: 'purchase' | 'sale' | 'expense' | 'cost' | 'other';
+    // How the money moved -- set only when the owner records it explicitly
+    // (undefined for imported/legacy transactions, which mostly come from a
+    // bank statement anyway). Lets a cash-heavy business separate "Cash
+    // Sales" from "Bank Sales" in its revenue breakdown instead of the
+    // bank statement silently standing in for the whole business.
+    paymentMethod?: 'cash' | 'bank' | 'pos' | 'transfer' | 'other';
     reference?: string;
     vendorCustomer?: string;
     taxRate?: number;

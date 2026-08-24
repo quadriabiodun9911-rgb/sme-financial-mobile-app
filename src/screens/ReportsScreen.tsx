@@ -29,6 +29,7 @@ import CashFlowStatement from '../components/CashFlowStatement';
 import DataQualityBadge from '../components/DataQualityBadge';
 import AccrualCashFlow from '../components/AccrualCashFlow';
 import ProfitAndLossStatement from '../components/ProfitAndLossStatement';
+import { computeRevenueByPaymentMethod } from '../utils/revenueByPaymentMethod';
 import BalanceSheetStatement from '../components/BalanceSheetStatement';
 import CashFlowFormalStatement from '../components/CashFlowFormalStatement';
 import GroupedBarChart from '../components/GroupedBarChart';
@@ -148,6 +149,7 @@ export default function ReportsScreen() {
     const trend      = useMemo(() => computeMonthlyTrend(transactions, 6), [transactions]);
     const enhPnL     = useMemo(() => computeEnhancedPnL(filteredTx, assets), [filteredTx, assets]);
     const wcMetrics  = useMemo(() => computeWorkingCapitalMetrics(filteredTx), [filteredTx]);
+    const revenueByPaymentMethod = useMemo(() => computeRevenueByPaymentMethod(filteredTx), [filteredTx]);
     // Unfiltered (all-time, "as of today") AR/AP — the Debt tab's leverage
     // ratios describe the business's current balance sheet, not a
     // period-scoped slice, so this must match Reports > "What I Own & Owe"
@@ -558,6 +560,21 @@ export default function ReportsScreen() {
                                 pnl={enhPnL}
                                 currency={currency}
                             />
+
+                            {revenueByPaymentMethod.anyTagged && (
+                                <View style={styles.card}>
+                                    <Text style={styles.cardTitle}>Revenue by Payment Method</Text>
+                                    <StatRow label="Cash Sales" value={`${currency}${revenueByPaymentMethod.cash.toLocaleString()}`} color={Colors.income} />
+                                    <StatRow label="Bank Sales" value={`${currency}${revenueByPaymentMethod.bank.toLocaleString()}`} color={Colors.income} />
+                                    {revenueByPaymentMethod.other > 0 && (
+                                        <StatRow label="POS / Transfer / Other" value={`${currency}${revenueByPaymentMethod.other.toLocaleString()}`} color={Colors.income} />
+                                    )}
+                                    {revenueByPaymentMethod.unspecified > 0 && (
+                                        <StatRow label="Not tagged" value={`${currency}${revenueByPaymentMethod.unspecified.toLocaleString()}`} color={Colors.textMuted} />
+                                    )}
+                                    <StatRow label="Total Revenue" value={`${currency}${revenueByPaymentMethod.total.toLocaleString()}`} color={Colors.textPrimary} bold />
+                                </View>
+                            )}
 
                             {/* Same reasoning as Balance Sheet: clicking Monthly/
                                 Quarterly/Yearly above should show the Jan-Dec

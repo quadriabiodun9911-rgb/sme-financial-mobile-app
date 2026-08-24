@@ -119,6 +119,7 @@ export default function DashboardScreen() {
     const [qaDesc, setQaDesc]             = useState('');
     const [qaCategory, setQaCategory]     = useState('');
     const [qaSubmitting, setQaSubmitting] = useState(false);
+    const [qaPaymentMethod, setQaPaymentMethod] = useState<'cash' | 'bank' | undefined>(undefined);
     const [showMore, setShowMore]               = useState(false);
     // Collapsed by default -- the #1 priority gets hero treatment (Next
     // Best Action) below, so re-showing the full ranked list right under it
@@ -148,6 +149,11 @@ export default function DashboardScreen() {
     const [eodOpen, setEodOpen]                 = useState(false);
     const [eodIncome, setEodIncome]             = useState('');
     const [eodExpense, setEodExpense]           = useState('');
+    // Optional -- left unset keeps today's numbers exactly as before
+    // (payment method unspecified). Tagging it lets a cash-heavy business
+    // build a real Cash Sales vs Bank Sales split over repeated EOD logs
+    // without adding a mandatory field to the fastest entry point in the app.
+    const [eodPaymentMethod, setEodPaymentMethod] = useState<'cash' | 'bank' | undefined>(undefined);
     const [lastSynced, setLastSynced]           = useState<Date>(new Date());
     // Which achieved goals have already had their "what's next" banner shown
     // (either accepted or dismissed) -- status/progress are recomputed fresh
@@ -633,6 +639,7 @@ export default function DashboardScreen() {
         setQaCategory('');
         setQaAmount('');
         setQaDesc('');
+        setQaPaymentMethod(undefined);
         setFabOpen(true);
     };
 
@@ -646,9 +653,9 @@ export default function DashboardScreen() {
         const exp = parseFloat(eodExpense) || 0;
         if (inc <= 0 && exp <= 0) { showAlert('Nothing to save', 'Enter at least one amount.'); return; }
         const today = new Date().toISOString().split('T')[0];
-        if (inc > 0) addTransaction({ type: 'income',  amount: inc, description: 'End of day income',   category: 'Sales', date: today });
-        if (exp > 0) addTransaction({ type: 'expense', amount: exp, description: 'End of day expenses', category: 'Other', date: today });
-        setEodIncome(''); setEodExpense(''); setEodOpen(false);
+        if (inc > 0) addTransaction({ type: 'income',  amount: inc, description: 'End of day income',   category: 'Sales', date: today, paymentMethod: eodPaymentMethod });
+        if (exp > 0) addTransaction({ type: 'expense', amount: exp, description: 'End of day expenses', category: 'Other', date: today, paymentMethod: eodPaymentMethod });
+        setEodIncome(''); setEodExpense(''); setEodPaymentMethod(undefined); setEodOpen(false);
         setLastSynced(new Date());
         const newProfit = finance.profit + inc - exp;
         showToast(`Saved! Today's profit: ${settings.currency}${newProfit.toLocaleString()}`);
@@ -669,8 +676,9 @@ export default function DashboardScreen() {
                 description: qaDesc.trim(),
                 category: qaCategory || (qaType === 'income' ? 'Sales' : 'General'),
                 date: new Date().toISOString().split('T')[0],
+                paymentMethod: qaPaymentMethod,
             });
-            setQaAmount(''); setQaDesc(''); setQaCategory(''); setFabOpen(false);
+            setQaAmount(''); setQaDesc(''); setQaCategory(''); setQaPaymentMethod(undefined); setFabOpen(false);
             const newProfit = finance.profit + (qaType === 'income' ? amt : -amt);
             showToast(`Saved! This month's profit: ${settings.currency}${(isNaN(newProfit) ? 0 : newProfit).toLocaleString()}`);
         } finally {
@@ -1485,6 +1493,21 @@ export default function DashboardScreen() {
                         onChangeText={setQaDesc}
                     />
 
+                    <Text style={styles.catLabel}>Cash or bank? (optional)</Text>
+                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+                        {(['cash', 'bank'] as const).map(m => (
+                            <TouchableOpacity
+                                key={m}
+                                style={[styles.eodPaymentChip, qaPaymentMethod === m && styles.eodPaymentChipActive]}
+                                onPress={() => setQaPaymentMethod(prev => prev === m ? undefined : m)}
+                            >
+                                <Text style={[styles.eodPaymentChipText, qaPaymentMethod === m && styles.eodPaymentChipTextActive]}>
+                                    {m === 'cash' ? '💵 Cash' : '🏦 Bank'}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+
                     <TouchableOpacity
                         style={[styles.modalSubmit, { backgroundColor: qaType === 'income' ? Colors.income : Colors.expense }, (!qaDesc.trim() || !qaAmount) && { opacity: 0.5 }]}
                         onPress={submitQuickAdd}
@@ -1551,6 +1574,20 @@ export default function DashboardScreen() {
                         value={eodExpense}
                         onChangeText={setEodExpense}
                     />
+                    <Text style={styles.catLabel}>Was this mostly cash or bank? (optional)</Text>
+                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+                        {(['cash', 'bank'] as const).map(m => (
+                            <TouchableOpacity
+                                key={m}
+                                style={[styles.eodPaymentChip, eodPaymentMethod === m && styles.eodPaymentChipActive]}
+                                onPress={() => setEodPaymentMethod(prev => prev === m ? undefined : m)}
+                            >
+                                <Text style={[styles.eodPaymentChipText, eodPaymentMethod === m && styles.eodPaymentChipTextActive]}>
+                                    {m === 'cash' ? '💵 Cash' : '🏦 Bank'}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
                     <TouchableOpacity style={[styles.modalSubmit, { backgroundColor: Colors.primary }]} onPress={submitEod}>
                         <Text style={styles.modalSubmitText}>Save Today's Numbers</Text>
                     </TouchableOpacity>
@@ -2088,6 +2125,10 @@ const styles = StyleSheet.create({
     catChip:          { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.bg, marginRight: 8 },
     catChipText:      { fontSize: 12, color: Colors.textSecondary },
     modalInput:       { backgroundColor: Colors.bg, borderColor: Colors.border, borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 11, color: Colors.textPrimary, fontSize: 14, marginBottom: 12 },
+    eodPaymentChip:       { flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.bg, alignItems: 'center' },
+    eodPaymentChipActive: { backgroundColor: Colors.primary + '22', borderColor: Colors.primary },
+    eodPaymentChipText:       { fontSize: 13, color: Colors.textSecondary, fontWeight: '600' },
+    eodPaymentChipTextActive: { color: Colors.primary },
     modalSubmit:      { paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginTop: 4 },
     modalSubmitText:  { color: '#fff', fontWeight: 'bold', fontSize: 15 },
 
