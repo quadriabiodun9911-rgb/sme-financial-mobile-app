@@ -19,6 +19,7 @@ import { getMonthlyExpenseAverage } from '../utils/finance';
 import { scanStatementImage, ScannedTransaction, ScanMediaType } from '../utils/statementScan';
 import { confirmAction } from '../utils/webAlert';
 import { TxCategory, classifyByDescription, loadLearnedRules, learnCategory, normalise } from '../utils/transactionCategorization';
+import { auditEvents } from '../utils/auditLog';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -695,6 +696,7 @@ export default function ImportTransactionsScreen() {
         setImported(newRows.length);
         setDuplicatesSkipped(duplicateCount);
         setStep('done');
+        if (newRows.length > 0) auditEvents.dataImport();
     };
 
     const handleImport = () => {

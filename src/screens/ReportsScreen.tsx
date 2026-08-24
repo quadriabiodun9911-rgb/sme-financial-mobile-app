@@ -37,6 +37,7 @@ import { computeBalanceSheetTrend } from '../utils/balanceSheetTrend';
 import { computeAllTimeMonthlyBuckets } from '../utils/trendAnalysis';
 import { filterByPeriod, filterByDateRange, getPreviousPeriodRange, computeFinance, computeAssetCurrentValue, computeMonthlyTrend, computeEnhancedPnL, computeProperCashFlow, computeWorkingCapitalMetrics, classifyBusinessSize, sizeLabel, transactionsToCSV, ReportPeriod, MonthlyPoint, DateRange } from '../utils/finance';
 import { trackReportViewed, trackDataExported } from '../utils/analytics';
+import { auditEvents } from '../utils/auditLog';
 import { FinanceData } from '../types';
 import DateInput from '../components/DateInput';
 import { InventoryItem } from '../types';
@@ -249,7 +250,7 @@ export default function ReportsScreen() {
 
     const exportPnL = async () => {
         const csv = transactionsToCSV(filteredTx);
-        if (!isDemoMode) trackDataExported();
+        if (!isDemoMode) { trackDataExported(); auditEvents.dataExport(); }
         if (Platform.OS === 'web') {
             const blob = new Blob([csv], { type: 'text/csv' });
             const url  = URL.createObjectURL(blob);

@@ -14,6 +14,7 @@ import { User, Invoice, InvoiceStatus, Transaction, Loan, Asset, Budget, Invento
 import { computeFinance, computeAssetCurrentValue, countActiveMonths, getMonthlyExpenseAverage, computeRiskScore } from '../utils/finance';
 import { buildReadinessSnapshot, shouldRecordSnapshot, appendReadinessSnapshot } from '../utils/readinessHistory';
 import { trackTransactionAdded, trackInventoryItemAdded, trackAssetAdded, trackLoanAdded, trackGoalCreated, trackAppOpened, trackUserRegistered, trackUserLoggedOut, trackDemoStarted } from '../utils/analytics';
+import { auditEvents } from '../utils/auditLog';
 import { sanitizeStoredGoals, refreshGoal } from '../utils/goals';
 import { DEMO_BUSINESSES } from '../utils/demoData';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -1268,6 +1269,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         writeTabIdentity(profile.email);
         setUser({ email: profile.email, businessName: profile.businessName, phone: profile.phone, role: 'Administrator', createdAt: profile.createdAt });
         await routeAfterAuth();
+        auditEvents.login();
         return true;
       },
       pendingTwoFactorProfile,
@@ -1278,6 +1280,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser({ email: pendingTwoFactorProfile.email, businessName: pendingTwoFactorProfile.businessName, phone: pendingTwoFactorProfile.phone, role: 'Administrator', createdAt: pendingTwoFactorProfile.createdAt });
         setPendingTwoFactorProfile(null);
         await routeAfterAuth();
+        auditEvents.login();
         return true;
       },
       cancelTwoFactorLogin: () => {
@@ -1286,6 +1289,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       logout: async () => {
         if (!isDemoMode) trackUserLoggedOut();
+        // Logged before signOut() below clears the session that
+        // getAuthUserId() reads to attribute the entry.
+        if (!isDemoMode) auditEvents.logout();
         setIsLoading(true);
         try {
           await supabase.auth.signOut().catch(() => {});
@@ -1362,6 +1368,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser({ email, businessName, role: 'Administrator', phone, createdAt: new Date().toISOString() });
         await refreshLocalAccounts();
         trackUserRegistered(initialSettings?.currency ?? DEFAULT_SETTINGS.currency);
+        auditEvents.accountSetup(email);
         // First-run choice — upload a statement or set a goal — rather than
         // dropping a brand-new user straight onto an empty Dashboard where
         // that decision is easy to never make.
@@ -1573,6 +1580,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // If a PIN exists, verify the current one before changing.
           if (stored && stored !== hash(currentPin)) return { ok: false };
           await savePin(newPin);
+          auditEvents.pinChange();
           // The PIN is a local-only unlock gate now — it's never sent to
           // Supabase, so changing it doesn't touch (and doesn't need to
           // touch) the account's real password. cloudSynced is kept in the
@@ -1630,11 +1638,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const code = await inviteTeamMember(email, role);
         const members = await loadTeamMembers();
         setTeamMembers(members);
+        auditEvents.teamInvite(email, role);
         return code;
       },
       removeMember: async (id) => {
+        const removed = teamMembers.find((m) => m.id === id);
         await removeTeamMember(id);
         setTeamMembers((prev) => prev.filter((m) => m.id !== id));
+        if (removed) auditEvents.teamRemove(removed.memberEmail);
       },
       refreshTeam: async () => {
         const members = await loadTeamMembers();

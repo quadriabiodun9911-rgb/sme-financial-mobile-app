@@ -64,6 +64,89 @@ export async function logAudit(entry: AuditLogEntry): Promise<void> {
     }
 }
 
+export interface AuditLogRecord {
+    id: string;
+    action: AuditAction;
+    details: Record<string, any> | null;
+    severity: 'low' | 'medium' | 'high';
+    timestamp: string;
+}
+
+/**
+ * This account's own recent activity — RLS restricts audit_logs to rows
+ * where user_id = auth.uid(), so a team member only ever sees what they
+ * themselves did, never a teammate's. That's an honest scope for now: a
+ * true shared team activity log would need audit_logs to carry a
+ * business/workspace id (it doesn't yet) and a matching RLS policy letting
+ * the owner read across it, which is a real schema change, not a query
+ * change — until then this stays "your own activity," not "the team's."
+ */
+export async function loadRecentAuditLogs(limit: number = 50): Promise<AuditLogRecord[]> {
+    try {
+        const userId = await getAuthUserId();
+        if (!userId) return [];
+        const { data, error } = await supabase
+            .from('audit_logs')
+            .select('id, action, details, severity, timestamp')
+            .eq('user_id', userId)
+            .order('timestamp', { ascending: false })
+            .limit(limit);
+        if (error || !data) return [];
+        return data as AuditLogRecord[];
+    } catch {
+        return [];
+    }
+}
+
+const AUDIT_ACTION_LABEL: Record<AuditAction, string> = {
+    LOGIN: 'Logged in',
+    LOGOUT: 'Logged out',
+    ACCOUNT_SETUP: 'Account created',
+    TEAM_JOIN: 'Joined the team',
+    TEAM_INVITE: 'Invited a team member',
+    TEAM_REMOVE: 'Removed a team member',
+    PIN_CHANGE: 'Changed PIN',
+    SETTINGS_UPDATE: 'Updated a setting',
+    TRANSACTION_CREATE: 'Recorded a transaction',
+    TRANSACTION_UPDATE: 'Updated a transaction',
+    TRANSACTION_DELETE: 'Deleted a transaction',
+    INVOICE_CREATE: 'Created an invoice',
+    INVOICE_UPDATE: 'Updated an invoice',
+    INVOICE_DELETE: 'Deleted an invoice',
+    GOAL_CREATE: 'Created a goal',
+    GOAL_UPDATE: 'Updated a goal',
+    GOAL_DELETE: 'Deleted a goal',
+    ASSET_CREATE: 'Added an asset',
+    ASSET_UPDATE: 'Updated an asset',
+    ASSET_DELETE: 'Deleted an asset',
+    INVENTORY_CREATE: 'Added an inventory item',
+    INVENTORY_UPDATE: 'Updated an inventory item',
+    INVENTORY_DELETE: 'Deleted an inventory item',
+    DATA_EXPORT: 'Exported data',
+    DATA_IMPORT: 'Imported a bank statement',
+    DATA_CLEAR: 'Cleared data',
+    FAILED_LOGIN: 'Failed login attempt',
+    ACCOUNT_LOCKED: 'Account locked after failed attempts',
+};
+
+/**
+ * Plain-language description for one entry -- e.g. "Invited a team member
+ * (james@example.com, staff)" -- folding in the few detail fields that are
+ * actually meaningful to read back, without dumping the raw JSON.
+ */
+export function describeAuditLog(entry: AuditLogRecord): string {
+    const base = AUDIT_ACTION_LABEL[entry.action] ?? entry.action;
+    const d = entry.details;
+    if (!d) return base;
+    if (entry.action === 'TEAM_INVITE' && d.email) return `${base} (${d.email}${d.role ? `, ${d.role}` : ''})`;
+    if (entry.action === 'TEAM_REMOVE' && d.email) return `${base} (${d.email})`;
+    if (entry.action === 'TEAM_JOIN' && d.email) return `${base} (${d.email})`;
+    if (entry.action === 'ACCOUNT_SETUP' && d.email) return `${base} (${d.email})`;
+    if (entry.action === 'SETTINGS_UPDATE' && d.key) return `${base} (${d.key})`;
+    if (entry.action === 'FAILED_LOGIN' && d.reason) return `${base} (${d.reason})`;
+    return base;
+}
+
 /**
  * Security events that should always be logged
  */

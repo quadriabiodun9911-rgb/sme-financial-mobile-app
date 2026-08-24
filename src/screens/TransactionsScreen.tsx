@@ -18,6 +18,7 @@ import Icon from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { t } from '../utils/i18n';
 import { trackDataExported } from '../utils/analytics';
+import { auditEvents } from '../utils/auditLog';
 import { isOverdueIncomeTransaction, getOverdueIncomeTransactions } from '../utils/overdueTransactions';
 import { classifyTransactions } from '../utils/dataQuality';
 import { detectPersonalSpending, DISMISSED_PERSONAL_KEY } from '../utils/personalSpendingDetector';
@@ -330,7 +331,7 @@ export default function TransactionsScreen() {
 
     const handleExportCSV = async () => {
         const csv = transactionsToCSV(filtered);
-        if (!isDemoMode) trackDataExported();
+        if (!isDemoMode) { trackDataExported(); auditEvents.dataExport(); }
         try {
             if (Platform.OS === 'web') {
                 const blob = new Blob([csv], { type: 'text/csv' });

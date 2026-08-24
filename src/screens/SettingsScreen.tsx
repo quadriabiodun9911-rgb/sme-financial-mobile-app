@@ -17,6 +17,7 @@ import { showAlert, confirmAction } from '../utils/webAlert';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { trackDataExported } from '../utils/analytics';
+import { auditEvents } from '../utils/auditLog';
 import { isFinancingAdmin } from '../utils/financingAdmin';
 import { PRIMARY_GOAL_OPTIONS } from '../utils/primaryGoals';
 import { auditDataIntegrity } from '../utils/dataIntegrity';
@@ -209,7 +210,7 @@ export default function SettingsScreen() {
     const handleExport = async () => {
         try {
             const json = await exportData();
-            if (!isDemoMode) trackDataExported();
+            if (!isDemoMode) { trackDataExported(); auditEvents.dataExport(); }
             if (Platform.OS === 'web') {
                 const blob = new Blob([json], { type: 'application/json' });
                 const url  = URL.createObjectURL(blob);
@@ -229,7 +230,7 @@ export default function SettingsScreen() {
     const handleAccountantExport = () => {
         try {
             const csv = generateAccountantReportCSV(finance, transactions, assets, loans);
-            if (!isDemoMode) trackDataExported();
+            if (!isDemoMode) { trackDataExported(); auditEvents.dataExport(); }
             const filename = `quad360-accountant-report-${new Date().toISOString().slice(0, 10)}.csv`;
             if (Platform.OS === 'web') {
                 const blob = new Blob([csv], { type: 'text/csv' });
@@ -523,6 +524,15 @@ export default function SettingsScreen() {
                             </Text>
                             <TouchableOpacity style={styles.dataBtn} onPress={() => setCurrentScreen('data-integrity')}>
                                 <Text style={styles.dataBtnText}>Run Data Integrity Check</Text>
+                            </TouchableOpacity>
+                        </Section>
+
+                        <Section title="Activity Log">
+                            <Text style={styles.hint}>
+                                See your own recent security-relevant activity — logins, PIN changes, team changes, data exports and imports.
+                            </Text>
+                            <TouchableOpacity style={styles.dataBtn} onPress={() => setCurrentScreen('audit-log')}>
+                                <Text style={styles.dataBtnText}>View Activity Log</Text>
                             </TouchableOpacity>
                         </Section>
                     </CollapsibleSection>

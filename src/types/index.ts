@@ -39,7 +39,8 @@ export type Screen =
     | 'blog'
     | 'blog-post'
     | 'privacy-policy'
-    | 'data-integrity';
+    | 'data-integrity'
+    | 'audit-log';
 
 export interface Budget {
     id: string;
