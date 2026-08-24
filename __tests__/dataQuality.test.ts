@@ -1,4 +1,4 @@
-import { computeDataQuality } from '../src/utils/dataQuality';
+import { computeDataQuality, classifyTransactions } from '../src/utils/dataQuality';
 import { Transaction } from '../src/types';
 
 const makeTx = (overrides: Partial<Transaction>): Transaction => ({
@@ -67,5 +67,78 @@ describe('computeDataQuality', () => {
         ];
         const q = computeDataQuality(txs);
         expect(q.confidence).toBe('limited');
+    });
+});
+
+describe('classifyTransactions', () => {
+    it('treats a specific keyword match as confident', () => {
+        const [v] = classifyTransactions([makeTx({ id: 'a', type: 'expense', description: 'Staff salary payment' })]);
+        expect(v.confidence).toBe('confident');
+    });
+
+    it('treats a transaction linked to a recorded inventory sale as confident regardless of description', () => {
+        const [v] = classifyTransactions([makeTx({ id: 'a', type: 'income', description: 'xyz123', inventoryItemId: 'item-1' })]);
+        expect(v.confidence).toBe('confident');
+    });
+
+    it('flags an unexplained small expense as needs_review, not ambiguous', () => {
+        const [v] = classifyTransactions([makeTx({ id: 'a', type: 'expense', description: 'xyz123' })]);
+        expect(v.confidence).toBe('needs_review');
+    });
+
+    it('flags an unexplained small income as needs_review when it is not unusually large', () => {
+        const txs = [
+            makeTx({ id: 'a', type: 'income', description: 'Sales revenue', amount: 1000 }),
+            makeTx({ id: 'b', type: 'income', description: 'Sales revenue', amount: 1000 }),
+            makeTx({ id: 'c', type: 'income', description: 'xyz123', amount: 1000 }),
+        ];
+        const verdicts = classifyTransactions(txs);
+        expect(verdicts.find(v => v.transactionId === 'c')!.confidence).toBe('needs_review');
+    });
+
+    it('flags an unusually large, undescribed inflow as ambiguous', () => {
+        const txs = [
+            makeTx({ id: 'a', type: 'income', description: 'Sales revenue', amount: 1000 }),
+            makeTx({ id: 'b', type: 'income', description: 'Sales revenue', amount: 1000 }),
+            makeTx({ id: 'c', type: 'income', description: 'xyz123', amount: 5000000 }),
+        ];
+        const verdicts = classifyTransactions(txs);
+        const big = verdicts.find(v => v.transactionId === 'c')!;
+        expect(big.confidence).toBe('ambiguous');
+        expect(big.reason).toContain('loan');
+    });
+
+    it('does not flag a large unexplained inflow as ambiguous once it has a named customer', () => {
+        const txs = [
+            makeTx({ id: 'a', type: 'income', description: 'Sales revenue', amount: 1000 }),
+            makeTx({ id: 'b', type: 'income', description: 'Sales revenue', amount: 1000 }),
+            makeTx({ id: 'c', type: 'income', description: 'xyz123', amount: 5000000, vendorCustomer: 'Ngozi Traders' }),
+        ];
+        const verdicts = classifyTransactions(txs);
+        expect(verdicts.find(v => v.transactionId === 'c')!.confidence).toBe('needs_review');
+    });
+});
+
+describe('computeDataQuality classification rollup', () => {
+    it('rolls up classification confidence into percentages and a plain-language summary', () => {
+        const txs = [
+            makeTx({ id: 'a', type: 'expense', description: 'Staff salary payment' }),
+            makeTx({ id: 'b', type: 'expense', description: 'Staff salary payment' }),
+            makeTx({ id: 'c', type: 'expense', description: 'xyz123' }),
+        ];
+        const q = computeDataQuality(txs);
+        expect(q.confidentCount).toBe(2);
+        expect(q.needsReviewCount).toBe(1);
+        expect(q.ambiguousCount).toBe(0);
+        expect(q.confidentPct).toBe(67);
+        expect(q.classificationSummary).toContain('67% of transactions were classified automatically');
+        expect(q.classificationSummary).toContain('33% need review');
+    });
+
+    it('returns a zeroed classification rollup for an empty transaction list', () => {
+        const q = computeDataQuality([]);
+        expect(q.confidentCount).toBe(0);
+        expect(q.confidentPct).toBe(0);
+        expect(q.classificationSummary).toBe('No transactions to classify yet');
     });
 });

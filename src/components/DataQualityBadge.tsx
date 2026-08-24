@@ -32,9 +32,12 @@ export default function DataQualityBadge({ transactions, style }: Props) {
                 <Text style={s.chevron}>{expanded ? '︿' : '﹀'}</Text>
             </View>
             {expanded && (
-                <Text style={s.detail}>
-                    Figures on this page are only as reliable as this history. Numbers built on months with no data are shown flat, not estimated — check the footnotes on any trend table before relying on a figure for a big decision.
-                </Text>
+                <>
+                    <Text style={s.detail}>
+                        Figures on this page are only as reliable as this history. Numbers built on months with no data are shown flat, not estimated — check the footnotes on any trend table before relying on a figure for a big decision.
+                    </Text>
+                    <Text style={[s.detail, { fontStyle: 'normal', marginTop: 6 }]}>{quality.classificationSummary}</Text>
+                </>
             )}
         </TouchableOpacity>
     );

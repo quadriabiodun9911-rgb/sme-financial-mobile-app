@@ -31,6 +31,7 @@ export default function DataConfidenceBadge({ transactions }: Props) {
             <View style={{ flex: 1 }}>
                 <Text style={[s.label, { color: cfg.color }]}>{cfg.label}</Text>
                 <Text style={s.summary}>{quality.summary}</Text>
+                <Text style={s.summary}>{quality.classificationSummary}</Text>
             </View>
         </View>
     );

@@ -18,6 +18,7 @@ import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { t } from '../utils/i18n';
 import { trackDataExported } from '../utils/analytics';
 import { isOverdueIncomeTransaction, getOverdueIncomeTransactions } from '../utils/overdueTransactions';
+import { classifyTransactions } from '../utils/dataQuality';
 import CostExposureTab from '../components/CostExposureTab';
 
 type FilterType   = 'all' | 'income' | 'expense' | 'collect';
@@ -145,6 +146,7 @@ export default function TransactionsScreen() {
     const [search, setSearch]         = useState('');
     const [typeFilter, setTypeFilter] = useState<FilterType>(navParams?.filter === 'collect' ? 'collect' : 'all');
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+    const [reviewOnly, setReviewOnly] = useState(navParams?.filter === 'review');
     const [page, setPage]             = useState(1);
     const PAGE_SIZE = 50;
     const [form, setForm]             = useState<FormState>({ ...EMPTY_FORM, taxRate: defaultTaxRate });
@@ -152,6 +154,14 @@ export default function TransactionsScreen() {
     const [csvText, setCsvText]           = useState('');
 
     // ── Filtering ────────────────────────────────────────────────────────────
+    // Classification confidence per transaction (see dataQuality.ts) --
+    // recomputed only when the transaction list itself changes, not on
+    // every filter/search keystroke.
+    const reviewIds = useMemo(
+        () => new Set(classifyTransactions(transactions).filter(v => v.confidence !== 'confident').map(v => v.transactionId)),
+        [transactions]
+    );
+
     const filtered = useMemo(() => {
         return transactions.filter(tx => {
             if (typeFilter === 'collect') {
@@ -161,6 +171,7 @@ export default function TransactionsScreen() {
                 if (typeFilter !== 'all' && tx.type !== typeFilter) return false;
                 if (statusFilter !== 'all' && (tx.status ?? 'paid') !== statusFilter) return false;
             }
+            if (reviewOnly && !reviewIds.has(tx.id)) return false;
             const q = search.toLowerCase();
             if (q && !(
                 (tx.description ?? '').toLowerCase().includes(q) ||
@@ -171,7 +182,7 @@ export default function TransactionsScreen() {
             )) return false;
             return true;
         });
-    }, [transactions, typeFilter, statusFilter, search]);
+    }, [transactions, typeFilter, statusFilter, reviewOnly, reviewIds, search]);
 
     // Collections sorted by days overdue DESC, then amount DESC
     const collectionsFiltered = useMemo(() => {
@@ -411,6 +422,17 @@ export default function TransactionsScreen() {
                             </Text>
                         </TouchableOpacity>
                     ))}
+                    {reviewIds.size > 0 && (
+                        <>
+                            <View style={styles.sep} />
+                            <TouchableOpacity
+                                style={[styles.chip, reviewOnly && styles.chipCollect]}
+                                onPress={() => { setReviewOnly(v => !v); setPage(1); }}
+                            >
+                                <Text style={[styles.chipText, reviewOnly && styles.chipTextActive]}>⚠️ Needs Review ({reviewIds.size})</Text>
+                            </TouchableOpacity>
+                        </>
+                    )}
                 </ScrollView>
                 <Text style={styles.countBadge}>{filtered.length}</Text>
             </View>
