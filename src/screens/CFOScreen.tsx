@@ -19,10 +19,15 @@ import {
     computeBreakEven,
     computeDebtOptimiser,
     computePaymentOptimiser,
+    RISK_BAND_STYLE,
 } from '../utils/finance';
 import { computeInventoryValue } from '../utils/stockVelocity';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
+import { computeForecastSummary } from '../utils/forecastSummary';
+import { NO_ADJUSTMENTS } from '../utils/futureFinancialStatements';
+import { generateForecastRiskActions } from '../utils/forecastRiskRecommendations';
+import { ImpactLevel } from '../utils/externalFactorsPanel';
 
 type Tab = 'pulse' | 'forecast' | 'finance' | 'growth' | 'questions';
 
@@ -175,8 +180,15 @@ function PulseTab({ onOpenRisk }: { onOpenRisk: () => void }) {
 }
 
 // ── Tab: Forecast ─────────────────────────────────────────────────────────────
+// Chip color for an internal signal or external risk-radar impact level --
+// shared by both halves of the "What's influencing your forecast" row so
+// internal and external factors read on the same scale.
+const IMPACT_DOT_COLOR: Record<ImpactLevel, string> = {
+    high: Colors.expense, medium: Colors.warning, low: Colors.textMuted, positive: Colors.income,
+};
+
 function ForecastTab() {
-    const { transactions, loans, invoices, budgets, settings, setCurrentScreen, navigate } = useApp();
+    const { transactions, loans, invoices, budgets, settings, staff, inventory, finance, setCurrentScreen, navigate } = useApp();
     const { currency } = settings;
     const [forecastMonths, setForecastMonths] = useState<3 | 6 | 12>(3);
 
@@ -185,8 +197,136 @@ function ForecastTab() {
     const maxVal    = Math.max(...forecast.map(f => f.bestCase), 1);
     const alertWeeks = cashFlow.filter(w => w.alert).length;
 
+    // The "decision" front door: a single 90-day read combining internal
+    // trend, external relevance-gated risk, scenario range, and a forecast-
+    // driven recommendation -- everything below reuses computeForecastSummary
+    // (forecastSummary.ts), the same engine the full Financial Forecast
+    // screen is built on, so this never disagrees with the detail one tap away.
+    const macroAssumptions = settings.macroAssumptions ?? [];
+    const futureEvents = settings.futureEvents ?? [];
+    const outlook = useMemo(
+        () => computeForecastSummary(transactions, loans, finance, '90d', staff, macroAssumptions, NO_ADJUSTMENTS, inventory, futureEvents),
+        [transactions, loans, finance, staff, macroAssumptions, inventory, futureEvents],
+    );
+    const outlookActions = useMemo(() => generateForecastRiskActions(outlook, currency), [outlook, currency]);
+    const topOutlookAction = outlookActions[0];
+    const soonestPressuredMonth = outlook.cashFlowMonths.find(m => m.pressured);
+    const worstExternalRisk = [...outlook.riskRadar].sort((a, b) => {
+        const rank: Record<ImpactLevel, number> = { high: 3, medium: 2, low: 1, positive: 0 };
+        return rank[b.impact] - rank[a.impact];
+    })[0];
+    const healthStyle = RISK_BAND_STYLE[outlook.healthForecast.projectedScore.band];
+    const healthDeclined = outlook.healthForecast.projectedScore.score < outlook.healthForecast.currentScore.score;
+
     return (
         <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
+            {/* Financial Outlook — the front door: what's likely to happen,
+                why, what's most exposed, and one clear next step. Full
+                assumption/scenario/attribution detail lives one tap away on
+                the Financial Forecast screen; this is the glance-friendly
+                summary of the same numbers. */}
+            <View style={s.card}>
+                <Text style={s.cardTitle}>🔮 Financial Outlook — Next 90 Days</Text>
+                <View style={s.outlookGrid}>
+                    <View style={s.outlookBox}>
+                        <Text style={s.outlookLabel}>Revenue</Text>
+                        <Text style={[s.outlookVal, { color: Colors.income }]}>{currency}{Math.round(outlook.headline.expectedRevenue).toLocaleString()}</Text>
+                    </View>
+                    <View style={s.outlookBox}>
+                        <Text style={s.outlookLabel}>Profit</Text>
+                        <Text style={[s.outlookVal, { color: outlook.headline.expectedProfit >= 0 ? Colors.income : Colors.expense }]}>{currency}{Math.round(outlook.headline.expectedProfit).toLocaleString()}</Text>
+                    </View>
+                    <View style={s.outlookBox}>
+                        <Text style={s.outlookLabel}>Cash</Text>
+                        <Text style={[s.outlookVal, { color: Colors.primary }]}>{currency}{Math.round(outlook.headline.expectedCashPosition).toLocaleString()}</Text>
+                    </View>
+                    <View style={s.outlookBox}>
+                        <Text style={s.outlookLabel}>Financial Health</Text>
+                        <Text style={[s.outlookVal, { color: healthDeclined ? Colors.warning : Colors.income }]}>
+                            {outlook.healthForecast.currentScore.score} → {outlook.healthForecast.projectedScore.score} {healthDeclined ? '⚠️' : ''}
+                        </Text>
+                    </View>
+                </View>
+
+                {/* What's influencing this forecast */}
+                <Text style={s.outlookSectionLabel}>What's influencing your forecast</Text>
+                <View style={s.outlookChipRow}>
+                    <Text style={s.outlookChipGroupLabel}>Internal</Text>
+                    {outlook.detectedRevenueGrowthPctPerMonth !== null && (
+                        <View style={s.outlookChip}>
+                            <View style={[s.outlookDot, { backgroundColor: outlook.detectedRevenueGrowthPctPerMonth >= 0 ? Colors.income : Colors.expense }]} />
+                            <Text style={s.outlookChipText}>Sales trend</Text>
+                        </View>
+                    )}
+                    {outlook.marginRisk.show && (
+                        <View style={s.outlookChip}>
+                            <View style={[s.outlookDot, { backgroundColor: Colors.expense }]} />
+                            <Text style={s.outlookChipText}>Discounting</Text>
+                        </View>
+                    )}
+                    {outlook.inventoryForecast.atRiskItemCount > 0 && (
+                        <View style={s.outlookChip}>
+                            <View style={[s.outlookDot, { backgroundColor: Colors.warning }]} />
+                            <Text style={s.outlookChipText}>Inventory</Text>
+                        </View>
+                    )}
+                </View>
+                {outlook.riskRadar.length > 0 && (
+                    <View style={s.outlookChipRow}>
+                        <Text style={s.outlookChipGroupLabel}>External</Text>
+                        {outlook.riskRadar.map((r, i) => (
+                            <View key={i} style={s.outlookChip}>
+                                <View style={[s.outlookDot, { backgroundColor: IMPACT_DOT_COLOR[r.impact] }]} />
+                                <Text style={s.outlookChipText}>{r.label}</Text>
+                            </View>
+                        ))}
+                    </View>
+                )}
+
+                {/* Biggest risk */}
+                {(soonestPressuredMonth || (worstExternalRisk && worstExternalRisk.impact === 'high')) && (
+                    <View style={s.outlookRiskBox}>
+                        <Text style={s.outlookRiskLabel}>⚠️ Biggest Risk</Text>
+                        <Text style={s.outlookRiskText}>
+                            {soonestPressuredMonth
+                                ? `Cash-flow pressure in ${soonestPressuredMonth.monthLabel} — expected outflows may exceed expected collections.`
+                                : `${worstExternalRisk!.label} is a high-impact, corroborated risk to this forecast.`}
+                        </Text>
+                    </View>
+                )}
+
+                {/* Forecast assumptions -- explainable, not just a number */}
+                <Text style={s.outlookSectionLabel}>Forecast assumptions</Text>
+                <View style={s.outlookAssumptions}>
+                    {outlook.detectedRevenueGrowthPctPerMonth !== null && (
+                        <Text style={s.outlookAssumptionRow}>• Historical sales trend: {outlook.detectedRevenueGrowthPctPerMonth >= 0 ? '+' : ''}{outlook.detectedRevenueGrowthPctPerMonth.toFixed(1)}%/mo</Text>
+                    )}
+                    {outlook.discountTrend.hasEnoughData && (
+                        <Text style={s.outlookAssumptionRow}>• Average discount: {outlook.discountTrend.recentRatePct.toFixed(1)}%</Text>
+                    )}
+                    {outlook.externalFactors.items.map((item, i) => (
+                        <Text key={i} style={s.outlookAssumptionRow}>
+                            • {item.label}: {item.changePct >= 0 ? '+' : ''}{item.changePct.toFixed(0)}% ({item.corroborated ? 'showing in your books' : 'not yet showing in your books'})
+                        </Text>
+                    ))}
+                    <Text style={s.outlookAssumptionRow}>• Expected collection period: {outlook.profitBridge.revenue > 0 ? 'based on recent invoice timing' : 'not enough invoice history yet'}</Text>
+                    <Text style={[s.outlookAssumptionRow, { fontWeight: '700', marginTop: 4 }]}>Forecast confidence: {outlook.confidencePct}%</Text>
+                </View>
+
+                {/* One clear recommendation */}
+                {topOutlookAction && (
+                    <View style={s.outlookRecommendBox}>
+                        <Text style={s.outlookRecommendLabel}>🤖 Quad360 Recommendation</Text>
+                        <Text style={s.outlookRecommendText}>{topOutlookAction.description}</Text>
+                        <TouchableOpacity onPress={() => navigate('action-tracker')}>
+                            <Text style={s.outlookRecommendLink}>View Action Plan →</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
+
+                <NextStepLink text="See the full explainable forecast, scenarios & what-ifs" onPress={() => setCurrentScreen('future-statements')} />
+            </View>
+
             {/* Revenue forecast */}
             <View style={s.card}>
                 <Text style={s.cardTitle}>Revenue Forecast</Text>
@@ -574,6 +714,30 @@ const s = StyleSheet.create({
     safe:        { flex: 1, backgroundColor: Colors.bg },
     scroll:      { flex: 1, backgroundColor: Colors.bg },
     pad:         { padding: 16, paddingBottom: 100 },
+
+    outlookGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 14 },
+    outlookBox:  { flexBasis: '47%', flexGrow: 1, backgroundColor: Colors.bg, borderRadius: Radius.md, padding: 10 },
+    outlookLabel: { fontSize: 11, color: Colors.textMuted, marginBottom: 3 },
+    outlookVal:  { fontSize: 16, fontWeight: '700' },
+
+    outlookSectionLabel: { fontSize: 11.5, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 6, marginBottom: 6 },
+    outlookChipRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 8 },
+    outlookChipGroupLabel: { fontSize: 11, fontWeight: '700', color: Colors.textSecondary, marginRight: 2 },
+    outlookChip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: Colors.bg, borderRadius: 12, paddingHorizontal: 9, paddingVertical: 4 },
+    outlookDot:  { width: 7, height: 7, borderRadius: 4 },
+    outlookChipText: { fontSize: 11.5, color: Colors.textSecondary, fontWeight: '600' },
+
+    outlookRiskBox: { backgroundColor: Colors.expense + '14', borderWidth: 1, borderColor: Colors.expense + '55', borderRadius: Radius.md, padding: 10, marginTop: 4, marginBottom: 10 },
+    outlookRiskLabel: { fontSize: 12.5, fontWeight: '700', color: Colors.expense, marginBottom: 3 },
+    outlookRiskText: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
+
+    outlookAssumptions: { backgroundColor: Colors.bg, borderRadius: Radius.md, padding: 10, marginBottom: 10 },
+    outlookAssumptionRow: { fontSize: 12, color: Colors.textSecondary, lineHeight: 19 },
+
+    outlookRecommendBox: { backgroundColor: Colors.primary + '12', borderWidth: 1, borderColor: Colors.primary + '40', borderRadius: Radius.md, padding: 12, marginBottom: 10 },
+    outlookRecommendLabel: { fontSize: 12.5, fontWeight: '700', color: Colors.primary, marginBottom: 4 },
+    outlookRecommendText: { fontSize: 12.5, color: Colors.textPrimary, lineHeight: 18, marginBottom: 6 },
+    outlookRecommendLink: { fontSize: 12.5, fontWeight: '700', color: Colors.primary },
 
     headerRow:   { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, gap: 12 },
     backBtn:     { color: Colors.primary, fontSize: 14 },
