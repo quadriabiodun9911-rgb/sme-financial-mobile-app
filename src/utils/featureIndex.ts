@@ -114,10 +114,10 @@ export const FEATURE_INDEX: FeatureEntry[] = [
         screen: 'reports', navParams: { reportSection: 'planning', reportTab: 'cashsafety' },
     },
     {
-        id: 'growth-scenarios', label: 'Growth Scenarios', icon: '🚀',
-        description: 'Model different growth paths and their impact on the business',
-        keywords: ['budget', 'scenario', 'growth plan'],
-        screen: 'reports', navParams: { reportSection: 'planning', reportTab: 'budget' },
+        id: 'growth-scenarios', label: 'Growth Trends & Scenarios', icon: '🚀',
+        description: 'Your actual revenue growth history, plus modeled growth paths and their impact on the business',
+        keywords: ['budget', 'scenario', 'growth plan', 'growth trend', 'revenue growth', 'growth rate'],
+        screen: 'reports', navParams: { reportSection: 'growth', reportTab: 'growth' },
     },
     {
         id: 'best-customers', label: 'Best Customers (Customer Profitability)', icon: '⭐',

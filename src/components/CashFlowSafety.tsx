@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useMemo } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { FinanceData, Transaction, Invoice } from '../types';
 import { computeAgingBuckets } from '../utils/finance';
@@ -10,7 +10,7 @@ import { ScenarioProjection, ScenarioType } from '../types/forecast';
 import BarList from './BarList';
 import CashFlowStressTester from './CashFlowStressTester';
 import RainyDayFundPlanner from './RainyDayFundPlanner';
-import Icon from './ui/Icon';
+import Collapsible from './Collapsible';
 
 interface Props {
     finance: FinanceData;
@@ -209,19 +209,6 @@ export default function CashFlowSafety({ finance, transactions, invoices, curren
     );
 }
 
-function Collapsible({ title, children }: { title: string; children: React.ReactNode }) {
-    const [open, setOpen] = useState(false);
-    return (
-        <View style={styles.collapsibleWrap}>
-            <TouchableOpacity style={styles.collapsibleHeader} onPress={() => setOpen(o => !o)} activeOpacity={0.7}>
-                <Text style={styles.collapsibleTitle}>{title}</Text>
-                <Icon name={open ? 'chevron-up' : 'chevron-down'} size={18} color={Colors.textMuted} />
-            </TouchableOpacity>
-            {open && <View style={styles.collapsibleBody}>{children}</View>}
-        </View>
-    );
-}
-
 const PRIORITY_COLOR: Record<'high' | 'medium' | 'low', string> = {
     high: Colors.expense,
     medium: Colors.warning,
@@ -342,9 +329,4 @@ const styles = StyleSheet.create({
     recItem: { borderLeftWidth: 3, paddingLeft: 10, marginBottom: 10 },
     recTitle: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },
     recDesc: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
-
-    collapsibleWrap: { backgroundColor: Colors.bg, borderRadius: 12, marginBottom: 12, overflow: 'hidden', borderWidth: 1, borderColor: Colors.border },
-    collapsibleHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16 },
-    collapsibleTitle: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary },
-    collapsibleBody: { padding: 8, paddingTop: 0 },
 });

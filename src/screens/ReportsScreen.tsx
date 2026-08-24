@@ -16,14 +16,13 @@ import StockSalesComparisonTable from '../components/StockSalesComparisonTable';
 import TaxSummary from '../components/TaxSummary';
 import TaxFilingReadinessTab from '../components/TaxFilingReadinessTab';
 import TaxPlanningTab from '../components/TaxPlanningTab';
-import BudgetForecast from '../components/BudgetForecast';
 import CashFlowSafety from '../components/CashFlowSafety';
 import DebtAnalysis from '../components/DebtAnalysis';
 import EnhancedDebtManagement from '../components/EnhancedDebtManagement';
 import AssetProductivityAnalysis from '../components/AssetProductivityAnalysis';
 import CustomerProfitability from '../components/CustomerProfitability';
 import ProductPerformance from '../components/ProductPerformance';
-import GrowthMetrics from '../components/GrowthMetrics';
+import GrowthOutlook from '../components/GrowthOutlook';
 import MultiYearTrends from '../components/MultiYearTrends';
 import QualityOfGrowthTab from '../components/QualityOfGrowthTab';
 import CostExposureTab from '../components/CostExposureTab';
@@ -55,15 +54,15 @@ const SECTIONS: { key: SectionKey; label: string; icon: IconName; desc: string }
     { key: 'statements', label: 'Financial Statements',    icon: 'bar-chart-2', desc: 'Balance Sheet, P&L, Inventory, Cash Flow' },
     { key: 'customers',  label: 'Customers & Collections',  icon: 'dollar-sign', desc: 'Who Owes Me - Unpaid Invoices' },
     { key: 'tax',        label: 'Tax & Compliance',         icon: 'clipboard',   desc: 'Tax Summary and Obligations' },
-    { key: 'planning',   label: 'Planning & Forecasts',     icon: 'trending-up', desc: 'Growth Scenarios, Cash Timeline, Loans & Debt' },
-    { key: 'growth',     label: 'Growth Analytics',         icon: 'zap',         desc: 'Growth Trends, Best Customers & Products' },
+    { key: 'planning',   label: 'Planning & Forecasts',     icon: 'trending-up', desc: 'Cash Flow & Safety, Loans & Debt, Assets' },
+    { key: 'growth',     label: 'Growth Analytics',         icon: 'zap',         desc: 'Growth Trends & Scenarios, Best Customers & Products' },
 ];
 
 type SubTab =
     | 'balancesheet' | 'pnl' | 'inventory' | 'accrual'
     | 'aging'
     | 'tax' | 'tax-filing' | 'tax-planning'
-    | 'budget' | 'cashflow' | 'cashsafety' | 'debt' | 'assets'
+    | 'cashflow' | 'cashsafety' | 'debt' | 'assets'
     | 'growth' | 'history' | 'quality' | 'exposure' | 'customers' | 'products' | 'pricing';
 
 const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
@@ -83,13 +82,12 @@ const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
         { key: 'tax-planning', label: 'Tax Planning' },
     ],
     planning: [
-        { key: 'budget',      label: 'Growth Scenarios' },
         { key: 'cashsafety',  label: 'Cash Flow & Safety' },
         { key: 'debt',        label: 'Loans & Debt' },
         { key: 'assets',      label: 'Assets' },
     ],
     growth: [
-        { key: 'growth',    label: 'Growth Trends' },
+        { key: 'growth',    label: 'Growth Trends & Scenarios' },
         { key: 'history',   label: 'Multi-Year History' },
         { key: 'quality',   label: 'Quality of Growth' },
         { key: 'exposure',  label: 'Cost Exposure' },
@@ -632,17 +630,6 @@ export default function ReportsScreen() {
                     {/* ── TAX PLANNING ──────────────────────────────────── */}
                     {activeTab === 'tax-planning' && <TaxPlanningTab />}
 
-                    {/* ── BUDGET FORECAST ──────────────────────────────── */}
-                    {activeTab === 'budget' && (
-                        <BudgetForecast
-                            finance={allFinance}
-                            transactions={transactions}
-                            currency={currency}
-                            targetMargin={targetMargin}
-                            onSeeBudget={() => setCurrentScreen('budget')}
-                        />
-                    )}
-
                     {/* ── CASH FLOW ────────────────────────────────────── */}
                     {activeTab === 'cashflow' && (
                         <View>
@@ -717,12 +704,14 @@ export default function ReportsScreen() {
                     )}
 
 
-                    {/* ── GROWTH METRICS ───────────────────────────────── */}
+                    {/* ── GROWTH OUTLOOK (trends + scenarios) ──────────── */}
                     {activeTab === 'growth' && (
-                        <GrowthMetrics
+                        <GrowthOutlook
+                            finance={allFinance}
                             transactions={transactions}
                             currency={currency}
-                            finance={allFinance}
+                            targetMargin={targetMargin}
+                            onSeeBudget={() => setCurrentScreen('budget')}
                         />
                     )}
 
