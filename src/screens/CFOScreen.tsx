@@ -283,10 +283,10 @@ function FinanceTab() {
                 : ratios.currentRatio >= 1.5 ? 'Assets cover short-term debts' : 'Short-term debts may be hard to cover',
         },
         {
-            // Sourced from the same canonical computeLeverageRatios DebtAnalysis
-            // uses, so this figure can never disagree with the Loans & Debt tab.
+            // Sourced from the same canonical computeLeverageRatios the Loans &
+            // Debt tab uses, so this figure can never disagree with it.
             // Infinity (equity <= 0 with real debt) is its own "N/A", same
-            // convention DebtAnalysis already uses.
+            // convention that tab already uses.
             label: 'Debt to Equity',
             value: ratios.debtToEquity === Infinity ? 'N/A' : ratios.debtToEquity.toFixed(2) + 'x',
             good: ratios.debtToEquity !== Infinity && ratios.debtToEquity <= 0.8,

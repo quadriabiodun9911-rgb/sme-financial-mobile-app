@@ -874,7 +874,7 @@ export interface FinancialRatios {
  * actually unique to this view: currentRatio, burnRate, profitMargin.
  */
 export function computeFinancialRatios(finance: FinanceData, loans: Loan[], transactions: Transaction[], inventoryValue: number = 0): FinancialRatios {
-    // AR/AP folded in the same way DebtAnalysis, EnhancedDebtManagement and
+    // AR/AP folded in the same way LoansAndDebt (Reports > Loans & Debt) and
     // Reports > "What I Own & Owe" already do, so debtToEquity/returnOnAssets
     // here agree with those screens instead of a narrower figure that
     // ignores money owed to the business and stock on hand.

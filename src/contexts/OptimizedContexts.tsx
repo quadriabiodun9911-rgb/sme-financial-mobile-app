@@ -291,8 +291,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     // This used to hardcode all four opening-balance fields to '0' regardless
     // of what the business actually entered in Settings > Financial Set Up —
     // so finance.assets/liabilities/equity (and every leverage ratio built on
-    // them: DebtAnalysis, EnhancedDebtManagement, Credit-Worthiness's Five
-    // C's Capital section) silently ignored real opening balances, while
+    // them: Reports > Loans & Debt, Credit-Worthiness's Five C's Capital
+    // section) silently ignored real opening balances, while
     // Reports > "What I Own & Owe" called computeFinance directly with the
     // real settings and so showed a different, correct net worth for the
     // same business.

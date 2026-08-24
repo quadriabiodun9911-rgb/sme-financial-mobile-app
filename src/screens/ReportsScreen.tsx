@@ -17,8 +17,7 @@ import TaxSummary from '../components/TaxSummary';
 import TaxFilingReadinessTab from '../components/TaxFilingReadinessTab';
 import TaxPlanningTab from '../components/TaxPlanningTab';
 import CashFlowSafety from '../components/CashFlowSafety';
-import DebtAnalysis from '../components/DebtAnalysis';
-import EnhancedDebtManagement from '../components/EnhancedDebtManagement';
+import LoansAndDebt from '../components/LoansAndDebt';
 import AssetProductivityAnalysis from '../components/AssetProductivityAnalysis';
 import CustomerProfitability from '../components/CustomerProfitability';
 import ProductPerformance from '../components/ProductPerformance';
@@ -670,28 +669,17 @@ export default function ReportsScreen() {
                         />
                     )}
 
-                    {/* ── DEBT MANAGEMENT ──────────────────────────────── */}
+                    {/* ── LOANS & DEBT ─────────────────────────────────── */}
                     {activeTab === 'debt' && (
-                        <>
-                            <EnhancedDebtManagement
-                                finance={allFinance}
-                                currency={currency}
-                                loans={loansList}
-                                transactions={transactions}
-                                inventoryValue={inventoryValue}
-                            />
-                            {/* Solvency/leverage ratios (debt-to-assets, debt-to-
-                                equity, ROA, ROE) — was imported but never actually
-                                rendered anywhere in the app. */}
-                            <DebtAnalysis
-                                finance={allFinance}
-                                currency={currency}
-                                loans={loansList}
-                                accountsReceivable={allTimeWcMetrics.accountsReceivable}
-                                accountsPayable={allTimeWcMetrics.accountsPayable}
-                                inventoryValue={inventoryValue}
-                            />
-                        </>
+                        <LoansAndDebt
+                            finance={allFinance}
+                            currency={currency}
+                            loans={loansList}
+                            transactions={transactions}
+                            accountsReceivable={allTimeWcMetrics.accountsReceivable}
+                            accountsPayable={allTimeWcMetrics.accountsPayable}
+                            inventoryValue={inventoryValue}
+                        />
                     )}
 
                     {/* ── ASSET PRODUCTIVITY ───────────────────────────── */}

@@ -299,7 +299,7 @@ export default function CreditWorthinessScreen() {
     // above is often read against. Built from the same already-computed
     // numbers on this screen (DSCR, inventory value) plus leverage/net
     // worth, which the weighted score doesn't include at all.
-    // AR/AP folded in the same way DebtAnalysis, EnhancedDebtManagement and
+    // AR/AP folded in the same way LoansAndDebt (Reports > Loans & Debt) and
     // Reports > "What I Own & Owe" already do, so Capital's net worth agrees
     // with those screens instead of a narrower figure.
     const wcMetrics = useMemo(() => computeWorkingCapitalMetrics(transactions), [transactions]);
