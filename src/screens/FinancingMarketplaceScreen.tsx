@@ -11,6 +11,7 @@ import { ExpandableCard } from '../components/ui/ExpandableCard';
 import { computeRiskScore, computeDSCR, RiskScore } from '../utils/finance';
 import { buildFinancingFitInput, rankFinancingProducts, FinancingFitResult, FinancingFitVerdict } from '../utils/financingFit';
 import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
+import { assessCapitalNeed, CAPITAL_PURPOSE_PRODUCT_TYPES } from '../utils/capitalNeedAssessment';
 import { computeReadinessDelta } from '../utils/readinessHistory';
 import { recommendFinancingTypes, FinancingRecommendation } from '../utils/financingRecommendation';
 import { canPublishToLenders as computeCanPublishToLenders } from '../utils/rolePermissions';
@@ -92,6 +93,12 @@ const CATEGORIES: FinancingCategory[] = [
     { id: 'women_youth',          label: 'Women & Youth Business', icon: 'users',         productTypes: [], specialized: true },
     { id: 'startup_innovation',   label: 'Startup / Innovation',   icon: 'zap',           productTypes: ['term_loan', 'working_capital'], specialized: true },
     { id: 'green_climate',        label: 'Green / Climate Finance', icon: 'wind',         productTypes: ['asset_financing', 'term_loan'], specialized: true },
+    // "Refinancing existing debt" and "emergency liquidity" are real
+    // reasons a business needs capital that don't fit any category above
+    // (those are mostly industry verticals or a specific asset/structure) --
+    // added so "why do you need this money" has an honest answer for both.
+    { id: 'refinancing',          label: 'Refinancing',            icon: 'refresh-cw',    productTypes: CAPITAL_PURPOSE_PRODUCT_TYPES.refinancing },
+    { id: 'emergency_liquidity',  label: 'Emergency Liquidity',     icon: 'alert-circle',  productTypes: CAPITAL_PURPOSE_PRODUCT_TYPES.emergency },
 ];
 
 // Where a recommended FinancingProductType lands if the owner taps it —
@@ -231,6 +238,14 @@ export default function FinancingMarketplaceScreen() {
         hasReliableData: dataQuality.confidence !== 'none' && dataQuality.confidence !== 'limited',
         inventoryValue,
     }), [risk.score, fitInput.avgMonthlyRevenue, dscr.dscr, dataQuality.confidence, inventoryValue]);
+
+    // What the ask actually compares to -- a specific suggested amount when
+    // the request exceeds sustainable capacity, not just a warning that it
+    // does. See capitalNeedAssessment.ts.
+    const capitalNeed = useMemo(
+        () => assessCapitalNeed(requestedAmount, lendingCapacity.minAmount, lendingCapacity.maxAmount, currency),
+        [requestedAmount, lendingCapacity.minAmount, lendingCapacity.maxAmount, currency],
+    );
 
     // A single-point score tells a lender nothing about direction -- this is
     // the same trend Credit-Worthiness shows in full, condensed to one line
@@ -530,10 +545,8 @@ export default function FinancingMarketplaceScreen() {
                             Debt-service coverage is below 1x — existing income doesn't cover current debt payments yet.
                         </Text>
                     )}
-                    {requestedAmount !== undefined && lendingCapacity.maxAmount > 0 && requestedAmount > lendingCapacity.maxAmount && (
-                        <Text style={s.assessmentWarn}>
-                            Your {fmtAmt(currency, requestedAmount)} ask is above what your current cash flow comfortably supports — lenders may see this as more debt than your numbers can carry.
-                        </Text>
+                    {capitalNeed.withinCapacity === false && (
+                        <Text style={s.assessmentWarn}>{capitalNeed.message}</Text>
                     )}
                     {readinessDelta && readinessDelta.trend !== 'stable' && (
                         <Text style={[s.readinessTrend, { color: readinessDelta.trend === 'improving' ? Colors.income : Colors.expense }]}>
