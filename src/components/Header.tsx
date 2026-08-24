@@ -9,6 +9,7 @@ import Icon from './ui/Icon';
 import GlobalSearch from './GlobalSearch';
 import AlertsWidget from './AlertsWidget';
 import { detectFinancialAlerts, DEFAULT_THRESHOLDS } from '../utils/alertEngine';
+import { computeForecastRiskAlert } from '../utils/forecastRiskAlert';
 import { ForecastAlert } from '../types/forecast';
 import { sendCashFlowAlert, sendOverdueInvoiceAlert } from '../utils/whatsappIntegration';
 
@@ -72,10 +73,15 @@ export default function Header() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const alerts = useMemo(
-        () => detectFinancialAlerts(finance?.cashBalance ?? 0, transactions ?? [], invoices ?? [], currency, dismissedIds, loans ?? [], staff ?? [], payrollRuns ?? [], settings?.nextTaxDeadline, goals ?? [], budgets ?? [], assets ?? [], inventory ?? [], finance?.totalTaxCollected, finance?.totalTaxPaid, settings?.minReserve),
-        [finance?.cashBalance, transactions, invoices, currency, dismissedIds, loans, staff, payrollRuns, settings?.nextTaxDeadline, goals, budgets, assets, inventory, finance?.totalTaxCollected, finance?.totalTaxPaid, settings?.minReserve]
-    );
+    const alerts = useMemo(() => {
+        const base = detectFinancialAlerts(finance?.cashBalance ?? 0, transactions ?? [], invoices ?? [], currency, dismissedIds, loans ?? [], staff ?? [], payrollRuns ?? [], settings?.nextTaxDeadline, goals ?? [], budgets ?? [], assets ?? [], inventory ?? [], finance?.totalTaxCollected, finance?.totalTaxPaid, settings?.minReserve);
+        // Additive: same negative_forecast alert type as detectFinancialAlerts
+        // produces, but sourced from the richer forecastSummary.ts engine
+        // (external relevance-gating, scenarios, health trajectory) instead
+        // of forecastEngine.ts's shallower model. See forecastRiskAlert.ts.
+        const forecastRisk = finance ? computeForecastRiskAlert(transactions ?? [], loans ?? [], finance, staff ?? [], settings?.macroAssumptions ?? [], inventory ?? [], settings?.futureEvents ?? [], budgets ?? [], currency, dismissedIds) : null;
+        return forecastRisk ? [...base, forecastRisk] : base;
+    }, [finance, transactions, invoices, currency, dismissedIds, loans, staff, payrollRuns, settings?.nextTaxDeadline, settings?.macroAssumptions, settings?.futureEvents, goals, budgets, assets, inventory, finance?.totalTaxCollected, finance?.totalTaxPaid, settings?.minReserve]);
 
     const handleDismiss = useCallback((alertId: string) => {
         setDismissedIds(prev => {
