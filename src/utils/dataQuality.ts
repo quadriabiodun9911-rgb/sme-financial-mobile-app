@@ -129,6 +129,48 @@ function classificationStats(transactions: Transaction[]) {
     return { confidentCount, needsReviewCount, ambiguousCount, confidentPct, needsReviewPct, ambiguousPct, classificationSummary };
 }
 
+function daysSince(dateStr: string): number {
+    const then = new Date(dateStr).getTime();
+    if (isNaN(then)) return NaN;
+    return Math.max(0, Math.floor((Date.now() - then) / 86400000));
+}
+
+/**
+ * The exact, scannable "why should I trust this" breakdown — four bullets,
+ * always in the same order, so a business owner (or a lender reading a
+ * Funding Readiness Pack) can check the same four things every time rather
+ * than parse a different sentence per screen. Deliberately does NOT
+ * include a "connected accounts" bullet some fintech apps show: Quad360
+ * has no live bank-connection/Open Banking integration (statements are
+ * uploaded or entered manually), and inventing a number for a concept
+ * that doesn't exist in this app would be a straightforward overclaim.
+ * "Most recent transaction" fills that role instead — it answers the same
+ * underlying question ("is this picture current?") with something real.
+ */
+export function computeDataConfidenceBullets(quality: DataQuality): string[] {
+    if (quality.totalTransactions === 0) return ['No transactions recorded yet'];
+
+    const bullets: string[] = [];
+
+    bullets.push(quality.monthsSpanned > 0
+        ? `${quality.monthsWithData} of ${quality.monthsSpanned} month${quality.monthsSpanned === 1 ? '' : 's'} have recorded activity (${Math.round(quality.coveragePct)}% coverage)`
+        : 'Not enough dated history yet to measure monthly coverage');
+
+    bullets.push(`${quality.confidentPct}% of transactions classified automatically`);
+
+    const freshDays = quality.newestDate ? daysSince(quality.newestDate) : NaN;
+    bullets.push(!isNaN(freshDays)
+        ? freshDays === 0 ? 'Most recent transaction recorded today' : `Most recent transaction recorded ${freshDays} day${freshDays === 1 ? '' : 's'} ago`
+        : 'No usable transaction dates yet');
+
+    const unresolvedCount = quality.needsReviewCount + quality.ambiguousCount;
+    bullets.push(unresolvedCount === 0
+        ? 'No transactions currently need review'
+        : `${unresolvedCount} transaction${unresolvedCount === 1 ? '' : 's'} still need${unresolvedCount === 1 ? 's' : ''} review`);
+
+    return bullets;
+}
+
 /**
  * How much of a business's real, dated history the app is actually working
  * with — separate from whether the numbers *look* healthy. A confident

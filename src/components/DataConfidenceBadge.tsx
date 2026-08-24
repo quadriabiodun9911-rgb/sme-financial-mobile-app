@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
-import { computeDataQuality, DataConfidence } from '../utils/dataQuality';
+import { computeDataQuality, computeDataConfidenceBullets, DataConfidence } from '../utils/dataQuality';
 import { Transaction } from '../types';
 
 interface Props {
@@ -23,6 +23,7 @@ const CONFIG: Record<DataConfidence, { emoji: string; label: string; color: stri
 // consistently, not just internally guard against acting on thin data.
 export default function DataConfidenceBadge({ transactions }: Props) {
     const quality = useMemo(() => computeDataQuality(transactions), [transactions]);
+    const bullets = useMemo(() => computeDataConfidenceBullets(quality), [quality]);
     const cfg = CONFIG[quality.confidence];
 
     return (
@@ -30,16 +31,22 @@ export default function DataConfidenceBadge({ transactions }: Props) {
             <Text style={s.emoji}>{cfg.emoji}</Text>
             <View style={{ flex: 1 }}>
                 <Text style={[s.label, { color: cfg.color }]}>{cfg.label}</Text>
-                <Text style={s.summary}>{quality.summary}</Text>
-                <Text style={s.summary}>{quality.classificationSummary}</Text>
+                {bullets.map((b, i) => (
+                    <View key={i} style={s.bulletRow}>
+                        <Text style={s.bulletDot}>•</Text>
+                        <Text style={s.summary}>{b}</Text>
+                    </View>
+                ))}
             </View>
         </View>
     );
 }
 
 const s = StyleSheet.create({
-    badge: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 8, paddingVertical: 6, paddingHorizontal: 10, marginBottom: 12 },
-    emoji: { fontSize: 14 },
-    label: { fontSize: 11.5, fontWeight: '800' },
-    summary: { fontSize: 10.5, color: Colors.textMuted, marginTop: 1 },
+    badge: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderWidth: 1, borderRadius: 8, paddingVertical: 6, paddingHorizontal: 10, marginBottom: 12 },
+    emoji: { fontSize: 14, marginTop: 1 },
+    label: { fontSize: 11.5, fontWeight: '800', marginBottom: 2 },
+    bulletRow: { flexDirection: 'row', gap: 5 },
+    bulletDot: { fontSize: 10.5, color: Colors.textMuted, lineHeight: 15 },
+    summary: { flex: 1, fontSize: 10.5, color: Colors.textMuted, marginTop: 1, lineHeight: 15 },
 });

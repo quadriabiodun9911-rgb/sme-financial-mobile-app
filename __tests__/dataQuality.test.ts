@@ -1,4 +1,4 @@
-import { computeDataQuality, classifyTransactions } from '../src/utils/dataQuality';
+import { computeDataQuality, classifyTransactions, computeDataConfidenceBullets } from '../src/utils/dataQuality';
 import { Transaction } from '../src/types';
 
 const makeTx = (overrides: Partial<Transaction>): Transaction => ({
@@ -140,5 +140,57 @@ describe('computeDataQuality classification rollup', () => {
         expect(q.confidentCount).toBe(0);
         expect(q.confidentPct).toBe(0);
         expect(q.classificationSummary).toBe('No transactions to classify yet');
+    });
+});
+
+describe('computeDataConfidenceBullets', () => {
+    it('returns a single bullet for no transactions, never four fabricated ones', () => {
+        const q = computeDataQuality([]);
+        const bullets = computeDataConfidenceBullets(q);
+        expect(bullets).toEqual(['No transactions recorded yet']);
+    });
+
+    it('returns exactly four bullets for a real transaction history', () => {
+        const txs = [
+            makeTx({ id: 't1', date: '2024-01-05', description: 'Sales — retail' }),
+            makeTx({ id: 't2', date: '2024-02-05', description: 'Sales — retail' }),
+        ];
+        const q = computeDataQuality(txs);
+        const bullets = computeDataConfidenceBullets(q);
+        expect(bullets).toHaveLength(4);
+    });
+
+    it('never mentions "connected accounts" -- the app has no live bank connection', () => {
+        const txs = [makeTx({ id: 't1', date: '2024-01-05' })];
+        const q = computeDataQuality(txs);
+        const bullets = computeDataConfidenceBullets(q);
+        expect(bullets.join(' ').toLowerCase()).not.toContain('connected account');
+    });
+
+    it('includes the classification percentage as its own bullet', () => {
+        const txs = [
+            makeTx({ id: 't1', date: '2024-01-05', description: 'Sales — retail' }),
+            makeTx({ id: 't2', date: '2024-01-06', description: 'Random unclear payment', type: 'income', amount: 50 }),
+        ];
+        const q = computeDataQuality(txs);
+        const bullets = computeDataConfidenceBullets(q);
+        expect(bullets.some(b => b.includes(`${q.confidentPct}%`) && b.includes('classified automatically'))).toBe(true);
+    });
+
+    it('reports "no transactions currently need review" when nothing is unresolved', () => {
+        const txs = [makeTx({ id: 't1', date: '2024-01-05', description: 'Sales — retail' })];
+        const q = computeDataQuality(txs);
+        const bullets = computeDataConfidenceBullets(q);
+        expect(bullets.some(b => b === 'No transactions currently need review')).toBe(true);
+    });
+
+    it('names the unresolved count with correct singular/plural grammar', () => {
+        const txs = [
+            makeTx({ id: 't1', date: '2024-01-05', description: 'Unclear payment' }),
+        ];
+        const q = computeDataQuality(txs);
+        const bullets = computeDataConfidenceBullets(q);
+        const reviewBullet = bullets.find(b => b.includes('need') && b.includes('review'));
+        expect(reviewBullet).toMatch(/^1 transaction still needs review$/);
     });
 });

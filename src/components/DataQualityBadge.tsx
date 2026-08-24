@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ViewStyle, StyleProp } from 'react-native';
 import { Colors } from '../theme/colors';
-import { computeDataQuality, DataConfidence } from '../utils/dataQuality';
+import { computeDataQuality, computeDataConfidenceBullets, DataConfidence } from '../utils/dataQuality';
 import { Transaction } from '../types';
 
 const CONFIDENCE_META: Record<DataConfidence, { label: string; color: string; icon: string }> = {
@@ -19,6 +19,7 @@ interface Props {
 export default function DataQualityBadge({ transactions, style }: Props) {
     const [expanded, setExpanded] = useState(false);
     const quality = useMemo(() => computeDataQuality(transactions), [transactions]);
+    const bullets = useMemo(() => computeDataConfidenceBullets(quality), [quality]);
     const meta = CONFIDENCE_META[quality.confidence];
 
     if (quality.confidence === 'none') return null;
@@ -36,7 +37,14 @@ export default function DataQualityBadge({ transactions, style }: Props) {
                     <Text style={s.detail}>
                         Figures on this page are only as reliable as this history. Numbers built on months with no data are shown flat, not estimated — check the footnotes on any trend table before relying on a figure for a big decision.
                     </Text>
-                    <Text style={[s.detail, { fontStyle: 'normal', marginTop: 6 }]}>{quality.classificationSummary}</Text>
+                    <View style={{ marginTop: 8, gap: 3 }}>
+                        {bullets.map((b, i) => (
+                            <View key={i} style={s.bulletRow}>
+                                <Text style={s.bulletDot}>•</Text>
+                                <Text style={s.bulletText}>{b}</Text>
+                            </View>
+                        ))}
+                    </View>
                 </>
             )}
         </TouchableOpacity>
@@ -60,4 +68,7 @@ const s = StyleSheet.create({
     summary: { flex: 1, fontSize: 11, color: Colors.textMuted },
     chevron: { fontSize: 10, color: Colors.textMuted },
     detail: { fontSize: 10.5, color: Colors.textMuted, marginTop: 8, lineHeight: 15, fontStyle: 'italic' },
+    bulletRow: { flexDirection: 'row', gap: 6 },
+    bulletDot: { fontSize: 10.5, color: Colors.textMuted, lineHeight: 15 },
+    bulletText: { flex: 1, fontSize: 10.5, color: Colors.textMuted, lineHeight: 15 },
 });
