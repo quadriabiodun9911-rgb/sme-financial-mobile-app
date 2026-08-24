@@ -24,9 +24,30 @@ import {
     CombinedLever,
 } from '../utils/analysis';
 import { ReportPeriod } from '../utils/finance';
+import { computeLiveLoanBalance } from '../utils/debtRatios';
+import {
+    projectScenarioCashTrajectory,
+    assessScenarioRisk,
+    describeExistingDebtLoad,
+    ScenarioRiskFlag,
+} from '../utils/scenarioProjection';
 
 type Tab = 'diagnosis' | 'scenarios';
 type ScenarioType = 'hire' | 'revenue' | 'loan' | 'price' | 'cost' | 'product' | 'combine';
+
+// Scenario results used to live only in component state -- close the tab
+// and the decision you just modeled was gone, with no way to hold two
+// options side by side (e.g. "hire staff" vs "raise prices" to cover the
+// same gap). Saving keeps a name + the exact result up to MAX_SAVED_SCENARIOS
+// at a time, mirroring the pattern CashFlowStressTester already uses for its
+// own saved what-ifs.
+interface SavedAnalysisScenario {
+    id: string;
+    name: string;
+    scenarioType: ScenarioType;
+    result: ScenarioResult | CombinedScenarioResult;
+}
+const MAX_SAVED_SCENARIOS = 4;
 
 function fmtRunway(days: number): string {
     if (days >= 999) return 'Very healthy';
@@ -81,14 +102,16 @@ function RevenueForm({ onRun, currency }: { onRun: (r: ScenarioResult) => void; 
 }
 
 function LoanForm({ onRun, currency }: { onRun: (r: ScenarioResult) => void; currency: string }) {
-    const { finance, transactions } = useApp();
+    const { finance, transactions, loans } = useApp();
     const monthly = useMemo(() => computeMonthlyBaseline(transactions, finance), [transactions, finance]);
+    const existingDebtNote = useMemo(() => describeExistingDebtLoad(computeLiveLoanBalance(loans), currency), [loans, currency]);
     const [principal, setPrincipal] = useState('');
     const [rate, setRate]           = useState('');
     const [term, setTerm]           = useState('');
     const ready = principal && rate && term;
     return (
         <View>
+            {existingDebtNote && <Text style={s.existingDebtNote}>{existingDebtNote}</Text>}
             <Text style={s.formLabel}>Loan amount ({currency})</Text>
             <TextInput style={s.input} placeholder="e.g. 50000" placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={principal} onChangeText={setPrincipal} />
             <Text style={s.formLabel}>Annual interest rate (%)</Text>
@@ -201,8 +224,9 @@ function ProductForm({ onRun, currency }: { onRun: (r: ScenarioResult) => void; 
 // time. Each lever is a checkbox that reveals its own inputs; only enabled
 // levers with valid values are included when the scenario runs.
 function CombineForm({ onRun, currency }: { onRun: (r: CombinedScenarioResult) => void; currency: string }) {
-    const { finance, transactions } = useApp();
+    const { finance, transactions, loans } = useApp();
     const monthly = useMemo(() => computeMonthlyBaseline(transactions, finance), [transactions, finance]);
+    const existingDebtNote = useMemo(() => describeExistingDebtLoad(computeLiveLoanBalance(loans), currency), [loans, currency]);
 
     const [revenueOn, setRevenueOn] = useState(false);
     const [revenuePct, setRevenuePct] = useState('');
@@ -278,6 +302,7 @@ function CombineForm({ onRun, currency }: { onRun: (r: CombinedScenarioResult) =
             </TouchableOpacity>
             {loanOn && (
                 <>
+                    {existingDebtNote && <Text style={s.existingDebtNote}>{existingDebtNote}</Text>}
                     <TextInput style={s.input} placeholder={`Loan amount (${currency})`} placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={loanPrincipal} onChangeText={setLoanPrincipal} />
                     <TextInput style={s.input} placeholder="Annual interest rate (%)" placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={loanRate} onChangeText={setLoanRate} />
                     <TextInput style={s.input} placeholder="Term (months)" placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={loanTerm} onChangeText={setLoanTerm} />
@@ -292,10 +317,24 @@ function CombineForm({ onRun, currency }: { onRun: (r: CombinedScenarioResult) =
 }
 
 // ─── Scenario result card ──────────────────────────────────────────────────────
-function ScenarioResultCard({ result, currency }: { result: ScenarioResult | CombinedScenarioResult; currency: string }) {
+const RISK_FLAG_COLOR: Record<ScenarioRiskFlag['severity'], string> = {
+    warning: Colors.warning,
+    critical: Colors.expense,
+};
+
+const PROJECTION_CHECKPOINTS = [1, 3, 6, 12];
+
+function ScenarioResultCard({ result, currency, currentCashBalance }: { result: ScenarioResult | CombinedScenarioResult; currency: string; currentCashBalance: number }) {
     const breakdown = (result as CombinedScenarioResult).breakdown;
     const good = result.profitImpact >= 0;
     const recommend = result.newProfit >= 0 && result.profitImpact >= 0;
+
+    const projection = useMemo(
+        () => projectScenarioCashTrajectory(result, currentCashBalance),
+        [result, currentCashBalance]
+    );
+    const riskFlags = useMemo(() => assessScenarioRisk(result, projection), [result, projection]);
+
     return (
         <View style={s.resultCard}>
             {/* YES / NO banner */}
@@ -312,6 +351,19 @@ function ScenarioResultCard({ result, currency }: { result: ScenarioResult | Com
             </View>
 
             <Text style={s.resultLabel}>{result.label}</Text>
+
+            {/* Cash-safety flags — computed from the same 12-month projection
+                as the trajectory table below, so they always agree with it. */}
+            {riskFlags.length > 0 && (
+                <View style={{ marginBottom: 14 }}>
+                    {riskFlags.map((f, i) => (
+                        <View key={i} style={[s.riskFlagBox, { borderColor: RISK_FLAG_COLOR[f.severity], backgroundColor: RISK_FLAG_COLOR[f.severity] + '15' }]}>
+                            <Icon name="alert-triangle" size={13} color={RISK_FLAG_COLOR[f.severity]} />
+                            <Text style={[s.riskFlagText, { color: RISK_FLAG_COLOR[f.severity] }]}>{f.text}</Text>
+                        </View>
+                    ))}
+                </View>
+            )}
 
             {/* Per-lever breakdown — only present for combined scenarios */}
             {breakdown && breakdown.length > 0 && (
@@ -369,6 +421,36 @@ function ScenarioResultCard({ result, currency }: { result: ScenarioResult | Com
                 </View>
             </View>
 
+            {/* 12-month cash trajectory — this month's Before/After only shows
+                the immediate impact; this projects both forward assuming the
+                new monthly profit holds steady, so a decision that looks fine
+                today but erodes cash over a year is visible before you commit
+                to it. Linear on purpose (see scenarioProjection.ts) — not a
+                growth forecast, just this decision's number held constant. */}
+            <View style={s.trajectoryBox}>
+                <Text style={s.trajectoryTitle}>12-Month Cash Trajectory</Text>
+                <View style={s.trajectoryHeaderRow}>
+                    <Text style={[s.trajectoryCell, s.trajectoryHeaderText, { flex: 0.8 }]}>Month</Text>
+                    <Text style={[s.trajectoryCell, s.trajectoryHeaderText]}>Without this</Text>
+                    <Text style={[s.trajectoryCell, s.trajectoryHeaderText]}>With this</Text>
+                </View>
+                {PROJECTION_CHECKPOINTS.map(m => {
+                    const point = projection[m - 1];
+                    if (!point) return null;
+                    return (
+                        <View key={m} style={s.trajectoryRow}>
+                            <Text style={[s.trajectoryCell, { flex: 0.8, fontWeight: '700', color: Colors.textPrimary }]}>{m}</Text>
+                            <Text style={[s.trajectoryCell, { color: point.baselineCash >= 0 ? Colors.textSecondary : Colors.expense }]}>
+                                {currency}{Math.round(point.baselineCash).toLocaleString()}
+                            </Text>
+                            <Text style={[s.trajectoryCell, { color: point.scenarioCash >= 0 ? Colors.income : Colors.expense, fontWeight: '700' }]}>
+                                {currency}{Math.round(point.scenarioCash).toLocaleString()}
+                            </Text>
+                        </View>
+                    );
+                })}
+            </View>
+
             {/* Verdict */}
             <View style={[s.verdictBox, { borderColor: good ? Colors.income : Colors.expense }]}>
                 <View style={s.verdictRow}>
@@ -410,6 +492,8 @@ export default function AnalysisScreen() {
     const [period, setPeriod]       = useState<ReportPeriod>('month');
     const [scenarioType, setScenarioType] = useState<ScenarioType>('combine');
     const [scenarioResults, setScenarioResults] = useState<Partial<Record<ScenarioType, ScenarioResult | CombinedScenarioResult>>>({});
+    const [savedScenarios, setSavedScenarios] = useState<SavedAnalysisScenario[]>([]);
+    const [saveNameDraft, setSaveNameDraft] = useState('');
 
     const analysis = useMemo(() => analyseRootCause(transactions, period, settings), [transactions, period, settings]);
 
@@ -599,6 +683,21 @@ export default function AnalysisScreen() {
                         <Text style={s.sectionTitle}>What if...?</Text>
                         <Text style={s.sectionSub}>Model a decision before you make it. See the exact profit, margin, and cash runway impact.</Text>
 
+                        {/* These levers are deliberately generic (a hypothetical
+                            loan/hire/price change), not tied to a specific product
+                            or existing loan. For scenarios grounded in real data,
+                            these two are the better tool. */}
+                        <View style={s.crossLinkRow}>
+                            <TouchableOpacity style={s.crossLinkChip} onPress={() => navigate('inventory', { tab: 'pricing' })}>
+                                <Icon name="tag" size={12} color={Colors.primary} />
+                                <Text style={s.crossLinkText}>Real per-product pricing → Pricing (Inventory)</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={s.crossLinkChip} onPress={() => navigate('reports', { reportSection: 'growth', reportTab: 'growth' })}>
+                                <Icon name="trending-up" size={12} color={Colors.primary} />
+                                <Text style={s.crossLinkText}>Multi-month trajectory → Growth Trends & Scenarios</Text>
+                            </TouchableOpacity>
+                        </View>
+
                         {/* Scenario type picker */}
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
                             {SCENARIOS.map(sc => (
@@ -627,7 +726,77 @@ export default function AnalysisScreen() {
                         </View>
 
                         {/* Result — persists per scenario type */}
-                        {scenarioResults[scenarioType] && <ScenarioResultCard result={scenarioResults[scenarioType]!} currency={currency} />}
+                        {scenarioResults[scenarioType] && (
+                            <>
+                                <ScenarioResultCard result={scenarioResults[scenarioType]!} currency={currency} currentCashBalance={finance.cashBalance} />
+
+                                {savedScenarios.length < MAX_SAVED_SCENARIOS && (
+                                    <View style={s.saveRow}>
+                                        <TextInput
+                                            style={s.saveInput}
+                                            value={saveNameDraft}
+                                            onChangeText={setSaveNameDraft}
+                                            placeholder={`Name this decision (e.g. "Hire a sales rep")`}
+                                            placeholderTextColor={Colors.textMuted}
+                                        />
+                                        <TouchableOpacity
+                                            style={s.saveBtn}
+                                            onPress={() => {
+                                                const result = scenarioResults[scenarioType]!;
+                                                setSavedScenarios(prev => [...prev, {
+                                                    id: `${Date.now()}`,
+                                                    name: saveNameDraft.trim() || SCENARIOS.find(sc => sc.key === scenarioType)?.label || 'Scenario',
+                                                    scenarioType,
+                                                    result,
+                                                }]);
+                                                setSaveNameDraft('');
+                                            }}
+                                        >
+                                            <Text style={s.saveBtnText}>Save & Compare</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                )}
+                            </>
+                        )}
+
+                        {/* Saved decisions — side by side, so "hire staff" and
+                            "raise prices" (two different ways to close the same
+                            gap) can be weighed against each other instead of
+                            only ever seen one at a time. */}
+                        {savedScenarios.length > 0 && (
+                            <View style={s.compareSection}>
+                                <Text style={s.compareTitle}>Your Saved Decisions</Text>
+                                {savedScenarios.map(sc => (
+                                    <View key={sc.id} style={[s.savedCompareCard, { borderLeftColor: sc.result.newProfit >= sc.result.baseProfit ? Colors.income : Colors.expense }]}>
+                                        <View style={s.compareHeader}>
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={s.compareName}>{sc.name}</Text>
+                                                <Text style={s.compareKind}>{SCENARIOS.find(t => t.key === sc.scenarioType)?.label ?? sc.scenarioType}</Text>
+                                            </View>
+                                            <TouchableOpacity onPress={() => setSavedScenarios(prev => prev.filter(x => x.id !== sc.id))}>
+                                                <Text style={s.compareRemove}>✕</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                        <View style={s.compareStatRow}>
+                                            <View style={s.compareStatCol}>
+                                                <Text style={s.compareStatLabel}>Profit</Text>
+                                                <Text style={[s.compareStatVal, { color: sc.result.profitImpact >= 0 ? Colors.income : Colors.expense }]}>
+                                                    {sc.result.profitImpact >= 0 ? '+' : ''}{currency}{Math.round(sc.result.profitImpact).toLocaleString()}
+                                                </Text>
+                                            </View>
+                                            <View style={s.compareStatCol}>
+                                                <Text style={s.compareStatLabel}>Margin</Text>
+                                                <Text style={s.compareStatVal}>{sc.result.newMargin.toFixed(1)}%</Text>
+                                            </View>
+                                            <View style={s.compareStatCol}>
+                                                <Text style={s.compareStatLabel}>Runway</Text>
+                                                <Text style={[s.compareStatVal, { color: sc.result.newCashRunway < 30 ? Colors.expense : Colors.textPrimary }]}>{fmtRunway(sc.result.newCashRunway)}</Text>
+                                            </View>
+                                        </View>
+                                    </View>
+                                ))}
+                            </View>
+                        )}
                     </>
                 )}
 
@@ -749,4 +918,37 @@ const s = StyleSheet.create({
     breakdownRow:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: Spacing.xs },
     breakdownLabel:  { flex: 1, fontSize: 12, color: Colors.textSecondary, marginRight: Spacing.sm },
     breakdownVal:    { fontSize: 12, fontWeight: '700' },
+
+    existingDebtNote: { fontSize: 11.5, color: Colors.textMuted, fontStyle: 'italic', marginBottom: 10, lineHeight: 16 },
+
+    riskFlagBox:  { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderWidth: 1, borderRadius: 10, padding: 10, marginBottom: 8 },
+    riskFlagText: { flex: 1, fontSize: 12, fontWeight: '600', lineHeight: 17 },
+
+    crossLinkRow:   { gap: 8, marginBottom: 16 },
+    crossLinkChip:  { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm, paddingHorizontal: 12, paddingVertical: 9 },
+    crossLinkText:  { fontSize: 11.5, color: Colors.primary, fontWeight: '600' },
+
+    trajectoryBox:       { backgroundColor: Colors.bg, borderRadius: Radius.sm, padding: Spacing.md, marginBottom: 14 },
+    trajectoryTitle:     { fontSize: 11, fontWeight: '700', color: Colors.textMuted, marginBottom: Spacing.sm, textTransform: 'uppercase', letterSpacing: 0.5 },
+    trajectoryHeaderRow: { flexDirection: 'row', paddingBottom: 6, marginBottom: 4, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    trajectoryHeaderText:{ fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase' },
+    trajectoryRow:       { flexDirection: 'row', paddingVertical: 6 },
+    trajectoryCell:      { flex: 1, fontSize: 12.5 },
+
+    saveRow:   { flexDirection: 'row', gap: 8, marginBottom: 16 },
+    saveInput: { flex: 1, backgroundColor: Colors.surface, borderRadius: Radius.sm, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 12, paddingVertical: 10, fontSize: 13, color: Colors.textPrimary },
+    saveBtn:   { backgroundColor: Colors.primary, borderRadius: Radius.sm, paddingHorizontal: 14, justifyContent: 'center' },
+    saveBtnText:{ color: '#fff', fontSize: 12.5, fontWeight: '700' },
+
+    compareSection:  { marginBottom: 16 },
+    compareTitle:    { fontSize: 15, fontWeight: '800', color: Colors.textPrimary, marginBottom: 10 },
+    savedCompareCard:{ backgroundColor: Colors.surface, borderRadius: 12, borderLeftWidth: 4, borderWidth: 1, borderColor: Colors.border, padding: 12, marginBottom: 10, ...Shadow.sm },
+    compareHeader:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 },
+    compareName:     { fontSize: 13.5, fontWeight: '700', color: Colors.textPrimary },
+    compareKind:     { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
+    compareRemove:   { fontSize: 14, color: Colors.textMuted, paddingHorizontal: 4 },
+    compareStatRow:  { flexDirection: 'row' },
+    compareStatCol:  { flex: 1, alignItems: 'center' },
+    compareStatLabel:{ fontSize: 10, color: Colors.textMuted, marginBottom: 2 },
+    compareStatVal:  { fontSize: 13.5, fontWeight: '800', color: Colors.textPrimary },
 });
