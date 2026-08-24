@@ -13,6 +13,7 @@ import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateExpenseReductionActions } from '../utils/actionRecommendationEngine';
 import { generateAutoBudget, AutoBudgetSuggestion } from '../utils/budgetEngine';
 import { isBudgetPeriodLapsed } from '../utils/budgetPeriod';
+import { computeGoalBudgetAlignment } from '../utils/goalAlignment';
 import NextStepLink from '../components/NextStepLink';
 import ProfitCashImpactCard from '../components/ProfitCashImpactCard';
 import { computeProfitCashImpact } from '../utils/impactChain';
@@ -28,7 +29,7 @@ const EXPENSE_CATEGORIES = [
 ];
 
 export default function BudgetScreen() {
-    const { transactions, budgets, addBudget, updateBudget, deleteBudget, settings, navigate, finance, loans, invoices, inventory } = useApp();
+    const { transactions, budgets, addBudget, updateBudget, deleteBudget, settings, navigate, finance, loans, invoices, inventory, goals } = useApp();
     const { currency } = settings;
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
@@ -59,6 +60,23 @@ export default function BudgetScreen() {
     // from a past period, bva comes back empty even though budgets isn't,
     // which is the moment to say so instead of just showing a bare table.
     const budgetPeriodLapsed = useMemo(() => isBudgetPeriodLapsed(budgets), [budgets]);
+
+    // Does this month's budget actually support any active cost-reduction
+    // or cash-reserve goal? Those are the only two goal types a budget can
+    // literally help or hurt (see goalAlignment.ts) -- flags the first one
+    // that isn't, so setting a budget and setting a goal don't silently
+    // drift apart from each other.
+    const misalignedGoal = useMemo(() => {
+        for (const goal of goals ?? []) {
+            if (goal.status === 'achieved') continue;
+            if (goal.type !== 'cost_reduction' && goal.type !== 'cash_reserve') continue;
+            const alignment = computeGoalBudgetAlignment(goal, budgets, transactions, finance, loans);
+            if (alignment.applicable && alignment.status !== 'aligned') {
+                return { goal, alignment };
+            }
+        }
+        return null;
+    }, [goals, budgets, transactions, finance, loans]);
 
     const totalBudgeted = budgets.reduce((s, b) => s + b.monthlyAmount, 0);
     const totalActual   = bva.reduce((s, b) => s + b.actual, 0);
@@ -289,6 +307,20 @@ export default function BudgetScreen() {
                             <Text style={s.lapsedBannerText}>
                                 You've budgeted before, but nothing's active this month — overspending won't be tracked. Tap to auto-generate, or edit a category below to renew it.
                             </Text>
+                        </View>
+                    </TouchableOpacity>
+                )}
+
+                {misalignedGoal && (
+                    <TouchableOpacity
+                        style={s.goalMisalignBanner}
+                        onPress={() => navigate('goals', { goalId: misalignedGoal.goal.id, planTab: 'alignment' })}
+                        activeOpacity={0.8}
+                    >
+                        <Icon name="git-merge" size={16} color={Colors.expense} />
+                        <View style={{ flex: 1 }}>
+                            <Text style={s.goalMisalignBannerTitle}>Budget doesn't yet support "{misalignedGoal.goal.title}"</Text>
+                            <Text style={s.goalMisalignBannerText}>{misalignedGoal.alignment.message}</Text>
                         </View>
                     </TouchableOpacity>
                 )}
@@ -723,6 +755,14 @@ const s = StyleSheet.create({
     },
     lapsedBannerTitle: { fontSize: 13.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: 3 },
     lapsedBannerText:  { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
+
+    goalMisalignBanner: {
+        flexDirection: 'row', gap: 10, alignItems: 'flex-start',
+        backgroundColor: Colors.expense + '18', borderWidth: 1, borderColor: Colors.expense,
+        borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.lg,
+    },
+    goalMisalignBannerTitle: { fontSize: 13.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: 3 },
+    goalMisalignBannerText:  { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
 
     // flexWrap is the safety net: back-link + title + up to 3 conditional
     // buttons (Adjust/Cancel Adjust, Auto, + Add) don't all fit one row on

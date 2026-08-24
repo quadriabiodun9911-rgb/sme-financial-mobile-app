@@ -17,10 +17,11 @@ import { calculateGoalBridge, mapSavedGoalToBridge, formatGoalMetric } from '../
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan } from '../utils/actionRecommendationEngine';
 import { suggestSolution, ImpactSource } from '../utils/impactChain';
-import { getMonthlyExpenseAverage } from '../utils/finance';
+import { getMonthlyExpenseAverage, computeCashFlowForecast } from '../utils/finance';
 import { showAlert, confirmAction } from '../utils/webAlert';
 import { computeRiskRadar } from '../utils/riskRadar';
 import { assessGoalRisk, GoalRiskSeverity } from '../utils/goalRiskLinkage';
+import { computeGoalBudgetAlignment, computeGoalForecastAlignment } from '../utils/goalAlignment';
 
 // Maps each goal type to the closest matching solution category — a
 // revenue/margin goal is fundamentally a pricing/growth problem, a cost or
@@ -65,8 +66,10 @@ const READINESS_BAND_COLORS: Record<string, string> = { Strong: Colors.income, M
 
 const RISK_SEVERITY_COLORS: Record<GoalRiskSeverity, string> = { high: Colors.expense, medium: Colors.warning, low: Colors.textMuted };
 
+const ALIGNMENT_STATUS_COLORS: Record<string, string> = { aligned: Colors.income, budget_too_high: Colors.expense, no_active_budget: Colors.warning };
+
 export default function GoalsScreen() {
-    const { goals, addGoal, deleteGoal, updateGoal, finance, transactions, invoices, settings, navParams, navigate, setCurrentScreen, loans, inventory } = useApp();
+    const { goals, addGoal, deleteGoal, updateGoal, finance, transactions, invoices, settings, navParams, navigate, setCurrentScreen, loans, inventory, budgets } = useApp();
     const { currency } = settings;
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
@@ -82,7 +85,7 @@ export default function GoalsScreen() {
     // into one modal with two tabs, since both answered the same underlying
     // question ("what do I do about this goal?") with overlapping content.
     const [planGoalId, setPlanGoalId] = useState<string | null>(null);
-    const [planTab, setPlanTab] = useState<'bridge' | 'strategy' | 'risks'>('bridge');
+    const [planTab, setPlanTab] = useState<'bridge' | 'strategy' | 'risks' | 'alignment'>('bridge');
     const [selectedType, setSelectedType] = useState<GoalType | null>(null);
 
     // Form state for new/edit goal
@@ -158,6 +161,24 @@ export default function GoalsScreen() {
         return assessGoalRisk(planGoal.type, planDiagnosis.diagnoses, riskRadar, planBridge.successProbability);
     }, [planGoal, planDiagnosis, planBridge, transactions, loans, settings?.macroAssumptions]);
 
+    // Whether what's actually committed (this month's Budget) and what's
+    // actually trending (the near-term Cash Flow Forecast, which already
+    // folds the budget in) support this goal -- distinct from planBridge's
+    // feasibility-from-pace math and planGoalRisk's external/diagnosis risk,
+    // neither of which reads Budget or Forecast data at all.
+    const planBudgetAlignment = useMemo(() => {
+        if (!planGoal) return null;
+        return computeGoalBudgetAlignment(planGoal, budgets, transactions, finance, loans);
+    }, [planGoal, budgets, transactions, finance, loans]);
+
+    const planForecastAlignment = useMemo(() => {
+        if (!planGoal || planGoal.type !== 'cash_reserve') return null;
+        const forecast = computeCashFlowForecast(transactions, loans, invoices, budgets);
+        return computeGoalForecastAlignment(planGoal, forecast, finance.cashBalance);
+    }, [planGoal, transactions, loans, invoices, budgets, finance.cashBalance]);
+
+    const showAlignmentTab = planGoal?.type === 'cost_reduction' || planGoal?.type === 'cash_reserve';
+
     // Auto-open add modal if navigated here with a goalType param, or the
     // plan modal if navigated here with a goalId — the latter mirrors the
     // deep-link capability the retired GoalBridgeScreen used to offer via
@@ -171,7 +192,7 @@ export default function GoalsScreen() {
         }
         if (navParams?.goalId) {
             setPlanGoalId(navParams.goalId);
-            setPlanTab(navParams?.planTab === 'risks' || navParams?.planTab === 'strategy' ? navParams.planTab : 'bridge');
+            setPlanTab(navParams?.planTab === 'risks' || navParams?.planTab === 'strategy' || navParams?.planTab === 'alignment' ? navParams.planTab : 'bridge');
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -484,6 +505,17 @@ export default function GoalsScreen() {
                                                 <Text style={[styles.planTabText, planTab === 'risks' && styles.planTabTextActive]}>Risks</Text>
                                             </View>
                                         </TouchableOpacity>
+                                        {showAlignmentTab && (
+                                            <TouchableOpacity
+                                                style={[styles.planTab, planTab === 'alignment' && styles.planTabActive]}
+                                                onPress={() => setPlanTab('alignment')}
+                                            >
+                                                <View style={styles.planTabInner}>
+                                                    <Icon name="git-merge" size={13} color={planTab === 'alignment' ? '#fff' : Colors.textMuted} />
+                                                    <Text style={[styles.planTabText, planTab === 'alignment' && styles.planTabTextActive]}>Alignment</Text>
+                                                </View>
+                                            </TouchableOpacity>
+                                        )}
                                     </View>
 
                                     {planTab === 'bridge' && planBridge && (
@@ -669,6 +701,56 @@ export default function GoalsScreen() {
 
                                             <Text style={styles.strategyFooter}>
                                                 Risks refresh automatically as your financial data changes.
+                                            </Text>
+                                        </>
+                                    )}
+
+                                    {planTab === 'alignment' && planBudgetAlignment?.applicable && (
+                                        <>
+                                            <View style={styles.sectionTitleRow}>
+                                                <Icon name="git-merge" size={15} color={Colors.textPrimary} />
+                                                <Text style={[styles.sectionTitle, styles.sectionTitleInRow]}>Does Your Budget Support This Goal?</Text>
+                                            </View>
+                                            <View style={[styles.assessmentCard, { borderLeftColor: ALIGNMENT_STATUS_COLORS[planBudgetAlignment.status!] }]}>
+                                                <View style={styles.assessmentHeader}>
+                                                    <Text style={styles.assessmentLabel}>This Month's Budget</Text>
+                                                    <View style={[styles.feasibilityBadge, { backgroundColor: ALIGNMENT_STATUS_COLORS[planBudgetAlignment.status!] + '22', borderColor: ALIGNMENT_STATUS_COLORS[planBudgetAlignment.status!] }]}>
+                                                        <Text style={[styles.feasibilityText, { color: ALIGNMENT_STATUS_COLORS[planBudgetAlignment.status!] }]}>
+                                                            {planBudgetAlignment.status === 'aligned' ? 'ALIGNED' : planBudgetAlignment.status === 'budget_too_high' ? 'NOT ALIGNED' : 'NO BUDGET SET'}
+                                                        </Text>
+                                                    </View>
+                                                </View>
+                                                <Text style={styles.readinessNarrative}>{planBudgetAlignment.message}</Text>
+                                            </View>
+                                            {planBudgetAlignment.status !== 'aligned' && (
+                                                <NextStepLink text="Review your budget" onPress={() => { setPlanGoalId(null); setCurrentScreen('budget'); }} />
+                                            )}
+
+                                            {planForecastAlignment?.applicable && (
+                                                <>
+                                                    <View style={[styles.sectionTitleRow, { marginTop: 16 }]}>
+                                                        <Icon name="trending-up" size={15} color={Colors.textPrimary} />
+                                                        <Text style={[styles.sectionTitle, styles.sectionTitleInRow]}>Is Your Forecast On Pace?</Text>
+                                                    </View>
+                                                    <View style={[styles.assessmentCard, { borderLeftColor: planForecastAlignment.onPace ? Colors.income : Colors.expense }]}>
+                                                        <View style={styles.assessmentHeader}>
+                                                            <Text style={styles.assessmentLabel}>Near-Term Cash Flow Forecast</Text>
+                                                            <View style={[styles.feasibilityBadge, { backgroundColor: (planForecastAlignment.onPace ? Colors.income : Colors.expense) + '22', borderColor: planForecastAlignment.onPace ? Colors.income : Colors.expense }]}>
+                                                                <Text style={[styles.feasibilityText, { color: planForecastAlignment.onPace ? Colors.income : Colors.expense }]}>
+                                                                    {planForecastAlignment.onPace ? 'ON PACE' : 'BEHIND PACE'}
+                                                                </Text>
+                                                            </View>
+                                                        </View>
+                                                        <Text style={styles.readinessNarrative}>{planForecastAlignment.message}</Text>
+                                                    </View>
+                                                    {!planForecastAlignment.onPace && (
+                                                        <NextStepLink text="See the full cash flow forecast" onPress={() => { setPlanGoalId(null); setCurrentScreen('cashflow'); }} />
+                                                    )}
+                                                </>
+                                            )}
+
+                                            <Text style={styles.strategyFooter}>
+                                                Alignment refreshes automatically as your budget and financial data change.
                                             </Text>
                                         </>
                                     )}
