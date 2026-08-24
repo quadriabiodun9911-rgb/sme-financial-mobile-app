@@ -8,7 +8,7 @@
  * and turns it into a genuine trend, not just a current-month reading.
  */
 
-import { Transaction } from '../types';
+import { Transaction, Invoice, Asset } from '../types';
 import { classifyExpenseLine } from './finance';
 
 // Every "expense" bucket below also breaks into cogs/opex/otherExpense
@@ -382,4 +382,55 @@ export function analyzeTrend(transactions: Transaction[]): TrendAnalysis {
         yoyRevenueGrowthPct, yoyProfitGrowthPct,
         avgMonthlyProfitMargin,
     };
+}
+
+// Non-financial dimensions of "how the business grew," one row per year --
+// complements the revenue/expense/profit trend above without pretending to
+// more precision than the data actually supports. Two things are
+// deliberately NOT included here: inventory value (no historical stock-
+// quantity ledger exists to reconstruct what it was at a past year's end)
+// and asset current value at a past date (computeAssetCurrentValue only
+// ever depreciates as of today, not an arbitrary past date). Assets
+// purchased that year is used instead -- real capital invested, honestly
+// computable straight from purchaseDate/purchaseCost.
+export interface YearlyBusinessSnapshot {
+    year: string; // 'YYYY'
+    customers: number;                    // unique clients on invoices issued that year
+    topExpenseCategory: string | null;     // largest expense category that year, by amount
+    topExpenseCategoryAmount: number;
+    receivablesOutstandingToday: number;   // invoices issued that year, still not marked paid, as of now
+    assetsPurchased: number;               // sum of purchaseCost for assets bought that year
+}
+
+export function computeYearlyBusinessSnapshot(
+    years: string[],
+    transactions: Transaction[],
+    invoices: Invoice[],
+    assets: Asset[],
+): YearlyBusinessSnapshot[] {
+    return years.map(year => {
+        const yearTx = transactions.filter(t => (t.date || '').slice(0, 4) === year);
+        const yearInvoices = invoices.filter(inv => (inv.issueDate || '').slice(0, 4) === year);
+        const yearAssets = assets.filter(a => (a.purchaseDate || '').slice(0, 4) === year);
+
+        const expenseByCategory = new Map<string, number>();
+        for (const t of yearTx) {
+            if (t.type !== 'expense') continue;
+            const cat = t.category || 'Other';
+            expenseByCategory.set(cat, (expenseByCategory.get(cat) ?? 0) + (t.amount ?? 0));
+        }
+        let topExpenseCategory: string | null = null;
+        let topExpenseCategoryAmount = 0;
+        for (const [cat, amt] of expenseByCategory) {
+            if (amt > topExpenseCategoryAmount) { topExpenseCategory = cat; topExpenseCategoryAmount = amt; }
+        }
+
+        const customers = new Set(yearInvoices.map(inv => inv.clientName || 'Unknown')).size;
+        const receivablesOutstandingToday = yearInvoices
+            .filter(inv => inv.status !== 'paid')
+            .reduce((s, inv) => s + (inv.total ?? 0), 0);
+        const assetsPurchased = yearAssets.reduce((s, a) => s + (a.purchaseCost ?? 0), 0);
+
+        return { year, customers, topExpenseCategory, topExpenseCategoryAmount, receivablesOutstandingToday, assetsPurchased };
+    });
 }

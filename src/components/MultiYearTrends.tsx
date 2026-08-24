@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
-import { analyzeTrend, computeDailyTrend, computeWeeklyTrend, computeQuarterlyTrend } from '../utils/trendAnalysis';
+import { analyzeTrend, computeDailyTrend, computeWeeklyTrend, computeQuarterlyTrend, computeYearlyBusinessSnapshot } from '../utils/trendAnalysis';
 import GroupedBarChart from './GroupedBarChart';
 
 type Grouping = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
@@ -31,11 +31,15 @@ const DAY_LABEL = (d: string) => {
 };
 
 export default function MultiYearTrends() {
-    const { transactions, settings, navigate } = useApp();
+    const { transactions, invoices, assets, settings, navigate } = useApp();
     const currency = settings.currency || '₦';
     const [grouping, setGrouping] = useState<Grouping>('monthly');
 
     const trend = useMemo(() => analyzeTrend(transactions), [transactions]);
+    const snapshot = useMemo(
+        () => computeYearlyBusinessSnapshot(trend.yearly.map(y => y.year), transactions, invoices, assets),
+        [trend.yearly, transactions, invoices, assets]
+    );
     const daily = useMemo(() => computeDailyTrend(transactions), [transactions]);
     const weekly = useMemo(() => computeWeeklyTrend(daily), [daily]);
     const quarterly = useMemo(() => computeQuarterlyTrend(trend.monthly), [trend.monthly]);
@@ -183,6 +187,63 @@ export default function MultiYearTrends() {
                             ))}
                         </View>
                     )}
+
+                    {/* Business Growth by Year — non-financial dimensions
+                        (who you sold to, what you invested in) alongside the
+                        revenue/expense trend above. */}
+                    {snapshot.length > 0 && (
+                        <>
+                            <View style={s.card}>
+                                <Text style={s.cardTitle}>Customers by Year</Text>
+                                <GroupedBarChart
+                                    height={80}
+                                    labels={snapshot.map(sn => sn.year)}
+                                    series={[{ label: 'Customers', color: Colors.primary, values: snapshot.map(sn => sn.customers) }]}
+                                />
+                            </View>
+
+                            <View style={s.card}>
+                                <Text style={s.cardTitle}>Assets Purchased by Year</Text>
+                                <Text style={s.cardSub}>Capital invested in equipment/vehicles/property that year, not depreciated current value.</Text>
+                                <GroupedBarChart
+                                    height={80}
+                                    labels={snapshot.map(sn => sn.year)}
+                                    series={[{ label: 'Assets Purchased', color: Colors.asset, values: snapshot.map(sn => sn.assetsPurchased) }]}
+                                />
+                            </View>
+
+                            <View style={s.card}>
+                                <Text style={s.cardTitle}>Business Snapshot by Year</Text>
+                                {snapshot.slice().reverse().map(sn => (
+                                    <View key={sn.year} style={s.snapshotCard}>
+                                        <Text style={s.snapshotYear}>{sn.year}</Text>
+                                        <View style={s.snapshotRow}>
+                                            <Text style={s.snapshotLabel}>Customers billed</Text>
+                                            <Text style={s.snapshotVal}>{sn.customers}</Text>
+                                        </View>
+                                        <View style={s.snapshotRow}>
+                                            <Text style={s.snapshotLabel}>Top expense category</Text>
+                                            <Text style={s.snapshotVal}>
+                                                {sn.topExpenseCategory ? `${sn.topExpenseCategory} (${fmt(sn.topExpenseCategoryAmount)})` : '—'}
+                                            </Text>
+                                        </View>
+                                        <View style={s.snapshotRow}>
+                                            <Text style={s.snapshotLabel}>Receivables still outstanding today</Text>
+                                            <Text style={s.snapshotVal}>{fmt(sn.receivablesOutstandingToday)}</Text>
+                                        </View>
+                                        <View style={[s.snapshotRow, { borderBottomWidth: 0 }]}>
+                                            <Text style={s.snapshotLabel}>Assets purchased</Text>
+                                            <Text style={s.snapshotVal}>{fmt(sn.assetsPurchased)}</Text>
+                                        </View>
+                                    </View>
+                                ))}
+                                <Text style={s.disc}>
+                                    "Receivables still outstanding today" is what's unpaid right now from invoices issued that year — not a
+                                    historical year-end balance, since daily balance history isn't tracked.
+                                </Text>
+                            </View>
+                        </>
+                    )}
                 </>
             )}
         </View>
@@ -228,4 +289,11 @@ const s = StyleSheet.create({
     th: { flex: 1, fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase' },
     tableRow: { flexDirection: 'row', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border },
     td: { flex: 1, fontSize: 12, color: Colors.textSecondary },
+
+    snapshotCard: { backgroundColor: Colors.bg, borderRadius: 10, padding: 12, marginBottom: 10 },
+    snapshotYear: { fontSize: 13, fontWeight: '800', color: Colors.textPrimary, marginBottom: 6 },
+    snapshotRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: Colors.border, gap: 8 },
+    snapshotLabel: { fontSize: 11.5, color: Colors.textMuted, flex: 1 },
+    snapshotVal: { fontSize: 12, fontWeight: '700', color: Colors.textPrimary, textAlign: 'right' },
+    disc: { fontSize: 10.5, color: Colors.textMuted, marginTop: 4, fontStyle: 'italic', lineHeight: 15 },
 });
