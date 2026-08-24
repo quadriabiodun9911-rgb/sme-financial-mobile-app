@@ -24,6 +24,50 @@ export interface TacticExecution {
   // before/after health comparison recordTacticOutcome needs to show the
   // business it's actually getting healthier, not just that one metric moved.
   healthAtStart?: number;
+  // Captured from the tactic at start time (not re-read from a freshly
+  // regenerated action plan later) so a deferred measurement -- see
+  // canMeasureOutcome -- still has what it needs even if this exact tactic
+  // no longer appears in the plan by the time enough days have passed.
+  expectedImpact?: number;
+  impactType?: 'revenue' | 'expense_reduction' | 'cash_improvement';
+}
+
+// The baseline snapshot is itself a trailing OUTCOME_MEASUREMENT_WINDOW_DAYS
+// window ending at the tactic's start date. Measuring "current" the same
+// way an instant after marking a tactic complete -- as this used to do --
+// makes the two windows almost entirely overlap for anything finished in
+// under 30 days: a tactic started and completed 3 days later compares a
+// [day-30, day0] baseline against a [day-27, day3] "current," 27 of 30
+// days identical between them, drowning out whatever the tactic actually
+// did. Waiting until a full window's worth of days has passed since start
+// guarantees the two trailing windows no longer overlap.
+export const OUTCOME_MEASUREMENT_WINDOW_DAYS = 30;
+
+function daysBetween(fromDateStr: string, toDateStr: string): number {
+  const ms = new Date(toDateStr).getTime() - new Date(fromDateStr).getTime();
+  return Math.floor(ms / (24 * 60 * 60 * 1000));
+}
+
+// True once enough time has passed since a completed tactic's start date
+// for its actual-impact measurement to be trustworthy (see the window-
+// overlap note above). A tactic that's still 'planned'/'in-progress'/
+// 'abandoned' is never measurable regardless of dates.
+export function canMeasureOutcome(
+  execution: TacticExecution,
+  referenceDate: string = new Date().toISOString().split('T')[0],
+): boolean {
+  if (execution.status !== 'completed') return false;
+  return daysBetween(execution.startDate, referenceDate) >= OUTCOME_MEASUREMENT_WINDOW_DAYS;
+}
+
+// How many more days until a just-completed tactic's outcome can be
+// measured -- for showing "measuring impact in N days" instead of either
+// a premature number or silence.
+export function daysUntilMeasurable(
+  execution: TacticExecution,
+  referenceDate: string = new Date().toISOString().split('T')[0],
+): number {
+  return Math.max(0, OUTCOME_MEASUREMENT_WINDOW_DAYS - daysBetween(execution.startDate, referenceDate));
 }
 
 export interface OutcomeMetric {
@@ -90,6 +134,8 @@ export function initiateTacticTracking(
     notes: '',
     baseline,
     healthAtStart,
+    expectedImpact: tactic.expectedImpact,
+    impactType: tactic.impactType,
   };
 }
 
@@ -102,7 +148,7 @@ export function initiateTacticTracking(
  * impact, expense_reduction counts a fall as positive impact.
  */
 export function measureActualImpact(
-  tactic: ActionTactic,
+  tactic: Pick<ActionTactic, 'impactType'>,
   baseline: { income: number; expense: number; profit: number },
   current: { income: number; expense: number; profit: number },
 ): number {
@@ -134,7 +180,7 @@ export function updateTacticProgress(
 
 export function recordTacticOutcome(
   execution: TacticExecution,
-  tactic: ActionTactic,
+  tactic: Pick<ActionTactic, 'id' | 'title' | 'expectedImpact'>,
   actualImpact: number,
   metricsAchieved: OutcomeMetric[],
   learnings: string[],
@@ -158,7 +204,7 @@ export function recordTacticOutcome(
     succeeded,
     metricsAchieved,
     learnings,
-    nextSteps: generateNextSteps(tactic, actualImpact, succeeded, hasBaseline),
+    nextSteps: generateNextSteps(actualImpact, succeeded, hasBaseline),
     completionDate: new Date().toISOString().split('T')[0],
     healthBefore: health?.before,
     healthAfter: health?.after,
@@ -167,7 +213,6 @@ export function recordTacticOutcome(
 }
 
 function generateNextSteps(
-  tactic: ActionTactic,
   actualImpact: number,
   succeeded: boolean,
   hasBaseline: boolean = true

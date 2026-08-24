@@ -7,7 +7,11 @@ import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan, ActionTactic } from '../utils/actionRecommendationEngine';
-import { initiateTacticTracking, updateTacticProgress, recordTacticOutcome, measureActualImpact, TacticExecution, TacticOutcome } from '../utils/outcomeTrackingEngine';
+import {
+  initiateTacticTracking, updateTacticProgress, recordTacticOutcome, measureActualImpact,
+  canMeasureOutcome, daysUntilMeasurable, OUTCOME_MEASUREMENT_WINDOW_DAYS,
+  TacticExecution, TacticOutcome,
+} from '../utils/outcomeTrackingEngine';
 import NextStepLink from '../components/NextStepLink';
 import { computeCashRunway } from '../utils/cashRunway';
 import { getMonthlyExpenseAverage } from '../utils/finance';
@@ -17,16 +21,19 @@ import { Radius, Shadow, Spacing } from '../theme/tokens';
 
 const EXECUTIONS_KEY = 'quad360_tactic_executions_v1';
 const OUTCOMES_KEY = 'quad360_tactic_outcomes_v1';
-const SNAPSHOT_WINDOW_DAYS = 30;
 
 // finance.income/expense/profit are all-time cumulative totals, not a
 // recent-activity figure — comparing them before/after a few-week tactic
 // would barely move and drown out the real signal. This gives
-// measureActualImpact a trailing-30-day window instead, the same window
+// measureActualImpact a trailing-window snapshot instead, the same window
 // computeCashRunway already uses elsewhere in the app for "recent" figures.
+// Uses the SAME constant canMeasureOutcome gates on below -- if this window
+// and that gate ever drifted apart, a "current" snapshot taken before the
+// gate's wait was up would still overlap the baseline window it's being
+// compared against.
 function trailingSnapshot(transactions: { type: string; amount: number; date: string; status?: string; principalPortion?: number }[]) {
   const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - SNAPSHOT_WINDOW_DAYS);
+  cutoff.setDate(cutoff.getDate() - OUTCOME_MEASUREMENT_WINDOW_DAYS);
   const cutoffStr = cutoff.toISOString().split('T')[0];
   const recent = transactions.filter(t => t.date >= cutoffStr && t.status !== 'pending' && t.status !== 'overdue');
   const income = recent.filter(t => t.type === 'income').reduce((s, t) => s + (t.amount ?? 0), 0);
@@ -87,24 +94,9 @@ export default function ActionTrackerScreen() {
     setExecutions(prev => {
       const existing = prev[action.id] ?? initiateTacticTracking(action, new Date().toISOString().split('T')[0], trailingSnapshot(transactions), diagnosis.overallHealth);
       const updated = updateTacticProgress(existing, `${pct}%`, pct);
-
-      // Auto-measure the outcome the moment a tactic crosses into
-      // "completed" — comparing the business's trailing 30-day numbers now
-      // against its trailing 30-day numbers when the tactic started, using
-      // the same direction convention as the tactic's own expectedImpact.
-      // Also captures the overall health score before/after, so "the
-      // business becomes healthier" is an actual measured comparison, not
-      // just an isolated income/expense number.
-      if (updated.status === 'completed' && updated.baseline && !outcomes.some(o => o.tacticId === action.id)) {
-        const current = trailingSnapshot(transactions);
-        const actualImpact = measureActualImpact(action, updated.baseline, current);
-        const health = updated.healthAtStart !== undefined
-          ? { before: updated.healthAtStart, after: diagnosis.overallHealth }
-          : undefined;
-        const outcome = recordTacticOutcome(updated, action, actualImpact, [], [], health);
-        setOutcomes(prevOutcomes => [...prevOutcomes, outcome]);
-      }
-
+      // Marking a tactic "completed" here does NOT measure its outcome --
+      // see the measurement effect below for why (the trailing-window
+      // baseline/current overlap problem) and when it actually gets measured.
       return { ...prev, [action.id]: updated };
     });
   };
@@ -128,6 +120,43 @@ export default function ActionTrackerScreen() {
       inventory
     );
   }, [transactions, invoices, finance, settings, loans, inventory]);
+
+  // Measures a completed tactic's outcome once -- and only once -- enough
+  // time has passed since it started for the comparison to mean anything
+  // (canMeasureOutcome; see the note on OUTCOME_MEASUREMENT_WINDOW_DAYS in
+  // outcomeTrackingEngine.ts). Runs on every visit to this screen rather
+  // than at the moment of completion, since that moment is usually too soon.
+  // Uses only what was captured on the execution at start time (baseline,
+  // expectedImpact, impactType), not the live action plan -- by the time
+  // this fires, the tactic that triggered it may no longer be recommended
+  // at all (the underlying problem it addressed may already be resolved).
+  useEffect(() => {
+    if (!executionsLoaded || !outcomesLoaded) return;
+    const today = new Date().toISOString().split('T')[0];
+    const newlyMeasurable = Object.values(executions).filter(
+      e => e.baseline && canMeasureOutcome(e, today) && !outcomes.some(o => o.tacticId === e.tacticId)
+    );
+    if (newlyMeasurable.length === 0) return;
+
+    const current = trailingSnapshot(transactions);
+    const newOutcomes = newlyMeasurable.map(execution => {
+      const tacticLike = {
+        id: execution.tacticId,
+        title: execution.tacticTitle,
+        expectedImpact: execution.expectedImpact ?? 0,
+        impactType: execution.impactType ?? 'cash_improvement' as const,
+      };
+      const actualImpact = measureActualImpact(tacticLike, execution.baseline!, current);
+      const health = execution.healthAtStart !== undefined
+        ? { before: execution.healthAtStart, after: diagnosis.overallHealth }
+        : undefined;
+      return recordTacticOutcome(execution, tacticLike, actualImpact, [], [], health);
+    });
+    setOutcomes(prev => [...prev, ...newOutcomes]);
+    // transactions/diagnosis deliberately included -- a fresh visit with
+    // updated numbers is exactly what should re-check eligibility and
+    // trigger measurement once the window has passed.
+  }, [executions, executionsLoaded, outcomesLoaded, transactions, diagnosis.overallHealth]);
 
   // What this business actually did before feeds back into what gets
   // recommended and how urgently — the closing link of the loop.
@@ -465,11 +494,20 @@ export default function ActionTrackerScreen() {
                           </View>
                         </TouchableOpacity>
                       </View>
-                    ) : (
+                    ) : outcomes.some(o => o.tacticId === action.id) ? (
                       <View style={styles.completedBanner}>
                         <View style={styles.btnIconRow}>
                           <Icon name="check-circle" size={13} color={Colors.income} />
-                          <Text style={styles.completedBannerText}>Completed — nice work.</Text>
+                          <Text style={styles.completedBannerText}>Completed — impact measured, see Track Record above.</Text>
+                        </View>
+                      </View>
+                    ) : (
+                      <View style={styles.completedBanner}>
+                        <View style={styles.btnIconRow}>
+                          <Icon name="clock" size={13} color={Colors.income} />
+                          <Text style={styles.completedBannerText}>
+                            {`Completed — measuring real impact in ${daysUntilMeasurable(executions[action.id])} day${daysUntilMeasurable(executions[action.id]) === 1 ? '' : 's'} (needs a full ${OUTCOME_MEASUREMENT_WINDOW_DAYS}-day window to compare against).`}
+                          </Text>
                         </View>
                       </View>
                     )}

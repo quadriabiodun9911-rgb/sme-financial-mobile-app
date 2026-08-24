@@ -1,4 +1,8 @@
-import { recordTacticOutcome, evaluateProgressTracker, TacticExecution, ProgressTracker } from '../src/utils/outcomeTrackingEngine';
+import {
+    recordTacticOutcome, evaluateProgressTracker, initiateTacticTracking,
+    canMeasureOutcome, daysUntilMeasurable, OUTCOME_MEASUREMENT_WINDOW_DAYS,
+    TacticExecution, ProgressTracker,
+} from '../src/utils/outcomeTrackingEngine';
 import { ActionTactic } from '../src/utils/actionRecommendationEngine';
 
 const makeTactic = (overrides: Partial<ActionTactic>): ActionTactic => ({
@@ -43,6 +47,51 @@ describe('recordTacticOutcome', () => {
         expect(outcome.healthBefore).toBeUndefined();
         expect(outcome.healthAfter).toBeUndefined();
         expect(outcome.healthDelta).toBeUndefined();
+    });
+});
+
+// Regression: measuring a tactic's actual impact the instant it was marked
+// complete compared a trailing-30-day "baseline" against a trailing-30-day
+// "current" taken almost immediately after -- the two windows overlapped
+// almost entirely for anything finished quickly, drowning out whatever the
+// tactic actually did. canMeasureOutcome/daysUntilMeasurable gate that
+// measurement until enough days have passed since the tactic's start date
+// for the two windows to no longer overlap.
+describe('canMeasureOutcome / daysUntilMeasurable', () => {
+    const execution: TacticExecution = {
+        tacticId: 'tac1', tacticTitle: 'Cut expenses', startDate: '2024-01-01',
+        targetEndDate: '2024-02-01', status: 'completed', progressPercentage: 100,
+        completedSteps: [], notes: '', baseline: { income: 1000, expense: 500, profit: 500 },
+    };
+
+    it('is not measurable the moment a tactic is completed (0 days elapsed)', () => {
+        expect(canMeasureOutcome(execution, '2024-01-01')).toBe(false);
+        expect(daysUntilMeasurable(execution, '2024-01-01')).toBe(OUTCOME_MEASUREMENT_WINDOW_DAYS);
+    });
+
+    it('is not yet measurable a few days after completion', () => {
+        expect(canMeasureOutcome(execution, '2024-01-05')).toBe(false);
+        expect(daysUntilMeasurable(execution, '2024-01-05')).toBe(OUTCOME_MEASUREMENT_WINDOW_DAYS - 4);
+    });
+
+    it('becomes measurable once a full window has passed since the start date', () => {
+        const thirtyDaysLater = '2024-01-31'; // 30 days after 2024-01-01
+        expect(canMeasureOutcome(execution, thirtyDaysLater)).toBe(true);
+        expect(daysUntilMeasurable(execution, thirtyDaysLater)).toBe(0);
+    });
+
+    it('is never measurable for a tactic that is not completed, regardless of elapsed time', () => {
+        const inProgress: TacticExecution = { ...execution, status: 'in-progress' };
+        expect(canMeasureOutcome(inProgress, '2024-06-01')).toBe(false);
+    });
+});
+
+describe('initiateTacticTracking', () => {
+    it('captures expectedImpact and impactType from the tactic at start time', () => {
+        const tactic = makeTactic({ expectedImpact: 5000, impactType: 'revenue' });
+        const execution = initiateTacticTracking(tactic, '2024-01-01', { income: 100, expense: 50, profit: 50 }, 70);
+        expect(execution.expectedImpact).toBe(5000);
+        expect(execution.impactType).toBe('revenue');
     });
 });
 
