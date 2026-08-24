@@ -4,6 +4,7 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { computeInventoryPricingScenario, computeRequiredUniformPriceChange, ProductPricingRow } from '../utils/inventoryPricingScenario';
 import { computeRequiredPriceIncrease } from '../utils/priceAdjustment';
+import { computeInventoryPricingInsights } from '../utils/inventoryPricingInsights';
 
 function fmt(currency: string, n: number): string {
     return `${currency}${Math.round(n).toLocaleString()}`;
@@ -81,8 +82,13 @@ export default function InventoryPricingTab() {
         [scenario.rows]
     );
 
+    const costDriftInsights = useMemo(() => computeInventoryPricingInsights(inventory, currency), [inventory, currency]);
+
     const insights = useMemo(() => {
         const list: { color: string; text: string }[] = [];
+        for (const drift of costDriftInsights) {
+            list.push({ color: Colors.warning, text: drift.narrative });
+        }
         const negative = scenario.rows.filter(r => r.hasSalesData && r.currentMargin < 0);
         if (negative.length > 0) {
             list.push({ color: Colors.expense, text: `${negative.length} item${negative.length > 1 ? 's are' : ' is'} selling below cost right now — ${negative.map(r => r.name).slice(0, 3).join(', ')}${negative.length > 3 ? ', …' : ''}.` });
@@ -96,7 +102,7 @@ export default function InventoryPricingTab() {
             list.push({ color: Colors.textMuted, text: `${noData} item${noData > 1 ? 's have' : ' has'} no recent sales recorded through Inventory's "Sell" action, so ${noData > 1 ? 'they' : 'it'} can't be scenario-priced yet.` });
         }
         return list;
-    }, [scenario]);
+    }, [scenario, costDriftInsights]);
 
     if (inventory.length === 0) {
         return (
