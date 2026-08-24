@@ -497,6 +497,15 @@ export default function SettingsScreen() {
                             </TouchableOpacity>
                         </Section>
 
+                        <Section title="Data Permission Centre">
+                            <Text style={styles.hint}>
+                                See everyone and everything with an ongoing view of your data — team members, lenders, and marketplace listings — and revoke access anytime.
+                            </Text>
+                            <TouchableOpacity style={styles.dataBtn} onPress={() => setCurrentScreen('data-permission-centre')}>
+                                <Text style={styles.dataBtnText}>Open Data Permission Centre</Text>
+                            </TouchableOpacity>
+                        </Section>
+
                         <Section title="Change PIN">
                             <FieldLabel>Current PIN</FieldLabel>
                             <TextInput style={styles.input} value={currentPin}

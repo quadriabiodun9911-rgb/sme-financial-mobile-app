@@ -198,6 +198,43 @@ export async function countMyActiveLoanMonitoringShares(): Promise<number> {
     }
 }
 
+// Item-level counterpart of the count above, for the Data Permission
+// Centre's "who has an ongoing view of my data" list -- each row is a
+// live (consent_active = true) share the owner can individually revoke.
+// businessName on the stored row is the SME's OWN name (see file header),
+// not useful here; callers join loanId against their own Loan[] to show
+// which lender/loan each row belongs to.
+export async function loadMyActiveLoanMonitoringShares(): Promise<LoanMonitoringShareRow[]> {
+    try {
+        const userId = await getAuthUserId();
+        if (!userId) return [];
+        const { data, error } = await supabase
+            .from('loan_monitoring_shares')
+            .select('*')
+            .eq('business_user_id', userId)
+            .eq('consent_active', true)
+            .order('updated_at', { ascending: false });
+        if (error || !data) return [];
+        return (data as any[]).map(r => ({
+            id: r.id,
+            loanId: r.loan_id,
+            businessName: r.business_name,
+            status: r.status,
+            readinessTrend: r.readiness_trend,
+            dscrFlag: r.dscr_flag,
+            revenueDeclineFlag: r.revenue_decline_flag,
+            repaymentPaceFlag: r.repayment_pace_flag,
+            loanPurpose: r.loan_purpose ?? undefined,
+            principalBand: r.principal_band ?? undefined,
+            currency: r.currency ?? undefined,
+            fundedAt: r.funded_at,
+            updatedAt: r.updated_at,
+        }));
+    } catch {
+        return [];
+    }
+}
+
 const LENDER_PORTFOLIO_LIMIT = 200;
 
 export async function loadPortfolioSharesForLender(): Promise<LoanMonitoringShareRow[]> {
