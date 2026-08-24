@@ -153,8 +153,12 @@ export default function CashFlowStressTester({ currency, currentCashBalance, dai
 
             {savedScenarios.length > 0 && (
                 <View style={s.compareSection}>
-                    <Text style={s.compareTitle}>Scenario Comparison</Text>
-                    <Text style={s.compareNote}>Snapshots at the time each was saved — re-save if your cash position has since changed.</Text>
+                    <Text style={s.compareTitle}>Your Saved What-Ifs</Text>
+                    <Text style={s.compareNote}>
+                        Your own hypotheticals, not a forecast — see Cash Flow Outlook for the automatic
+                        pessimistic/base/optimistic projection built from your real history. Snapshots at the time each
+                        was saved — re-save if your cash position has since changed.
+                    </Text>
                     {savedScenarios.map(sc => (
                         <View key={sc.id} style={[s.compareCard, { borderLeftColor: VERDICT_COLOR[sc.result.verdict] }]}>
                             <View style={s.compareHeader}>
