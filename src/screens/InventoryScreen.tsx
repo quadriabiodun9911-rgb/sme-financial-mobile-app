@@ -20,6 +20,7 @@ import { computeDiscountSummary } from '../utils/inventorySalesTrend';
 import { appendPriceChange, computeMarginPct } from '../utils/priceHistory';
 import { computeInventoryPace, computeSlowMovingValue } from '../utils/inventoryIntelligence';
 import { computeWorkingCapitalMetrics } from '../utils/finance';
+import { computeStockReconciliation } from '../utils/stockReconciliation';
 import RecipeCostCalculator from '../components/RecipeCostCalculator';
 import ProductionCostCalculator from '../components/ProductionCostCalculator';
 import DateInput from '../components/DateInput';
@@ -121,6 +122,10 @@ export default function InventoryScreen() {
     const totalStockValue = computeInventoryValue(inventory);
     const totalItems = inventory.length;
     const lowStockItems = inventory.filter(item => item.quantity <= item.lowStockThreshold);
+    const stockReconciliation = useMemo(
+        () => computeStockReconciliation(transactions, inventory.length > 0, currency),
+        [transactions, inventory.length, currency]
+    );
 
     // ── Analytics calculations ────────────────────────────────────────────────
     const totalPotentialRevenue = inventory.reduce((sum, item) => sum + item.quantity * (item.sellingPrice ?? 0), 0);
@@ -447,6 +452,15 @@ export default function InventoryScreen() {
                                 <Text style={styles.lowStockBannerText}>
                                     {lowStockItems.length} item{lowStockItems.length > 1 ? 's' : ''} {lowStockItems.length > 1 ? 'are' : 'is'} running low — reorder soon
                                 </Text>
+                            </View>
+                        )}
+
+                        {/* Stock reconciliation -- sales revenue with no matching
+                            inventory record, see stockReconciliation.ts */}
+                        {stockReconciliation.show && stockReconciliation.summary && (
+                            <View style={styles.lowStockBanner}>
+                                <Icon name="alert-triangle" size={14} color={Colors.warning} />
+                                <Text style={styles.lowStockBannerText}>{stockReconciliation.summary}</Text>
                             </View>
                         )}
 
