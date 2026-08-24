@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { FinanceData, Asset } from '../types';
+import { computeLeverageRatios } from '../utils/debtRatios';
 import RadialGauge from './RadialGauge';
 import BarList from './BarList';
 
@@ -9,19 +10,27 @@ interface Props {
     finance: FinanceData;
     assets: Asset[];
     currency: string;
+    accountsReceivable?: number;
+    inventoryValue?: number;
 }
 
-export default function AssetProductivityAnalysis({ finance, assets, currency }: Props) {
+export default function AssetProductivityAnalysis({ finance, assets, currency, accountsReceivable = 0, inventoryValue = 0 }: Props) {
     const activeAssets = assets.filter(a => a.status === 'active');
     const totalAssetValue = useMemo(
         () => activeAssets.reduce((sum, a) => sum + a.purchaseCost, 0),
         [activeAssets],
     );
 
-    // Asset productivity metrics
+    // Asset turnover/revenue-per-asset deliberately stay scoped to the
+    // registered asset list (totalAssetValue) -- a narrower, equipment-
+    // specific question ("how hard is my registered equipment working").
+    // ROA is a different question ("how productive is everything the
+    // business owns"), so it uses the same canonical assets figure as the
+    // Loans & Debt tab (computeLeverageRatios: finance.assets + AR +
+    // inventory) -- using finance.assets alone here used to show a
+    // different ROA than the Loans & Debt tab for the exact same business.
     const assetTurnover = finance.income > 0 ? finance.income / Math.max(1, totalAssetValue) : 0;
-    const returnOnAssets = finance.assets > 0 ? (finance.profit / finance.assets) * 100 : 0;
-    const assetEfficiency = (finance.income / Math.max(1, totalAssetValue)) * 100;
+    const { returnOnAssets } = computeLeverageRatios(finance, [], accountsReceivable, 0, inventoryValue);
     const profitMargin = finance.income > 0 ? (finance.profit / finance.income) * 100 : 0;
 
     // Asset health score

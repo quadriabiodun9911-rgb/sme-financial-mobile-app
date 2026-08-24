@@ -700,6 +700,8 @@ export default function ReportsScreen() {
                             finance={allFinance}
                             assets={assets}
                             currency={currency}
+                            accountsReceivable={allTimeWcMetrics.accountsReceivable}
+                            inventoryValue={inventoryValue}
                         />
                     )}
 
