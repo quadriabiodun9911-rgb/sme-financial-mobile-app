@@ -16,6 +16,7 @@ import { generateActionPlan } from '../utils/actionRecommendationEngine';
 import { scenarioAdjustments, summarizeScenario, SCENARIO_SWING, ScenarioName } from '../utils/scenarioForecast';
 import { computeExternalScenarioStress, ImpactLevel, ProbabilityLevel } from '../utils/externalFactorsPanel';
 import { explainForecastChange } from '../utils/forecastChangeExplanation';
+import { generateForecastRiskActions } from '../utils/forecastRiskRecommendations';
 
 type Statement = 'pnl' | 'cashflow' | 'balance';
 
@@ -193,6 +194,17 @@ export default function FutureFinancialStatementsScreen() {
         [diagnosis, currency],
     );
     const topActions = (actionPlan.immediateActions.length > 0 ? actionPlan.immediateActions : actionPlan.shortTermActions).slice(0, 3);
+
+    // What the FORECAST itself is warning about (pressured months, corroborated
+    // external risk, a declining health trajectory, a Conservative-scenario cash
+    // shortfall) -- distinct from topActions above, which diagnoses HISTORICAL
+    // performance and never reads the forecast at all. This is what the "Quad360
+    // Financial Intelligence" card below actually shows, so its own claim ("based
+    // on your forecast") is literally true rather than aspirational copy.
+    const forecastRiskActions = useMemo(
+        () => generateForecastRiskActions(forecastSummary, currency, scenarioRange[0]),
+        [forecastSummary, currency, scenarioRange],
+    ).slice(0, 3);
 
     return (
         <SafeAreaView style={s.safe}>
@@ -736,12 +748,20 @@ export default function FutureFinancialStatementsScreen() {
                             ))}
                         </View>
 
-                        {/* AI recommendation box */}
-                        {topActions.length > 0 && (
+                        {/* AI recommendation box — driven by what the FORECAST itself
+                            is warning about (forecastRiskActions), not the separate
+                            historical diagnosis (topActions). Falls back to topActions
+                            only when the forecast shows no risk at all, so there's
+                            still something useful here rather than an empty card. */}
+                        {(forecastRiskActions.length > 0 || topActions.length > 0) && (
                             <View style={s.aiCard}>
-                                <Text style={s.aiCardTitle}>🤖 Quad360 Financial Intelligence</Text>
-                                <Text style={s.baselineNote}>Based on your forecast and recent numbers, here's what to focus on:</Text>
-                                {topActions.map(action => (
+                                <Text style={s.aiCardTitle}>🤖 Quad360 Recommendation</Text>
+                                <Text style={s.baselineNote}>
+                                    {forecastRiskActions.length > 0
+                                        ? 'Based on what your forecast is projecting, here\'s what to focus on:'
+                                        : 'Your forecast shows no material risk right now. Based on your recent numbers, here\'s what to focus on:'}
+                                </Text>
+                                {(forecastRiskActions.length > 0 ? forecastRiskActions : topActions).map(action => (
                                     <View key={action.id} style={s.aiActionRow}>
                                         <Text style={s.aiActionTitle}>{action.title}</Text>
                                         <Text style={s.aiActionDesc}>{action.description}</Text>
