@@ -1,20 +1,51 @@
 import { Screen, UserRole } from '../types';
 
 /**
+ * The full capability matrix for invited team members. Four roles:
+ *
+ *   owner       full control — the only role that can touch team
+ *               membership, payment/bank settings, and business-data
+ *               deletion.
+ *   accountant  full financial visibility + can record transactions,
+ *               invoices, inventory, same as owner day-to-day.
+ *   manager     same day-to-day recording + financial visibility as
+ *               accountant — runs operations, but isn't handed the
+ *               business-critical owner actions below.
+ *   staff       operational only (see STAFF_ALLOWED_SCREENS below) — no
+ *               visibility into P&L, cash balance, bank/loan details.
+ *
  * What "staff" actually means in this app: someone who runs day-to-day
  * operations (log a sale, send an invoice, manage stock) while the owner
  * isn't there — not someone who should see the business's full financial
- * picture (P&L, cash balance, bank details, loan terms). Previously every
- * invited role saw an identical app; write actions were gated by role but
- * reads were not, so an invited "staff" account had full visibility into
- * everything despite the Settings screen's own copy claiming otherwise.
- *
- * Owner and accountant both see everything (accountant is read+export,
- * enforced at the mutation layer in AppContext.tsx via canManage/canWrite,
- * not here). This file only decides what STAFF can reach.
+ * picture. Previously every invited role saw an identical app; write
+ * actions were gated by role but reads were not, so an invited "staff"
+ * account had full visibility into everything despite the Settings
+ * screen's own copy claiming otherwise.
  */
 export function canViewFinancials(role: UserRole): boolean {
     return role !== 'staff';
+}
+
+// Owner-only actions: things that reshape who has access, where money
+// moves, or that permanently destroy business records. Every one of these
+// was previously an inline `userRole === 'owner'` check scattered across
+// SettingsScreen.tsx and FinancingMarketplaceScreen — consolidated here so
+// the actual rule (which is "owner only" for all four today) is defined
+// once and named for what it protects, not re-derived at each call site.
+export function canManageTeam(role: UserRole): boolean {
+    return role === 'owner';
+}
+
+export function canManagePaymentSettings(role: UserRole): boolean {
+    return role === 'owner';
+}
+
+export function canDeleteBusinessData(role: UserRole): boolean {
+    return role === 'owner';
+}
+
+export function canPublishToLenders(role: UserRole): boolean {
+    return role === 'owner';
 }
 
 // Screens staff can open. Everything else in the Screen union renders

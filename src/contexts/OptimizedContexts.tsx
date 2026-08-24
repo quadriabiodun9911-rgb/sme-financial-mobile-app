@@ -861,7 +861,7 @@ interface AuthContextValue {
   resetApp: () => Promise<void>;
   deleteAccount: () => Promise<void>;
   teamMembers: TeamMember[];
-  inviteMember: (email: string, role: 'accountant' | 'staff') => Promise<string>;
+  inviteMember: (email: string, role: 'accountant' | 'manager' | 'staff') => Promise<string>;
   removeMember: (id: string) => Promise<void>;
   refreshTeam: () => Promise<void>;
   isFirstLaunch: boolean;
@@ -1459,7 +1459,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await saveProfile({ email, businessName: 'Team Member', createdAt: new Date().toISOString() });
         setIsFirstLaunch(false);
         writeTabIdentity(email);
-        setUser({ email, businessName: 'Team Member', role: role === 'accountant' ? 'Accountant' : 'Staff', createdAt: new Date().toISOString() });
+        setUser({ email, businessName: 'Team Member', role: role === 'accountant' ? 'Accountant' : role === 'manager' ? 'Manager' : 'Staff', createdAt: new Date().toISOString() });
         setCurrentScreenState('dashboard');
       },
 
@@ -1835,7 +1835,11 @@ export function useApp() {
     [auth.user, daysActive, avgMonthlyRevenue, avgMonthlyProfit, totalRecordedRevenue, financialHealthScore]
   );
 
-  const resolvedUserRole = (auth.user?.role === 'Accountant' ? 'accountant' : auth.user?.role === 'Staff' ? 'staff' : 'owner') as UserRole;
+  const resolvedUserRole = (
+    auth.user?.role === 'Accountant' ? 'accountant' :
+    auth.user?.role === 'Manager' ? 'manager' :
+    auth.user?.role === 'Staff' ? 'staff' : 'owner'
+  ) as UserRole;
 
   return {
     // Auth state

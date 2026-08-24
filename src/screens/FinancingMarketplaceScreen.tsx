@@ -13,6 +13,7 @@ import { buildFinancingFitInput, rankFinancingProducts, FinancingFitResult, Fina
 import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
 import { computeReadinessDelta } from '../utils/readinessHistory';
 import { recommendFinancingTypes, FinancingRecommendation } from '../utils/financingRecommendation';
+import { canPublishToLenders as computeCanPublishToLenders } from '../utils/rolePermissions';
 import { computeDataQuality } from '../utils/dataQuality';
 import { computeInventoryValue } from '../utils/stockVelocity';
 import { SAMPLE_FINANCING_PRODUCTS } from '../utils/financingProducts';
@@ -298,7 +299,7 @@ export default function FinancingMarketplaceScreen() {
     // Publishing is owner-only -- see financingPipeline.ts's header note on
     // why it keys rows off the signed-in session directly rather than the
     // shared-workspace owner id every other per-business table uses.
-    const canPublishToLenders = userRole === 'owner';
+    const canPublishToLenders = computeCanPublishToLenders(userRole);
 
     const revenueBand = useMemo(() => bandRevenue(fitInput.annualRevenue, currency), [fitInput.annualRevenue, currency]);
 

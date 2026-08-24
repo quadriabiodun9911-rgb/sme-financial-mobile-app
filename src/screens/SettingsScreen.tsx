@@ -20,6 +20,7 @@ import { trackDataExported } from '../utils/analytics';
 import { isFinancingAdmin } from '../utils/financingAdmin';
 import { PRIMARY_GOAL_OPTIONS } from '../utils/primaryGoals';
 import { auditDataIntegrity } from '../utils/dataIntegrity';
+import { canManageTeam, canManagePaymentSettings, canDeleteBusinessData } from '../utils/rolePermissions';
 
 const CURRENCIES = [
     { label: 'USD ($)',    value: '$',   code: 'USD' },
@@ -129,7 +130,7 @@ export default function SettingsScreen() {
     // Team invite modal
     const [inviteModal, setInviteModal]   = useState(false);
     const [inviteEmail, setInviteEmail]   = useState('');
-    const [inviteRole, setInviteRole]     = useState<'accountant' | 'staff'>('accountant');
+    const [inviteRole, setInviteRole]     = useState<'accountant' | 'manager' | 'staff'>('accountant');
     const [pendingCode, setPendingCode]   = useState<string | null>(null);
 
     useEffect(() => {
@@ -172,7 +173,7 @@ export default function SettingsScreen() {
     };
 
     const handleSavePaymentKeys = () => {
-        if (userRole !== 'owner') {
+        if (!canManagePaymentSettings(userRole)) {
             showAlert('Permission denied', 'Only the account owner can change payment settings.');
             return;
         }
@@ -527,11 +528,11 @@ export default function SettingsScreen() {
                     </CollapsibleSection>
 
                     {/* Team (Operations category) */}
-                    {enableTeam && userRole === 'owner' && (
+                    {enableTeam && canManageTeam(userRole) && (
                         <CollapsibleSection title="Team" defaultOpen={false}>
                             <Section title="Team Management">
                                 <Text style={styles.hint}>
-                                    Invite team members to access your business data. Accountants see full financial reports and can export. Staff can log sales/expenses, send invoices, and manage inventory — full P&L, cash balance, and bank/loan details stay hidden from them.
+                                    Invite team members to access your business data. Accountants and Managers see full financial reports, record transactions and export. Staff can log sales/expenses, send invoices, and manage inventory — full P&L, cash balance, and bank/loan details stay hidden from them.
                                 </Text>
                                 <TouchableOpacity style={styles.dataBtn} onPress={() => { setPendingCode(null); setInviteModal(true); }}>
                                     <Text style={styles.dataBtnText}>+ Invite Team Member</Text>
@@ -544,8 +545,8 @@ export default function SettingsScreen() {
                                                 <View style={{ flex: 1 }}>
                                                     <Text style={styles.memberEmail}>{m.memberEmail}</Text>
                                                     <View style={styles.memberMeta}>
-                                                        <View style={[styles.roleBadge, { backgroundColor: m.role === 'accountant' ? Colors.primary + '22' : Colors.warning + '22' }]}>
-                                                            <Text style={[styles.roleText, { color: m.role === 'accountant' ? Colors.primary : Colors.warning }]}>
+                                                        <View style={[styles.roleBadge, { backgroundColor: (m.role === 'accountant' ? Colors.primary : m.role === 'manager' ? Colors.secondary : Colors.warning) + '22' }]}>
+                                                            <Text style={[styles.roleText, { color: m.role === 'accountant' ? Colors.primary : m.role === 'manager' ? Colors.secondary : Colors.warning }]}>
                                                                 {m.role.toUpperCase()}
                                                             </Text>
                                                         </View>
@@ -597,7 +598,7 @@ export default function SettingsScreen() {
                             deleteAllBusinessRecords in storage.ts) -- hiding
                             the button for anyone else keeps that consistent
                             at the UI layer too, not just silently no-op. */}
-                        {userRole === 'owner' && (
+                        {canDeleteBusinessData(userRole) && (
                         <Section title="Reset Business Data">
                             <Text style={styles.hint}>
                                 Permanently deletes all transactions, invoices, goals, assets, loans, and inventory. Your account and settings are kept — use this to start fresh without creating a new account.
@@ -837,7 +838,9 @@ export default function SettingsScreen() {
                         <Section title="Your Access">
                             <Text style={styles.hint}>
                                 {userRole === 'accountant'
-                                    ? 'You have Accountant access — you can view all data and export reports, but cannot modify transactions or settings.'
+                                    ? 'You have Accountant access — you can view all data, record transactions, and export reports. Team management, payment settings, and business-data deletion stay with the owner.'
+                                    : userRole === 'manager'
+                                    ? 'You have Manager access — you can view all data and record transactions, invoices, and inventory. Team management, payment settings, and business-data deletion stay with the owner.'
                                     : 'You have Staff access — you can add transactions. Contact your business owner for full access.'}
                             </Text>
                         </Section>
@@ -895,11 +898,14 @@ export default function SettingsScreen() {
                                 <Text style={styles.label}>Role</Text>
                                 <View style={styles.optRow}>
                                     <Opt label="Accountant" active={inviteRole === 'accountant'} onPress={() => setInviteRole('accountant')} />
+                                    <Opt label="Manager" active={inviteRole === 'manager'} onPress={() => setInviteRole('manager')} />
                                     <Opt label="Staff" active={inviteRole === 'staff'} onPress={() => setInviteRole('staff')} />
                                 </View>
                                 <Text style={[styles.hint, { marginTop: 10 }]}>
                                     {inviteRole === 'accountant'
-                                        ? 'Accountant: can view all data and export reports.'
+                                        ? 'Accountant: full financial visibility, can record transactions, invoices and inventory, and export reports.'
+                                        : inviteRole === 'manager'
+                                        ? 'Manager: same day-to-day access as Accountant — records transactions, invoices and inventory, sees full reports.'
                                         : 'Staff: can add transactions only.'}
                                 </Text>
                                 <View style={[styles.modalBtns, { marginTop: 16 }]}>

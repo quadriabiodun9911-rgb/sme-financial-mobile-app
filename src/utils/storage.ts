@@ -624,7 +624,7 @@ export async function loadTeamMembers(): Promise<TeamMember[]> {
 
 export async function inviteTeamMember(
     memberEmail: string,
-    role: 'accountant' | 'staff',
+    role: 'accountant' | 'manager' | 'staff',
 ): Promise<string> {
     const ownerId = await getAuthUserId();
     if (!ownerId) throw new Error('Not authenticated.');
@@ -652,7 +652,7 @@ export async function removeTeamMember(memberId: string): Promise<void> {
 export async function joinTeamWithCode(
     memberUserId: string,
     inviteCode: string,
-): Promise<{ ownerId: string; role: 'accountant' | 'staff' }> {
+): Promise<{ ownerId: string; role: 'accountant' | 'manager' | 'staff' }> {
     const { data, error } = await supabase
         .from('team_members')
         .select('*')
