@@ -20,6 +20,7 @@ import { scanStatementImage, ScannedTransaction, ScanMediaType } from '../utils/
 import { confirmAction } from '../utils/webAlert';
 import { TxCategory, classifyByDescription, loadLearnedRules, learnCategory, normalise } from '../utils/transactionCategorization';
 import { auditEvents } from '../utils/auditLog';
+import DataConfidenceBadge from '../components/DataConfidenceBadge';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -921,6 +922,13 @@ export default function ImportTransactionsScreen() {
                         )}
                     </View>
                 )}
+
+                {/* How much to trust the score above -- especially important
+                    on a first import, where the score is often built on very
+                    little history. */}
+                <View style={{ width: '100%', maxWidth: 320 }}>
+                    <DataConfidenceBadge transactions={transactions} />
+                </View>
 
                 {/* This is the "give value before asking for money" moment —
                     the free 4-pillar audit (Money/Performance/Cash/Readiness)

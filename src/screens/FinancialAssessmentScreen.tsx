@@ -10,6 +10,7 @@ import { getMonthlyExpenseAverage, computeRiskScore, RISK_BAND_STYLE } from '../
 import SwotAnalysis from '../components/SwotAnalysis';
 import NextStepLink from '../components/NextStepLink';
 import Icon, { IconName } from '../components/ui/Icon';
+import DataConfidenceBadge from '../components/DataConfidenceBadge';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 
 export default function FinancialAssessmentScreen() {
@@ -215,6 +216,11 @@ export default function FinancialAssessmentScreen() {
           </View>
         </View>
 
+        {/* How much to trust the score above -- how the diagnosis
+            distinguishes "confident based on real history" from "your
+            first import, take this as a starting point." */}
+        <DataConfidenceBadge transactions={transactions} />
+
         {/* "3 things to fix first" — the whole point of running a diagnosis
             instead of just showing numbers: a short, ranked list of what to
             actually do about it. */}
@@ -258,11 +264,18 @@ export default function FinancialAssessmentScreen() {
               <Text style={styles.metricSubtext}>Target: 20% · differs from the all-time margin shown elsewhere</Text>
             </View>
             <View style={styles.metricBox}>
+              <Text style={styles.metricLabel}>Cash on Hand</Text>
+              <Text style={[styles.metricValue, { color: diagnosis.metrics.cashBalance >= 0 ? Colors.textPrimary : Colors.expense }]}>
+                {settings.currency}{Math.round(diagnosis.metrics.cashBalance).toLocaleString()}
+              </Text>
+              <Text style={styles.metricSubtext}>Right now</Text>
+            </View>
+            <View style={styles.metricBox}>
               <Text style={styles.metricLabel}>Runway</Text>
               <Text style={[styles.metricValue, { color: diagnosis.metrics.runwayDays && diagnosis.metrics.runwayDays > 60 ? Colors.income : Colors.expense }]}>
                 {diagnosis.metrics.runwayDays || '?'} days
               </Text>
-              <Text style={styles.metricSubtext}>Cash remaining</Text>
+              <Text style={styles.metricSubtext}>At current burn rate</Text>
             </View>
             <View style={styles.metricBox}>
               <Text style={styles.metricLabel}>Growth</Text>
