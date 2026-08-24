@@ -902,6 +902,7 @@ export const buildForecastInput = (
       date: t.date,
       amount: t.amount ?? 0,
       type: t.type,
+      status: t.status,
       isRecurring: !!t.isRecurring,
       frequency: t.recurringFrequency,
     })),

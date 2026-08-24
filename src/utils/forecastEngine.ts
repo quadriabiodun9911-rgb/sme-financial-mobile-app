@@ -136,27 +136,70 @@ export class ForecastEngine {
     };
   }
 
+  // Trailing 90-day average of REAL, paid, ORDINARY (not explicitly
+  // flagged isRecurring) transactions -- the same kind of window
+  // computeCashRunway/ActionTracker's trailingSnapshot already use
+  // elsewhere in the app -- divided into a monthly figure. This is what
+  // "Base Case: most likely case based on historical averages" (see
+  // getScenarioDescription) is supposed to mean, but never actually was:
+  // calculateMonthlyIncome/Expenses previously summed ONLY transactions
+  // explicitly marked isRecurring, which almost no business actually
+  // tags -- a business that just logs day-to-day sales and expenses one
+  // at a time (the normal way) got projectedIncome/projectedExpenses of
+  // exactly 0 every month, so every scenario stayed frozen flat at
+  // today's cash balance regardless of how fast it was really burning
+  // cash. isRecurring transactions are deliberately excluded here and
+  // handled by getRecurringMonthlyAmounts instead, so a business that
+  // logs its rent every month with "recurring" checked doesn't get it
+  // counted twice. Only 'paid' transactions count, matching this app's
+  // cash-vs-accrual discipline elsewhere (e.g. cashFlowTrend.ts) -- an
+  // unpaid pending/overdue transaction hasn't actually moved cash yet.
+  private getHistoricalMonthlyBaseline(): { income: number; expense: number } {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 90);
+    const cutoffStr = cutoff.toISOString().split('T')[0];
+    const recent = this.input.transactions.filter(
+      t => t.date >= cutoffStr && (t.status ?? 'paid') === 'paid' && !t.isRecurring
+    );
+    const income = recent.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+    const expense = recent.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+    return { income: income / 3, expense: expense / 3 };
+  }
+
+  // Transactions the user has explicitly tagged as an ongoing commitment
+  // project forward at their frequency-implied monthly amount regardless
+  // of how long ago the underlying record was entered (a rent transaction
+  // logged once, months ago, still means rent is due every month) -- this
+  // is the one signal the trailing-90-day historical average above can't
+  // see on its own, since it only knows what's already been paid recently.
+  private getRecurringMonthlyAmounts(): { income: number; expense: number } {
+    let income = 0;
+    let expense = 0;
+    for (const t of this.input.transactions) {
+      if (!t.isRecurring || !t.frequency) continue;
+      const monthlyAmount = this.getMonthlyAmount(t);
+      if (t.type === 'income') income += monthlyAmount;
+      else expense += monthlyAmount;
+    }
+    return { income, expense };
+  }
+
   /**
-   * Calculate monthly recurring income
+   * Calculate monthly income: real historical average of ordinary
+   * transactions, plus any explicitly recurring income, plus specific
+   * invoices expected to land this month.
    */
   private calculateMonthlyIncome(
     forecastDate: Date,
     multipliers: { revenue: number; expense: number; paymentDelay: number },
     scenario: ScenarioType
   ): number {
-    let income = 0;
-
-    // Recurring income transactions
-    const recurringIncome = this.input.transactions
-      .filter(t => t.type === 'income' && t.isRecurring)
-      .forEach(t => {
-        const monthlyAmount = this.getMonthlyAmount(t, forecastDate);
-        income += monthlyAmount;
-      });
+    const { income: historicalIncome } = this.getHistoricalMonthlyBaseline();
+    const { income: recurringIncome } = this.getRecurringMonthlyAmounts();
 
     // Invoices expected to be paid this month
     const paidInvoices = this.calculateExpectedPayments(forecastDate, multipliers.paymentDelay);
-    income += paidInvoices;
+    const income = historicalIncome + recurringIncome + paidInvoices;
 
     // Apply scenario multiplier and growth
     const growthFactor = Math.pow(
@@ -168,22 +211,17 @@ export class ForecastEngine {
   }
 
   /**
-   * Calculate monthly recurring expenses
+   * Calculate monthly expenses: real historical average of ordinary
+   * transactions, plus any explicitly recurring expense.
    */
   private calculateMonthlyExpenses(
     forecastDate: Date,
     multipliers: { revenue: number; expense: number; paymentDelay: number },
     scenario: ScenarioType
   ): number {
-    let expenses = 0;
-
-    // Recurring expense transactions
-    this.input.transactions
-      .filter(t => t.type === 'expense' && t.isRecurring)
-      .forEach(t => {
-        const monthlyAmount = this.getMonthlyAmount(t, forecastDate);
-        expenses += monthlyAmount;
-      });
+    const { expense: historicalExpense } = this.getHistoricalMonthlyBaseline();
+    const { expense: recurringExpense } = this.getRecurringMonthlyAmounts();
+    const expense = historicalExpense + recurringExpense;
 
     // Apply scenario multiplier and growth
     const growthFactor = Math.pow(
@@ -191,7 +229,7 @@ export class ForecastEngine {
       this.monthsFromNow(forecastDate)
     );
 
-    const base = expenses * multipliers.expense * growthFactor;
+    const base = expense * multipliers.expense * growthFactor;
 
     // Apply seasonal adjustments if enabled
     if (this.assumptions.enableSeasonalAdjustment && this.input.seasonalFactors) {
@@ -201,6 +239,24 @@ export class ForecastEngine {
     }
 
     return base;
+  }
+
+  /**
+   * Convert a recurring transaction to its monthly-equivalent amount.
+   */
+  private getMonthlyAmount(transaction: (typeof this.input.transactions)[0]): number {
+    switch (transaction.frequency) {
+      case 'weekly':
+        return (transaction.amount * 52) / 12; // 52 weeks / 12 months
+      case 'monthly':
+        return transaction.amount;
+      case 'quarterly':
+        return (transaction.amount * 4) / 12; // 4 quarters / 12 months
+      case 'yearly':
+        return transaction.amount / 12;
+      default:
+        return 0;
+    }
   }
 
   /**
@@ -223,31 +279,6 @@ export class ForecastEngine {
     });
 
     return totalPayments;
-  }
-
-  /**
-   * Convert recurring transaction to monthly amount
-   */
-  private getMonthlyAmount(
-    transaction: (typeof this.input.transactions)[0],
-    forecastDate: Date
-  ): number {
-    if (!transaction.isRecurring || !transaction.frequency) {
-      return 0;
-    }
-
-    switch (transaction.frequency) {
-      case 'weekly':
-        return (transaction.amount * 52) / 12; // 52 weeks / 12 months
-      case 'monthly':
-        return transaction.amount;
-      case 'quarterly':
-        return (transaction.amount * 4) / 12; // 4 quarters / 12 months
-      case 'yearly':
-        return transaction.amount / 12;
-      default:
-        return 0;
-    }
   }
 
   /**

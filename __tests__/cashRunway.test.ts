@@ -50,4 +50,26 @@ describe('computeCashRunway', () => {
         const r = computeCashRunway(txs, 3050, REF); // 30.5 days
         expect(r.runwayDays).toBe(30);
     });
+
+    it('projects a recurring expense forward even when its own date is outside the 30-day window', () => {
+        // Regression: a monthly rent payment logged 45 days ago used to
+        // vanish from dailyBurn entirely once it aged out of the trailing
+        // 30-day window, showing a false 0 burn / Infinity runway for a
+        // business with real, ongoing recurring expenses.
+        const txs = [
+            makeTx({ amount: 3650, date: '2023-12-17', isRecurring: true, recurringFrequency: 'monthly' }), // 45 days before REF
+        ];
+        const r = computeCashRunway(txs, 10000, REF);
+        expect(r.dailyBurn).toBeCloseTo((3650 * 12) / 365, 5);
+        expect(Number.isFinite(r.runwayDays)).toBe(true);
+    });
+
+    it('does not double-count a recurring expense that also falls inside the trailing 30-day window', () => {
+        const txs = [
+            makeTx({ amount: 3650, date: '2024-01-15', isRecurring: true, recurringFrequency: 'monthly' }),
+        ];
+        const r = computeCashRunway(txs, 10000, REF);
+        // Counted once via the recurring projection, not again via burn30.
+        expect(r.dailyBurn).toBeCloseTo((3650 * 12) / 365, 5);
+    });
 });

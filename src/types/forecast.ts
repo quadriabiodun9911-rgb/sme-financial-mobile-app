@@ -73,6 +73,7 @@ export interface ForecastInput {
     date: string;      // YYYY-MM or YYYY-MM-DD
     amount: number;
     type: 'income' | 'expense';
+    status?: 'paid' | 'pending' | 'overdue';
     isRecurring: boolean;
     frequency?: 'weekly' | 'monthly' | 'quarterly' | 'yearly';
   }>;
