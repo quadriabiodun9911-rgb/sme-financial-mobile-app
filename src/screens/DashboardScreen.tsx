@@ -53,6 +53,7 @@ import { detectFinancialAlerts, DEFAULT_THRESHOLDS } from '../utils/alertEngine'
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { buildNewGoal, goalDefaults } from '../utils/goals';
 import { computeRiskRadar, RiskLevel } from '../utils/riskRadar';
+import { detectPersonalSpending, DISMISSED_PERSONAL_KEY } from '../utils/personalSpendingDetector';
 import { GoalType } from '../types';
 import { buildDashboardPriorities, PriorityKind, PriorityTier, OverspentBudget } from '../utils/dashboardPriorities';
 import { resolveMonthlyMission, StoredMission } from '../utils/monthlyMission';
@@ -610,6 +611,23 @@ export default function DashboardScreen() {
         [transactions, loans, settings?.macroAssumptions]
     );
 
+    // Same "not personal" confirmations TransactionsScreen's row action
+    // writes -- read independently here (not lifted to context) so this
+    // banner reflects them without adding new global state, matching how
+    // Header's own dismissedAlertIds is scoped to that component alone.
+    const [dismissedPersonalIds, setDismissedPersonalIds] = useState<string[]>([]);
+    useEffect(() => {
+        AsyncStorage.getItem(DISMISSED_PERSONAL_KEY).then(raw => {
+            if (raw) {
+                try { setDismissedPersonalIds(JSON.parse(raw)); } catch { /* corrupt value, start fresh */ }
+            }
+        });
+    }, []);
+    const personalSpending = useMemo(
+        () => detectPersonalSpending(transactions, settings?.currency ?? '₦', dismissedPersonalIds),
+        [transactions, settings?.currency, dismissedPersonalIds]
+    );
+
     const openFab = (type: 'income' | 'expense' = 'income') => {
         setQaType(type);
         setQaCategory('');
@@ -819,6 +837,17 @@ export default function DashboardScreen() {
                     </View>
                   </View>
                 </View>
+                )}
+
+                {personalSpending.flaggedCount > 0 && (
+                  <TouchableOpacity
+                    style={styles.personalSpendingBanner}
+                    onPress={() => navigate('transactions', { filter: 'personal' })}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.personalSpendingBannerTitle}>⚠️ Mixed Personal & Business Spending</Text>
+                    <Text style={styles.personalSpendingBannerText}>{personalSpending.summary}</Text>
+                  </TouchableOpacity>
                 )}
 
                 {/* "Your Progress" — the change that already happened, not
@@ -1837,6 +1866,18 @@ const styles = StyleSheet.create({
       height: 1,
       backgroundColor: Colors.border,
     },
+
+    personalSpendingBanner: {
+      backgroundColor: Colors.warning + '18',
+      borderWidth: 1,
+      borderColor: Colors.warning,
+      borderRadius: Radius.md,
+      padding: Spacing.md,
+      marginHorizontal: Spacing.lg,
+      marginBottom: Spacing.lg,
+    },
+    personalSpendingBannerTitle: { fontSize: 13.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: 3 },
+    personalSpendingBannerText: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
 
     nextActionCard: {
       backgroundColor: Colors.surface,

@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
     TouchableOpacity, Modal, StyleSheet, Share, Linking, FlatList, Platform, useWindowDimensions,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
@@ -19,6 +20,7 @@ import { t } from '../utils/i18n';
 import { trackDataExported } from '../utils/analytics';
 import { isOverdueIncomeTransaction, getOverdueIncomeTransactions } from '../utils/overdueTransactions';
 import { classifyTransactions } from '../utils/dataQuality';
+import { detectPersonalSpending, DISMISSED_PERSONAL_KEY } from '../utils/personalSpendingDetector';
 import CostExposureTab from '../components/CostExposureTab';
 
 type FilterType   = 'all' | 'income' | 'expense' | 'collect';
@@ -147,6 +149,24 @@ export default function TransactionsScreen() {
     const [typeFilter, setTypeFilter] = useState<FilterType>(navParams?.filter === 'collect' ? 'collect' : 'all');
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
     const [reviewOnly, setReviewOnly] = useState(navParams?.filter === 'review');
+    const [personalOnly, setPersonalOnly] = useState(navParams?.filter === 'personal');
+    const [dismissedPersonalIds, setDismissedPersonalIds] = useState<string[]>([]);
+
+    useEffect(() => {
+        AsyncStorage.getItem(DISMISSED_PERSONAL_KEY).then(raw => {
+            if (raw) {
+                try { setDismissedPersonalIds(JSON.parse(raw)); } catch { /* corrupt value, start fresh */ }
+            }
+        });
+    }, []);
+
+    const dismissPersonalFlag = (transactionId: string) => {
+        setDismissedPersonalIds(prev => {
+            const next = [...prev, transactionId];
+            AsyncStorage.setItem(DISMISSED_PERSONAL_KEY, JSON.stringify(next));
+            return next;
+        });
+    };
     const [page, setPage]             = useState(1);
     const PAGE_SIZE = 50;
     const [form, setForm]             = useState<FormState>({ ...EMPTY_FORM, taxRate: defaultTaxRate });
@@ -162,6 +182,15 @@ export default function TransactionsScreen() {
         [transactions]
     );
 
+    const personalReport = useMemo(
+        () => detectPersonalSpending(transactions, currency, dismissedPersonalIds),
+        [transactions, currency, dismissedPersonalIds]
+    );
+    const personalFlagIds = useMemo(
+        () => new Map(personalReport.flagged.map(f => [f.transactionId, f.reason])),
+        [personalReport]
+    );
+
     const filtered = useMemo(() => {
         return transactions.filter(tx => {
             if (typeFilter === 'collect') {
@@ -172,6 +201,7 @@ export default function TransactionsScreen() {
                 if (statusFilter !== 'all' && (tx.status ?? 'paid') !== statusFilter) return false;
             }
             if (reviewOnly && !reviewIds.has(tx.id)) return false;
+            if (personalOnly && !personalFlagIds.has(tx.id)) return false;
             const q = search.toLowerCase();
             if (q && !(
                 (tx.description ?? '').toLowerCase().includes(q) ||
@@ -182,7 +212,7 @@ export default function TransactionsScreen() {
             )) return false;
             return true;
         });
-    }, [transactions, typeFilter, statusFilter, reviewOnly, reviewIds, search]);
+    }, [transactions, typeFilter, statusFilter, reviewOnly, reviewIds, personalOnly, personalFlagIds, search]);
 
     // Collections sorted by days overdue DESC, then amount DESC
     const collectionsFiltered = useMemo(() => {
@@ -433,6 +463,17 @@ export default function TransactionsScreen() {
                             </TouchableOpacity>
                         </>
                     )}
+                    {personalFlagIds.size > 0 && (
+                        <>
+                            <View style={styles.sep} />
+                            <TouchableOpacity
+                                style={[styles.chip, personalOnly && styles.chipCollect]}
+                                onPress={() => { setPersonalOnly(v => !v); setPage(1); }}
+                            >
+                                <Text style={[styles.chipText, personalOnly && styles.chipTextActive]}>🏠 Possibly Personal ({personalFlagIds.size})</Text>
+                            </TouchableOpacity>
+                        </>
+                    )}
                 </ScrollView>
                 <Text style={styles.countBadge}>{filtered.length}</Text>
             </View>
@@ -581,6 +622,9 @@ export default function TransactionsScreen() {
                                     {tx.isRecurring ? (
                                         <Text style={styles.recurBadge}>↻ {tx.recurringFrequency}</Text>
                                     ) : null}
+                                    {personalFlagIds.has(tx.id) ? (
+                                        <Text style={styles.personalBadge}>🏠 {personalFlagIds.get(tx.id)}</Text>
+                                    ) : null}
                                 </View>
 
                                 {/* Action row */}
@@ -613,6 +657,15 @@ export default function TransactionsScreen() {
                                             }
                                             return null;
                                         })()}
+                                        {personalFlagIds.has(tx.id) && (
+                                            <TouchableOpacity
+                                                style={styles.notPersonalBtn}
+                                                onPress={() => dismissPersonalFlag(tx.id)}
+                                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                            >
+                                                <Text style={styles.notPersonalText}>Not personal</Text>
+                                            </TouchableOpacity>
+                                        )}
                                         <TouchableOpacity
                                             style={styles.deleteBtn}
                                             onPress={() => handleDelete(tx.id, tx.description || 'this transaction')}
@@ -1154,6 +1207,7 @@ const styles = StyleSheet.create({
     dueBadge:  { fontSize: 10, color: Colors.warning, paddingHorizontal: 6, paddingVertical: 2, borderRadius: Radius.sm, backgroundColor: 'rgba(245,158,11,0.12)' },
     taxBadge:  { fontSize: 10, color: Colors.warning, paddingHorizontal: 6, paddingVertical: 2, borderRadius: Radius.sm, backgroundColor: 'rgba(245,158,11,0.12)' },
     recurBadge:{ fontSize: 10, color: Colors.primary, paddingHorizontal: 6, paddingVertical: 2, borderRadius: Radius.sm, backgroundColor: 'rgba(37,99,235,0.12)' },
+    personalBadge: { fontSize: 10, color: Colors.warning, paddingHorizontal: 6, paddingVertical: 2, borderRadius: Radius.sm, backgroundColor: 'rgba(245,158,11,0.14)' },
     txActions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     editHint:  { fontSize: 10, color: Colors.textMuted, fontStyle: 'italic' },
     actionBtns:{ flexDirection: 'row', gap: 14, alignItems: 'center' },
@@ -1161,6 +1215,8 @@ const styles = StyleSheet.create({
     paidBtnText: { fontSize: 11, color: Colors.income, fontWeight: '600' },
     callBtn:   { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, paddingHorizontal: Spacing.sm, paddingVertical: 3, backgroundColor: '#25D366', borderRadius: 6 },
     callBtnText: { fontSize: 11, color: '#fff', fontWeight: '600' },
+    notPersonalBtn: { paddingHorizontal: Spacing.sm, paddingVertical: 3, backgroundColor: 'rgba(245,158,11,0.15)', borderRadius: 6 },
+    notPersonalText: { fontSize: 11, color: Colors.warning, fontWeight: '600' },
     deleteBtn: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
     deleteText:  { fontSize: 11, color: Colors.expense },
 
