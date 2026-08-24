@@ -320,6 +320,10 @@ export default function ScoreboardScreen() {
                     )}
                 </View>
 
+                <TouchableOpacity style={s.linkRow} onPress={() => setCurrentScreen('business-timeline')}>
+                    <Text style={s.linkText}>See the story of your business's finances so far →</Text>
+                </TouchableOpacity>
+
                 <TouchableOpacity style={s.linkRow} onPress={() => setCurrentScreen('dashboard')}>
                     <Text style={s.linkText}>See today's priorities & this month's mission on the Dashboard →</Text>
                 </TouchableOpacity>

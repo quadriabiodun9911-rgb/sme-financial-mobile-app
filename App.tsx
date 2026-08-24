@@ -51,6 +51,7 @@ import OnboardingChoiceScreen from './src/screens/OnboardingChoiceScreen';
 import DataIntegrityScreen from './src/screens/DataIntegrityScreen';
 import AuditLogScreen from './src/screens/AuditLogScreen';
 import SecurityCenterScreen from './src/screens/SecurityCenterScreen';
+import BusinessTimelineScreen from './src/screens/BusinessTimelineScreen';
 import LenderPipelineScreen from './src/screens/LenderPipelineScreen';
 import RestrictedAccessScreen from './src/screens/RestrictedAccessScreen';
 import { isScreenAllowedForRole } from './src/utils/rolePermissions';
@@ -203,6 +204,7 @@ function NavigatorContent() {
             {currentScreen === 'data-integrity' && <DataIntegrityScreen />}
             {currentScreen === 'audit-log' && <AuditLogScreen />}
             {currentScreen === 'security-center' && <SecurityCenterScreen />}
+            {currentScreen === 'business-timeline' && <BusinessTimelineScreen />}
         </View>
     );
 }
