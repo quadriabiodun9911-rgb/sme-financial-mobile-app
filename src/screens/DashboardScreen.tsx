@@ -1020,16 +1020,19 @@ export default function DashboardScreen() {
                 )}
 
                 {/* Risk Radar -- what could stop growth, not what needs
-                    action today. Every category is a real, already-computed
-                    signal (debt coverage, customer/supplier concentration,
-                    seasonal pattern, macro-assumption cost exposure); a
-                    category reads "no data yet" rather than guessing. Tap
-                    through to CFO > Risk for the full detail each category
-                    already has its own screen for. */}
+                    action today. This used to render the full category-chip
+                    breakdown here AND on the Scoreboard, with two different
+                    destinations (this card went straight to CFO > Risk,
+                    bypassing Scoreboard entirely) -- the exact duplication
+                    "Your Progress" above was already written to avoid. Now
+                    it's the same one-line teaser pattern: a single summary
+                    line linking to the Scoreboard, which is the one place
+                    the full category breakdown lives; Scoreboard's own Risk
+                    Radar card still links onward to CFO > Risk for detail. */}
                 {canViewFinancials && (
                 <TouchableOpacity
                   style={styles.riskRadarCard}
-                  onPress={() => navigate('cfo', { tab: 'risk' })}
+                  onPress={() => setCurrentScreen('scoreboard')}
                   activeOpacity={0.85}
                 >
                   <View style={styles.sectionTitleRow}>
@@ -1041,21 +1044,13 @@ export default function DashboardScreen() {
                       </Text>
                     </View>
                   </View>
-                  <View style={styles.riskChipsRow}>
-                    {riskRadar.categories.map(c => (
-                      <View key={c.key} style={styles.riskChip}>
-                        <Text style={styles.riskChipDot}>{RISK_LEVEL_META[c.level].dot}</Text>
-                        <Text style={styles.riskChipLabel}>{c.label}</Text>
-                      </View>
-                    ))}
-                  </View>
                   {riskRadar.topRisks.length > 0 ? (
                     <Text style={styles.riskRadarSummary}>
                       <Text style={{ fontWeight: '700', color: Colors.textPrimary }}>Biggest risk: </Text>
-                      {riskRadar.topRisks[0].summary}
+                      {riskRadar.topRisks[0].summary} — see the full breakdown on your Scoreboard →
                     </Text>
                   ) : (
-                    <Text style={styles.riskRadarSummary}>Nothing standing out right now — a good window to focus on growth.</Text>
+                    <Text style={styles.riskRadarSummary}>Nothing standing out right now — a good window to focus on growth. See your Scoreboard →</Text>
                   )}
                 </TouchableOpacity>
                 )}
@@ -1593,14 +1588,6 @@ const styles = StyleSheet.create({
     },
     riskOverallBadge: { borderRadius: Radius.pill, paddingHorizontal: 10, paddingVertical: 2, marginLeft: 'auto' },
     riskOverallBadgeText: { fontSize: 11, fontWeight: '800' },
-    riskChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs, marginTop: Spacing.sm, marginBottom: Spacing.sm },
-    riskChip: {
-        flexDirection: 'row', alignItems: 'center', gap: 4,
-        backgroundColor: Colors.bg, borderRadius: Radius.pill,
-        paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: Colors.border,
-    },
-    riskChipDot: { fontSize: 9 },
-    riskChipLabel: { fontSize: 11, fontWeight: '600', color: Colors.textSecondary },
     riskRadarSummary: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
 
     missionCard: {

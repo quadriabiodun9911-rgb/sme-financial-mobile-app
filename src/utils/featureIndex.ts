@@ -63,9 +63,9 @@ export const FEATURE_INDEX: FeatureEntry[] = [
     },
     {
         id: 'breakeven-analysis', label: 'Breakeven Analysis (Your Actual Business)', icon: '⚖️',
-        description: 'Whether your actual revenue this period is above or below breakeven, and paths to close the gap',
-        keywords: ['breakeven', 'break even', 'profit cushion', 'shortfall'],
-        screen: 'growth', navParams: { tab: 'breakeven' },
+        description: 'Whether your actual revenue this period is above or below breakeven, paths to close the gap, and how a discount would affect it',
+        keywords: ['breakeven', 'break even', 'profit cushion', 'shortfall', 'discount'],
+        screen: 'cashflow', navParams: { tab: 'breakeven' },
     },
     {
         id: 'balance-sheet', label: 'What I Own & Owe (Balance Sheet)', icon: '🏦',

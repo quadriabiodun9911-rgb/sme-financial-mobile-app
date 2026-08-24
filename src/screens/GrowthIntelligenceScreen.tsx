@@ -8,14 +8,12 @@ import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import ProfitWaterfall from '../components/ProfitWaterfall';
 import ProfitByDimension from '../components/ProfitByDimension';
-import BreakevenAnalysis from '../components/BreakevenAnalysis';
 import ProfitDriversInsights from '../components/ProfitDriversInsights';
 import NextStepLink from '../components/NextStepLink';
 import {
     computeProfitWaterfall,
     computeProfitByCategory,
     computeProfitByVendorCustomer,
-    computeBreakeven,
     identifyProfitDrivers,
     computeMomentum,
     computeTopPerformers,
@@ -26,7 +24,7 @@ import { computeCustomerMetrics } from '../utils/customerMetrics';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 
-type Tab = 'score' | 'momentum' | 'performers' | 'drivers' | 'breakeven' | 'customers';
+type Tab = 'score' | 'momentum' | 'performers' | 'drivers' | 'customers';
 
 const TABS: { key: Tab; icon: IconName; label: string }[] = [
     { key: 'score',      icon: 'award',       label: 'Score'      },
@@ -34,7 +32,6 @@ const TABS: { key: Tab; icon: IconName; label: string }[] = [
     { key: 'performers', icon: 'star',        label: 'Top'        },
     { key: 'customers',  icon: 'users',       label: 'Customers'  },
     { key: 'drivers',    icon: 'search',      label: 'Drivers'    },
-    { key: 'breakeven',  icon: 'crosshair',   label: 'Breakeven'  },
 ];
 
 function fmt(n: number, currency: string): string {
@@ -404,14 +401,13 @@ function CustomersTab({ currency }: { currency: string }) {
 export default function GrowthIntelligenceScreen() {
     const { transactions, settings, navParams, navigate } = useApp();
     const [activeTab, setActiveTab] = useState<Tab>(
-        (['score', 'momentum', 'performers', 'customers', 'drivers', 'breakeven'] as Tab[]).includes(navParams?.tab as Tab) ? (navParams!.tab as Tab) : 'score'
+        (['score', 'momentum', 'performers', 'customers', 'drivers'] as Tab[]).includes(navParams?.tab as Tab) ? (navParams!.tab as Tab) : 'score'
     );
     const currency = settings.currency;
 
     const waterfall  = useMemo(() => computeProfitWaterfall(transactions), [transactions]);
     const byCategory = useMemo(() => computeProfitByCategory(transactions), [transactions]);
     const byVendor   = useMemo(() => computeProfitByVendorCustomer(transactions), [transactions]);
-    const breakeven  = useMemo(() => computeBreakeven(transactions, settings), [transactions, settings]);
     const drivers    = useMemo(() => identifyProfitDrivers(transactions), [transactions]);
 
     return (
@@ -447,17 +443,12 @@ export default function GrowthIntelligenceScreen() {
                         <>
                             <ProfitWaterfall items={waterfall} currency={currency} />
                             <View style={{ height: 12 }} />
-                            <ProfitDriversInsights drivers={drivers} currency={currency} />
-                        </>
-                    )}
-                    {activeTab === 'breakeven'  && (
-                        <>
                             <ProfitByDimension byCategory={byCategory} byVendor={byVendor} currency={currency} />
                             <View style={{ height: 12 }} />
-                            <BreakevenAnalysis result={breakeven} currency={currency} />
+                            <ProfitDriversInsights drivers={drivers} currency={currency} />
                             <NextStepLink
-                                text="Planning a new price or product? Use the unit-economics Break-Even Calculator instead"
-                                onPress={() => navigate('cfo', { tab: 'finance' })}
+                                text="See how your actual business is doing against breakeven this period"
+                                onPress={() => navigate('cashflow', { tab: 'breakeven' })}
                             />
                         </>
                     )}

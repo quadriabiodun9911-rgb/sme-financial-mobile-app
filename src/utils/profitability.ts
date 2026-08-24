@@ -225,6 +225,62 @@ export function computeBreakeven(transactions: Transaction[], settings: Business
     };
 }
 
+// ─── Discount impact on breakeven ──────────────────────────────────────────────
+export interface DiscountBreakevenImpact {
+    discountPct: number;
+    hasRevenue: boolean;               // false when currentRevenue <= 0 -- nothing to discount yet
+    variableCosts: number;             // recovered from the breakeven result, not re-derived
+    newRevenueAtSameVolume: number;    // what today's actual sales would bring in at the discounted price
+    newVariableCostRatio: number;      // same variable cost, smaller revenue base -> ratio rises
+    newBreakevenRevenue: number;       // Infinity if the discount pushes the cost structure upside down
+    breakevenRevenueIncrease: number;  // how much MORE revenue is now needed to break even
+    profitImpactAtCurrentVolume: number; // always <= 0 for discountPct > 0 -- what today's volume would earn instead
+    costStructureUpsideDown: boolean;  // true if the discount alone wipes out the contribution margin
+}
+
+// A discount doesn't change what a sale costs to deliver -- it only lowers
+// what the business collects for it. So at the SAME sales volume, variable
+// costs (an absolute amount) stay fixed while revenue shrinks by the
+// discount, which mechanically raises the variable-cost ratio and therefore
+// the revenue now needed to cover fixed costs. Modeled off the same
+// BreakevenResult computeBreakeven already produces (its currentRevenue and
+// variableCostRatio recover the absolute variableCosts figure), so this
+// never drifts from the breakeven numbers already on screen.
+export function computeDiscountImpactOnBreakeven(
+    breakeven: Pick<BreakevenResult, 'fixedCosts' | 'variableCostRatio' | 'currentRevenue' | 'breakevenRevenue'>,
+    discountPct: number,
+): DiscountBreakevenImpact {
+    const d = Math.max(0, discountPct) / 100;
+    const hasRevenue = breakeven.currentRevenue > 0;
+
+    if (!hasRevenue) {
+        return {
+            discountPct, hasRevenue, variableCosts: 0, newRevenueAtSameVolume: 0,
+            newVariableCostRatio: 0, newBreakevenRevenue: breakeven.fixedCosts,
+            breakevenRevenueIncrease: 0, profitImpactAtCurrentVolume: 0, costStructureUpsideDown: false,
+        };
+    }
+
+    const variableCosts = breakeven.variableCostRatio * breakeven.currentRevenue;
+    const newRevenueAtSameVolume = breakeven.currentRevenue * (1 - d);
+    const newVariableCostRatio = newRevenueAtSameVolume > 0 ? variableCosts / newRevenueAtSameVolume : Infinity;
+    const newContributionMarginRatio = 1 - newVariableCostRatio;
+    const costStructureUpsideDown = newContributionMarginRatio <= 0;
+    const newBreakevenRevenue = costStructureUpsideDown ? Infinity : breakeven.fixedCosts / newContributionMarginRatio;
+    const breakevenRevenueIncrease = costStructureUpsideDown || !isFinite(breakeven.breakevenRevenue)
+        ? Infinity
+        : newBreakevenRevenue - breakeven.breakevenRevenue;
+    // At the same physical volume, discounting simply gives up
+    // currentRevenue * d in revenue with no offsetting cost reduction --
+    // that shortfall lands on profit dollar for dollar.
+    const profitImpactAtCurrentVolume = newRevenueAtSameVolume - breakeven.currentRevenue;
+
+    return {
+        discountPct, hasRevenue, variableCosts, newRevenueAtSameVolume, newVariableCostRatio,
+        newBreakevenRevenue, breakevenRevenueIncrease, profitImpactAtCurrentVolume, costStructureUpsideDown,
+    };
+}
+
 // ─── Profit Drivers ───────────────────────────────────────────────────────────
 
 export interface ProfitDriver {

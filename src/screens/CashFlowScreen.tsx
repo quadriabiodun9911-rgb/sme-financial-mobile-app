@@ -8,21 +8,25 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
-import { computeCashFlowForecast } from '../utils/finance';
+import { computeCashFlowForecast, computeDSCR } from '../utils/finance';
 import { computeCashRunway } from '../utils/cashRunway';
+import { computeBreakeven } from '../utils/profitability';
+import BreakevenAnalysis from '../components/BreakevenAnalysis';
 import NextStepLink from '../components/NextStepLink';
 import { suggestSolution } from '../utils/impactChain';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 
-type Tab = 'forecast' | 'runway' | 'ar';
+type Tab = 'forecast' | 'runway' | 'ar' | 'breakeven';
 
-const TAB_ICON: Record<Tab, IconName> = { forecast: 'calendar', runway: 'clock', ar: 'mail' };
-const TAB_LABEL: Record<Tab, string> = { forecast: 'Forecast', runway: 'Runway', ar: 'AR Risk' };
+const TAB_ICON: Record<Tab, IconName> = { forecast: 'calendar', runway: 'clock', ar: 'mail', breakeven: 'crosshair' };
+const TAB_LABEL: Record<Tab, string> = { forecast: 'Forecast', runway: 'Runway', ar: 'AR Risk', breakeven: 'Break-Even' };
 
 export default function CashFlowScreen() {
-    const { transactions, loans, invoices, budgets, finance, settings, setCurrentScreen } = useApp();
-    const [tab, setTab] = useState<Tab>('forecast');
+    const { transactions, loans, invoices, budgets, finance, settings, setCurrentScreen, navigate, navParams } = useApp();
+    const [tab, setTab] = useState<Tab>(
+        (['forecast', 'runway', 'ar', 'breakeven'] as Tab[]).includes(navParams?.tab as Tab) ? (navParams!.tab as Tab) : 'forecast'
+    );
     const sym = settings.currency || '₦';
 
     const fmt = (n: number) => {
@@ -45,6 +49,22 @@ export default function CashFlowScreen() {
     );
 
     const runwayColor = runwayDays < 30 ? Colors.expense : runwayDays < 90 ? Colors.warning : Colors.income;
+
+    // Automated from real recorded transactions -- fixed/variable costs are
+    // derived from this period's actual categorized expenses, not entered
+    // by hand. Moved here from Growth Intelligence: breaking even is a cash
+    // flow question (how much sales revenue actually needs to come in to
+    // cover the bills), not a growth-trend one.
+    const breakeven = useMemo(() => computeBreakeven(transactions, settings), [transactions, settings]);
+
+    // Debt service is a cash outflow like any other -- "can we afford our
+    // loans" belongs in the same place as runway and breakeven. Delegates
+    // to the one canonical computeDSCR (also used by Loans, Credit-
+    // Worthiness, and Financing Marketplace) rather than recomputing it;
+    // this is a teaser linking to CFO Advisor's full "Can You Afford Your
+    // Loans?" card, not a second copy of it.
+    const dscr = useMemo(() => computeDSCR(transactions, loans), [transactions, loans]);
+    const dscrColor = dscr.status === 'healthy' ? Colors.income : dscr.status === 'warning' ? Colors.warning : Colors.expense;
 
     // AR risk scoring — O(n) with pre-computed client history Map
     const arRisk = useMemo(() => {
@@ -88,7 +108,7 @@ export default function CashFlowScreen() {
 
             {/* Tabs */}
             <View style={styles.tabRow}>
-                {(['forecast', 'runway', 'ar'] as Tab[]).map(t => (
+                {(['forecast', 'runway', 'ar', 'breakeven'] as Tab[]).map(t => (
                     <TouchableOpacity
                         key={t}
                         style={[styles.tab, tab === t && styles.tabActive]}
@@ -238,6 +258,26 @@ export default function CashFlowScreen() {
                             </View>
                         </View>
 
+                        <TouchableOpacity style={[styles.dscrCard, { borderColor: dscrColor }]} onPress={() => navigate('cfo', { tab: 'finance' })} activeOpacity={0.85}>
+                            <View style={styles.dscrHeaderRow}>
+                                <Icon name="briefcase" size={13} color={Colors.muted} />
+                                <Text style={styles.dscrTitle}>Debt Coverage</Text>
+                                <Text style={[styles.dscrBadge, { color: dscrColor, backgroundColor: dscrColor + '20' }]}>
+                                    {dscr.status === 'healthy' ? 'HEALTHY' : dscr.status === 'warning' ? 'BORDERLINE' : 'AT RISK'}
+                                </Text>
+                            </View>
+                            <Text style={styles.dscrSummary}>
+                                {dscr.totalDebtService <= 0
+                                    ? 'No active loan repayments to cover right now.'
+                                    : dscr.status === 'healthy'
+                                    ? `Income comfortably covers your ${fmt(dscr.totalDebtService)}/year in scheduled loan payments (${dscr.dscr.toFixed(2)}x coverage).`
+                                    : dscr.status === 'warning'
+                                    ? `Income barely covers your ${fmt(dscr.totalDebtService)}/year in loan payments (${dscr.dscr.toFixed(2)}x) — little room for a bad month.`
+                                    : `Income may not fully cover your ${fmt(dscr.totalDebtService)}/year in loan payments (${dscr.dscr.toFixed(2)}x).`}
+                                {' '}Full breakdown on CFO Advisor →
+                            </Text>
+                        </TouchableOpacity>
+
                         <Text style={styles.sectionTitle}>What Affects Your Runway</Text>
                         <View style={styles.infoCard}>
                             {([
@@ -330,6 +370,21 @@ export default function CashFlowScreen() {
                     </>
                 )}
 
+                {/* ── BREAK-EVEN TAB ── */}
+                {tab === 'breakeven' && (
+                    <>
+                        <BreakevenAnalysis result={breakeven} currency={sym} />
+                        <NextStepLink
+                            text="Planning a new price or product? Use the unit-economics Break-Even Calculator instead"
+                            onPress={() => navigate('cfo', { tab: 'finance' })}
+                        />
+                        <NextStepLink
+                            text="See profit by category and customer"
+                            onPress={() => navigate('growth', { tab: 'drivers' })}
+                        />
+                    </>
+                )}
+
                 <View style={{ height: 100 }} />
             </ScrollView>
             <FooterNav />
@@ -391,6 +446,12 @@ const styles = StyleSheet.create({
     card2: { flex: 1, backgroundColor: Colors.card, borderRadius: Radius.md, padding: 14, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     card2Label: { fontSize: 11, color: Colors.muted, marginBottom: Spacing.xs },
     card2Val:   { fontSize: 18, fontWeight: '800' },
+
+    dscrCard: { backgroundColor: Colors.card, borderRadius: Radius.md, padding: 14, borderWidth: 1.5, marginBottom: Spacing.lg, ...Shadow.sm },
+    dscrHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
+    dscrTitle: { fontSize: 13, fontWeight: '700', color: Colors.text },
+    dscrBadge: { marginLeft: 'auto', fontSize: 10.5, fontWeight: '800', paddingHorizontal: 8, paddingVertical: 3, borderRadius: Radius.pill, overflow: 'hidden' },
+    dscrSummary: { fontSize: 12.5, color: Colors.muted, lineHeight: 18 },
 
     infoCard: { backgroundColor: Colors.card, borderRadius: Radius.md, padding: 14, borderWidth: 1, borderColor: Colors.border, marginBottom: Spacing.lg, gap: 10, ...Shadow.sm },
     infoRowLine: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },

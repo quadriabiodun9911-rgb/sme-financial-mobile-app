@@ -1,7 +1,7 @@
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
 import { Colors } from '../theme/colors';
-import { BreakevenResult } from '../utils/profitability';
+import { BreakevenResult, computeDiscountImpactOnBreakeven } from '../utils/profitability';
 
 interface Props {
     result: BreakevenResult;
@@ -51,6 +51,17 @@ export default function BreakevenAnalysis({ result, currency }: Props) {
     const statusText  = costStructureUpsideDown
         ? 'COST STRUCTURE UPSIDE DOWN ✗'
         : isAboveBreakeven ? 'ABOVE BREAKEVEN ✓' : 'BELOW BREAKEVEN ✗';
+
+    // A discount doesn't lower what a sale costs to deliver -- only what it
+    // brings in -- so it raises the effective variable-cost ratio and pushes
+    // breakeven further out, even though price cuts often get proposed as a
+    // way to hit volume targets faster.
+    const [discountPct, setDiscountPct] = useState('');
+    const discountImpact = useMemo(
+        () => computeDiscountImpactOnBreakeven(result, parseFloat(discountPct) || 0),
+        [result, discountPct]
+    );
+    const showDiscountResult = discountImpact.hasRevenue && (parseFloat(discountPct) || 0) > 0;
 
     return (
         <View style={styles.card}>
@@ -184,6 +195,63 @@ export default function BreakevenAnalysis({ result, currency }: Props) {
                             Fastest path: Cut variable costs first (immediate impact on margin).
                         </Text>
                     </View>
+                </>
+            )}
+
+            {/* Discount impact -- same real fixed/variable costs above, just
+                asking what a price cut does to them instead of what a price
+                change or cost change would. */}
+            {discountImpact.hasRevenue && (
+                <>
+                    <View style={styles.divider} />
+                    <Text style={styles.sectionTitle}>WHAT IF YOU DISCOUNTED?</Text>
+                    <View style={styles.presetRow}>
+                        {[5, 10, 15, 20, 25].map(p => (
+                            <TouchableOpacity
+                                key={p}
+                                style={[styles.presetChip, discountPct === String(p) && styles.presetChipActive]}
+                                onPress={() => setDiscountPct(String(p))}
+                            >
+                                <Text style={[styles.presetChipText, discountPct === String(p) && styles.presetChipTextActive]}>{p}%</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                    <TextInput
+                        style={styles.discountInput}
+                        placeholder="or type a custom discount %"
+                        placeholderTextColor={Colors.textMuted}
+                        keyboardType="numeric"
+                        value={discountPct}
+                        onChangeText={setDiscountPct}
+                    />
+
+                    {showDiscountResult && (
+                        <View style={styles.discountResultBox}>
+                            <View style={styles.detailRow}>
+                                <Text style={styles.detailLabel}>New Breakeven Revenue Needed</Text>
+                                <Text style={[styles.detailValue, { color: Colors.warning }]}>
+                                    {discountImpact.costStructureUpsideDown ? 'Unreachable' : fmt(discountImpact.newBreakevenRevenue, currency)}
+                                </Text>
+                            </View>
+                            <View style={styles.detailRow}>
+                                <Text style={styles.detailLabel}>Extra Revenue Needed to Still Break Even</Text>
+                                <Text style={[styles.detailValue, { color: Colors.expense }]}>
+                                    {!isFinite(discountImpact.breakevenRevenueIncrease) ? 'No finite point' : `+${fmt(discountImpact.breakevenRevenueIncrease, currency)}`}
+                                </Text>
+                            </View>
+                            <View style={styles.detailRow}>
+                                <Text style={styles.detailLabel}>Profit Impact at Today's Sales Volume</Text>
+                                <Text style={[styles.detailValue, { color: Colors.expense }]}>
+                                    {fmtSigned(discountImpact.profitImpactAtCurrentVolume, currency)}/month
+                                </Text>
+                            </View>
+                            <Text style={styles.discountNote}>
+                                {discountImpact.costStructureUpsideDown
+                                    ? `A ${discountPct}% discount pushes your cost structure upside down — variable costs alone would exceed the discounted revenue. Only offer this if it's paired with a real volume increase, not a way to reach one.`
+                                    : `This assumes the same units sold, just at a lower price. It would only pay for itself if the discount brings in enough EXTRA volume to close the ${fmt(discountImpact.breakevenRevenueIncrease, currency)} gap above.`}
+                            </Text>
+                        </View>
+                    )}
                 </>
             )}
         </View>
@@ -335,5 +403,54 @@ const styles = StyleSheet.create({
         color: Colors.warning,
         fontSize: 12,
         fontStyle: 'italic',
+    },
+    presetRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+        marginBottom: 10,
+    },
+    presetChip: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: Colors.border,
+        backgroundColor: Colors.bg,
+    },
+    presetChipActive: {
+        backgroundColor: Colors.primary,
+        borderColor: Colors.primary,
+    },
+    presetChipText: {
+        fontSize: 12,
+        color: Colors.textSecondary,
+    },
+    presetChipTextActive: {
+        color: '#fff',
+        fontWeight: '700',
+    },
+    discountInput: {
+        backgroundColor: Colors.bg,
+        borderColor: Colors.border,
+        borderWidth: 1,
+        borderRadius: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        color: Colors.textPrimary,
+        fontSize: 13,
+        marginBottom: 10,
+    },
+    discountResultBox: {
+        backgroundColor: Colors.bg,
+        borderRadius: 8,
+        padding: 12,
+    },
+    discountNote: {
+        color: Colors.textMuted,
+        fontSize: 11.5,
+        lineHeight: 16,
+        fontStyle: 'italic',
+        marginTop: 6,
     },
 });
