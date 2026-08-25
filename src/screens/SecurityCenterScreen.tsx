@@ -9,6 +9,7 @@ import FooterNav from '../components/FooterNav';
 import { getTwoFactorStatus, TwoFactorStatus } from '../utils/twoFactorAuth';
 import { countMyActiveLoanMonitoringShares } from '../utils/loanMonitoringShare';
 import { computeSecurityPosture, PostureStatus } from '../utils/securityPosture';
+import { confirmAction } from '../utils/webAlert';
 
 const STATUS_META: Record<PostureStatus, { color: string; label: string; dot: string }> = {
     on:      { color: Colors.income,  label: 'Active',  dot: '🟢' },
@@ -17,10 +18,23 @@ const STATUS_META: Record<PostureStatus, { color: string; label: string; dot: st
 };
 
 export default function SecurityCenterScreen() {
-    const { setCurrentScreen, settings } = useApp();
+    const { setCurrentScreen, settings, signOutEverywhere } = useApp();
     const currency = settings?.currency ?? '₦';
     const [twoFactorStatus, setTwoFactorStatus] = useState<TwoFactorStatus | null>(null);
     const [activeShares, setActiveShares] = useState<number | null>(null);
+    const [signingOut, setSigningOut] = useState(false);
+
+    const handleSignOutEverywhere = () => {
+        confirmAction(
+            'Sign out everywhere',
+            "This signs out this device and any other device where you're currently logged in. You'll need your PIN to sign back in.",
+            'Sign Out Everywhere',
+            async () => {
+                setSigningOut(true);
+                try { await signOutEverywhere(); } finally { setSigningOut(false); }
+            },
+        );
+    };
 
     useEffect(() => {
         let cancelled = false;
@@ -78,6 +92,25 @@ export default function SecurityCenterScreen() {
                                 )}
                             </View>
                         ))}
+
+                        <View style={styles.card}>
+                            <View style={styles.cardHeaderRow}>
+                                <Icon name="log-out" size={14} color={Colors.textPrimary} />
+                                <Text style={styles.cardTitle}>Session Security</Text>
+                            </View>
+                            <Text style={styles.cardBody}>
+                                Signed in somewhere you don't recognize, or just lost a device? This ends every active
+                                session for your account everywhere at once -- this device included -- not just the one
+                                you're looking at right now.
+                            </Text>
+                            <TouchableOpacity
+                                style={[styles.signOutBtn, signingOut && { opacity: 0.6 }]}
+                                onPress={handleSignOutEverywhere}
+                                disabled={signingOut}
+                            >
+                                <Text style={styles.signOutBtnText}>{signingOut ? 'Signing out…' : 'Sign Out Everywhere'}</Text>
+                            </TouchableOpacity>
+                        </View>
                     </>
                 )}
             </ScrollView>
@@ -115,4 +148,10 @@ const styles = StyleSheet.create({
     cardBody: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
     actionLink: { marginTop: Spacing.sm },
     actionLinkText: { fontSize: 12.5, color: Colors.primary, fontWeight: '700' },
+
+    signOutBtn: {
+        marginTop: Spacing.md, backgroundColor: Colors.expense + '18', borderWidth: 1, borderColor: Colors.expense,
+        borderRadius: Radius.md, paddingVertical: 12, alignItems: 'center',
+    },
+    signOutBtnText: { color: Colors.expense, fontWeight: '700', fontSize: 13.5 },
 });

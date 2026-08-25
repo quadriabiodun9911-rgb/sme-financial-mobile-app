@@ -868,6 +868,9 @@ interface AuthContextValue {
   // session -- see verifyPin in storage.ts for why this is deliberately
   // NOT the full login() flow.
   verifyPin: (pin: string) => Promise<boolean>;
+  // Same call as logout() -- exposed under this name for the Security
+  // Center, see performLogout's comment for why one function covers both.
+  signOutEverywhere: () => Promise<void>;
   pendingTwoFactorProfile: { email: string; businessName: string; phone?: string; createdAt?: string } | null;
   completeTwoFactorLogin: (code: string, method?: 'totp' | 'sms') => Promise<boolean>;
   cancelTwoFactorLogin: () => void;
@@ -1038,6 +1041,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setCurrentScreenState('dashboard');
     }
   }, []);
+
+  // Shared body of logout() and signOutEverywhere() below -- they are the
+  // same action. supabase-js's signOut() already defaults to scope
+  // 'global', meaning it revokes every session for this account, not just
+  // the one running on this device -- so an explicit ordinary "sign out"
+  // already terminates any other device that's still logged in. This is
+  // named/exposed a second way (signOutEverywhere) purely so the Security
+  // Center can offer a clearly-labelled "sign out everywhere" action
+  // without a reader having to know that default-scope trivia to trust it.
+  const performLogout = useCallback(async () => {
+    if (!isDemoMode) trackUserLoggedOut();
+    // Logged before signOut() below clears the session that
+    // getAuthUserId() reads to attribute the entry.
+    if (!isDemoMode) auditEvents.logout();
+    setIsLoading(true);
+    try {
+      await supabase.auth.signOut({ scope: 'global' }).catch(() => {});
+      await clearWorkspaceOwner().catch(() => {});
+      // Wipe the locally-cached financial data so it can't leak into
+      // whichever account signs in next on this device -- several local
+      // caches (staff/payroll) have no per-user namespacing.
+      await clearLocalFinancialCache().catch(() => {});
+      setUser(null);
+      // Explicit reset, not left for the next routeAfterAuth() to
+      // overwrite -- between this logout and whatever signs in next,
+      // the app must show the login screen, not linger on the lender
+      // shell if the outgoing session was a lender's.
+      setIsLenderSession(false);
+      setLenderOrgId(null);
+      setLenderOrgName(null);
+      setCurrentScreenState('login');
+      writeTabIdentity(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isDemoMode]);
 
   // Shared tail of both switchAccount (PIN-verified, pre-login) and
   // switchAccountDirect (in-app, no PIN) below -- once storage.ts has
@@ -1309,33 +1348,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setPendingTwoFactorProfile(null);
         setCurrentScreenState('login');
       },
-      logout: async () => {
-        if (!isDemoMode) trackUserLoggedOut();
-        // Logged before signOut() below clears the session that
-        // getAuthUserId() reads to attribute the entry.
-        if (!isDemoMode) auditEvents.logout();
-        setIsLoading(true);
-        try {
-          await supabase.auth.signOut().catch(() => {});
-          await clearWorkspaceOwner().catch(() => {});
-          // Wipe the locally-cached financial data so it can't leak into
-          // whichever account signs in next on this device — several local
-          // caches (staff/payroll) have no per-user namespacing.
-          await clearLocalFinancialCache().catch(() => {});
-          setUser(null);
-          // Explicit reset, not left for the next routeAfterAuth() to
-          // overwrite — between this logout and whatever signs in next,
-          // the app must show the login screen, not linger on the lender
-          // shell if the outgoing session was a lender's.
-          setIsLenderSession(false);
-          setLenderOrgId(null);
-          setLenderOrgName(null);
-          setCurrentScreenState('login');
-          writeTabIdentity(null);
-        } finally {
-          setIsLoading(false);
-        }
-      },
+      logout: performLogout,
+      signOutEverywhere: performLogout,
       setupAccount: async (email, businessName, pin, _loadDemo, phone, initialSettings) => {
         // Supabase auth is best-effort — never block local account creation.
         // The account's real password is a freshly generated high-entropy
@@ -1911,6 +1925,7 @@ export function useApp() {
     goBack: auth.goBack,
     login: auth.login,
     verifyPin: auth.verifyPin || (async () => false),
+    signOutEverywhere: auth.signOutEverywhere || auth.logout,
     logout: auth.logout,
     pendingTwoFactorProfile: auth.pendingTwoFactorProfile,
     completeTwoFactorLogin: auth.completeTwoFactorLogin,
