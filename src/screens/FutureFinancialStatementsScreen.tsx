@@ -263,27 +263,37 @@ export default function FutureFinancialStatementsScreen() {
                             ))}
                         </View>
 
-                        {/* Headline numbers */}
+                        {/* Headline numbers — each shown with its range, not
+                            just a single false-precise figure, since a
+                            projection this far out is never exactly right.
+                            Range width and the shared confidence % both come
+                            straight from forecastSummary's own honestly-
+                            heuristic confidencePct -- nothing re-derived here. */}
                         <View style={s.headlineGrid}>
                             <View style={s.headlineBox}>
                                 <Text style={s.headlineLabel}>Expected Revenue</Text>
                                 <Text style={[s.headlineVal, { color: Colors.income }]}>{fmt(forecastSummary.headline.expectedRevenue)}</Text>
+                                <Text style={s.headlineRange}>{fmt(forecastSummary.headline.revenueRange.low)} – {fmt(forecastSummary.headline.revenueRange.high)}</Text>
                             </View>
                             <View style={s.headlineBox}>
                                 <Text style={s.headlineLabel}>Expected Expenses</Text>
                                 <Text style={[s.headlineVal, { color: Colors.expense }]}>{fmt(forecastSummary.headline.expectedExpenses)}</Text>
+                                <Text style={s.headlineRange}>{fmt(forecastSummary.headline.expensesRange.low)} – {fmt(forecastSummary.headline.expensesRange.high)}</Text>
                             </View>
                             <View style={s.headlineBox}>
                                 <Text style={s.headlineLabel}>Expected Profit</Text>
                                 <Text style={[s.headlineVal, { color: forecastSummary.headline.expectedProfit >= 0 ? Colors.income : Colors.expense }]}>
                                     {fmt(forecastSummary.headline.expectedProfit)}
                                 </Text>
+                                <Text style={s.headlineRange}>{fmt(forecastSummary.headline.profitRange.low)} – {fmt(forecastSummary.headline.profitRange.high)}</Text>
                             </View>
                             <View style={s.headlineBox}>
                                 <Text style={s.headlineLabel}>Expected Cash Position</Text>
                                 <Text style={[s.headlineVal, { color: Colors.asset }]}>{fmt(forecastSummary.headline.expectedCashPosition)}</Text>
+                                <Text style={s.headlineRange}>{fmt(forecastSummary.headline.cashPositionRange.low)} – {fmt(forecastSummary.headline.cashPositionRange.high)}</Text>
                             </View>
                         </View>
+                        <Text style={s.headlineConfidenceText}>Confidence: {forecastSummary.confidencePct}% — wider range on longer horizons and thinner history</Text>
 
                         {/* Cash Flow Forecast — the centerpiece */}
                         <View style={s.card}>
@@ -942,6 +952,8 @@ const s = StyleSheet.create({
     },
     headlineLabel: { fontSize: 11, color: Colors.textSecondary, marginBottom: 4, textTransform: 'uppercase' as const, letterSpacing: 0.3 },
     headlineVal: { fontSize: 20, fontWeight: '800' },
+    headlineRange: { fontSize: 10.5, color: Colors.textMuted, marginTop: 2 },
+    headlineConfidenceText: { fontSize: 11, color: Colors.textMuted, marginTop: -6, marginBottom: 14, fontStyle: 'italic' },
 
     tableHeaderRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: Colors.border, paddingBottom: 6, marginBottom: 4 },
     tableHeaderText: { fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase' as const, fontSize: 10 },

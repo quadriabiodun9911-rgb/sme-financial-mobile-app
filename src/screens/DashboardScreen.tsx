@@ -65,6 +65,8 @@ const INCOME_CATEGORIES = ['Sales', 'Service', 'Consulting', 'Rental', 'Interest
 const EXPENSE_CATEGORIES = ['Rent', 'Salaries', 'Utilities', 'Marketing', 'Supplies', 'Transport', 'Meals', 'Software', 'Tax', 'Other'];
 
 const PRIORITY_TIER_ORDER: PriorityTier[] = ['attention', 'watch', 'opportunity'];
+const TOP_PRIORITY_COUNT = 3;
+const NUMBER_EMOJI = ['1️⃣', '2️⃣', '3️⃣'];
 
 const RISK_LEVEL_META: Record<RiskLevel, { color: string; dot: string }> = {
     high:      { color: Colors.expense,    dot: '🔴' },
@@ -961,31 +963,39 @@ export default function DashboardScreen() {
                   </TouchableOpacity>
                 )}
 
-                {/* NEXT BEST ACTION — the single top-ranked item from the
-                    same real, already-sorted priority list below (attention
-                    tier first, real dollar-impact descending), given hero
-                    treatment instead of being buried at the top of a list
-                    the user has to scan. Nothing new is computed here. */}
-                {priorities.length > 0 && (() => {
-                  const top = priorities[0];
-                  const topKindMeta = PRIORITY_KIND_META[top.kind];
-                  const topTierMeta = PRIORITY_TIER_META[top.tier];
-                  return (
-                    <TouchableOpacity style={styles.nextActionCard} onPress={() => setCurrentScreen(topKindMeta.screen)} activeOpacity={0.85}>
-                      <Text style={styles.nextActionEyebrow}>NEXT BEST ACTION</Text>
-                      <View style={styles.nextActionRow}>
-                        <View style={[styles.priorityIconBadge, { backgroundColor: topTierMeta.color + '22' }]}>
-                          <Icon name={topKindMeta.icon} size={18} color={topTierMeta.color} />
-                        </View>
-                        <View style={styles.priorityContent}>
-                          <Text style={styles.nextActionTitle}>{top.title}</Text>
-                          <Text style={styles.priorityAmount}>{top.subtitle}</Text>
-                        </View>
-                        <Icon name="arrow-right" size={18} color={Colors.textMuted} />
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })()}
+                {/* YOUR TOP PRIORITIES — up to 3 numbered items from the
+                    same real, already-sorted priority list (attention tier
+                    first, real dollar-impact descending). A short, finite
+                    list with impact framing on each line, instead of a
+                    single hero item plus an open-ended list to keep
+                    scrolling through. Nothing new is computed here. */}
+                {priorities.length > 0 && (
+                  <View style={styles.topPrioritiesCard}>
+                    <Text style={styles.topPrioritiesEyebrow}>YOUR TOP PRIORIT{priorities.length > 1 ? 'IES' : 'Y'}</Text>
+                    {priorities.slice(0, TOP_PRIORITY_COUNT).map((item, i, arr) => {
+                      const kindMeta = PRIORITY_KIND_META[item.kind];
+                      const tierMeta = PRIORITY_TIER_META[item.tier];
+                      return (
+                        <TouchableOpacity
+                          key={item.id}
+                          style={[styles.topPriorityRow, i < arr.length - 1 && styles.topPriorityRowBorder]}
+                          onPress={() => setCurrentScreen(kindMeta.screen)}
+                          activeOpacity={0.75}
+                        >
+                          <Text style={styles.topPriorityNumber}>{NUMBER_EMOJI[i]}</Text>
+                          <View style={[styles.priorityIconBadge, { backgroundColor: tierMeta.color + '22' }]}>
+                            <Icon name={kindMeta.icon} size={16} color={tierMeta.color} />
+                          </View>
+                          <View style={styles.priorityContent}>
+                            <Text style={styles.priorityTitle}>{item.title}</Text>
+                            <Text style={styles.priorityAmount}>{item.subtitle}</Text>
+                          </View>
+                          <Icon name="chevron-right" size={18} color={Colors.textMuted} />
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
 
                 {/* Empty state -- no alert-engine priority is currently
                     active, but that doesn't mean nothing is worth saying.
@@ -1012,20 +1022,20 @@ export default function DashboardScreen() {
                   );
                 })()}
 
-                {/* SECTION 2: WHAT NEEDS YOUR ATTENTION — every remaining
-                    risk/opportunity signal (the top one is already shown
-                    above), collapsed by default so the dashboard doesn't
-                    default to a full list on top of the hero action. */}
-                {priorities.length > 1 && (
+                {/* SECTION 2: WHAT NEEDS YOUR ATTENTION — every risk/
+                    opportunity signal beyond the top 3 already shown above,
+                    collapsed by default so the dashboard doesn't default to
+                    a full list on top of the top-priorities card. */}
+                {priorities.length > TOP_PRIORITY_COUNT && (
                   <View style={styles.operationsSection}>
                     <TouchableOpacity style={styles.sectionTitleRow} onPress={() => setShowAllPriorities(v => !v)} activeOpacity={0.7}>
                       <Icon name="check-square" size={13} color={Colors.textMuted} />
-                      <Text style={styles.operationsSectionTitle}>What Else Needs Your Attention ({priorities.length - 1})</Text>
+                      <Text style={styles.operationsSectionTitle}>What Else Needs Your Attention ({priorities.length - TOP_PRIORITY_COUNT})</Text>
                       <Icon name={showAllPriorities ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.textMuted} />
                     </TouchableOpacity>
 
                     {showAllPriorities && PRIORITY_TIER_ORDER.map(tier => {
-                      const tierItems = priorities.filter(p => p.tier === tier && p.id !== priorities[0].id);
+                      const tierItems = priorities.slice(TOP_PRIORITY_COUNT).filter(p => p.tier === tier);
                       if (tierItems.length === 0) return null;
                       const tierMeta = PRIORITY_TIER_META[tier];
                       return (
@@ -1925,12 +1935,34 @@ const styles = StyleSheet.create({
       borderColor: Colors.primary,
       ...Shadow.sm,
     },
-    nextActionEyebrow: {
+    topPrioritiesCard: {
+      backgroundColor: Colors.surface,
+      borderRadius: Radius.lg,
+      padding: Spacing.lg,
+      marginBottom: Spacing.md,
+      borderWidth: 1.5,
+      borderColor: Colors.primary,
+      ...Shadow.sm,
+    },
+    topPrioritiesEyebrow: {
       fontSize: 10.5,
       fontWeight: '800',
       color: Colors.primary,
       letterSpacing: 0.8,
       marginBottom: Spacing.sm,
+    },
+    topPriorityRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.sm,
+      paddingVertical: Spacing.sm,
+    },
+    topPriorityRowBorder: {
+      borderBottomWidth: 1,
+      borderBottomColor: Colors.border,
+    },
+    topPriorityNumber: {
+      fontSize: 15,
     },
     nextActionRow: {
       flexDirection: 'row',

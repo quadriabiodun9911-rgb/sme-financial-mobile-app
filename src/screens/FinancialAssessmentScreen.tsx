@@ -11,11 +11,13 @@ import SwotAnalysis from '../components/SwotAnalysis';
 import NextStepLink from '../components/NextStepLink';
 import Icon, { IconName } from '../components/ui/Icon';
 import DataConfidenceBadge from '../components/DataConfidenceBadge';
+import { describeDataConfidenceTrend } from '../utils/dataConfidenceHistory';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 
 export default function FinancialAssessmentScreen() {
-  const { transactions, invoices, finance, settings, setCurrentScreen, navigate, loans, inventory } = useApp();
+  const { transactions, invoices, finance, settings, setCurrentScreen, navigate, loans, inventory, dataConfidenceHistory } = useApp();
   const [selectedDiagnosis, setSelectedDiagnosis] = useState<number>(0);
+  const dataConfidenceTrend = useMemo(() => describeDataConfidenceTrend(dataConfidenceHistory), [dataConfidenceHistory]);
 
   const diagnosis = useMemo(() => {
     return performFinancialDiagnosis(
@@ -219,7 +221,7 @@ export default function FinancialAssessmentScreen() {
         {/* How much to trust the score above -- how the diagnosis
             distinguishes "confident based on real history" from "your
             first import, take this as a starting point." */}
-        <DataConfidenceBadge transactions={transactions} />
+        <DataConfidenceBadge transactions={transactions} trend={dataConfidenceTrend} />
 
         {/* "3 things to fix first" — the whole point of running a diagnosis
             instead of just showing numbers: a short, ranked list of what to

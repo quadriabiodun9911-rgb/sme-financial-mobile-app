@@ -6,6 +6,13 @@ import { Transaction } from '../types';
 
 interface Props {
     transactions: Transaction[];
+    // "Data confidence: 42% -> 61% (30 days) -> ..." -- from
+    // dataConfidenceHistory.ts's describeDataConfidenceTrend, computed by
+    // the caller (which already has dataConfidenceHistory from useApp())
+    // rather than this component reaching into context itself. Optional:
+    // omitted entirely until there's a second snapshot to show growth
+    // against, and at every other call site that hasn't been wired up yet.
+    trend?: string | null;
 }
 
 const CONFIG: Record<DataConfidence, { emoji: string; label: string; color: string }> = {
@@ -21,7 +28,7 @@ const CONFIG: Record<DataConfidence, { emoji: string; label: string; color: stri
 // applies to every score/verdict Quad360 shows — the number is only as
 // good as the data behind it. Every score-bearing screen should say so
 // consistently, not just internally guard against acting on thin data.
-export default function DataConfidenceBadge({ transactions }: Props) {
+export default function DataConfidenceBadge({ transactions, trend }: Props) {
     const quality = useMemo(() => computeDataQuality(transactions), [transactions]);
     const bullets = useMemo(() => computeDataConfidenceBullets(quality), [quality]);
     const cfg = CONFIG[quality.confidence];
@@ -37,6 +44,7 @@ export default function DataConfidenceBadge({ transactions }: Props) {
                         <Text style={s.summary}>{b}</Text>
                     </View>
                 ))}
+                {trend && <Text style={s.trend}>{trend}</Text>}
             </View>
         </View>
     );
@@ -49,4 +57,5 @@ const s = StyleSheet.create({
     bulletRow: { flexDirection: 'row', gap: 5 },
     bulletDot: { fontSize: 10.5, color: Colors.textMuted, lineHeight: 15 },
     summary: { flex: 1, fontSize: 10.5, color: Colors.textMuted, marginTop: 1, lineHeight: 15 },
+    trend: { fontSize: 10.5, color: Colors.textSecondary, fontWeight: '700', marginTop: 5 },
 });

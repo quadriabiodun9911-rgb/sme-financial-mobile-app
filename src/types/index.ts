@@ -290,7 +290,11 @@ export interface MacroAssumption {
     linkedCategories: string[]; // transaction categories this driver affects, e.g. ["Fuel","Utilities"]; unused for 'demand'
     note?: string;
     updatedAt: string;          // ISO date, so a stale assumption can be flagged
+    source?: string;            // where this figure came from, e.g. "NNPC pump price bulletin" or "Heard from supplier" -- owner-entered, never inferred
+    confidence?: MacroAssumptionConfidence; // how sure the owner is of this figure -- optional so existing assumptions from before this field existed don't need backfilling
 }
+
+export type MacroAssumptionConfidence = 'low' | 'medium' | 'high';
 
 // A category label for a Known Future Event -- drives the icon/framing
 // used when listing it, purely cosmetic (the forecast math only cares
@@ -363,7 +367,7 @@ export interface NavParams {
     invoiceId?: string;
 }
 
-export type UserRole = 'owner' | 'accountant' | 'manager' | 'staff';
+export type UserRole = 'owner' | 'admin' | 'accountant' | 'manager' | 'staff' | 'external_accountant';
 export type Language = 'en' | 'zh';
 
 // Generic legal-structure categories, not tied to any one country's exact
@@ -420,6 +424,13 @@ export interface InventoryItem {
     // so the table shows "where pricing started" too, not just changes
     // made after this feature shipped.
     priceHistory?: PriceHistoryEntry[];
+    // Every physical stock count the owner has actually performed, oldest
+    // first -- see stockCount.ts. This is the one place a genuine per-item
+    // "expected vs actual" comparison is honest: expectedQuantity is what
+    // the system's own records (sales through Sell + Stock In) already
+    // implied, actualQuantity is a real count the owner just took, so
+    // neither side is guessed.
+    stockCountHistory?: StockCountEntry[];
 }
 
 export interface PriceHistoryEntry {
@@ -429,12 +440,20 @@ export interface PriceHistoryEntry {
     reason?: string;
 }
 
+export interface StockCountEntry {
+    date: string;             // ISO date the count was taken
+    expectedQuantity: number; // item.quantity immediately before this count -- what recorded sales/restocks implied
+    actualQuantity: number;   // what the owner physically counted
+    differenceUnits: number;  // actualQuantity - expectedQuantity, signed (negative = fewer on the shelf than records suggest)
+    note?: string;
+}
+
 export interface TeamMember {
     id: string;
     ownerUserId: string;
     memberEmail: string;
     memberUserId: string | null;
-    role: 'accountant' | 'manager' | 'staff';
+    role: 'accountant' | 'manager' | 'staff' | 'admin' | 'external_accountant';
     status: 'pending' | 'active';
     inviteCode: string;
     invitedAt: string;
@@ -689,6 +708,17 @@ export interface ReadinessSnapshot {
     grade: 'A' | 'B' | 'C' | 'D' | 'F';
     band: 'Excellent' | 'Strong' | 'Moderate' | 'Weak' | 'Critical';
     factors: ReadinessFactorSnapshot[];
+}
+
+// A dated point-in-time reading of dataConfidenceHistory.ts's blended
+// coverage/classification % -- the "cold start" trend: a fresh account
+// starts low simply because it has little history yet, and this is what
+// lets the app show that honestly growing over time instead of a static
+// snapshot that never explains why it's low.
+export interface DataConfidenceSnapshot {
+    id: string;
+    date: string; // ISO date (YYYY-MM-DD)
+    confidencePct: number;
 }
 
 // ─── Merchant Financing ────────────────────────────────────────────────────────

@@ -5,7 +5,7 @@ import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { generateId } from '../utils/uuid';
-import { MacroAssumption, MacroDriver } from '../types';
+import { MacroAssumption, MacroDriver, MacroAssumptionConfidence } from '../types';
 import { showAlert, confirmAction } from '../utils/webAlert';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
@@ -20,6 +20,16 @@ const DRIVER_OPTIONS: { value: MacroDriver; label: string; icon: IconName }[] = 
     { value: 'supplyChain', label: 'Supply Chain', icon: 'truck' },
     { value: 'demand', label: 'Market Demand', icon: 'activity' },
 ];
+
+const CONFIDENCE_OPTIONS: { value: MacroAssumptionConfidence; label: string; color: string }[] = [
+    { value: 'low', label: 'Low — a guess or rumor', color: Colors.expense },
+    { value: 'medium', label: 'Medium — heard from someone reliable', color: Colors.warning },
+    { value: 'high', label: 'High — from an official source', color: Colors.income },
+];
+
+function confidenceMeta(confidence: MacroAssumptionConfidence | undefined) {
+    return CONFIDENCE_OPTIONS.find(c => c.value === confidence) ?? null;
+}
 
 const DEFAULT_CATEGORIES = [
     'Utilities', 'Fuel', 'Rent', 'Salaries', 'Transport', 'Supplies',
@@ -53,6 +63,8 @@ export default function MacroAssumptionsScreen() {
     const [periodMonths, setPeriodMonths] = useState('3');
     const [linkedCategories, setLinkedCategories] = useState<string[]>([]);
     const [note, setNote] = useState('');
+    const [source, setSource] = useState('');
+    const [confidence, setConfidence] = useState<MacroAssumptionConfidence | undefined>(undefined);
 
     function openAdd() {
         setEditingId(null);
@@ -62,6 +74,8 @@ export default function MacroAssumptionsScreen() {
         setPeriodMonths('3');
         setLinkedCategories([]);
         setNote('');
+        setSource('');
+        setConfidence(undefined);
         setShowForm(true);
     }
 
@@ -73,6 +87,8 @@ export default function MacroAssumptionsScreen() {
         setPeriodMonths(String(a.periodMonths));
         setLinkedCategories(a.linkedCategories);
         setNote(a.note ?? '');
+        setSource(a.source ?? '');
+        setConfidence(a.confidence);
         setShowForm(true);
     }
 
@@ -101,6 +117,8 @@ export default function MacroAssumptionsScreen() {
             periodMonths: months,
             linkedCategories,
             note: note.trim() || undefined,
+            source: source.trim() || undefined,
+            confidence,
             updatedAt: new Date().toISOString(),
         };
 
@@ -171,7 +189,19 @@ export default function MacroAssumptionsScreen() {
                                         ))}
                                 </View>
                                 {a.note ? <Text style={s.cardNote}>{a.note}</Text> : null}
-                                <Text style={s.cardUpdated}>Updated {new Date(a.updatedAt).toLocaleDateString()}</Text>
+                                <View style={s.metaRow}>
+                                    <Text style={s.cardUpdated}>
+                                        {a.source ? `Source: ${a.source} · ` : 'Source not recorded · '}
+                                        Updated {new Date(a.updatedAt).toLocaleDateString()}
+                                    </Text>
+                                    {confidenceMeta(a.confidence) && (
+                                        <View style={[s.confidenceBadge, { backgroundColor: confidenceMeta(a.confidence)!.color + '22' }]}>
+                                            <Text style={[s.confidenceBadgeText, { color: confidenceMeta(a.confidence)!.color }]}>
+                                                {a.confidence} confidence
+                                            </Text>
+                                        </View>
+                                    )}
+                                </View>
                             </TouchableOpacity>
                         );
                     })
@@ -247,6 +277,28 @@ export default function MacroAssumptionsScreen() {
                             </>
                         )}
 
+                        <Text style={s.fieldLabel}>Where did this come from?</Text>
+                        <TextInput
+                            style={s.input}
+                            placeholder='e.g. "NNPC pump price bulletin" or "Heard from my supplier"'
+                            placeholderTextColor={Colors.textMuted}
+                            value={source}
+                            onChangeText={setSource}
+                        />
+
+                        <Text style={s.fieldLabel}>How sure are you of this figure?</Text>
+                        <View style={s.chipRow}>
+                            {CONFIDENCE_OPTIONS.map(opt => (
+                                <TouchableOpacity
+                                    key={opt.value}
+                                    style={[s.catChip, confidence === opt.value && { backgroundColor: opt.color + '20', borderColor: opt.color }]}
+                                    onPress={() => setConfidence(confidence === opt.value ? undefined : opt.value)}
+                                >
+                                    <Text style={[s.catChipText, confidence === opt.value && { color: opt.color, fontWeight: '700' }]}>{opt.label}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
                         <TextInput
                             style={[s.input, s.noteInput]}
                             placeholder="Note (optional)"
@@ -307,6 +359,9 @@ const s = StyleSheet.create({
     cardChange: { fontSize: 13, fontWeight: '700' },
     cardNote: { fontSize: 12, color: Colors.textSecondary, marginTop: 6, lineHeight: 17 },
     cardUpdated: { fontSize: 10, color: Colors.textMuted, marginTop: Spacing.sm },
+    metaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: Spacing.sm, flexWrap: 'wrap', gap: 6 },
+    confidenceBadge: { borderRadius: Radius.sm, paddingHorizontal: 8, paddingVertical: 3 },
+    confidenceBadgeText: { fontSize: 10, fontWeight: '700', textTransform: 'capitalize' },
 
     chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
     catChip: { backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm, paddingHorizontal: 10, paddingVertical: 6 },

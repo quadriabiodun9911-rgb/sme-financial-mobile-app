@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CryptoJS from 'crypto-js';
-import { Transaction, BusinessSettings, FinancialGoal, Invoice, TeamMember, Language, Asset, InventoryItem, Loan, Budget, StaffMember, PayrollRun, FinancingContextData, CashPocket, CapitalCommitment, ReadinessSnapshot } from '../types';
+import { Transaction, BusinessSettings, FinancialGoal, Invoice, TeamMember, Language, Asset, InventoryItem, Loan, Budget, StaffMember, PayrollRun, FinancingContextData, CashPocket, CapitalCommitment, ReadinessSnapshot, DataConfidenceSnapshot } from '../types';
 import { supabase } from './supabase';
 import {
     savePinSecurely, loadPinSecurely, clearPinSecurely, clearAllSecureData, saveAuthSecretSecurely, loadAuthSecretSecurely, clearAuthSecretSecurely,
@@ -633,7 +633,7 @@ export interface MyTeamMembership {
     membershipId: string;
     ownerUserId: string;
     ownerBusinessName: string;
-    role: 'accountant' | 'manager' | 'staff';
+    role: 'accountant' | 'manager' | 'staff' | 'admin' | 'external_accountant';
 }
 
 export async function loadMyTeamMemberships(): Promise<MyTeamMembership[]> {
@@ -671,7 +671,7 @@ export async function loadMyTeamMemberships(): Promise<MyTeamMembership[]> {
 
 export async function inviteTeamMember(
     memberEmail: string,
-    role: 'accountant' | 'manager' | 'staff',
+    role: 'accountant' | 'manager' | 'staff' | 'admin' | 'external_accountant',
 ): Promise<string> {
     const ownerId = await getAuthUserId();
     if (!ownerId) throw new Error('Not authenticated.');
@@ -699,7 +699,7 @@ export async function removeTeamMember(memberId: string): Promise<void> {
 export async function joinTeamWithCode(
     memberUserId: string,
     inviteCode: string,
-): Promise<{ ownerId: string; role: 'accountant' | 'manager' | 'staff' }> {
+): Promise<{ ownerId: string; role: 'accountant' | 'manager' | 'staff' | 'admin' | 'external_accountant' }> {
     const { data, error } = await supabase
         .from('team_members')
         .select('*')
@@ -834,6 +834,19 @@ export async function saveReadinessHistory(history: ReadinessSnapshot[]): Promis
 export async function loadReadinessHistory(): Promise<ReadinessSnapshot[] | null> {
     const raw = await AsyncStorage.getItem(READINESS_HISTORY_KEY);
     return safeParse<ReadinessSnapshot[]>(raw);
+}
+
+// ─── Data Confidence History ─────────────────────────────────────────────────
+// Same local-only pattern as Readiness History above -- the "cold start"
+// trend (see dataConfidenceHistory.ts) only needs to survive on this
+// device to do its job.
+const DATA_CONFIDENCE_HISTORY_KEY = '@quad360/dataConfidenceHistory';
+export async function saveDataConfidenceHistory(history: DataConfidenceSnapshot[]): Promise<void> {
+    await AsyncStorage.setItem(DATA_CONFIDENCE_HISTORY_KEY, JSON.stringify(history));
+}
+export async function loadDataConfidenceHistory(): Promise<DataConfidenceSnapshot[] | null> {
+    const raw = await AsyncStorage.getItem(DATA_CONFIDENCE_HISTORY_KEY);
+    return safeParse<DataConfidenceSnapshot[]>(raw);
 }
 
 // ─── PIN (local only — never sent to server) ──────────────────────────────────
@@ -1146,6 +1159,7 @@ export interface AppBackup {
     payrollRuns?: PayrollRun[];
     capitalCommitments?: CapitalCommitment[];
     readinessHistory?: ReadinessSnapshot[];
+    dataConfidenceHistory?: DataConfidenceSnapshot[];
     auditLogs?: unknown[];
     consents?: unknown[];
 }
@@ -1164,6 +1178,7 @@ export interface ExportInput {
     payrollRuns: PayrollRun[];
     capitalCommitments: CapitalCommitment[];
     readinessHistory: ReadinessSnapshot[];
+    dataConfidenceHistory: DataConfidenceSnapshot[];
 }
 
 export async function exportAllData(input: ExportInput): Promise<string> {
@@ -1217,6 +1232,7 @@ export async function importAllData(json: string): Promise<AppBackup> {
     if (parsed.payrollRuns) restores.push(savePayrollRuns(parsed.payrollRuns));
     if (parsed.capitalCommitments) restores.push(saveCapitalCommitments(parsed.capitalCommitments));
     if (parsed.readinessHistory) restores.push(saveReadinessHistory(parsed.readinessHistory));
+    if (parsed.dataConfidenceHistory) restores.push(saveDataConfidenceHistory(parsed.dataConfidenceHistory));
     await Promise.all(restores);
     return parsed;
 }

@@ -23,6 +23,14 @@ import { PRIMARY_GOAL_OPTIONS } from '../utils/primaryGoals';
 import { auditDataIntegrity } from '../utils/dataIntegrity';
 import { canManageTeam, canManagePaymentSettings, canDeleteBusinessData } from '../utils/rolePermissions';
 
+const ROLE_BADGE_COLOR: Record<string, string> = {
+    admin: Colors.expense,
+    accountant: Colors.primary,
+    manager: Colors.secondary,
+    external_accountant: Colors.asset,
+    staff: Colors.warning,
+};
+
 const CURRENCIES = [
     { label: 'USD ($)',    value: '$',   code: 'USD' },
     { label: 'GBP (£)',   value: '£',   code: 'GBP' },
@@ -131,7 +139,7 @@ export default function SettingsScreen() {
     // Team invite modal
     const [inviteModal, setInviteModal]   = useState(false);
     const [inviteEmail, setInviteEmail]   = useState('');
-    const [inviteRole, setInviteRole]     = useState<'accountant' | 'manager' | 'staff'>('accountant');
+    const [inviteRole, setInviteRole]     = useState<'accountant' | 'manager' | 'staff' | 'admin' | 'external_accountant'>('accountant');
     const [pendingCode, setPendingCode]   = useState<string | null>(null);
 
     useEffect(() => {
@@ -560,7 +568,7 @@ export default function SettingsScreen() {
                         <CollapsibleSection title="Team" defaultOpen={false}>
                             <Section title="Team Management">
                                 <Text style={styles.hint}>
-                                    Invite team members to access your business data. Accountants and Managers see full financial reports, record transactions and export. Staff can log sales/expenses, send invoices, and manage inventory — full P&L, cash balance, and bank/loan details stay hidden from them.
+                                    Invite team members to access your business data. Admins can do everything you can except delete business data. Accountants and Managers see full financial reports, record transactions and export. External Accountants get the same financial visibility for reporting and reconciliation, without team, payment, or operational access. Staff can log sales/expenses, send invoices, and manage inventory — full P&L, cash balance, and bank/loan details stay hidden from them.
                                 </Text>
                                 <TouchableOpacity style={styles.dataBtn} onPress={() => { setPendingCode(null); setInviteModal(true); }}>
                                     <Text style={styles.dataBtnText}>+ Invite Team Member</Text>
@@ -573,9 +581,9 @@ export default function SettingsScreen() {
                                                 <View style={{ flex: 1 }}>
                                                     <Text style={styles.memberEmail}>{m.memberEmail}</Text>
                                                     <View style={styles.memberMeta}>
-                                                        <View style={[styles.roleBadge, { backgroundColor: (m.role === 'accountant' ? Colors.primary : m.role === 'manager' ? Colors.secondary : Colors.warning) + '22' }]}>
-                                                            <Text style={[styles.roleText, { color: m.role === 'accountant' ? Colors.primary : m.role === 'manager' ? Colors.secondary : Colors.warning }]}>
-                                                                {m.role.toUpperCase()}
+                                                        <View style={[styles.roleBadge, { backgroundColor: (ROLE_BADGE_COLOR[m.role as keyof typeof ROLE_BADGE_COLOR] ?? Colors.warning) + '22' }]}>
+                                                            <Text style={[styles.roleText, { color: ROLE_BADGE_COLOR[m.role as keyof typeof ROLE_BADGE_COLOR] ?? Colors.warning }]}>
+                                                                {m.role.replace('_', ' ').toUpperCase()}
                                                             </Text>
                                                         </View>
                                                         <View style={[styles.roleBadge, { backgroundColor: m.status === 'active' ? Colors.income + '22' : Colors.textMuted + '22' }]}>
@@ -925,15 +933,21 @@ export default function SettingsScreen() {
                                     autoCapitalize="none" keyboardType="email-address" />
                                 <Text style={styles.label}>Role</Text>
                                 <View style={styles.optRow}>
+                                    <Opt label="Admin" active={inviteRole === 'admin'} onPress={() => setInviteRole('admin')} />
                                     <Opt label="Accountant" active={inviteRole === 'accountant'} onPress={() => setInviteRole('accountant')} />
                                     <Opt label="Manager" active={inviteRole === 'manager'} onPress={() => setInviteRole('manager')} />
+                                    <Opt label="External Accountant" active={inviteRole === 'external_accountant'} onPress={() => setInviteRole('external_accountant')} />
                                     <Opt label="Staff" active={inviteRole === 'staff'} onPress={() => setInviteRole('staff')} />
                                 </View>
                                 <Text style={[styles.hint, { marginTop: 10 }]}>
-                                    {inviteRole === 'accountant'
+                                    {inviteRole === 'admin'
+                                        ? 'Admin: everything you can do except permanently delete business data — can manage the team, payment settings, and publish to lenders.'
+                                        : inviteRole === 'accountant'
                                         ? 'Accountant: full financial visibility, can record transactions, invoices and inventory, and export reports.'
                                         : inviteRole === 'manager'
                                         ? 'Manager: same day-to-day access as Accountant — records transactions, invoices and inventory, sees full reports.'
+                                        : inviteRole === 'external_accountant'
+                                        ? 'External Accountant: full read access to reports, reconciliation and analysis for a bookkeeper or auditor outside the business — no team, payment, or operational access.'
                                         : 'Staff: can add transactions only.'}
                                 </Text>
                                 <View style={[styles.modalBtns, { marginTop: 16 }]}>

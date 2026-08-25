@@ -10,9 +10,11 @@
 
 import React, { createContext, useContext, useState, useMemo, useEffect, useRef, useCallback, ReactNode } from 'react';
 import { Platform } from 'react-native';
-import { User, Invoice, InvoiceStatus, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, MerchantFinancingApplication, LoanPurpose, StaffMember, PayrollRun, PayrollItem, CashPocket, CapitalCommitment, ReadinessSnapshot, UserRole } from '../types';
+import { User, Invoice, InvoiceStatus, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, MerchantFinancingApplication, LoanPurpose, StaffMember, PayrollRun, PayrollItem, CashPocket, CapitalCommitment, ReadinessSnapshot, DataConfidenceSnapshot, UserRole } from '../types';
 import { computeFinance, computeAssetCurrentValue, countActiveMonths, getMonthlyExpenseAverage, computeRiskScore } from '../utils/finance';
 import { buildReadinessSnapshot, shouldRecordSnapshot, appendReadinessSnapshot } from '../utils/readinessHistory';
+import { computeDataQuality } from '../utils/dataQuality';
+import { buildDataConfidenceSnapshot, shouldRecordDataConfidenceSnapshot, appendDataConfidenceSnapshot } from '../utils/dataConfidenceHistory';
 import { trackTransactionAdded, trackInventoryItemAdded, trackAssetAdded, trackLoanAdded, trackGoalCreated, trackAppOpened, trackUserRegistered, trackUserLoggedOut, trackDemoStarted } from '../utils/analytics';
 import { auditEvents } from '../utils/auditLog';
 import { sanitizeStoredGoals, refreshGoal } from '../utils/goals';
@@ -32,6 +34,7 @@ import {
   loadCashPockets, saveCashPockets,
   loadCapitalCommitments, saveCapitalCommitments,
   loadReadinessHistory, saveReadinessHistory,
+  loadDataConfidenceHistory, saveDataConfidenceHistory,
   clearLocalFinancialCache,
   syncFinancingToSupabase,
   saveProfile, loadProfile, savePin, loadPin,
@@ -168,6 +171,7 @@ interface FinanceContextValue {
   deleteCommitment: (id: string) => void;
 
   readinessHistory: ReadinessSnapshot[];
+  dataConfidenceHistory: DataConfidenceSnapshot[];
 }
 
 const FinanceContext = createContext<FinanceContextValue | undefined>(undefined);
@@ -183,6 +187,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [cashPockets, setCashPockets] = useState<CashPocket[]>([]);
   const [capitalCommitments, setCapitalCommitments] = useState<CapitalCommitment[]>([]);
   const [readinessHistory, setReadinessHistory] = useState<ReadinessSnapshot[]>([]);
+  const [dataConfidenceHistory, setDataConfidenceHistory] = useState<DataConfidenceSnapshot[]>([]);
   const [financing, setFinancing] = useState<FinancingContextData>({
     isQualified: false, qualification: undefined, minQualifiedAmount: undefined,
     maxQualifiedAmount: undefined, application: undefined, activeLoan: undefined,
@@ -242,14 +247,15 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         if (l) setLoans(l.map((x) => ({ ...x, payments: x.payments ?? [] })));
         if (b) setBudgets(b);
         if (inv) setInventory(inv);
-        const [st, pr, cp, cc, rh] = await Promise.all([
-          loadStaff(), loadPayrollRuns(), loadCashPockets(), loadCapitalCommitments(), loadReadinessHistory(),
+        const [st, pr, cp, cc, rh, dch] = await Promise.all([
+          loadStaff(), loadPayrollRuns(), loadCashPockets(), loadCapitalCommitments(), loadReadinessHistory(), loadDataConfidenceHistory(),
         ]);
         if (st) setStaff(st);
         if (pr) setPayrollRuns(pr);
         if (cp) setCashPockets(cp);
         if (cc) setCapitalCommitments(cc);
         if (rh) setReadinessHistory(rh);
+        if (dch) setDataConfidenceHistory(dch);
         const financingRaw = await AsyncStorage.getItem('@quad360/financing').catch(() => null);
         if (financingRaw) {
           try { setFinancing(JSON.parse(financingRaw)); } catch { /* corrupted cache, keep default */ }
@@ -276,6 +282,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { if (hydrated && !isDemoMode) saveCashPockets(cashPockets).catch(() => {}); }, [cashPockets, hydrated, isDemoMode]);
   useEffect(() => { if (hydrated && !isDemoMode) saveCapitalCommitments(capitalCommitments).catch(() => {}); }, [capitalCommitments, hydrated, isDemoMode]);
   useEffect(() => { if (hydrated && !isDemoMode) saveReadinessHistory(readinessHistory).catch(() => {}); }, [readinessHistory, hydrated, isDemoMode]);
+  useEffect(() => { if (hydrated && !isDemoMode) saveDataConfidenceHistory(dataConfidenceHistory).catch(() => {}); }, [dataConfidenceHistory, hydrated, isDemoMode]);
   useEffect(() => {
     if (hydrated && !isDemoMode) {
       AsyncStorage.setItem('@quad360/financing', JSON.stringify(financing)).catch(() => {});
@@ -333,6 +340,14 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     if (!hydrated || isDemoMode || transactions.length === 0) return;
     setReadinessHistory(prev => shouldRecordSnapshot(prev) ? appendReadinessSnapshot(prev, buildReadinessSnapshot(risk)) : prev);
   }, [hydrated, isDemoMode, transactions.length, risk]);
+
+  // Same weekly-snapshot pattern as readinessHistory above, but for the
+  // "cold start" data-confidence trend -- see dataConfidenceHistory.ts.
+  const dataQuality = useMemo(() => computeDataQuality(transactions), [transactions]);
+  useEffect(() => {
+    if (!hydrated || isDemoMode || transactions.length === 0) return;
+    setDataConfidenceHistory(prev => shouldRecordDataConfidenceSnapshot(prev) ? appendDataConfidenceSnapshot(prev, buildDataConfidenceSnapshot(dataQuality)) : prev);
+  }, [hydrated, isDemoMode, transactions.length, dataQuality]);
 
   const value: FinanceContextValue = useMemo(
     () => ({
@@ -553,6 +568,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       deleteCommitment: (id) => setCapitalCommitments((prev) => prev.filter((c) => c.id !== id)),
 
       readinessHistory,
+      dataConfidenceHistory,
 
       financing,
       // Was a no-op stub (`() => Promise.resolve()`) that silently ignored
@@ -586,7 +602,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         }));
       },
     }),
-    [transactions, assets, loans, budgets, inventory, staff, payrollRuns, cashPockets, capitalCommitments, readinessHistory, financing, syncUserId, finance, isDemoMode, settingsForFinance?.settings?.currency]
+    [transactions, assets, loans, budgets, inventory, staff, payrollRuns, cashPockets, capitalCommitments, readinessHistory, dataConfidenceHistory, financing, syncUserId, finance, isDemoMode, settingsForFinance?.settings?.currency]
   );
 
   return (
@@ -863,7 +879,7 @@ interface AuthContextValue {
   resetApp: () => Promise<void>;
   deleteAccount: () => Promise<void>;
   teamMembers: TeamMember[];
-  inviteMember: (email: string, role: 'accountant' | 'manager' | 'staff') => Promise<string>;
+  inviteMember: (email: string, role: 'accountant' | 'manager' | 'staff' | 'admin' | 'external_accountant') => Promise<string>;
   removeMember: (id: string) => Promise<void>;
   refreshTeam: () => Promise<void>;
   // The OTHER side of team membership: businesses THIS signed-in user has
@@ -2074,6 +2090,7 @@ export function useApp() {
     updateCommitment: finance?.updateCommitment || (() => {}),
     deleteCommitment: finance?.deleteCommitment || (() => {}),
     readinessHistory: finance?.readinessHistory ?? [],
+    dataConfidenceHistory: finance?.dataConfidenceHistory ?? [],
     // Explicit return type on the fallback so it matches auth.changePin's
     // signature exactly instead of TypeScript inferring a narrower
     // `{ok:false}` literal and unioning the two into an undiscriminated
@@ -2096,6 +2113,7 @@ export function useApp() {
       invoices: invoicesArray, assets, loans, budgets, inventory,
       cashPockets: finance?.cashPockets ?? [], staff: finance?.staff ?? [], payrollRuns: finance?.payrollRuns ?? [],
       capitalCommitments: finance?.capitalCommitments ?? [], readinessHistory: finance?.readinessHistory ?? [],
+      dataConfidenceHistory: finance?.dataConfidenceHistory ?? [],
     }),
     recordConsent,
     enterDemo: auth.enterDemo || (() => {}),

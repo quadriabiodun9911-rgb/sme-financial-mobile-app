@@ -1,5 +1,5 @@
 import { generateForecastRiskActions } from '../src/utils/forecastRiskRecommendations';
-import { ForecastSummary, CashFlowMonth } from '../src/utils/forecastSummary';
+import { ForecastSummary, CashFlowMonth, computeForecastRange } from '../src/utils/forecastSummary';
 import { ScenarioProjection } from '../src/utils/scenarioForecast';
 import { RiskScore } from '../src/utils/finance';
 
@@ -16,7 +16,11 @@ const makeMonth = (overrides: Partial<CashFlowMonth> = {}): CashFlowMonth => ({
 
 const makeForecastSummary = (overrides: Partial<ForecastSummary> = {}): ForecastSummary => ({
     period: '90d', monthsInPeriod: 3, baselineMonthsUsed: 3,
-    headline: { expectedRevenue: 1000000, expectedExpenses: 700000, expectedProfit: 300000, expectedCashPosition: 200000 },
+    headline: {
+        expectedRevenue: 1000000, expectedExpenses: 700000, expectedProfit: 300000, expectedCashPosition: 200000,
+        revenueRange: computeForecastRange(1000000, 70), expensesRange: computeForecastRange(700000, 70),
+        profitRange: computeForecastRange(300000, 70), cashPositionRange: computeForecastRange(200000, 70),
+    },
     revenueTable: [],
     expenseByCategory: [],
     profitBridge: { revenue: 1000000, cogs: 400000, grossProfit: 600000, operatingExpenses: 300000, netProfit: 300000, forecastMarginPct: 30, currentMarginPct: 28, marginDeltaPct: 2 },

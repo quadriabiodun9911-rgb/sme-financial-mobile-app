@@ -18,6 +18,7 @@ import { applyStockIn } from '../utils/inventoryCosting';
 import { computeDiscountAmount, DiscountType } from '../utils/saleDiscount';
 import { computeDiscountSummary } from '../utils/inventorySalesTrend';
 import { appendPriceChange, computeMarginPct } from '../utils/priceHistory';
+import { appendStockCount, describeStockCount } from '../utils/stockCount';
 import { computeInventoryPace, computeSlowMovingValue } from '../utils/inventoryIntelligence';
 import { computeWorkingCapitalMetrics } from '../utils/finance';
 import { computeStockReconciliation } from '../utils/stockReconciliation';
@@ -117,6 +118,9 @@ export default function InventoryScreen() {
     const [stockInForm, setStockInForm] = useState<StockInForm | null>(null);
     const [priceModal, setPriceModal] = useState<{ item: InventoryItem } | null>(null);
     const [priceForm, setPriceForm] = useState<PriceChangeForm | null>(null);
+    const [countModal, setCountModal] = useState<{ item: InventoryItem } | null>(null);
+    const [countQty, setCountQty] = useState('');
+    const [countNote, setCountNote] = useState('');
 
     // ── Summary calculations ──────────────────────────────────────────────────
     // computeInventoryValue and the category breakdown both scan the full
@@ -364,6 +368,28 @@ export default function InventoryScreen() {
         showAlert('Price Updated', `${item.name} is now ${currency}${newPrice.toLocaleString()}/unit.`);
     };
 
+    const openCount = (item: InventoryItem) => {
+        setCountModal({ item });
+        setCountQty(String(item.quantity));
+        setCountNote('');
+    };
+
+    const confirmCount = () => {
+        if (!countModal) return;
+        const { item } = countModal;
+        const actual = parseFloat(countQty);
+        if (isNaN(actual) || actual < 0) { showAlert('Validation', 'Enter what you actually counted.'); return; }
+        const entry = appendStockCount(item, actual, new Date().toISOString().split('T')[0], countNote.trim() || undefined);
+        updateInventoryItem(item.id, {
+            quantity: actual,
+            stockCountHistory: [...(item.stockCountHistory ?? []), entry],
+        });
+        setCountModal(null);
+        setCountQty('');
+        setCountNote('');
+        showAlert(entry.differenceUnits === 0 ? 'Count Matches' : 'Count Recorded', describeStockCount(entry, item.unit));
+    };
+
     // ── Stock colour helper ───────────────────────────────────────────────────
     const stockColor = (item: InventoryItem): string => {
         if (item.quantity <= item.lowStockThreshold) return Colors.expense;
@@ -504,6 +530,9 @@ export default function InventoryScreen() {
                                             <TouchableOpacity style={styles.actionBtn} onPress={() => openPriceChange(item)}>
                                                 <Icon name="tag" size={14} color={Colors.textPrimary} />
                                             </TouchableOpacity>
+                                            <TouchableOpacity style={styles.actionBtn} onPress={() => openCount(item)}>
+                                                <Icon name="clipboard" size={14} color={Colors.textPrimary} />
+                                            </TouchableOpacity>
                                             <TouchableOpacity style={styles.actionBtn} onPress={() => openEdit(item)}>
                                                 <Icon name="edit-2" size={14} color={Colors.textPrimary} />
                                             </TouchableOpacity>
@@ -545,6 +574,19 @@ export default function InventoryScreen() {
                                         <Icon name={velocityIcon(velocity.tier)} size={13} color={velocityColor(velocity.tier)} />
                                         <Text style={[styles.velocityText, { color: velocityColor(velocity.tier) }]}>{velocity.summary}</Text>
                                     </View>
+
+                                    {/* Most recent physical stock count, if it found a
+                                        real difference -- see stockCount.ts */}
+                                    {(() => {
+                                        const lastCount = item.stockCountHistory?.[item.stockCountHistory.length - 1];
+                                        if (!lastCount || lastCount.differenceUnits === 0) return null;
+                                        return (
+                                            <View style={[styles.lowStockBanner, { marginTop: Spacing.sm, marginBottom: 0 }]}>
+                                                <Icon name="alert-triangle" size={13} color={Colors.warning} />
+                                                <Text style={styles.lowStockBannerText}>{describeStockCount(lastCount, item.unit)}</Text>
+                                            </View>
+                                        );
+                                    })()}
                                 </View>
                             );
                         })}
@@ -1232,6 +1274,82 @@ export default function InventoryScreen() {
                                     <Text style={styles.submitBtnText}>Confirm Price Change</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity style={styles.cancelBtn} onPress={() => { setPriceModal(null); setPriceForm(null); }}>
+                                    <Text style={styles.cancelBtnText}>Cancel</Text>
+                                </TouchableOpacity>
+                            </ScrollView>
+                        );
+                    })()}
+                </KeyboardAvoidingView>
+            </Modal>
+
+            <Modal visible={!!countModal} transparent animationType="slide" onRequestClose={() => setCountModal(null)}>
+                <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setCountModal(null)} />
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.modalSheet, constrainSheetWidth && styles.modalSheetWide]}>
+                    <View style={styles.modalHandle} />
+                    <Text style={styles.modalTitle}>Physical Stock Count</Text>
+                    {countModal && (() => {
+                        const { item } = countModal;
+                        const actual = parseFloat(countQty);
+                        const hasActual = !isNaN(actual) && actual >= 0;
+                        const diff = hasActual ? actual - item.quantity : null;
+                        return (
+                            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                                <Text style={{ color: Colors.textSecondary, marginBottom: 8 }}>
+                                    {item.name} — your records currently show {item.quantity} {item.unit}. Count what's actually on the shelf.
+                                </Text>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder={`Actual count (${item.unit})`}
+                                    placeholderTextColor={Colors.textMuted}
+                                    keyboardType="decimal-pad"
+                                    value={countQty}
+                                    onChangeText={setCountQty}
+                                />
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Note (optional) — e.g. where the count was taken"
+                                    placeholderTextColor={Colors.textMuted}
+                                    value={countNote}
+                                    onChangeText={setCountNote}
+                                />
+
+                                {diff !== null && diff !== 0 && (
+                                    <View style={[styles.marginPreview, { borderColor: Colors.warning }]}>
+                                        <View style={styles.marginPreviewNoteRow}>
+                                            <Icon name="alert-triangle" size={12} color={Colors.warning} />
+                                            <Text style={[styles.marginPreviewNote, { color: Colors.warning }]}>
+                                                Difference: {Math.abs(diff)} {item.unit} {diff < 0 ? 'fewer' : 'more'} than your records suggest.
+                                            </Text>
+                                        </View>
+                                    </View>
+                                )}
+
+                                {(item.stockCountHistory && item.stockCountHistory.length > 0) && (
+                                    <View style={styles.previewCard}>
+                                        <Text style={[styles.discountLabel, { marginBottom: 8 }]}>Count History</Text>
+                                        <View style={styles.historyHeaderRow}>
+                                            <Text style={[styles.historyCell, styles.historyHeaderText, { flex: 1.2 }]}>Date</Text>
+                                            <Text style={[styles.historyCell, styles.historyHeaderText]}>Expected</Text>
+                                            <Text style={[styles.historyCell, styles.historyHeaderText]}>Actual</Text>
+                                            <Text style={[styles.historyCell, styles.historyHeaderText]}>Diff</Text>
+                                        </View>
+                                        {[...item.stockCountHistory].reverse().map((h, i) => (
+                                            <View key={`${h.date}-${i}`} style={styles.historyRow}>
+                                                <Text style={[styles.historyCell, { flex: 1.2, color: Colors.textSecondary }]}>{h.date}</Text>
+                                                <Text style={styles.historyCell}>{h.expectedQuantity}</Text>
+                                                <Text style={styles.historyCell}>{h.actualQuantity}</Text>
+                                                <Text style={[styles.historyCell, { color: h.differenceUnits === 0 ? Colors.income : Colors.warning }]}>
+                                                    {h.differenceUnits > 0 ? '+' : ''}{h.differenceUnits}
+                                                </Text>
+                                            </View>
+                                        ))}
+                                    </View>
+                                )}
+
+                                <TouchableOpacity style={styles.submitBtn} onPress={confirmCount}>
+                                    <Text style={styles.submitBtnText}>Confirm Count</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.cancelBtn} onPress={() => setCountModal(null)}>
                                     <Text style={styles.cancelBtnText}>Cancel</Text>
                                 </TouchableOpacity>
                             </ScrollView>

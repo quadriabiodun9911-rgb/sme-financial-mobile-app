@@ -32,11 +32,37 @@ export type ForecastPeriod = '30d' | '60d' | '90d' | '12m';
 export const PERIOD_MONTHS: Record<ForecastPeriod, number> = { '30d': 1, '60d': 2, '90d': 3, '12m': 12 };
 export const PERIOD_LABELS: Record<ForecastPeriod, string> = { '30d': '30 Days', '60d': '60 Days', '90d': '90 Days', '12m': '12 Months' };
 
+export interface ForecastRange {
+    low: number;
+    high: number;
+}
+
 export interface ForecastHeadline {
     expectedRevenue: number;
     expectedExpenses: number;
     expectedProfit: number;
     expectedCashPosition: number;
+    // Low/high band around each figure above, so the screen can show
+    // "Expected / Range / Confidence" instead of one false-precise number.
+    // Width is tied directly to the same confidencePct this summary already
+    // computes -- lower confidence widens the band -- rather than a second,
+    // independently-tuned uncertainty model. Centered on the point estimate
+    // (not a fixed +/-% of the raw value) so a near-zero or negative figure
+    // (e.g. a projected loss) still gets a sensible, correctly-signed range.
+    revenueRange: ForecastRange;
+    expensesRange: ForecastRange;
+    profitRange: ForecastRange;
+    cashPositionRange: ForecastRange;
+}
+
+// Half of (100 - confidence)% as a fraction, applied to the figure's own
+// magnitude -- e.g. 72% confidence -> a 14% margin each side. Never widens
+// past +/-35% (confidencePct floors at 30) or tightens past +/-5%
+// (confidencePct caps at 90), matching computeForecastSummary's own bounds.
+export function computeForecastRange(value: number, confidencePct: number): ForecastRange {
+    const spread = (100 - confidencePct) / 200;
+    const margin = Math.abs(value) * spread;
+    return { low: value - margin, high: value + margin };
 }
 
 export interface RevenueForecastRow {
@@ -296,7 +322,13 @@ export function computeForecastSummary(
 
     return {
         period, monthsInPeriod, baselineMonthsUsed: stmts.baselineMonthsUsed,
-        headline: { expectedRevenue, expectedExpenses, expectedProfit, expectedCashPosition },
+        headline: {
+            expectedRevenue, expectedExpenses, expectedProfit, expectedCashPosition,
+            revenueRange: computeForecastRange(expectedRevenue, confidencePct),
+            expensesRange: computeForecastRange(expectedExpenses, confidencePct),
+            profitRange: computeForecastRange(expectedProfit, confidencePct),
+            cashPositionRange: computeForecastRange(expectedCashPosition, confidencePct),
+        },
         revenueTable, expenseByCategory,
         profitBridge: { revenue: expectedRevenue, cogs, grossProfit, operatingExpenses, netProfit, forecastMarginPct, currentMarginPct, marginDeltaPct: forecastMarginPct - currentMarginPct },
         cashFlowMonths,
