@@ -12,6 +12,7 @@ import {
   canMeasureOutcome, daysUntilMeasurable, OUTCOME_MEASUREMENT_WINDOW_DAYS,
   TacticExecution, TacticOutcome,
 } from '../utils/outcomeTrackingEngine';
+import { syncTacticOutcomeSample, loadTacticOutcomeStats, TacticOutcomeStats } from '../utils/tacticOutcomeStats';
 import NextStepLink from '../components/NextStepLink';
 import { computeCashRunway } from '../utils/cashRunway';
 import { getMonthlyExpenseAverage } from '../utils/finance';
@@ -47,6 +48,19 @@ export default function ActionTrackerScreen() {
   const { transactions, invoices, finance, settings, setCurrentScreen, loans, inventory } = useApp();
   const [activeTab, setActiveTab] = useState<'immediate' | 'shortterm' | 'strategic'>('immediate');
   const [expandedActionId, setExpandedActionId] = useState<string | null>(null);
+
+  // Fetched lazily, one tactic at a time, only for whichever card is
+  // currently expanded -- not for every tactic on screen, which would fire
+  // a network request per card on every load for a stat most won't even
+  // look at. null while loading or when there isn't yet enough real data.
+  const [communityStats, setCommunityStats] = useState<TacticOutcomeStats | null>(null);
+  useEffect(() => {
+    setCommunityStats(null);
+    if (!expandedActionId) return;
+    let cancelled = false;
+    loadTacticOutcomeStats(expandedActionId).then(stats => { if (!cancelled) setCommunityStats(stats); });
+    return () => { cancelled = true; };
+  }, [expandedActionId]);
 
   // Actually tracks progress — before this, "Start This Action" just showed
   // an alert and remembered nothing: initiateTacticTracking/
@@ -153,6 +167,11 @@ export default function ActionTrackerScreen() {
       return recordTacticOutcome(execution, tacticLike, actualImpact, [], [], health);
     });
     setOutcomes(prev => [...prev, ...newOutcomes]);
+    // Anonymous cross-business sample for each -- feeds the community
+    // success-rate stat shown below (see tacticOutcomeStats.ts). Local
+    // outcome tracking above is the real record for this business; this is
+    // purely additive.
+    newOutcomes.forEach(o => syncTacticOutcomeSample(o.tacticId, o.succeeded, o.impactPercentage));
     // transactions/diagnosis deliberately included -- a fresh visit with
     // updated numbers is exactly what should re-check eligibility and
     // trigger measurement once the window has passed.
@@ -444,6 +463,12 @@ export default function ActionTrackerScreen() {
                       <Text style={styles.probabilityText}>
                         {(action.successProbability * 100).toFixed(0)}% likely to succeed
                       </Text>
+                      {communityStats && expandedActionId === action.id && (
+                        <Text style={styles.communityStatText}>
+                          Businesses that tried this typically achieved {communityStats.avgImpactPct.toFixed(0)}% of target
+                          ({communityStats.successRatePct.toFixed(0)}% succeeded, based on {communityStats.sampleCount} results)
+                        </Text>
+                      )}
                     </View>
 
                     {action.blockers && action.blockers.length > 0 && (
@@ -637,6 +662,7 @@ const styles = StyleSheet.create({
   probabilityBar: { height: 6, backgroundColor: Colors.bg, borderRadius: 3, overflow: 'hidden', marginVertical: 4 },
   probabilityFill: { height: '100%' },
   probabilityText: { fontSize: 10, color: Colors.textMuted },
+  communityStatText: { fontSize: 10, color: Colors.textSecondary, marginTop: 6, fontStyle: 'italic' },
   blockerText: { fontSize: 11, color: Colors.expense, marginVertical: 3 },
   startButton: { backgroundColor: Colors.income, borderRadius: 10, paddingVertical: Spacing.md, alignItems: 'center', marginTop: 4 },
   startButtonText: { fontSize: 13, fontWeight: '700', color: '#fff' },
