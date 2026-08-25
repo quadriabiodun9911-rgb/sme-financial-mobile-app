@@ -855,6 +855,21 @@ export function useSettings(): SettingsContextValue {
 // 5. AUTH CONTEXT - User, Authentication, Navigation
 // ============================================================================
 
+// Whatever a Guest Mode session has already uploaded/entered before
+// registering -- captured by the calling screen (from useApp()'s own
+// transactions/assets/loans/inventory/invoices) and passed into
+// setupAccount so it survives the brand-new-account flow instead of being
+// lost to setupAccount's own clearLocalFinancialCache() anti-leak wipe.
+// See setupAccount's guestData handling for exactly how/when this gets
+// written to storage.
+export interface GuestSeedData {
+  transactions?: Transaction[];
+  assets?: Asset[];
+  loans?: Loan[];
+  inventory?: InventoryItem[];
+  invoices?: Invoice[];
+}
+
 interface AuthContextValue {
   user: User | null;
   isLoading: boolean;
@@ -880,6 +895,12 @@ interface AuthContextValue {
   isDemoMode: boolean;
   demoBusinessId: string | null;
   enterDemo: (businessId: string) => void;
+  // "Guest Mode" -- the same non-persisted, in-memory-only session as
+  // enterDemo, but blank instead of seeded with a canned DEMO_BUSINESSES
+  // entry, so a visitor can explore with (or upload) their OWN numbers
+  // instead of a fictional business's. See GuestSeedData/setupAccount's
+  // guestData param for how this data survives if they then register.
+  enterGuest: () => void;
   exitDemo: () => void;
   clearData: () => Promise<void>;
   resetBusinessData: () => Promise<void>;
@@ -900,7 +921,7 @@ interface AuthContextValue {
   isFirstLaunch: boolean;
   isLockedOut: boolean;
   lockoutUntil: number | null;
-  setupAccount: (email: string, businessName: string, pin: string, loadDemo: boolean, phone?: string, initialSettings?: Partial<BusinessSettings>) => Promise<void>;
+  setupAccount: (email: string, businessName: string, pin: string, loadDemo: boolean, phone?: string, initialSettings?: Partial<BusinessSettings>, guestData?: GuestSeedData) => Promise<void>;
   recoverAccount: (email: string, pin: string) => Promise<void>;
   joinTeam: (email: string, pin: string, inviteCode: string) => Promise<void>;
   // Phase 2 of the Lender Auth & Financing-Visibility Flow — see that scope
@@ -1350,7 +1371,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       logout: performLogout,
       signOutEverywhere: performLogout,
-      setupAccount: async (email, businessName, pin, _loadDemo, phone, initialSettings) => {
+      setupAccount: async (email, businessName, pin, _loadDemo, phone, initialSettings, guestData) => {
         // Supabase auth is best-effort — never block local account creation.
         // The account's real password is a freshly generated high-entropy
         // secret, never the PIN itself — see login()'s comment for why.
@@ -1400,7 +1421,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (initialSettings) {
             await saveSettings({ ...DEFAULT_SETTINGS, ...initialSettings }).catch(() => {});
         }
+        // Guest Mode -> real account conversion: write whatever the guest
+        // already had (transactions/assets/loans/inventory/invoices, still
+        // sitting in the OTHER providers' in-memory state at this point --
+        // this function has no direct access to them, which is why the
+        // caller captures and passes them in) into storage now, strictly
+        // AFTER clearLocalFinancialCache() above and BEFORE setUser() below
+        // flips the identity. Each data provider's own hydrate effect (keyed
+        // on syncUserId/isDemoMode) fires once setUser() commits and simply
+        // loads this back in through the exact same path it uses to restore
+        // an existing account -- no cross-provider coordination needed, and
+        // no risk of the effect's own wipe-then-load race clobbering this,
+        // since the write below completes and is awaited before the
+        // identity (and therefore the effect's dependencies) ever changes.
+        if (guestData) {
+            await Promise.all([
+                guestData.transactions?.length ? saveTransactions(guestData.transactions).catch(() => {}) : null,
+                guestData.assets?.length ? saveAssets(guestData.assets).catch(() => {}) : null,
+                guestData.loans?.length ? saveLoans(guestData.loans).catch(() => {}) : null,
+                guestData.inventory?.length ? saveInventory(guestData.inventory).catch(() => {}) : null,
+                guestData.invoices?.length ? saveInvoices(guestData.invoices).catch(() => {}) : null,
+            ]);
+        }
         setIsFirstLaunch(false);
+        // Belt-and-suspenders for the guest-conversion path -- a normal
+        // (non-guest) signup already has both false/null, so this is a
+        // harmless no-op there.
+        setIsDemoMode(false);
+        setDemoBusinessId(null);
         setUser({ email, businessName, role: 'Administrator', phone, createdAt: new Date().toISOString() });
         await refreshLocalAccounts();
         trackUserRegistered(initialSettings?.currency ?? DEFAULT_SETTINGS.currency);
@@ -1647,6 +1695,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           createdAt: new Date(Date.now() - 120 * 86400000).toISOString(),
         });
         setDemoBusinessId(businessId);
+        setIsDemoMode(true);
+        setCurrentScreenState('dashboard');
+      },
+      // Same non-persisted session as enterDemo, but demoBusinessId stays
+      // null -- DEMO_BUSINESSES.find() below then simply never matches, and
+      // every data provider's own `if (biz)` guard (see
+      // FinanceProvider/InvoiceProvider/SettingsProvider hydrate effects)
+      // already falls through cleanly to its already-cleared empty state
+      // when that happens. No provider changes needed for a blank guest
+      // session to work.
+      enterGuest: () => {
+        trackDemoStarted('guest', 'Guest', 'guest');
+        setUser({
+          email: `guest-${Date.now()}@quad360.guest`,
+          businessName: 'My Business',
+          role: 'Administrator',
+          createdAt: new Date().toISOString(),
+        });
+        setDemoBusinessId(null);
         setIsDemoMode(true);
         setCurrentScreenState('dashboard');
       },
@@ -2140,6 +2207,7 @@ export function useApp() {
     }),
     recordConsent,
     enterDemo: auth.enterDemo || (() => {}),
+    enterGuest: auth.enterGuest || (() => {}),
     markInvoiceStatus: (id, status) => {
       invoices?.markInvoiceStatus(id, status);
       const inv = invoicesArray.find((i) => i.id === id);

@@ -100,7 +100,7 @@ export default function LandingScreen() {
                             <Text style={s.ctaText}>Get Started Free →</Text>
                         </TouchableOpacity>
                         <TouchableOpacity onPress={goDemo} style={s.demoBtn}>
-                            <Text style={s.demoText}>Try Demo (No sign-up needed)</Text>
+                            <Text style={s.demoText}>Try Guest Mode (No sign-up needed)</Text>
                         </TouchableOpacity>
                     </View>
 

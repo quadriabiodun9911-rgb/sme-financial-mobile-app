@@ -106,7 +106,7 @@ const PRIORITY_KIND_META: Record<PriorityKind, { icon: IconName; screen: Screen 
 };
 
 export default function DashboardScreen() {
-    const { finance, settings, goals, transactions, invoices, assets, loans, staff, payrollRuns, navigate, setCurrentScreen, navParams, language: rawLanguage, isLoading, addTransaction, isDemoMode, exitDemo, cashPockets, addGoal, deleteGoal, updateGoal, budgets, inventory, user, financing, canViewFinancials, readinessHistory } = useApp();
+    const { finance, settings, goals, transactions, invoices, assets, loans, staff, payrollRuns, navigate, setCurrentScreen, navParams, language: rawLanguage, isLoading, addTransaction, isDemoMode, cashPockets, addGoal, deleteGoal, updateGoal, budgets, inventory, user, financing, canViewFinancials, readinessHistory } = useApp();
     const language = rawLanguage as Language;
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
@@ -779,14 +779,30 @@ export default function DashboardScreen() {
                 </TouchableOpacity>
                 <Text style={styles.title}>{t(language, 'dashboard')}</Text>
 
-                {/* ── Demo banner ──────────────────────────────────────────── */}
+                {/* ── Guest Mode banner ────────────────────────────────────── */}
                 {isDemoMode && (
                     <View style={styles.demoBanner}>
                         <View style={styles.demoBannerLeft}>
                             <Icon name="eye" size={14} color="#fff" />
-                            <Text style={styles.demoBannerText}>Demo Mode — data is not saved</Text>
+                            <Text style={styles.demoBannerText}>Guest Mode — data is not saved</Text>
                         </View>
-                        <TouchableOpacity onPress={() => { trackDemoConvertTapped(); exitDemo(); }} style={styles.demoBannerBtn}>
+                        <TouchableOpacity
+                            onPress={() => {
+                                trackDemoConvertTapped();
+                                // Deliberately NOT exitDemo() -- that flips
+                                // isDemoMode/user immediately, which wipes
+                                // this in-memory guest data (transactions,
+                                // etc.) before the signup form even opens.
+                                // Navigating straight to the signup form
+                                // while staying in guest mode keeps this
+                                // data alive so LoginScreen's handleSetup
+                                // can capture and carry it into the new
+                                // account -- see setupAccount's guestData
+                                // handling for how it survives the switch.
+                                navigate('login', { mode: 'owner-setup' });
+                            }}
+                            style={styles.demoBannerBtn}
+                        >
                             <Text style={styles.demoBannerBtnText}>Create Account →</Text>
                         </TouchableOpacity>
                     </View>

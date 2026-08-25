@@ -77,7 +77,7 @@ type Mode = 'owner-setup' | 'owner-login' | 'join-team' | 'join-lender' | 'reset
 type LoginMethod = 'pin' | 'email';
 
 export default function LoginScreen() {
-    const { isFirstLaunch, setupAccount, login, joinTeam, joinAsLender, enterDemo, language, setLanguage, updateSettings, resetApp, isLockedOut, lockoutUntil, recoverAccount, navParams, recordConsent, navigate, localAccounts, switchAccount, refreshLocalAccounts } = useApp();
+    const { isFirstLaunch, setupAccount, login, joinTeam, joinAsLender, enterDemo, enterGuest, isDemoMode, transactions, assets, loans, inventory, invoices, settings, language, setLanguage, updateSettings, resetApp, isLockedOut, lockoutUntil, recoverAccount, navParams, recordConsent, navigate, localAccounts, switchAccount, refreshLocalAccounts } = useApp();
     // The split-screen setup layout only applies on wide web viewports --
     // narrow/native rendering is untouched, so the primary mobile
     // experience carries zero risk from this. 900px comfortably fits the
@@ -304,11 +304,26 @@ export default function LoginScreen() {
         setSubmitting(true);
         try {
             setLanguage(setupLang);
+            // Converting from Guest Mode: capture whatever's currently in
+            // memory (uploaded/entered while browsing as a guest) so
+            // setupAccount can carry it into the new account instead of
+            // losing it to its own anti-leak cache clear -- see that
+            // function's guestData handling. Also carry forward the guest
+            // session's own settings (e.g. currency they were already
+            // using) rather than only the form's fresh currency/industry
+            // picks, which take priority via the spread order below.
+            const guestData = isDemoMode
+                ? { transactions, assets, loans, inventory, invoices }
+                : undefined;
             // Passed through setupAccount (not just updateSettings afterward) so
             // it's persisted before the post-signup settings-hydrate effect
             // resets/reloads settings — otherwise the chosen currency/industry can
             // be silently overwritten back to defaults by that reset.
-            await setupAccount(email.trim(), business.trim(), pin, false, phone.trim(), { currency, currencyCode, industry });
+            await setupAccount(
+                email.trim(), business.trim(), pin, false, phone.trim(),
+                isDemoMode ? { ...settings, currency, currencyCode, industry } : { currency, currencyCode, industry },
+                guestData,
+            );
             updateSettings({ currency, currencyCode, industry });
             // Fire-and-forget: recording consent must never block a
             // signup that already succeeded — see recordConsent's own
@@ -833,8 +848,18 @@ export default function LoginScreen() {
                 <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
                     <View style={styles.card}>
                         <Image source={require('../../assets/icon.png')} style={styles.logo} />
-                        <Text style={styles.title}>Try the Demo</Text>
-                        <Text style={styles.subtitle}>Pick a business type to explore the app with realistic sample data. Nothing will be saved.</Text>
+                        <Text style={styles.title}>Guest Mode</Text>
+                        <Text style={styles.subtitle}>Explore Quad360 with your own numbers, or pick a business type for realistic sample data. Nothing is saved unless you create an account.</Text>
+
+                        <TouchableOpacity style={styles.bizCard} onPress={() => enterGuest()}>
+                            <Text style={styles.bizEmoji}>📤</Text>
+                            <View style={styles.bizInfo}>
+                                <Text style={styles.bizCountry}>YOUR BUSINESS</Text>
+                                <Text style={styles.bizName}>Start blank — use your own numbers</Text>
+                                <Text style={styles.bizDesc}>Upload a bank statement or add transactions yourself</Text>
+                            </View>
+                            <Icon name="chevron-right" size={18} color={Colors.primary} />
+                        </TouchableOpacity>
 
                         {DEMO_BUSINESSES.map(biz => (
                             <TouchableOpacity key={biz.id} style={styles.bizCard} onPress={() => enterDemo(biz.id)}>
@@ -1099,6 +1124,14 @@ export default function LoginScreen() {
 
         const formFields = (
             <>
+                {isDemoMode && (
+                    <View style={styles.guestCarryoverNote}>
+                        <Icon name="lock" size={13} color={Colors.primary} />
+                        <Text style={styles.guestCarryoverNoteText}>
+                            Your analysis is ready. Create your account to securely save it — you won't need to upload again.
+                        </Text>
+                    </View>
+                )}
                 <Field label={t(setupLang, 'email')}>
                     <TextInput style={styles.input} value={email} onChangeText={setEmail}
                         placeholder="admin@yourbusiness.com" placeholderTextColor={Colors.muted}
@@ -1184,7 +1217,7 @@ export default function LoginScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.demoBtn} onPress={() => setMode('demo-pick')}>
                     <Icon name="eye" size={13} color={Colors.primary} />
-                    <Text style={styles.demoBtnText}>Try Demo (No sign-up needed)</Text>
+                    <Text style={styles.demoBtnText}>Try Guest Mode (No sign-up needed)</Text>
                 </TouchableOpacity>
             </>
         );
@@ -1431,7 +1464,7 @@ export default function LoginScreen() {
             </TouchableOpacity>
             <TouchableOpacity style={styles.demoBtn} onPress={() => setMode('demo-pick')}>
                 <Icon name="eye" size={13} color={Colors.primary} />
-                <Text style={styles.demoBtnText}>Try Demo First (No sign-up needed)</Text>
+                <Text style={styles.demoBtnText}>Try Guest Mode First (No sign-up needed)</Text>
             </TouchableOpacity>
         </>
     );
@@ -1740,6 +1773,13 @@ const styles = StyleSheet.create({
         borderWidth: 1, borderColor: Colors.primary, backgroundColor: 'transparent',
     },
     demoBtnText: { color: Colors.primary, fontWeight: '600', fontSize: 13 },
+
+    guestCarryoverNote: {
+        flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+        backgroundColor: Colors.primary + '15', borderWidth: 1, borderColor: Colors.primary,
+        borderRadius: Radius.md, padding: 12, marginBottom: 16,
+    },
+    guestCarryoverNoteText: { flex: 1, color: Colors.textPrimary, fontSize: 12.5, lineHeight: 18 },
 
     newDeviceBanner: {
         flexDirection: 'row', alignItems: 'flex-start',
