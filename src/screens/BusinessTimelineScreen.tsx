@@ -8,6 +8,7 @@ import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { computeBusinessTimeline, TimelineEventType } from '../utils/businessTimeline';
 import { loadRecentAuditLogs, AuditLogRecord } from '../utils/auditLog';
+import { computeOutcomeMetricsRollup, describeMetricChange } from '../utils/outcomeMetricsRollup';
 
 const EVENT_META: Record<TimelineEventType, { icon: IconName; color: string }> = {
     account_created: { icon: 'flag', color: Colors.primary },
@@ -32,7 +33,7 @@ function monthLabel(iso: string): string {
 }
 
 export default function BusinessTimelineScreen() {
-    const { transactions, loans, goals, readinessHistory, settings, user } = useApp();
+    const { transactions, loans, goals, readinessHistory, settings, user, invoices, inventory } = useApp();
     const currency = settings?.currency ?? '₦';
     const [auditEntries, setAuditEntries] = useState<AuditLogRecord[]>([]);
 
@@ -46,6 +47,22 @@ export default function BusinessTimelineScreen() {
         () => computeBusinessTimeline(transactions, loans, goals, readinessHistory, currency, user?.createdAt, auditEntries),
         [transactions, loans, goals, readinessHistory, currency, user?.createdAt, auditEntries],
     );
+
+    // "Proving value" -- real outcome deltas since this business started
+    // tracking, not vanity engagement metrics. See outcomeMetricsRollup.ts.
+    const rollup = useMemo(
+        () => computeOutcomeMetricsRollup(transactions, loans, invoices, inventory, readinessHistory),
+        [transactions, loans, invoices, inventory, readinessHistory],
+    );
+    const outcomeLines = useMemo(() => {
+        if (!rollup.hasEnoughHistory) return [];
+        return [
+            describeMetricChange(rollup.revenue, currency),
+            describeMetricChange(rollup.profit, currency),
+            describeMetricChange(rollup.margin),
+            describeMetricChange(rollup.healthScore),
+        ].filter((line): line is string => line !== null);
+    }, [rollup, currency]);
 
     // Group consecutive events under a month header, in chronological order --
     // reads like a story ("January: ... February: ...") rather than a flat list.
@@ -71,6 +88,33 @@ export default function BusinessTimelineScreen() {
                 <Text style={styles.subtitle}>
                     The story of your business's finances so far — built from what's actually recorded, not a guess.
                 </Text>
+
+                {(outcomeLines.length > 0 || rollup.financingObtained.totalPrincipalEverTaken > 0 || rollup.current.overdueInvoiceCount > 0 || rollup.current.inventoryTurnoverRatio !== null) && (
+                    <View style={styles.outcomesCard}>
+                        <Text style={styles.outcomesTitle}>Real Outcomes, Not Vanity Metrics</Text>
+                        {outcomeLines.length > 0 ? (
+                            outcomeLines.map(line => <Text key={line} style={styles.outcomeLine}>• {line}</Text>)
+                        ) : (
+                            <Text style={styles.outcomeLine}>Keep tracking — trends like these show up once you have at least two months of history.</Text>
+                        )}
+                        {rollup.financingObtained.totalPrincipalEverTaken > 0 && (
+                            <Text style={styles.outcomeLine}>
+                                • Financing obtained: {currency}{Math.round(rollup.financingObtained.totalPrincipalEverTaken).toLocaleString()} total
+                                ({rollup.financingObtained.activeLoanCount} active, {rollup.financingObtained.paidOffLoanCount} paid off)
+                            </Text>
+                        )}
+                        {rollup.current.overdueInvoiceCount > 0 && (
+                            <Text style={styles.outcomeLine}>
+                                • Currently overdue: {currency}{Math.round(rollup.current.overdueInvoiceAmount).toLocaleString()} across {rollup.current.overdueInvoiceCount} invoice{rollup.current.overdueInvoiceCount === 1 ? '' : 's'}
+                            </Text>
+                        )}
+                        {rollup.current.inventoryTurnoverRatio !== null && (
+                            <Text style={styles.outcomeLine}>
+                                • Inventory turnover: {rollup.current.inventoryTurnoverRatio.toFixed(1)}x over the last {Math.min(rollup.monthsOfHistory, 12)} month{Math.min(rollup.monthsOfHistory, 12) === 1 ? '' : 's'} (current snapshot, not yet trended over time)
+                            </Text>
+                        )}
+                    </View>
+                )}
 
                 {events.length === 0 ? (
                     <View style={styles.emptyCard}>
@@ -117,6 +161,12 @@ const styles = StyleSheet.create({
     titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
     title: { fontSize: 20, fontWeight: 'bold', color: Colors.textPrimary },
     subtitle: { fontSize: 13, color: Colors.textMuted, lineHeight: 19, marginBottom: Spacing.lg },
+    outcomesCard: {
+        backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.lg, marginBottom: Spacing.lg,
+        borderWidth: 1, borderColor: Colors.border,
+    },
+    outcomesTitle: { fontSize: 13, fontWeight: '800', color: Colors.textPrimary, marginBottom: Spacing.sm },
+    outcomeLine: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 19, marginBottom: 3 },
     emptyCard: { alignItems: 'center', backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.xl, gap: 8 },
     emptyTitle: { fontSize: 16, fontWeight: '700', color: Colors.textPrimary },
     emptyText: { fontSize: 13, color: Colors.textMuted, textAlign: 'center' },
