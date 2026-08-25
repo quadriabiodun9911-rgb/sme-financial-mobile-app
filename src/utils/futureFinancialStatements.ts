@@ -150,6 +150,13 @@ export function buildFutureFinancialStatements(
     staff: StaffMember[] = [],
     macroAssumptions: MacroAssumption[] = [],
     futureEvents: FutureEvent[] = [],
+    // Off only for the "true zero" comparison baseline the Impact Analysis
+    // waterfalls (forecastChangeExplanation.ts) build against -- everywhere
+    // else this stays true, so the projection keeps reflecting a genuinely
+    // rising category the same way it always has. See riskAdjustedCategory
+    // above for why this can't just be modeled as another ForecastAdjustments
+    // field: it isn't a lever the user sets, it's a fact the engine detects.
+    includeRiskAdjustedCategoryTrend: boolean = true,
 ): FutureFinancialStatements {
     const monthly = computeAllTimeMonthlyBuckets(transactions);
     const recentMonths = monthly.slice(-3);
@@ -284,7 +291,7 @@ export function buildFutureFinancialStatements(
         // adjustment, so a rising energy or FX-linked cost keeps outpacing
         // the rest of the business's expenses here the same way it does on
         // the Cost Exposure tab.
-        const operatingExpenses = riskAdjustedCategory
+        const operatingExpenses = (riskAdjustedCategory && includeRiskAdjustedCategoryTrend)
             ? restOfExpenseBaseline * Math.pow(1 + adjustments.expenseGrowthPctPerMonth / 100, m)
                 + riskAdjustedCategoryMonthlySpend * Math.pow(1 + riskAdjustedCategoryGrowthPct / 100, m / costExposureWindowMonths)
                 + adjustments.oneOffMonthlyCostAdd + payrollGapIncluded + eventExpense

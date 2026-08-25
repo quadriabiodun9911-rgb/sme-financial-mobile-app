@@ -15,8 +15,9 @@ import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan } from '../utils/actionRecommendationEngine';
 import { scenarioAdjustments, summarizeScenario, SCENARIO_SWING, ScenarioName } from '../utils/scenarioForecast';
 import { computeExternalScenarioStress, ImpactLevel, ProbabilityLevel } from '../utils/externalFactorsPanel';
-import { explainForecastChange } from '../utils/forecastChangeExplanation';
+import { explainForecastChange, explainForecastProfitChange } from '../utils/forecastChangeExplanation';
 import { generateForecastRiskActions } from '../utils/forecastRiskRecommendations';
+import { computeBiggestForecastRisk } from '../utils/forecastBiggestRisk';
 import { monthlyPayment } from '../utils/loanMath';
 
 type Statement = 'pnl' | 'cashflow' | 'balance';
@@ -166,6 +167,21 @@ export default function FutureFinancialStatementsScreen() {
         () => explainForecastChange(transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory, futureEvents),
         [transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory, futureEvents],
     );
+    // Same waterfall technique, decomposing projected PROFIT instead of
+    // cash -- shows even with no What If? adjustments dialed in, since a
+    // rising-cost-trend driver can fire on its own (see
+    // forecastChangeExplanation.ts).
+    const profitExplanation = useMemo(
+        () => explainForecastProfitChange(transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory, futureEvents),
+        [transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory, futureEvents],
+    );
+    // The single most severe thing the forecast is currently warning
+    // about, synthesized from signals already computed above -- for the
+    // headline "Biggest Risk" callout, not a new risk model.
+    const biggestRisk = useMemo(
+        () => computeBiggestForecastRisk(forecastSummary, currency),
+        [forecastSummary, currency],
+    );
 
     const notEnoughData = forecast.baselineMonthsUsed === 0;
     const econRef = useMemo(() => getEconomicReference(currency), [currency]);
@@ -292,8 +308,74 @@ export default function FutureFinancialStatementsScreen() {
                                 <Text style={[s.headlineVal, { color: Colors.asset }]}>{fmt(forecastSummary.headline.expectedCashPosition)}</Text>
                                 <Text style={s.headlineRange}>{fmt(forecastSummary.headline.cashPositionRange.low)} – {fmt(forecastSummary.headline.cashPositionRange.high)}</Text>
                             </View>
+                            <View style={s.headlineBox}>
+                                <Text style={s.headlineLabel}>Financial Health</Text>
+                                <View style={s.headlineHealthRow}>
+                                    <Text style={[s.headlineVal, { fontSize: 17, color: BAND_COLOR[hf.currentScore.band] }]}>{hf.currentScore.score}</Text>
+                                    <Text style={s.headlineHealthArrow}>→</Text>
+                                    <Text style={[s.headlineVal, { fontSize: 17, color: BAND_COLOR[hf.projectedScore.band] }]}>{hf.projectedScore.score}</Text>
+                                    {hf.projectedScore.score < hf.currentScore.score && <Text style={s.headlineHealthWarn}> ⚠️</Text>}
+                                </View>
+                                <Text style={s.headlineRange}>{RISK_BAND_STYLE[hf.projectedScore.band].emoji} {RISK_BAND_STYLE[hf.projectedScore.band].label}</Text>
+                            </View>
                         </View>
                         <Text style={s.headlineConfidenceText}>Confidence: {forecastSummary.confidencePct}% — wider range on longer horizons and thinner history</Text>
+
+                        {/* Biggest Risk -- the single most severe thing the
+                            forecast is currently warning about, synthesized
+                            from signals computed elsewhere on this screen
+                            (cash-flow pressure ranks above a corroborated
+                            external risk, which ranks above margin risk,
+                            which ranks above a health decline). Omitted
+                            entirely when nothing material is flagged. */}
+                        {biggestRisk && (() => {
+                            const accent = biggestRisk.icon === '🔴' ? Colors.expense : Colors.warning;
+                            return (
+                                <View style={[s.biggestRiskCard, { backgroundColor: accent + '14', borderColor: accent + '55' }]}>
+                                    <Text style={[s.biggestRiskTitle, { color: accent }]}>{biggestRisk.icon} Biggest Risk</Text>
+                                    <Text style={s.biggestRiskSubtitle}>{biggestRisk.title}</Text>
+                                    <Text style={s.biggestRiskDetail}>{biggestRisk.detail}</Text>
+                                </View>
+                            );
+                        })()}
+
+                        {/* Forecast Assumptions -- what this projection is
+                            actually built on, in one place, so "revenue will
+                            be X" is explainable rather than a single
+                            false-precise number. Every line reuses a value
+                            computed elsewhere on this screen; nothing new is
+                            modeled here. */}
+                        <View style={s.card}>
+                            <Text style={s.cardTitle}>📋 Forecast Assumptions</Text>
+                            <Row
+                                label="Historical sales trend"
+                                value={forecastSummary.detectedRevenueGrowthPctPerMonth != null
+                                    ? `${forecastSummary.detectedRevenueGrowthPctPerMonth >= 0 ? '+' : ''}${forecastSummary.detectedRevenueGrowthPctPerMonth.toFixed(1)}%/mo`
+                                    : 'Not enough history'}
+                            />
+                            <Row
+                                label="Sales growth assumption applied"
+                                value={`${adjustments.revenueGrowthPctPerMonth >= 0 ? '+' : ''}${adjustments.revenueGrowthPctPerMonth.toFixed(1)}%/mo`}
+                            />
+                            <Row label="Average discount" value={`${forecastSummary.discountTrend.recentRatePct.toFixed(1)}%`} />
+                            <Row
+                                label="Cost growth assumption applied"
+                                value={`${adjustments.expenseGrowthPctPerMonth >= 0 ? '+' : ''}${adjustments.expenseGrowthPctPerMonth.toFixed(1)}%/mo`}
+                            />
+                            {forecast.riskAdjustedCategory && (
+                                <Row
+                                    label={`Rising cost trend (${forecast.riskAdjustedCategory})`}
+                                    value={`+${forecast.riskAdjustedCategoryGrowthPct.toFixed(0)}% / ${forecast.riskAdjustedCategoryWindowMonths}mo`}
+                                    valueColor={Colors.warning}
+                                />
+                            )}
+                            <Row
+                                label="External factors considered"
+                                value={forecastSummary.externalFactors.items.length === 0 ? 'None added' : `${forecastSummary.externalFactors.items.length}`}
+                            />
+                            <Row label="Expected collection period" value={`${Math.round(forecastSummary.expectedCollectionDays)} days`} />
+                            <Row label="Forecast confidence" value={`${forecastSummary.confidencePct}%`} bold />
+                        </View>
 
                         {/* Cash Flow Forecast — the centerpiece */}
                         <View style={s.card}>
@@ -748,11 +830,39 @@ export default function FutureFinancialStatementsScreen() {
                             </View>
                         )}
 
-                        {hasAdjustments && changeExplanation.drivers.length > 0 && (
+                        {/* Impact Analysis -- profit first (the number owners
+                            actually think in), cash second. Shown whenever
+                            either waterfall has a driver to explain, not just
+                            when What If? adjustments are dialed in: a rising
+                            cost trend the engine detected on its own is
+                            exactly the kind of thing this section exists to
+                            surface. */}
+                        {profitExplanation.drivers.length > 0 && (
+                            <View style={s.card}>
+                                <Text style={s.cardTitle}>Why is profit projected to change?</Text>
+                                <Text style={s.baselineNote}>
+                                    Projected profit {profitExplanation.totalImpact >= 0 ? 'increases' : 'decreases'} by {fmt(Math.abs(profitExplanation.totalImpact))} versus a flat, unchanged trend, because:
+                                </Text>
+                                {profitExplanation.drivers.map((d, i) => (
+                                    <View key={i} style={s.row}>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={s.rowLabel}>{d.label}</Text>
+                                            {d.source === 'external' && <Text style={s.profitDriverExternalTag}>Tied to a Macro Assumption</Text>}
+                                        </View>
+                                        <Text style={[s.rowValue, { color: d.profitImpact >= 0 ? Colors.income : Colors.expense }]}>
+                                            {d.profitImpact >= 0 ? '+' : ''}{fmt(d.profitImpact)}
+                                        </Text>
+                                    </View>
+                                ))}
+                                <Row label="Net projected change" value={`${profitExplanation.totalImpact >= 0 ? '+' : ''}${fmt(profitExplanation.totalImpact)}`} bold valueColor={profitExplanation.totalImpact >= 0 ? Colors.income : Colors.expense} />
+                            </View>
+                        )}
+
+                        {changeExplanation.drivers.length > 0 && (
                             <View style={s.card}>
                                 <Text style={s.cardTitle}>Why did the cash position change?</Text>
                                 <Text style={s.baselineNote}>
-                                    Projected cash position {changeExplanation.totalImpact >= 0 ? 'increased' : 'decreased'} by {fmt(Math.abs(changeExplanation.totalImpact))} because:
+                                    Projected cash position {changeExplanation.totalImpact >= 0 ? 'increased' : 'decreased'} by {fmt(Math.abs(changeExplanation.totalImpact))} versus a flat, unchanged trend, because:
                                 </Text>
                                 {changeExplanation.drivers.map((d, i) => (
                                     <Row
@@ -954,6 +1064,19 @@ const s = StyleSheet.create({
     headlineVal: { fontSize: 20, fontWeight: '800' },
     headlineRange: { fontSize: 10.5, color: Colors.textMuted, marginTop: 2 },
     headlineConfidenceText: { fontSize: 11, color: Colors.textMuted, marginTop: -6, marginBottom: 14, fontStyle: 'italic' },
+    headlineHealthRow: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
+    headlineHealthArrow: { fontSize: 13, color: Colors.textMuted },
+    headlineHealthWarn: { fontSize: 13 },
+
+    biggestRiskCard: {
+        backgroundColor: Colors.expense + '14', borderRadius: 14, padding: Spacing.lg, marginBottom: 14,
+        borderWidth: 1, borderColor: Colors.expense + '55', ...Shadow.sm,
+    },
+    biggestRiskTitle: { fontSize: 11, fontWeight: '800', color: Colors.expense, textTransform: 'uppercase' as const, letterSpacing: 0.3, marginBottom: 4 },
+    biggestRiskSubtitle: { fontSize: 15, fontWeight: '800', color: Colors.textPrimary, marginBottom: 4 },
+    biggestRiskDetail: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
+
+    profitDriverExternalTag: { fontSize: 10, color: Colors.asset, fontWeight: '700', marginTop: 1 },
 
     tableHeaderRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: Colors.border, paddingBottom: 6, marginBottom: 4 },
     tableHeaderText: { fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase' as const, fontSize: 10 },

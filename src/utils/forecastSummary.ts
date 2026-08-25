@@ -16,7 +16,7 @@
 import { Transaction, Loan, FinanceData, StaffMember, MacroAssumption, InventoryItem, FutureEvent } from '../types';
 import { buildFutureFinancialStatements, ForecastAdjustments, NO_ADJUSTMENTS, FutureFinancialStatements } from './futureFinancialStatements';
 import { computeAllTimeMonthlyBuckets } from './trendAnalysis';
-import { classifyExpenseLine } from './finance';
+import { classifyExpenseLine, computeWorkingCapitalMetrics } from './finance';
 import { computeDiscountTrend, computeMarginRiskWarning, DiscountTrend, MarginRiskWarning } from './discountForecast';
 import { computeInventoryForecast, InventoryForecast } from './inventoryForecast';
 import { computeFinancialHealthForecast, FinancialHealthForecast } from './financialHealthForecast';
@@ -123,6 +123,11 @@ export interface ForecastSummary {
     includedFutureEvents: (FutureEvent & { startMonth: number })[];
     seasonality: SeasonalityResult;
     confidencePct: number;
+    // The business's own observed days-sales-outstanding, plus whatever
+    // What If? receivableDelayDays currently adds -- i.e. how long the
+    // forecast is actually assuming it takes to collect, not a fixed
+    // industry guess.
+    expectedCollectionDays: number;
 }
 
 function monthLabel(y: number, m: number): string {
@@ -223,9 +228,13 @@ export function computeForecastSummary(
     adjustments: ForecastAdjustments = NO_ADJUSTMENTS,
     inventory: InventoryItem[] = [],
     futureEvents: FutureEvent[] = [],
+    // See buildFutureFinancialStatements's own comment -- stays true
+    // everywhere except the Impact Analysis waterfalls' true-zero
+    // comparison baseline (forecastChangeExplanation.ts).
+    includeRiskAdjustedCategoryTrend: boolean = true,
 ): ForecastSummary {
     const monthsInPeriod = PERIOD_MONTHS[period];
-    const stmts = buildFutureFinancialStatements(transactions, loans, finance, adjustments, monthsInPeriod, staff, macroAssumptions, futureEvents);
+    const stmts = buildFutureFinancialStatements(transactions, loans, finance, adjustments, monthsInPeriod, staff, macroAssumptions, futureEvents, includeRiskAdjustedCategoryTrend);
     const months = stmts.months;
 
     const expectedRevenue = months.reduce((s, m) => s + m.revenue, 0);
@@ -319,6 +328,7 @@ export function computeForecastSummary(
     });
 
     const detectedRevenueGrowthPctPerMonth = computeDetectedRevenueGrowthPctPerMonth(recentBuckets);
+    const expectedCollectionDays = Math.max(0, computeWorkingCapitalMetrics(transactions).dso + adjustments.receivableDelayDays);
 
     return {
         period, monthsInPeriod, baselineMonthsUsed: stmts.baselineMonthsUsed,
@@ -337,5 +347,6 @@ export function computeForecastSummary(
         includedFutureEvents: stmts.includedFutureEvents,
         seasonality: stmts.seasonality,
         confidencePct,
+        expectedCollectionDays,
     };
 }

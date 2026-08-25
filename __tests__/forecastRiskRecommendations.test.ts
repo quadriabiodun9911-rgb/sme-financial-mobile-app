@@ -36,6 +36,7 @@ const makeForecastSummary = (overrides: Partial<ForecastSummary> = {}): Forecast
     includedFutureEvents: [],
     seasonality: { available: false, monthsOfHistory: 0, minMonthsRequired: 6, indices: [], peakMonths: [], troughMonths: [] },
     confidencePct: 70,
+    expectedCollectionDays: 30,
     ...overrides,
 });
 
