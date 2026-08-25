@@ -38,6 +38,11 @@ export interface SeasonalityResult {
     indices: SeasonalMonthIndex[]; // one per calendar month with at least one recorded data point, sorted Jan-Dec
     peakMonths: SeasonalMonthIndex[];   // index >= 1.15, strongest first
     troughMonths: SeasonalMonthIndex[]; // index <= 0.85, weakest first
+    // Exposed so callers that need it (e.g. repaymentSeasonalAlignment.ts)
+    // can reuse the exact figure this function already computed internally,
+    // instead of re-running computeAllTimeMonthlyBuckets over the same
+    // transactions a second time. 0 when unavailable.
+    overallAvgMonthlyRevenue: number;
 }
 
 const NOT_AVAILABLE = (monthsOfHistory: number): SeasonalityResult => ({
@@ -47,6 +52,7 @@ const NOT_AVAILABLE = (monthsOfHistory: number): SeasonalityResult => ({
     indices: [],
     peakMonths: [],
     troughMonths: [],
+    overallAvgMonthlyRevenue: 0,
 });
 
 export function computeSeasonalityPattern(transactions: Transaction[]): SeasonalityResult {
@@ -87,6 +93,7 @@ export function computeSeasonalityPattern(transactions: Transaction[]): Seasonal
         indices,
         peakMonths,
         troughMonths,
+        overallAvgMonthlyRevenue: overallAvg,
     };
 }
 

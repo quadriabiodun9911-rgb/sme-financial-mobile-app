@@ -14,7 +14,6 @@
 
 import { Transaction } from '../types';
 import { computeSeasonalityPattern } from './seasonality';
-import { computeAllTimeMonthlyBuckets } from './trendAnalysis';
 
 export interface RepaymentMonthBurden {
     monthName: string;
@@ -54,8 +53,7 @@ export function computeRepaymentSeasonalAlignment(
         };
     }
 
-    const monthly = computeAllTimeMonthlyBuckets(transactions).filter(m => m.revenue > 0);
-    const overallAvgMonthlyRevenue = monthly.length > 0 ? monthly.reduce((s, m) => s + m.revenue, 0) / monthly.length : 0;
+    const overallAvgMonthlyRevenue = seasonality.overallAvgMonthlyRevenue;
 
     const burdens: RepaymentMonthBurden[] = seasonality.indices.map(i => {
         const typicalRevenue = overallAvgMonthlyRevenue * i.index;

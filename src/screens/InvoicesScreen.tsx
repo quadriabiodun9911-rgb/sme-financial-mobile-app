@@ -20,7 +20,7 @@ import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { t } from '../utils/i18n';
 import { computeEarlyPaymentDiscount } from '../utils/earlyPaymentDiscount';
 import { checkCustomerCreditLimit, findCreditLimit } from '../utils/customerCredit';
-import { hasRecurringInvoiceSchedule, nextRecurringInvoiceDueDate, isRecurringInvoiceDue } from '../utils/recurringInvoices';
+import { hasRecurringInvoiceSchedule, nextRecurringInvoiceDueDate, nextRecurringInvoiceDueDateStr, isRecurringInvoiceDue } from '../utils/recurringInvoices';
 import { RecurringFrequency } from '../types';
 
 const STATUS_COLOR: Record<InvoiceStatus, string> = {
@@ -500,7 +500,7 @@ export default function InvoicesScreen() {
 
                                 {hasRecurringInvoiceSchedule(inv) && (
                                     <Text style={styles.recurringNote}>
-                                        🔁 Recurring {inv.recurringFrequency} · next due {nextRecurringInvoiceDueDate(inv).toISOString().split('T')[0]}
+                                        🔁 Recurring {inv.recurringFrequency} · next due {nextRecurringInvoiceDueDateStr(inv)}
                                     </Text>
                                 )}
 
@@ -725,7 +725,7 @@ export default function InvoicesScreen() {
                                     <DetailRow label={t(language, 'issuedLabel')} value={viewInv.issueDate} />
                                     <DetailRow label={t(language, 'duePrefix')}    value={viewInv.dueDate} />
                                     {hasRecurringInvoiceSchedule(viewInv) && (
-                                        <DetailRow label="Recurs" value={`${viewInv.recurringFrequency} · next ${nextRecurringInvoiceDueDate(viewInv).toISOString().split('T')[0]}`} />
+                                        <DetailRow label="Recurs" value={`${viewInv.recurringFrequency} · next ${nextRecurringInvoiceDueDateStr(viewInv)}`} />
                                     )}
                                 </Section>
 

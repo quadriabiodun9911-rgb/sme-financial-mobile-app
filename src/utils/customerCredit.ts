@@ -3,10 +3,17 @@ import { Invoice, CustomerCreditLimit } from '../types';
 /**
  * SME cash-flow checklist item #2: "establish clear credit policies" -- a
  * per-customer exposure ceiling, self-set since Quad360 has no independent
- * way to score a specific customer's creditworthiness. Keyed by customer
- * name, the same free-text identity computeCustomerConcentration (finance.ts)
- * already uses for concentration risk, since there's no dedicated Customer
- * entity to key against instead.
+ * way to score a specific customer's creditworthiness. Keyed by
+ * Invoice.clientName, free text, since there's no dedicated Customer entity
+ * to key against instead -- same reasoning as (but a DIFFERENT field and
+ * data source from) computeCustomerConcentration (finance.ts), which keys
+ * off Transaction.vendorCustomer for income transactions, not invoices.
+ * Matching is case/whitespace-insensitive here specifically so a limit set
+ * once still applies however the client's name is capitalized on later
+ * invoices; a business whose invoice clientName and transaction
+ * vendorCustomer disagree for the same real customer will see the two
+ * features report different figures for it -- an accepted limitation of
+ * having no single customer identity in this app, not a bug in either.
  */
 function matchesCustomer(a: string, b: string): boolean {
     return a.trim().toLowerCase() === b.trim().toLowerCase();

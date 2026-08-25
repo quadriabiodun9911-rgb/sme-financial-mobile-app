@@ -34,6 +34,42 @@ import { ForecastAdjustments, NO_ADJUSTMENTS, buildFutureFinancialStatements, Fu
 import { computeForecastSummary, ForecastPeriod, PERIOD_MONTHS } from './forecastSummary';
 import { DRIVER_LABEL } from './externalRiskInsights';
 
+// computeForecastSummary's headline carries both expectedCashPosition and
+// expectedProfit in one object, so the true-zero baseline, the label-
+// detection statements, and the fully-adjusted final summary are each the
+// SAME call whether explaining cash or profit. Computing this once and
+// sharing it between explainForecastChange/explainForecastProfitChange
+// (both called from the same screen for the same adjustments) avoids
+// tripling the number of full computeForecastSummary/
+// buildFutureFinancialStatements passes for no behavioral difference --
+// each function still falls back to computing its own basis when called
+// standalone (e.g. from tests), so this is purely an optimization, never a
+// required argument.
+export interface ForecastWaterfallBasis {
+    trueBaselineSummary: ReturnType<typeof computeForecastSummary>;
+    stmtsForLabel: FutureFinancialStatements;
+    finalSummary: ReturnType<typeof computeForecastSummary>;
+}
+
+export function computeForecastWaterfallBasis(
+    transactions: Transaction[],
+    loans: Loan[],
+    finance: FinanceData,
+    period: ForecastPeriod,
+    staff: StaffMember[],
+    macroAssumptions: MacroAssumption[],
+    adjustments: ForecastAdjustments,
+    inventory: InventoryItem[],
+    futureEvents: FutureEvent[] = [],
+): ForecastWaterfallBasis {
+    const monthsInPeriod = PERIOD_MONTHS[period];
+    return {
+        trueBaselineSummary: computeForecastSummary(transactions, loans, finance, period, staff, macroAssumptions, NO_ADJUSTMENTS, inventory, futureEvents, false),
+        stmtsForLabel: buildFutureFinancialStatements(transactions, loans, finance, NO_ADJUSTMENTS, monthsInPeriod, staff, macroAssumptions, futureEvents),
+        finalSummary: computeForecastSummary(transactions, loans, finance, period, staff, macroAssumptions, adjustments, inventory, futureEvents, true),
+    };
+}
+
 export interface ForecastChangeDriver {
     label: string;
     cashImpact: number; // signed, in currency -- this step's own contribution to the total cash-position delta
@@ -101,17 +137,18 @@ export function explainForecastChange(
     adjustments: ForecastAdjustments,
     inventory: InventoryItem[],
     futureEvents: FutureEvent[] = [],
+    basis?: ForecastWaterfallBasis,
 ): ForecastChangeExplanation {
-    const monthsInPeriod = PERIOD_MONTHS[period];
+    const { trueBaselineSummary, stmtsForLabel, finalSummary } =
+        basis ?? computeForecastWaterfallBasis(transactions, loans, finance, period, staff, macroAssumptions, adjustments, inventory, futureEvents);
     const summarize = (adj: ForecastAdjustments, includeTrend: boolean) =>
         computeForecastSummary(transactions, loans, finance, period, staff, macroAssumptions, adj, inventory, futureEvents, includeTrend).headline.expectedCashPosition;
 
-    const trueBaseline = summarize(NO_ADJUSTMENTS, false);
+    const trueBaseline = trueBaselineSummary.headline.expectedCashPosition;
     let running: ForecastAdjustments = { ...NO_ADJUSTMENTS };
     let prevCash = trueBaseline;
     const drivers: ForecastChangeDriver[] = [];
 
-    const stmtsForLabel = buildFutureFinancialStatements(transactions, loans, finance, NO_ADJUSTMENTS, monthsInPeriod, staff, macroAssumptions, futureEvents);
     const trendMeta = riskAdjustedTrendMeta(stmtsForLabel);
     if (trendMeta) {
         const withTrendCash = summarize(running, true);
@@ -132,7 +169,7 @@ export function explainForecastChange(
         running = next;
     }
 
-    const finalCash = summarize(adjustments, true);
+    const finalCash = finalSummary.headline.expectedCashPosition;
     return { totalImpact: finalCash - trueBaseline, drivers };
 }
 
@@ -150,17 +187,18 @@ export function explainForecastProfitChange(
     adjustments: ForecastAdjustments,
     inventory: InventoryItem[],
     futureEvents: FutureEvent[] = [],
+    basis?: ForecastWaterfallBasis,
 ): ForecastProfitExplanation {
-    const monthsInPeriod = PERIOD_MONTHS[period];
+    const { trueBaselineSummary, stmtsForLabel, finalSummary } =
+        basis ?? computeForecastWaterfallBasis(transactions, loans, finance, period, staff, macroAssumptions, adjustments, inventory, futureEvents);
     const summarize = (adj: ForecastAdjustments, includeTrend: boolean) =>
         computeForecastSummary(transactions, loans, finance, period, staff, macroAssumptions, adj, inventory, futureEvents, includeTrend).headline.expectedProfit;
 
-    const trueBaseline = summarize(NO_ADJUSTMENTS, false);
+    const trueBaseline = trueBaselineSummary.headline.expectedProfit;
     let running: ForecastAdjustments = { ...NO_ADJUSTMENTS };
     let prevProfit = trueBaseline;
     const drivers: ForecastProfitDriver[] = [];
 
-    const stmtsForLabel = buildFutureFinancialStatements(transactions, loans, finance, NO_ADJUSTMENTS, monthsInPeriod, staff, macroAssumptions, futureEvents);
     const trendMeta = riskAdjustedTrendMeta(stmtsForLabel);
     if (trendMeta) {
         const withTrendProfit = summarize(running, true);
@@ -181,6 +219,6 @@ export function explainForecastProfitChange(
         running = next;
     }
 
-    const finalProfit = summarize(adjustments, true);
+    const finalProfit = finalSummary.headline.expectedProfit;
     return { totalImpact: finalProfit - trueBaseline, drivers };
 }

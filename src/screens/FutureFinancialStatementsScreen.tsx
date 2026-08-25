@@ -15,7 +15,7 @@ import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan } from '../utils/actionRecommendationEngine';
 import { scenarioAdjustments, summarizeScenario, SCENARIO_SWING, ScenarioName } from '../utils/scenarioForecast';
 import { computeExternalScenarioStress, ImpactLevel, ProbabilityLevel } from '../utils/externalFactorsPanel';
-import { explainForecastChange, explainForecastProfitChange } from '../utils/forecastChangeExplanation';
+import { explainForecastChange, explainForecastProfitChange, computeForecastWaterfallBasis } from '../utils/forecastChangeExplanation';
 import { generateForecastRiskActions } from '../utils/forecastRiskRecommendations';
 import { computeBiggestForecastRisk } from '../utils/forecastBiggestRisk';
 import { monthlyPayment } from '../utils/loanMath';
@@ -159,21 +159,32 @@ export default function FutureFinancialStatementsScreen() {
         summarizeScenario(forecastSummary, 'expected', 'Expected', '🟡'),
         summarizeScenario(optimisticSummary, 'optimistic', 'Optimistic', '🟢'),
     ], [conservativeSummary, forecastSummary, optimisticSummary]);
+    // Shared by both waterfalls below -- the true-zero baseline, the
+    // label-detection statements, and the fully-adjusted final summary are
+    // the exact same computeForecastSummary/buildFutureFinancialStatements
+    // calls either way, since one ForecastSummary carries both
+    // expectedCashPosition and expectedProfit. Computing this once instead
+    // of twice avoids tripling this screen's already-heavy per-keystroke
+    // forecast recomputation for no behavioral difference.
+    const waterfallBasis = useMemo(
+        () => computeForecastWaterfallBasis(transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory, futureEvents),
+        [transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory, futureEvents],
+    );
     // "Why did the forecast change" -- a waterfall of computeForecastSummary
     // calls, one lever at a time, so the breakdown reconciles exactly to
     // the cash-position delta the "If this happens" card above already
     // shows, rather than a second, hand-derived estimate.
     const changeExplanation = useMemo(
-        () => explainForecastChange(transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory, futureEvents),
-        [transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory, futureEvents],
+        () => explainForecastChange(transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory, futureEvents, waterfallBasis),
+        [transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory, futureEvents, waterfallBasis],
     );
     // Same waterfall technique, decomposing projected PROFIT instead of
     // cash -- shows even with no What If? adjustments dialed in, since a
     // rising-cost-trend driver can fire on its own (see
     // forecastChangeExplanation.ts).
     const profitExplanation = useMemo(
-        () => explainForecastProfitChange(transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory, futureEvents),
-        [transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory, futureEvents],
+        () => explainForecastProfitChange(transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory, futureEvents, waterfallBasis),
+        [transactions, loans, finance, forecastPeriod, staff, macroAssumptions, adjustments, inventory, futureEvents, waterfallBasis],
     );
     // The single most severe thing the forecast is currently warning
     // about, synthesized from signals already computed above -- for the

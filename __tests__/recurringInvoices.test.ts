@@ -1,4 +1,4 @@
-import { nextRecurringInvoiceDueDate, daysUntilNextRecurringInvoice, isRecurringInvoiceDue, hasRecurringInvoiceSchedule } from '../src/utils/recurringInvoices';
+import { nextRecurringInvoiceDueDate, nextRecurringInvoiceDueDateStr, daysUntilNextRecurringInvoice, isRecurringInvoiceDue, hasRecurringInvoiceSchedule } from '../src/utils/recurringInvoices';
 
 describe('nextRecurringInvoiceDueDate', () => {
     it('is exactly one interval after the anchor issueDate for monthly', () => {
@@ -14,6 +14,21 @@ describe('nextRecurringInvoiceDueDate', () => {
     it('never keeps advancing past a single interval, even long overdue', () => {
         const due = nextRecurringInvoiceDueDate({ issueDate: '2026-01-01', recurringFrequency: 'monthly' });
         expect(due.toISOString().split('T')[0]).toBe('2026-02-01');
+    });
+});
+
+describe('nextRecurringInvoiceDueDateStr', () => {
+    // Deliberately does NOT go through nextRecurringInvoiceDueDate(...).toISOString()
+    // -- that round-trip shows the wrong (one-day-early) date in any positive
+    // UTC-offset timezone, including Nigeria/WAT. Asserting equality against
+    // the local Date's own y/m/d components (not .toISOString()) keeps this
+    // test honest about that regardless of which timezone it runs in.
+    it('matches the local calendar date of nextRecurringInvoiceDueDate, not its UTC-shifted ISO string', () => {
+        const inv = { issueDate: '2026-07-19', recurringFrequency: 'monthly' as const };
+        const dueDate = nextRecurringInvoiceDueDate(inv);
+        const expected = `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, '0')}-${String(dueDate.getDate()).padStart(2, '0')}`;
+        expect(nextRecurringInvoiceDueDateStr(inv)).toBe(expected);
+        expect(nextRecurringInvoiceDueDateStr(inv)).toBe('2026-08-19');
     });
 });
 

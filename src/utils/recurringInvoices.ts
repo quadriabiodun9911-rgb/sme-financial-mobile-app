@@ -27,6 +27,19 @@ export function nextRecurringInvoiceDueDate(inv: RecurringInvoiceAnchor): Date {
     return new Date(y, m - 1, d);
 }
 
+/**
+ * The next due date as a "YYYY-MM-DD" string, for display. Deliberately
+ * NOT `nextRecurringInvoiceDueDate(inv).toISOString().split('T')[0]` --
+ * that round-trips a local-midnight Date through UTC, which shows the
+ * wrong (one-day-early) date in any positive UTC-offset timezone,
+ * including Nigeria/WAT (the same bug class computeRecurringDates itself
+ * was rewritten to avoid). computeRecurringDates already returns the
+ * correctly-formatted local string, so this just passes it through.
+ */
+export function nextRecurringInvoiceDueDateStr(inv: RecurringInvoiceAnchor): string {
+    return computeRecurringDates(inv.issueDate, inv.recurringFrequency);
+}
+
 /** Whole days until the next invoice is due -- negative once overdue. */
 export function daysUntilNextRecurringInvoice(inv: RecurringInvoiceAnchor, now: Date = new Date()): number {
     const due = nextRecurringInvoiceDueDate(inv);

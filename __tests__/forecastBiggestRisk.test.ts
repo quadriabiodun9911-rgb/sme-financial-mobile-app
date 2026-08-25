@@ -33,7 +33,7 @@ const makeForecastSummary = (overrides: Partial<ForecastSummary> = {}): Forecast
     combinedInsights: [],
     detectedRevenueGrowthPctPerMonth: null,
     includedFutureEvents: [],
-    seasonality: { available: false, monthsOfHistory: 0, minMonthsRequired: 6, indices: [], peakMonths: [], troughMonths: [] },
+    seasonality: { available: false, monthsOfHistory: 0, minMonthsRequired: 6, indices: [], peakMonths: [], troughMonths: [], overallAvgMonthlyRevenue: 0 },
     confidencePct: 70,
     expectedCollectionDays: 30,
     ...overrides,
