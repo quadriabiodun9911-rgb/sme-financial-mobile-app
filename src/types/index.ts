@@ -536,6 +536,14 @@ export interface Loan {
     // real account. Required before shareWithLenderConsent can do anything:
     // without a real linked org there's no lender dashboard to publish to.
     lenderOrgId?: string;
+    // What's being given up to get this facility -- free text, since
+    // collateral descriptions and covenant terms are as varied as the
+    // lenders that write them; structuring them into fixed fields would
+    // force a false precision Quad360 has no way to verify. Both optional
+    // and both blank by default: most SME facilities in this app's context
+    // (merchant financing, unsecured working-capital loans) have neither.
+    collateralPledged?: string;  // what's pledged as security, e.g. "Delivery van, shop inventory"
+    covenants?: string;          // restrictions/conditions attached to the facility, e.g. "No further borrowing without lender consent"
 }
 
 // ─── Financing Marketplace ──────────────────────────────────────────────────

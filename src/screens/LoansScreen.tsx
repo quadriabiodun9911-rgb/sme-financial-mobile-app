@@ -36,6 +36,8 @@ import Icon from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { t } from '../utils/i18n';
 import PinConfirmModal from '../components/PinConfirmModal';
+import { computeTenorCycleCheck } from '../utils/tenorCycleMatch';
+import { computeRepaymentSeasonalAlignment } from '../utils/repaymentSeasonalAlignment';
 
 function totalPaid(loan: Loan): number {
     return (loan.payments ?? []).reduce((s, p) => s + p.amount, 0);
@@ -66,7 +68,7 @@ const isOverdue = isLoanPaymentOverdue;
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────
 
 export default function LoansScreen() {
-    const { loans, addLoan, updateLoan, deleteLoan, addLoanPayment, settings, navigate, finance, navParams, transactions, readinessHistory, user, language, isDemoMode } = useApp();
+    const { loans, addLoan, updateLoan, deleteLoan, addLoanPayment, settings, navigate, finance, navParams, transactions, readinessHistory, user, language, isDemoMode, inventory } = useApp();
     const { currency } = settings;
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
@@ -116,6 +118,8 @@ export default function LoansScreen() {
     const [startDate, setStart] = useState(new Date().toISOString().split('T')[0]);
     const [status, setStatus] = useState<LoanStatus>('active');
     const [fromMarketplace, setFromMarketplace] = useState(false);
+    const [collateralPledged, setCollateralPledged] = useState('');
+    const [covenants, setCovenants] = useState('');
 
     // Payment form
     const [payAmount, setPayAmount] = useState('');
@@ -126,6 +130,7 @@ export default function LoansScreen() {
         setLender(''); setPurpose(''); setPrincipal(''); setRate('');
         setTerm(''); setStart(new Date().toISOString().split('T')[0]);
         setStatus('active'); setFromMarketplace(false); setEditingId(null);
+        setCollateralPledged(''); setCovenants('');
     };
 
     const openAdd = () => { resetForm(); setShowForm(true); };
@@ -140,6 +145,7 @@ export default function LoansScreen() {
         setPrincipal(String(l.principal)); setRate(l.interestRate != null ? String(l.interestRate) : '');
         setTerm(String(l.termMonths)); setStart(l.startDate);
         setStatus(l.status); setFromMarketplace(!!l.fromMarketplace); setEditingId(l.id); setShowForm(true);
+        setCollateralPledged(l.collateralPledged ?? ''); setCovenants(l.covenants ?? '');
     }, []);
 
     const handleSave = () => {
@@ -155,6 +161,8 @@ export default function LoansScreen() {
             lenderName: lender.trim(), purpose: purpose.trim(),
             principal: p, interestRate: r, termMonths: t,
             startDate, status, fromMarketplace,
+            collateralPledged: collateralPledged.trim() || undefined,
+            covenants: covenants.trim() || undefined,
         };
         if (editingId) {
             updateLoan(editingId, payload);
@@ -491,6 +499,14 @@ export default function LoansScreen() {
                             <FieldLabel text={t(language, 'startDateLabel')} />
                             <DateInput value={startDate} onChange={setStart} />
 
+                            <FieldLabel text="Security / Collateral Pledged (optional)" />
+                            <TextInput style={s.input} value={collateralPledged} onChangeText={setCollateralPledged}
+                                placeholder="e.g. Delivery van, shop inventory -- leave blank if unsecured" placeholderTextColor={Colors.muted} />
+
+                            <FieldLabel text="Covenants / Restrictions (optional)" />
+                            <TextInput style={s.input} value={covenants} onChangeText={setCovenants}
+                                placeholder="e.g. No further borrowing without lender consent" placeholderTextColor={Colors.muted} />
+
                             <TouchableOpacity style={s.marketplaceToggleRow} onPress={() => setFromMarketplace(v => !v)} activeOpacity={0.7}>
                                 <View style={[s.checkbox, fromMarketplace && s.checkboxChecked]}>
                                     {fromMarketplace && <Icon name="check-circle" size={13} color="#fff" />}
@@ -553,6 +569,41 @@ export default function LoansScreen() {
                                         {(!affordable || tight) && (
                                             <NextStepLink text="See the full effect on your cash forecast before committing" onPress={() => navigate('cashflow')} />
                                         )}
+
+                                        {/* Before You Take This On -- two questions worth
+                                            asking before signing: does the term give this
+                                            facility enough runway to complete a full cash
+                                            cycle, and does a flat monthly payment sit
+                                            comfortably against how this business's revenue
+                                            actually moves through the year. Silent when
+                                            there isn't enough history to answer honestly. */}
+                                        {(() => {
+                                            const tenorCheck = computeTenorCycleCheck(parseInt(term, 10), transactions, inventory);
+                                            const seasonalCheck = computeRepaymentSeasonalAlignment(transactions, mPay);
+                                            if (!tenorCheck && !seasonalCheck.available) return null;
+                                            return (
+                                                <>
+                                                    <View style={s.impactDivider} />
+                                                    <Text style={s.previewTitle}>Before You Take This On</Text>
+                                                    {tenorCheck && (
+                                                        <View style={[s.tenorNote, tenorCheck.status === 'shorter_than_cycle' && s.tenorNoteWarn]}>
+                                                            <Text style={s.tenorNoteLabel}>
+                                                                {tenorCheck.status === 'shorter_than_cycle' ? '⚠️ Tenor vs. Cash Cycle' : '✅ Tenor vs. Cash Cycle'}
+                                                            </Text>
+                                                            <Text style={s.tenorNoteText}>{tenorCheck.message}</Text>
+                                                        </View>
+                                                    )}
+                                                    {seasonalCheck.available && (
+                                                        <View style={[s.tenorNote, !seasonalCheck.aligned && s.tenorNoteWarn]}>
+                                                            <Text style={s.tenorNoteLabel}>
+                                                                {seasonalCheck.aligned ? '✅ Repayment vs. Sales Pattern' : '⚠️ Repayment vs. Sales Pattern'}
+                                                            </Text>
+                                                            <Text style={s.tenorNoteText}>{seasonalCheck.message}</Text>
+                                                        </View>
+                                                    )}
+                                                </>
+                                            );
+                                        })()}
 
                                         <ProfitCashImpactCard
                                             impact={computeProfitCashImpact(monthlyProfit, finance?.cashBalance ?? 0, -mPay)}
@@ -799,6 +850,17 @@ const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transa
             {/* Expanded: payment history + actions */}
             {expanded && (
                 <View style={s.expanded}>
+                    {(loan.collateralPledged || loan.covenants) && (
+                        <View style={s.securityBox}>
+                            <Text style={s.securityBoxTitle}>🔒 Security &amp; Covenants</Text>
+                            {loan.collateralPledged && (
+                                <Text style={s.securityBoxLine}><Text style={s.securityBoxLabel}>Pledged: </Text>{loan.collateralPledged}</Text>
+                            )}
+                            {loan.covenants && (
+                                <Text style={s.securityBoxLine}><Text style={s.securityBoxLabel}>Covenants: </Text>{loan.covenants}</Text>
+                            )}
+                        </View>
+                    )}
                     {loan.status === 'active' && (
                         <View style={s.nextDueRow}>
                             <Text style={s.nextDueLabel}>{t(language, 'nextPaymentDueLabel')}</Text>
@@ -1053,6 +1115,11 @@ const s = StyleSheet.create({
     expanded: { borderTopWidth: 1, borderTopColor: Colors.border, marginTop: 10, paddingTop: 10 },
     nextDueRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
     nextDueLabel: { fontSize: 12, color: Colors.textMuted },
+
+    securityBox: { backgroundColor: Colors.surface, borderRadius: Radius.sm, borderWidth: 1, borderColor: Colors.border, padding: 10, marginBottom: 10 },
+    securityBoxTitle: { fontSize: 12, fontWeight: '700', color: Colors.textPrimary, marginBottom: 4 },
+    securityBoxLine: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17, marginTop: 2 },
+    securityBoxLabel: { fontWeight: '700', color: Colors.textPrimary },
     nextDueDate: { fontSize: 12, fontWeight: '700', color: Colors.textPrimary },
 
     paymentHistory: { backgroundColor: Colors.bg, borderRadius: Radius.sm, padding: 10, marginBottom: 10 },
@@ -1117,6 +1184,11 @@ const s = StyleSheet.create({
     impactDivider: { height: 1, backgroundColor: Colors.border, marginVertical: 10 },
     verdictBox: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm, borderRadius: Radius.sm, borderWidth: 1, padding: 10, marginTop: 10 },
     verdictText: { flex: 1, fontSize: 11, fontWeight: '600', lineHeight: 16 },
+
+    tenorNote: { borderRadius: Radius.sm, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface, padding: 10, marginBottom: 8 },
+    tenorNoteWarn: { borderColor: Colors.warning + '88', backgroundColor: Colors.warning + '14' },
+    tenorNoteLabel: { fontSize: 11.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: 3 },
+    tenorNoteText: { fontSize: 11.5, color: Colors.textSecondary, lineHeight: 16 },
 
     btnRow: { flexDirection: 'row', gap: 10, marginTop: Spacing.xxl, marginBottom: 10 },
     btn: { flex: 1, backgroundColor: Colors.primary, paddingVertical: 13, borderRadius: Radius.sm, alignItems: 'center' },
