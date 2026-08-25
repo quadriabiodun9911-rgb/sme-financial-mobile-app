@@ -294,6 +294,26 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     }
   }, [financing, hydrated, isDemoMode, syncUserId]);
 
+  // Blank Guest Mode (demoBusinessId === null) is the one demo-mode case
+  // where the data is real, user-entered work, not sample data — and per
+  // the save-effects above, none of it ever reaches storage until the
+  // guest converts via setupAccount()'s guestData carryover. Nothing else
+  // in the app warns before a tab close/refresh wipes it, so a guest who
+  // uploaded a statement and then accidentally reloaded would lose it
+  // completely with no warning. A canned demo business (demoBusinessId
+  // set) is deliberately excluded — that data isn't the visitor's, losing
+  // it on refresh is expected and matches the "Nothing will be saved"
+  // promise on the demo picker screen.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    if (!isDemoMode || demoBusinessId !== null) return;
+    const hasGuestData = transactions.length > 0 || assets.length > 0 || loans.length > 0 || inventory.length > 0;
+    if (!hasGuestData) return;
+    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isDemoMode, demoBusinessId, transactions.length, assets.length, loans.length, inventory.length]);
+
   // Computed finance - memoized with specific dependency
   const finance = useMemo(() => {
     // Note: computeFinance uses Pick of BusinessSettings (only specific fields).
