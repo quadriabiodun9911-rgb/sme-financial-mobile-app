@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Colors } from '../theme/colors';
 import { ForecastRecommendation } from '../types/forecast';
+import { formatCurrencyAbbreviated } from '../utils/finance';
 
 interface Props {
   recommendations: ForecastRecommendation[];
@@ -50,15 +51,7 @@ export default function ForecastRecommendations({ recommendations, currency }: P
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    if (Math.abs(amount) >= 1000000) {
-      return `${currency}${(amount / 1000000).toFixed(1)}M`;
-    }
-    if (Math.abs(amount) >= 1000) {
-      return `${currency}${(amount / 1000).toFixed(0)}K`;
-    }
-    return `${currency}${amount.toFixed(0)}`;
-  };
+  const formatCurrency = (amount: number) => formatCurrencyAbbreviated(amount, currency);
 
   if (!recommendations || recommendations.length === 0) {
     return (

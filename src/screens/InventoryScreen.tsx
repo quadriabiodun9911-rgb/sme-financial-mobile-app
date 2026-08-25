@@ -119,33 +119,40 @@ export default function InventoryScreen() {
     const [priceForm, setPriceForm] = useState<PriceChangeForm | null>(null);
 
     // ── Summary calculations ──────────────────────────────────────────────────
-    const totalStockValue = computeInventoryValue(inventory);
+    // computeInventoryValue and the category breakdown both scan the full
+    // inventory array -- memoized so a re-render triggered by unrelated
+    // state (a modal opening, a form keystroke) doesn't redo those scans.
+    const totalStockValue = useMemo(() => computeInventoryValue(inventory), [inventory]);
     const totalItems = inventory.length;
-    const lowStockItems = inventory.filter(item => item.quantity <= item.lowStockThreshold);
+    const lowStockItems = useMemo(() => inventory.filter(item => item.quantity <= item.lowStockThreshold), [inventory]);
     const stockReconciliation = useMemo(
         () => computeStockReconciliation(transactions, inventory.length > 0, currency),
         [transactions, inventory.length, currency]
     );
 
     // ── Analytics calculations ────────────────────────────────────────────────
-    const totalPotentialRevenue = inventory.reduce((sum, item) => sum + item.quantity * (item.sellingPrice ?? 0), 0);
-    const grossProfitIfAllSold = totalPotentialRevenue - totalStockValue;
-    const overallMargin = totalPotentialRevenue > 0 ? (grossProfitIfAllSold / totalPotentialRevenue) * 100 : 0;
+    const { totalPotentialRevenue, grossProfitIfAllSold, overallMargin } = useMemo(() => {
+        const revenue = inventory.reduce((sum, item) => sum + item.quantity * (item.sellingPrice ?? 0), 0);
+        const profit = revenue - totalStockValue;
+        return { totalPotentialRevenue: revenue, grossProfitIfAllSold: profit, overallMargin: computeMarginPct(revenue, totalStockValue) };
+    }, [inventory, totalStockValue]);
 
     // Category breakdown
-    const categoryMap = new Map<string, { items: InventoryItem[] }>();
-    for (const item of inventory) {
-        const cat = item.category || 'General';
-        if (!categoryMap.has(cat)) categoryMap.set(cat, { items: [] });
-        categoryMap.get(cat)!.items.push(item);
-    }
-    const categories = Array.from(categoryMap.entries()).map(([cat, { items }]) => {
-        const stockVal = computeInventoryValue(items);
-        const avgMargin = items.length > 0
-            ? items.reduce((s, i) => s + ((i.sellingPrice ?? 0) > 0 ? (((i.sellingPrice ?? 0) - (i.costPrice ?? 0)) / (i.sellingPrice ?? 0)) * 100 : 0), 0) / items.length
-            : 0;
-        return { cat, count: items.length, stockVal, avgMargin };
-    });
+    const categories = useMemo(() => {
+        const categoryMap = new Map<string, { items: InventoryItem[] }>();
+        for (const item of inventory) {
+            const cat = item.category || 'General';
+            if (!categoryMap.has(cat)) categoryMap.set(cat, { items: [] });
+            categoryMap.get(cat)!.items.push(item);
+        }
+        return Array.from(categoryMap.entries()).map(([cat, { items }]) => {
+            const stockVal = computeInventoryValue(items);
+            const avgMargin = items.length > 0
+                ? items.reduce((s, i) => s + computeMarginPct(i.sellingPrice ?? 0, i.costPrice ?? 0), 0) / items.length
+                : 0;
+            return { cat, count: items.length, stockVal, avgMargin };
+        });
+    }, [inventory]);
 
     // Per-item stock velocity — computed once per inventory/transactions
     // change rather than inline in the render loop (computeStockVelocity
@@ -166,8 +173,7 @@ export default function InventoryScreen() {
     const inventoryPace = useMemo(() => computeInventoryPace(transactions), [transactions]);
     const slowMovingValue = useMemo(() => computeSlowMovingValue(inventory, transactions), [inventory, transactions]);
     const workingCapital = useMemo(() => computeWorkingCapitalMetrics(transactions), [transactions]);
-    const tiedUpInInventory = computeInventoryValue(inventory);
-    const totalWorkingCapitalTiedUp = (finance?.cashBalance ?? 0) + tiedUpInInventory + workingCapital.accountsReceivable;
+    const totalWorkingCapitalTiedUp = (finance?.cashBalance ?? 0) + totalStockValue + workingCapital.accountsReceivable;
 
     const inventoryInsights: InventoryInsight[] = useMemo(() => {
         const list: InventoryInsight[] = [];
@@ -201,7 +207,7 @@ export default function InventoryScreen() {
     // Best margin items (top 3)
     const itemsWithMargin = inventory.map(item => ({
         ...item,
-        margin: (item.sellingPrice ?? 0) > 0 ? (((item.sellingPrice ?? 0) - (item.costPrice ?? 0)) / (item.sellingPrice ?? 0)) * 100 : 0,
+        margin: computeMarginPct(item.sellingPrice ?? 0, item.costPrice ?? 0),
     }));
     const bestMarginItems = [...itemsWithMargin].sort((a, b) => b.margin - a.margin).slice(0, 3);
     const lowMarginItems  = itemsWithMargin.filter(i => i.margin < 10);
@@ -477,9 +483,7 @@ export default function InventoryScreen() {
 
                         {/* Item list */}
                         {inventory.map(item => {
-                            const margin = (item.sellingPrice ?? 0) > 0
-                                ? (((item.sellingPrice ?? 0) - (item.costPrice ?? 0)) / (item.sellingPrice ?? 0)) * 100
-                                : 0;
+                            const margin = computeMarginPct(item.sellingPrice ?? 0, item.costPrice ?? 0);
                             const stockVal = item.quantity * (item.costPrice ?? 0);
                             const velocity = velocityByItemId.get(item.id)!;
 
@@ -554,7 +558,7 @@ export default function InventoryScreen() {
                         <View style={styles.analyticsCard}>
                             <Text style={styles.analyticsCardTitle}>Inventory Intelligence</Text>
                             <Text style={styles.intelligenceHeadline}>
-                                {currency}{tiedUpInInventory.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                {currency}{totalStockValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                             </Text>
                             <Text style={styles.intelligenceSub}>of your business's money is currently tied up in inventory.</Text>
 
@@ -565,7 +569,7 @@ export default function InventoryScreen() {
                             </View>
                             <View style={styles.analyticsRow}>
                                 <Text style={styles.analyticsLabel}>Inventory</Text>
-                                <Text style={[styles.analyticsVal, { color: Colors.asset }]}>{currency}{tiedUpInInventory.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                                <Text style={[styles.analyticsVal, { color: Colors.asset }]}>{currency}{totalStockValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
                             </View>
                             <View style={styles.analyticsRow}>
                                 <Text style={styles.analyticsLabel}>Receivables</Text>
@@ -577,7 +581,7 @@ export default function InventoryScreen() {
                             </View>
 
                             <Text style={styles.intelligenceAdvisory}>
-                                {currency}{tiedUpInInventory.toLocaleString(undefined, { maximumFractionDigits: 0 })} of your business capital is currently tied up in inventory. Consider your sales velocity and upcoming cash needs before purchasing additional stock.
+                                {currency}{totalStockValue.toLocaleString(undefined, { maximumFractionDigits: 0 })} of your business capital is currently tied up in inventory. Consider your sales velocity and upcoming cash needs before purchasing additional stock.
                             </Text>
 
                             {inventoryInsights.map((insight, i) => (

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import { Colors } from '../theme/colors';
 import { Transaction, InventoryItem } from '../types';
 import { computeInventoryValue, computeStockVelocity } from '../utils/stockVelocity';
+import { computeMarginPct } from '../utils/priceHistory';
 import BarList from './BarList';
 
 interface Props {
@@ -90,7 +91,7 @@ export default function ProductPerformance({ transactions, inventory, currency }
         const metrics: ProductMetrics[] = Array.from(categoryMap.entries()).map(([category, data]) => {
             const revenue = data.revenue;
             const profit = revenue - data.cogs - data.otherExpense;
-            const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
+            const margin = computeMarginPct(revenue, data.cogs + data.otherExpense);
             const totalUnits = data.inventoryItems.reduce((sum, item) => sum + item.quantity, 0);
             const stockValue = computeInventoryValue(data.inventoryItems);
             const avgPrice = data.transactionCount > 0 ? revenue / data.transactionCount : 0;

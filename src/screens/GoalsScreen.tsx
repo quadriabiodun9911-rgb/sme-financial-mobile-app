@@ -99,18 +99,36 @@ export default function GoalsScreen() {
 
     const PCT_TYPES: GoalType[] = ['revenue_growth', 'cost_reduction', 'margin_improvement'];
 
+    const planGoal = useMemo(
+        () => goals.find(g => g.id === planGoalId) ?? null,
+        [goals, planGoalId]
+    );
+
+    // The one performFinancialDiagnosis call this screen needs, shared by
+    // both feasibilityByGoalId (every goal card's preview) and planDiagnosis
+    // (the plan modal) below -- they used to run it independently, redoing
+    // the same scan whenever the modal was open. Gated the same way both
+    // callers were already gated (goal-card preview needs 5+ transactions
+    // and at least one goal; the plan modal just needs to be open), so this
+    // stays exactly as lazy as before -- an empty/thin-data screen still
+    // never runs it.
+    const shouldComputeGoalDiagnosis = !!planGoal || (transactions.length >= 5 && goals.length > 0);
+    const goalDiagnosis = useMemo(() => {
+        if (!shouldComputeGoalDiagnosis) return null;
+        return performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), settings.currency, loans, inventory);
+    }, [shouldComputeGoalDiagnosis, transactions, invoices, finance.cashBalance, finance.expense, settings.currency, loans, inventory]);
+
     // Feasibility per goal — reuses the same root-cause diagnosis + tactics
     // engine as Goal Bridge, so every goal card shows at a glance whether it's
     // realistic (EASY/MEDIUM/DIFFICULT) and what monthly improvement it needs,
     // instead of only revealing that after tapping into a separate screen.
     const feasibilityByGoalId = useMemo(() => {
-        if (transactions.length < 5 || goals.length === 0) return {};
-        const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), settings.currency, loans, inventory);
-        const tactics = generateActionPlan(diagnosis, diagnosis.metrics, settings.currency);
+        if (transactions.length < 5 || goals.length === 0 || !goalDiagnosis) return {};
+        const tactics = generateActionPlan(goalDiagnosis, goalDiagnosis.metrics, settings.currency);
         const allTactics = [...tactics.immediateActions, ...tactics.shortTermActions, ...tactics.strategicActions];
         const map: Record<string, { feasibility: string; requiredMonthlyImprovement: number; successProbability: number }> = {};
         for (const g of goals) {
-            const bridge = calculateGoalBridge(mapSavedGoalToBridge(g), diagnosis.metrics, allTactics, settings.currency);
+            const bridge = calculateGoalBridge(mapSavedGoalToBridge(g), goalDiagnosis.metrics, allTactics, settings.currency);
             map[g.id] = {
                 feasibility: bridge.feasibility,
                 requiredMonthlyImprovement: bridge.requiredMonthlyImprovement,
@@ -118,12 +136,7 @@ export default function GoalsScreen() {
             };
         }
         return map;
-    }, [transactions, invoices, finance.cashBalance, finance.expense, goals, settings.currency]);
-
-    const planGoal = useMemo(
-        () => goals.find(g => g.id === planGoalId) ?? null,
-        [goals, planGoalId]
-    );
+    }, [transactions.length, goals, goalDiagnosis, settings.currency]);
 
     const strategy = useMemo(
         () => planGoal ? generateStrategy(planGoal, finance, transactions, settings) : null,
@@ -135,8 +148,8 @@ export default function GoalsScreen() {
     // need it; computed once here instead of twice.
     const planDiagnosis = useMemo(() => {
         if (!planGoal) return null;
-        return performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), settings.currency, loans, inventory);
-    }, [planGoal, transactions, invoices, finance, settings, loans, inventory]);
+        return goalDiagnosis;
+    }, [planGoal, goalDiagnosis]);
 
     // Full Goal Bridge computation for the plan modal's Bridge tab — mirrors
     // the retired GoalBridgeScreen's own diagnosis -> tactics -> bridge

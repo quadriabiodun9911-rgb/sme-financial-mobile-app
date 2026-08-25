@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Colors } from '../theme/colors';
 import { DimensionItem } from '../utils/profitability';
+import { computeMarginPct } from '../utils/priceHistory';
 
 interface Props {
     byCategory: DimensionItem[];
@@ -33,7 +34,7 @@ export default function ProfitByDimension({ byCategory, byVendor, currency }: Pr
         const revenue = items.reduce((s, d) => s + d.revenue, 0);
         const cost    = items.reduce((s, d) => s + d.cost, 0);
         const profit  = revenue - cost;
-        const margin  = revenue > 0 ? (profit / revenue) * 100 : 0;
+        const margin  = computeMarginPct(revenue, cost);
         return { revenue, cost, profit, margin };
     }, [items]);
 

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-nativ
 import { Colors } from '../theme/colors';
 import { FinanceData, Transaction } from '../types';
 import { computeMonthlyTrend } from '../utils/finance';
+import { computeMarginPct } from '../utils/priceHistory';
 import NextStepLink from './NextStepLink';
 import GroupedBarChart from './GroupedBarChart';
 import TrendSparkline from './TrendSparkline';
@@ -147,7 +148,7 @@ export default function GrowthOutlook({ finance, transactions, currency, targetM
             const totalIncome = months.reduce((s, p) => s + p.income, 0);
             const totalExpense = months.reduce((s, p) => s + p.expense, 0);
             const totalProfit = totalIncome - totalExpense;
-            const margin = totalIncome > 0 ? (totalProfit / totalIncome) * 100 : 0;
+            const margin = computeMarginPct(totalIncome, totalExpense);
             return { key, cfg, months, totalIncome, totalExpense, totalProfit, margin };
         });
     }, [horizon, avgMonthlyIncome, avgMonthlyExpense, customIncome, customCost]);

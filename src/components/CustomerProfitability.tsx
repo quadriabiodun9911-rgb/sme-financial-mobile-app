@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import { Colors } from '../theme/colors';
 import { Invoice, Transaction } from '../types';
 import BarList from './BarList';
+import { computeMarginPct } from '../utils/priceHistory';
 
 interface Props {
     invoices: Invoice[];
@@ -57,7 +58,7 @@ export default function CustomerProfitability({ invoices, transactions, currency
             const revenue = custInvoices.reduce((sum, inv) => sum + inv.total, 0);
             const expensesTotal = expenses.reduce((sum, exp) => sum + (exp.amount ?? 0), 0);
             const profit = revenue - expensesTotal;
-            const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
+            const margin = computeMarginPct(revenue, expensesTotal);
             const paid = custInvoices.filter(inv => inv.status === 'paid').length;
             const paymentRate = custInvoices.length > 0 ? (paid / custInvoices.length) * 100 : 0;
 

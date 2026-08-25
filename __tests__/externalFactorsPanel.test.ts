@@ -1,5 +1,5 @@
 import {
-    computeInternalRevenueGrowthPct, computeExternalFactorsPanel, computeRiskRadar, computeCombinedInsights,
+    computeInternalRevenueGrowthPct, computeExternalFactorsPanel, computeExternalFactorRiskRows, computeCombinedInsights,
 } from '../src/utils/externalFactorsPanel';
 import { computeExternalRiskInsights } from '../src/utils/externalRiskInsights';
 import { Transaction, MacroAssumption } from '../src/types';
@@ -103,11 +103,11 @@ describe('computeExternalFactorsPanel', () => {
     });
 });
 
-describe('computeRiskRadar', () => {
+describe('computeExternalFactorRiskRows', () => {
     it('maps each panel item to an impact/probability/exposure row', () => {
         const assumption = makeAssumption({ driver: 'energy', changePct: 20, linkedCategories: ['Utilities'] });
         const panel = computeExternalFactorsPanel(sixMonthsWithRisingUtilities(), [assumption]);
-        const radar = computeRiskRadar(panel);
+        const radar = computeExternalFactorRiskRows(panel);
         expect(radar).toHaveLength(1);
         expect(radar[0]).toEqual({ label: assumption.label, driver: 'energy', impact: 'high', probability: 'high', exposure: 'high' });
     });

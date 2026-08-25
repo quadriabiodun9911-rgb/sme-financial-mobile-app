@@ -24,25 +24,14 @@
  *
  * Web is a separate, permanent limitation, not a gap to be closed later:
  * browsers own the TLS stack and give no JS-reachable API to pin a
- * certificate. HTTPS enforcement (below) is the ceiling on web.
+ * certificate. Every request already goes to an https:// URL (the
+ * Supabase client is configured with one), so there's no JS-level
+ * "enforce HTTPS" step needed or possible beyond that.
  */
 import { Platform } from 'react-native';
 // resolveJsonModule is enabled in tsconfig (inherited from Expo's base
 // config), so this reads the same registry the config plugin reads.
 import pinsConfig from '../../certificate-pins.json';
-
-export function isHTTPS(url: string): boolean {
-    return url.startsWith('https://');
-}
-
-export function enforceHTTPS(url: string): string {
-    if (!isHTTPS(url)) {
-        const httpsUrl = url.replace('http://', 'https://');
-        console.warn(`[Quad360] Upgrading HTTP to HTTPS: ${url} → ${httpsUrl}`);
-        return httpsUrl;
-    }
-    return url;
-}
 
 export interface CertificatePinningStatus {
     enabled: boolean;

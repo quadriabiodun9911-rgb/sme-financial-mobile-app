@@ -260,45 +260,6 @@ function calculateSuccessProbability(
   return baseProbability;
 }
 
-export function formatGoalBridge(bridge: GoalBridge, currency: string = '₦'): string {
-  const lines: string[] = [];
-
-  lines.push(`📊 Goal: ${bridge.goal.description}`);
-  lines.push(
-    `   Current: ${formatGoalMetric(bridge.goal.currentValue, bridge.goal.type, currency)}`
-  );
-  lines.push(`   Target: ${formatGoalMetric(bridge.goal.targetValue, bridge.goal.type, currency)}`);
-  lines.push(
-    `   Gap: ${formatGoalMetric(bridge.gap, bridge.goal.type, currency)} (${bridge.gapPercentage.toFixed(1)}%)`
-  );
-  lines.push('');
-
-  lines.push(`⏱️ Timeline: ${bridge.achievableTimeline} months (original: ${bridge.goal.timelineMonths})`);
-  lines.push(`💪 Feasibility: ${bridge.feasibility}`);
-  lines.push(`🎯 Approach: ${bridge.recommendedApproach}`);
-  lines.push(`✅ Success probability: ${(bridge.successProbability * 100).toFixed(0)}%`);
-  lines.push('');
-
-  lines.push(`📋 Active Tactics (${bridge.tactics.length}):`);
-  for (const allocation of bridge.tactics) {
-    lines.push(
-      `   • Month ${allocation.monthStart}-${allocation.monthEnd}: ${allocation.tactic.title}`
-    );
-    lines.push(
-      `     Expected contribution: ${currency}${Math.round(allocation.contributionToGoal).toLocaleString()}`
-    );
-  }
-  lines.push('');
-
-  lines.push('🏁 Milestones:');
-  for (const milestone of bridge.milestones) {
-    lines.push(
-      `   Month ${milestone.month}: ${formatGoalMetric(milestone.targetValue, bridge.goal.type, currency)}`
-    );
-  }
-
-  return lines.join('\n');
-}
 
 // ── Shared adapter: saved Goals-screen goal -> Goal Bridge engine goal ──
 // Used by GoalsScreen for both the inline feasibility preview on each card

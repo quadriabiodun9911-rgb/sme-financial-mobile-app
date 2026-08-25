@@ -180,7 +180,11 @@ export function computeExternalScenarioStress(panel: ExternalFactorsPanel): Exte
     return { costStressPct, demandSwingPct: demandItem ? demandItem.changePct : 0 };
 }
 
-export function computeRiskRadar(panel: ExternalFactorsPanel): RiskRadarRow[] {
+// Named distinctly from riskRadar.ts's computeRiskRadar() -- an unrelated
+// function (transactions/loans/macro -> the real category-based Risk Radar
+// shown on Dashboard/Scoreboard/CreditWorthiness/GoalsScreen) that used to
+// share this exact name, inviting an accidental wrong import.
+export function computeExternalFactorRiskRows(panel: ExternalFactorsPanel): RiskRadarRow[] {
     return panel.items.map(item => ({
         label: item.label,
         driver: item.driver,

@@ -1,7 +1,7 @@
 import { Transaction, Invoice, Loan, StaffMember, PayrollRun, FinancialGoal, Budget, Asset, InventoryItem } from '../types';
 import { ForecastAlert, AlertThresholds, CashFlowForecast, ForecastInput } from '../types/forecast';
 import { generateCashFlowForecast } from './forecastEngine';
-import { computeMonthlyTrend } from './finance';
+import { computeMonthlyTrend, formatCurrencyAbbreviated } from './finance';
 import { nextLoanPaymentDueDate, daysUntilLoanPaymentDue, isLoanPaymentOverdue } from './loanMath';
 import { getPayrollReminderStatus, DEFAULT_PAYROLL_DUE_SOON_DAY } from './payrollReminders';
 import { getUninvoicedOverdueTransactions } from './overdueTransactions';
@@ -788,22 +788,8 @@ export class AlertEngine {
     );
   }
 
-  /**
-   * Format currency (simplified)
-   */
   private formatCurrency(amount: number): string {
-    // Several callers pass fields (invoice.total, transaction.amount) that
-    // can be undefined for legacy/imported records -- amount.toFixed()
-    // below would otherwise throw "Cannot read properties of undefined"
-    // and crash the whole alert bell with a white error screen.
-    const n = amount ?? 0;
-    if (Math.abs(n) >= 1000000) {
-      return `${this.currency}${(n / 1000000).toFixed(1)}M`;
-    }
-    if (Math.abs(n) >= 1000) {
-      return `${this.currency}${(n / 1000).toFixed(0)}K`;
-    }
-    return `${this.currency}${n.toFixed(0)}`;
+    return formatCurrencyAbbreviated(amount, this.currency);
   }
 }
 

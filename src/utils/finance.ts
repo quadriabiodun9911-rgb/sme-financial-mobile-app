@@ -5,6 +5,19 @@ import { computeCashRunway } from './cashRunway';
 import { computeStockVelocity } from './stockVelocity';
 import { activeBudgetsForPeriod } from './budgetPeriod';
 
+// ─── Currency formatting ───────────────────────────────────────────────────
+// Abbreviates large amounts (₦1.2M / ₦450K) for space-constrained copy like
+// alert descriptions and recommendation cards -- not for tables/statements,
+// where the exact figure matters. Null-safe: several callers pass fields
+// (invoice.total, transaction.amount) that can be undefined for legacy or
+// imported records, and amount.toFixed() would otherwise throw.
+export function formatCurrencyAbbreviated(amount: number | undefined, currencySymbol: string): string {
+    const n = amount ?? 0;
+    if (Math.abs(n) >= 1_000_000) return `${currencySymbol}${(n / 1_000_000).toFixed(1)}M`;
+    if (Math.abs(n) >= 1_000) return `${currencySymbol}${(n / 1_000).toFixed(0)}K`;
+    return `${currencySymbol}${n.toFixed(0)}`;
+}
+
 // ─── Tax rate ──────────────────────────────────────────────────────────────
 // settings.defaultTaxRate is stored as a percentage NUMBER (e.g. "20" means
 // 20%), the same convention Transaction.taxRate and settings.targetMargin
@@ -47,27 +60,6 @@ export function classifyBusinessSize(annualRevenue: number): BusinessSize {
 
 export function sizeLabel(size: BusinessSize): string {
     return { micro: 'Micro Business', small: 'Small Business', medium: 'Medium Business', large: 'Large Business' }[size];
-}
-
-// ─── Size-appropriate thresholds ──────────────────────────────────────────────
-export interface SizeThresholds {
-    currentRatioStrong: number;
-    currentRatioStable: number;
-    debtToEquityStrong: number;
-    debtToEquityStable: number;
-    roeStrong: number;
-    roeStable: number;
-    grossMarginStrong: number;
-    grossMarginStable: number;
-}
-
-export function getThresholds(size: BusinessSize): SizeThresholds {
-    switch (size) {
-        case 'micro':  return { currentRatioStrong: 1.2, currentRatioStable: 0.8, debtToEquityStrong: 1.0, debtToEquityStable: 2.0, roeStrong: 10, roeStable: 5,  grossMarginStrong: 30, grossMarginStable: 15 };
-        case 'small':  return { currentRatioStrong: 1.5, currentRatioStable: 1.0, debtToEquityStrong: 0.8, debtToEquityStable: 1.5, roeStrong: 12, roeStable: 7,  grossMarginStrong: 35, grossMarginStable: 20 };
-        case 'medium': return { currentRatioStrong: 1.5, currentRatioStable: 1.0, debtToEquityStrong: 0.5, debtToEquityStable: 1.0, roeStrong: 15, roeStable: 10, grossMarginStrong: 40, grossMarginStable: 25 };
-        case 'large':  return { currentRatioStrong: 1.5, currentRatioStable: 1.0, debtToEquityStrong: 0.3, debtToEquityStable: 0.6, roeStrong: 18, roeStable: 12, grossMarginStrong: 45, grossMarginStable: 30 };
-    }
 }
 
 // ─── Enhanced P&L with COGS / Gross Profit / EBIT / EBITDA ───────────────────

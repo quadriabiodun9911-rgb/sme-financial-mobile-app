@@ -23,7 +23,7 @@ import { computeFinancialHealthForecast, FinancialHealthForecast } from './finan
 import { computeExternalRiskInsights } from './externalRiskInsights';
 import { SeasonalityResult } from './seasonality';
 import {
-    computeExternalFactorsPanel, computeRiskRadar, computeCombinedInsights,
+    computeExternalFactorsPanel, computeExternalFactorRiskRows, computeCombinedInsights,
     ExternalFactorsPanel, RiskRadarRow, CombinedInsight,
 } from './externalFactorsPanel';
 
@@ -283,7 +283,7 @@ export function computeForecastSummary(
     // planned inventory purchases, existing/planned debt) into the small,
     // fixed set of paired insights computeCombinedInsights supports.
     const externalFactors = computeExternalFactorsPanel(transactions, macroAssumptions);
-    const riskRadar = computeRiskRadar(externalFactors);
+    const riskRadar = computeExternalFactorRiskRows(externalFactors);
     const externalInsights = computeExternalRiskInsights(transactions, macroAssumptions).insights;
     const combinedInsights = computeCombinedInsights({
         transactions, macroAssumptions, marginRisk, externalInsights,

@@ -11,6 +11,7 @@ import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { LoanPurpose } from '../types';
 import { computeDSCR } from '../utils/finance';
+import { monthlyPayment } from '../utils/loanMath';
 
 // Shared between the purpose picker grid and the review step so the label
 // shown for a selection never disagrees with what's actually submitted.
@@ -710,7 +711,7 @@ function ApplyForFinancingModal({ visible, maxLoan, minLoan, monthlyProfit, curr
     const { width: windowWidth } = useWindowDimensions();
     const constrainSheetWidth = Platform.OS === 'web' && windowWidth >= 720;
 
-    const estimatedMonthlyPayment = calculateMonthlyPayment(amount, 18, 60); // 18% APR, 60 months
+    const estimatedMonthlyPayment = monthlyPayment(amount, 18, 60); // 18% APR, 60 months
     const capacityRatio = monthlyProfit / estimatedMonthlyPayment;
     const canAfford = capacityRatio >= 1.5;
 
@@ -982,18 +983,6 @@ function ReviewItem({ label, value }: { label: string; value: string }) {
             <Text style={s.reviewValue}>{value}</Text>
         </View>
     );
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// UTILITY FUNCTIONS
-// ────────────────────────────────────────────────────────────────────────────
-
-function calculateMonthlyPayment(principal: number, annualRate: number, termMonths: number): number {
-    if (!termMonths || termMonths <= 0) return 0;
-    if (annualRate === 0) return principal / termMonths;
-    const r = annualRate / 100 / 12;
-    const factor = Math.pow(1 + r, termMonths);
-    return principal * (r * factor) / (factor - 1);
 }
 
 // ────────────────────────────────────────────────────────────────────────────

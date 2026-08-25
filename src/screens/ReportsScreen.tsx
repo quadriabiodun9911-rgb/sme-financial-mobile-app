@@ -43,6 +43,7 @@ import DateInput from '../components/DateInput';
 import { InventoryItem } from '../types';
 import { generatePDF, sharePDF } from '../utils/pdfExport';
 import { computeInventoryValue } from '../utils/stockVelocity';
+import { computeMarginPct } from '../utils/priceHistory';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 
@@ -787,7 +788,7 @@ function InventoryReportTab({ inventory, finance, transactions, currency }: {
         const stockCost = computeInventoryValue(inventory);
         const revenue = inventory.reduce((s, i) => s + i.quantity * (i.sellingPrice ?? 0), 0);
         const profit = revenue - stockCost;
-        const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
+        const margin = computeMarginPct(revenue, stockCost);
         return { totalStockCost: stockCost, potentialRevenue: revenue, potentialProfit: profit, grossMargin: margin };
     }, [inventory]);
 
@@ -810,7 +811,7 @@ function InventoryReportTab({ inventory, finance, transactions, currency }: {
             const units     = items.reduce((s, i) => s + i.quantity, 0);
             const stockCost = items.reduce((s, i) => s + i.quantity * (i.costPrice ?? 0), 0);
             const sellVal   = items.reduce((s, i) => s + i.quantity * (i.sellingPrice ?? 0), 0);
-            const margin    = sellVal > 0 ? ((sellVal - stockCost) / sellVal) * 100 : 0;
+            const margin    = computeMarginPct(sellVal, stockCost);
             return { cat, count: items.length, units, stockCost, sellVal, margin };
         });
     }, [inventory]);
