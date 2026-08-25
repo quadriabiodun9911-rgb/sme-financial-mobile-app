@@ -22,6 +22,7 @@ import { isFinancingAdmin } from '../utils/financingAdmin';
 import { PRIMARY_GOAL_OPTIONS } from '../utils/primaryGoals';
 import { auditDataIntegrity } from '../utils/dataIntegrity';
 import { canManageTeam, canManagePaymentSettings, canDeleteBusinessData } from '../utils/rolePermissions';
+import PinConfirmModal from '../components/PinConfirmModal';
 
 const ROLE_BADGE_COLOR: Record<string, string> = {
     admin: Colors.expense,
@@ -29,6 +30,7 @@ const ROLE_BADGE_COLOR: Record<string, string> = {
     manager: Colors.secondary,
     external_accountant: Colors.asset,
     staff: Colors.warning,
+    viewer: Colors.textMuted,
 };
 
 const CURRENCIES = [
@@ -135,11 +137,15 @@ export default function SettingsScreen() {
     const [resetConfirmText, setResetConfirmText] = useState('');
     const [deleteModal, setDeleteModal]     = useState(false);
     const [deleteConfirmText, setDeleteConfirmText] = useState('');
+    // Step-up PIN re-check gating the highest-risk actions -- pinConfirm holds
+    // the action to actually run once the PIN is verified, plus the copy for
+    // that specific action. See PinConfirmModal / verifyPin (storage.ts).
+    const [pinConfirm, setPinConfirm] = useState<{ title: string; message: string; confirmLabel: string; destructive: boolean; action: () => void } | null>(null);
 
     // Team invite modal
     const [inviteModal, setInviteModal]   = useState(false);
     const [inviteEmail, setInviteEmail]   = useState('');
-    const [inviteRole, setInviteRole]     = useState<'accountant' | 'manager' | 'staff' | 'admin' | 'external_accountant'>('accountant');
+    const [inviteRole, setInviteRole]     = useState<'accountant' | 'manager' | 'staff' | 'admin' | 'external_accountant' | 'viewer'>('accountant');
     const [pendingCode, setPendingCode]   = useState<string | null>(null);
 
     useEffect(() => {
@@ -283,7 +289,19 @@ export default function SettingsScreen() {
     };
 
     const handleRemoveMember = (id: string, email: string) => {
-        confirmAction('Remove member', `Remove ${email} from your team?`, 'Remove', () => removeMember(id));
+        confirmAction('Remove member', `Remove ${email} from your team?`, 'Remove', () => {
+            // Demo mode has no real account/PIN behind it -- nothing to
+            // step-up-verify, and gating it here would just strand demo
+            // visitors on a PIN box they can never pass.
+            if (isDemoMode) { removeMember(id); return; }
+            setPinConfirm({
+                title: 'Confirm removal',
+                message: `Enter your PIN to remove ${email} from your team.`,
+                confirmLabel: 'Remove member',
+                destructive: true,
+                action: () => removeMember(id),
+            });
+        });
     };
 
     const handleResetBusinessData = () => {
@@ -568,7 +586,7 @@ export default function SettingsScreen() {
                         <CollapsibleSection title="Team" defaultOpen={false}>
                             <Section title="Team Management">
                                 <Text style={styles.hint}>
-                                    Invite team members to access your business data. Admins can do everything you can except delete business data. Accountants and Managers see full financial reports, record transactions and export. External Accountants get the same financial visibility for reporting and reconciliation, without team, payment, or operational access. Staff can log sales/expenses, send invoices, and manage inventory — full P&L, cash balance, and bank/loan details stay hidden from them.
+                                    Invite team members to access your business data. Admins can do everything you can except delete business data. Accountants and Managers see full financial reports, record transactions and export. External Accountants get the same financial visibility for reporting and reconciliation, without team, payment, or operational access. Staff can log sales/expenses, send invoices, and manage inventory — full P&L, cash balance, and bank/loan details stay hidden from them. Viewers see the same reports as an External Accountant but can never add, edit or delete anything.
                                 </Text>
                                 <TouchableOpacity style={styles.dataBtn} onPress={() => { setPendingCode(null); setInviteModal(true); }}>
                                     <Text style={styles.dataBtnText}>+ Invite Team Member</Text>
@@ -938,6 +956,7 @@ export default function SettingsScreen() {
                                     <Opt label="Manager" active={inviteRole === 'manager'} onPress={() => setInviteRole('manager')} />
                                     <Opt label="External Accountant" active={inviteRole === 'external_accountant'} onPress={() => setInviteRole('external_accountant')} />
                                     <Opt label="Staff" active={inviteRole === 'staff'} onPress={() => setInviteRole('staff')} />
+                                    <Opt label="Viewer" active={inviteRole === 'viewer'} onPress={() => setInviteRole('viewer')} />
                                 </View>
                                 <Text style={[styles.hint, { marginTop: 10 }]}>
                                     {inviteRole === 'admin'
@@ -948,6 +967,8 @@ export default function SettingsScreen() {
                                         ? 'Manager: same day-to-day access as Accountant — records transactions, invoices and inventory, sees full reports.'
                                         : inviteRole === 'external_accountant'
                                         ? 'External Accountant: full read access to reports, reconciliation and analysis for a bookkeeper or auditor outside the business — no team, payment, or operational access.'
+                                        : inviteRole === 'viewer'
+                                        ? 'Viewer: can see reports, financial health and analysis — cannot add, edit or delete anything, anywhere. For a board member or investor who should be able to look, not touch.'
                                         : 'Staff: can add transactions only.'}
                                 </Text>
                                 <View style={[styles.modalBtns, { marginTop: 16 }]}>
@@ -1016,7 +1037,17 @@ export default function SettingsScreen() {
                             <TouchableOpacity
                                 style={[styles.saveBtn, { flex: 1, marginBottom: 0, backgroundColor: resetConfirmText === 'RESET' ? Colors.expense : Colors.muted }]}
                                 disabled={resetConfirmText !== 'RESET'}
-                                onPress={() => { setResetModal(false); resetBusinessData(); }}
+                                onPress={() => {
+                                    setResetModal(false);
+                                    if (isDemoMode) { resetBusinessData(); return; }
+                                    setPinConfirm({
+                                        title: 'Confirm reset',
+                                        message: 'Enter your PIN to permanently delete all transactions, invoices, goals, assets, loans, and inventory.',
+                                        confirmLabel: 'Delete All Records',
+                                        destructive: true,
+                                        action: () => resetBusinessData(),
+                                    });
+                                }}
                             >
                                 <Text style={styles.saveBtnText}>Delete All Records</Text>
                             </TouchableOpacity>
@@ -1050,7 +1081,17 @@ export default function SettingsScreen() {
                             <TouchableOpacity
                                 style={[styles.saveBtn, { flex: 1, marginBottom: 0, backgroundColor: deleteConfirmText === 'DELETE' ? '#7f1d1d' : Colors.muted }]}
                                 disabled={deleteConfirmText !== 'DELETE'}
-                                onPress={() => { setDeleteModal(false); deleteAccount(); }}
+                                onPress={() => {
+                                    setDeleteModal(false);
+                                    if (isDemoMode) { deleteAccount(); return; }
+                                    setPinConfirm({
+                                        title: 'Confirm account deletion',
+                                        message: 'Enter your PIN to permanently delete your account and all business data from the cloud.',
+                                        confirmLabel: 'Delete My Account',
+                                        destructive: true,
+                                        action: () => deleteAccount(),
+                                    });
+                                }}
                             >
                                 <Text style={styles.saveBtnText}>Delete My Account</Text>
                             </TouchableOpacity>
@@ -1058,6 +1099,20 @@ export default function SettingsScreen() {
                     </View>
                 </View>
             </Modal>
+
+            <PinConfirmModal
+                visible={!!pinConfirm}
+                title={pinConfirm?.title ?? ''}
+                message={pinConfirm?.message ?? ''}
+                confirmLabel={pinConfirm?.confirmLabel}
+                destructive={pinConfirm?.destructive}
+                onCancel={() => setPinConfirm(null)}
+                onConfirm={() => {
+                    const action = pinConfirm?.action;
+                    setPinConfirm(null);
+                    action?.();
+                }}
+            />
         </SafeAreaView>
     );
 }

@@ -367,7 +367,7 @@ export interface NavParams {
     invoiceId?: string;
 }
 
-export type UserRole = 'owner' | 'admin' | 'accountant' | 'manager' | 'staff' | 'external_accountant';
+export type UserRole = 'owner' | 'admin' | 'accountant' | 'manager' | 'staff' | 'external_accountant' | 'viewer';
 export type Language = 'en' | 'zh';
 
 // Generic legal-structure categories, not tied to any one country's exact
@@ -453,7 +453,7 @@ export interface TeamMember {
     ownerUserId: string;
     memberEmail: string;
     memberUserId: string | null;
-    role: 'accountant' | 'manager' | 'staff' | 'admin' | 'external_accountant';
+    role: 'accountant' | 'manager' | 'staff' | 'admin' | 'external_accountant' | 'viewer';
     status: 'pending' | 'active';
     inviteCode: string;
     invitedAt: string;

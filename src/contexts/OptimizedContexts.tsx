@@ -37,7 +37,7 @@ import {
   loadDataConfidenceHistory, saveDataConfidenceHistory,
   clearLocalFinancialCache,
   syncFinancingToSupabase,
-  saveProfile, loadProfile, savePin, loadPin,
+  saveProfile, loadProfile, savePin, loadPin, verifyPin as verifyPinStored,
   generateAuthSecret, saveAuthSecret, loadAuthSecret, syncFieldEncryptionKey,
   clearAllData, deleteAllBusinessRecords, exportAllData, importAllData, deleteAccountData, recordConsent,
   inviteTeamMember, removeTeamMember, loadTeamMembers, joinTeamWithCode,
@@ -864,6 +864,10 @@ interface AuthContextValue {
   goBack: () => boolean;
   navParams: any;
   login: (pin: string) => Promise<boolean>;
+  // Step-up re-check for a high-risk action within an already-authenticated
+  // session -- see verifyPin in storage.ts for why this is deliberately
+  // NOT the full login() flow.
+  verifyPin: (pin: string) => Promise<boolean>;
   pendingTwoFactorProfile: { email: string; businessName: string; phone?: string; createdAt?: string } | null;
   completeTwoFactorLogin: (code: string, method?: 'totp' | 'sms') => Promise<boolean>;
   cancelTwoFactorLogin: () => void;
@@ -879,7 +883,7 @@ interface AuthContextValue {
   resetApp: () => Promise<void>;
   deleteAccount: () => Promise<void>;
   teamMembers: TeamMember[];
-  inviteMember: (email: string, role: 'accountant' | 'manager' | 'staff' | 'admin' | 'external_accountant') => Promise<string>;
+  inviteMember: (email: string, role: 'accountant' | 'manager' | 'staff' | 'admin' | 'external_accountant' | 'viewer') => Promise<string>;
   removeMember: (id: string) => Promise<void>;
   refreshTeam: () => Promise<void>;
   // The OTHER side of team membership: businesses THIS signed-in user has
@@ -1590,6 +1594,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }).catch(() => {});
         }
       },
+      verifyPin: (pin: string) => verifyPinStored(pin),
       changePin: async (currentPin, newPin) => {
         try {
           const stored = await loadPin();
@@ -1905,6 +1910,7 @@ export function useApp() {
     navigate: auth.navigate,
     goBack: auth.goBack,
     login: auth.login,
+    verifyPin: auth.verifyPin || (async () => false),
     logout: auth.logout,
     pendingTwoFactorProfile: auth.pendingTwoFactorProfile,
     completeTwoFactorLogin: auth.completeTwoFactorLogin,

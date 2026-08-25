@@ -1,7 +1,7 @@
 import { Screen, UserRole } from '../types';
 
 /**
- * The full capability matrix for invited team members. Six roles:
+ * The full capability matrix for invited team members. Seven roles:
  *
  *   owner               full control — the only role that can delete
  *                       business data outright. Can also manage the team,
@@ -24,6 +24,12 @@ import { Screen, UserRole } from '../types';
  *   staff               operational only (see STAFF_ALLOWED_SCREENS below)
  *                       — no visibility into P&L, cash balance, bank/loan
  *                       details.
+ *   viewer              pure read-only — same broad financial visibility as
+ *                       external_accountant, but excluded from every screen
+ *                       that has a write action on it at all (see
+ *                       VIEWER_ALLOWED_SCREENS below). For someone who
+ *                       should be able to look but never touch — a board
+ *                       member, an investor, a silent partner.
  *
  * What "staff" actually means in this app: someone who runs day-to-day
  * operations (log a sale, send an invoice, manage stock) while the owner
@@ -91,8 +97,21 @@ const EXTERNAL_ACCOUNTANT_ALLOWED_SCREENS: Screen[] = [
     'risk-management', 'macro-assumptions', 'audit-log', 'business-timeline', 'data-integrity',
 ];
 
+// Screens a pure viewer can open -- EXTERNAL_ACCOUNTANT_ALLOWED_SCREENS
+// minus reconciliation and import-transactions, since both of those carry
+// a write action (matching/confirming a reconciled transaction, importing
+// new records) even though they read as "reporting" screens at a glance.
+// A viewer's enforcement model is entirely this exclusion: there is no
+// separate per-action read/write check anywhere in the app, so a screen
+// left off this list is the only thing that actually stops a write --
+// don't add a screen here without checking it has no mutation on it.
+const VIEWER_ALLOWED_SCREENS: Screen[] = EXTERNAL_ACCOUNTANT_ALLOWED_SCREENS.filter(
+    s => s !== 'reconciliation' && s !== 'import-transactions',
+);
+
 export function isScreenAllowedForRole(screen: Screen, role: UserRole): boolean {
     if (role === 'staff') return STAFF_ALLOWED_SCREENS.includes(screen);
     if (role === 'external_accountant') return EXTERNAL_ACCOUNTANT_ALLOWED_SCREENS.includes(screen);
+    if (role === 'viewer') return VIEWER_ALLOWED_SCREENS.includes(screen);
     return true;
 }

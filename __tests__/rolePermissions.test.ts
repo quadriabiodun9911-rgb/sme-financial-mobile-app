@@ -85,4 +85,31 @@ describe('canViewFinancials for the new roles', () => {
         expect(canViewFinancials('admin')).toBe(true);
         expect(canViewFinancials('external_accountant')).toBe(true);
     });
+
+    it('is true for viewer -- read-only still means full financial visibility', () => {
+        expect(canViewFinancials('viewer')).toBe(true);
+    });
+});
+
+describe('viewer role -- read-only enforcement', () => {
+    it('allows viewer the same reporting screens as external_accountant', () => {
+        expect(isScreenAllowedForRole('reports', 'viewer')).toBe(true);
+        expect(isScreenAllowedForRole('business-passport', 'viewer')).toBe(true);
+        expect(isScreenAllowedForRole('dashboard', 'viewer')).toBe(true);
+    });
+
+    it('blocks viewer from every write-capable screen, including reconciliation and import', () => {
+        expect(isScreenAllowedForRole('invoices', 'viewer')).toBe(false);
+        expect(isScreenAllowedForRole('inventory', 'viewer')).toBe(false);
+        expect(isScreenAllowedForRole('settings', 'viewer')).toBe(false);
+        expect(isScreenAllowedForRole('reconciliation', 'viewer')).toBe(false);
+        expect(isScreenAllowedForRole('import-transactions', 'viewer')).toBe(false);
+    });
+
+    it('denies viewer every owner/admin-only action', () => {
+        expect(canManageTeam('viewer')).toBe(false);
+        expect(canManagePaymentSettings('viewer')).toBe(false);
+        expect(canPublishToLenders('viewer')).toBe(false);
+        expect(canDeleteBusinessData('viewer')).toBe(false);
+    });
 });

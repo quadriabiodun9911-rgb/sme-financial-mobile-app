@@ -633,7 +633,7 @@ export interface MyTeamMembership {
     membershipId: string;
     ownerUserId: string;
     ownerBusinessName: string;
-    role: 'accountant' | 'manager' | 'staff' | 'admin' | 'external_accountant';
+    role: 'accountant' | 'manager' | 'staff' | 'admin' | 'external_accountant' | 'viewer';
 }
 
 export async function loadMyTeamMemberships(): Promise<MyTeamMembership[]> {
@@ -671,7 +671,7 @@ export async function loadMyTeamMemberships(): Promise<MyTeamMembership[]> {
 
 export async function inviteTeamMember(
     memberEmail: string,
-    role: 'accountant' | 'manager' | 'staff' | 'admin' | 'external_accountant',
+    role: 'accountant' | 'manager' | 'staff' | 'admin' | 'external_accountant' | 'viewer',
 ): Promise<string> {
     const ownerId = await getAuthUserId();
     if (!ownerId) throw new Error('Not authenticated.');
@@ -699,7 +699,7 @@ export async function removeTeamMember(memberId: string): Promise<void> {
 export async function joinTeamWithCode(
     memberUserId: string,
     inviteCode: string,
-): Promise<{ ownerId: string; role: 'accountant' | 'manager' | 'staff' | 'admin' | 'external_accountant' }> {
+): Promise<{ ownerId: string; role: 'accountant' | 'manager' | 'staff' | 'admin' | 'external_accountant' | 'viewer' }> {
     const { data, error } = await supabase
         .from('team_members')
         .select('*')
@@ -862,6 +862,19 @@ export async function savePin(pin: string): Promise<void> {
 }
 export async function loadPin(): Promise<string | null> {
     return loadPinSecurely();
+}
+
+// Step-up re-check for a high-risk action within an already-authenticated
+// session (deleting business data, removing a team member, sharing with a
+// lender) -- deliberately NOT the full login() flow, which also handles
+// lockout counters, 2FA, and re-establishing the cloud session. Those all
+// matter at sign-in; re-running them here would be both wrong (a step-up
+// check shouldn't be able to lock the account out of the app it's already
+// inside) and unnecessary (the session is already live).
+export async function verifyPin(pin: string): Promise<boolean> {
+    const saved = await loadPin();
+    if (!saved) return false;
+    return hashPinValue(pin) === saved;
 }
 
 // ─── Auth secret (the real Supabase Auth password — local only, never sent

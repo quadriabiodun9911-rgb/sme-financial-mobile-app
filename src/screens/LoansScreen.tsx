@@ -35,6 +35,7 @@ import { showAlert, confirmAction } from '../utils/webAlert';
 import Icon from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { t } from '../utils/i18n';
+import PinConfirmModal from '../components/PinConfirmModal';
 
 function totalPaid(loan: Loan): number {
     return (loan.payments ?? []).reduce((s, p) => s + p.amount, 0);
@@ -65,7 +66,7 @@ const isOverdue = isLoanPaymentOverdue;
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────
 
 export default function LoansScreen() {
-    const { loans, addLoan, updateLoan, deleteLoan, addLoanPayment, settings, navigate, finance, navParams, transactions, readinessHistory, user, language } = useApp();
+    const { loans, addLoan, updateLoan, deleteLoan, addLoanPayment, settings, navigate, finance, navParams, transactions, readinessHistory, user, language, isDemoMode } = useApp();
     const { currency } = settings;
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
@@ -445,6 +446,7 @@ export default function LoansScreen() {
                                 onAddPayment={handleOpenPayment}
                                 onLinkLender={openLinkLender}
                                 language={language}
+                                isDemoMode={isDemoMode}
                             />
                         ))
                     )}
@@ -679,13 +681,14 @@ function TabButton({ label, active, onPress }: { label: string; active: boolean;
 // a fresh per-item closure, so a card whose own loan/expanded state hasn't
 // changed can actually skip re-rendering when a sibling card is toggled or
 // an unrelated part of LoansScreen re-renders.
-const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transactions, readinessHistory, dscr, user, updateLoan, onToggle, onEdit, onDelete, onAddPayment, onLinkLender, language }: {
+const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transactions, readinessHistory, dscr, user, updateLoan, onToggle, onEdit, onDelete, onAddPayment, onLinkLender, language, isDemoMode }: {
     loan: Loan; currency: string; expanded: boolean;
     transactions: Transaction[]; readinessHistory: ReadinessSnapshot[]; dscr: DSCRResult;
     user: ReturnType<typeof useApp>['user']; updateLoan: ReturnType<typeof useApp>['updateLoan'];
     onToggle: (id: string) => void; onEdit: (loan: Loan) => void; onDelete: (id: string) => void; onAddPayment: (id: string) => void;
     onLinkLender: (loanId: string) => void;
     language: import('../utils/i18n').Language;
+    isDemoMode: boolean;
 }) {
     const paid = totalPaid(loan);
     const balance = outstandingBalance(loan);
@@ -713,13 +716,22 @@ const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transa
     // N loans rendered in a list, N independent useApp() calls per render
     // multiplied that cost by N. The parent already calls useApp() once.
     const [sharing, setSharing] = useState(false);
-    const toggleShareConsent = () => {
-        const next = !loan.shareWithLenderConsent;
+    const [pinConfirmVisible, setPinConfirmVisible] = useState(false);
+    const applyShareConsent = (next: boolean) => {
         updateLoan(loan.id, { shareWithLenderConsent: next, shareConsentUpdatedAt: new Date().toISOString() });
         // Revocation must take effect immediately, not on the next monitor
         // recompute -- the useEffect below only handles publishing while
         // consent is active, so turning it off has to be handled here.
         if (!next) revokeLoanMonitoringShare(loan.id);
+    };
+    // Granting consent (turning sharing on) is the step-up-worthy direction --
+    // it's the moment loan status starts leaving the business and going to a
+    // lender. Revoking needs no PIN: reducing what's shared is never the risky
+    // action.
+    const toggleShareConsent = () => {
+        const next = !loan.shareWithLenderConsent;
+        if (next && !isDemoMode) { setPinConfirmVisible(true); return; }
+        applyShareConsent(next);
     };
 
     // Phase 2b: keeps the lender's portfolio view current as the monitor's
@@ -900,6 +912,15 @@ const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transa
                     </View>
                 </View>
             )}
+
+            <PinConfirmModal
+                visible={pinConfirmVisible}
+                title="Confirm sharing with lender"
+                message={`Enter your PIN to start sharing this loan's status with ${loan.lenderName || 'this lender'}.`}
+                confirmLabel="Share status"
+                onCancel={() => setPinConfirmVisible(false)}
+                onConfirm={() => { setPinConfirmVisible(false); applyShareConsent(true); }}
+            />
         </View>
     );
 });
