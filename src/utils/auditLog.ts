@@ -29,7 +29,9 @@ export type AuditAction =
     | 'DATA_IMPORT'
     | 'DATA_CLEAR'
     | 'FAILED_LOGIN'
-    | 'ACCOUNT_LOCKED';
+    | 'ACCOUNT_LOCKED'
+    | 'LENDER_SHARE_GRANTED'
+    | 'LENDER_SHARE_REVOKED';
 
 interface AuditLogEntry {
     action: AuditAction;
@@ -127,6 +129,8 @@ const AUDIT_ACTION_LABEL: Record<AuditAction, string> = {
     DATA_CLEAR: 'Cleared data',
     FAILED_LOGIN: 'Failed login attempt',
     ACCOUNT_LOCKED: 'Account locked after failed attempts',
+    LENDER_SHARE_GRANTED: 'Shared loan status with a lender',
+    LENDER_SHARE_REVOKED: 'Revoked a lender\'s access to loan status',
 };
 
 /**
@@ -144,6 +148,7 @@ export function describeAuditLog(entry: AuditLogRecord): string {
     if (entry.action === 'ACCOUNT_SETUP' && d.email) return `${base} (${d.email})`;
     if (entry.action === 'SETTINGS_UPDATE' && d.key) return `${base} (${d.key})`;
     if (entry.action === 'FAILED_LOGIN' && d.reason) return `${base} (${d.reason})`;
+    if ((entry.action === 'LENDER_SHARE_GRANTED' || entry.action === 'LENDER_SHARE_REVOKED') && d.lenderOrgId) return `${base} (loan ${d.loanId ?? ''})`;
     return base;
 }
 
@@ -169,4 +174,6 @@ export const auditEvents = {
     dataExport: () => logAudit({ action: 'DATA_EXPORT', severity: 'medium' }),
     dataImport: () => logAudit({ action: 'DATA_IMPORT', severity: 'high' }),
     dataClear: () => logAudit({ action: 'DATA_CLEAR', severity: 'high' }),
+    lenderShareGranted: (loanId: string, lenderOrgId: string) => logAudit({ action: 'LENDER_SHARE_GRANTED', details: { loanId, lenderOrgId }, severity: 'high' }),
+    lenderShareRevoked: (loanId: string) => logAudit({ action: 'LENDER_SHARE_REVOKED', details: { loanId }, severity: 'medium' }),
 };

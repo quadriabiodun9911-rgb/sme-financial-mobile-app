@@ -44,12 +44,21 @@ describe('computeSecurityPosture', () => {
 
     it('counts strong (on) items correctly', () => {
         const posture = computeSecurityPosture('enabled', 0);
-        // isolation, encryption, transport, twoFactor, auditLog, dataSharing = 6 on; pinning is partial (no real pins in test env)
-        expect(posture.strongCount).toBe(6);
+        // isolation, encryption, transport, backups, twoFactor, auditLog, dataSharing = 7 on;
+        // pinning and retention are partial (no real pins in test env; no formal retention schedule)
+        expect(posture.strongCount).toBe(7);
     });
 
     it('counts attention (off) items correctly when 2FA is disabled', () => {
         const posture = computeSecurityPosture('disabled', 0);
         expect(posture.attentionCount).toBe(1);
+    });
+
+    it('always reports backups as on and retention as partial', () => {
+        const posture = computeSecurityPosture('disabled', 0);
+        expect(posture.items.find(i => i.key === 'backups')!.status).toBe('on');
+        const retention = posture.items.find(i => i.key === 'retention')!;
+        expect(retention.status).toBe('partial');
+        expect(retention.actionScreen).toBe('privacy-policy');
     });
 });

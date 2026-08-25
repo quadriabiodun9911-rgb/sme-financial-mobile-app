@@ -23,7 +23,7 @@ export interface SecurityPostureItem {
     status: PostureStatus;
     detail: string;
     actionLabel?: string;
-    actionScreen?: 'audit-log' | '2fa' | 'loans' | 'financing-marketplace';
+    actionScreen?: 'audit-log' | '2fa' | 'loans' | 'financing-marketplace' | 'privacy-policy';
 }
 
 export interface SecurityPosture {
@@ -86,6 +86,18 @@ export function computeSecurityPosture(
         actionScreen: twoFactorOn ? undefined : '2fa',
     });
 
+    // Every save from this app writes straight to Supabase, so "backed up"
+    // here means continuous cloud persistence, not a separate scheduled
+    // snapshot job this app runs -- an honest distinction, since scheduled
+    // point-in-time recovery is a Supabase project setting this codebase
+    // doesn't control or verify, not something to claim as done here.
+    items.push({
+        key: 'backups',
+        label: 'Cloud Backup',
+        status: 'on',
+        detail: 'Every change you make is saved to the cloud as you make it — lose or replace your device, and logging in restores everything. This is continuous sync, not a separate scheduled backup job.',
+    });
+
     items.push({
         key: 'auditLog',
         label: 'Activity Log',
@@ -104,6 +116,15 @@ export function computeSecurityPosture(
             : 'Nothing is being shared with any lender right now. Sharing only ever happens with your explicit consent, loan by loan.',
         actionLabel: 'Review your loans & shares',
         actionScreen: 'loans',
+    });
+
+    items.push({
+        key: 'retention',
+        label: 'Data Retention',
+        status: 'partial',
+        detail: 'Your data is kept for as long as your account exists, with no automatic deletion after a fixed period — you control when it\'s removed. A formal, jurisdiction-specific retention schedule has not yet been defined.',
+        actionLabel: 'Read the full policy',
+        actionScreen: 'privacy-policy',
     });
 
     const strongCount = items.filter(i => i.status === 'on').length;

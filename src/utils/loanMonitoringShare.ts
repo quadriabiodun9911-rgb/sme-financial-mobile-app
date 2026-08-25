@@ -18,6 +18,7 @@ import { supabase } from './supabase';
 import { Loan } from '../types';
 import { PostFinancingMonitor, PostFinancingStatus } from './postFinancingMonitor';
 import { ReadinessTrend } from './readinessHistory';
+import { auditEvents } from './auditLog';
 
 const PRINCIPAL_BANDS: [number, string][] = [
     [500_000, 'Under 500K'],
@@ -72,6 +73,7 @@ export async function publishLoanMonitoringShare(
             .from('loan_monitoring_shares')
             .upsert(row, { onConflict: 'business_user_id,loan_id' });
         if (error) return { ok: false, error: error.message };
+        auditEvents.lenderShareGranted(loan.id, loan.lenderOrgId);
         return { ok: true };
     } catch (e: any) {
         return { ok: false, error: e?.message ?? 'Could not publish status.' };
@@ -90,6 +92,7 @@ export async function revokeLoanMonitoringShare(loanId: string): Promise<{ ok: b
             .update({ consent_active: false, updated_at: new Date().toISOString() })
             .eq('business_user_id', userId)
             .eq('loan_id', loanId);
+        if (!error) auditEvents.lenderShareRevoked(loanId);
         return { ok: !error };
     } catch {
         return { ok: false };

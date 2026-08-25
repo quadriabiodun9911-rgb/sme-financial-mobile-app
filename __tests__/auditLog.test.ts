@@ -34,4 +34,13 @@ describe('describeAuditLog', () => {
         const entry = makeEntry({ action: 'DATA_EXPORT', details: { unrelated: true } });
         expect(describeAuditLog(entry)).toBe('Exported data');
     });
+
+    it('folds in the loan id for a lender share grant', () => {
+        const entry = makeEntry({ action: 'LENDER_SHARE_GRANTED', details: { loanId: 'loan-1', lenderOrgId: 'org-1' } });
+        expect(describeAuditLog(entry)).toBe('Shared loan status with a lender (loan loan-1)');
+    });
+
+    it('describes a lender share revocation plainly', () => {
+        expect(describeAuditLog(makeEntry({ action: 'LENDER_SHARE_REVOKED' }))).toBe("Revoked a lender's access to loan status");
+    });
 });

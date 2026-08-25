@@ -36,7 +36,19 @@ const SECTIONS: { title: string; body: string }[] = [
     },
     {
         title: 'Team Accounts',
-        body: 'If you invite an accountant or staff member, they can see the business data your role settings expose to them. Removing them from your team ends that access; it does not delete their own separate login account.',
+        body: 'If you invite a team member, they can see the business data their role exposes to them (see Settings → Team for exactly what each role can see). Removing them from your team ends that access; it does not delete their own separate login account.',
+    },
+    {
+        title: 'Will Lenders See My Data?',
+        body: 'Only if you explicitly choose to share it. Nothing is visible to a lender by default. You share data with a specific lender in one of two ways: listing your business on the Financing Marketplace, or granting a lender loan-monitoring access after taking a loan through Quad360. Both are opt-in actions you take yourself, and both can be revoked at any time from Settings → Data Permission Centre — revoking immediately stops that lender from seeing anything further.',
+    },
+    {
+        title: 'Third-Party AI Processing',
+        body: 'The AI Advisor feature sends a summary of your business figures (health score, cash position, top risks, goals, and similar already-computed numbers — never your raw transaction list) to Anthropic, the maker of the Claude model that powers it, in order to generate a response to your question. This only happens when you actively use the AI Advisor; it does not run in the background. Anthropic processes this data under its own privacy terms, which govern how long it retains API data and how it may be used — see Anthropic\'s own privacy policy for those specifics, since Quad360 cannot speak on Anthropic\'s behalf.',
+    },
+    {
+        title: 'Data Retention',
+        body: 'Your business data is kept for as long as your account exists — there is no automatic deletion or archiving after a fixed period. It is removed when you delete your account (Settings → Delete Account), or sooner for specific records if you use a feature\'s own delete action (e.g. removing a single transaction). A formal, jurisdiction-specific retention schedule has not yet been defined — this describes actual current behavior, not a finalized policy.',
     },
 ];
 

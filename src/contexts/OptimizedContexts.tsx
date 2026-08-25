@@ -1233,10 +1233,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const attemptsRaw = await AsyncStorage.getItem(ATTEMPTS_KEY);
           const attempts = (attemptsRaw ? parseInt(attemptsRaw, 10) : 0) + 1;
           await AsyncStorage.setItem(ATTEMPTS_KEY, String(attempts)).catch(() => {});
+          auditEvents.loginFailed('Incorrect PIN');
           if (attempts >= 5) {
             const until = Date.now() + 15 * 60 * 1000;
             setIsLockedOut(true); setLockoutUntil(until);
             await AsyncStorage.setItem(LOCKOUT_KEY, String(until)).catch(() => {});
+            auditEvents.accountLocked();
           }
           return false;
         }
