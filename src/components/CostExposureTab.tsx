@@ -3,11 +3,21 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { computeCostExposure, CostCategorySignal, ExposureBand } from '../utils/costExposure';
+import { computeCostDecisions, CostDecisionAction } from '../utils/costDecisions';
 import { computeCostExposureForecast } from '../utils/costExposureForecast';
 import { computeExternalRiskInsights, ExternalRiskInsight } from '../utils/externalRiskInsights';
 import RadialGauge from './RadialGauge';
 import BarList from './BarList';
 import GroupedBarChart from './GroupedBarChart';
+
+const DECISION_COLOR: Record<CostDecisionAction, string> = {
+    cut: Colors.expense,
+    negotiate: Colors.warning,
+};
+const DECISION_LABEL: Record<CostDecisionAction, string> = {
+    cut: 'Cut',
+    negotiate: 'Negotiate',
+};
 
 const BAND_COLOR: Record<ExposureBand, string> = {
     Excellent: Colors.income,
@@ -30,6 +40,7 @@ export default function CostExposureTab() {
     const currency = settings.currency || '₦';
 
     const result = useMemo(() => computeCostExposure(transactions), [transactions]);
+    const decisions = useMemo(() => computeCostDecisions(result, currency), [result, currency]);
     const externalRisk = useMemo(
         () => computeExternalRiskInsights(transactions, settings.macroAssumptions ?? []),
         [transactions, settings.macroAssumptions]
@@ -64,6 +75,23 @@ export default function CostExposureTab() {
                 <RadialGauge displayValue={String(result.score)} label={result.band} progress={result.score / 100} color={bandColor} size={104} strokeWidth={9} />
                 <Text style={s.verdict}>{result.verdict}</Text>
             </View>
+
+            {/* Cost Decisions — the DECIDE-stage call itself: cut or
+                negotiate, not just "this is rising." */}
+            {decisions.length > 0 && (
+                <View style={s.card}>
+                    <Text style={s.cardTitle}>Cost Decisions</Text>
+                    {decisions.map(d => (
+                        <View key={d.category} style={s.flagRow}>
+                            <Text style={s.flagBullet}>•</Text>
+                            <Text style={s.flagText}>
+                                <Text style={{ fontWeight: '800', color: DECISION_COLOR[d.action] }}>{DECISION_LABEL[d.action]}: </Text>
+                                {d.detail}
+                            </Text>
+                        </View>
+                    ))}
+                </View>
+            )}
 
             {/* Forward Cost Trajectory — every category still flagged as
                 rising, projected forward together (not just the single

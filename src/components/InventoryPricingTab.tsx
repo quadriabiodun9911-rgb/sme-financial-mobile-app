@@ -5,10 +5,22 @@ import { Colors } from '../theme/colors';
 import { computeInventoryPricingScenario, computeRequiredUniformPriceChange, ProductPricingRow } from '../utils/inventoryPricingScenario';
 import { computeRequiredPriceIncrease } from '../utils/priceAdjustment';
 import { computeInventoryPricingInsights } from '../utils/inventoryPricingInsights';
+import { computeInventoryDecisions, InventoryDecisionAction } from '../utils/inventoryDecisions';
 
 function fmt(currency: string, n: number): string {
     return `${currency}${Math.round(n).toLocaleString()}`;
 }
+
+const DECISION_COLOR: Record<InventoryDecisionAction, string> = {
+    reorder: Colors.income,
+    reduce: Colors.warning,
+    discontinue: Colors.expense,
+};
+const DECISION_LABEL: Record<InventoryDecisionAction, string> = {
+    reorder: 'Reorder',
+    reduce: 'Reduce',
+    discontinue: 'Discontinue',
+};
 
 // Pricing Optimization, grounded in real goods and real sales instead of an
 // abstract "assume this much revenue at this margin" calculator -- every
@@ -17,7 +29,7 @@ function fmt(currency: string, n: number): string {
 // rather than Reports so pricing decisions sit next to the stock they're
 // actually about.
 export default function InventoryPricingTab() {
-    const { inventory, transactions, settings } = useApp();
+    const { inventory, transactions, settings, finance } = useApp();
     const currency = settings.currency || '₦';
 
     const [priceOverrides, setPriceOverrides] = useState<Record<string, string>>({});
@@ -83,6 +95,11 @@ export default function InventoryPricingTab() {
     );
 
     const costDriftInsights = useMemo(() => computeInventoryPricingInsights(inventory, currency), [inventory, currency]);
+
+    const inventoryDecisions = useMemo(
+        () => computeInventoryDecisions(inventory, transactions, finance?.cashBalance ?? 0, currency),
+        [inventory, transactions, finance?.cashBalance, currency],
+    );
 
     const insights = useMemo(() => {
         const list: { color: string; text: string }[] = [];
@@ -231,6 +248,22 @@ export default function InventoryPricingTab() {
                     {scenario.itemsWithoutSalesData > 0 ? ` (${scenario.itemsWithoutSalesData} more have no sales data yet)` : ''}.
                 </Text>
             </View>
+
+            {inventoryDecisions.length > 0 && (
+                <View style={s.card}>
+                    <Text style={s.cardTitle}>Inventory Decisions</Text>
+                    <Text style={s.disc}>What to do next, based on how fast each item is actually selling — not a forecast, a call.</Text>
+                    {inventoryDecisions.map(d => (
+                        <View key={d.itemId} style={[s.insightRow, { borderLeftColor: DECISION_COLOR[d.action] }]}>
+                            <Text style={s.insightText}>
+                                <Text style={{ fontWeight: '800', color: DECISION_COLOR[d.action] }}>{DECISION_LABEL[d.action]}: </Text>
+                                <Text style={{ fontWeight: '700', color: Colors.textPrimary }}>{d.itemName}. </Text>
+                                {d.detail}
+                            </Text>
+                        </View>
+                    ))}
+                </View>
+            )}
 
             {insights.length > 0 && (
                 <View style={s.card}>

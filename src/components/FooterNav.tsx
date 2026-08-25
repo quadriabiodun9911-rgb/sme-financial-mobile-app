@@ -15,16 +15,22 @@ import { isScreenAllowedForRole } from '../utils/rolePermissions';
 // ─── Icon accent colours per section ────────────────────────────────────────
 // Grouped around the same 5-stage decision journey a business owner
 // actually moves through -- Understand where you stand, Anticipate what's
-// coming, Decide what to do, Act on it, and Fund the gap -- rather than a
-// flat, engineering-shaped list (what used to be one "Analytics" bucket
-// and one "Finance" bucket). Purely a regrouping of the same destinations:
-// every Screen id below is unchanged, so no route, deep link, or existing
-// screen is touched by this reorg.
-const UNDERSTAND_ITEMS: { label: string; icon: IconName; screen: Screen; color: string }[] = [
-    { label: 'Scoreboard', icon: 'activity',      screen: 'scoreboard', color: '#22d3ee' },
-    { label: 'Insights', icon: 'zap',            screen: 'insights', color: '#f59e0b' },
-    { label: 'Analysis', icon: 'pie-chart',       screen: 'analysis', color: '#3b82f6' },
-    { label: 'Advisor',  icon: 'message-circle',  screen: 'cfo',      color: '#8b5cf6' },
+// coming, Decide what to do, Improve based on what worked, and Fund the
+// gap -- rather than a flat, engineering-shaped list (what used to be one
+// "Analytics" bucket and one "Finance" bucket). Purely a regrouping of the
+// same destinations: every Screen id below is unchanged, so no route, deep
+// link, or existing screen is touched by this reorg. Item placement follows
+// the exact stage definitions given for this reorg -- e.g. Cash Flow and
+// Inventory sit under Understand ("where do I stand"), not as generic
+// "operations," and Improve is scoped tightly to outcome-tracking (Action
+// Tracker) rather than a catch-all for anything left over.
+const UNDERSTAND_ITEMS: { label: string; icon: IconName; screen: Screen; color: string; desc: string }[] = [
+    { label: 'Scoreboard',     icon: 'activity',      screen: 'scoreboard',     color: '#22d3ee', desc: 'Financial health at a glance' },
+    { label: 'Inventory',      icon: 'package',       screen: 'inventory',      color: '#f59e0b', desc: 'Stock levels & margins' },
+    { label: 'Cash Flow',      icon: 'droplet',       screen: 'cashflow',       color: '#3b82f6', desc: 'Runway & receivables risk' },
+    { label: 'Reconciliation', icon: 'link-2',        screen: 'reconciliation', color: '#8b5cf6', desc: 'Match bank vs app records' },
+    { label: 'Payroll',        icon: 'users',         screen: 'payroll',        color: '#10b981', desc: 'Staff & monthly pay runs' },
+    { label: 'Analysis',       icon: 'pie-chart',      screen: 'analysis',       color: '#14b8a6', desc: 'Deep-dive P&L trends' },
 ];
 
 const ANTICIPATE_ITEMS: { label: string; icon: IconName; screen: Screen; color: string }[] = [
@@ -33,9 +39,15 @@ const ANTICIPATE_ITEMS: { label: string; icon: IconName; screen: Screen; color: 
     { label: 'Growth',   icon: 'trending-up',     screen: 'growth',   color: '#10b981' },
 ];
 
-const DECIDE_ITEMS: { label: string; icon: IconName; screen: Screen; color: string }[] = [
-    { label: 'Goals',       icon: 'target',       screen: 'goals',             color: '#ef4444' },
-    { label: 'Budget',      icon: 'dollar-sign',  screen: 'budget',            color: '#10b981' },
+const DECIDE_ITEMS: { label: string; icon: IconName; screen: Screen; color: string; desc: string }[] = [
+    { label: 'Advisor',  icon: 'message-circle',  screen: 'cfo',      color: '#8b5cf6', desc: 'AI diagnosis — ask questions, get answers' },
+    { label: 'Insights', icon: 'zap',             screen: 'insights', color: '#f59e0b', desc: 'Flagged risks & opportunities' },
+    { label: 'Goals',    icon: 'target',          screen: 'goals',    color: '#ef4444', desc: 'Set and track targets' },
+    { label: 'Budget',   icon: 'dollar-sign',     screen: 'budget',   color: '#10b981', desc: 'Plan spending by category' },
+];
+
+const IMPROVE_ITEMS: { label: string; icon: IconName; screen: Screen; color: string; desc: string }[] = [
+    { label: 'Action Tracker', icon: 'check-circle', screen: 'action-tracker', color: '#ef4444', desc: 'Did it work? Track outcomes & before/after' },
 ];
 
 const FUND_ITEMS: { label: string; icon: IconName; screen: Screen; color: string }[] = [
@@ -43,14 +55,6 @@ const FUND_ITEMS: { label: string; icon: IconName; screen: Screen; color: string
     { label: 'Loans',       icon: 'percent',      screen: 'loans',             color: '#f97316' },
     { label: 'Credit',      icon: 'credit-card',  screen: 'credit-worthiness', color: '#eab308' },
     { label: 'Financing',   icon: 'search',       screen: 'financing-marketplace', color: '#14b8a6' },
-];
-
-const ACT_ITEMS: { label: string; icon: IconName; screen: Screen; color: string; desc: string }[] = [
-    { label: 'Inventory',      icon: 'package',      screen: 'inventory',      color: '#f59e0b', desc: 'Stock levels & margins' },
-    { label: 'Cash Flow',      icon: 'droplet',       screen: 'cashflow',       color: '#3b82f6', desc: 'Forecast, runway & AR risk' },
-    { label: 'Payroll',        icon: 'users',         screen: 'payroll',        color: '#10b981', desc: 'Staff & monthly pay runs' },
-    { label: 'Reconciliation', icon: 'link-2',        screen: 'reconciliation', color: '#8b5cf6', desc: 'Match bank vs app records' },
-    { label: 'Action Tracker', icon: 'check-circle',  screen: 'action-tracker', color: '#ef4444', desc: 'Track recommended actions' },
 ];
 
 const ACCOUNT_ITEMS: { label: string; icon: IconName; screen: Screen; color: string; desc: string }[] = [
@@ -121,7 +125,7 @@ export default function FooterNav() {
     const visibleUnderstand = useMemo(() => UNDERSTAND_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
     const visibleAnticipate = useMemo(() => ANTICIPATE_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
     const visibleDecide = useMemo(() => DECIDE_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
-    const visibleAct = useMemo(() => ACT_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
+    const visibleImprove = useMemo(() => IMPROVE_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
     const visibleFund = useMemo(() => FUND_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
 
     const visibleAccount = useMemo(() =>
@@ -239,26 +243,30 @@ export default function FooterNav() {
 
                         {/* ── Understand ────────────────────────────────── */}
                         <Text style={styles.sectionHeader}>Understand</Text>
-                        <Text style={styles.sectionSubtitle}>Know where you stand</Text>
-                        <View style={styles.gridCard}>
-                            {visibleUnderstand.map(item => (
+                        <Text style={styles.sectionSubtitle}>Where does my business stand?</Text>
+                        <View style={styles.listCard}>
+                            {visibleUnderstand.map((item, i, arr) => (
                                 <TouchableOpacity
                                     key={item.label}
-                                    style={styles.gridItem}
+                                    style={[styles.listRow, i < arr.length - 1 && styles.listRowBorder]}
                                     onPress={() => goTo(item.screen)}
                                     activeOpacity={0.75}
                                 >
-                                    <View style={[styles.gridIconBox, { backgroundColor: item.color + '22' }]}>
-                                        <Icon name={item.icon} size={19} color={item.color} />
+                                    <View style={[styles.listIconBox, { backgroundColor: item.color + '22' }]}>
+                                        <Icon name={item.icon} size={16} color={item.color} />
                                     </View>
-                                    <Text style={styles.gridLabel}>{item.label}</Text>
+                                    <View style={styles.listTextCol}>
+                                        <Text style={styles.listLabel}>{item.label}</Text>
+                                        <Text style={styles.listDesc}>{item.desc}</Text>
+                                    </View>
+                                    <Icon name="chevron-right" size={18} color={Colors.textMuted} />
                                 </TouchableOpacity>
                             ))}
                         </View>
 
                         {/* ── Anticipate ────────────────────────────────── */}
                         <Text style={styles.sectionHeader}>Anticipate</Text>
-                        <Text style={styles.sectionSubtitle}>See what's coming</Text>
+                        <Text style={styles.sectionSubtitle}>What is likely to happen?</Text>
                         <View style={styles.gridCard}>
                             {visibleAnticipate.map(item => (
                                 <TouchableOpacity
@@ -277,28 +285,32 @@ export default function FooterNav() {
 
                         {/* ── Decide ────────────────────────────────────── */}
                         <Text style={styles.sectionHeader}>Decide</Text>
-                        <Text style={styles.sectionSubtitle}>Plan your next move</Text>
-                        <View style={styles.gridCard}>
-                            {visibleDecide.map(item => (
+                        <Text style={styles.sectionSubtitle}>What should I do?</Text>
+                        <View style={styles.listCard}>
+                            {visibleDecide.map((item, i, arr) => (
                                 <TouchableOpacity
                                     key={item.label}
-                                    style={styles.gridItem}
+                                    style={[styles.listRow, i < arr.length - 1 && styles.listRowBorder]}
                                     onPress={() => goTo(item.screen)}
                                     activeOpacity={0.75}
                                 >
-                                    <View style={[styles.gridIconBox, { backgroundColor: item.color + '22' }]}>
-                                        <Icon name={item.icon} size={19} color={item.color} />
+                                    <View style={[styles.listIconBox, { backgroundColor: item.color + '22' }]}>
+                                        <Icon name={item.icon} size={16} color={item.color} />
                                     </View>
-                                    <Text style={styles.gridLabel}>{item.label}</Text>
+                                    <View style={styles.listTextCol}>
+                                        <Text style={styles.listLabel}>{item.label}</Text>
+                                        <Text style={styles.listDesc}>{item.desc}</Text>
+                                    </View>
+                                    <Icon name="chevron-right" size={18} color={Colors.textMuted} />
                                 </TouchableOpacity>
                             ))}
                         </View>
 
-                        {/* ── Act ───────────────────────────────────────── */}
-                        <Text style={styles.sectionHeader}>Act</Text>
-                        <Text style={styles.sectionSubtitle}>Get it done</Text>
+                        {/* ── Improve ───────────────────────────────────── */}
+                        <Text style={styles.sectionHeader}>Improve</Text>
+                        <Text style={styles.sectionSubtitle}>Did my decision work?</Text>
                         <View style={styles.listCard}>
-                            {visibleAct.map((item, i, arr) => (
+                            {visibleImprove.map((item, i, arr) => (
                                 <TouchableOpacity
                                     key={item.label}
                                     style={[styles.listRow, i < arr.length - 1 && styles.listRowBorder]}
@@ -319,7 +331,7 @@ export default function FooterNav() {
 
                         {/* ── Fund ──────────────────────────────────────── */}
                         <Text style={styles.sectionHeader}>Fund</Text>
-                        <Text style={styles.sectionSubtitle}>Access capital</Text>
+                        <Text style={styles.sectionSubtitle}>Am I ready for capital?</Text>
                         <View style={styles.gridCard}>
                             {visibleFund.map(item => (
                                 <TouchableOpacity
