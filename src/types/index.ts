@@ -319,6 +319,18 @@ export interface FutureEvent {
     createdAt: string;
 }
 
+// A self-set exposure ceiling for one customer, keyed by name -- the same
+// free-text identity Invoice.clientName and Transaction.vendorCustomer
+// already use everywhere else (computeCustomerConcentration in finance.ts),
+// since there's no dedicated Customer entity in this app to key against
+// instead. See customerCredit.ts.
+export interface CustomerCreditLimit {
+    id: string;
+    customerName: string;
+    limit: number;
+    createdAt: string;
+}
+
 export interface BusinessSettings {
     businessName?: string;
     businessType: 'product' | 'service' | 'both';
@@ -348,6 +360,7 @@ export interface BusinessSettings {
     // real signals get re-ranked toward what was chosen, nothing is
     // fabricated to fit an answer the app has no data behind.
     primaryGoal?: PrimaryGoal;
+    customerCreditLimits?: CustomerCreditLimit[]; // owner-set per-customer exposure ceilings, see CustomerCreditLimit
 }
 
 export type PrimaryGoal = 'cashflow' | 'costs' | 'financing';
@@ -490,6 +503,16 @@ export interface Invoice {
     taxTotal: number;
     total: number;
     createdAt: string;
+    // Pay within earlyPaymentDiscountDays of issueDate for earlyPaymentDiscountPct
+    // off -- see earlyPaymentDiscount.ts. Both unset = no discount offered.
+    earlyPaymentDiscountPct?: number;
+    earlyPaymentDiscountDays?: number;
+    // No auto-generation engine, same deliberate choice as
+    // Transaction.isRecurring/recurringFrequency (recurringTransactions.ts) --
+    // this just computes when the next one is due; the owner duplicates it
+    // into the next invoice themselves. See recurringInvoices.ts.
+    isRecurring?: boolean;
+    recurringFrequency?: RecurringFrequency;
 }
 
 export type LoanStatus = 'active' | 'paid_off' | 'defaulted';

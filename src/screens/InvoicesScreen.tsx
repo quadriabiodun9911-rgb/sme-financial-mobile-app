@@ -18,6 +18,10 @@ import { showAlert, confirmAction } from '../utils/webAlert';
 import Icon from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { t } from '../utils/i18n';
+import { computeEarlyPaymentDiscount } from '../utils/earlyPaymentDiscount';
+import { checkCustomerCreditLimit, findCreditLimit } from '../utils/customerCredit';
+import { hasRecurringInvoiceSchedule, nextRecurringInvoiceDueDate, isRecurringInvoiceDue } from '../utils/recurringInvoices';
+import { RecurringFrequency } from '../types';
 
 const STATUS_COLOR: Record<InvoiceStatus, string> = {
     draft:   Colors.textMuted,
@@ -118,7 +122,7 @@ ${inv.notes ? `<div class="notes" style="clear:both;margin-top:60px"><b>Notes:</
 
 
 export default function InvoicesScreen() {
-    const { invoices, addInvoice, updateInvoice, deleteInvoice, markInvoiceStatus, settings, user, navigate, language } = useApp();
+    const { invoices, addInvoice, updateInvoice, deleteInvoice, markInvoiceStatus, settings, updateSettings, user, navigate, language } = useApp();
     const currency = settings.currency;
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
@@ -149,6 +153,11 @@ export default function InvoicesScreen() {
     const [issueDate, setIssueDate]         = useState('');
     const [notes, setNotes]                 = useState('');
     const [lineItems, setLineItems]         = useState<InvoiceLineItem[]>([{ ...EMPTY_LINE }]);
+    const [earlyDiscountPct, setEarlyDiscountPct]   = useState('');
+    const [earlyDiscountDays, setEarlyDiscountDays] = useState('');
+    const [isRecurring, setIsRecurring]     = useState(false);
+    const [recurringFrequency, setRecurringFrequency] = useState<RecurringFrequency>('monthly');
+    const [creditLimitInput, setCreditLimitInput] = useState('');
 
     const filtered = useMemo(() => {
         const list = filter === 'all' ? invoices : invoices.filter(i => i.status === filter);
@@ -193,6 +202,9 @@ export default function InvoicesScreen() {
         setClientName(''); setClientEmail(''); setClientPhone(''); setClientAddress('');
         setDueDate(''); setIssueDate(''); setNotes('');
         setLineItems([{ ...EMPTY_LINE }]);
+        setEarlyDiscountPct(''); setEarlyDiscountDays('');
+        setIsRecurring(false); setRecurringFrequency('monthly');
+        setCreditLimitInput('');
         setEditId(null);
     };
 
@@ -207,9 +219,49 @@ export default function InvoicesScreen() {
         setIssueDate(inv.issueDate ?? '');
         setNotes(inv.notes ?? '');
         setLineItems(inv.lineItems?.length ? inv.lineItems : [{ ...EMPTY_LINE }]);
+        setEarlyDiscountPct(inv.earlyPaymentDiscountPct ? String(inv.earlyPaymentDiscountPct) : '');
+        setEarlyDiscountDays(inv.earlyPaymentDiscountDays ? String(inv.earlyPaymentDiscountDays) : '');
+        setIsRecurring(!!inv.isRecurring);
+        setRecurringFrequency(inv.recurringFrequency ?? 'monthly');
+        const existingLimit = findCreditLimit(inv.clientName, settings.customerCreditLimits ?? []);
+        setCreditLimitInput(existingLimit ? String(existingLimit.limit) : '');
         setEditId(inv.id);
         setShowForm(true);
     };
+
+    // Upserts (or clears, when limitStr is blank/invalid) this customer's
+    // credit limit in settings -- keyed by name, same as the rest of
+    // customerCredit.ts, since there's no dedicated Customer entity.
+    const persistCreditLimit = (customerName: string, limitStr: string) => {
+        const trimmed = customerName.trim();
+        if (!trimmed) return;
+        const existing = settings.customerCreditLimits ?? [];
+        const withoutThis = existing.filter(l => l.customerName.trim().toLowerCase() !== trimmed.toLowerCase());
+        const parsed = parseFloat(limitStr);
+        if (!limitStr.trim() || isNaN(parsed) || parsed <= 0) {
+            if (withoutThis.length !== existing.length) updateSettings({ customerCreditLimits: withoutThis });
+            return;
+        }
+        const existingEntry = existing.find(l => l.customerName.trim().toLowerCase() === trimmed.toLowerCase());
+        updateSettings({
+            customerCreditLimits: [...withoutThis, {
+                id: existingEntry?.id ?? generateId(),
+                customerName: trimmed,
+                limit: parsed,
+                createdAt: existingEntry?.createdAt ?? new Date().toISOString(),
+            }],
+        });
+    };
+
+    // SME cash-flow checklist #2: warn before saving an invoice that would
+    // push this client over their self-set credit limit (Settings >
+    // Customer Credit Limits). Reads current unpaid exposure live from the
+    // invoice list, excluding the invoice being edited so its own prior
+    // amount isn't double-counted.
+    const creditLimitCheck = useMemo(() => {
+        if (!clientName.trim()) return null;
+        return checkCustomerCreditLimit(clientName, totals.total, invoices, settings.customerCreditLimits ?? [], editId ?? undefined);
+    }, [clientName, totals.total, invoices, settings.customerCreditLimits, editId]);
 
     const nextInvoiceNumber = () => {
         const nums = invoices
@@ -240,6 +292,10 @@ export default function InvoicesScreen() {
             notes,
             status: (asDraft ? 'draft' : 'sent') as InvoiceStatus,
             ...totals,
+            earlyPaymentDiscountPct: parseFloat(earlyDiscountPct) || undefined,
+            earlyPaymentDiscountDays: parseFloat(earlyDiscountDays) || undefined,
+            isRecurring,
+            recurringFrequency: isRecurring ? recurringFrequency : undefined,
         };
 
         if (editId) {
@@ -247,6 +303,7 @@ export default function InvoicesScreen() {
         } else {
             addInvoice(payload);
         }
+        persistCreditLimit(clientName, creditLimitInput);
         setShowForm(false);
         resetForm();
     };
@@ -286,6 +343,44 @@ export default function InvoicesScreen() {
 
     const handleDelete = (inv: Invoice) => {
         confirmAction('Delete Invoice', `Delete ${inv.invoiceNumber}? This cannot be undone.`, 'Delete', () => deleteInvoice(inv.id));
+    };
+
+    // SME cash-flow checklist #9: no auto-generation engine (see
+    // recurringInvoices.ts) -- this duplicates the invoice into the next
+    // period as a new draft, shifting issue/due dates by the same anchor
+    // math the "next due" date uses, and by the original issue-to-due gap
+    // so payment terms (e.g. "Net 30") carry forward unchanged.
+    const handleGenerateNext = (inv: Invoice) => {
+        if (!hasRecurringInvoiceSchedule(inv)) return;
+        const nextIssue = nextRecurringInvoiceDueDate(inv);
+        const nextIssueStr = `${nextIssue.getFullYear()}-${String(nextIssue.getMonth() + 1).padStart(2, '0')}-${String(nextIssue.getDate()).padStart(2, '0')}`;
+        const [oy, om, od] = inv.issueDate.split('-').map(Number);
+        const [dy, dm, dd] = inv.dueDate.split('-').map(Number);
+        const gapDays = Math.round((new Date(dy, dm - 1, dd).getTime() - new Date(oy, om - 1, od).getTime()) / (1000 * 60 * 60 * 24));
+        const nextDue = new Date(nextIssue);
+        nextDue.setDate(nextDue.getDate() + Math.max(0, gapDays));
+        const nextDueStr = `${nextDue.getFullYear()}-${String(nextDue.getMonth() + 1).padStart(2, '0')}-${String(nextDue.getDate()).padStart(2, '0')}`;
+
+        addInvoice({
+            invoiceNumber: nextInvoiceNumber(),
+            clientName: inv.clientName,
+            clientEmail: inv.clientEmail,
+            clientPhone: inv.clientPhone,
+            clientAddress: inv.clientAddress,
+            issueDate: nextIssueStr,
+            dueDate: nextDueStr,
+            lineItems: inv.lineItems,
+            notes: inv.notes,
+            status: 'draft',
+            subtotal: inv.subtotal,
+            taxTotal: inv.taxTotal,
+            total: inv.total,
+            earlyPaymentDiscountPct: inv.earlyPaymentDiscountPct,
+            earlyPaymentDiscountDays: inv.earlyPaymentDiscountDays,
+            isRecurring: true,
+            recurringFrequency: inv.recurringFrequency,
+        });
+        showAlert('Invoice Generated', `Created a draft invoice for the next ${inv.recurringFrequency} period, dated ${nextIssueStr}.`);
     };
 
     const updateLine = (idx: number, patch: Partial<InvoiceLineItem>) => {
@@ -393,6 +488,22 @@ export default function InvoicesScreen() {
                                     <Text style={styles.dueText}>{t(language, 'duePrefix')} {inv.dueDate}</Text>
                                     <Text style={styles.amount}>{currency}{(inv.total ?? 0).toLocaleString()}</Text>
                                 </View>
+
+                                {(() => {
+                                    const discount = computeEarlyPaymentDiscount(inv);
+                                    return discount?.eligible ? (
+                                        <Text style={styles.discountNote}>
+                                            💸 Pay by {discount.deadline} for {discount.discountPct}% off — {currency}{discount.discountedTotal.toLocaleString()}
+                                        </Text>
+                                    ) : null;
+                                })()}
+
+                                {hasRecurringInvoiceSchedule(inv) && (
+                                    <Text style={styles.recurringNote}>
+                                        🔁 Recurring {inv.recurringFrequency} · next due {nextRecurringInvoiceDueDate(inv).toISOString().split('T')[0]}
+                                    </Text>
+                                )}
+
                                 <View style={styles.actions}>
                                     <ActionBtn label={t(language, 'edit')}   onPress={() => openEdit(inv)} color={Colors.primary} />
                                     <ActionBtn label={t(language, 'share')}  onPress={() => handleShare(inv)} color={Colors.income} />
@@ -413,6 +524,9 @@ export default function InvoicesScreen() {
                                     )}
                                     {inv.status === 'draft' && (
                                         <ActionBtn label={t(language, 'sendAction')} onPress={() => markInvoiceStatus(inv.id, 'sent')} color={Colors.warning} />
+                                    )}
+                                    {hasRecurringInvoiceSchedule(inv) && isRecurringInvoiceDue(inv) && (
+                                        <ActionBtn label="Generate Next" onPress={() => handleGenerateNext(inv)} color={Colors.primary} />
                                     )}
                                     <ActionBtn label={t(language, 'delete')} onPress={() => handleDelete(inv)} color={Colors.expense} />
                                 </View>
@@ -475,13 +589,61 @@ export default function InvoicesScreen() {
                                 <FInput value={clientPhone} onChangeText={setClientPhone} placeholder="+44 7700 900000" keyboard="phone-pad" />
                                 <FLabel>{t(language, 'clientAddress')}</FLabel>
                                 <FInput value={clientAddress} onChangeText={setClientAddress} placeholder="123 Main St, City" />
+                                <FLabel>Credit Limit (optional)</FLabel>
+                                <FInput value={creditLimitInput} onChangeText={setCreditLimitInput} keyboard="numeric" placeholder="e.g. 500000" />
+                                <Text style={styles.fieldHint}>Warn me if {clientName.trim() || 'this client'}'s unpaid invoices would exceed this amount.</Text>
                             </Section>
+
+                            {/* Credit limit warning -- only shown when this client has a
+                                limit set (Settings > Customer Credit Limits) and this
+                                invoice's total would push their unpaid exposure over it. */}
+                            {creditLimitCheck?.overLimit && (
+                                <View style={styles.creditWarnCard}>
+                                    <Text style={styles.creditWarnTitle}>⚠️ Over credit limit</Text>
+                                    <Text style={styles.creditWarnText}>
+                                        {creditLimitCheck.customerName} would owe {currency}{creditLimitCheck.projectedExposure.toLocaleString()} across unpaid invoices
+                                        {' '}(existing {currency}{creditLimitCheck.currentExposure.toLocaleString()} + this one), over their {currency}{creditLimitCheck.limit.toLocaleString()} limit
+                                        {' '}by {currency}{Math.abs(creditLimitCheck.remaining).toLocaleString()}.
+                                    </Text>
+                                </View>
+                            )}
 
                             <Section title={t(language, 'invoiceDetailsSection')}>
                                 <FLabel>{t(language, 'dueDate')} *</FLabel>
                                 <DateInput value={dueDate} onChange={setDueDate} />
                                 <FLabel>{t(language, 'notes')}</FLabel>
                                 <FInput value={notes} onChangeText={setNotes} placeholder="Payment terms, bank details…" multiline />
+
+                                <FLabel>Early Payment Discount (optional)</FLabel>
+                                <View style={styles.lineRow}>
+                                    <View style={{ flex: 1 }}>
+                                        <FInput value={earlyDiscountPct} onChangeText={setEarlyDiscountPct} keyboard="numeric" placeholder="Discount %" />
+                                    </View>
+                                    <View style={{ flex: 1, marginLeft: 8 }}>
+                                        <FInput value={earlyDiscountDays} onChangeText={setEarlyDiscountDays} keyboard="numeric" placeholder="Within N days" />
+                                    </View>
+                                </View>
+                                <Text style={styles.fieldHint}>e.g. 5% off if paid within 10 days of the issue date — leave blank for no discount.</Text>
+
+                                <TouchableOpacity style={styles.recurringToggleRow} onPress={() => setIsRecurring(v => !v)}>
+                                    <View style={[styles.checkbox, isRecurring && styles.checkboxChecked]}>
+                                        {isRecurring && <Text style={styles.checkboxMark}>✓</Text>}
+                                    </View>
+                                    <Text style={styles.recurringToggleText}>This is a recurring invoice</Text>
+                                </TouchableOpacity>
+                                {isRecurring && (
+                                    <View style={styles.filterRow}>
+                                        {(['weekly', 'monthly', 'quarterly', 'yearly'] as RecurringFrequency[]).map(f => (
+                                            <TouchableOpacity
+                                                key={f}
+                                                style={[styles.filterTab, recurringFrequency === f && styles.filterTabActive]}
+                                                onPress={() => setRecurringFrequency(f)}
+                                            >
+                                                <Text style={[styles.filterText, recurringFrequency === f && styles.filterTextActive]}>{f}</Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                )}
                             </Section>
 
                             <Section title={t(language, 'lineItems')}>
@@ -562,7 +724,23 @@ export default function InvoicesScreen() {
                                 <Section title={t(language, 'datesSection')}>
                                     <DetailRow label={t(language, 'issuedLabel')} value={viewInv.issueDate} />
                                     <DetailRow label={t(language, 'duePrefix')}    value={viewInv.dueDate} />
+                                    {hasRecurringInvoiceSchedule(viewInv) && (
+                                        <DetailRow label="Recurs" value={`${viewInv.recurringFrequency} · next ${nextRecurringInvoiceDueDate(viewInv).toISOString().split('T')[0]}`} />
+                                    )}
                                 </Section>
+
+                                {(() => {
+                                    const discount = computeEarlyPaymentDiscount(viewInv);
+                                    if (!discount) return null;
+                                    return (
+                                        <Section title="Early Payment Discount">
+                                            <DetailRow label="Offer" value={`${discount.discountPct}% off within ${discount.windowDays} days`} />
+                                            <DetailRow label="Deadline" value={discount.deadline} />
+                                            <DetailRow label="If paid early" value={`${currency}${discount.discountedTotal.toLocaleString()}`} />
+                                            <DetailRow label="Status" value={discount.eligible ? `Eligible (${discount.daysLeft} day${discount.daysLeft === 1 ? '' : 's'} left)` : 'Window has passed'} />
+                                        </Section>
+                                    );
+                                })()}
 
                                 <Section title={t(language, 'lineItems')}>
                                     {(viewInv.lineItems ?? []).map((li, i) => {
@@ -769,6 +947,8 @@ const styles = StyleSheet.create({
     actionBtnText:  { fontSize: 11, fontWeight: '600' },
     whatsappBtn:    { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, backgroundColor: '#25D366' },
     whatsappBtnText:{ fontSize: 11, fontWeight: '600', color: '#fff' },
+    discountNote:  { fontSize: 11.5, color: Colors.income, fontWeight: '600', marginBottom: 8 },
+    recurringNote: { fontSize: 11.5, color: Colors.textMuted, marginBottom: 8 },
 
     legendRow:  { flexDirection: 'row', gap: Spacing.md, marginBottom: 10, flexWrap: 'wrap' },
     legendItem: { fontSize: 11, fontWeight: '600' },
@@ -785,6 +965,17 @@ const styles = StyleSheet.create({
         borderRadius: Radius.sm, paddingHorizontal: 10, paddingVertical: 9,
         color: Colors.textPrimary, fontSize: 14,
     },
+    fieldHint: { fontSize: 11, color: Colors.textMuted, marginTop: 4, lineHeight: 15 },
+
+    creditWarnCard:  { borderRadius: Radius.md, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: Colors.expense, backgroundColor: Colors.expense + '15' },
+    creditWarnTitle: { fontSize: 13, fontWeight: 'bold', marginBottom: 6, color: Colors.expense },
+    creditWarnText:  { fontSize: 12, color: Colors.textSecondary, lineHeight: 18 },
+
+    recurringToggleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: Spacing.md },
+    checkbox: { width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },
+    checkboxChecked: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+    checkboxMark: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
+    recurringToggleText: { fontSize: 13, color: Colors.textPrimary, fontWeight: '600' },
 
     lineItem:   { borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 10, marginTop: 10 },
     lineHeader: { flexDirection: 'row', justifyContent: 'space-between' },
