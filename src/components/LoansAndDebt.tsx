@@ -11,6 +11,7 @@ import LoanROICalculator from './LoanROICalculator';
 import BuyVsFinanceCalculator from './BuyVsFinanceCalculator';
 import GrowthAffordabilityCalculator from './GrowthAffordabilityCalculator';
 import LoanAffordabilityChecker from './LoanAffordabilityChecker';
+import DebtStructurePlanner from './DebtStructurePlanner';
 
 interface Props {
     finance: FinanceData;
@@ -260,6 +261,10 @@ export default function LoansAndDebt({
 
             <Collapsible title="Growth Affordability">
                 <GrowthAffordabilityCalculator currency={currency} currentCashBalance={finance.cashBalance} monthlyBurn={monthlyBurn} />
+            </Collapsible>
+
+            <Collapsible title="Debt Structure Planner">
+                <DebtStructurePlanner currency={currency} currentCashBalance={finance.cashBalance} baselineMonthlyNetCashFlow={monthlyProfit} />
             </Collapsible>
 
             <Collapsible title="Loan Affordability Check">
