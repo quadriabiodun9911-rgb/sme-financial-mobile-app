@@ -7,7 +7,7 @@ import Icon from '../components/ui/Icon';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { confirmAction } from '../utils/webAlert';
-import { loadMyActiveLoanMonitoringShares, revokeLoanMonitoringShare } from '../utils/loanMonitoringShare';
+import { loadMyActiveLoanMonitoringShares, revokeLoanMonitoringShare, renewLoanMonitoringShare } from '../utils/loanMonitoringShare';
 import { LoanMonitoringShareRow } from '../utils/loanMonitoringShare';
 import { loadMyPipelineListings, revokePipelineListing } from '../utils/financingPipeline';
 import { PipelineListing } from '../types';
@@ -18,6 +18,18 @@ function formatDate(iso: string): string {
     const d = new Date(iso);
     if (isNaN(d.getTime())) return iso;
     return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+// Shares expire on a rolling 90-day window (see loanMonitoringShare.ts) so
+// an ongoing lender view can't quietly stay open forever -- this renders
+// how much runway is left on that window, not just the raw date, since
+// "expires in 6 days" is the part that actually prompts action.
+function describeExpiry(iso: string): { text: string; soon: boolean } {
+    const days = Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000);
+    if (days <= 0) return { text: 'Expired', soon: true };
+    if (days === 1) return { text: 'Expires tomorrow', soon: true };
+    if (days <= 14) return { text: `Expires in ${days} days`, soon: true };
+    return { text: `Renews automatically · expires ${formatDate(iso)}`, soon: false };
 }
 
 // One place to see, and revoke, everyone and everything with an ongoing
@@ -63,6 +75,11 @@ export default function DataPermissionCentreScreen() {
                 setLoanShares(prev => prev?.filter(s => s.id !== share.id) ?? null);
             },
         );
+    };
+
+    const handleRenewLoanShare = async (share: LoanMonitoringShareRow) => {
+        const { ok } = await renewLoanMonitoringShare(share.loanId);
+        if (ok) refreshLoanShares();
     };
 
     const handleRevokeListing = (listing: PipelineListing) => {
@@ -138,15 +155,24 @@ export default function DataPermissionCentreScreen() {
                                 <Text style={[styles.cardBodyText, { marginTop: 6 }]}>No lender currently has an ongoing share.</Text>
                             ) : loanShares!.map(share => {
                                 const loan = loanById.get(share.loanId);
+                                const expiry = describeExpiry(share.expiresAt);
                                 return (
                                     <View key={share.id} style={styles.row}>
                                         <View style={{ flex: 1 }}>
                                             <Text style={styles.rowTitle}>{loan?.lenderName ?? 'Linked lender'}</Text>
                                             <Text style={styles.rowDetail}>{loan?.purpose ?? share.loanPurpose ?? 'Loan'} · shared since {formatDate(share.fundedAt)}</Text>
+                                            <Text style={[styles.rowDetail, expiry.soon && { color: Colors.warning, fontWeight: '700' }]}>{expiry.text}</Text>
                                         </View>
-                                        <TouchableOpacity style={styles.revokeBtn} onPress={() => handleRevokeLoanShare(share)}>
-                                            <Text style={styles.revokeBtnText}>Revoke</Text>
-                                        </TouchableOpacity>
+                                        <View style={{ gap: 6, alignItems: 'flex-end' }}>
+                                            {expiry.soon && (
+                                                <TouchableOpacity style={styles.renewBtn} onPress={() => handleRenewLoanShare(share)}>
+                                                    <Text style={styles.renewBtnText}>Renew</Text>
+                                                </TouchableOpacity>
+                                            )}
+                                            <TouchableOpacity style={styles.revokeBtn} onPress={() => handleRevokeLoanShare(share)}>
+                                                <Text style={styles.revokeBtnText}>Revoke</Text>
+                                            </TouchableOpacity>
+                                        </View>
                                     </View>
                                 );
                             })}
@@ -204,4 +230,6 @@ const styles = StyleSheet.create({
     rowDetail: { fontSize: 11.5, color: Colors.textMuted, marginTop: 2 },
     revokeBtn: { backgroundColor: Colors.expense + '22', borderRadius: Radius.pill, paddingHorizontal: 12, paddingVertical: 6 },
     revokeBtnText: { fontSize: 11.5, fontWeight: '700', color: Colors.expense },
+    renewBtn: { backgroundColor: Colors.primary + '22', borderRadius: Radius.pill, paddingHorizontal: 12, paddingVertical: 6 },
+    renewBtnText: { fontSize: 11.5, fontWeight: '700', color: Colors.primary },
 });

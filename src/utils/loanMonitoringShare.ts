@@ -33,6 +33,15 @@ function bandPrincipal(principal: number): string {
     return '50M+';
 }
 
+// Rolling consent window, not a one-time grant -- see migration 021. Reset
+// to another SHARE_EXPIRY_DAYS out on every publish/renewal, so a loan
+// actually being monitored never lapses; only a share nobody has touched
+// in three months goes stale.
+const SHARE_EXPIRY_DAYS = 90;
+function nextExpiry(): string {
+    return new Date(Date.now() + SHARE_EXPIRY_DAYS * 86400000).toISOString();
+}
+
 export async function publishLoanMonitoringShare(
     loan: Loan,
     monitor: PostFinancingMonitor,
@@ -66,6 +75,7 @@ export async function publishLoanMonitoringShare(
             currency,
             funded_at: loan.startDate,
             consent_active: true,
+            expires_at: nextExpiry(),
             updated_at: new Date().toISOString(),
         };
 
@@ -99,6 +109,27 @@ export async function revokeLoanMonitoringShare(loanId: string): Promise<{ ok: b
     }
 }
 
+// Manual extension for the Data Permission Centre's "Renew" action -- the
+// automatic rolling renewal in publishLoanMonitoringShare only fires when
+// the monitor's own status/trend/flags actually change (see LoansScreen's
+// useEffect), so a loan that's been genuinely stable for months could
+// otherwise lapse with nothing wrong. This bumps expires_at without
+// requiring a fresh monitor computation.
+export async function renewLoanMonitoringShare(loanId: string): Promise<{ ok: boolean }> {
+    try {
+        const userId = await getAuthUserId();
+        if (!userId) return { ok: false };
+        const { error } = await supabase
+            .from('loan_monitoring_shares')
+            .update({ expires_at: nextExpiry(), updated_at: new Date().toISOString() })
+            .eq('business_user_id', userId)
+            .eq('loan_id', loanId);
+        return { ok: !error };
+    } catch {
+        return { ok: false };
+    }
+}
+
 // ─── Lender side (Phase 2b/2c) ──────────────────────────────────────────
 // The one read a lender session does against this table. No lender_org_id
 // filter is applied client-side -- RLS ("Active lenders can read consented
@@ -119,6 +150,7 @@ export interface LoanMonitoringShareRow {
     currency?: string;
     fundedAt: string;
     updatedAt: string;
+    expiresAt: string;
 }
 
 // Rough midpoint of each band, for an ESTIMATED portfolio total only --
@@ -173,11 +205,12 @@ export function getDemoPortfolioShares(): LoanMonitoringShareRow[] {
     // see demoData.ts's own `d()` helper) rather than a full ISO timestamp,
     // which would otherwise print the literal "T21:00:...Z" suffix.
     const daysAgoDate = (n: number) => daysAgo(n).split('T')[0];
+    const daysFromNow = (n: number) => new Date(now.getTime() + n * 86400000).toISOString();
     return [
-        { id: 'demo-p1', loanId: 'demo-loan-1', businessName: 'Sample Foods Co. (Demo)', status: 'healthy', readinessTrend: 'improving', dscrFlag: false, revenueDeclineFlag: false, repaymentPaceFlag: false, loanPurpose: 'Working capital', principalBand: '2M–10M', currency: '₦', fundedAt: daysAgoDate(210), updatedAt: daysAgo(2) },
-        { id: 'demo-p2', loanId: 'demo-loan-2', businessName: 'Demo Textiles Ltd.', status: 'watch', readinessTrend: 'stable', dscrFlag: true, revenueDeclineFlag: false, repaymentPaceFlag: false, loanPurpose: 'Asset financing', principalBand: '500K–2M', currency: '₦', fundedAt: daysAgoDate(140), updatedAt: daysAgo(5) },
-        { id: 'demo-p3', loanId: 'demo-loan-3', businessName: 'Sample Logistics (Demo)', status: 'at-risk', readinessTrend: 'declining', dscrFlag: true, revenueDeclineFlag: true, repaymentPaceFlag: true, loanPurpose: 'Fleet expansion', principalBand: '10M–50M', currency: '₦', fundedAt: daysAgoDate(300), updatedAt: daysAgo(1) },
-        { id: 'demo-p4', loanId: 'demo-loan-4', businessName: 'Demo Home Goods Co.', status: 'healthy', readinessTrend: 'improving', dscrFlag: false, revenueDeclineFlag: false, repaymentPaceFlag: false, loanPurpose: 'Inventory restock', principalBand: '500K–2M', currency: '₦', fundedAt: daysAgoDate(95), updatedAt: daysAgo(3) },
+        { id: 'demo-p1', loanId: 'demo-loan-1', businessName: 'Sample Foods Co. (Demo)', status: 'healthy', readinessTrend: 'improving', dscrFlag: false, revenueDeclineFlag: false, repaymentPaceFlag: false, loanPurpose: 'Working capital', principalBand: '2M–10M', currency: '₦', fundedAt: daysAgoDate(210), updatedAt: daysAgo(2), expiresAt: daysFromNow(88) },
+        { id: 'demo-p2', loanId: 'demo-loan-2', businessName: 'Demo Textiles Ltd.', status: 'watch', readinessTrend: 'stable', dscrFlag: true, revenueDeclineFlag: false, repaymentPaceFlag: false, loanPurpose: 'Asset financing', principalBand: '500K–2M', currency: '₦', fundedAt: daysAgoDate(140), updatedAt: daysAgo(5), expiresAt: daysFromNow(85) },
+        { id: 'demo-p3', loanId: 'demo-loan-3', businessName: 'Sample Logistics (Demo)', status: 'at-risk', readinessTrend: 'declining', dscrFlag: true, revenueDeclineFlag: true, repaymentPaceFlag: true, loanPurpose: 'Fleet expansion', principalBand: '10M–50M', currency: '₦', fundedAt: daysAgoDate(300), updatedAt: daysAgo(1), expiresAt: daysFromNow(89) },
+        { id: 'demo-p4', loanId: 'demo-loan-4', businessName: 'Demo Home Goods Co.', status: 'healthy', readinessTrend: 'improving', dscrFlag: false, revenueDeclineFlag: false, repaymentPaceFlag: false, loanPurpose: 'Inventory restock', principalBand: '500K–2M', currency: '₦', fundedAt: daysAgoDate(95), updatedAt: daysAgo(3), expiresAt: daysFromNow(87) },
     ];
 }
 
@@ -193,7 +226,8 @@ export async function countMyActiveLoanMonitoringShares(): Promise<number> {
             .from('loan_monitoring_shares')
             .select('id', { count: 'exact', head: true })
             .eq('business_user_id', userId)
-            .eq('consent_active', true);
+            .eq('consent_active', true)
+            .gt('expires_at', new Date().toISOString());
         if (error) return 0;
         return count ?? 0;
     } catch {
@@ -216,6 +250,7 @@ export async function loadMyActiveLoanMonitoringShares(): Promise<LoanMonitoring
             .select('*')
             .eq('business_user_id', userId)
             .eq('consent_active', true)
+            .gt('expires_at', new Date().toISOString())
             .order('updated_at', { ascending: false });
         if (error || !data) return [];
         return (data as any[]).map(r => ({
@@ -232,6 +267,7 @@ export async function loadMyActiveLoanMonitoringShares(): Promise<LoanMonitoring
             currency: r.currency ?? undefined,
             fundedAt: r.funded_at,
             updatedAt: r.updated_at,
+            expiresAt: r.expires_at,
         }));
     } catch {
         return [];
@@ -262,6 +298,7 @@ export async function loadPortfolioSharesForLender(): Promise<LoanMonitoringShar
             currency: r.currency ?? undefined,
             fundedAt: r.funded_at,
             updatedAt: r.updated_at,
+            expiresAt: r.expires_at,
         }));
     } catch {
         return [];

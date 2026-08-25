@@ -13,6 +13,7 @@ const makeRow = (overrides: Partial<LoanMonitoringShareRow> = {}): LoanMonitorin
     currency: '₦',
     fundedAt: '2026-01-01',
     updatedAt: '2026-01-01',
+    expiresAt: '2026-04-01',
     ...overrides,
 });
 

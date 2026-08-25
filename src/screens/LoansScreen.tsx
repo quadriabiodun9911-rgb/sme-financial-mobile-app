@@ -882,7 +882,7 @@ const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transa
                                     <View style={{ flex: 1 }}>
                                         <Text style={s.marketplaceToggleLabel}>Keep {loan.lenderName || 'this lender'} updated on this loan's status</Text>
                                         <Text style={s.marketplaceToggleHint}>
-                                            Only the status above (Healthy/Watch/At Risk), the trend, and which signals are flagged — never transaction data, exact figures, or account details. Updates automatically as your numbers change. Revocable any time.
+                                            Only the status above (Healthy/Watch/At Risk), the trend, and which signals are flagged — never transaction data, exact figures, or account details. Updates automatically as your numbers change, renewing the share for another 90 days each time. Revocable any time.
                                         </Text>
                                     </View>
                                 </TouchableOpacity>
