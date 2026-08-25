@@ -640,6 +640,55 @@ export function generateNarrativeSummary(
   return parts.join(' ');
 }
 
+export interface FinancialInsightCard {
+  icon: string;
+  label: string;
+  text: string;
+}
+
+/**
+ * Same underlying data as generateNarrativeSummary, split into three
+ * scannable cards instead of one paragraph — the "aha moment" format for
+ * someone seeing their numbers analyzed for the first time (e.g. right
+ * after a bank-statement import), where three short labeled cards read
+ * faster than a paragraph. Deterministic, no LLM call: every clause traces
+ * back to a field already on `diagnosis`.
+ */
+export function buildFinancialHealthInsightCards(diagnosis: DiagnosisResult): FinancialInsightCard[] {
+  const { metrics, diagnoses, topOpportunities } = diagnosis;
+  const cards: FinancialInsightCard[] = [];
+
+  const top = diagnoses[0];
+  cards.push({
+    icon: '⚠️',
+    label: 'What Quad360 noticed',
+    text: top
+      ? `${capitalizeFirst(top.problem)}. ${capitalizeFirst(top.impact)}.`
+      : 'No urgent risks stand out in this data — the fundamentals look healthy.',
+  });
+
+  cards.push({
+    icon: '💡',
+    label: 'Opportunity',
+    text: topOpportunities.length > 0
+      ? capitalizeFirst(topOpportunities[0])
+      : 'Keep recording consistently — more history unlocks sharper recommendations.',
+  });
+
+  const growth = metrics.monthOverMonthGrowth;
+  let outlook: string;
+  if (metrics.profitTrend === 'improving') {
+    outlook = `Revenue is trending up (${growth.toFixed(0)}% month over month). Keep doing what's working.`;
+  } else if (metrics.profitTrend === 'declining') {
+    outlook = `Revenue is trending down (${Math.abs(growth).toFixed(0)}% month over month) — addressing this early keeps it from compounding.`;
+  } else {
+    outlook = 'Revenue has held steady. A few more months of data will let Quad360 forecast where this is headed.';
+  }
+  cards.push({ icon: '📈', label: 'Outlook', text: outlook });
+
+  return cards;
+}
+
 export function performFinancialDiagnosis(
   transactions: Transaction[],
   invoices: Invoice[],

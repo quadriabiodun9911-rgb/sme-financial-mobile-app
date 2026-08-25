@@ -14,7 +14,7 @@ import Icon from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { parsePdfStatement } from '../utils/pdfParser';
 import { filterNewTransactions } from '../utils/transactionDedup';
-import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
+import { performFinancialDiagnosis, buildFinancialHealthInsightCards } from '../utils/financialDiagnosisEngine';
 import { getMonthlyExpenseAverage } from '../utils/finance';
 import { scanStatementImage, ScannedTransaction, ScanMediaType } from '../utils/statementScan';
 import { confirmAction } from '../utils/webAlert';
@@ -880,7 +880,6 @@ export default function ImportTransactionsScreen() {
     // STEP: DONE
     // ─────────────────────────────────────────────────────────────────────────
     if (step === 'done') {
-        const topIssue = diagnosis && diagnosis.diagnoses.length > 0 ? diagnosis.diagnoses[0] : null;
         const healthColor = diagnosis
             ? diagnosis.healthStatus === 'healthy' ? '#22c55e' : diagnosis.healthStatus === 'warning' ? '#f59e0b' : '#ef4444'
             : Colors.textMuted;
@@ -899,28 +898,33 @@ export default function ImportTransactionsScreen() {
                 )}
 
                 {/* What this import actually means, right here — instead of
-                    making the business owner navigate away to find out.
-                    Mirrors performFinancialDiagnosis's own severity-first
-                    ordering: whatever it ranked most critical is what shows. */}
+                    making the business owner navigate away to find out. The
+                    "aha moment": a score, then three scannable cards (what
+                    we noticed / the opportunity / where this is headed)
+                    built from the same diagnosis data, not a separate call. */}
                 {diagnosis && (
-                    <View style={styles.diagnosisPreviewCard}>
-                        <View style={styles.diagnosisPreviewHeader}>
-                            <Text style={styles.diagnosisPreviewLabel}>Business health, based on this data</Text>
-                            <View style={[styles.diagnosisPreviewBadge, { backgroundColor: healthColor + '22' }]}>
-                                <Text style={[styles.diagnosisPreviewScore, { color: healthColor }]}>{diagnosis.overallHealth}/100</Text>
+                    <>
+                        <View style={styles.diagnosisPreviewCard}>
+                            <View style={styles.diagnosisPreviewHeader}>
+                                <Text style={styles.diagnosisPreviewLabel}>Business health, based on this data</Text>
+                                <View style={[styles.diagnosisPreviewBadge, { backgroundColor: healthColor + '22' }]}>
+                                    <Text style={[styles.diagnosisPreviewScore, { color: healthColor }]}>{diagnosis.overallHealth}/100</Text>
+                                </View>
                             </View>
                         </View>
-                        {topIssue ? (
-                            <>
-                                <Text style={styles.diagnosisPreviewProblem}>{topIssue.problem}</Text>
-                                <Text style={styles.diagnosisPreviewImpact}>
-                                    Estimated impact: {currency}{Math.round(topIssue.financialImpact).toLocaleString()}
-                                </Text>
-                            </>
-                        ) : (
-                            <Text style={styles.diagnosisPreviewProblem}>No urgent issues found in this data — nice work.</Text>
-                        )}
-                    </View>
+
+                        <View style={styles.insightCardStack}>
+                            {buildFinancialHealthInsightCards(diagnosis).map(card => (
+                                <View key={card.label} style={styles.insightCard}>
+                                    <Text style={styles.insightCardIcon}>{card.icon}</Text>
+                                    <View style={styles.insightCardBody}>
+                                        <Text style={styles.insightCardLabel}>{card.label}</Text>
+                                        <Text style={styles.insightCardText}>{card.text}</Text>
+                                    </View>
+                                </View>
+                            ))}
+                        </View>
+                    </>
                 )}
 
                 {/* How much to trust the score above -- especially important
@@ -1225,6 +1229,17 @@ const styles = StyleSheet.create({
     diagnosisPreviewScore: { fontSize: 13, fontWeight: '800' },
     diagnosisPreviewProblem: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, lineHeight: 20 },
     diagnosisPreviewImpact: { fontSize: 12, color: Colors.textSecondary, marginTop: 6 },
+
+    insightCardStack: { width: '100%', maxWidth: 340, gap: Spacing.sm, marginTop: Spacing.sm },
+    insightCard: {
+        flexDirection: 'row', alignItems: 'flex-start', gap: 10,
+        backgroundColor: Colors.surface, borderRadius: 14, padding: Spacing.md,
+        borderWidth: 1, borderColor: Colors.border,
+    },
+    insightCardIcon: { fontSize: 18, lineHeight: 22 },
+    insightCardBody: { flex: 1 },
+    insightCardLabel: { fontSize: 10.5, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 3 },
+    insightCardText: { fontSize: 13, color: Colors.textPrimary, lineHeight: 19 },
 
     // Done screen
     doneIconBadge: {
