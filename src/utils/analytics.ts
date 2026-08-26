@@ -134,3 +134,13 @@ export function trackGoalCreated(goalType: string) {
 export function trackDataExported() {
     send('data_exported');
 }
+
+// The one metric that matters more than registration count for a product
+// whose whole pitch is "understand your business, not just record it" --
+// whether the analysis just shown actually told the business owner
+// something they didn't already know. `source` identifies which moment
+// asked (e.g. 'import-done'), so this can be reused at other
+// analysis-reveal points later without losing the ability to compare them.
+export function trackAhaMomentFeedback(source: string, discoveredSomething: boolean, discovery?: string) {
+    send('aha_moment_feedback', { source, discovered_something: discoveredSomething, discovery: discovery || undefined });
+}

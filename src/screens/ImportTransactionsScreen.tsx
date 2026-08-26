@@ -21,6 +21,7 @@ import { confirmAction } from '../utils/webAlert';
 import { TxCategory, classifyByDescription, loadLearnedRules, learnCategory, normalise } from '../utils/transactionCategorization';
 import { auditEvents } from '../utils/auditLog';
 import DataConfidenceBadge from '../components/DataConfidenceBadge';
+import AhaMomentFeedback from '../components/AhaMomentFeedback';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -933,6 +934,12 @@ export default function ImportTransactionsScreen() {
                 <View style={{ width: '100%', maxWidth: 320 }}>
                     <DataConfidenceBadge transactions={transactions} />
                 </View>
+
+                {/* The one measurement that matters more than signup count
+                    for a product whose pitch is "understand your business,"
+                    asked right where the analysis was just shown -- not
+                    buried in a settings menu or a separate survey email. */}
+                {diagnosis && <AhaMomentFeedback source="import-done" />}
 
                 {/* This is the "give value before asking for money" moment —
                     the free 4-pillar audit (Money/Performance/Cash/Readiness)
