@@ -46,8 +46,10 @@ import { getUninvoicedOverdueTransactions } from '../utils/overdueTransactions';
 import { getTaxDeadlineStatus } from '../utils/taxDeadline';
 import { isRecurringTransactionOverdue, daysUntilRecurringDue, hasRecurringSchedule } from '../utils/recurringTransactions';
 import { isBudgetActiveForPeriod, isBudgetPeriodLapsed, currentPeriodString } from '../utils/budgetPeriod';
-import { computeAssetsNearingReplacement, computeAssetCurrentValue, getMonthlyExpenseAverage, computeOneThingInsight } from '../utils/finance';
-import { computeStockVelocity } from '../utils/stockVelocity';
+import { computeAssetsNearingReplacement, computeAssetCurrentValue, getMonthlyExpenseAverage, computeOneThingInsight, computeRiskScore, computeDSCR } from '../utils/finance';
+import { computeStockVelocity, computeInventoryValue } from '../utils/stockVelocity';
+import { computeDataQuality } from '../utils/dataQuality';
+import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
 import { computeTaxAbilityToPay } from '../utils/taxFilingReadiness';
 import { detectFinancialAlerts, DEFAULT_THRESHOLDS } from '../utils/alertEngine';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
@@ -305,6 +307,29 @@ export default function DashboardScreen() {
             .filter(r => r.confidence === 'strong' && r.productType !== 'working_capital');
         return recs[0] ?? null;
     }, [transactions, loans, settings, user, readinessHistory, invoices, assets, inventory]);
+
+    // "How much could my business realistically borrow" -- the same estimate
+    // Credit-Worthiness and the Financing Marketplace already compute, just
+    // surfaced ambiently here instead of only after a business owner goes
+    // looking for it. Same >=5-transaction noise gate as diagnosisForNextGoal
+    // (computeDataQuality's own 'none'/'limited' bands already return a
+    // "not enough history" estimate below that threshold, but skipping the
+    // card entirely is more honest than showing a hedge-everything result).
+    const financingCapacity = useMemo(() => {
+        if (transactions.length < 5) return null;
+        const fitInput = buildFinancingFitInput(transactions, loans, settings, user);
+        const risk = computeRiskScore(finance, loans, transactions, inventory);
+        const dscr = computeDSCR(transactions, loans);
+        const dataQuality = computeDataQuality(transactions);
+        const inventoryValue = computeInventoryValue(inventory);
+        return computeLendingCapacityEstimate({
+            overallCreditScore: risk.score,
+            avgMonthlyRevenue: fitInput.avgMonthlyRevenue,
+            dscr: dscr.dscr,
+            hasReliableData: dataQuality.confidence !== 'none' && dataQuality.confidence !== 'limited',
+            inventoryValue,
+        });
+    }, [transactions, loans, settings, user, finance, inventory]);
 
     // Best-effort device notification mirroring the dashboard card above —
     // notifyFinancingOpportunity throttles itself to once per 14 days, so
@@ -874,6 +899,21 @@ export default function DashboardScreen() {
                 </View>
                 )}
 
+                {/* WHAT QUAD360 SEES — the plain-language "what does this
+                    mean" that Vital Signs' raw numbers above don't answer on
+                    their own. Reuses diagnosisForNextGoal's own
+                    narrativeSummary (already computed above for the goal-
+                    celebration flow) rather than a second engine call — same
+                    fixed-template synthesis, no LLM. Held to the same
+                    >=5-transaction gate as that diagnosis so a near-empty
+                    account doesn't get a guessed narrative. */}
+                {canViewFinancials && diagnosisForNextGoal && (
+                  <View style={styles.narrativeCard}>
+                    <Text style={styles.narrativeEyebrow}>WHAT QUAD360 SEES</Text>
+                    <Text style={styles.narrativeText}>{diagnosisForNextGoal.narrativeSummary}</Text>
+                  </View>
+                )}
+
                 {personalSpending.flaggedCount > 0 && (
                   <TouchableOpacity
                     style={styles.personalSpendingBanner}
@@ -1089,6 +1129,35 @@ export default function DashboardScreen() {
                       );
                     })}
                   </View>
+                )}
+
+                {/* IF YOU NEED CAPITAL — an ambient answer to "how much
+                    could my business realistically borrow", not just a
+                    marketplace listing to browse. Reuses financingCapacity
+                    (computeLendingCapacityEstimate — the exact same estimate
+                    Credit-Worthiness and the Financing Marketplace already
+                    show) so this is visible without going looking for
+                    financing first. Hidden below 'not-yet-bankable' since a
+                    ₦0–₦0 range with no encouraging framing isn't worth a
+                    dashboard card -- CreditWorthinessScreen is still the
+                    place that explains what to fix. */}
+                {canViewFinancials && financingCapacity && financingCapacity.tier !== 'not-yet-bankable' && (
+                  <TouchableOpacity
+                    style={styles.capacityCard}
+                    onPress={() => setCurrentScreen('financing-marketplace')}
+                    activeOpacity={0.85}
+                  >
+                    <View style={styles.sectionTitleRow}>
+                      <Icon name="briefcase" size={13} color={Colors.textMuted} />
+                      <Text style={styles.operationsSectionTitle}>If You Need Capital</Text>
+                    </View>
+                    <Text style={styles.capacityAmount}>
+                      {currency}{Math.round(financingCapacity.minAmount).toLocaleString()}–{currency}{Math.round(financingCapacity.maxAmount).toLocaleString()}
+                    </Text>
+                    <Text style={styles.capacitySubtext}>
+                      Estimated financing capacity ({financingCapacity.tierLabel.toLowerCase()}) based on your current financial performance — see matched options →
+                    </Text>
+                  </TouchableOpacity>
                 )}
 
                 {/* Risk Radar -- what could stop growth, not what needs
@@ -1661,6 +1730,22 @@ const styles = StyleSheet.create({
         ...Shadow.sm,
     },
     progressCardText: { flex: 1, fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
+
+    narrativeCard: {
+        backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1.5,
+        borderColor: Colors.primary + '33', padding: Spacing.md, marginBottom: Spacing.lg,
+        ...Shadow.sm,
+    },
+    narrativeEyebrow: { fontSize: 11, fontWeight: '800', color: Colors.primary, letterSpacing: 0.5, marginBottom: 6 },
+    narrativeText: { fontSize: 13, color: Colors.textPrimary, lineHeight: 19 },
+
+    capacityCard: {
+        backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1,
+        borderColor: Colors.border, padding: Spacing.md, marginBottom: Spacing.lg,
+        ...Shadow.sm,
+    },
+    capacityAmount: { fontSize: 20, fontWeight: '800', color: Colors.textPrimary, marginTop: 2, marginBottom: 4 },
+    capacitySubtext: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
 
     celebrationCard: {
         backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1.5,

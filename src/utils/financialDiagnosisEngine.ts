@@ -318,7 +318,7 @@ export function diagnoseProfitability(
       problem: `Low profit margin (${metrics.profitMargin.toFixed(1)}% vs target ${INDUSTRY_BENCHMARKS.profitMargin}%)`,
       severity: metrics.profitMargin < 10 ? 'critical' : 'warning',
       rootCause: 'Expenses too high relative to revenue',
-      impact: `Losing ${currency}${potentialGain.toLocaleString()} potential profit monthly`,
+      impact: `Losing ${currency}${Math.round(potentialGain).toLocaleString()} potential profit monthly`,
       financialImpact: potentialGain,
       opportunity: 'Increase prices or reduce expenses',
       suggestedGoalType: 'margin_improvement',
@@ -401,7 +401,7 @@ export function diagnoseLiquidity(
       problem: `Slow-paying customers (${metrics.daysOutstanding}-day average vs ${INDUSTRY_BENCHMARKS.daysOutstandingTarget}-day target)`,
       severity,
       rootCause: 'Customers paying slowly (high DSO)',
-      impact: `${currency}${metrics.accountsReceivable.toLocaleString()} tied up in outstanding customer receivables`,
+      impact: `${currency}${Math.round(metrics.accountsReceivable).toLocaleString()} tied up in outstanding customer receivables`,
       financialImpact: metrics.accountsReceivable,
       opportunity: 'Implement strict payment terms; offer early payment discounts',
       suggestedGoalType: 'reduce_overdue_ar',
@@ -445,7 +445,7 @@ export function diagnoseDebt(
       rootCause: metrics.dscr < 1.0
         ? 'Operating income does not cover current debt obligations'
         : 'Operating income covers debt but with little margin for a bad month',
-      impact: `${currency}${metrics.monthlyDebtService.toLocaleString()} in monthly debt service against current income`,
+      impact: `${currency}${Math.round(metrics.monthlyDebtService).toLocaleString()} in monthly debt service against current income`,
       financialImpact: metrics.monthlyDebtService,
       opportunity: 'Grow operating income, refinance for lower payments, or pause new borrowing until DSCR recovers',
       dimension: 'debt',
