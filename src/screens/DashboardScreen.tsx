@@ -301,10 +301,10 @@ export default function DashboardScreen() {
     const financingOpportunity = useMemo(() => {
         const fitInput = buildFinancingFitInput(transactions, loans, settings, user);
         const readinessTrend = computeReadinessDelta(readinessHistory)?.trend ?? null;
-        const recs = recommendFinancingTypes({ fitInput, invoices, assets, readinessTrend }, settings.currency)
+        const recs = recommendFinancingTypes({ fitInput, invoices, assets, readinessTrend, transactions, inventory }, settings.currency)
             .filter(r => r.confidence === 'strong' && r.productType !== 'working_capital');
         return recs[0] ?? null;
-    }, [transactions, loans, settings, user, readinessHistory, invoices, assets]);
+    }, [transactions, loans, settings, user, readinessHistory, invoices, assets, inventory]);
 
     // Best-effort device notification mirroring the dashboard card above —
     // notifyFinancingOpportunity throttles itself to once per 14 days, so

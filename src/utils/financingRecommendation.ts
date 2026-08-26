@@ -16,10 +16,12 @@
  * that's always a defensible answer to "I don't know what I need."
  */
 
-import { Asset, FinancingProductType, Invoice } from '../types';
+import { Asset, FinancingProductType, Invoice, Transaction, InventoryItem } from '../types';
 import { FinancingFitInput } from './financingFit';
 import { computeAssetsNearingReplacement } from './finance';
 import { ReadinessTrend } from './readinessHistory';
+import { computeStockVelocity } from './stockVelocity';
+import { computeSeasonalityPattern } from './seasonality';
 
 export interface FinancingRecommendation {
     productType: FinancingProductType;
@@ -33,6 +35,8 @@ export interface FinancingRecommendationInput {
     invoices: Invoice[];
     assets: Asset[];
     readinessTrend: ReadinessTrend | null;
+    transactions: Transaction[];
+    inventory: InventoryItem[];
 }
 
 function fmtAmt(currency: string, n: number): string {
@@ -43,7 +47,7 @@ function fmtAmt(currency: string, n: number): string {
 }
 
 export function recommendFinancingTypes(input: FinancingRecommendationInput, currency: string): FinancingRecommendation[] {
-    const { fitInput, invoices, assets, readinessTrend } = input;
+    const { fitInput, invoices, assets, readinessTrend, transactions, inventory } = input;
     const recs: FinancingRecommendation[] = [];
 
     // Invoice financing: real, meaningful uncollected revenue sitting in
@@ -77,6 +81,44 @@ export function recommendFinancingTypes(input: FinancingRecommendationInput, cur
             confidence: agingAssets.length >= 2 ? 'strong' : 'moderate',
             reasons: [
                 `${agingAssets.length} of your asset${agingAssets.length === 1 ? '' : 's'} — including ${agingAssets[0].name} — ${agingAssets.length === 1 ? 'is' : 'are'} nearing end of useful life. Asset financing spreads the cost of replacing ${agingAssets.length === 1 ? 'it' : 'them'} instead of paying upfront.`,
+            ],
+        });
+    }
+
+    // Trade / purchase-order financing: fast-moving inventory at real risk
+    // of stocking out soon (computeStockVelocity's 'fast' tier -- days of
+    // stock left below the threshold, the same signal the Dashboard's own
+    // stockout alert uses) is exactly "demand exceeding current cash/stock
+    // position": the textbook PO-financing scenario, whether the next
+    // order is a confirmed customer commitment or just clearly needed to
+    // keep shelves full.
+    const fastMovingItems = inventory.filter(i => computeStockVelocity(i, transactions).tier === 'fast');
+    if (fastMovingItems.length > 0) {
+        recs.push({
+            productType: 'trade_finance',
+            label: 'Purchase Order / Trade Finance',
+            confidence: fastMovingItems.length >= 3 ? 'strong' : 'moderate',
+            reasons: [
+                `${fastMovingItems.length} item${fastMovingItems.length === 1 ? ' is' : 's are'} selling fast enough to run out soon (including ${fastMovingItems[0].name}) — trade or purchase-order financing funds the next order now instead of losing sales to a stockout while cash is tied up elsewhere.`,
+            ],
+        });
+    }
+
+    // Overdraft / line of credit: a demonstrated seasonal swing in revenue
+    // (computeSeasonalityPattern -- gated on a real year of history, not a
+    // guess) is the textbook "recurring but variable" cash-flow shape a
+    // revolving facility is built for, unlike a fixed-term loan sized for
+    // the peak.
+    const seasonality = computeSeasonalityPattern(transactions);
+    if (seasonality.available && (seasonality.peakMonths.length > 0 || seasonality.troughMonths.length > 0)) {
+        const swingMonth = seasonality.troughMonths[0] ?? seasonality.peakMonths[0];
+        const swingPct = Math.round(Math.abs(swingMonth.index - 1) * 100);
+        recs.push({
+            productType: 'overdraft',
+            label: 'Overdraft / Line of Credit',
+            confidence: seasonality.troughMonths.length > 0 && seasonality.peakMonths.length > 0 ? 'strong' : 'moderate',
+            reasons: [
+                `Your revenue swings by about ${swingPct}% around ${swingMonth.monthName} most years — an overdraft or line of credit lets you draw only what you need through the slow stretch and repay as sales pick back up, instead of committing to a fixed loan sized for your peak.`,
             ],
         });
     }

@@ -259,8 +259,8 @@ export default function FinancingMarketplaceScreen() {
     // least one recommendation (see financingRecommendation.ts's Working
     // Capital fallback), so this is never an empty state.
     const recommendations = useMemo(
-        () => recommendFinancingTypes({ fitInput, invoices, assets, readinessTrend: readinessDelta?.trend ?? null }, currency),
-        [fitInput, invoices, assets, readinessDelta, currency],
+        () => recommendFinancingTypes({ fitInput, invoices, assets, readinessTrend: readinessDelta?.trend ?? null, transactions, inventory }, currency),
+        [fitInput, invoices, assets, readinessDelta, currency, transactions, inventory],
     );
 
     // Real, admin-managed listings replace the illustrative sample list the
