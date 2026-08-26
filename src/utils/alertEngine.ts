@@ -1,7 +1,7 @@
 import { Transaction, Invoice, Loan, StaffMember, PayrollRun, FinancialGoal, Budget, Asset, InventoryItem } from '../types';
 import { ForecastAlert, AlertThresholds, CashFlowForecast, ForecastInput } from '../types/forecast';
 import { generateCashFlowForecast } from './forecastEngine';
-import { computeMonthlyTrend, formatCurrencyAbbreviated } from './finance';
+import { computeMonthlyTrend, formatCurrencyAbbreviated, latestTransactionDate } from './finance';
 import { nextLoanPaymentDueDate, daysUntilLoanPaymentDue, isLoanPaymentOverdue } from './loanMath';
 import { getPayrollReminderStatus, DEFAULT_PAYROLL_DUE_SOON_DAY } from './payrollReminders';
 import { getUninvoicedOverdueTransactions } from './overdueTransactions';
@@ -878,7 +878,12 @@ export const buildForecastInput = (
   invoices: Invoice[],
   currency?: string
 ): ForecastInput => {
-  const [currentMonth] = computeMonthlyTrend(transactions, 1);
+  // Anchored to the latest transaction date, not real-world "now" -- a
+  // business whose most recent activity predates the literal current
+  // calendar month would otherwise get a false 0-revenue/0-expense
+  // "current month" here, starving the whole cash-flow forecast below of
+  // its baseline (see latestTransactionDate's own comment).
+  const [currentMonth] = computeMonthlyTrend(transactions, 1, latestTransactionDate(transactions) ?? undefined);
 
   return {
     currentCash,

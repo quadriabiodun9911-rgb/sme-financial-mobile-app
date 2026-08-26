@@ -561,6 +561,22 @@ export function filterByDateRange(transactions: Transaction[], range: DateRange)
     return transactions.filter(t => t.date >= range.from && t.date <= range.to);
 }
 
+// The single shared "what should count as 'now' for this business's data"
+// anchor -- the most recent transaction date, not the real-world calendar
+// date. Any trailing-months calculation (forecast baselines, trend charts
+// feeding a diagnosis) that hardcodes real `now` silently goes blank for
+// an account whose most recent activity predates the literal current
+// calendar month -- an imported historical statement, a demo business, or
+// just no activity logged yet this month -- even though the business has
+// real history to work from. Returns null only when there's no data at
+// all, so callers can fall back to real `now` in that one genuine case.
+export function latestTransactionDate(transactions: Transaction[]): Date | null {
+    return transactions.reduce<Date | null>((latest, t) => {
+        const d = new Date(t.date + 'T00:00:00');
+        return isNaN(d.getTime()) ? latest : (!latest || d > latest ? d : latest);
+    }, null);
+}
+
 export function getPreviousPeriodRange(period: ReportPeriod, anchorDate?: Date): { current: DateRange; previous: DateRange } {
     const now = anchorDate ?? new Date();
     const today = now.toISOString().split('T')[0];
@@ -610,8 +626,8 @@ export interface MonthlyPoint {
     profit: number;
 }
 
-export function computeMonthlyTrend(transactions: Transaction[], months = 6): MonthlyPoint[] {
-    const now = new Date();
+export function computeMonthlyTrend(transactions: Transaction[], months = 6, anchorDate?: Date): MonthlyPoint[] {
+    const now = anchorDate ?? new Date();
     const points: MonthlyPoint[] = [];
     for (let i = months - 1; i >= 0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
@@ -689,8 +705,8 @@ export interface ForecastPoint {
     worstCase: number;
 }
 
-export function computeRevenueForecast(transactions: Transaction[], months: 3 | 6 | 12): ForecastPoint[] {
-    const now = new Date();
+export function computeRevenueForecast(transactions: Transaction[], months: 3 | 6 | 12, anchorDate?: Date): ForecastPoint[] {
+    const now = anchorDate ?? new Date();
     // Get last 6 months of income data
     const last6: number[] = [];
     for (let i = 5; i >= 0; i--) {

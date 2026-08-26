@@ -1,5 +1,5 @@
 import { Transaction, FinanceData, Loan } from '../types';
-import { computeRevenueForecast } from './finance';
+import { computeRevenueForecast, latestTransactionDate } from './finance';
 import { totalMonthlyLoanBurden } from './loanMath';
 
 const TRAILING_MONTHS = 3;
@@ -67,7 +67,9 @@ export function generateAutoBudget(
     // Forward-looking revenue: next month's forecast (trend-adjusted) rather
     // than a flat trailing figure, so the budget anticipates where the
     // business is heading, not just where it's been.
-    const forecast = computeRevenueForecast(transactions, 3);
+    // Anchored to the latest transaction date, not real-world "now" -- see
+    // latestTransactionDate's comment.
+    const forecast = computeRevenueForecast(transactions, 3, latestTransactionDate(transactions) ?? undefined);
     const projectedRevenue = forecast.length > 0 && forecast[0].projected > 0
         ? forecast[0].projected
         : finance.income;

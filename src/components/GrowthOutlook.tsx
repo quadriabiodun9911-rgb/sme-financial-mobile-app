@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
 import { Colors } from '../theme/colors';
 import { FinanceData, Transaction } from '../types';
-import { computeMonthlyTrend } from '../utils/finance';
+import { computeMonthlyTrend, latestTransactionDate } from '../utils/finance';
 import { computeMarginPct } from '../utils/priceHistory';
 import NextStepLink from './NextStepLink';
 import GroupedBarChart from './GroupedBarChart';
@@ -122,7 +122,11 @@ export default function GrowthOutlook({ finance, transactions, currency, targetM
     const [customIncome, setCustomIncome] = useState(0);
     const [customCost, setCustomCost] = useState(0);
 
-    const trend6mo = useMemo(() => computeMonthlyTrend(transactions, 6), [transactions]);
+    // Anchored to the latest transaction date, not real-world "now" -- an
+    // account with no activity in the literal current calendar month would
+    // otherwise see this trend window fall back to the coarser lifetime
+    // average below even though it has real recent history to trend from.
+    const trend6mo = useMemo(() => computeMonthlyTrend(transactions, 6, latestTransactionDate(transactions) ?? undefined), [transactions]);
     const monthsWithData = trend6mo.filter(p => p.income > 0 || p.expense > 0).length;
 
     // Scoped to this forecast's own trailing-6-month trend window (falling

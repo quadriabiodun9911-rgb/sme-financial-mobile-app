@@ -17,7 +17,7 @@ import { calculateGoalBridge, mapSavedGoalToBridge, formatGoalMetric } from '../
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan } from '../utils/actionRecommendationEngine';
 import { suggestSolution, ImpactSource } from '../utils/impactChain';
-import { getMonthlyExpenseAverage, computeCashFlowForecast, computeRevenueForecast } from '../utils/finance';
+import { getMonthlyExpenseAverage, computeCashFlowForecast, computeRevenueForecast, latestTransactionDate } from '../utils/finance';
 import { showAlert, confirmAction } from '../utils/webAlert';
 import { computeRiskRadar } from '../utils/riskRadar';
 import { assessGoalRisk, GoalRiskSeverity } from '../utils/goalRiskLinkage';
@@ -196,7 +196,9 @@ export default function GoalsScreen() {
     // need a different forecast shape than cash_reserve does.
     const planRevenueMarginForecastAlignment = useMemo(() => {
         if (!planGoal || (planGoal.type !== 'revenue_growth' && planGoal.type !== 'margin_improvement')) return null;
-        const revenueForecast = computeRevenueForecast(transactions, 3);
+        // Anchored to the latest transaction date, not real-world "now" --
+        // see latestTransactionDate's comment.
+        const revenueForecast = computeRevenueForecast(transactions, 3, latestTransactionDate(transactions) ?? undefined);
         return computeRevenueMarginForecastAlignment(planGoal, revenueForecast, budgets, transactions, finance);
     }, [planGoal, transactions, budgets, finance]);
 

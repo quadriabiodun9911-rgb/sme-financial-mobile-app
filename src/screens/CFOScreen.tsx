@@ -20,6 +20,7 @@ import {
     computeDebtOptimiser,
     computePaymentOptimiser,
     RISK_BAND_STYLE,
+    latestTransactionDate,
 } from '../utils/finance';
 import { computeInventoryValue } from '../utils/stockVelocity';
 import Icon, { IconName } from '../components/ui/Icon';
@@ -192,7 +193,11 @@ function ForecastTab() {
     const { currency } = settings;
     const [forecastMonths, setForecastMonths] = useState<3 | 6 | 12>(3);
 
-    const forecast  = useMemo(() => computeRevenueForecast(transactions, forecastMonths), [transactions, forecastMonths]);
+    // Anchored to the latest transaction date, not real-world "now" -- a
+    // forward forecast should always project from the business's most
+    // recent real data point, not silently start from a fake $0 baseline
+    // whenever there's no activity in the literal current calendar month.
+    const forecast  = useMemo(() => computeRevenueForecast(transactions, forecastMonths, latestTransactionDate(transactions) ?? undefined), [transactions, forecastMonths]);
     const cashFlow  = useMemo(() => computeCashFlowForecast(transactions, loans, invoices, budgets), [transactions, loans, invoices, budgets]);
     const maxVal    = Math.max(...forecast.map(f => f.bestCase), 1);
     const alertWeeks = cashFlow.filter(w => w.alert).length;
