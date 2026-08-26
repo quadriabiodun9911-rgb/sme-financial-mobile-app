@@ -30,7 +30,6 @@ const UNDERSTAND_ITEMS: { label: string; icon: IconName; screen: Screen; color: 
     { label: 'Cash Flow',      icon: 'droplet',       screen: 'cashflow',       color: '#3b82f6', desc: 'Runway & receivables risk' },
     { label: 'Reconciliation', icon: 'link-2',        screen: 'reconciliation', color: '#8b5cf6', desc: 'Match bank vs app records' },
     { label: 'Payroll',        icon: 'users',         screen: 'payroll',        color: '#10b981', desc: 'Staff & monthly pay runs' },
-    { label: 'Analysis',       icon: 'pie-chart',      screen: 'analysis',       color: '#14b8a6', desc: 'Deep-dive P&L trends' },
 ];
 
 const ANTICIPATE_ITEMS: { label: string; icon: IconName; screen: Screen; color: string }[] = [
@@ -39,8 +38,14 @@ const ANTICIPATE_ITEMS: { label: string; icon: IconName; screen: Screen; color: 
     { label: 'Growth',   icon: 'trending-up',     screen: 'growth',   color: '#10b981' },
 ];
 
+// 'analysis' moved here from Understand -- its two tabs (Why is this
+// happening, What if I...) are root-cause diagnosis and scenario
+// modeling, not passive reporting; it belongs with the rest of Decide's
+// "what should I do" tools, not filed as a P&L-trends report it no
+// longer resembles.
 const DECIDE_ITEMS: { label: string; icon: IconName; screen: Screen; color: string; desc: string }[] = [
     { label: 'Advisor',  icon: 'message-circle',  screen: 'cfo',      color: '#8b5cf6', desc: 'AI diagnosis — ask questions, get answers' },
+    { label: 'Analysis & Decisions', icon: 'pie-chart', screen: 'analysis', color: '#14b8a6', desc: 'Why is this happening, and what if I...' },
     { label: 'Before You Decide', icon: 'help-circle', screen: 'before-you-decide', color: '#06b6d4', desc: 'Check a hire, purchase, discount, or loan against your numbers' },
     { label: 'Insights', icon: 'zap',             screen: 'insights', color: '#f59e0b', desc: 'Flagged risks & opportunities' },
     { label: 'Goals',    icon: 'target',          screen: 'goals',    color: '#ef4444', desc: 'Set and track targets' },
