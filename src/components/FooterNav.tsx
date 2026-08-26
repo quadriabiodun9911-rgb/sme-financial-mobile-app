@@ -41,6 +41,7 @@ const ANTICIPATE_ITEMS: { label: string; icon: IconName; screen: Screen; color: 
 
 const DECIDE_ITEMS: { label: string; icon: IconName; screen: Screen; color: string; desc: string }[] = [
     { label: 'Advisor',  icon: 'message-circle',  screen: 'cfo',      color: '#8b5cf6', desc: 'AI diagnosis — ask questions, get answers' },
+    { label: 'Before You Decide', icon: 'help-circle', screen: 'before-you-decide', color: '#06b6d4', desc: 'Check a hire, purchase, discount, or loan against your numbers' },
     { label: 'Insights', icon: 'zap',             screen: 'insights', color: '#f59e0b', desc: 'Flagged risks & opportunities' },
     { label: 'Goals',    icon: 'target',          screen: 'goals',    color: '#ef4444', desc: 'Set and track targets' },
     { label: 'Budget',   icon: 'dollar-sign',     screen: 'budget',   color: '#10b981', desc: 'Plan spending by category' },

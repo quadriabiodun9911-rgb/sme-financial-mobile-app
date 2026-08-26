@@ -43,7 +43,8 @@ export type Screen =
     | 'audit-log'
     | 'security-center'
     | 'business-timeline'
-    | 'data-permission-centre';
+    | 'data-permission-centre'
+    | 'before-you-decide';
 
 export interface Budget {
     id: string;

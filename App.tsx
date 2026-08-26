@@ -47,6 +47,7 @@ import FinancialAssessmentScreen from './src/screens/FinancialAssessmentScreen';
 import ActionTrackerScreen from './src/screens/ActionTrackerScreen';
 import FinancingMarketplaceScreen from './src/screens/FinancingMarketplaceScreen';
 import FinancingAdminScreen from './src/screens/FinancingAdminScreen';
+import BeforeYouDecideScreen from './src/screens/BeforeYouDecideScreen';
 import OnboardingChoiceScreen from './src/screens/OnboardingChoiceScreen';
 import DataIntegrityScreen from './src/screens/DataIntegrityScreen';
 import AuditLogScreen from './src/screens/AuditLogScreen';
@@ -207,6 +208,7 @@ function NavigatorContent() {
             {currentScreen === 'security-center' && <SecurityCenterScreen />}
             {currentScreen === 'business-timeline' && <BusinessTimelineScreen />}
             {currentScreen === 'data-permission-centre' && <DataPermissionCentreScreen />}
+            {currentScreen === 'before-you-decide' && <BeforeYouDecideScreen />}
         </View>
     );
 }
