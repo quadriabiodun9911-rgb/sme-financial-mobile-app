@@ -905,11 +905,17 @@ export default function LoginScreen() {
                             list of countries that were only ever cosmetic. */}
                         {DEMO_BUSINESSES.slice(0, 1).map(biz => (
                             <TouchableOpacity key={biz.id} style={styles.bizCard} onPress={() => enterDemo(biz.id)}>
-                                <Text style={styles.bizEmoji}>{biz.flag}</Text>
+                                <Text style={styles.bizEmoji}>{biz.emoji}</Text>
                                 <View style={styles.bizInfo}>
-                                    <Text style={styles.bizCountry}>{biz.country}</Text>
+                                    {/* Currency, not the country name -- with
+                                        only one sample business left, "NIGERIA"
+                                        as an eyebrow read like the sample was
+                                        still country-specific/localized. The
+                                        currency symbol just labels what the
+                                        numbers below are actually in. */}
+                                    <Text style={styles.bizCountry}>{biz.currency}</Text>
                                     <Text style={styles.bizName}>{biz.businessName}</Text>
-                                    <Text style={styles.bizDesc}>{biz.description} · {biz.currency}</Text>
+                                    <Text style={styles.bizDesc}>{biz.description}</Text>
                                 </View>
                                 <Icon name="chevron-right" size={18} color={Colors.primary} />
                             </TouchableOpacity>
