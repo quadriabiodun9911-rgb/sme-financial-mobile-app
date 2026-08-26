@@ -561,8 +561,8 @@ export function filterByDateRange(transactions: Transaction[], range: DateRange)
     return transactions.filter(t => t.date >= range.from && t.date <= range.to);
 }
 
-export function getPreviousPeriodRange(period: ReportPeriod): { current: DateRange; previous: DateRange } {
-    const now = new Date();
+export function getPreviousPeriodRange(period: ReportPeriod, anchorDate?: Date): { current: DateRange; previous: DateRange } {
+    const now = anchorDate ?? new Date();
     const today = now.toISOString().split('T')[0];
     const iso = (d: Date) => d.toISOString().split('T')[0];
 

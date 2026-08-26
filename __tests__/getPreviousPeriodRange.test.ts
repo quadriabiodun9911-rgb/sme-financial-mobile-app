@@ -51,4 +51,14 @@ describe('getPreviousPeriodRange — like-for-like day comparison', () => {
         expect(current).toEqual({ from: '2026-01-01', to: '2026-02-10' });
         expect(previous).toEqual({ from: '2025-01-01', to: '2025-02-10' });
     });
+
+    it('anchorDate overrides the real-world "now" -- lets a caller compare against the latest data month instead of the literal current month', () => {
+        // Real "now" is August, but an anchorDate of March 10 should make
+        // "current" March, not August -- the fix for a business whose most
+        // recent transaction predates the literal current calendar month.
+        jest.useFakeTimers().setSystemTime(new Date('2026-08-26T12:00:00'));
+        const { current, previous } = getPreviousPeriodRange('month', new Date('2026-03-10T00:00:00'));
+        expect(current).toEqual({ from: '2026-03-01', to: '2026-03-10' });
+        expect(previous).toEqual({ from: '2026-02-01', to: '2026-02-10' });
+    });
 });

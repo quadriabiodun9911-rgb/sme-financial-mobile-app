@@ -74,7 +74,21 @@ export function analyseRootCause(
 ): RootCauseAnalysis {
     const { currency, targetMargin } = settings;
     const target = parseFloat(targetMargin) || 20;
-    const ranges = getPreviousPeriodRange(period === 'all' || period === 'custom' ? 'month' : period);
+    // Anchored to the latest date actually present in the data, not the
+    // real-world "now" -- the same fix financialDiagnosisEngine.ts already
+    // applies to its own month-over-month comparison, and for the same
+    // reason: a business whose most recent transaction predates the
+    // literal current calendar month (an imported historical statement, or
+    // simply hasn't logged anything yet this month) would otherwise see
+    // "current period" filtered to zero rows and report a false "not
+    // enough data" here despite having real history to diagnose. Falls
+    // back to real `now` only when there's no data at all (matches
+    // getPreviousPeriodRange's own default).
+    const latestDate = transactions.reduce<Date | null>((latest, t) => {
+        const d = new Date(t.date + 'T00:00:00');
+        return isNaN(d.getTime()) ? latest : (!latest || d > latest ? d : latest);
+    }, null);
+    const ranges = getPreviousPeriodRange(period === 'all' || period === 'custom' ? 'month' : period, latestDate ?? undefined);
 
     const current  = filterByDateRange(transactions, ranges.current);
     const previous = filterByDateRange(transactions, ranges.previous);
