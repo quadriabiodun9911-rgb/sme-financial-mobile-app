@@ -1184,36 +1184,53 @@ export function computeRiskScore(
     // Liquidity / cash runway (weight 20) — same trailing-30-day-paid-expenses
     // burn used everywhere else in the app (Dashboard, Cash Runway tab, Loans
     // & Debt), not an all-time cumulative total treated as an annual figure.
+    // No burn rate is genuinely ambiguous: it could mean an established,
+    // efficient business with real cash reserves and nothing to spend on
+    // right now (healthy), or a brand-new account with zero history at all
+    // (unknown, and definitely not "12+ months healthy" if cashBalance is
+    // also 0 -- treating it as maximally healthy was exactly why a blank
+    // guest account with ₦0 cash scored "88, Strong" on the Scoreboard
+    // while the Dashboard alert bell simultaneously flagged that same ₦0 as
+    // a critical low-cash warning).
     const monthlyBurn = computeCashRunway(transactions, finance.cashBalance).dailyBurn * 30;
-    const runwayMonths = monthlyBurn > 0 ? finance.cashBalance / monthlyBurn : 12;
+    const runwayMonths = monthlyBurn > 0 ? finance.cashBalance / monthlyBurn : (finance.cashBalance > 0 ? 12 : 0);
     factors.push({
         name: 'Liquidity',
         score: runwayMonths >= 6 ? 100 : runwayMonths >= 3 ? 70 : runwayMonths >= 1 ? 40 : 10,
         weight: 20,
         status: runwayMonths >= 6 ? 'good' : runwayMonths >= 3 ? 'warning' : 'danger',
-        explanation: `${runwayMonths >= 12 ? '12+' : runwayMonths.toFixed(1)} months of cash runway at the current burn rate -- ${
-            runwayMonths >= 6 ? 'a healthy buffer.' :
-            runwayMonths >= 3 ? 'adequate, but worth building up.' :
-            runwayMonths >= 1 ? 'tight -- a bad month would hurt.' :
-                                'critically low.'
-        }`,
+        explanation: monthlyBurn <= 0 && finance.cashBalance <= 0
+            ? 'No cash on hand and no spending history yet to estimate a runway from.'
+            : `${runwayMonths >= 12 ? '12+' : runwayMonths.toFixed(1)} months of cash runway at the current burn rate -- ${
+                runwayMonths >= 6 ? 'a healthy buffer.' :
+                runwayMonths >= 3 ? 'adequate, but worth building up.' :
+                runwayMonths >= 1 ? 'tight -- a bad month would hurt.' :
+                                    'critically low.'
+            }`,
     });
 
     // Working capital (weight 10) — cash conversion cycle: how many days
     // cash is tied up between paying suppliers and collecting from
-    // customers. Shorter (or negative) is better.
+    // customers. Shorter (or negative) is better. ccc defaults to 0 with no
+    // paid transactions at all, which reads identically to "instant cash
+    // conversion" (100, good) -- distinguished here the same way Efficiency
+    // already distinguishes "no history" from "genuinely fast," so a blank
+    // account doesn't get credited for a cycle it has no data to prove.
     const wc = computeWorkingCapitalMetrics(transactions);
+    const hasWcData = transactions.some(t => t.status === 'paid');
     factors.push({
         name: 'Working Capital',
-        score: wc.ccc <= 15 ? 100 : wc.ccc <= 30 ? 70 : wc.ccc <= 60 ? 40 : 10,
+        score: !hasWcData ? 50 : wc.ccc <= 15 ? 100 : wc.ccc <= 30 ? 70 : wc.ccc <= 60 ? 40 : 10,
         weight: 10,
-        status: wc.ccc <= 30 ? 'good' : wc.ccc <= 60 ? 'warning' : 'danger',
-        explanation: `Cash conversion cycle is ${Math.round(wc.ccc)} days -- ${
-            wc.ccc <= 15 ? 'cash returns quickly.' :
-            wc.ccc <= 30 ? 'a reasonable collection-and-payment cycle.' :
-            wc.ccc <= 60 ? 'cash is tied up longer than ideal between paying suppliers and collecting from customers.' :
-                           'cash is tied up for a long stretch -- a major drag on liquidity.'
-        }`,
+        status: !hasWcData ? 'warning' : wc.ccc <= 30 ? 'good' : wc.ccc <= 60 ? 'warning' : 'danger',
+        explanation: !hasWcData
+            ? 'Not enough paid transaction history yet to measure a cash conversion cycle.'
+            : `Cash conversion cycle is ${Math.round(wc.ccc)} days -- ${
+                wc.ccc <= 15 ? 'cash returns quickly.' :
+                wc.ccc <= 30 ? 'a reasonable collection-and-payment cycle.' :
+                wc.ccc <= 60 ? 'cash is tied up longer than ideal between paying suppliers and collecting from customers.' :
+                               'cash is tied up for a long stretch -- a major drag on liquidity.'
+            }`,
     });
 
     // Debt (weight 15) — DSCR
@@ -1250,9 +1267,13 @@ export function computeRiskScore(
     }
     factors.push({
         name: 'Efficiency',
-        score: expenseGrowthGap <= 0 ? 100 : expenseGrowthGap <= 10 ? 70 : expenseGrowthGap <= 25 ? 40 : 10,
+        // No history defaulted expenseGrowthGap to 0, which scored as if
+        // expenses were confirmed to be growing slower than revenue -- the
+        // explanation already said "not enough history," the score didn't
+        // agree with it.
+        score: !hasEfficiencyData ? 50 : expenseGrowthGap <= 0 ? 100 : expenseGrowthGap <= 10 ? 70 : expenseGrowthGap <= 25 ? 40 : 10,
         weight: 10,
-        status: expenseGrowthGap <= 0 ? 'good' : expenseGrowthGap <= 25 ? 'warning' : 'danger',
+        status: !hasEfficiencyData ? 'warning' : expenseGrowthGap <= 0 ? 'good' : expenseGrowthGap <= 25 ? 'warning' : 'danger',
         explanation: !hasEfficiencyData
             ? 'Not enough monthly history yet to compare revenue and expense growth.'
             : expenseGrowthGap <= 0
@@ -1290,9 +1311,13 @@ export function computeRiskScore(
     const worstIsCustomer = (custConc[0]?.percentage ?? 0) >= (suppConc[0]?.percentage ?? 0);
     factors.push({
         name: 'Concentration',
-        score: worstPct <= 20 ? 100 : worstPct <= 40 ? 60 : 20,
+        // worstPct === 0 only ever happens with no transaction history --
+        // real revenue/purchases always concentrate in *someone* at more
+        // than 0%. The explanation already called this out as "not enough
+        // history," but the score still credited it as 100/good.
+        score: worstPct === 0 ? 50 : worstPct <= 20 ? 100 : worstPct <= 40 ? 60 : 20,
         weight: 15,
-        status: worstPct <= 20 ? 'good' : worstPct <= 40 ? 'warning' : 'danger',
+        status: worstPct === 0 ? 'warning' : worstPct <= 20 ? 'good' : worstPct <= 40 ? 'warning' : 'danger',
         explanation: worstPct === 0
             ? 'Not enough transaction history yet to assess customer or supplier concentration.'
             : `Your largest ${worstIsCustomer ? 'customer' : 'supplier'} makes up ${worstPct.toFixed(0)}% of your ${worstIsCustomer ? 'revenue' : 'purchases'} -- ${

@@ -106,6 +106,24 @@ describe('computeBusinessExposure', () => {
         const result = computeBusinessExposure([], [], [], [], finance, undefined);
         expect(result.overallLevel).toBe('low');
     });
+
+    it('does not call zero cash on hand "low" cash-flow exposure just because there is no burn history to measure', () => {
+        // No transactions -> dailyBurn is 0 -> computeCashRunway returns
+        // Infinity, which used to be treated as automatically low-risk
+        // regardless of whether there was any actual cash. ₦0 cash and no
+        // history is the same account the Dashboard's alert bell flags as
+        // a critical low-cash warning -- this factor shouldn't call it low.
+        const noCashFinance = { cashBalance: 0, totalTaxCollected: 0, totalTaxPaid: 0 };
+        const result = computeBusinessExposure([], [], [], [], noCashFinance, undefined);
+        const cashFlow = result.factors.find(f => f.key === 'cashFlow')!;
+        expect(cashFlow.level).toBe('high');
+    });
+
+    it('still calls real cash on hand with no current burn "low" cash-flow exposure', () => {
+        const result = computeBusinessExposure([], [], [], [], finance, undefined); // finance.cashBalance = 500000
+        const cashFlow = result.factors.find(f => f.key === 'cashFlow')!;
+        expect(cashFlow.level).toBe('low');
+    });
 });
 
 const makeExposure = (levels: Partial<Record<string, 'low' | 'medium' | 'high' | 'unknown'>>): BusinessExposure => {

@@ -85,4 +85,35 @@ describe('computeRiskScore factor explanations', () => {
         const explanation = explanationFor('Efficiency', factors);
         expect(explanation).toBe('Not enough monthly history yet to compare revenue and expense growth.');
     });
+
+    // A completely blank account (no transactions, no loans, no cash) used
+    // to score 88/"Strong" overall -- Liquidity, Working Capital,
+    // Efficiency, and Concentration all silently defaulted their "no data"
+    // case to a "good" score even though each one's own explanation said
+    // there wasn't enough history to judge. That's how a brand-new Guest
+    // Mode account with ₦0 cash ended up showing "Business Health Score:
+    // 88, Strong · A" on the Scoreboard while the Dashboard's alert bell
+    // simultaneously flagged that same ₦0 as a critical low-cash warning --
+    // two parts of the same screen visibly disagreeing with each other.
+    it('does not score a completely blank account as "Strong" -- no data is not the same as healthy', () => {
+        const { score, band } = computeRiskScore({ income: 0, profit: 0, cashBalance: 0 }, [], [], []);
+        expect(score).toBeLessThan(55);
+        expect(band).not.toBe('Strong');
+        expect(band).not.toBe('Excellent');
+    });
+
+    it('none of the "not enough data" factors report themselves as good on a blank account', () => {
+        const { factors } = computeRiskScore({ income: 0, profit: 0, cashBalance: 0 }, [], [], []);
+        for (const name of ['Liquidity', 'Working Capital', 'Efficiency', 'Concentration']) {
+            const factor = factors.find(f => f.name === name)!;
+            expect(factor.status).not.toBe('good');
+        }
+    });
+
+    it('still credits a real, established runway (cash on hand, no current burn) as healthy', () => {
+        const { factors } = computeRiskScore({ income: 0, profit: 0, cashBalance: 500000 }, [], [], []);
+        const liquidity = factors.find(f => f.name === 'Liquidity')!;
+        expect(liquidity.status).toBe('good');
+        expect(liquidity.score).toBe(100);
+    });
 });

@@ -111,12 +111,23 @@ export function computeBusinessExposure(
         detail: dscr.totalDebtService <= 0 ? 'No debt service currently owed.' : `Debt-service coverage is ${dscr.dscr.toFixed(2)}x.`,
     });
 
-    // 7. Cash-flow exposure
+    // 7. Cash-flow exposure -- computeCashRunway returns Infinity whenever
+    // there's no burn rate to divide by, which is correct on its own terms
+    // ("cash isn't shrinking") but doesn't distinguish a real business
+    // sitting on reserves with nothing to spend on (genuinely low risk)
+    // from a blank account with ₦0 cash and no history at all (the same ₦0
+    // the Dashboard's alert bell separately flags as a critical low-cash
+    // warning -- this factor was calling it "low" exposure at the same
+    // time).
     const runway = computeCashRunway(transactions, finance.cashBalance);
-    const runwayLevel: ExposureLevel = !Number.isFinite(runway.runwayDays) ? 'low' : runway.runwayDays < 30 ? 'high' : runway.runwayDays < 60 ? 'medium' : 'low';
+    const runwayLevel: ExposureLevel = !Number.isFinite(runway.runwayDays)
+        ? (finance.cashBalance > 0 ? 'low' : 'high')
+        : runway.runwayDays < 30 ? 'high' : runway.runwayDays < 60 ? 'medium' : 'low';
     factors.push({
         key: 'cashFlow', label: 'Cash-Flow Exposure', level: runwayLevel,
-        detail: !Number.isFinite(runway.runwayDays) ? 'Cash is not currently shrinking.' : `About ${Math.round(runway.runwayDays)} days of cash runway at the current burn rate.`,
+        detail: !Number.isFinite(runway.runwayDays)
+            ? (finance.cashBalance > 0 ? 'Cash is not currently shrinking.' : 'No cash on hand and no spending history yet to assess this.')
+            : `About ${Math.round(runway.runwayDays)} days of cash runway at the current burn rate.`,
     });
 
     // 8. Regulatory exposure -- overdue filing or an uncovered tax liability
