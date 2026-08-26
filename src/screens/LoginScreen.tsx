@@ -851,6 +851,27 @@ export default function LoginScreen() {
                         <Text style={styles.title}>Try Quad360</Text>
                         <Text style={styles.subtitle}>Two ways to look around — nothing is saved unless you create an account.</Text>
 
+                        {/* Language applies immediately (not deferred to a
+                            form submit like the signup screen's picker) --
+                            there's no submit step here, guest/demo entry
+                            happens the moment a card below is tapped. */}
+                        <Text style={styles.pickerSectionLabel}>LANGUAGE</Text>
+                        <View style={styles.chipRow}>
+                            {LANGUAGES.map(l => (
+                                <TouchableOpacity key={l.code}
+                                    style={[styles.chip, language === l.code && styles.chipActive]}
+                                    onPress={() => setLanguage(l.code)}>
+                                    <Text style={[styles.chipText, language === l.code && styles.chipTextActive]}>
+                                        {l.nativeLabel}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
+                        <View style={styles.pickerDivider}>
+                            <View style={styles.pickerDividerLine} />
+                        </View>
+
                         {/* Guest Mode is specifically the "your own numbers" path
                             below -- it must never show fake/sample data, so it's
                             kept visually and textually separate from the sample
@@ -873,8 +894,16 @@ export default function LoginScreen() {
                         </View>
 
                         <Text style={styles.pickerSectionLabel}>PREVIEW WITH SAMPLE DATA</Text>
-                        <Text style={styles.pickerSectionHint}>Every number below is fictional — pick a business type to see what a fully populated Quad360 looks like.</Text>
-                        {DEMO_BUSINESSES.map(biz => (
+                        <Text style={styles.pickerSectionHint}>Every number below is fictional — see what a fully populated Quad360 looks like.</Text>
+                        {/* One representative sample instead of a business
+                            picked per country -- the country flags/names
+                            used to imply localized content for each one,
+                            when in reality only the LANGUAGE picker above
+                            (English/Chinese/Hausa/Yoruba/Igbo) is actually
+                            localized. A single sample plus an honest
+                            language choice is more truthful than a long
+                            list of countries that were only ever cosmetic. */}
+                        {DEMO_BUSINESSES.slice(0, 1).map(biz => (
                             <TouchableOpacity key={biz.id} style={styles.bizCard} onPress={() => enterDemo(biz.id)}>
                                 <Text style={styles.bizEmoji}>{biz.flag}</Text>
                                 <View style={styles.bizInfo}>
