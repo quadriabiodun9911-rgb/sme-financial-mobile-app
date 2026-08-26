@@ -848,19 +848,32 @@ export default function LoginScreen() {
                 <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
                     <View style={styles.card}>
                         <Image source={require('../../assets/icon.png')} style={styles.logo} />
-                        <Text style={styles.title}>Guest Mode</Text>
-                        <Text style={styles.subtitle}>Explore Quad360 with your own numbers, or pick a business type for realistic sample data. Nothing is saved unless you create an account.</Text>
+                        <Text style={styles.title}>Try Quad360</Text>
+                        <Text style={styles.subtitle}>Two ways to look around — nothing is saved unless you create an account.</Text>
 
+                        {/* Guest Mode is specifically the "your own numbers" path
+                            below -- it must never show fake/sample data, so it's
+                            kept visually and textually separate from the sample
+                            businesses further down. */}
+                        <Text style={styles.pickerSectionLabel}>GUEST MODE</Text>
                         <TouchableOpacity style={styles.bizCard} onPress={() => enterGuest()}>
                             <Text style={styles.bizEmoji}>📤</Text>
                             <View style={styles.bizInfo}>
                                 <Text style={styles.bizCountry}>YOUR BUSINESS</Text>
                                 <Text style={styles.bizName}>Start blank — use your own numbers</Text>
-                                <Text style={styles.bizDesc}>Upload a bank statement or add transactions yourself</Text>
+                                <Text style={styles.bizDesc}>Upload a bank statement or add transactions yourself. No sample data.</Text>
                             </View>
                             <Icon name="chevron-right" size={18} color={Colors.primary} />
                         </TouchableOpacity>
 
+                        <View style={styles.pickerDivider}>
+                            <View style={styles.pickerDividerLine} />
+                            <Text style={styles.pickerDividerText}>OR</Text>
+                            <View style={styles.pickerDividerLine} />
+                        </View>
+
+                        <Text style={styles.pickerSectionLabel}>PREVIEW WITH SAMPLE DATA</Text>
+                        <Text style={styles.pickerSectionHint}>Every number below is fictional — pick a business type to see what a fully populated Quad360 looks like.</Text>
                         {DEMO_BUSINESSES.map(biz => (
                             <TouchableOpacity key={biz.id} style={styles.bizCard} onPress={() => enterDemo(biz.id)}>
                                 <Text style={styles.bizEmoji}>{biz.flag}</Text>
@@ -1822,4 +1835,10 @@ const styles = StyleSheet.create({
     bizName:    { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },
     bizDesc:    { fontSize: 11, color: Colors.textMuted },
     bizArrow: { fontSize: 18, color: Colors.primary, marginLeft: 8 },
+
+    pickerSectionLabel: { fontSize: 11, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, marginTop: 4, marginBottom: 8 },
+    pickerSectionHint: { fontSize: 11.5, color: Colors.textMuted, marginBottom: 10, lineHeight: 16 },
+    pickerDivider: { flexDirection: 'row', alignItems: 'center', marginVertical: 18, gap: 10 },
+    pickerDividerLine: { flex: 1, height: 1, backgroundColor: Colors.border },
+    pickerDividerText: { fontSize: 11, fontWeight: '700', color: Colors.textMuted },
 });

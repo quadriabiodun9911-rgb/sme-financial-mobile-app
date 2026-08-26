@@ -106,7 +106,7 @@ const PRIORITY_KIND_META: Record<PriorityKind, { icon: IconName; screen: Screen 
 };
 
 export default function DashboardScreen() {
-    const { finance, settings, goals, transactions, invoices, assets, loans, staff, payrollRuns, navigate, setCurrentScreen, navParams, language: rawLanguage, isLoading, addTransaction, isDemoMode, cashPockets, addGoal, deleteGoal, updateGoal, budgets, inventory, user, financing, canViewFinancials, readinessHistory } = useApp();
+    const { finance, settings, goals, transactions, invoices, assets, loans, staff, payrollRuns, navigate, setCurrentScreen, navParams, language: rawLanguage, isLoading, addTransaction, isDemoMode, demoBusinessId, cashPockets, addGoal, deleteGoal, updateGoal, budgets, inventory, user, financing, canViewFinancials, readinessHistory } = useApp();
     const language = rawLanguage as Language;
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
@@ -779,12 +779,21 @@ export default function DashboardScreen() {
                 </TouchableOpacity>
                 <Text style={styles.title}>{t(language, 'dashboard')}</Text>
 
-                {/* ── Guest Mode banner ────────────────────────────────────── */}
+                {/* ── Guest/Demo Mode banner ───────────────────────────────────
+                    "Guest Mode" only applies to the blank entry (real numbers
+                    the visitor typed/imported themselves, demoBusinessId ===
+                    null) -- a canned sample business is fake data, and
+                    labeling it "Guest Mode" would make it look like the
+                    visitor's own numbers are showing on screen. */}
                 {isDemoMode && (
                     <View style={styles.demoBanner}>
                         <View style={styles.demoBannerLeft}>
                             <Icon name="eye" size={14} color="#fff" />
-                            <Text style={styles.demoBannerText}>Guest Mode — data is not saved</Text>
+                            <Text style={styles.demoBannerText}>
+                                {demoBusinessId === null
+                                    ? 'Guest Mode — data is not saved'
+                                    : 'Demo Mode — sample data, not saved'}
+                            </Text>
                         </View>
                         <TouchableOpacity
                             onPress={() => {

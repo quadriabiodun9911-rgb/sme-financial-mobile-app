@@ -2143,6 +2143,7 @@ export function useApp() {
 
     // Placeholder properties (for screens that reference them)
     isDemoMode: auth.isDemoMode ?? false,
+    demoBusinessId: auth.demoBusinessId ?? null,
     exitDemo: auth.exitDemo || (() => {}),
     cashPockets: finance?.cashPockets ?? [],
     financing: finance?.financing ?? {
