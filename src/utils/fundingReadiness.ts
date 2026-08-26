@@ -8,7 +8,7 @@
  */
 
 import { Transaction, Invoice, Loan, InventoryItem, Asset, FinanceData, BusinessSettings } from '../types';
-import { computeRiskScore, RiskFactor, RiskScore, computeEnhancedPnL, computeWorkingCapitalMetrics, computeLoanAmortizationSplit } from './finance';
+import { computeRiskScore, computeFinancingReadinessScore, RiskFactor, RiskScore, computeEnhancedPnL, computeWorkingCapitalMetrics, computeLoanAmortizationSplit } from './finance';
 import { computeAllTimeMonthlyBuckets, MonthlyTrendPoint } from './trendAnalysis';
 import { computeDataQuality } from './dataQuality';
 import { computeTaxFilingReadiness } from './taxFilingReadiness';
@@ -93,6 +93,12 @@ export function buildFundingReadinessPack(
         transactions,
         inventory,
     );
+    // Reweighted toward debt-service coverage and liquidity -- what a
+    // lender's own assessment actually weighs -- rather than the general
+    // Financial Health score this pack used to show unchanged. Same
+    // underlying factor scores as `risk` above, just a different
+    // aggregation suited to what this pack is for.
+    const financingReadiness = computeFinancingReadinessScore(risk.factors);
 
     const allMonths = computeAllTimeMonthlyBuckets(transactions);
     const trend = allMonths.slice(-12);
@@ -159,9 +165,9 @@ export function buildFundingReadinessPack(
             debtNonCurrentPortion,
         },
         trend,
-        riskProfile: risk.factors,
-        score: risk.score,
-        band: risk.band,
+        riskProfile: financingReadiness.factors,
+        score: financingReadiness.score,
+        band: financingReadiness.band,
         documents,
     };
 }

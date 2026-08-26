@@ -8,7 +8,7 @@ import FooterNav from '../components/FooterNav';
 import Icon, { IconName } from '../components/ui/Icon';
 import { ChipGroup } from '../components/ui/ChipGroup';
 import { ExpandableCard } from '../components/ui/ExpandableCard';
-import { computeRiskScore, computeDSCR, RiskScore } from '../utils/finance';
+import { computeRiskScore, computeDSCR, computeFinancingReadinessScore, RiskScore } from '../utils/finance';
 import { buildFinancingFitInput, rankFinancingProducts, FinancingFitResult, FinancingFitVerdict } from '../utils/financingFit';
 import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
 import { assessCapitalNeed, CAPITAL_PURPOSE_PRODUCT_TYPES } from '../utils/capitalNeedAssessment';
@@ -231,13 +231,17 @@ export default function FinancingMarketplaceScreen() {
     // has no incentive to volunteer this; Quad360 does.
     const dataQuality = useMemo(() => computeDataQuality(transactions), [transactions]);
     const inventoryValue = useMemo(() => computeInventoryValue(inventory), [inventory]);
+    // Reweighted toward debt-service coverage and liquidity -- what actually
+    // predicts repayment ability -- rather than the general risk score,
+    // same as Credit-Worthiness's own Estimated Lending Capacity.
+    const financingReadiness = useMemo(() => computeFinancingReadinessScore(risk.factors), [risk.factors]);
     const lendingCapacity = useMemo(() => computeLendingCapacityEstimate({
-        overallCreditScore: risk.score,
+        overallCreditScore: financingReadiness.score,
         avgMonthlyRevenue: fitInput.avgMonthlyRevenue,
         dscr: dscr.dscr,
         hasReliableData: dataQuality.confidence !== 'none' && dataQuality.confidence !== 'limited',
         inventoryValue,
-    }), [risk.score, fitInput.avgMonthlyRevenue, dscr.dscr, dataQuality.confidence, inventoryValue]);
+    }), [financingReadiness.score, fitInput.avgMonthlyRevenue, dscr.dscr, dataQuality.confidence, inventoryValue]);
 
     // What the ask actually compares to -- a specific suggested amount when
     // the request exceeds sustainable capacity, not just a warning that it

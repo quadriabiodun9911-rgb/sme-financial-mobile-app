@@ -46,7 +46,7 @@ import { getUninvoicedOverdueTransactions } from '../utils/overdueTransactions';
 import { getTaxDeadlineStatus } from '../utils/taxDeadline';
 import { isRecurringTransactionOverdue, daysUntilRecurringDue, hasRecurringSchedule } from '../utils/recurringTransactions';
 import { isBudgetActiveForPeriod, isBudgetPeriodLapsed, currentPeriodString } from '../utils/budgetPeriod';
-import { computeAssetsNearingReplacement, computeAssetCurrentValue, getMonthlyExpenseAverage, computeOneThingInsight, computeRiskScore, computeDSCR } from '../utils/finance';
+import { computeAssetsNearingReplacement, computeAssetCurrentValue, getMonthlyExpenseAverage, computeOneThingInsight, computeRiskScore, computeDSCR, computeFinancingReadinessScore } from '../utils/finance';
 import { computeStockVelocity, computeInventoryValue } from '../utils/stockVelocity';
 import { computeDataQuality } from '../utils/dataQuality';
 import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
@@ -319,11 +319,15 @@ export default function DashboardScreen() {
         if (transactions.length < 5) return null;
         const fitInput = buildFinancingFitInput(transactions, loans, settings, user);
         const risk = computeRiskScore(finance, loans, transactions, inventory);
+        // Reweighted toward debt-service coverage and liquidity -- what
+        // actually predicts repayment ability -- same as Credit-Worthiness
+        // and the Financing Marketplace's own lending-capacity estimate.
+        const financingReadiness = computeFinancingReadinessScore(risk.factors);
         const dscr = computeDSCR(transactions, loans);
         const dataQuality = computeDataQuality(transactions);
         const inventoryValue = computeInventoryValue(inventory);
         return computeLendingCapacityEstimate({
-            overallCreditScore: risk.score,
+            overallCreditScore: financingReadiness.score,
             avgMonthlyRevenue: fitInput.avgMonthlyRevenue,
             dscr: dscr.dscr,
             hasReliableData: dataQuality.confidence !== 'none' && dataQuality.confidence !== 'limited',

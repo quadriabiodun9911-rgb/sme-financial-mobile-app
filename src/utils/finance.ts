@@ -1349,6 +1349,39 @@ export function computeRiskScore(
     return { score, grade, band, factors };
 }
 
+// Financing readiness has been sitting behind the same number as general
+// Financial Health throughout the app (Credit-Worthiness's headline score,
+// the Funding Readiness Pack, and the lending-capacity estimate all just
+// read computeRiskScore's own score) -- correct in that it's never a
+// second, independently-tuned estimate, but wrong in that "is this
+// business healthy" and "is this business ready to service debt" are
+// different questions a lender weighs differently. Debt-service coverage
+// and cash liquidity predict repayment ability far more directly than the
+// day-to-day operational factors (efficiency trend, inventory turnover)
+// computeRiskScore also folds in -- so this reweights the exact same
+// factor scores computeRiskScore already produced, never recomputing them.
+// Inventory turnover drops to 0 here: it's specifically an asset-backed/
+// trade-finance signal, already captured on its own by
+// computeLendingCapacityEstimate's inventoryBacked branch, not a general
+// borrowing-readiness factor.
+const FINANCING_READINESS_WEIGHTS: Record<string, number> = {
+    'Debt': 30,
+    'Liquidity': 25,
+    'Profitability': 15,
+    'Concentration': 15,
+    'Working Capital': 10,
+    'Efficiency': 5,
+    'Inventory': 0,
+};
+
+export function computeFinancingReadinessScore(factors: RiskFactor[]): RiskScore {
+    const reweighted = factors.map(f => ({ ...f, weight: FINANCING_READINESS_WEIGHTS[f.name] ?? f.weight }));
+    const score = Math.round(reweighted.reduce((s, f) => s + (f.score * f.weight) / 100, 0));
+    const grade: RiskScore['grade'] = score >= 85 ? 'A' : score >= 70 ? 'B' : score >= 55 ? 'C' : score >= 40 ? 'D' : 'F';
+    const band: RiskScore['band'] = score >= 90 ? 'Excellent' : score >= 75 ? 'Strong' : score >= 55 ? 'Moderate' : score >= 35 ? 'Weak' : 'Critical';
+    return { score, grade, band, factors: reweighted };
+}
+
 // 9. Cash flow forecast (90 days, week by week)
 export interface CashFlowForecastWeek {
     week: string;

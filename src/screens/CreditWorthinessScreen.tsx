@@ -12,7 +12,7 @@ import LowDataNotice from '../components/LowDataNotice';
 import NextStepLink from '../components/NextStepLink';
 import { generatePDF, sharePDF } from '../utils/pdfExport';
 import { buildLenderSummaryExport, buildFundingReadinessPackExport } from '../utils/lenderSummaryExport';
-import { computeDSCR, computeRiskScore, computeAssetCurrentValue, computeWorkingCapitalMetrics, RiskScore, RISK_BAND_STYLE, getMonthlyExpenseAverage } from '../utils/finance';
+import { computeDSCR, computeRiskScore, computeFinancingReadinessScore, computeAssetCurrentValue, computeWorkingCapitalMetrics, RiskScore, RISK_BAND_STYLE, getMonthlyExpenseAverage } from '../utils/finance';
 import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
 import { computeReadinessDelta } from '../utils/readinessHistory';
 import { computeDataQuality } from '../utils/dataQuality';
@@ -283,13 +283,21 @@ export default function CreditWorthinessScreen() {
     // distinction used throughout the credit factors above.
     const dscrResult = useMemo(() => computeDSCR(transactions, loans), [transactions, loans]);
     const inventoryValue = useMemo(() => computeInventoryValue(inventory), [inventory]);
+    // Reweighted toward debt-service coverage and liquidity -- what actually
+    // predicts repayment ability -- rather than the general Credit-
+    // Worthiness score above, which intentionally stays the same canonical
+    // "how healthy is this business" number shown everywhere else. Same
+    // underlying factor scores, just a different aggregation for the one
+    // downstream calculation (how much could this business realistically
+    // borrow) where that distinction actually matters.
+    const financingReadiness = useMemo(() => computeFinancingReadinessScore(risk.factors), [risk.factors]);
     const lendingCapacity = useMemo(() => computeLendingCapacityEstimate({
-        overallCreditScore,
+        overallCreditScore: financingReadiness.score,
         avgMonthlyRevenue: user?.avgMonthlyRevenue || 0,
         dscr: dscrResult.dscr,
         hasReliableData: dataQuality.confidence !== 'none' && dataQuality.confidence !== 'limited',
         inventoryValue,
-    }), [overallCreditScore, user?.avgMonthlyRevenue, dscrResult.dscr, dataQuality.confidence, inventoryValue]);
+    }), [financingReadiness.score, user?.avgMonthlyRevenue, dscrResult.dscr, dataQuality.confidence, inventoryValue]);
 
     // Readiness trend -- null until there's a second snapshot to compare
     // against (roughly a week after the first one is recorded).
