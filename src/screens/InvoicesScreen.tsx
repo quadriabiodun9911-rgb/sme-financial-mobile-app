@@ -21,6 +21,7 @@ import { t } from '../utils/i18n';
 import { computeEarlyPaymentDiscount } from '../utils/earlyPaymentDiscount';
 import { checkCustomerCreditLimit, findCreditLimit } from '../utils/customerCredit';
 import { hasRecurringInvoiceSchedule, nextRecurringInvoiceDueDate, nextRecurringInvoiceDueDateStr, isRecurringInvoiceDue } from '../utils/recurringInvoices';
+import { effectiveInvoiceStatus } from '../utils/overdueTransactions';
 import { RecurringFrequency } from '../types';
 
 const STATUS_COLOR: Record<InvoiceStatus, string> = {
@@ -160,7 +161,12 @@ export default function InvoicesScreen() {
     const [creditLimitInput, setCreditLimitInput] = useState('');
 
     const filtered = useMemo(() => {
-        const list = filter === 'all' ? invoices : invoices.filter(i => i.status === filter);
+        // Matched against the LIVE status (effectiveInvoiceStatus), not the
+        // stored field -- nothing ever flips a real invoice's status to
+        // 'overdue' on its own, so filtering on `i.status` directly meant
+        // the Overdue tab stayed empty forever and a past-due invoice kept
+        // showing under Sent. See overdueTransactions.ts for why.
+        const list = filter === 'all' ? invoices : invoices.filter(i => effectiveInvoiceStatus(i) === filter);
         return list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     }, [invoices, filter]);
 
@@ -389,9 +395,9 @@ export default function InvoicesScreen() {
 
     const summary = useMemo(() => ({
         total:   invoices.length,
-        sent:    invoices.filter(i => i.status === 'sent').length,
+        sent:    invoices.filter(i => effectiveInvoiceStatus(i) === 'sent').length,
         paid:    invoices.filter(i => i.status === 'paid').length,
-        overdue: invoices.filter(i => i.status === 'overdue').length,
+        overdue: invoices.filter(i => effectiveInvoiceStatus(i) === 'overdue').length,
         outstanding: invoices.filter(i => i.status === 'sent' || i.status === 'overdue')
             .reduce((s, i) => s + (i.total ?? 0), 0),
     }), [invoices]);
@@ -477,9 +483,9 @@ export default function InvoicesScreen() {
                             <TouchableOpacity key={inv.id} style={styles.card} onPress={() => setViewInv(inv)}>
                                 <View style={styles.cardTop}>
                                     <Text style={styles.invNum}>{inv.invoiceNumber}</Text>
-                                    <View style={[styles.badge, { backgroundColor: STATUS_COLOR[inv.status] + '22' }]}>
-                                        <Text style={[styles.badgeText, { color: STATUS_COLOR[inv.status] }]}>
-                                            {t(language, inv.status).toUpperCase()}
+                                    <View style={[styles.badge, { backgroundColor: STATUS_COLOR[effectiveInvoiceStatus(inv)] + '22' }]}>
+                                        <Text style={[styles.badgeText, { color: STATUS_COLOR[effectiveInvoiceStatus(inv)] }]}>
+                                            {t(language, effectiveInvoiceStatus(inv)).toUpperCase()}
                                         </Text>
                                     </View>
                                 </View>
@@ -711,8 +717,8 @@ export default function InvoicesScreen() {
                                     </TouchableOpacity>
                                 </View>
 
-                                <View style={[styles.badge, { alignSelf: 'flex-start', marginBottom: 16, backgroundColor: STATUS_COLOR[viewInv.status] + '22' }]}>
-                                    <Text style={[styles.badgeText, { color: STATUS_COLOR[viewInv.status] }]}>{t(language, viewInv.status).toUpperCase()}</Text>
+                                <View style={[styles.badge, { alignSelf: 'flex-start', marginBottom: 16, backgroundColor: STATUS_COLOR[effectiveInvoiceStatus(viewInv)] + '22' }]}>
+                                    <Text style={[styles.badgeText, { color: STATUS_COLOR[effectiveInvoiceStatus(viewInv)] }]}>{t(language, effectiveInvoiceStatus(viewInv)).toUpperCase()}</Text>
                                 </View>
 
                                 <Section title={t(language, 'clientSection')}>

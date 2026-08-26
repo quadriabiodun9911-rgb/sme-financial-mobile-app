@@ -1,4 +1,4 @@
-import { isOverdueIncomeTransaction, getOverdueIncomeTransactions, getUninvoicedOverdueTransactions } from '../src/utils/overdueTransactions';
+import { isOverdueIncomeTransaction, getOverdueIncomeTransactions, getUninvoicedOverdueTransactions, isInvoiceOverdue, effectiveInvoiceStatus } from '../src/utils/overdueTransactions';
 import { Transaction, Invoice } from '../src/types';
 
 const NOW = new Date('2026-08-18T12:00:00.000Z');
@@ -80,6 +80,35 @@ describe('getOverdueIncomeTransactions', () => {
     it('includes invoice-linked transactions -- this is the "show everything" variant', () => {
         const linked = makeTx({ id: 'linked', status: 'overdue', reference: 'INV-0001' });
         expect(getOverdueIncomeTransactions([linked], NOW)).toHaveLength(1);
+    });
+});
+
+describe('isInvoiceOverdue / effectiveInvoiceStatus', () => {
+    it('is true for status overdue regardless of dueDate', () => {
+        expect(isInvoiceOverdue(makeInvoice({ status: 'overdue' }), NOW)).toBe(true);
+    });
+
+    it('is true for a "sent" invoice whose due date has already passed -- nothing else in this app ever flips status to overdue on its own', () => {
+        const inv = makeInvoice({ status: 'sent', dueDate: daysAgo(10) });
+        expect(isInvoiceOverdue(inv, NOW)).toBe(true);
+        expect(effectiveInvoiceStatus(inv, NOW)).toBe('overdue');
+    });
+
+    it('is false for a "sent" invoice whose due date is still ahead', () => {
+        const future = new Date(NOW); future.setDate(future.getDate() + 5);
+        const inv = makeInvoice({ status: 'sent', dueDate: future.toISOString().split('T')[0] });
+        expect(isInvoiceOverdue(inv, NOW)).toBe(false);
+        expect(effectiveInvoiceStatus(inv, NOW)).toBe('sent');
+    });
+
+    it('is false for draft and paid invoices even with a past due date', () => {
+        expect(isInvoiceOverdue(makeInvoice({ status: 'draft', dueDate: daysAgo(10) }), NOW)).toBe(false);
+        expect(isInvoiceOverdue(makeInvoice({ status: 'paid', dueDate: daysAgo(10) }), NOW)).toBe(false);
+    });
+
+    it('leaves draft/paid status untouched by effectiveInvoiceStatus', () => {
+        expect(effectiveInvoiceStatus(makeInvoice({ status: 'draft' }), NOW)).toBe('draft');
+        expect(effectiveInvoiceStatus(makeInvoice({ status: 'paid', dueDate: daysAgo(10) }), NOW)).toBe('paid');
     });
 });
 

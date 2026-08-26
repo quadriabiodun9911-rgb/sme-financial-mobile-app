@@ -42,6 +42,24 @@ describe('daysUntilRecurringDue / isRecurringTransactionOverdue', () => {
         expect(daysUntilRecurringDue(tx, NOW)).toBeGreaterThanOrEqual(0);
         expect(isRecurringTransactionOverdue(tx, NOW)).toBe(false);
     });
+
+    it('is 0 (not -1) when the due date is later today', () => {
+        // NOW is 2026-08-19T12:00 UTC; anchored one month back so the due
+        // date is today. Diffing against the raw current time-of-day (the
+        // bug) floors this to -1 ("overdue") instead of 0 ("due today").
+        const tx = { date: '2026-07-19', recurringFrequency: 'monthly' as const };
+        expect(daysUntilRecurringDue(tx, NOW)).toBe(0);
+        expect(isRecurringTransactionOverdue(tx, NOW)).toBe(false);
+    });
+
+    it('counts whole calendar days, not 24h periods, when now is later in the day', () => {
+        // Anchored 2026-07-21 -> next due 2026-08-21, 2 calendar days after
+        // NOW's date (2026-08-19). Diffing against the raw current
+        // time-of-day (the bug) undercounts this as 1 day.
+        const tx = { date: '2026-07-21', recurringFrequency: 'monthly' as const };
+        const laterToday = new Date('2026-08-19T20:00:00.000Z');
+        expect(daysUntilRecurringDue(tx, laterToday)).toBe(2);
+    });
 });
 
 describe('hasRecurringSchedule', () => {

@@ -60,8 +60,18 @@ export function getInvoicesDueForReminder(
         if (invoice.status === 'paid' || invoice.status === 'draft') continue;
         if (!invoice.clientPhone) continue; // nothing to send a reminder to
 
-        const dueDate = new Date(invoice.dueDate);
-        const daysOverdue = Math.floor((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+        // `new Date(invoice.dueDate)` (a bare "YYYY-MM-DD" string) parses as
+        // UTC midnight, not local midnight -- in any positive-UTC-offset
+        // timezone (Nigeria, UAE, etc.) that shifts the reference point
+        // within the day, and diffing it against the raw current
+        // time-of-day (rather than today's local midnight) compounds it:
+        // together they could under-count how many days an invoice has
+        // been overdue by a full day, most visibly in the early morning.
+        // Verified: an invoice due 4 calendar days ago computed as "3 days
+        // overdue" at 3am in UTC+4. Both sides now anchor to local midnight.
+        const dueDate = new Date(invoice.dueDate + 'T00:00:00');
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
         if (daysOverdue < milestones[0]) continue;
 
         const sent = state[invoice.id] ?? [];

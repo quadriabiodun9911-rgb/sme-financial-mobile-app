@@ -40,10 +40,19 @@ export function nextRecurringDueDate(tx: RecurringAnchor): Date {
     return new Date(y, m - 1, d);
 }
 
-/** Whole days between now and the next due date -- negative once overdue. */
+/**
+ * Whole calendar days between now and the next due date -- negative once
+ * overdue. `now` is re-anchored to local midnight before diffing (mirrors
+ * daysUntilNextRecurringInvoice in recurringInvoices.ts) -- diffing against
+ * the raw current-time-of-day instead under-counted by a full day for
+ * anyone using the app after midnight, i.e. almost always: a transaction
+ * due today showed as "1d overdue" instead of due today, and a transaction
+ * due in 2 calendar days showed "Due in 1d".
+ */
 export function daysUntilRecurringDue(tx: RecurringAnchor, now: Date = new Date()): number {
     const due = nextRecurringDueDate(tx);
-    return Math.floor((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return Math.floor((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 export function isRecurringTransactionOverdue(tx: RecurringAnchor, now: Date = new Date()): boolean {
