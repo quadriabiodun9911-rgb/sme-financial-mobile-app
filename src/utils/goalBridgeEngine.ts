@@ -110,7 +110,8 @@ export function calculateGoalBridge(
     goal,
     metrics,
     achievableTimeline,
-    tacticAllocations
+    tacticAllocations,
+    currency
   );
 
   // Calculate success probability
@@ -184,7 +185,8 @@ function generateMilestones(
   goal: FinancialGoal,
   metrics: FinancialMetrics,
   timeline: number,
-  tacticAllocations: TacticAllocation[]
+  tacticAllocations: TacticAllocation[],
+  currency: string
 ): Milestone[] {
   const milestones: Milestone[] = [];
 
@@ -210,7 +212,7 @@ function generateMilestones(
     const milestone: Milestone = {
       month,
       targetValue: Math.round(targetValue),
-      description: `Month ${month}: Reach ${goal.type} target (${(progressPercentage * 100).toFixed(0)}% of goal)`,
+      description: `Month ${month}: Reach ${formatGoalMetric(targetValue, goal.type, currency)} (${(progressPercentage * 100).toFixed(0)}% of goal)`,
       requiredTactics: activeTactics,
       checkpointMetrics: [
         `${goal.type} achieved`,
@@ -226,7 +228,7 @@ function generateMilestones(
   milestones.push({
     month: timeline,
     targetValue: goal.targetValue,
-    description: `Month ${timeline}: Goal achieved! ${goal.type} = ${goal.targetValue}`,
+    description: `Month ${timeline}: Goal achieved! Target: ${formatGoalMetric(goal.targetValue, goal.type, currency)}`,
     requiredTactics: [],
     checkpointMetrics: [
       `${goal.type} = target`,

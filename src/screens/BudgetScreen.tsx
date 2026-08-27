@@ -116,6 +116,7 @@ export default function BudgetScreen() {
     const displayTotalActual   = displayBva.reduce((s, b) => s + b.actual, 0);
     const displayTotalVariance = displayTotalBudgeted - displayTotalActual;
     const displayOverCount     = displayBva.filter(b => b.status === 'over').length;
+    const displayOverAmount    = displayBva.filter(b => b.status === 'over').reduce((s, b) => s + Math.abs(b.variance), 0);
 
     // Average monthly spend per category from past transactions — used to suggest
     // a realistic budget instead of guessing.
@@ -352,7 +353,7 @@ export default function BudgetScreen() {
                     {displayOverCount > 0 && (
                         <View style={s.overAlertRow}>
                             <Icon name="alert-triangle" size={13} color={Colors.expense} />
-                            <Text style={s.overAlert}>{displayOverCount} categor{displayOverCount > 1 ? 'ies' : 'y'} over budget</Text>
+                            <Text style={s.overAlert}>{displayOverCount} categor{displayOverCount > 1 ? 'ies' : 'y'} over budget by {currency}{displayOverAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })} combined</Text>
                         </View>
                     )}
                 </View>
