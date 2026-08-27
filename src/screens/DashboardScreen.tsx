@@ -211,6 +211,7 @@ export default function DashboardScreen() {
     useEffect(() => {
         if (navParams?.openWeeklyReport) setShowWeeklyReport(true);
         if (navParams?.openMonthlyReview) setShowMonthlyReview(true);
+        if (navParams?.openDailyReport) setShowDailyReport(true);
     }, [navParams]);
 
     useEffect(() => {
@@ -689,8 +690,10 @@ export default function DashboardScreen() {
         if (exp > 0) addTransaction({ type: 'expense', amount: exp, description: 'End of day expenses', category: 'Other', date: today, paymentMethod: eodPaymentMethod });
         setEodIncome(''); setEodExpense(''); setEodPaymentMethod(undefined); setEodOpen(false);
         setLastSynced(new Date());
-        const newProfit = finance.profit + inc - exp;
-        showToast(`Saved! Today's profit: ${settings.currency}${newProfit.toLocaleString()}`);
+        // The Daily Report recap already shows this exact number alongside a
+        // verdict and tomorrow's action plan -- a toast saying the same thing
+        // a beat before the recap opens would just be redundant.
+        setShowDailyReport(true);
     };
 
     const submitQuickAdd = () => {
@@ -1279,6 +1282,9 @@ export default function DashboardScreen() {
                   </TouchableOpacity>
                   <TouchableOpacity style={[styles.btn, { marginTop: 10 }]} onPress={() => setShowMonthlyReview(true)}>
                     <Text style={styles.btnText}>📊 Monthly Review — Recap & Recommendation</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.btn, { marginTop: 10 }]} onPress={() => setShowDailyReport(true)}>
+                    <Text style={styles.btnText}>📆 Daily Report — Today's Recap</Text>
                   </TouchableOpacity>
                 </View>
                 )}

@@ -32,6 +32,12 @@ export const FEATURE_INDEX: FeatureEntry[] = [
         screen: 'dashboard', navParams: { openMonthlyReview: true },
     },
     {
+        id: 'daily-report', label: 'Daily Report', icon: '📆',
+        description: "Today's revenue, expenses and profit vs your goal-derived daily targets, a verdict on how the day went, and tomorrow's action plan",
+        keywords: ['day', 'today', 'end of day', 'eod', 'recap', 'daily targets', 'verdict'],
+        screen: 'dashboard', navParams: { openDailyReport: true },
+    },
+    {
         id: 'quality-of-growth', label: 'Quality of Growth', icon: '🌱',
         description: 'Is revenue growth healthy? Compares revenue growth against profit, cash, receivables and debt growth year over year',
         keywords: ['growth quality', 'healthy growth', 'fragile growth', 'revenue growth', 'year over year', 'yoy'],
