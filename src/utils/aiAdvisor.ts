@@ -24,6 +24,7 @@ import { supabase } from './supabase';
 import { FinanceData, BusinessSettings, FinancialGoal, CapitalCommitment } from '../types';
 import { DiagnosisResult } from './financialDiagnosisEngine';
 import { RiskRadar } from './riskRadar';
+import { BehavioralProfile } from './behavioralProfile';
 
 export interface AdvisorContext {
     currency: string;
@@ -36,6 +37,21 @@ export interface AdvisorContext {
     riskRadar: { overallLevel: string; topRisks: { label: string; level: string; summary: string }[] };
     goals: { title: string; type: string; progress: number; status: string; currentValue: number; targetValue: number; unit: string }[];
     capitalCommitments: { name: string; amountApproved: number; status: string }[];
+    // Optional: the same "what's happening / what's likely / what to do /
+    // what capital fits" chain Business Passport shows (see
+    // behavioralProfile.ts) -- covers pattern signals (seasonality, growth
+    // quality, cost trajectory, financing fit) the diagnosis/riskRadar
+    // fields above don't. Kept to compact strings, not the full sub-engine
+    // results, so it stays well inside the edge function's context-size
+    // limit. Omitted when the caller doesn't have enough history to build
+    // one (undefined, never a fabricated placeholder).
+    behavioralProfile?: {
+        narrative: string;
+        whatsHappening: string[];
+        whatsLikely: string[];
+        whatToDo: string[];
+        capitalFit: { label: string; reason: string }[];
+    };
 }
 
 export function buildAdvisorContext(
@@ -45,6 +61,7 @@ export function buildAdvisorContext(
     riskRadar: RiskRadar,
     goals: FinancialGoal[],
     capitalCommitments: CapitalCommitment[],
+    behavioralProfile?: BehavioralProfile | null,
 ): AdvisorContext {
     return {
         currency: settings.currency,
@@ -60,6 +77,15 @@ export function buildAdvisorContext(
         },
         goals: goals.map(g => ({ title: g.title, type: g.type, progress: g.progress, status: g.status, currentValue: g.currentValue, targetValue: g.targetValue, unit: g.unit })),
         capitalCommitments: capitalCommitments.map(c => ({ name: c.name, amountApproved: c.amountApproved, status: c.status })),
+        ...(behavioralProfile && behavioralProfile.available ? {
+            behavioralProfile: {
+                narrative: behavioralProfile.narrative,
+                whatsHappening: behavioralProfile.whatsHappening,
+                whatsLikely: behavioralProfile.whatsLikely,
+                whatToDo: behavioralProfile.whatToDo,
+                capitalFit: behavioralProfile.capitalFit.map(r => ({ label: r.label, reason: r.reasons[0] })),
+            },
+        } : {}),
     };
 }
 

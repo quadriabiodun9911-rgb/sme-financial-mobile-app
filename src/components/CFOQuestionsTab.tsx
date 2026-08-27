@@ -18,6 +18,8 @@ import { CommitmentStatus, CommitmentKPI } from '../types';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { computeRiskRadar } from '../utils/riskRadar';
 import { buildAdvisorContext } from '../utils/aiAdvisor';
+import { buildBehavioralProfile } from '../utils/behavioralProfile';
+import { computeReadinessDelta } from '../utils/readinessHistory';
 import AIAdvisorCard from './AIAdvisorCard';
 
 function fmt(currency: string, n: number): string {
@@ -49,6 +51,7 @@ export default function CFOQuestionsTab() {
     const {
         transactions, loans, inventory, finance, settings, navigate, goals, invoices,
         capitalCommitments, addCommitment, updateCommitment, deleteCommitment,
+        assets, user, readinessHistory,
     } = useApp();
     const { currency } = settings;
 
@@ -58,17 +61,30 @@ export default function CFOQuestionsTab() {
     // diagnosis call: fewer than 5 transactions makes it too noisy to be
     // worth running a second time here.
     const advisorContext = useMemo(
-        () => (transactions.length >= 5
-            ? buildAdvisorContext(
+        () => {
+            if (transactions.length < 5) return null;
+            const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), currency, loans, inventory);
+            return buildAdvisorContext(
                 finance,
                 settings,
-                performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), currency, loans, inventory),
+                diagnosis,
                 computeRiskRadar(transactions, loans, settings?.macroAssumptions ?? []),
                 goals,
                 capitalCommitments,
-            )
-            : null),
-        [transactions, invoices, finance, settings, currency, loans, inventory, goals, capitalCommitments]
+                // Same real pattern/prediction/financing-fit chain Business
+                // Passport shows -- gives the model seasonality, growth
+                // quality, cost trajectory and financing-fit signals the
+                // diagnosis/riskRadar above don't cover, so it can actually
+                // answer "what kind of capital fits my business" from real
+                // data instead of declining or guessing.
+                buildBehavioralProfile({
+                    transactions, invoices, assets, loans, inventory, settings, user,
+                    readinessTrend: computeReadinessDelta(readinessHistory)?.trend ?? null,
+                    topActionSummary: diagnosis.topOpportunities[0] ?? null,
+                }),
+            );
+        },
+        [transactions, invoices, finance, settings, currency, loans, inventory, goals, capitalCommitments, assets, user, readinessHistory]
     );
 
     const [revenueMissPct, setRevenueMissPct] = useState(15);

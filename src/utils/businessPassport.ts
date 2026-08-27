@@ -42,6 +42,7 @@ import { computeRiskRadar } from './riskRadar';
 import { generateActionPlan } from './actionRecommendationEngine';
 import { calculateGoalBridge, mapSavedGoalToBridge } from './goalBridgeEngine';
 import { assessGoalRisk, GoalRiskAssessment } from './goalRiskLinkage';
+import { buildBehavioralProfile, BehavioralProfile } from './behavioralProfile';
 
 // Below this many recorded transactions, a full diagnosis is too thin to
 // trust — the Passport falls back to a structural snapshot built from
@@ -140,6 +141,12 @@ export interface BusinessPassport {
         growthReadiness: number;
         narrative: string;
     }[];
+    // "Here's what's happening -> what's likely -> what to do -> what
+    // capital fits" chained from the real pattern/prediction/financing-fit
+    // engines already used elsewhere in this file — see behavioralProfile.ts.
+    // Null under the same MIN_TRANSACTIONS_FOR_DIAGNOSIS gate as
+    // narrativeSummary/improvementProjection above.
+    behavioralProfile: BehavioralProfile | null;
 }
 
 export function buildBusinessPassport(
@@ -221,6 +228,20 @@ export function buildBusinessPassport(
         })()
         : [];
 
+    // No persisted readiness history is available to this aggregation
+    // layer (buildBusinessPassport isn't given readinessHistory), so the
+    // one financing-fit signal that depends on a readiness trend simply
+    // doesn't fire here -- same "no basis for this signal, don't guess"
+    // behavior recommendFinancingTypes already applies to every other
+    // ungated signal, not a gap unique to this call site.
+    const behavioralProfile = hasEnoughDataForDiagnosis
+        ? buildBehavioralProfile({
+            transactions, invoices, assets, loans, inventory, settings, user,
+            readinessTrend: null,
+            topActionSummary: diagnosis.topOpportunities[0] ?? null,
+        })
+        : null;
+
     return {
         businessName: dna.identity.businessName,
         generatedAt: new Date().toISOString(),
@@ -293,5 +314,6 @@ export function buildBusinessPassport(
         improvementProjection,
         narrativeSummary: hasEnoughDataForDiagnosis ? diagnosis.narrativeSummary : '',
         goalRisks,
+        behavioralProfile,
     };
 }

@@ -381,6 +381,58 @@ export default function BusinessPassportScreen() {
                         </Text>
                     </View>
                 )}
+
+                {/* 11. Behavioral Profile — the evolution this whole page
+                    builds to: not just a report, but what's happening, what's
+                    likely, what to do, and what capital fits, chained from
+                    the real pattern/prediction/financing-fit engines already
+                    used above (see behavioralProfile.ts). Hidden entirely
+                    when there's not enough history for a diagnosis at all,
+                    and each stage inside it is independently hidden when its
+                    own underlying engine has nothing real to say yet — never
+                    a placeholder standing in for missing history. */}
+                {passport.behavioralProfile && passport.behavioralProfile.available && (
+                    <View style={s.actionsCard}>
+                        <Text style={s.cardTitle}>Behavioral Profile</Text>
+                        <Text style={s.cardSubtitle}>From report to what capital fits your business</Text>
+                        <Text style={s.narrativeText}>{passport.behavioralProfile.narrative}</Text>
+                        {passport.behavioralProfile.whatsHappening.length > 0 && (
+                            <View style={s.goalRiskRow}>
+                                <Text style={s.goalRiskTitle}>What's happening</Text>
+                                {passport.behavioralProfile.whatsHappening.map((line, i) => (
+                                    <Text key={i} style={s.readinessNote}>• {line}</Text>
+                                ))}
+                            </View>
+                        )}
+                        {passport.behavioralProfile.whatsLikely.length > 0 && (
+                            <View style={s.goalRiskRow}>
+                                <Text style={s.goalRiskTitle}>What's likely</Text>
+                                {passport.behavioralProfile.whatsLikely.map((line, i) => (
+                                    <Text key={i} style={s.readinessNote}>• {line}</Text>
+                                ))}
+                            </View>
+                        )}
+                        {passport.behavioralProfile.whatToDo.length > 0 && (
+                            <View style={s.goalRiskRow}>
+                                <Text style={s.goalRiskTitle}>What to do</Text>
+                                {passport.behavioralProfile.whatToDo.map((line, i) => (
+                                    <Text key={i} style={s.readinessNote}>• {line}</Text>
+                                ))}
+                            </View>
+                        )}
+                        {passport.behavioralProfile.capitalFit.length > 0 && (
+                            <View style={s.goalRiskRow}>
+                                <Text style={s.goalRiskTitle}>Capital that fits</Text>
+                                {passport.behavioralProfile.capitalFit.map((rec, i) => (
+                                    <Text key={i} style={s.readinessNote}>• {rec.label} — {rec.reasons[0]}</Text>
+                                ))}
+                            </View>
+                        )}
+                        <TouchableOpacity onPress={() => navigate('financing-marketplace')}>
+                            <Text style={s.linkText}>See financing options that match this profile →</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
             </ScrollView>
             <FooterNav />
         </SafeAreaView>
