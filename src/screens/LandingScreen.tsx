@@ -120,16 +120,24 @@ export default function LandingScreen() {
                     the hero, on every viewport -- a prior version placed it
                     beside the hero text on wide screens, which read as less
                     professional; the fix for the empty space beside the text
-                    is a wider hero column, not a beside-the-text image. */}
+                    is a wider hero column, not a beside-the-text image.
+
+                    Business Passport, not the raw cash/profit dashboard --
+                    a first-time visitor can't tell what a cash figure means
+                    without context, but "Business Identity / Financial
+                    Identity / Health / Risk" as labeled, structured cards
+                    directly shows what Quad360 actually does: turn activity
+                    into a legible profile of the business, which is the
+                    whole pitch this page is making above it. */}
                 <View style={[s.previewWrap, isWide && s.previewWrapWide]}>
-                    <View style={s.previewFrame}>
+                    <View style={[s.previewFrame, s.previewFramePassport]}>
                         <Image
-                            source={require('../../assets/landing-dashboard-preview.png')}
+                            source={require('../../assets/landing-passport-preview.png')}
                             style={s.previewImage}
                             resizeMode="cover"
                         />
                     </View>
-                    <Text style={s.previewCaption}>A real Quad360 dashboard, shown with sample data.</Text>
+                    <Text style={s.previewCaption}>A real Quad360 Business Passport, shown with sample data.</Text>
                 </View>
 
                 <View style={s.bridgeSection}>
@@ -291,6 +299,11 @@ const s = StyleSheet.create({
         borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border,
         overflow: 'hidden', backgroundColor: Colors.surface, ...Shadow.lg,
     },
+    // Business Passport screenshot is a portrait card stack, not a wide
+    // landscape dashboard -- overrides previewFrame's width/aspect ratio to
+    // match its actual 430:800 crop instead of stretching it into the old
+    // wide-short frame.
+    previewFramePassport: { maxWidth: 420, aspectRatio: 430 / 800 },
     previewImage: { width: '100%', height: '100%' },
     previewCaption: { fontSize: 11.5, color: Colors.textMuted, marginTop: 10, textAlign: 'center' },
 
