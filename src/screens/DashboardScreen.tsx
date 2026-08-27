@@ -1536,8 +1536,12 @@ export default function DashboardScreen() {
             <TouchableOpacity style={[styles.fab, { bottom: 80 + (!loggedToday ? logTodayBannerHeight : 0) }]} onPress={() => openFab()}>
                 <Text style={styles.fabText}>+</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.eodFab, { bottom: 140 + (!loggedToday ? logTodayBannerHeight : 0) }]} onPress={() => setEodOpen(true)}>
-                <Text style={styles.eodFabText}>🌙 End of Day</Text>
+            <TouchableOpacity
+                style={[styles.eodFab, { bottom: 140 + (!loggedToday ? logTodayBannerHeight : 0) }]}
+                onPress={() => setEodOpen(true)}
+                accessibilityLabel="End of Day quick log"
+            >
+                <Icon name="moon" size={20} color={Colors.textPrimary} />
             </TouchableOpacity>
 
             {/* ── Daily log-today banner ───────────────────────────────────── */}
@@ -1941,8 +1945,15 @@ const styles = StyleSheet.create({
     recurringText:   { flex: 1, fontSize: 12, color: Colors.primary, fontWeight: '600' },
     recurringArrow:  { fontSize: 18, color: Colors.primary },
 
-    eodFab:     { position: 'absolute', right: 20, bottom: 140, backgroundColor: Colors.surface, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: Colors.border, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 5 },
-    eodFabText: { fontSize: 12, fontWeight: '700', color: Colors.textPrimary },
+    // Was a wide "🌙 End of Day" text pill -- fine in isolation, but as a
+    // permanently fixed-position overlay (not scrolled with content, see the
+    // FAB comment above) its full width regularly landed on top of card
+    // numbers and narrative text as the page scrolled underneath it (e.g.
+    // covering "This Month" and "Pending Invoices" figures, and cutting into
+    // the "What Quad360 Sees" sentence). Shrunk to a round icon-only button,
+    // matching the "+" FAB's footprint, so it can only ever obscure a small
+    // corner instead of a run of text.
+    eodFab:     { position: 'absolute', right: 20, bottom: 140, width: 48, height: 48, borderRadius: 24, backgroundColor: Colors.surface, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 5 },
 
     searchTrigger:     { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: Spacing.md, paddingVertical: Spacing.md, marginBottom: Spacing.lg, gap: Spacing.sm, ...Shadow.sm },
     searchTriggerText: { fontSize: 13, color: Colors.textMuted, flex: 1 },
