@@ -80,6 +80,7 @@ export default function CFOQuestionsTab() {
                 buildBehavioralProfile({
                     transactions, invoices, assets, loans, inventory, settings, user,
                     readinessTrend: computeReadinessDelta(readinessHistory)?.trend ?? null,
+                    readinessHistory,
                     topActionSummary: diagnosis.topOpportunities[0] ?? null,
                 }),
             );

@@ -1,5 +1,5 @@
 import { buildBehavioralProfile, BehavioralProfileInput } from '../src/utils/behavioralProfile';
-import { Transaction, Invoice, BusinessSettings } from '../src/types';
+import { Transaction, Invoice, Loan, MerchantFinancingApplication, BusinessSettings } from '../src/types';
 
 const settings: BusinessSettings = {
     businessName: 'Okafor Foods',
@@ -48,6 +48,36 @@ const makeInvoice = (overrides: Partial<Invoice> = {}): Invoice => ({
     taxTotal: 0,
     total: 100000,
     createdAt: daysAgo(20),
+    ...overrides,
+});
+
+const makeLoan = (overrides: Partial<Loan> = {}): Loan => ({
+    id: `loan-${Math.random()}`,
+    lenderName: 'Zenith Bank',
+    purpose: 'expansion',
+    principal: 10000000,
+    interestRate: 24,
+    termMonths: 12,
+    startDate: daysAgo(60),
+    status: 'active',
+    payments: [],
+    createdAt: daysAgo(60),
+    ...overrides,
+});
+
+const makeApplication = (overrides: Partial<MerchantFinancingApplication> = {}): MerchantFinancingApplication => ({
+    id: `app-${Math.random()}`,
+    userId: 'u1',
+    status: 'pending',
+    requestedAmount: 1000000,
+    purpose: 'expansion',
+    interestRate: 0,
+    termMonths: 0,
+    lenderName: 'Awaiting lender match',
+    lenderId: '',
+    appliedDate: daysAgo(30),
+    monthlyProfitAtApproval: 0,
+    monthlyProfitCurrent: 0,
     ...overrides,
 });
 
@@ -132,5 +162,40 @@ describe('buildBehavioralProfile', () => {
         ];
         const profile = buildBehavioralProfile(baseInput({ invoices }));
         expect(profile.whatsHappening.some(h => h.includes('Slow Co') && h.includes('Serial late payer'))).toBe(true);
+    });
+
+    it('never checks post-financing outcome for a loan not flagged as marketplace-sourced', () => {
+        const loans = [makeLoan({ fromMarketplace: false })];
+        const transactions = [makeTx({ type: 'income', amount: 1000, date: daysAgo(10) })];
+        const profile = buildBehavioralProfile(baseInput({ transactions, loans }));
+        expect(profile.whatsHappening.some(h => h.includes('is flagged'))).toBe(false);
+    });
+
+    it('surfaces a real post-financing warning for a marketplace-sourced loan the business can\'t actually service', () => {
+        // Tiny income against a huge, high-rate loan -- guarantees DSCR < 1,
+        // the same hard signal postFinancingMonitor.ts checks.
+        const loans = [makeLoan({ fromMarketplace: true, lenderName: 'Zenith Bank' })];
+        const transactions = [makeTx({ type: 'income', amount: 5000, date: daysAgo(10) })];
+        const profile = buildBehavioralProfile(baseInput({ transactions, loans }));
+        expect(profile.whatsHappening.some(h => h.includes('Zenith Bank') && h.includes("flagged 'at-risk'"))).toBe(true);
+        expect(profile.whatToDo.length).toBeGreaterThan(0);
+    });
+
+    it('never surfaces financing outcome history while an application is still pending', () => {
+        const profile = buildBehavioralProfile(baseInput({ currentFinancingApplication: makeApplication({ status: 'pending' }) }));
+        expect(profile.whatsHappening.some(h => h.includes('Applied for financing'))).toBe(false);
+    });
+
+    it('surfaces a real financing outcome history once an application has actually resolved', () => {
+        const pastFinancingApplications = [
+            makeApplication({ status: 'approved', requestedAmount: 1000000, approvedAmount: 700000 }),
+            makeApplication({ status: 'rejected', rejectionReason: 'Insufficient trading history' }),
+        ];
+        const profile = buildBehavioralProfile(baseInput({ pastFinancingApplications }));
+        const outcomeBullet = profile.whatsHappening.find(h => h.includes('Applied for financing'));
+        expect(outcomeBullet).toBeDefined();
+        expect(outcomeBullet).toContain('1 approved, 1 rejected');
+        expect(outcomeBullet).toContain('70%');
+        expect(outcomeBullet).toContain('Insufficient trading history');
     });
 });

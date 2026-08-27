@@ -29,7 +29,7 @@
  * land" estimate, not a new canonical score.
  */
 
-import { Transaction, Invoice, Loan, InventoryItem, Asset, FinanceData, BusinessSettings, User, Budget, StaffMember, FinancialGoal } from '../types';
+import { Transaction, Invoice, Loan, InventoryItem, Asset, FinanceData, BusinessSettings, User, Budget, StaffMember, FinancialGoal, FinancingContextData } from '../types';
 import { buildBusinessFinancialDNA, BusinessFinancialDNA, detectDNADeviations, DNADeviation } from './businessFinancialDNA';
 import { getMonthlyExpenseAverage, computeImprovementProjection, RiskScore } from './finance';
 import { buildFundingReadinessPack, FundingReadinessPack } from './fundingReadiness';
@@ -161,6 +161,7 @@ export function buildBusinessPassport(
     budgets: Budget[] = [],
     staff: StaffMember[] = [],
     goals: FinancialGoal[] = [],
+    financing: Pick<FinancingContextData, 'pastApplications' | 'application'> = {},
 ): BusinessPassport {
     const dna = buildBusinessFinancialDNA(transactions, loans, inventory, finance, settings, user);
     const pack = buildFundingReadinessPack(transactions, invoices, loans, inventory, assets, finance, settings, dna.identity.businessName);
@@ -239,6 +240,8 @@ export function buildBusinessPassport(
             transactions, invoices, assets, loans, inventory, settings, user,
             readinessTrend: null,
             topActionSummary: diagnosis.topOpportunities[0] ?? null,
+            pastFinancingApplications: financing.pastApplications,
+            currentFinancingApplication: financing.application,
         })
         : null;
 

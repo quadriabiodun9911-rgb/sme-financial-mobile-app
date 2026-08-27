@@ -812,6 +812,20 @@ export interface FinancingQualification {
     healthScoreOk: boolean;
 }
 
+// Self-reported resolution of a pending MerchantFinancingApplication --
+// Quad360 has no lender integration (applyForMerchantFinancing creates a
+// 'pending' application and nothing has ever moved it past that), so like
+// Loan.fromMarketplace and CapitalCommitment, the only honest way to close
+// this loop is the business telling Quad360 what actually happened.
+export interface FinancingOutcomeInput {
+    status: 'approved' | 'rejected';
+    approvedAmount?: number;
+    interestRate?: number;
+    termMonths?: number;
+    lenderName?: string;
+    rejectionReason?: string;
+}
+
 export interface FinancingContextData {
     isQualified: boolean;
     qualification?: FinancingQualification;

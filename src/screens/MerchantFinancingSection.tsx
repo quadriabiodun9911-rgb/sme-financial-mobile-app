@@ -9,7 +9,7 @@ import DateInput from '../components/DateInput';
 import { showAlert } from '../utils/webAlert';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
-import { LoanPurpose } from '../types';
+import { LoanPurpose, FinancingOutcomeInput } from '../types';
 import { computeDSCR } from '../utils/finance';
 import { monthlyPayment } from '../utils/loanMath';
 
@@ -28,10 +28,11 @@ const PURPOSE_OPTIONS: { id: LoanPurpose; label: string; icon: IconName }[] = [
 // ── MAIN SECTION COMPONENT ────────────────────────────────────────────────────
 
 export default function MerchantFinancingSection() {
-    const { user, financing, applyForMerchantFinancing, settings, navigate, transactions, loans } = useApp();
+    const { user, financing, applyForMerchantFinancing, recordFinancingOutcome, settings, navigate, transactions, loans } = useApp();
     const { currency } = settings;
 
     const [showApplyModal, setShowApplyModal] = useState(false);
+    const [showOutcomeModal, setShowOutcomeModal] = useState(false);
     const [expandedId, setExpandedId] = useState<string | null>(null);
 
     // Same DSCR the Financing Marketplace already gates every third-party
@@ -85,11 +86,19 @@ export default function MerchantFinancingSection() {
                 </View>
             ) : null}
 
-            {/* SECTION 2: Application Status - Priority 2 */}
-            {hasApplied && !isApproved && financing?.application ? (
+            {/* SECTION 2: Application Status - Priority 2 -- ApplicationStatusCard
+                already renders pending/approved/rejected correctly; gating this
+                on !isApproved as well as hasActiveLoan used to hide it the moment
+                recordFinancingOutcome marked an application approved, leaving
+                nothing on screen until it's manually converted into a Loan
+                Register entry. Gate on hasActiveLoan alone so it keeps showing
+                the approved application (and its "funds transferred" notice)
+                until that conversion actually happens. */}
+            {hasApplied && !hasActiveLoan && financing?.application ? (
                 <ApplicationStatusCard
                     application={financing.application}
                     currency={currency}
+                    onRecordOutcome={() => setShowOutcomeModal(true)}
                 />
             ) : null}
 
@@ -161,6 +170,26 @@ export default function MerchantFinancingSection() {
                         }).catch(() => {
                             showAlert('Error', 'Failed to submit application');
                         });
+                    }}
+                />
+            )}
+
+            {/* Record Financing Outcome Modal */}
+            {showOutcomeModal && (
+                <RecordOutcomeModal
+                    visible={showOutcomeModal}
+                    currency={currency}
+                    requestedAmount={financing?.application?.requestedAmount || 0}
+                    onClose={() => setShowOutcomeModal(false)}
+                    onSubmit={(outcome) => {
+                        recordFinancingOutcome(outcome);
+                        setShowOutcomeModal(false);
+                        showAlert(
+                            outcome.status === 'approved' ? 'Recorded' : 'Recorded',
+                            outcome.status === 'approved'
+                                ? 'Marked as approved. Once funds arrive, add it to your Loan Register to track repayment.'
+                                : 'Marked as declined. You can apply again whenever you\'re ready.'
+                        );
                     }}
                 />
             )}
@@ -370,9 +399,10 @@ function ActiveMerchantLoanCard({ loan, currency, expanded, onToggle }: {
  * APPLICATION STATUS CARD
  * Shows status of pending or rejected applications
  */
-function ApplicationStatusCard({ application, currency }: {
+function ApplicationStatusCard({ application, currency, onRecordOutcome }: {
     application: any;
     currency: string;
+    onRecordOutcome: () => void;
 }) {
     const statusDisplay = {
         pending: { text: 'Under Review', icon: 'clock' as IconName, color: Colors.warning, bg: 'rgba(245,158,11,0.1)' },
@@ -418,6 +448,17 @@ function ApplicationStatusCard({ application, currency }: {
             {application.status === 'rejected' && (
                 <TouchableOpacity style={s.reapplyBtn}>
                     <Text style={s.reapplyBtnText}>Reapply After 30 Days</Text>
+                </TouchableOpacity>
+            )}
+
+            {/* Quad360 has no lender integration, so it can never learn on
+                its own that a pending application was actually decided --
+                see recordFinancingOutcome in OptimizedContexts.tsx. Only
+                shown while pending: an approved/rejected application has
+                already been recorded and has nothing left to report. */}
+            {application.status === 'pending' && (
+                <TouchableOpacity style={[s.reapplyBtn, { marginTop: Spacing.sm }]} onPress={onRecordOutcome}>
+                    <Text style={s.reapplyBtnText}>Record What Happened →</Text>
                 </TouchableOpacity>
             )}
         </View>
@@ -937,6 +978,158 @@ function ApplyForFinancingModal({ visible, maxLoan, minLoan, monthlyProfit, curr
                                     <Text style={s.btnText}>Submit Application</Text>
                                 </TouchableOpacity>
                             )}
+                        </View>
+                    </ScrollView>
+                </View>
+            </View>
+        </Modal>
+    );
+}
+
+/**
+ * RECORD OUTCOME MODAL
+ * Quad360 has no lender integration, so a pending application can only ever
+ * be resolved by the business saying what actually happened -- see
+ * recordFinancingOutcome in OptimizedContexts.tsx. Deliberately simple: two
+ * outcomes, then only the fields relevant to whichever one is picked.
+ */
+function RecordOutcomeModal({ visible, currency, requestedAmount, onClose, onSubmit }: {
+    visible: boolean;
+    currency: string;
+    requestedAmount: number;
+    onClose: () => void;
+    onSubmit: (outcome: FinancingOutcomeInput) => void;
+}) {
+    const [outcome, setOutcome] = useState<'approved' | 'rejected'>('approved');
+    const [approvedAmount, setApprovedAmount] = useState(String(requestedAmount || ''));
+    const [interestRate, setInterestRate] = useState('');
+    const [termMonths, setTermMonths] = useState('');
+    const [lenderName, setLenderName] = useState('');
+    const [rejectionReason, setRejectionReason] = useState('');
+
+    const { width: windowWidth } = useWindowDimensions();
+    const constrainSheetWidth = Platform.OS === 'web' && windowWidth >= 720;
+
+    const canSubmit = outcome === 'rejected' || (parseFloat(approvedAmount) || 0) > 0;
+
+    const handleSubmit = () => {
+        if (outcome === 'approved') {
+            onSubmit({
+                status: 'approved',
+                approvedAmount: parseFloat(approvedAmount) || undefined,
+                interestRate: interestRate ? parseFloat(interestRate) : undefined,
+                termMonths: termMonths ? parseInt(termMonths, 10) : undefined,
+                lenderName: lenderName.trim() || undefined,
+            });
+        } else {
+            onSubmit({ status: 'rejected', rejectionReason: rejectionReason.trim() || undefined });
+        }
+    };
+
+    return (
+        <Modal visible={visible} animationType="slide" transparent>
+            <View style={s.modalOverlay}>
+                <View style={[s.modalSheet, constrainSheetWidth && s.modalSheetWide]}>
+                    <ScrollView keyboardShouldPersistTaps="handled">
+                        <View style={s.modalHeader}>
+                            <TouchableOpacity onPress={onClose}>
+                                <Icon name="x" size={20} color={Colors.textMuted} />
+                            </TouchableOpacity>
+                            <Text style={s.modalTitle}>Record What Happened</Text>
+                            <View style={{ width: 20 }} />
+                        </View>
+
+                        <View style={s.modalContent}>
+                            <Text style={s.stepTitle}>What did the lender decide?</Text>
+                            <Text style={s.stepSubtitle}>
+                                Quad360 can't see a real lender's decision on its own -- tell us so this application's
+                                history is accurate, and so future recommendations reflect what actually happened.
+                            </Text>
+
+                            <View style={s.purposeGrid}>
+                                <TouchableOpacity
+                                    style={[s.purposeCard, outcome === 'approved' && s.purposeCardActive]}
+                                    onPress={() => setOutcome('approved')}
+                                >
+                                    <Icon name="check-circle" size={26} color={outcome === 'approved' ? Colors.primary : Colors.textSecondary} />
+                                    <Text style={[s.purposeLabel, outcome === 'approved' && s.purposeLabelActive]}>Approved</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[s.purposeCard, outcome === 'rejected' && s.purposeCardActive]}
+                                    onPress={() => setOutcome('rejected')}
+                                >
+                                    <Icon name="x-circle" size={26} color={outcome === 'rejected' ? Colors.primary : Colors.textSecondary} />
+                                    <Text style={[s.purposeLabel, outcome === 'rejected' && s.purposeLabelActive]}>Rejected</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            {outcome === 'approved' ? (
+                                <>
+                                    <Text style={s.stepSubtitle}>Amount approved ({currency})</Text>
+                                    <TextInput
+                                        style={s.amountInput}
+                                        placeholder={`e.g. ${requestedAmount.toLocaleString()}`}
+                                        placeholderTextColor={Colors.textMuted}
+                                        keyboardType="decimal-pad"
+                                        value={approvedAmount}
+                                        onChangeText={setApprovedAmount}
+                                    />
+                                    <Text style={s.stepSubtitle}>Lender name (optional)</Text>
+                                    <TextInput
+                                        style={s.amountInput}
+                                        placeholder="e.g. Zenith Bank"
+                                        placeholderTextColor={Colors.textMuted}
+                                        value={lenderName}
+                                        onChangeText={setLenderName}
+                                    />
+                                    <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={s.stepSubtitle}>Interest rate % (optional)</Text>
+                                            <TextInput
+                                                style={s.amountInput}
+                                                placeholder="e.g. 18"
+                                                placeholderTextColor={Colors.textMuted}
+                                                keyboardType="decimal-pad"
+                                                value={interestRate}
+                                                onChangeText={setInterestRate}
+                                            />
+                                        </View>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={s.stepSubtitle}>Term (months, optional)</Text>
+                                            <TextInput
+                                                style={s.amountInput}
+                                                placeholder="e.g. 12"
+                                                placeholderTextColor={Colors.textMuted}
+                                                keyboardType="number-pad"
+                                                value={termMonths}
+                                                onChangeText={setTermMonths}
+                                            />
+                                        </View>
+                                    </View>
+                                </>
+                            ) : (
+                                <>
+                                    <Text style={s.stepSubtitle}>Reason given (optional)</Text>
+                                    <TextInput
+                                        style={[s.amountInput, { textAlign: 'left', fontSize: 14 }]}
+                                        placeholder="e.g. Insufficient trading history"
+                                        placeholderTextColor={Colors.textMuted}
+                                        value={rejectionReason}
+                                        onChangeText={setRejectionReason}
+                                        multiline
+                                    />
+                                </>
+                            )}
+                        </View>
+
+                        <View style={s.modalButtonRow}>
+                            <TouchableOpacity
+                                style={[s.btn, !canSubmit && { opacity: 0.5 }]}
+                                onPress={handleSubmit}
+                                disabled={!canSubmit}
+                            >
+                                <Text style={s.btnText}>Save Outcome</Text>
+                            </TouchableOpacity>
                         </View>
                     </ScrollView>
                 </View>

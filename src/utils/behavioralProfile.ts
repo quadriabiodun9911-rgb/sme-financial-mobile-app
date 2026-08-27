@@ -18,12 +18,15 @@
  * two full years, etc.) rather than a stage being fabricated to fill a slot.
  */
 
-import { Transaction, Invoice, Loan, InventoryItem, Asset, BusinessSettings, User } from '../types';
+import { Transaction, Invoice, Loan, InventoryItem, Asset, BusinessSettings, User, ReadinessSnapshot, MerchantFinancingApplication } from '../types';
 import { computeSeasonalityPattern } from './seasonality';
 import { computeQualityOfGrowth } from './qualityOfGrowth';
 import { computeCostExposureForecast } from './costExposureForecast';
 import { detectDNADeviations } from './businessFinancialDNA';
 import { computeCustomerPaymentHistory, describePaymentPersonality } from './customerPaymentBehavior';
+import { computePostFinancingMonitor } from './postFinancingMonitor';
+import { computeFinancingOutcomeStats, describeFinancingOutcomeStats } from './financingOutcomeStats';
+import { computeDSCR } from './finance';
 import { buildFinancingFitInput } from './financingFit';
 import { recommendFinancingTypes, FinancingRecommendation } from './financingRecommendation';
 import { ReadinessTrend } from './readinessHistory';
@@ -40,10 +43,20 @@ export interface BehavioralProfileInput {
     // trend from (e.g. demo mode) — recommendFinancingTypes already treats
     // that as "no basis for this one signal" rather than guessing.
     readinessTrend?: ReadinessTrend | null;
+    // Same readiness snapshots, passed through to postFinancingMonitor.ts
+    // for the "readiness since this loan was funded" signal. Defaults to
+    // empty -- that signal just reads as unavailable rather than guessed.
+    readinessHistory?: ReadinessSnapshot[];
     // The caller's own already-computed top action (e.g.
     // diagnosis.topOpportunities[0]) — this file never re-runs a full
     // diagnosis just to produce one prescriptive line.
     topActionSummary?: string | null;
+    // Resolved financing history (see recordFinancingOutcome) -- real
+    // approval/rejection outcomes, not the always-pending default. Defaults
+    // to empty/null, which computeFinancingOutcomeStats reads as "no
+    // history yet" rather than fabricating a track record.
+    pastFinancingApplications?: MerchantFinancingApplication[];
+    currentFinancingApplication?: MerchantFinancingApplication | null;
 }
 
 export interface BehavioralProfile {
@@ -60,7 +73,7 @@ export interface BehavioralProfile {
 }
 
 export function buildBehavioralProfile(input: BehavioralProfileInput): BehavioralProfile {
-    const { transactions, invoices, assets, loans, inventory, settings, user, readinessTrend = null, topActionSummary = null } = input;
+    const { transactions, invoices, assets, loans, inventory, settings, user, readinessTrend = null, readinessHistory = [], topActionSummary = null, pastFinancingApplications = [], currentFinancingApplication = null } = input;
     const currency = settings.currency;
 
     const whatsHappening: string[] = [];
@@ -115,6 +128,36 @@ export function buildBehavioralProfile(input: BehavioralProfileInput): Behaviora
 
     // ---- Prescription: the caller's own real top action, never re-derived here ----
     if (topActionSummary) whatToDo.push(topActionSummary);
+
+    // ---- Financing outcome: is a marketplace-sourced loan actually working out? ----
+    // Quad360 has no lender integration, so a loan is only checked here once
+    // the business has flagged it as coming from the marketplace
+    // (Loan.fromMarketplace) — see postFinancingMonitor.ts's own note on why
+    // this can't be automatic. This is the one place a past capital decision
+    // feeds back into "here's what's happening" instead of the capital-fit
+    // recommendation running blind every time. Placed after topActionSummary
+    // so the caller's own diagnosis keeps priority as the headline action;
+    // this adds a second, loan-specific one behind it.
+    const marketplaceLoan = loans.find(l => l.fromMarketplace && l.status === 'active');
+    if (marketplaceLoan) {
+        const dscr = computeDSCR(transactions, loans);
+        const monitor = computePostFinancingMonitor(marketplaceLoan, transactions, readinessHistory, dscr);
+        const trippedSignal = monitor.signals.find(s => s.tripped);
+        if (monitor.status !== 'healthy' && trippedSignal) {
+            whatsHappening.push(`Your ${marketplaceLoan.lenderName} loan is flagged '${monitor.status}': ${trippedSignal.detail}`);
+            if (monitor.tactics[0]) whatToDo.push(monitor.tactics[0]);
+        }
+    }
+
+    // ---- Financing outcome history: what actually happened last time this
+    // business applied for financing? Real, self-reported outcomes only
+    // (see recordFinancingOutcome) -- a still-pending application has no
+    // outcome yet to count, so this stays silent until at least one
+    // resolves. Grounds "here's the capital that fits" in what's actually
+    // happened before, instead of running blind every time.
+    const outcomeStats = computeFinancingOutcomeStats(pastFinancingApplications, currentFinancingApplication);
+    const outcomeDescription = describeFinancingOutcomeStats(outcomeStats);
+    if (outcomeDescription) whatsHappening.push(outcomeDescription);
 
     // ---- Capital that fits: reuse the financing-fit engine verbatim ----
     const fitInput = buildFinancingFitInput(transactions, loans, settings, user);

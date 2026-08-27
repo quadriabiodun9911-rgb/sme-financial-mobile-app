@@ -33,13 +33,13 @@ function fmtCompact(currency: string, amount: number): string {
 }
 
 export default function BusinessPassportScreen() {
-    const { transactions, invoices, loans, inventory, assets, finance, settings, user, navigate, setCurrentScreen, budgets, staff, goals } = useApp();
+    const { transactions, invoices, loans, inventory, assets, finance, settings, user, navigate, setCurrentScreen, budgets, staff, goals, financing } = useApp();
     const { currency } = settings;
     const [exporting, setExporting] = useState(false);
 
     const passport = useMemo(
-        () => buildBusinessPassport(transactions, invoices, loans, inventory, assets, finance, settings, user, budgets, staff, goals),
-        [transactions, invoices, loans, inventory, assets, finance, settings, user, budgets, staff, goals],
+        () => buildBusinessPassport(transactions, invoices, loans, inventory, assets, finance, settings, user, budgets, staff, goals, financing),
+        [transactions, invoices, loans, inventory, assets, finance, settings, user, budgets, staff, goals, financing],
     );
 
     const maxTrendRevenue = Math.max(1, ...passport.growth.trend.map(m => Math.max(m.revenue, m.expense)));

@@ -10,7 +10,7 @@
 
 import React, { createContext, useContext, useState, useMemo, useEffect, useRef, useCallback, ReactNode } from 'react';
 import { Platform } from 'react-native';
-import { User, Invoice, InvoiceStatus, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, MerchantFinancingApplication, LoanPurpose, StaffMember, PayrollRun, PayrollItem, CashPocket, CapitalCommitment, ReadinessSnapshot, DataConfidenceSnapshot, UserRole } from '../types';
+import { User, Invoice, InvoiceStatus, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, MerchantFinancingApplication, FinancingOutcomeInput, LoanPurpose, StaffMember, PayrollRun, PayrollItem, CashPocket, CapitalCommitment, ReadinessSnapshot, DataConfidenceSnapshot, UserRole } from '../types';
 import { computeFinance, computeAssetCurrentValue, countActiveMonths, getMonthlyExpenseAverage, computeRiskScore } from '../utils/finance';
 import { buildReadinessSnapshot, shouldRecordSnapshot, appendReadinessSnapshot } from '../utils/readinessHistory';
 import { computeDataQuality } from '../utils/dataQuality';
@@ -164,6 +164,7 @@ interface FinanceContextValue {
 
   financing: FinancingContextData;
   applyForMerchantFinancing: (amount: number, purpose: LoanPurpose) => Promise<void>;
+  recordFinancingOutcome: (outcome: FinancingOutcomeInput) => void;
 
   capitalCommitments: CapitalCommitment[];
   addCommitment: (c: Omit<CapitalCommitment, 'id' | 'createdAt' | 'updatedAt'>) => void;
@@ -620,6 +621,45 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           application,
           applicationStatus: 'pending',
         }));
+      },
+      // Closes the dead end above: nothing but the business itself can ever
+      // know what a real lender decided on a pending application, so this
+      // is the one write path that lets that decision actually get
+      // recorded — same "the owner tells us" discipline as Loan.fromMarketplace
+      // and CapitalCommitment. A no-op if there's no pending application to
+      // resolve (nothing to record against).
+      recordFinancingOutcome: (outcome) => {
+        setFinancing((prev) => {
+          if (!prev.application) return prev;
+          const today = new Date().toISOString().split('T')[0];
+          if (outcome.status === 'rejected') {
+            const resolved: MerchantFinancingApplication = {
+              ...prev.application,
+              status: 'rejected',
+              rejectionReason: outcome.rejectionReason,
+            };
+            return {
+              ...prev,
+              application: undefined,
+              applicationStatus: null,
+              pastApplications: [...(prev.pastApplications ?? []), resolved],
+            };
+          }
+          // Approved -- stays as the current application (not yet funded).
+          // Real financial fields (rate/term/amount) come from the lender's
+          // actual terms as reported by the owner, never re-derived from
+          // the original request.
+          const resolved: MerchantFinancingApplication = {
+            ...prev.application,
+            status: 'approved',
+            approvedAmount: outcome.approvedAmount,
+            approvalDate: today,
+            interestRate: outcome.interestRate ?? prev.application.interestRate,
+            termMonths: outcome.termMonths ?? prev.application.termMonths,
+            lenderName: outcome.lenderName?.trim() || prev.application.lenderName,
+          };
+          return { ...prev, application: resolved, applicationStatus: 'approved' };
+        });
       },
     }),
     [transactions, assets, loans, budgets, inventory, staff, payrollRuns, cashPockets, capitalCommitments, readinessHistory, dataConfidenceHistory, financing, syncUserId, finance, isDemoMode, settingsForFinance?.settings?.currency]
@@ -2197,6 +2237,7 @@ export function useApp() {
     lockoutUntil: auth.lockoutUntil,
     isLockedOut: auth.isLockedOut,
     applyForMerchantFinancing: finance?.applyForMerchantFinancing || (async () => {}),
+    recordFinancingOutcome: finance?.recordFinancingOutcome || (() => {}),
     setupAccount: auth.setupAccount,
     updateProfile: auth.updateProfile || (() => {}),
     updateInventoryItem: finance?.updateInventoryItem || (() => {}),
