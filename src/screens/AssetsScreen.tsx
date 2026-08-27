@@ -319,6 +319,7 @@ export default function AssetsScreen() {
                                     cashBalance: finance?.cashBalance ?? 0,
                                     monthlyProfit: finance?.profit ?? 0,
                                     minReserve: parseFloat(settings.minReserve || '0') || 0,
+                                    currency,
                                 });
                                 const recColor = Colors.primary;
                                 return (

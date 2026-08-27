@@ -22,6 +22,7 @@ export interface AcquisitionInputs {
   cashBalance: number;       // current cash on hand
   monthlyProfit: number;     // current monthly profit
   minReserve: number;        // minimum cash reserve the business wants to keep
+  currency?: string;         // symbol/prefix for figures quoted in the rationale text
 }
 
 export interface AcquisitionOption {
@@ -48,7 +49,8 @@ export interface AcquisitionAnalysis {
 }
 
 export function analyzeAcquisition(input: AcquisitionInputs): AcquisitionAnalysis {
-  const { cost, usefulLifeYears, residualValue, termMonths, aprPercent, cashBalance, monthlyProfit, minReserve } = input;
+  const { cost, usefulLifeYears, residualValue, termMonths, aprPercent, cashBalance, monthlyProfit, minReserve, currency = '' } = input;
+  const fmtShort = (n: number) => `${currency}${Math.round(n).toLocaleString()}`;
 
   const life = usefulLifeYears > 0 ? usefulLifeYears : 5;
   const annualDepreciation = Math.max(0, (cost - residualValue)) / life;
@@ -147,9 +149,4 @@ export function analyzeAcquisition(input: AcquisitionInputs): AcquisitionAnalysi
   }
 
   return { options, recommended, rationale };
-}
-
-function fmtShort(n: number): string {
-  const v = Math.round(n);
-  return v.toLocaleString();
 }
