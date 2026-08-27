@@ -86,47 +86,72 @@ export default function LandingScreen() {
                     </View>
                 </View>
 
-                <View style={[s.hero, isWide && s.heroWide]}>
-                    <Text style={s.eyebrow}>THE FINANCIAL INTELLIGENCE LAYER BETWEEN AFRICAN BUSINESSES AND CAPITAL</Text>
-                    <Text style={[s.headline, isWide && s.headlineWide]}>
-                        From business data to better decisions to better capital.
-                    </Text>
-                    <Text style={s.subhead}>
-                        Understand your business. Improve your financial health. Become financing-ready. Find the right capital.
-                    </Text>
-                    <Text style={[s.northStar, isWide && s.northStarWide]}>
-                        Quad360 helps businesses save time, save money, gain clarity, and turn that recovered capacity into profitable growth.
-                    </Text>
+                <View style={[s.heroSection, isWide && s.heroSectionWide]}>
+                    <View style={[s.hero, isWide && s.heroWide]}>
+                        <Text style={s.eyebrow}>THE FINANCIAL INTELLIGENCE LAYER BETWEEN AFRICAN BUSINESSES AND CAPITAL</Text>
+                        <Text style={[s.headline, isWide && s.headlineWide]}>
+                            From business data to better decisions to better capital.
+                        </Text>
+                        <Text style={s.subhead}>
+                            Understand your business. Improve your financial health. Become financing-ready. Find the right capital.
+                        </Text>
+                        <Text style={[s.northStar, isWide && s.northStarWide]}>
+                            Quad360 helps businesses save time, save money, gain clarity, and turn that recovered capacity into profitable growth.
+                        </Text>
 
-                    <View style={s.ctaRow}>
-                        <TouchableOpacity onPress={goSignup} style={s.ctaBtn}>
-                            <Text style={s.ctaText}>Get Started Free →</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity onPress={goDemo} style={s.demoBtn}>
-                            <Text style={s.demoText}>Try Guest Mode (No sign-up needed)</Text>
-                        </TouchableOpacity>
+                        <View style={s.ctaRow}>
+                            <TouchableOpacity onPress={goSignup} style={s.ctaBtn}>
+                                <Text style={s.ctaText}>Get Started Free →</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={goDemo} style={s.demoBtn}>
+                                <Text style={s.demoText}>Try Guest Mode (No sign-up needed)</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={s.trustRow}>
+                            <View style={s.trustChip}><Text style={s.trustChipText}>Built for SMEs across Africa & beyond</Text></View>
+                            <View style={s.trustChip}><Text style={s.trustChipText}>Your data stays private</Text></View>
+                        </View>
                     </View>
 
-                    <View style={s.trustRow}>
-                        <View style={s.trustChip}><Text style={s.trustChipText}>Built for SMEs across Africa & beyond</Text></View>
-                        <View style={s.trustChip}><Text style={s.trustChipText}>Your data stays private</Text></View>
-                    </View>
+                    {/* On wide viewports the product screenshot sits beside the
+                        pitch instead of stacked below it -- previously the hero
+                        text was capped at maxWidth 820 with nothing filling the
+                        rest of a desktop-width screen, leaving a large empty gap
+                        to its right. Narrow/native layout is untouched: the
+                        screenshot still renders in its own full-width block
+                        below (see !isWide branch further down). */}
+                    {isWide && (
+                        <View style={s.heroPreviewWide}>
+                            <View style={s.previewFrame}>
+                                <Image
+                                    source={require('../../assets/landing-dashboard-preview.png')}
+                                    style={s.previewImage}
+                                    resizeMode="cover"
+                                />
+                            </View>
+                            <Text style={s.previewCaption}>A real Quad360 dashboard, shown with sample data.</Text>
+                        </View>
+                    )}
                 </View>
 
                 {/* Real product screenshot (demo data), not a mockup with
                     invented numbers -- shows what Quad360 actually looks
                     like within seconds instead of asking visitors to take
-                    the pitch on faith. */}
-                <View style={[s.previewWrap, isWide && s.previewWrapWide]}>
-                    <View style={s.previewFrame}>
-                        <Image
-                            source={require('../../assets/landing-dashboard-preview.png')}
-                            style={s.previewImage}
-                            resizeMode="cover"
-                        />
+                    the pitch on faith. Wide viewports show it inside the hero
+                    row above instead (see isWide branch above). */}
+                {!isWide && (
+                    <View style={s.previewWrap}>
+                        <View style={s.previewFrame}>
+                            <Image
+                                source={require('../../assets/landing-dashboard-preview.png')}
+                                style={s.previewImage}
+                                resizeMode="cover"
+                            />
+                        </View>
+                        <Text style={s.previewCaption}>A real Quad360 dashboard, shown with sample data.</Text>
                     </View>
-                    <Text style={s.previewCaption}>A real Quad360 dashboard, shown with sample data.</Text>
-                </View>
+                )}
 
                 <View style={s.bridgeSection}>
                     <View style={[s.bridgeInner, isWide && s.bridgeInnerWide]}>
@@ -251,8 +276,18 @@ const s = StyleSheet.create({
     navSignupBtn: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: Radius.pill, backgroundColor: Colors.primary },
     navSignupText: { fontSize: 13, fontWeight: '700', color: '#fff' },
 
+    heroSection: {},
+    heroSectionWide: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+        gap: 56, paddingHorizontal: 64, paddingTop: Spacing.xxl, paddingBottom: Spacing.huge,
+    },
     hero: { paddingHorizontal: Spacing.xl, paddingTop: Spacing.xxl, paddingBottom: Spacing.huge, alignItems: 'flex-start' },
-    heroWide: { paddingHorizontal: 64, maxWidth: 820 },
+    // Nested inside heroSectionWide, which already supplies the section's own
+    // padding -- zeroed out here so it isn't applied twice. Capped at 560 (not
+    // flex:1) so the headline keeps the same wrap/line-length it was tuned
+    // for; heroPreviewWide's flex:1 is what actually claims the freed-up width.
+    heroWide: { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0, width: 560, maxWidth: 560, flexShrink: 0 },
+    heroPreviewWide: { flex: 1, maxWidth: 640, alignItems: 'center' },
     eyebrow: { fontSize: 11.5, fontWeight: '700', color: Colors.textMuted, letterSpacing: 0.6, marginBottom: 14 },
     headline: { fontSize: 32, fontWeight: '800', color: Colors.textPrimary, lineHeight: 40, marginBottom: 16 },
     headlineWide: { fontSize: 44, lineHeight: 52 },
