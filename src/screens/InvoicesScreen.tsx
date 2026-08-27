@@ -398,6 +398,8 @@ export default function InvoicesScreen() {
         sent:    invoices.filter(i => effectiveInvoiceStatus(i) === 'sent').length,
         paid:    invoices.filter(i => i.status === 'paid').length,
         overdue: invoices.filter(i => effectiveInvoiceStatus(i) === 'overdue').length,
+        overdueTotal: invoices.filter(i => effectiveInvoiceStatus(i) === 'overdue')
+            .reduce((s, i) => s + (i.total ?? 0), 0),
         outstanding: invoices.filter(i => i.status === 'sent' || i.status === 'overdue')
             .reduce((s, i) => s + (i.total ?? 0), 0),
     }), [invoices]);
@@ -424,7 +426,7 @@ export default function InvoicesScreen() {
 
                     {summary.overdue > 0 && (
                         <NextStepLink
-                            text={`${summary.overdue} invoice${summary.overdue > 1 ? 's' : ''} overdue — review collections in Transactions`}
+                            text={`${summary.overdue} invoice${summary.overdue > 1 ? 's' : ''} overdue (${currency}${summary.overdueTotal.toLocaleString()}) — review collections in Transactions`}
                             onPress={() => navigate('transactions', { filter: 'collect' })}
                         />
                     )}
