@@ -22,11 +22,14 @@ import Icon, { IconName } from '../components/ui/Icon';
 // across OS/browser combinations and reads as an unpolished, hobbyist
 // choice on a marketing page. Same icon set the rest of the app uses.
 const JOURNEY_STEPS: { icon: IconName; title: string; desc: string }[] = [
-    { icon: 'activity', title: 'Run', desc: 'Sales, expenses, invoices, payments — the everyday record of the business.' },
-    { icon: 'search', title: 'Understand', desc: "What's really happening — profit, cash flow, who owes you, what's slipping." },
-    { icon: 'trending-up', title: 'Improve', desc: 'What to fix first, ranked by financial impact, not guesswork.' },
-    { icon: 'check-circle', title: 'Qualify', desc: 'How financing-ready the business actually is, and exactly why.' },
-    { icon: 'dollar-sign', title: 'Fund', desc: 'Financing matched to what the business can prove, not what it asks for.' },
+    { icon: 'edit-3', title: 'Data', desc: 'Sales, expenses, invoices, payments, and cash flows — the everyday record of the business.' },
+    { icon: 'search', title: 'Diagnose', desc: "What's actually driving a number — the real root cause, not just that it moved." },
+    { icon: 'activity', title: 'Understand', desc: "The true state of the business today — profit, cash flow, who owes you, what's slipping." },
+    { icon: 'compass', title: 'Anticipate', desc: 'Where cash, risk, and growth are headed before they become a problem.' },
+    { icon: 'git-branch', title: 'Decide', desc: 'What to do next, and what happens if you do it — checked before you commit.' },
+    { icon: 'play', title: 'Act', desc: 'Put the decision into practice — a budget, a goal, a change to how the business runs.' },
+    { icon: 'trending-up', title: 'Improve', desc: "Track whether it actually worked, and adjust the plan when it didn't." },
+    { icon: 'dollar-sign', title: 'Fund', desc: 'Financing matched to what the business can now prove, not what it asks for.' },
 ];
 
 const LENDER_STEPS: { icon: IconName; title: string; desc: string }[] = [
@@ -127,6 +130,11 @@ export default function LandingScreen() {
 
                 <View style={s.bridgeSection}>
                     <View style={[s.bridgeInner, isWide && s.bridgeInnerWide]}>
+                        <Text style={s.bridgeProblem}>
+                            SMEs generate financial activity every day — sales, expenses, payments, invoices and
+                            cash flows — but that activity rarely becomes a clear, trusted picture of the health,
+                            capacity and readiness of the business.
+                        </Text>
                         <Text style={s.sectionTitle}>Turn business activity into financial evidence</Text>
                         <View style={[s.bridgeFlow, isWide && s.bridgeFlowWide]}>
                             {['Recorded activity', 'Financial history', 'Financial health score', 'Financing readiness', 'Financing opportunities'].map((step, i, arr) => (
@@ -145,8 +153,8 @@ export default function LandingScreen() {
                 </View>
 
                 <View style={s.journeySection}>
-                    <Text style={s.sectionTitle}>How Quad360 works</Text>
-                    <Text style={s.sectionSubtitle}>Most SME apps just help you record what happened. Quad360 takes it further.</Text>
+                    <Text style={s.sectionTitle}>Your core journey</Text>
+                    <Text style={s.sectionSubtitle}>Most SME apps stop at recording what happened. Quad360 takes it all the way to capital.</Text>
                     <View style={[s.journeyRow, isWide && s.journeyRowWide]}>
                         {JOURNEY_STEPS.map(step => (
                             <View key={step.title} style={[s.journeyCard, isWide && s.journeyCardWide]}>
@@ -275,6 +283,7 @@ const s = StyleSheet.create({
     bridgeSection: { paddingHorizontal: Spacing.xl, paddingBottom: Spacing.huge },
     bridgeInner: { alignItems: 'center' },
     bridgeInnerWide: { paddingHorizontal: 40 },
+    bridgeProblem: { fontSize: 15.5, fontWeight: '700', color: Colors.textPrimary, lineHeight: 23, textAlign: 'center', maxWidth: 640, marginBottom: 24 },
     bridgeFlow: { alignItems: 'center', gap: 8, marginTop: 8, marginBottom: 20 },
     bridgeFlowWide: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' },
     bridgeStep: { backgroundColor: Colors.surface, borderRadius: Radius.pill, paddingHorizontal: 16, paddingVertical: 9, borderWidth: 1, borderColor: Colors.border },
