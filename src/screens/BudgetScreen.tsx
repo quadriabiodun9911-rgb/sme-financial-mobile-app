@@ -367,6 +367,14 @@ export default function BudgetScreen() {
                     const dOverRevenue = adjustMode ? adjustedOverRevenue      : overRevenue;
                     const dOverSafeCap = adjustMode ? adjustedOverSafeCap      : overSafeCap;
                     const dBudgeted    = adjustMode ? adjustedTotalBudgeted    : totalBudgeted;
+                    // Real current profit (not revenue) — computeProfitCashImpact's severity
+                    // check reads "monthlyDelta as a % of currentProfit", so feeding it revenue
+                    // here (as this card used to) silently checked "% of revenue" instead,
+                    // which flags almost any real budget as "caution" even at a healthy margin,
+                    // contradicting the "Healthy plan" verdict shown right above it. Deriving the
+                    // delta as dProfit - actualCurrentProfit keeps the displayed projected-profit
+                    // figure identical to dProfit above while fixing the severity math.
+                    const actualCurrentProfit = finance?.profit ?? 0;
                     return (
                     <View style={s.strategyCard}>
                         <View style={s.strategyHeaderRow}>
@@ -450,7 +458,7 @@ export default function BudgetScreen() {
                         {adjustMode ? (
                             <>
                                 <ProfitCashImpactCard
-                                    impact={computeProfitCashImpact(monthlyRevenue, cashBalance, -dCommitments)}
+                                    impact={computeProfitCashImpact(actualCurrentProfit, cashBalance, dProfit - actualCurrentProfit)}
                                     source="budget"
                                     currency={currency}
                                     onSeeFullPicture={() => navigate('business-passport')}
@@ -472,7 +480,7 @@ export default function BudgetScreen() {
                                 <NextStepLink text="Model revenue/cost growth scenarios instead" onPress={() => navigate('reports', { reportSection: 'growth', reportTab: 'growth' })} />
                                 {budgets.length > 0 && (
                                     <ProfitCashImpactCard
-                                        impact={computeProfitCashImpact(monthlyRevenue, cashBalance, -totalCommitments)}
+                                        impact={computeProfitCashImpact(actualCurrentProfit, cashBalance, dProfit - actualCurrentProfit)}
                                         source="budget"
                                         currency={currency}
                                         onSeeFullPicture={() => navigate('business-passport')}
