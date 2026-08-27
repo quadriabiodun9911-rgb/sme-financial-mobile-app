@@ -1,5 +1,5 @@
 import { buildBehavioralProfile, BehavioralProfileInput } from '../src/utils/behavioralProfile';
-import { Transaction, Invoice, Loan, MerchantFinancingApplication, BusinessSettings } from '../src/types';
+import { Transaction, Invoice, Loan, MerchantFinancingApplication, BusinessSettings, StaffMember } from '../src/types';
 
 const settings: BusinessSettings = {
     businessName: 'Okafor Foods',
@@ -197,5 +197,49 @@ describe('buildBehavioralProfile', () => {
         expect(outcomeBullet).toContain('1 approved, 1 rejected');
         expect(outcomeBullet).toContain('70%');
         expect(outcomeBullet).toContain('Insufficient trading history');
+    });
+
+    it('surfaces a real weekday revenue concentration bullet once enough history exists', () => {
+        // 2026-01-04 is a Sunday -- 4 weeks with zero revenue on Tuesday and
+        // Wednesday, the exact scenario weekdayPattern.ts exists to catch.
+        const transactions: Transaction[] = [];
+        for (let week = 0; week < 4; week++) {
+            for (let weekday = 0; weekday < 7; weekday++) {
+                if (weekday === 2 || weekday === 3) continue;
+                const d = new Date('2026-01-04T00:00:00');
+                d.setDate(d.getDate() + week * 7 + weekday);
+                transactions.push(makeTx({ date: d.toISOString().slice(0, 10), amount: 10000 }));
+            }
+        }
+        const profile = buildBehavioralProfile(baseInput({ transactions }));
+        expect(profile.whatsHappening.some(h => h.includes('Tuesday') && h.includes('Wednesday') && h.includes('almost no revenue'))).toBe(true);
+    });
+
+    it('never fabricates a weekday pattern under the minimum days of history', () => {
+        const transactions = [makeTx({ date: daysAgo(1), amount: 10000 })];
+        const profile = buildBehavioralProfile(baseInput({ transactions }));
+        expect(profile.whatsHappening.some(h => h.includes('bring in almost no revenue') || h.includes('Revenue leans on'))).toBe(false);
+    });
+
+    it('never surfaces labor productivity with no active staff', () => {
+        const transactions = [makeTx({ date: daysAgo(1), amount: 500000 })];
+        const profile = buildBehavioralProfile(baseInput({ transactions, staff: [] }));
+        expect(profile.whatsHappening.some(h => h.includes('active staff member'))).toBe(false);
+    });
+
+    it('surfaces a real labor productivity bullet once active staff and revenue both exist', () => {
+        const transactions = [
+            makeTx({ date: daysAgo(1), amount: 500000 }),
+            makeTx({ date: daysAgo(2), type: 'expense', category: 'Salaries', amount: 100000 }),
+        ];
+        const staff: StaffMember[] = [{
+            id: 's1', name: 'Test Staff', role: 'Sales', salary: 50000, salaryType: 'monthly',
+            startDate: daysAgo(90), status: 'active', createdAt: daysAgo(90),
+        }];
+        const profile = buildBehavioralProfile(baseInput({ transactions, staff }));
+        const laborBullet = profile.whatsHappening.find(h => h.includes('active staff member'));
+        expect(laborBullet).toBeDefined();
+        expect(laborBullet).toContain('₦500,000');
+        expect(laborBullet).toContain('20%');
     });
 });

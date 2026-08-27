@@ -38,7 +38,10 @@ import TrendSparkline from '../components/TrendSparkline';
 import { buildFinancingFitInput } from '../utils/financingFit';
 import { recommendFinancingTypes } from '../utils/financingRecommendation';
 import { computeReadinessDelta } from '../utils/readinessHistory';
-import { notifyFinancingOpportunity, notifyFinancingQualificationProgress, notifyOverdueRemindersDue, notifyLoanPaymentDueSoon, notifyPayrollDue, notifyOverdueTransactionsFound, notifyTaxDeadline, notifyGoalAlerts, notifyRecurringTransactionAlerts, notifyBudgetPeriodLapsed, notifyAssetsNearingReplacement, notifyStockoutRisk, notifyTaxAbilityToPayShortfall, notifySlowMovingStock, requestNotificationPermission, scheduleWeeklySummaryReminder, scheduleDailyReminder } from '../utils/notifications';
+import { notifyFinancingOpportunity, notifyFinancingQualificationProgress, notifyOverdueRemindersDue, notifyLoanPaymentDueSoon, notifyPayrollDue, notifyOverdueTransactionsFound, notifyTaxDeadline, notifyGoalAlerts, notifyRecurringTransactionAlerts, notifyBudgetPeriodLapsed, notifyAssetsNearingReplacement, notifyStockoutRisk, notifyTaxAbilityToPayShortfall, notifySlowMovingStock, requestNotificationPermission, scheduleWeeklySummaryReminder, scheduleDailyReminder, scheduleMorningBriefing, scheduleEveningRecap } from '../utils/notifications';
+import { computeWeekdayPattern } from '../utils/weekdayPattern';
+import { buildDailyBriefing } from '../utils/dailyBriefing';
+import { buildDailyRecap } from '../utils/dailyRecap';
 import { getInvoicesDueForReminder, loadReminderState, InvoiceReminderState } from '../utils/invoiceReminders';
 import { isLoanPaymentOverdue, daysUntilLoanPaymentDue } from '../utils/loanMath';
 import { getPayrollReminderStatus } from '../utils/payrollReminders';
@@ -554,6 +557,34 @@ export default function DashboardScreen() {
         }),
         [alerts, overdueInvoices, overdueLoans, overdueTransactions, overdueRecurringTransactions, assetsNearingReplacement, stockoutRiskItems, slowMovingItems, lowStockItems, overspentBudgets, financingOpportunity, settings?.currency, settings?.primaryGoal]
     );
+
+    // Day-of-week revenue/expense shape (weekdayPattern.ts) -- feeds both the
+    // morning briefing (is today historically a strong/weak day) and the
+    // evening recap (how did today compare to a typical day like it).
+    const weekdayPattern = useMemo(() => computeWeekdayPattern(transactions), [transactions]);
+
+    // Morning briefing / evening recap -- see notifications.ts's
+    // scheduleMorningBriefing/scheduleEveningRecap for why these are
+    // rescheduled (not just scheduled once): this is a fully client-side app
+    // with no backend to compute "today's real numbers" at 7am/6pm server-
+    // side, so each is a one-off local notification rebuilt with the
+    // freshest data available every time the Dashboard renders, replacing
+    // whatever was scheduled before. A business that never reopens the app
+    // gets whichever version was last built, not fabricated content.
+    const dailyBriefing = useMemo(() => buildDailyBriefing(priorities, weekdayPattern), [priorities, weekdayPattern]);
+    useEffect(() => {
+        if (isDemoMode) return;
+        scheduleMorningBriefing(dailyBriefing).catch(() => {});
+    }, [isDemoMode, dailyBriefing]);
+
+    const dailyRecap = useMemo(
+        () => buildDailyRecap(transactions, weekdayPattern, null, null, settings?.currency ?? '₦'),
+        [transactions, weekdayPattern, settings?.currency]
+    );
+    useEffect(() => {
+        if (isDemoMode) return;
+        scheduleEveningRecap(dailyRecap).catch(() => {});
+    }, [isDemoMode, dailyRecap]);
 
     // This month's one focused target -- the highest-impact "reduce this to
     // zero" item already on the priority list above, tracked against a

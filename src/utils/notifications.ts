@@ -3,6 +3,8 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PayrollReminderStatus } from './payrollReminders';
 import { TaxDeadlineStatus } from './taxDeadline';
+import { DailyBriefingResult } from './dailyBriefing';
+import { DailyRecapResult } from './dailyRecap';
 
 Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -29,6 +31,8 @@ const KEYS = {
     stockoutRiskId: '@quad360/notif_stockout_risk_id',
     taxAbilityToPayId: '@quad360/notif_tax_ability_to_pay_id',
     slowMovingStockId: '@quad360/notif_slow_moving_stock_id',
+    morningBriefingId: '@quad360/notif_morning_briefing_id',
+    eveningRecapId: '@quad360/notif_evening_recap_id',
 };
 
 export async function requestNotificationPermission(): Promise<boolean> {
@@ -511,5 +515,67 @@ export async function notifyFinancingOpportunity(label: string, reason: string):
         await AsyncStorage.setItem(KEYS.financingOpportunityId, Date.now().toString());
     } catch {
         // Fail silently
+    }
+}
+
+// The next real occurrence of hour:minute -- today if it hasn't passed yet,
+// tomorrow otherwise. Used instead of expo-notifications' own `repeats: true`
+// hour/minute trigger (see scheduleDailyReminder above) because that trigger
+// can only ever repeat the SAME static text every day. The morning
+// briefing/evening recap need today's real numbers, and Quad360 has no
+// backend or push server to compute those server-side at the target hour --
+// this app is fully client-side. The only honest way to get real content at
+// a fixed clock time is to compute it fresh whenever the app is open and
+// schedule it as a ONE-OFF local notification for the next 7am/6pm, then
+// replace that notification every time fresher data becomes available (see
+// DashboardScreen's call sites). A business that never reopens the app
+// between one firing and the next will get a notification built from
+// whatever was known last time it was open -- stale, but never fabricated.
+function nextOccurrenceOf(hour: number, minute: number, now: Date = new Date()): Date {
+    const d = new Date(now);
+    d.setHours(hour, minute, 0, 0);
+    if (d.getTime() <= now.getTime()) d.setDate(d.getDate() + 1);
+    return d;
+}
+
+// Fires once, at the next 7:00 AM, with real content built from whatever the
+// app already knows at scheduling time (see buildDailyBriefing). Reschedules
+// (cancelling the previous one) every time this is called so the content
+// stays as fresh as the app's own data.
+export async function scheduleMorningBriefing(briefing: DailyBriefingResult, now: Date = new Date()): Promise<void> {
+    try {
+        if (Platform.OS === 'web') return;
+
+        const prevId = await AsyncStorage.getItem(KEYS.morningBriefingId);
+        if (prevId) await Notifications.cancelScheduledNotificationAsync(prevId).catch(() => {});
+
+        const id = await Notifications.scheduleNotificationAsync({
+            content: { title: briefing.title, body: briefing.body },
+            trigger: { date: nextOccurrenceOf(7, 0, now) } as any,
+        });
+        await AsyncStorage.setItem(KEYS.morningBriefingId, id);
+    } catch {
+        // Fail silently -- notifications not available
+    }
+}
+
+// Fires once, at the next 6:00 PM, with real content built from today's
+// actual transactions (see buildDailyRecap). Skipped entirely when nothing
+// was logged today -- there is nothing honest to recap yet, so no
+// notification is scheduled rather than firing an empty one at 6pm.
+export async function scheduleEveningRecap(recap: DailyRecapResult, now: Date = new Date()): Promise<void> {
+    try {
+        if (Platform.OS === 'web' || !recap.available) return;
+
+        const prevId = await AsyncStorage.getItem(KEYS.eveningRecapId);
+        if (prevId) await Notifications.cancelScheduledNotificationAsync(prevId).catch(() => {});
+
+        const id = await Notifications.scheduleNotificationAsync({
+            content: { title: recap.title, body: recap.body },
+            trigger: { date: nextOccurrenceOf(18, 0, now) } as any,
+        });
+        await AsyncStorage.setItem(KEYS.eveningRecapId, id);
+    } catch {
+        // Fail silently -- notifications not available
     }
 }

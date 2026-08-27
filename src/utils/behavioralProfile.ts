@@ -18,14 +18,16 @@
  * two full years, etc.) rather than a stage being fabricated to fill a slot.
  */
 
-import { Transaction, Invoice, Loan, InventoryItem, Asset, BusinessSettings, User, ReadinessSnapshot, MerchantFinancingApplication } from '../types';
-import { computeSeasonalityPattern } from './seasonality';
+import { Transaction, Invoice, Loan, InventoryItem, Asset, BusinessSettings, User, ReadinessSnapshot, MerchantFinancingApplication, StaffMember } from '../types';
+import { computeSeasonalityPattern, computeExpenseSeasonalityPattern } from './seasonality';
+import { computeWeekdayPattern } from './weekdayPattern';
 import { computeQualityOfGrowth } from './qualityOfGrowth';
 import { computeCostExposureForecast } from './costExposureForecast';
 import { detectDNADeviations } from './businessFinancialDNA';
 import { computeCustomerPaymentHistory, describePaymentPersonality } from './customerPaymentBehavior';
 import { computePostFinancingMonitor } from './postFinancingMonitor';
 import { computeFinancingOutcomeStats, describeFinancingOutcomeStats } from './financingOutcomeStats';
+import { computeLaborProductivity, describeLaborProductivity } from './laborProductivity';
 import { computeDSCR } from './finance';
 import { buildFinancingFitInput } from './financingFit';
 import { recommendFinancingTypes, FinancingRecommendation } from './financingRecommendation';
@@ -57,6 +59,10 @@ export interface BehavioralProfileInput {
     // history yet" rather than fabricating a track record.
     pastFinancingApplications?: MerchantFinancingApplication[];
     currentFinancingApplication?: MerchantFinancingApplication | null;
+    // Passed through to laborProductivity.ts for the revenue-per-employee
+    // signal. Defaults to empty, which reads as "no active staff recorded"
+    // rather than guessing a headcount.
+    staff?: StaffMember[];
 }
 
 export interface BehavioralProfile {
@@ -73,7 +79,7 @@ export interface BehavioralProfile {
 }
 
 export function buildBehavioralProfile(input: BehavioralProfileInput): BehavioralProfile {
-    const { transactions, invoices, assets, loans, inventory, settings, user, readinessTrend = null, readinessHistory = [], topActionSummary = null, pastFinancingApplications = [], currentFinancingApplication = null } = input;
+    const { transactions, invoices, assets, loans, inventory, settings, user, readinessTrend = null, readinessHistory = [], topActionSummary = null, pastFinancingApplications = [], currentFinancingApplication = null, staff = [] } = input;
     const currency = settings.currency;
 
     const whatsHappening: string[] = [];
@@ -87,6 +93,19 @@ export function buildBehavioralProfile(input: BehavioralProfileInput): Behaviora
         if (seasonality.peakMonths[0]) parts.push(`peaks around ${seasonality.peakMonths[0].monthName} (+${Math.round((seasonality.peakMonths[0].index - 1) * 100)}%)`);
         if (seasonality.troughMonths[0]) parts.push(`dips around ${seasonality.troughMonths[0].monthName} (${Math.round((seasonality.troughMonths[0].index - 1) * 100)}%)`);
         whatsHappening.push(`Revenue ${parts.join(' and ')} most years.`);
+    }
+
+    // ---- Weekday pattern: which days actually generate this business's cash? ----
+    // Transaction only ever records a calendar date, never a time of day, so
+    // day-of-week is the finest real granularity available -- see
+    // weekdayPattern.ts for why a weekday the business never transacts on is
+    // walked in as a real zero, not silently skipped.
+    const weekdayPattern = computeWeekdayPattern(transactions);
+    if (weekdayPattern.available && weekdayPattern.zeroRevenueWeekdayNames.length > 0) {
+        const days = weekdayPattern.zeroRevenueWeekdayNames.join(' and ');
+        whatsHappening.push(`${days} bring in almost no revenue -- only ${7 - weekdayPattern.zeroRevenueWeekdayNames.length} of 7 days actually generate cash each week.`);
+    } else if (weekdayPattern.available && weekdayPattern.peakRevenueDays[0]) {
+        whatsHappening.push(`Revenue leans on ${weekdayPattern.peakRevenueDays[0].weekdayName} (about ${weekdayPattern.topRevenueDaysSharePct.toFixed(0)}% of a typical week's revenue).`);
     }
 
     // ---- Growth quality: is revenue growth actually healthy? ----
@@ -111,6 +130,21 @@ export function buildBehavioralProfile(input: BehavioralProfileInput): Behaviora
         whatsHappening.push(`${driverList} ${costForecast.drivers.length === 1 ? 'is' : 'are'} rising faster than revenue right now.`);
         if (costForecast.totalProfitErosion > 0) whatsLikely.push(costForecast.verdict);
     }
+
+    // ---- Expense seasonality: which calendar months does this business pay more? ----
+    const expenseSeasonality = computeExpenseSeasonalityPattern(transactions);
+    if (expenseSeasonality.available && expenseSeasonality.peakMonths[0]) {
+        const peak = expenseSeasonality.peakMonths[0];
+        whatsHappening.push(`Operating costs typically run ${Math.round((peak.index - 1) * 100)}% above average in ${peak.monthName} most years.`);
+    }
+
+    // ---- Labor productivity: how much revenue is the current team actually generating? ----
+    // Current-period snapshot only, never a trend -- see laborProductivity.ts
+    // for why an earlier period can't honestly be compared against today's
+    // headcount (StaffMember has no historical record of past headcount).
+    const laborProductivity = computeLaborProductivity(transactions, staff);
+    const laborDescription = describeLaborProductivity(laborProductivity, currency);
+    if (laborDescription) whatsHappening.push(laborDescription);
 
     // ---- Customer payment behavior: has any customer shown a real pattern? ----
     // Gated inside computeCustomerPaymentHistory on real Invoice.paidDate

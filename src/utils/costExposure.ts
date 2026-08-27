@@ -28,6 +28,12 @@ export interface CostCategorySignal {
     currentPctOfRevenue: number;
     pctPointChange: number;       // currentPctOfRevenue - priorPctOfRevenue, in percentage points
     spendGrowthPct: number | null; // null when priorSpend was 0 — no base to rate a % change against
+    // Share of the business's OWN total spend in each window, not of revenue --
+    // answers "of everything I spend, how much goes here" (e.g. "salaries are
+    // 40% of everything I spend") alongside the revenue-relative view above.
+    // 0 when that window's total expense was 0.
+    priorPctOfTotalExpense: number;
+    currentPctOfTotalExpense: number;
 }
 
 export type ExposureBand = 'Excellent' | 'Strong' | 'Moderate' | 'Weak' | 'Critical';
@@ -142,6 +148,7 @@ export function computeCostExposure(transactions: Transaction[], windowMonths = 
     let currentRevenue = 0;
     let priorRevenue = 0;
     let currentTotalExpense = 0;
+    let priorTotalExpense = 0;
     const currentByCategory = new Map<string, number>();
     const priorByCategory = new Map<string, number>();
 
@@ -162,6 +169,7 @@ export function computeCostExposure(transactions: Transaction[], windowMonths = 
                 currentTotalExpense += amt;
             } else {
                 priorByCategory.set(category, (priorByCategory.get(category) ?? 0) + amt);
+                priorTotalExpense += amt;
             }
         }
     }
@@ -181,6 +189,8 @@ export function computeCostExposure(transactions: Transaction[], windowMonths = 
                 currentPctOfRevenue,
                 pctPointChange: currentPctOfRevenue - priorPctOfRevenue,
                 spendGrowthPct: pctChange(currentSpend, priorSpend),
+                currentPctOfTotalExpense: currentTotalExpense > 0 ? (currentSpend / currentTotalExpense) * 100 : 0,
+                priorPctOfTotalExpense: priorTotalExpense > 0 ? (priorSpend / priorTotalExpense) * 100 : 0,
             };
         })
         .sort((a, b) => b.pctPointChange - a.pctPointChange);

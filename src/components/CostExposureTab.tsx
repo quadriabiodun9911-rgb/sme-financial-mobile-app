@@ -6,6 +6,7 @@ import { computeCostExposure, CostCategorySignal, ExposureBand } from '../utils/
 import { computeCostDecisions, CostDecisionAction } from '../utils/costDecisions';
 import { computeCostExposureForecast } from '../utils/costExposureForecast';
 import { computeExternalRiskInsights, ExternalRiskInsight } from '../utils/externalRiskInsights';
+import { computeLaborProductivity } from '../utils/laborProductivity';
 import RadialGauge from './RadialGauge';
 import BarList from './BarList';
 import GroupedBarChart from './GroupedBarChart';
@@ -36,7 +37,7 @@ function fmtCompact(currency: string, amount: number): string {
 }
 
 export default function CostExposureTab() {
-    const { transactions, settings, navigate } = useApp();
+    const { transactions, settings, navigate, staff } = useApp();
     const currency = settings.currency || '₦';
 
     const result = useMemo(() => computeCostExposure(transactions), [transactions]);
@@ -49,12 +50,21 @@ export default function CostExposureTab() {
         () => computeCostExposureForecast(transactions, settings.macroAssumptions ?? [], 6),
         [transactions, settings.macroAssumptions]
     );
+    const labor = useMemo(() => computeLaborProductivity(transactions, staff ?? []), [transactions, staff]);
 
     if (!result.available) {
         return (
-            <View style={s.emptyState}>
-                <Text style={s.emptyTitle}>Not enough history yet</Text>
-                <Text style={s.emptySub}>{result.reason}</Text>
+            <View>
+                <View style={s.emptyState}>
+                    <Text style={s.emptyTitle}>Not enough history yet</Text>
+                    <Text style={s.emptySub}>{result.reason}</Text>
+                </View>
+                {/* Labor Productivity needs far less history than the cost-
+                    concentration trend above (one month with revenue and
+                    active staff vs. two full comparison windows), so it can
+                    often say something real even while the rest of this tab
+                    is still waiting on data. */}
+                {labor.available && <LaborProductivityCard labor={labor} currency={currency} />}
             </View>
         );
     }
@@ -181,7 +191,12 @@ export default function CostExposureTab() {
                 />
             </View>
 
-            {/* Signal comparison table */}
+            {/* Signal comparison table -- "% of Spend" answers a different
+                question than "% of Revenue": of everything actually paid out
+                this period, how much went here. A category can be a small
+                share of revenue but still dominate the expense side (e.g. a
+                low-margin business), and that's exactly the case "% of
+                Revenue" alone hides. */}
             <View style={s.card}>
                 <Text style={s.cardTitle}>Every Category — {result.periodLabel}</Text>
                 <View style={s.tableHeader}>
@@ -189,9 +204,50 @@ export default function CostExposureTab() {
                     <Text style={s.th}>Prior %</Text>
                     <Text style={s.th}>Now %</Text>
                     <Text style={s.th}>Change</Text>
+                    <Text style={s.th}>% of Spend</Text>
                 </View>
                 {result.signals.map(sig => <SignalRow key={sig.category} signal={sig} />)}
             </View>
+
+            {/* Labor Productivity -- pairs "salaries are X% of revenue" with
+                the headcount actually behind it, so the number points to a
+                decision (cut cost, or grow revenue with the same team)
+                instead of sitting alone as a percentage. */}
+            {labor.available && <LaborProductivityCard labor={labor} currency={currency} />}
+        </View>
+    );
+}
+
+function LaborProductivityCard({ labor, currency }: { labor: ReturnType<typeof computeLaborProductivity>; currency: string }) {
+    if (!labor.available) return null;
+    return (
+        <View style={s.card}>
+            <Text style={s.cardTitle}>Labor Productivity — {labor.periodLabel}</Text>
+            <View style={s.laborStatRow}>
+                <View style={s.laborStat}>
+                    <Text style={s.laborStatValue}>{fmtCompact(currency, labor.revenuePerEmployee)}</Text>
+                    <Text style={s.laborStatLabel}>Revenue / Employee</Text>
+                </View>
+                <View style={s.laborStat}>
+                    <Text style={s.laborStatValue}>{labor.laborCostPctOfRevenue.toFixed(0)}%</Text>
+                    <Text style={s.laborStatLabel}>Salaries / Revenue</Text>
+                </View>
+                <View style={s.laborStat}>
+                    <Text style={s.laborStatValue}>{labor.activeStaffCount}</Text>
+                    <Text style={s.laborStatLabel}>Active Staff</Text>
+                </View>
+            </View>
+            <Text style={s.laborText}>
+                {labor.activeStaffCount} active staff member{labor.activeStaffCount === 1 ? '' : 's'} generated{' '}
+                {fmtCompact(currency, labor.revenue)} in revenue this period, or {fmtCompact(currency, labor.revenuePerEmployee)} each.
+                Salaries took {labor.laborCostPctOfRevenue.toFixed(0)}% of that revenue -- the same headcount either costs less,
+                or the business grows revenue without adding to it.
+            </Text>
+            {labor.note && (
+                <View style={[s.laborNoteBox]}>
+                    <Text style={s.laborNoteText}>{labor.note}</Text>
+                </View>
+            )}
         </View>
     );
 }
@@ -241,6 +297,7 @@ function SignalRow({ signal }: { signal: CostCategorySignal }) {
             <Text style={[s.td, { color: changeColor, fontWeight: '700' }]}>
                 {signal.pctPointChange >= 0 ? '+' : ''}{signal.pctPointChange.toFixed(1)}pp
             </Text>
+            <Text style={s.td}>{signal.currentPctOfTotalExpense.toFixed(0)}%</Text>
         </View>
     );
 }
@@ -290,4 +347,12 @@ const s = StyleSheet.create({
     th: { flex: 1, fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase' },
     tableRow: { flexDirection: 'row', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border },
     td: { flex: 1, fontSize: 12, color: Colors.textSecondary },
+
+    laborStatRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12, gap: 8 },
+    laborStat: { flex: 1, alignItems: 'center', backgroundColor: Colors.bg, borderRadius: 10, paddingVertical: 10 },
+    laborStatValue: { fontSize: 15, fontWeight: '800', color: Colors.textPrimary },
+    laborStatLabel: { fontSize: 10, color: Colors.textMuted, marginTop: 3, textAlign: 'center' },
+    laborText: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 19 },
+    laborNoteBox: { marginTop: 10, backgroundColor: Colors.warning + '15', borderRadius: 10, padding: 10 },
+    laborNoteText: { fontSize: 11.5, color: Colors.textSecondary, lineHeight: 16 },
 });

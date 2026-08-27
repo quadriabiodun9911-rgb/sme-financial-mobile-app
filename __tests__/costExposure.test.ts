@@ -67,6 +67,11 @@ describe('computeCostExposure', () => {
         expect(result.projectedImpact).not.toBeNull();
         expect(result.projectedImpact?.category).toBe('Utilities');
         expect(result.projectedImpact?.projectedMonthlyProfit).toBeLessThan(result.projectedImpact!.currentMonthlyProfit);
+        // Prior window: Utilities 30000 vs Rent 60000 total spend -> Utilities is 1/3 of total spend.
+        // Current window: Utilities 75000 vs Rent 60000 total spend -> Utilities is 75/135 of total spend.
+        expect(result.topCategory?.priorPctOfTotalExpense).toBeCloseTo((30000 / 90000) * 100, 1);
+        expect(result.topCategory?.currentPctOfTotalExpense).toBeCloseTo((75000 / 135000) * 100, 1);
+        expect(result.topCategory!.currentPctOfTotalExpense).toBeGreaterThan(result.topCategory!.priorPctOfTotalExpense);
     });
 
     it('scores lower breadth-wise when multiple categories creep up at once', () => {

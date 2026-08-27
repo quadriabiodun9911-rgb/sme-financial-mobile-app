@@ -53,10 +53,10 @@ export function computeRepaymentSeasonalAlignment(
         };
     }
 
-    const overallAvgMonthlyRevenue = seasonality.overallAvgMonthlyRevenue;
+    const overallAvgMonthlyAmount = seasonality.overallAvgMonthlyAmount;
 
     const burdens: RepaymentMonthBurden[] = seasonality.indices.map(i => {
-        const typicalRevenue = overallAvgMonthlyRevenue * i.index;
+        const typicalRevenue = overallAvgMonthlyAmount * i.index;
         return {
             monthName: i.monthName,
             typicalRevenue,

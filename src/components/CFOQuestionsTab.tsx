@@ -51,7 +51,7 @@ export default function CFOQuestionsTab() {
     const {
         transactions, loans, inventory, finance, settings, navigate, goals, invoices,
         capitalCommitments, addCommitment, updateCommitment, deleteCommitment,
-        assets, user, readinessHistory,
+        assets, user, readinessHistory, staff,
     } = useApp();
     const { currency } = settings;
 
@@ -82,10 +82,11 @@ export default function CFOQuestionsTab() {
                     readinessTrend: computeReadinessDelta(readinessHistory)?.trend ?? null,
                     readinessHistory,
                     topActionSummary: diagnosis.topOpportunities[0] ?? null,
+                    staff,
                 }),
             );
         },
-        [transactions, invoices, finance, settings, currency, loans, inventory, goals, capitalCommitments, assets, user, readinessHistory]
+        [transactions, invoices, finance, settings, currency, loans, inventory, goals, capitalCommitments, assets, user, readinessHistory, staff]
     );
 
     const [revenueMissPct, setRevenueMissPct] = useState(15);

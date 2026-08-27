@@ -38,6 +38,7 @@ import { t } from '../utils/i18n';
 import PinConfirmModal from '../components/PinConfirmModal';
 import { computeTenorCycleCheck } from '../utils/tenorCycleMatch';
 import { computeRepaymentSeasonalAlignment } from '../utils/repaymentSeasonalAlignment';
+import { computeRepaymentWeekdayAlignment } from '../utils/repaymentWeekdayAlignment';
 
 function totalPaid(loan: Loan): number {
     return (loan.payments ?? []).reduce((s, p) => s + p.amount, 0);
@@ -580,7 +581,8 @@ export default function LoansScreen() {
                                         {(() => {
                                             const tenorCheck = computeTenorCycleCheck(parseInt(term, 10), transactions, inventory);
                                             const seasonalCheck = computeRepaymentSeasonalAlignment(transactions, mPay);
-                                            if (!tenorCheck && !seasonalCheck.available) return null;
+                                            const weekdayCheck = computeRepaymentWeekdayAlignment(transactions);
+                                            if (!tenorCheck && !seasonalCheck.available && !weekdayCheck.available) return null;
                                             return (
                                                 <>
                                                     <View style={s.impactDivider} />
@@ -599,6 +601,14 @@ export default function LoansScreen() {
                                                                 {seasonalCheck.aligned ? '✅ Repayment vs. Sales Pattern' : '⚠️ Repayment vs. Sales Pattern'}
                                                             </Text>
                                                             <Text style={s.tenorNoteText}>{seasonalCheck.message}</Text>
+                                                        </View>
+                                                    )}
+                                                    {weekdayCheck.available && (
+                                                        <View style={[s.tenorNote, weekdayCheck.concentrated && s.tenorNoteWarn]}>
+                                                            <Text style={s.tenorNoteLabel}>
+                                                                {weekdayCheck.concentrated ? '⚠️ Repayment vs. Weekday Cash Flow' : '✅ Repayment vs. Weekday Cash Flow'}
+                                                            </Text>
+                                                            <Text style={s.tenorNoteText}>{weekdayCheck.message}</Text>
                                                         </View>
                                                     )}
                                                 </>

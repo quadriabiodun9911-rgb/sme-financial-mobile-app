@@ -9,6 +9,8 @@ const makeSignal = (overrides: Partial<CostCategorySignal>): CostCategorySignal 
     currentPctOfRevenue: 15,
     pctPointChange: 5,
     spendGrowthPct: 50,
+    priorPctOfTotalExpense: 20,
+    currentPctOfTotalExpense: 25,
     ...overrides,
 });
 

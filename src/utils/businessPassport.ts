@@ -242,6 +242,7 @@ export function buildBusinessPassport(
             topActionSummary: diagnosis.topOpportunities[0] ?? null,
             pastFinancingApplications: financing.pastApplications,
             currentFinancingApplication: financing.application,
+            staff,
         })
         : null;
 

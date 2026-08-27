@@ -1,5 +1,5 @@
 import {
-    computeSeasonalityPattern, calendarMonthForOffset, seasonalIndexForCalendarMonth, SEASONALITY_MIN_MONTHS,
+    computeSeasonalityPattern, computeExpenseSeasonalityPattern, calendarMonthForOffset, seasonalIndexForCalendarMonth, SEASONALITY_MIN_MONTHS,
 } from '../src/utils/seasonality';
 import { Transaction } from '../src/types';
 
@@ -84,6 +84,43 @@ describe('computeSeasonalityPattern', () => {
         expect(result.troughMonths[0].monthName).toBe('February');
         expect(result.troughMonths[0].index).toBeLessThan(0.85);
         expect(result.peakMonths).toEqual([]);
+    });
+});
+
+describe('computeExpenseSeasonalityPattern', () => {
+    it('is not available with fewer than the minimum months of expense history', () => {
+        const transactions = Array.from({ length: SEASONALITY_MIN_MONTHS - 1 }, (_, i) =>
+            makeTx({ date: dateInPastMonth(i, 1), type: 'expense', category: 'Rent', amount: 50000 }));
+        const result = computeExpenseSeasonalityPattern(transactions);
+        expect(result.available).toBe(false);
+        expect(result.monthsOfHistory).toBe(SEASONALITY_MIN_MONTHS - 1);
+    });
+
+    it('detects a recurring high-expense month (e.g. an annual renewal) across two years', () => {
+        const otherMonths = Array.from({ length: 12 }, (_, i) => i).filter(m => m !== 6); // exclude July
+        const transactions: Transaction[] = [
+            ...otherMonths.map(m => makeTx({ date: dateInPastMonth(m, 1), type: 'expense', category: 'Rent', amount: 50000 })),
+            makeTx({ date: dateInPastMonth(6, 2), type: 'expense', category: 'Insurance', amount: 90000 }), // July, two years ago
+            makeTx({ date: dateInPastMonth(6, 1), type: 'expense', category: 'Insurance', amount: 90000 }), // July, last year
+        ];
+        const result = computeExpenseSeasonalityPattern(transactions);
+        expect(result.available).toBe(true);
+        expect(result.peakMonths).toHaveLength(1);
+        expect(result.peakMonths[0].month).toBe(6);
+        expect(result.peakMonths[0].monthName).toBe('July');
+        expect(result.peakMonths[0].sampleCount).toBe(2);
+    });
+
+    it('never lets revenue-only months influence the expense index', () => {
+        // Same transactions as a flat expense pattern, plus large income
+        // transactions that must not leak into computeExpenseSeasonalityPattern.
+        const transactions: Transaction[] = Array.from({ length: 12 }, (_, i) => [
+            makeTx({ date: dateInPastMonth(i, 1), type: 'expense', category: 'Rent', amount: 50000 }),
+            makeTx({ date: dateInPastMonth(i, 1), type: 'income', amount: 999999 }),
+        ]).flat();
+        const result = computeExpenseSeasonalityPattern(transactions);
+        expect(result.available).toBe(true);
+        result.indices.forEach(i => expect(i.index).toBeCloseTo(1, 5));
     });
 });
 

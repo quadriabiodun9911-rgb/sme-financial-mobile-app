@@ -42,7 +42,7 @@ export interface SeasonalityResult {
     // can reuse the exact figure this function already computed internally,
     // instead of re-running computeAllTimeMonthlyBuckets over the same
     // transactions a second time. 0 when unavailable.
-    overallAvgMonthlyRevenue: number;
+    overallAvgMonthlyAmount: number;
 }
 
 const NOT_AVAILABLE = (monthsOfHistory: number): SeasonalityResult => ({
@@ -52,7 +52,7 @@ const NOT_AVAILABLE = (monthsOfHistory: number): SeasonalityResult => ({
     indices: [],
     peakMonths: [],
     troughMonths: [],
-    overallAvgMonthlyRevenue: 0,
+    overallAvgMonthlyAmount: 0,
 });
 
 export function computeSeasonalityPattern(transactions: Transaction[]): SeasonalityResult {
@@ -93,7 +93,7 @@ export function computeSeasonalityPattern(transactions: Transaction[]): Seasonal
         indices,
         peakMonths,
         troughMonths,
-        overallAvgMonthlyRevenue: overallAvg,
+        overallAvgMonthlyAmount: overallAvg,
     };
 }
 
@@ -115,4 +115,52 @@ export function seasonalIndexForCalendarMonth(result: SeasonalityResult, calenda
     if (!result.available) return 1;
     const found = result.indices.find(i => i.month === calendarMonth);
     return found ? found.index : 1;
+}
+
+// Same month-of-year index, applied to expense instead of revenue -- answers
+// "which calendar months does this business typically pay more in operating
+// costs" (a rent renewal month, a pre-holiday stock-up, an annual licence
+// renewal) the same honest way computeSeasonalityPattern answers it for
+// sales: only once 12 months of history exist, and only for months that
+// actually have recorded expense data.
+export function computeExpenseSeasonalityPattern(transactions: Transaction[]): SeasonalityResult {
+    const monthly = computeAllTimeMonthlyBuckets(transactions).filter(m => m.expense > 0);
+    if (monthly.length < SEASONALITY_MIN_MONTHS) return NOT_AVAILABLE(monthly.length);
+
+    const overallAvg = monthly.reduce((s, m) => s + m.expense, 0) / monthly.length;
+    if (overallAvg <= 0) return NOT_AVAILABLE(monthly.length);
+
+    const byCalendarMonth = new Map<number, { sum: number; count: number }>();
+    for (const m of monthly) {
+        const calMonth = parseInt(m.month.slice(5, 7), 10) - 1;
+        const bucket = byCalendarMonth.get(calMonth) ?? { sum: 0, count: 0 };
+        bucket.sum += m.expense;
+        bucket.count += 1;
+        byCalendarMonth.set(calMonth, bucket);
+    }
+
+    const indices: SeasonalMonthIndex[] = [];
+    for (let cm = 0; cm < 12; cm++) {
+        const bucket = byCalendarMonth.get(cm);
+        if (!bucket) continue;
+        indices.push({
+            month: cm,
+            monthName: MONTH_NAMES[cm],
+            index: bucket.sum / bucket.count / overallAvg,
+            sampleCount: bucket.count,
+        });
+    }
+
+    const peakMonths = indices.filter(i => i.index >= PEAK_THRESHOLD).sort((a, b) => b.index - a.index);
+    const troughMonths = indices.filter(i => i.index <= TROUGH_THRESHOLD).sort((a, b) => a.index - b.index);
+
+    return {
+        available: true,
+        monthsOfHistory: monthly.length,
+        minMonthsRequired: SEASONALITY_MIN_MONTHS,
+        indices,
+        peakMonths,
+        troughMonths,
+        overallAvgMonthlyAmount: overallAvg,
+    };
 }
