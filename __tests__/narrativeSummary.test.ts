@@ -67,4 +67,58 @@ describe('generateNarrativeSummary', () => {
         const summary = generateNarrativeSummary(metrics, [makeDiagnosis()], []);
         expect(summary).toContain('No urgent risks stand out right now — a good window to invest in growth.');
     });
+
+    it('leads the middle sentence with the concrete problem stat before the root cause', () => {
+        const metrics = makeMetrics({ monthOverMonthGrowth: 5 });
+        const diagnoses = [makeDiagnosis({ problem: 'Single customer is 45% of revenue', dimension: 'concentration' })];
+        const summary = generateNarrativeSummary(metrics, diagnoses, []);
+        expect(summary).toContain('Single customer is 45% of revenue.');
+    });
+
+    it('frames how many issues were found and the overall trend direction', () => {
+        const metrics = makeMetrics({ monthOverMonthGrowth: 8, profitTrend: 'improving' });
+        const diagnoses = [makeDiagnosis({ severity: 'critical' }), makeDiagnosis({ severity: 'warning' })];
+        const summary = generateNarrativeSummary(metrics, diagnoses, []);
+        expect(summary).toContain('This is 1 of 1 critical issue Quad360 found in your numbers this month, while your overall trend is improving.');
+    });
+
+    it('warns about cash burn and the resulting runway when net profit is negative', () => {
+        const metrics = makeMetrics({ netProfit: -20000, runwayDays: 45, monthOverMonthGrowth: 2 });
+        const summary = generateNarrativeSummary(metrics, [makeDiagnosis()], []);
+        expect(summary).toContain('Right now the business is burning cash, with roughly 45 days of runway left at this rate if nothing changes.');
+    });
+
+    it('does not mention burning cash for a profitable business with a healthy runway', () => {
+        const metrics = makeMetrics({ netProfit: 40000, runwayDays: 180, monthOverMonthGrowth: 2 });
+        const summary = generateNarrativeSummary(metrics, [makeDiagnosis()], []);
+        expect(summary).not.toContain('burning cash');
+    });
+
+    it('flags a thin buffer even when cash is not being burned', () => {
+        const metrics = makeMetrics({ netProfit: 5000, runwayDays: 40, monthOverMonthGrowth: 2 });
+        const summary = generateNarrativeSummary(metrics, [makeDiagnosis()], []);
+        expect(summary).toContain("Cash isn't being burned this month, but the buffer is still thin at 40 days of runway.");
+    });
+
+    it('closes with the quantified "after improvement" score when a solution impact is provided and it is an improvement', () => {
+        const metrics = makeMetrics({ monthOverMonthGrowth: 5 });
+        const summary = generateNarrativeSummary(
+            metrics,
+            [makeDiagnosis()],
+            ['Freeze discretionary spend increases until revenue growth catches up'],
+            { currentScore: 56, projectedScore: 72, projectedBand: 'Strong' },
+        );
+        expect(summary).toContain('Acting on this could lift your Financial Health score from 56 to roughly 72 (Strong).');
+    });
+
+    it('omits the solution-impact close when there is no actual improvement to report', () => {
+        const metrics = makeMetrics({ monthOverMonthGrowth: 5 });
+        const summary = generateNarrativeSummary(
+            metrics,
+            [makeDiagnosis()],
+            ['Freeze discretionary spend increases until revenue growth catches up'],
+            { currentScore: 80, projectedScore: 80, projectedBand: 'Strong' },
+        );
+        expect(summary).not.toContain('Financial Health score');
+    });
 });

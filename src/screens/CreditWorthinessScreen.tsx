@@ -767,6 +767,51 @@ export default function CreditWorthinessScreen() {
                     <NextStepLink text="See which financing products fit your business →" onPress={() => navigate('financing-marketplace')} />
                 </View>
 
+                {/* Top actions + after-improvement projection — same
+                    prioritized fixes performFinancialDiagnosis surfaces
+                    elsewhere (e.g. the Business Passport), reused here so a
+                    lender reading this document sees not just the score but
+                    what specifically is holding it back and roughly how
+                    much fixing it would move the needle. Hidden entirely
+                    when there's too little history for a diagnosis. */}
+                {pack.topActions.length > 0 && (
+                    <View style={fp.card}>
+                        <Text style={fp.cardTitle}>What's Holding This Back</Text>
+                        {pack.topActionImpacts.map((item, idx) => (
+                            <View key={idx} style={fp.actionRow}>
+                                <Text style={fp.actionNumber}>{idx + 1}</Text>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={fp.actionText}>{item.action}</Text>
+                                    {(item.profitImpact > 0 || item.cashImpact > 0) && (
+                                        <Text style={fp.actionImpactText}>
+                                            If not solved:{' '}
+                                            {item.profitImpact > 0 && `${fmtCompact(currency, item.profitImpact)}/mo off profit`}
+                                            {item.profitImpact > 0 && item.cashImpact > 0 && item.cashImpact !== item.profitImpact ? ' · ' : ''}
+                                            {item.cashImpact > 0 && item.cashImpact !== item.profitImpact && `${fmtCompact(currency, item.cashImpact)} tied up in cash`}
+                                        </Text>
+                                    )}
+                                </View>
+                            </View>
+                        ))}
+                        {pack.improvementProjection && (
+                            <View style={fp.improvementBlock}>
+                                <Text style={fp.improvementLabel}>If these are addressed</Text>
+                                <View style={fp.improvementScoreRow}>
+                                    <Text style={fp.improvementCurrent}>{pack.improvementProjection.currentScore}</Text>
+                                    <Icon name="arrow-right" size={13} color={Colors.textMuted} />
+                                    <Text style={[fp.improvementProjected, { color: FP_BAND_COLOR[pack.improvementProjection.projectedBand] }]}>
+                                        {pack.improvementProjection.projectedScore}
+                                    </Text>
+                                    <Text style={fp.improvementProjectedBand}>({pack.improvementProjection.projectedBand})</Text>
+                                </View>
+                                <Text style={fp.improvementCaveat}>
+                                    An illustrative estimate based on your own recorded numbers, not a guarantee.
+                                </Text>
+                            </View>
+                        )}
+                    </View>
+                )}
+
                 {/* Supporting documents */}
                 <View style={fp.card}>
                     <Text style={fp.cardTitle}>Supporting Documents</Text>
@@ -958,6 +1003,21 @@ const fp = StyleSheet.create({
     scoreCard: { backgroundColor: Colors.card, borderRadius: 14, borderTopWidth: 4, padding: 16, marginBottom: 16, alignItems: 'center' },
     scoreValue: { fontSize: 28, fontWeight: '800', marginVertical: 8 },
     scoreCaveat: { fontSize: 11.5, color: Colors.textMuted, textAlign: 'center', lineHeight: 16, marginBottom: 10 },
+    actionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 8 },
+    actionNumber: {
+        fontSize: 12, fontWeight: '800', color: Colors.primary,
+        backgroundColor: Colors.primary + '22', borderRadius: 10,
+        width: 20, height: 20, textAlign: 'center', lineHeight: 20,
+    },
+    actionText: { flex: 1, fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
+    actionImpactText: { fontSize: 11, color: Colors.expense, fontWeight: '600', marginTop: 3 },
+    improvementBlock: { marginTop: 10, paddingTop: 12, borderTopWidth: 1, borderTopColor: Colors.border },
+    improvementLabel: { fontSize: 11.5, fontWeight: '700', color: Colors.textMuted, marginBottom: 6, textTransform: 'uppercase' },
+    improvementScoreRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    improvementCurrent: { fontSize: 16, fontWeight: '700', color: Colors.textMuted },
+    improvementProjected: { fontSize: 18, fontWeight: '800' },
+    improvementProjectedBand: { fontSize: 12, color: Colors.textMuted },
+    improvementCaveat: { fontSize: 10.5, color: Colors.textMuted, marginTop: 6, fontStyle: 'italic' },
     docsHint: { fontSize: 11, color: Colors.textMuted, marginBottom: 12, lineHeight: 16, fontStyle: 'italic' },
     docRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border, gap: 10 },
     docIcon: { fontSize: 14 },

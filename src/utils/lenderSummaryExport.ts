@@ -170,7 +170,15 @@ export function buildBusinessPassportExport(passport: BusinessPassport, currency
             },
             {
                 name: 'Actions — What To Do Next',
-                data: passport.topActions.map((a, i) => ({ label: `${i + 1}`, value: a })),
+                data: passport.topActionImpacts.map((item, i) => {
+                    const impactParts: string[] = [];
+                    if (item.profitImpact > 0) impactParts.push(`${fmtCurrency(currency, item.profitImpact)}/mo off profit`);
+                    if (item.cashImpact > 0 && item.cashImpact !== item.profitImpact) impactParts.push(`${fmtCurrency(currency, item.cashImpact)} tied up in cash`);
+                    return {
+                        label: `${i + 1}`,
+                        value: impactParts.length > 0 ? `${item.action} (if not solved: ${impactParts.join(' · ')})` : item.action,
+                    };
+                }),
             },
         ],
     };
@@ -224,6 +232,28 @@ export function buildFundingReadinessPackExport(pack: FundingReadinessPack, curr
                 name: 'Risk Profile',
                 data: pack.riskProfile.map(f => ({ label: f.name, value: `${STATUS_LABEL[f.status]} (${f.score}/100)` })),
             },
+            // Same prioritized fixes and "after improvement" projection the
+            // Funding Pack tab shows on-screen -- included here too so the
+            // actual document a lender receives carries the same picture,
+            // not a subset of it.
+            ...(pack.topActions.length > 0 ? [{
+                name: "What's Holding This Back",
+                data: [
+                    ...pack.topActionImpacts.map((item, i) => {
+                        const impactParts: string[] = [];
+                        if (item.profitImpact > 0) impactParts.push(`${fmtCurrency(currency, item.profitImpact)}/mo off profit`);
+                        if (item.cashImpact > 0 && item.cashImpact !== item.profitImpact) impactParts.push(`${fmtCurrency(currency, item.cashImpact)} tied up in cash`);
+                        return {
+                            label: `${i + 1}`,
+                            value: impactParts.length > 0 ? `${item.action} (if not solved: ${impactParts.join(' · ')})` : item.action,
+                        };
+                    }),
+                    ...(pack.improvementProjection ? [{
+                        label: 'If addressed, Funding Readiness could reach',
+                        value: `${pack.improvementProjection.projectedScore}/100 (${pack.improvementProjection.projectedBand}) — an illustrative estimate, not a guarantee`,
+                    }] : []),
+                ],
+            }] : []),
             {
                 name: 'Supporting Documents',
                 data: pack.documents.map(d => ({

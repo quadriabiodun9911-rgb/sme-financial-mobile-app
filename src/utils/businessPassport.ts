@@ -34,7 +34,7 @@ import { buildBusinessFinancialDNA, BusinessFinancialDNA, detectDNADeviations, D
 import { getMonthlyExpenseAverage, computeImprovementProjection, RiskScore } from './finance';
 import { buildFundingReadinessPack, FundingReadinessPack } from './fundingReadiness';
 import { estimateBusinessValuation, ValuationEstimate } from './businessValuation';
-import { performFinancialDiagnosis, RISK_FACTOR_TO_CATEGORY_KEY } from './financialDiagnosisEngine';
+import { performFinancialDiagnosis, factorNamesForDimensions, ActionImpact } from './financialDiagnosisEngine';
 import { computeDataQuality, DataQuality } from './dataQuality';
 import { analyzeTrend } from './trendAnalysis';
 import { buildStructuralSnapshot, StructuralSnapshot } from './structuralSnapshot';
@@ -49,14 +49,6 @@ import { assessGoalRisk, GoalRiskAssessment } from './goalRiskLinkage';
 // instead of showing a near-empty page. Same threshold the retired
 // ClarityScreen used.
 const MIN_TRANSACTIONS_FOR_DIAGNOSIS = 5;
-
-// Inverse of financialDiagnosisEngine's own dimension map -- lets the
-// improvement projection below target the exact RiskFactor a top action's
-// `dimension` field says it addresses, without a second hardcoded copy of
-// the name<->key pairing.
-const CATEGORY_KEY_TO_RISK_FACTOR_NAME: Record<string, string> = Object.fromEntries(
-    Object.entries(RISK_FACTOR_TO_CATEGORY_KEY).map(([name, key]) => [key, name]),
-);
 
 export interface ImprovementProjectionSummary {
     currentHealthScore: number;
@@ -119,6 +111,10 @@ export interface BusinessPassport {
         marginTrend: BusinessFinancialDNA['risk']['marginTrendDirection'];
     };
     topActions: string[];
+    // Same top 3 actions as topActions above, paired with what each one is
+    // actually costing today in profit and/or cash if left unresolved — see
+    // deriveTopActionImpacts in financialDiagnosisEngine.ts.
+    topActionImpacts: ActionImpact[];
     // "If you fixed these top actions, here's roughly where your scores
     // would land" — see computeImprovementProjection in finance.ts for the
     // exact method (same real factor scores, bumped one tier for the
@@ -176,10 +172,7 @@ export function buildBusinessPassport(
     // ordering topOpportunities is sliced from), so the projection is always
     // "if you did what this page just told you to do," never a
     // disconnected, arbitrary set of factors.
-    const topDimensions = diagnosis.diagnoses.slice(0, 3).map(d => d.dimension);
-    const targetFactorNames = topDimensions
-        .map(k => CATEGORY_KEY_TO_RISK_FACTOR_NAME[k])
-        .filter((name): name is string => Boolean(name));
+    const targetFactorNames = factorNamesForDimensions(diagnosis.diagnoses.slice(0, 3).map(d => d.dimension));
     const improvementProjection: ImprovementProjectionSummary | null =
         hasEnoughDataForDiagnosis && targetFactorNames.length > 0
             ? (() => {
@@ -296,6 +289,7 @@ export function buildBusinessPassport(
             marginTrend: dna.risk.marginTrendDirection,
         },
         topActions: diagnosis.topOpportunities,
+        topActionImpacts: diagnosis.topActionImpacts,
         improvementProjection,
         narrativeSummary: hasEnoughDataForDiagnosis ? diagnosis.narrativeSummary : '',
         goalRisks,

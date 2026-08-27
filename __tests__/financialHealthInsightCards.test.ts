@@ -33,6 +33,8 @@ const makeResult = (overrides: Partial<DiagnosisResult> = {}): DiagnosisResult =
     metrics: makeMetrics(),
     diagnoses: [],
     topOpportunities: [],
+    topActionImpacts: [],
+    improvementProjection: null,
     narrativeSummary: '',
     ...overrides,
 });

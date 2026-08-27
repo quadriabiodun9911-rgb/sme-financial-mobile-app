@@ -4,7 +4,7 @@
  */
 
 import { Transaction, Invoice, Loan, InventoryItem, GoalType } from '../types';
-import { computeDSCR, computeWorkingCapitalMetrics, computeCustomerConcentration, computeSupplierConcentration, computeRiskScore, RiskScore, DSCRResult } from './finance';
+import { computeDSCR, computeWorkingCapitalMetrics, computeCustomerConcentration, computeSupplierConcentration, computeRiskScore, computeImprovementProjection, RiskScore, DSCRResult } from './finance';
 import { computeStockVelocity } from './stockVelocity';
 
 export interface FinancialMetrics {
@@ -80,6 +80,19 @@ export interface RootCauseAnalysis {
   suggestedGoalType?: GoalType;
 }
 
+export interface ActionImpact {
+  action: string;
+  // Monthly ₦ drag on recognized profit if this issue is left unresolved.
+  // Zero for issues that don't directly move the P&L (see
+  // deriveTopActionImpacts below for which dimensions count as which).
+  profitImpact: number;
+  // ₦ tied up or drained from cash if this issue is left unresolved --
+  // either a monthly amount (e.g. debt service) or a point-in-time trapped
+  // balance (e.g. receivables, slow-moving stock), matching whatever the
+  // diagnosis's own financialImpact already measures.
+  cashImpact: number;
+}
+
 export interface DiagnosisResult {
   overallHealth: number; // 0-100
   healthStatus: 'critical' | 'warning' | 'healthy';
@@ -88,11 +101,40 @@ export interface DiagnosisResult {
   metrics: FinancialMetrics;
   diagnoses: RootCauseAnalysis[];
   topOpportunities: string[];
+  // Same top 3 opportunities as topOpportunities above, paired with what
+  // each one is actually costing today -- see deriveTopActionImpacts.
+  topActionImpacts: ActionImpact[];
+  // "If you fixed the top actions, here's roughly where your scores would
+  // land" -- see computeImprovementProjection in finance.ts. Null when
+  // there's nothing to target (no ranked diagnoses).
+  improvementProjection: { currentScore: number; projectedScore: number; projectedBand: RiskScore['band'] } | null;
   // A single connected paragraph tying the trend, the worst root cause, and
   // the top recommended action together — still built from the same fixed
   // sentence templates as the rest of this file (no LLM call), just
   // assembled into prose instead of separate cards. See generateNarrativeSummary.
   narrativeSummary: string;
+}
+
+// A diagnosis's own financialImpact number already means different things
+// depending on where the underlying problem sits: a P&L issue (weak margin,
+// revenue decline, cost growth outrunning revenue) is a direct monthly hit
+// to recognized profit, and -- with no offsetting balance-sheet timing
+// effect to separate the two -- that same shortfall shows up in cash
+// generation too. A balance-sheet timing issue (slow receivables, a debt
+// service obligation, stock that isn't turning over) ties up or drains cash
+// without changing what's already been recognized as profit. Concentration
+// and working-capital-cycle diagnoses carry no quantified financialImpact
+// at all (the engine has no honest $ estimate for "losing your biggest
+// customer would be existential") -- both figures stay 0 for those, same
+// as today's single-number treatment.
+const PROFIT_DIMENSIONS: HealthCategory['key'][] = ['profitability', 'efficiency'];
+
+export function deriveTopActionImpacts(diagnoses: RootCauseAnalysis[], count = 3): ActionImpact[] {
+  return diagnoses.slice(0, count).map(d => ({
+    action: d.opportunity,
+    profitImpact: PROFIT_DIMENSIONS.includes(d.dimension) ? d.financialImpact : 0,
+    cashImpact: PROFIT_DIMENSIONS.includes(d.dimension) ? d.financialImpact : d.financialImpact,
+  }));
 }
 
 const INDUSTRY_BENCHMARKS = {
@@ -558,7 +600,7 @@ export function diagnoseEfficiency(
   return diagnoses;
 }
 
-const CATEGORY_LABELS: Record<HealthCategory['key'], string> = {
+export const CATEGORY_LABELS: Record<HealthCategory['key'], string> = {
   profitability: 'Profitability',
   liquidity: 'Liquidity',
   workingCapital: 'Working Capital',
@@ -567,6 +609,17 @@ const CATEGORY_LABELS: Record<HealthCategory['key'], string> = {
   inventory: 'Inventory',
   concentration: 'Concentration',
 };
+
+// Maps a diagnosis's `dimension` (e.g. from the top N entries of
+// DiagnosisResult.diagnoses) to the RiskFactor name computeRiskScore uses
+// for that same pillar -- CATEGORY_LABELS above already IS that mapping,
+// this just names the specific use case so callers (businessPassport.ts,
+// fundingReadiness.ts) don't each re-derive it. Used to target an
+// "after improvement" projection at exactly the factors the page's own
+// top actions already address, never an arbitrary set.
+export function factorNamesForDimensions(dimensions: HealthCategory['key'][]): string[] {
+  return dimensions.map(k => CATEGORY_LABELS[k]).filter((name): name is string => Boolean(name));
+}
 
 export const RISK_FACTOR_TO_CATEGORY_KEY: Record<string, HealthCategory['key']> = {
   Profitability: 'profitability',
@@ -598,12 +651,14 @@ function lowerFirst(s: string): string {
  * Margins will keep compressing month over month if this continues.
  * Recommended: freeze discretionary spend increases until revenue growth
  * catches up." Deterministic sentence assembly, not model-generated text —
- * every clause traces back to a field already on `metrics`/`diagnoses`.
+ * every clause traces back to a field already on `metrics`/`diagnoses`, plus
+ * `solutionImpact` (see performFinancialDiagnosis) when a projection exists.
  */
 export function generateNarrativeSummary(
   metrics: FinancialMetrics,
   diagnoses: RootCauseAnalysis[],
   topOpportunities: string[],
+  solutionImpact: { currentScore: number; projectedScore: number; projectedBand: RiskScore['band'] } | null = null,
 ): string {
   const parts: string[] = [];
   const growth = metrics.monthOverMonthGrowth;
@@ -627,12 +682,55 @@ export function generateNarrativeSummary(
 
   if (diagnoses.length > 0) {
     const top = diagnoses[0];
+    // Leads with the concrete stat behind the problem (e.g. "Single
+    // customer is 45% of revenue") -- previously dropped from the
+    // narrative even though it's the most specific, most concrete fact
+    // available, in favor of jumping straight to the more abstract root
+    // cause sentence.
+    parts.push(`${capitalizeFirst(top.problem)}.`);
     parts.push(`${capitalizeFirst(top.rootCause)}. ${capitalizeFirst(top.impact)}.`);
+
+    // "Overall business performance" framing -- how many things Quad360
+    // actually found (not just this one, in isolation) and which direction
+    // the business is trending, both already-computed real figures, not a
+    // new estimate.
+    const criticalCount = diagnoses.filter(d => d.severity === 'critical').length;
+    const scopeClause = diagnoses.length > 1
+        ? criticalCount > 0
+            ? `This is 1 of ${criticalCount} critical issue${criticalCount === 1 ? '' : 's'} Quad360 found in your numbers this month`
+            : `This is 1 of ${diagnoses.length} issues Quad360 found in your numbers this month`
+        : 'This is the one issue Quad360 found in your numbers this month';
+    const trendClause = metrics.profitTrend === 'improving' ? 'while your overall trend is improving'
+        : metrics.profitTrend === 'declining' ? 'and your overall trend is declining too'
+        : 'while your overall trend is holding steady';
+    parts.push(`${scopeClause}, ${trendClause}.`);
+
+    // "How long will it survive, is it burning cash" -- metrics.netProfit's
+    // sign is the direct answer to "is cash being burned right now," and
+    // metrics.runwayDays (cash ÷ daily burn, already computed for the
+    // Liquidity diagnoses above) is the direct answer to "how long would it
+    // last." Surfaced regardless of which dimension actually topped the
+    // ranked list, since survival is relevant context even when today's
+    // worst-ranked issue is something else (e.g. customer concentration).
+    if (metrics.netProfit < 0) {
+      parts.push(metrics.runwayDays !== null
+        ? `Right now the business is burning cash, with roughly ${metrics.runwayDays} day${metrics.runwayDays === 1 ? '' : 's'} of runway left at this rate if nothing changes.`
+        : 'Right now the business is burning cash, with too little expense history yet to estimate how long the current cash balance would last.');
+    } else if (metrics.runwayDays !== null && metrics.runwayDays < INDUSTRY_BENCHMARKS.runwayDaysSafe) {
+      parts.push(`Cash isn't being burned this month, but the buffer is still thin at ${metrics.runwayDays} days of runway.`);
+    }
   }
 
   if (topOpportunities.length > 0) {
     const rest = topOpportunities.length > 1 ? `, then ${lowerFirst(topOpportunities[1])}` : '';
     parts.push(`Recommended: ${lowerFirst(topOpportunities[0])}${rest}.`);
+    // The "genuine solution, quantified" close -- how much fixing the top
+    // actions would actually move the same Financial Health score shown
+    // elsewhere in the app (see computeImprovementProjection), not just a
+    // vague "this would help."
+    if (solutionImpact && solutionImpact.projectedScore > solutionImpact.currentScore) {
+      parts.push(`Acting on this could lift your Financial Health score from ${solutionImpact.currentScore} to roughly ${solutionImpact.projectedScore} (${solutionImpact.projectedBand}).`);
+    }
   } else {
     parts.push('No urgent risks stand out right now — a good window to invest in growth.');
   }
@@ -757,6 +855,19 @@ export function performFinancialDiagnosis(
   // the same severity), instead of only pulling from critical-severity
   // items in 3 pre-selected categories and sometimes returning 0-1 results.
   const topOpportunities = allDiagnoses.slice(0, 3).map(d => d.opportunity);
+  const topActionImpacts = deriveTopActionImpacts(allDiagnoses, 3);
+
+  // "If these are fixed, here's roughly where the score would land" -- same
+  // real factor scores computeRiskScore just produced, bumped only for the
+  // dimensions the top 3 actions above already target. See
+  // computeImprovementProjection in finance.ts for the exact method.
+  const targetFactorNames = factorNamesForDimensions(allDiagnoses.slice(0, 3).map(d => d.dimension));
+  const improvementProjection = targetFactorNames.length > 0
+    ? (() => {
+        const projected = computeImprovementProjection(riskScore.factors, targetFactorNames);
+        return { currentScore: riskScore.score, projectedScore: projected.health.score, projectedBand: projected.health.band };
+      })()
+    : null;
 
   return {
     overallHealth: riskScore.score,
@@ -766,6 +877,8 @@ export function performFinancialDiagnosis(
     metrics,
     diagnoses: allDiagnoses,
     topOpportunities,
-    narrativeSummary: generateNarrativeSummary(metrics, allDiagnoses, topOpportunities),
+    topActionImpacts,
+    improvementProjection,
+    narrativeSummary: generateNarrativeSummary(metrics, allDiagnoses, topOpportunities, improvementProjection),
   };
 }

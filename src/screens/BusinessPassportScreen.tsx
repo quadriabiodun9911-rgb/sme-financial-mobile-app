@@ -317,10 +317,25 @@ export default function BusinessPassportScreen() {
                     {passport.topActions.length === 0 ? (
                         <Text style={s.emptyText}>No urgent actions identified right now.</Text>
                     ) : (
-                        passport.topActions.map((action, idx) => (
+                        passport.topActionImpacts.map((item, idx) => (
                             <View key={idx} style={s.actionRow}>
                                 <Text style={s.actionNumber}>{idx + 1}</Text>
-                                <Text style={s.actionText}>{action}</Text>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={s.actionText}>{item.action}</Text>
+                                    {/* Left unresolved: what it's costing today.
+                                        Omitted entirely when the engine has no
+                                        honest $ estimate for this issue (e.g.
+                                        customer concentration risk) rather than
+                                        showing a misleading ₦0. */}
+                                    {(item.profitImpact > 0 || item.cashImpact > 0) && (
+                                        <Text style={s.actionImpact}>
+                                            If not solved:{' '}
+                                            {item.profitImpact > 0 && `${fmtCompact(currency, item.profitImpact)}/mo off profit`}
+                                            {item.profitImpact > 0 && item.cashImpact > 0 && item.cashImpact !== item.profitImpact ? ' · ' : ''}
+                                            {item.cashImpact > 0 && item.cashImpact !== item.profitImpact && `${fmtCompact(currency, item.cashImpact)} tied up in cash`}
+                                        </Text>
+                                    )}
+                                </View>
                             </View>
                         ))
                     )}
@@ -476,6 +491,7 @@ const s = StyleSheet.create({
         width: 20, height: 20, textAlign: 'center', lineHeight: 20,
     },
     actionText: { flex: 1, fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
+    actionImpact: { fontSize: 11, color: Colors.expense, fontWeight: '600', marginTop: 3 },
     improvementCard: { backgroundColor: Colors.card, borderRadius: 14, padding: Spacing.lg, marginBottom: Spacing.lg, borderLeftWidth: 4, borderLeftColor: Colors.income, ...Shadow.sm },
     improvementRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: Spacing.sm },
     improvementLabel: { fontSize: 13, color: Colors.textSecondary, fontWeight: '600' },

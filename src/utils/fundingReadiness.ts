@@ -8,10 +8,11 @@
  */
 
 import { Transaction, Invoice, Loan, InventoryItem, Asset, FinanceData, BusinessSettings } from '../types';
-import { computeRiskScore, computeFinancingReadinessScore, RiskFactor, RiskScore, computeEnhancedPnL, computeWorkingCapitalMetrics, computeLoanAmortizationSplit } from './finance';
+import { computeRiskScore, computeFinancingReadinessScore, computeImprovementProjection, getMonthlyExpenseAverage, RiskFactor, RiskScore, computeEnhancedPnL, computeWorkingCapitalMetrics, computeLoanAmortizationSplit } from './finance';
 import { computeAllTimeMonthlyBuckets, MonthlyTrendPoint } from './trendAnalysis';
 import { computeDataQuality } from './dataQuality';
 import { computeTaxFilingReadiness } from './taxFilingReadiness';
+import { performFinancialDiagnosis, factorNamesForDimensions, ActionImpact } from './financialDiagnosisEngine';
 
 export interface FundingReadinessProfile {
     revenue: number;
@@ -34,6 +35,12 @@ export interface DocumentReadiness {
     detail: string;
 }
 
+export interface FundingImprovementProjection {
+    currentScore: number;
+    projectedScore: number;
+    projectedBand: RiskScore['band'];
+}
+
 export interface FundingReadinessPack {
     businessName: string;
     generatedAt: string;
@@ -43,6 +50,20 @@ export interface FundingReadinessPack {
     score: number;
     band: RiskScore['band'];
     documents: DocumentReadiness[];
+    // Same top-3 prioritized fixes performFinancialDiagnosis surfaces
+    // elsewhere in the app (e.g. the Business Passport's Actions section) --
+    // reused here, not a second independent list.
+    topActions: string[];
+    // Same top 3 actions as topActions above, paired with what each one is
+    // actually costing today in profit and/or cash if left unresolved.
+    topActionImpacts: ActionImpact[];
+    // "If you fixed the actions above, here's roughly where financing
+    // readiness would land" -- see computeImprovementProjection in
+    // finance.ts. Only the financing-readiness side of that projection is
+    // relevant to this pack (it has no separate "Financial Health" score of
+    // its own to project). Null with too little history for a diagnosis, or
+    // no actions to target.
+    improvementProjection: FundingImprovementProjection | null;
 }
 
 /**
@@ -99,6 +120,27 @@ export function buildFundingReadinessPack(
     // underlying factor scores as `risk` above, just a different
     // aggregation suited to what this pack is for.
     const financingReadiness = computeFinancingReadinessScore(risk.factors);
+
+    // Below this many recorded transactions a full diagnosis is too thin to
+    // trust -- same threshold businessPassport.ts uses for the same reason.
+    const hasEnoughDataForDiagnosis = transactions.length >= 5;
+    const diagnosis = hasEnoughDataForDiagnosis
+        ? performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), settings.currency, loans, inventory)
+        : null;
+    const topActions = diagnosis?.topOpportunities ?? [];
+    const topActionImpacts = diagnosis?.topActionImpacts ?? [];
+    const targetFactorNames = diagnosis ? factorNamesForDimensions(diagnosis.diagnoses.slice(0, 3).map(d => d.dimension)) : [];
+    const improvementProjection: FundingImprovementProjection | null =
+        targetFactorNames.length > 0
+            ? (() => {
+                const projected = computeImprovementProjection(financingReadiness.factors, targetFactorNames);
+                return {
+                    currentScore: financingReadiness.score,
+                    projectedScore: projected.financingReadiness.score,
+                    projectedBand: projected.financingReadiness.band,
+                };
+            })()
+            : null;
 
     const allMonths = computeAllTimeMonthlyBuckets(transactions);
     const trend = allMonths.slice(-12);
@@ -169,5 +211,8 @@ export function buildFundingReadinessPack(
         score: financingReadiness.score,
         band: financingReadiness.band,
         documents,
+        topActions,
+        topActionImpacts,
+        improvementProjection,
     };
 }

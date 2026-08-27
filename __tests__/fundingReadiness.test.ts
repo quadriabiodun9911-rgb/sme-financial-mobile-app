@@ -122,6 +122,29 @@ describe('buildFundingReadinessPack', () => {
         });
     });
 
+    it('projects an "after improvement" financing readiness score for a business with real issues', () => {
+        const transactions: Transaction[] = Array.from({ length: 8 }, (_, i) => [
+            makeTx({ type: 'income', amount: 100000, description: 'Big Customer', category: 'Sales', date: daysAgo(30 * i + 5) }),
+            makeTx({ type: 'expense', category: 'Rent', amount: 95000, date: daysAgo(30 * i + 5) }),
+        ]).flat();
+        const thinCashFinance: FinanceData = { ...finance, cashBalance: 5000 };
+        const pack = buildFundingReadinessPack(transactions, [], [], [], [], thinCashFinance, settings, 'Test Co');
+
+        expect(Array.isArray(pack.topActions)).toBe(true);
+        expect(pack.topActions.length).toBeGreaterThan(0);
+        expect(pack.improvementProjection).not.toBeNull();
+        if (pack.improvementProjection) {
+            expect(pack.improvementProjection.currentScore).toBe(pack.score);
+            expect(pack.improvementProjection.projectedScore).toBeGreaterThanOrEqual(pack.improvementProjection.currentScore);
+        }
+    });
+
+    it('has no improvement projection when there is not enough history for a diagnosis', () => {
+        const pack = buildFundingReadinessPack([makeTx({})], [], [], [], [], finance, settings, 'Test Co');
+        expect(pack.improvementProjection).toBeNull();
+        expect(pack.topActions).toEqual([]);
+    });
+
     it('takes at most the last 12 months with data for the trend', () => {
         const transactions: Transaction[] = Array.from({ length: 15 }, (_, i) =>
             makeTx({ date: daysAgo(30 * i + 1), amount: 1000 * (i + 1) }));
