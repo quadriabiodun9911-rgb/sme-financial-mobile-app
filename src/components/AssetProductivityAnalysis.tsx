@@ -100,32 +100,34 @@ export default function AssetProductivityAnalysis({ finance, assets, currency, a
         }));
     }, [activeAssets]);
 
-    // Recommendations
+    // Recommendations -- each one states the real number that triggered it,
+    // not just the generic advice, so it reads as this business's own
+    // situation rather than boilerplate that would show up for anyone.
     const getRecommendations = (): string[] => {
         const recs: string[] = [];
 
         if (assetTurnover < 1) {
-            recs.push('Low asset turnover: Increase revenue generation or reduce underutilized assets');
+            recs.push(`Low asset turnover (${assetTurnover.toFixed(2)}x): increase revenue generation or reduce underutilized assets`);
         }
 
         if (returnOnAssets < 10) {
-            recs.push('Improve ROA: Focus on productivity - generate more profit per asset');
+            recs.push(`Improve ROA (currently ${returnOnAssets.toFixed(1)}%): focus on productivity — generate more profit per asset`);
         }
 
         if (profitMargin < 20 && finance.income > 0) {
-            recs.push('Thin margins: Reduce costs or increase prices to improve profitability');
+            recs.push(`Thin margins (${profitMargin.toFixed(1)}%): reduce costs or increase prices to improve profitability`);
         }
 
         if (activeAssets.length === 0) {
-            recs.push('No assets recorded: Track equipment and machinery investments for accurate metrics');
+            recs.push('No assets recorded: track equipment and machinery investments for accurate metrics');
         }
 
         if (assetTurnover > 2) {
-            recs.push('Excellent asset utilization: Your assets are generating strong returns');
+            recs.push(`Excellent asset utilization (${assetTurnover.toFixed(2)}x turnover): your assets are generating strong returns`);
         }
 
         if (returnOnAssets > 15) {
-            recs.push('Strong ROA: Your assets are highly productive - consider scaling');
+            recs.push(`Strong ROA (${returnOnAssets.toFixed(1)}%): your assets are highly productive — consider scaling`);
         }
 
         return recs;
@@ -136,19 +138,20 @@ export default function AssetProductivityAnalysis({ finance, assets, currency, a
         const opps: string[] = [];
 
         if (assetTurnover < 1.5 && finance.income > 0) {
-            opps.push('Optimize current assets: Train staff, improve processes to increase output');
+            opps.push(`Optimize current assets (${assetTurnover.toFixed(2)}x turnover): train staff, improve processes to increase output`);
         }
 
         if (returnOnAssets > 10) {
-            opps.push('Invest in similar assets: Your current assets are profitable - consider expanding');
+            opps.push(`Invest in similar assets: at ${returnOnAssets.toFixed(1)}% ROA your current assets are profitable — consider expanding`);
         }
 
         if (finance.cashBalance > totalAssetValue * 0.2) {
-            opps.push('Unused capital: Consider investing in productive assets for growth');
+            const idleCash = finance.cashBalance - totalAssetValue * 0.2;
+            opps.push(`Unused capital: ~${currency}${idleCash.toLocaleString(undefined, { maximumFractionDigits: 0 })} in cash sits well above your asset base — consider investing in productive assets for growth`);
         }
 
         if (activeAssets.length < 5) {
-            opps.push('Asset diversification: Invest in multiple asset types to reduce risk');
+            opps.push(`Asset diversification: only ${activeAssets.length} asset${activeAssets.length === 1 ? '' : 's'} recorded — invest in multiple asset types to reduce risk`);
         }
 
         return opps;

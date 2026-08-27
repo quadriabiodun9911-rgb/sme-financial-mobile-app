@@ -248,7 +248,7 @@ export default function GrowthOutlook({ finance, transactions, currency, targetM
                             <InsightRow type="info" text={`Steady growth at ${growthMetrics.monthlyGrowthRate.toFixed(1)}% monthly. Focus on consistency.`} />
                         )}
                         {growthMetrics.monthlyGrowthRate < -10 && (
-                            <InsightRow type="warning" text="Revenue declining. Investigate causes and activate growth initiatives." />
+                            <InsightRow type="warning" text={`Revenue declining ${Math.abs(growthMetrics.monthlyGrowthRate).toFixed(1)}% monthly. Investigate causes and activate growth initiatives.`} />
                         )}
                         {coefficientOfVariation < 20 ? (
                             <InsightRow type="success" text="Revenue is predictable and stable. Good foundation for planning." />

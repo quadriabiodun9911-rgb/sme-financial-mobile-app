@@ -174,7 +174,7 @@ export default function LoansAndDebt({
         actionItems.push({ color: Colors.expense, text: 'No recorded income: start generating revenue to service debt.' });
     }
     if (profit > 0 && liabilities > 0) {
-        actionItems.push({ color: Colors.income, text: 'Positive cash flow: allocate profits to debt reduction for faster payoff.' });
+        actionItems.push({ color: Colors.income, text: `Positive cash flow (${currency}${profit.toLocaleString(undefined, { maximumFractionDigits: 0 })} profit): allocate some of it to debt reduction for faster payoff.` });
     }
     if (returnOnEquity >= 15) {
         actionItems.push({ color: Colors.income, text: `Strong ROE of ${returnOnEquity.toFixed(1)}% — your equity is generating healthy returns.` });
