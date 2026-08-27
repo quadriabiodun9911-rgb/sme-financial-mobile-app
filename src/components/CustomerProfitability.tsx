@@ -62,13 +62,19 @@ export default function CustomerProfitability({ invoices, transactions, currency
             const paid = custInvoices.filter(inv => inv.status === 'paid').length;
             const paymentRate = custInvoices.length > 0 ? (paid / custInvoices.length) * 100 : 0;
 
-            // Calculate average days to payment (using dueDate as proxy since paidDate isn't in Invoice type)
-            const paidInvoices = custInvoices.filter(inv => inv.status === 'paid' && inv.dueDate);
+            // Real turnaround time (issueDate -> paidDate) when a paidDate
+            // was actually recorded -- see Invoice.paidDate. Older invoices
+            // paid before that field existed have no real payment timestamp
+            // to measure from, so those fall back to the invoice's payment
+            // term (dueDate - issueDate) as a rough estimate; this used to
+            // be the ONLY thing computed here, which measured the term
+            // given, not how long the customer actually took to pay.
+            const paidInvoices = custInvoices.filter(inv => inv.status === 'paid');
             const daysToPayAvg = paidInvoices.length > 0
                 ? paidInvoices.reduce((sum, inv) => {
-                    const due = new Date(inv.dueDate).getTime();
                     const issued = new Date(inv.issueDate).getTime();
-                    return sum + Math.max(0, (due - issued) / (1000 * 60 * 60 * 24));
+                    const end = new Date(inv.paidDate || inv.dueDate).getTime();
+                    return sum + Math.max(0, (end - issued) / (1000 * 60 * 60 * 24));
                 }, 0) / paidInvoices.length
                 : 0;
 

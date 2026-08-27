@@ -115,4 +115,22 @@ describe('buildBehavioralProfile', () => {
         expect(toDoIdx).toBeGreaterThan(-1);
         expect(capitalIdx).toBeGreaterThan(toDoIdx);
     });
+
+    it('never labels a customer\'s payment behavior from fewer than 3 real paid-and-dated invoices', () => {
+        const invoices = [
+            makeInvoice({ clientName: 'New Client', status: 'paid', dueDate: daysAgo(30), paidDate: daysAgo(5) }),
+        ];
+        const profile = buildBehavioralProfile(baseInput({ invoices }));
+        expect(profile.whatsHappening.some(h => h.includes('New Client'))).toBe(false);
+    });
+
+    it('surfaces a real serial-late-payer customer once they have enough dated payment history', () => {
+        const invoices = [
+            makeInvoice({ clientName: 'Slow Co', status: 'paid', dueDate: '2026-01-15', paidDate: '2026-02-05' }),
+            makeInvoice({ clientName: 'Slow Co', status: 'paid', dueDate: '2026-02-15', paidDate: '2026-03-08' }),
+            makeInvoice({ clientName: 'Slow Co', status: 'paid', dueDate: '2026-03-15', paidDate: '2026-04-04' }),
+        ];
+        const profile = buildBehavioralProfile(baseInput({ invoices }));
+        expect(profile.whatsHappening.some(h => h.includes('Slow Co') && h.includes('Serial late payer'))).toBe(true);
+    });
 });

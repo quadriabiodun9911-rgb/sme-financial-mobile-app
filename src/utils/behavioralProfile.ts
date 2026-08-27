@@ -8,6 +8,7 @@
  * Every dimension composed here already exists as its own self-contained
  * engine elsewhere in the app (seasonality.ts, qualityOfGrowth.ts,
  * costExposureForecast.ts, businessFinancialDNA.ts's deviation detector,
+ * customerPaymentBehavior.ts's per-customer payment history,
  * financingRecommendation.ts). This file is deliberately thin: it never
  * computes a new number or invents a verdict, it only pulls each engine's
  * own real output into one narrative — so nothing here can drift out of
@@ -22,6 +23,7 @@ import { computeSeasonalityPattern } from './seasonality';
 import { computeQualityOfGrowth } from './qualityOfGrowth';
 import { computeCostExposureForecast } from './costExposureForecast';
 import { detectDNADeviations } from './businessFinancialDNA';
+import { computeCustomerPaymentHistory, describePaymentPersonality } from './customerPaymentBehavior';
 import { buildFinancingFitInput } from './financingFit';
 import { recommendFinancingTypes, FinancingRecommendation } from './financingRecommendation';
 import { ReadinessTrend } from './readinessHistory';
@@ -95,6 +97,20 @@ export function buildBehavioralProfile(input: BehavioralProfileInput): Behaviora
         const driverList = costForecast.drivers.map(d => d.category).join(', ');
         whatsHappening.push(`${driverList} ${costForecast.drivers.length === 1 ? 'is' : 'are'} rising faster than revenue right now.`);
         if (costForecast.totalProfitErosion > 0) whatsLikely.push(costForecast.verdict);
+    }
+
+    // ---- Customer payment behavior: has any customer shown a real pattern? ----
+    // Gated inside computeCustomerPaymentHistory on real Invoice.paidDate
+    // history (see customerPaymentBehavior.ts) -- a customer only earns a
+    // personality label once they have enough dated paid invoices behind
+    // them, so this says nothing for a business too new to have that yet.
+    const worstPayer = computeCustomerPaymentHistory(invoices)
+        .find(h => h.personality === 'serial_late_payer' || h.personality === 'inconsistent');
+    if (worstPayer) {
+        whatsHappening.push(`${worstPayer.customerName}: ${describePaymentPersonality(worstPayer)}`);
+        if (worstPayer.trend === 'worsening') {
+            whatsLikely.push(`${worstPayer.customerName}'s payment timing is trending worse — expect more cash tied up waiting on them if it continues.`);
+        }
     }
 
     // ---- Prescription: the caller's own real top action, never re-derived here ----

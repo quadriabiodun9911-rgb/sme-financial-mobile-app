@@ -762,7 +762,17 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
       // with a white error boundary as soon as that comparison landed on
       // the new invoice.
       addInvoice: (invoice) => setInvoices((prev) => [...prev, { ...invoice, id: invoice.id || genId(), createdAt: invoice.createdAt || new Date().toISOString() }]),
-      markInvoiceStatus: (id, status) => setInvoices((prev) => prev.map((inv) => (inv.id === id ? { ...inv, status } : inv))),
+      // Stamps paidDate the moment an invoice actually transitions to
+      // 'paid' -- the one real data point behind customerPaymentBehavior.ts's
+      // payment-lateness history. Left untouched if already set (repeat
+      // "mark paid" taps stay idempotent) or if the new status isn't 'paid'
+      // (reverting a mistaken mark-paid keeps the original paid date rather
+      // than erasing evidence of when it actually happened).
+      markInvoiceStatus: (id, status) => setInvoices((prev) => prev.map((inv) => (
+        inv.id === id
+          ? { ...inv, status, paidDate: status === 'paid' ? (inv.paidDate || new Date().toISOString().slice(0, 10)) : inv.paidDate }
+          : inv
+      ))),
       updateInvoice: (id, invoice) => setInvoices((prev) =>
         prev.map((i) => (i.id === id ? { ...i, ...invoice } : i))
       ),

@@ -506,6 +506,14 @@ export interface Invoice {
     taxTotal: number;
     total: number;
     createdAt: string;
+    // Stamped the moment markInvoiceStatus transitions an invoice to 'paid'
+    // (OptimizedContexts.tsx) -- the real date payment was recorded, not the
+    // dueDate. Without this, "days to pay" can only ever be estimated off
+    // dueDate as a proxy (see customerPaymentBehavior.ts / the daysToPayAvg
+    // comment in CustomerProfitability.tsx). Absent on any invoice paid
+    // before this field existed, and on every invoice not yet paid -- never
+    // backfilled with a guess.
+    paidDate?: string;
     // Pay within earlyPaymentDiscountDays of issueDate for earlyPaymentDiscountPct
     // off -- see earlyPaymentDiscount.ts. Both unset = no discount offered.
     earlyPaymentDiscountPct?: number;
