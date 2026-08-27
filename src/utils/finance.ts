@@ -434,10 +434,11 @@ export function computeOneThingInsight(
     }
 
     if (finance.margin < parseFloat(targetMargin)) {
+        const marginGapProfit = ((parseFloat(targetMargin) - finance.margin) / 100) * finance.income;
         return {
             severity: 'warning',
             title: 'Margins Are Dropping Below Target',
-            action: `Current profit margin is ${finance.margin.toFixed(1)}% vs your goal of ${targetMargin}%. Review top cost categories now.`,
+            action: `Current profit margin is ${finance.margin.toFixed(1)}% vs your goal of ${targetMargin}% — that gap is costing you about ${currency}${Math.round(marginGapProfit).toLocaleString()}/mo in profit. Review top cost categories now.`,
             tag: 'MARGIN WARNING',
         };
     }

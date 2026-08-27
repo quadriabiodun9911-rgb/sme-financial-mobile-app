@@ -264,15 +264,17 @@ export default function ProductPerformance({ transactions, inventory, currency }
 
                     if (highMarginProducts.length > 0) {
                         const top = highMarginProducts[0];
-                        insights.push(`⭐ Focus on "${top.category}" - highest margin (${top.margin.toFixed(1)}%). Scale this line.`);
+                        insights.push(`⭐ Focus on "${top.category}" - highest margin (${top.margin.toFixed(1)}%, ${currency}${top.netProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })} profit). Scale this line.`);
                     }
 
                     if (lowMarginProducts.length > 0) {
-                        insights.push(`⚠️ "${lowMarginProducts[0].category}" has low margin (<25%). Review pricing or reduce costs.`);
+                        const worst = lowMarginProducts[0];
+                        insights.push(`⚠️ "${worst.category}" has low margin (<25%) on ${currency}${worst.totalRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })} in revenue. Review pricing or reduce costs.`);
                     }
 
                     if (slowMovingProducts.length > 0) {
-                        insights.push(`💤 ${slowMovingProducts.length} product(s) have slow turnover. Consider discontinuing or repricing.`);
+                        const tiedUpStock = slowMovingProducts.reduce((sum, p) => sum + p.stockValue, 0);
+                        insights.push(`💤 ${slowMovingProducts.length} product(s) have slow turnover, tying up ${currency}${tiedUpStock.toLocaleString(undefined, { maximumFractionDigits: 0 })} in stock. Consider discontinuing or repricing.`);
                     }
 
                     if (insights.length < 2 && productMetrics.length > 1) {

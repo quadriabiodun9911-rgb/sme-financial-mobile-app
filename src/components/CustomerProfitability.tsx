@@ -210,11 +210,13 @@ export default function CustomerProfitability({ invoices, transactions, currency
                     }
 
                     if (lowMarginCustomers.length > 0) {
-                        insights.push(`⚠️ ${lowMarginCustomers.length} customer(s) have <20% margin. Review pricing or costs.`);
+                        const lowMarginRevenue = lowMarginCustomers.reduce((sum, c) => sum + c.totalRevenue, 0);
+                        insights.push(`⚠️ ${lowMarginCustomers.length} customer(s) have <20% margin, covering ${currency}${lowMarginRevenue.toLocaleString()} in revenue. Review pricing or costs.`);
                     }
 
                     if (slowPayingCustomers.length > 0) {
-                        insights.push(`💰 ${slowPayingCustomers.length} customer(s) take >30 days to pay. Implement payment terms.`);
+                        const slowPayingRevenue = slowPayingCustomers.reduce((sum, c) => sum + c.totalRevenue, 0);
+                        insights.push(`💰 ${slowPayingCustomers.length} customer(s) take >30 days to pay, tying up ${currency}${slowPayingRevenue.toLocaleString()} in revenue. Implement payment terms.`);
                     }
 
                     if (insights.length === 0) {

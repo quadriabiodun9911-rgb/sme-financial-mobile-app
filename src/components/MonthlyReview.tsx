@@ -71,11 +71,11 @@ export default function MonthlyReview({ visible, onClose }: Props) {
                 ? `Your biggest cost this month is ${biggestCat[0]} (${currency}${biggestCat[1].toLocaleString()}). Consider if this can be reduced next month.`
                 : 'You spent more than you earned this month. Review your expenses and look for areas to cut.';
         } else if (incomeDelta !== null && incomeDelta < -10) {
-            recommendation = `Your income dropped ${Math.abs(incomeDelta).toFixed(0)}% vs ${lastMonthName}. Consider reaching out to existing customers or offering a promotion.`;
+            recommendation = `Your income dropped ${Math.abs(incomeDelta).toFixed(0)}% vs ${lastMonthName} (${currency}${(lastIncome - thisIncome).toLocaleString()} less). Consider reaching out to existing customers or offering a promotion.`;
         } else if (overdueInvoices.length > 0) {
             recommendation = `You have ${overdueInvoices.length} overdue invoice${overdueInvoices.length > 1 ? 's' : ''}. Follow up with clients to collect ${currency}${overdueInvoices.reduce((s, i) => s + i.total, 0).toLocaleString()} owed.`;
         } else if (thisProfit > 0 && profitDelta !== null && profitDelta > 10) {
-            recommendation = `Great month! Profit is up ${profitDelta.toFixed(0)}% vs ${lastMonthName}. Consider setting aside some of this profit as a cash reserve.`;
+            recommendation = `Great month! Profit is up ${profitDelta.toFixed(0)}% vs ${lastMonthName}. Consider setting aside some of this ${currency}${thisProfit.toLocaleString()} profit as a cash reserve.`;
         } else {
             recommendation = 'Keep logging every day — the more data you have, the clearer your financial picture becomes.';
         }
