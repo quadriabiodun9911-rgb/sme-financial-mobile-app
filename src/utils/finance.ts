@@ -1593,7 +1593,7 @@ export interface DebtOptimizerResult {
     recommendation: string;
 }
 
-export function computeDebtOptimiser(loans: Loan[]): DebtOptimizerResult {
+export function computeDebtOptimiser(loans: Loan[], currency: string = ''): DebtOptimizerResult {
     const activeLoans = loans.filter(l => l.status === 'active');
     if (activeLoans.length === 0) {
         return {
@@ -1660,7 +1660,7 @@ export function computeDebtOptimiser(loans: Loan[]): DebtOptimizerResult {
 
     const interestDiff = snowballResult.totalInterest - avalancheResult.totalInterest;
     const recommendation = interestDiff > 1
-        ? `Avalanche method saves ${interestDiff.toFixed(0)} in interest. Focus on ${avalancheOrder[0]?.lenderName || 'your highest-rate lender'} first (${avalancheOrder[0]?.interestRate ?? 0}% rate).`
+        ? `Avalanche method saves ${currency}${interestDiff.toFixed(0)} in interest. Focus on ${avalancheOrder[0]?.lenderName || 'your highest-rate lender'} first (${avalancheOrder[0]?.interestRate ?? 0}% rate).`
         : `Both methods yield similar results. Snowball may boost motivation by clearing ${snowballOrder[0]?.lenderName || 'your smallest loan'} first.`;
 
     return {

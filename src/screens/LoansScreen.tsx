@@ -203,7 +203,7 @@ export default function LoansScreen() {
 
     // Multi-loan payoff strategy (avalanche vs snowball) — only meaningful
     // with 2+ active loans; a single loan has no ordering decision to make.
-    const debtOpt = useMemo(() => computeDebtOptimiser(loans), [loans]);
+    const debtOpt = useMemo(() => computeDebtOptimiser(loans, currency), [loans, currency]);
     const dscr = useMemo(() => computeDSCR(transactions, loans), [transactions, loans]);
     const showDebtStrategy = activeLoans.length >= 2;
     const dscrStatusColor = dscr.status === 'healthy' ? Colors.income : dscr.status === 'warning' ? Colors.warning : Colors.expense;

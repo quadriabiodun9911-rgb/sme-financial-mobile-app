@@ -516,7 +516,7 @@ function FinanceTab() {
 function GrowthTab() {
     const { loans, transactions, invoices, finance, settings, navigate } = useApp();
     const { currency } = settings;
-    const debtOpt    = useMemo(() => computeDebtOptimiser(loans), [loans]);
+    const debtOpt    = useMemo(() => computeDebtOptimiser(loans, currency), [loans, currency]);
     const payActions = useMemo(() => computePaymentOptimiser(transactions, invoices, finance.cashBalance), [transactions, invoices, finance.cashBalance]);
 
     // Pricing opportunity
