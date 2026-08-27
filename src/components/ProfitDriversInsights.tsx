@@ -21,9 +21,6 @@ export default function ProfitDriversInsights({ drivers, currency }: Props) {
     const negatives = drivers.filter(d => d.impact <= 0);
 
     const topAction = positives.length > 0 ? positives[0] : null;
-    const avgImpact = topAction
-        ? (topAction.impact / Math.max(positives.length, 1))
-        : 0;
 
     if (drivers.length === 0) {
         return (
@@ -100,10 +97,10 @@ export default function ProfitDriversInsights({ drivers, currency }: Props) {
                     <View style={styles.topActionCard}>
                         <Text style={styles.topActionHeader}>💡 TOP ACTION</Text>
                         <Text style={styles.topActionText}>
-                            Scale {topAction.title.toLowerCase()}:
+                            Scale {topAction.title.toLowerCase()}
                         </Text>
                         <Text style={styles.topActionMetric}>
-                            Avg impact = {fmt(avgImpact, currency)} per driver
+                            This alone added {fmt(topAction.impact, currency)} to profit this period — your biggest lever right now.
                         </Text>
                     </View>
                 </>

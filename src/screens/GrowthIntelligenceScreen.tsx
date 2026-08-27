@@ -18,6 +18,7 @@ import {
     computeMomentum,
     computeTopPerformers,
     computeGrowthScore,
+    computeBreakeven,
     MonthlySnapshot,
 } from '../utils/profitability';
 import { computeCustomerMetrics } from '../utils/customerMetrics';
@@ -46,6 +47,9 @@ function fmt(n: number, currency: string): string {
 function ScoreTab({ currency }: { currency: string }) {
     const { transactions, settings } = useApp();
     const result = useMemo(() => computeGrowthScore(transactions, settings), [transactions, settings]);
+    const momentum = useMemo(() => computeMomentum(transactions), [transactions]);
+    const breakeven = useMemo(() => computeBreakeven(transactions, settings), [transactions, settings]);
+    const performers = useMemo(() => computeTopPerformers(transactions), [transactions]);
     const circumference = 2 * Math.PI * 44;
     const filled = (result.score / 100) * circumference;
 
@@ -58,7 +62,7 @@ function ScoreTab({ currency }: { currency: string }) {
                     <Text style={gs.scoreMax}>/100</Text>
                 </View>
                 <Text style={[gs.scoreLabel, { color: result.color }]}>{result.label}</Text>
-                <Text style={gs.scoreVerdict}>{computeMomentum(transactions).growthVerdict}</Text>
+                <Text style={gs.scoreVerdict}>{momentum.growthVerdict}</Text>
             </View>
 
             {/* Pillars */}
@@ -86,9 +90,26 @@ function ScoreTab({ currency }: { currency: string }) {
             <View style={gs.nextCard}>
                 <Text style={gs.sectionTitle}>HOW TO IMPROVE YOUR SCORE</Text>
                 {result.score < 25 && <Text style={gs.nextItem}>→ Log transactions consistently for 3+ months</Text>}
-                {(result.pillars[2]?.score ?? 100) < 25 && <Text style={gs.nextItem}>→ Grow monthly revenue — even 5% MoM compounds fast</Text>}
-                {(result.pillars[3]?.score ?? 100) < 20 && <Text style={gs.nextItem}>→ Reach breakeven by cutting your top expense category</Text>}
-                {(result.pillars[4]?.score ?? 100) < 10 && <Text style={gs.nextItem}>→ Reduce customer concentration — add 2 new clients</Text>}
+                {(result.pillars[2]?.score ?? 100) < 25 && (
+                    <Text style={gs.nextItem}>
+                        → Grow monthly revenue — even 5% MoM compounds fast
+                        {result.label !== 'Not Enough Data' && ` (you're at ${momentum.revenueGrowthPct >= 0 ? '+' : ''}${momentum.revenueGrowthPct.toFixed(0)}% right now)`}
+                    </Text>
+                )}
+                {(result.pillars[3]?.score ?? 100) < 20 && (
+                    <Text style={gs.nextItem}>
+                        → {result.label === 'Not Enough Data'
+                            ? 'Reach breakeven by cutting your top expense category'
+                            : breakeven.costStructureUpsideDown
+                                ? "Fix pricing or cost-per-sale first — right now every sale's variable cost alone exceeds what it brings in, so more volume makes it worse, not better"
+                                : `Close the ${fmt(Math.abs(breakeven.surplusOrGap), currency)}/mo gap to breakeven: cut ~${fmt(breakeven.pathsToProfitability.costReductionNeeded, currency)} in costs, or add ~${fmt(breakeven.pathsToProfitability.revenueIncreaseNeeded, currency)} in revenue`}
+                    </Text>
+                )}
+                {(result.pillars[4]?.score ?? 100) < 10 && performers.topCustomers[0] && (
+                    <Text style={gs.nextItem}>
+                        → {performers.topCustomers[0].name} is {Math.round(performers.topCustomers[0].sharePct)}% of revenue ({fmt(performers.topCustomers[0].revenue, currency)}) — reduce concentration by adding 2+ new clients of similar size
+                    </Text>
+                )}
                 {(result.pillars[1]?.score ?? 100) < 20 && <Text style={gs.nextItem}>→ Turn loss months profitable — review costs when revenue dips</Text>}
                 {result.score >= 75 && <Text style={gs.nextItem}>→ You're doing great. Reinvest profit into growth channels.</Text>}
             </View>
@@ -248,6 +269,11 @@ function PerformersTab({ currency }: { currency: string }) {
                         <Text style={[gs.riskTitle, { color: Colors.expense }]}>Customer Concentration Risk</Text>
                     </View>
                     <Text style={gs.riskBody}>{p.concentrationWarning}</Text>
+                    {p.topCustomers[0] && (
+                        <Text style={gs.riskImpact}>
+                            If not solved: losing {p.topCustomers[0].name} alone would wipe out {fmt(p.topCustomers[0].revenue, currency)} in revenue.
+                        </Text>
+                    )}
                 </View>
             )}
 
@@ -530,6 +556,7 @@ const gs = StyleSheet.create({
     riskTitleRow:{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, marginBottom: 4 },
     riskTitle:   { fontSize: 13, fontWeight: '700' },
     riskBody:    { fontSize: 12, color: Colors.textSecondary, lineHeight: 18 },
+    riskImpact:  { fontSize: 11, color: Colors.expense, fontWeight: '700', marginTop: 4 },
     perfRow:     { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border },
     rankBadge:   { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border },
     rankNum:     { fontSize: 12, fontWeight: '800', color: Colors.textMuted },
