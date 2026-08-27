@@ -119,8 +119,8 @@ export default function PayrollScreen() {
                     <Icon name={payrollStatus.kind === 'overdue' ? 'alert-triangle' : 'alert-circle'} size={16} color={payrollStatus.kind === 'overdue' ? Colors.expense : Colors.warning} />
                     <Text style={styles.reminderBannerText}>
                         {payrollStatus.kind === 'overdue'
-                            ? `No payroll run was recorded for ${payrollStatus.missedPeriod}`
-                            : `Payroll for ${payrollStatus.period} hasn't been run — ${payrollStatus.daysLeftInMonth} day${payrollStatus.daysLeftInMonth === 1 ? '' : 's'} left in the month`}
+                            ? `No payroll run was recorded for ${payrollStatus.missedPeriod} — roughly ${fmt(totalMonthlyPayroll)} across ${activeStaff.length} active staff, based on today's payroll`
+                            : `Payroll for ${payrollStatus.period} hasn't been run — ${payrollStatus.daysLeftInMonth} day${payrollStatus.daysLeftInMonth === 1 ? '' : 's'} left in the month (~${fmt(totalMonthlyPayroll)} due)`}
                     </Text>
                     <Text style={styles.reminderBannerCta}>Run →</Text>
                 </TouchableOpacity>
