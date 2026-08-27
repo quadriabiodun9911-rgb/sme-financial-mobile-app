@@ -100,7 +100,13 @@ export default function CashFlowScreen() {
     const totalInflow  = weeks.reduce((s, w) => s + w.projectedInflow, 0);
     const totalOutflow = weeks.reduce((s, w) => s + w.projectedOutflow, 0);
     const alertWeeks   = weeks.filter(w => w.alert).length;
+    const worstCumulative = weeks.length > 0 ? Math.min(...weeks.map(w => w.cumulativeCash)) : 0;
     const maxOut = Math.max(...weeks.map(w => Math.max(w.projectedInflow, w.projectedOutflow)), 1);
+
+    // Cash reserve gap — how much more cash a 3-month (90-day) runway would
+    // take at today's burn rate, reusing the same dailyBurn/runwayDays the
+    // Runway card above already shows (never a separately-estimated figure).
+    const reserveGap = dailyBurn > 0 && runwayDays < 90 ? dailyBurn * (90 - runwayDays) : 0;
 
     return (
         <SafeAreaView style={styles.safe}>
@@ -151,7 +157,8 @@ export default function CashFlowScreen() {
                             <View style={styles.alertBanner}>
                                 <Icon name="alert-triangle" size={16} color={Colors.expense} />
                                 <Text style={styles.alertText}>
-                                    {alertWeeks} week{alertWeeks > 1 ? 's' : ''} with negative projected cash flow in the next 90 days. Review your outflows or accelerate collections.
+                                    {alertWeeks} week{alertWeeks > 1 ? 's' : ''} with negative projected cash flow in the next 90 days
+                                    {worstCumulative < 0 && ` — at the worst point your projected cumulative cash goes ${fmt(Math.abs(worstCumulative))} negative`}. Review your outflows or accelerate collections.
                                 </Text>
                             </View>
                         )}
@@ -282,8 +289,18 @@ export default function CashFlowScreen() {
                         <View style={styles.infoCard}>
                             {([
                                 { icon: 'trending-down' as IconName, text: 'Reduce burn rate by cutting non-essential recurring expenses' },
-                                { icon: 'trending-up' as IconName, text: 'Increase inflow by accelerating invoice collections' },
-                                { icon: 'shield' as IconName, text: 'Build a minimum 3-month cash reserve as your safety net' },
+                                {
+                                    icon: 'trending-up' as IconName,
+                                    text: atRiskAR > 0
+                                        ? `Increase inflow by accelerating invoice collections — ${fmt(atRiskAR)} is currently at high risk of late payment`
+                                        : 'Increase inflow by accelerating invoice collections',
+                                },
+                                {
+                                    icon: 'shield' as IconName,
+                                    text: reserveGap > 0
+                                        ? `Build a minimum 3-month cash reserve as your safety net — you're ${fmt(reserveGap)} short of that cushion at today's burn rate`
+                                        : 'Build a minimum 3-month cash reserve as your safety net',
+                                },
                                 { icon: 'refresh-cw' as IconName, text: 'Review loan repayment schedule — refinancing can extend runway' },
                             ]).map((item, i) => (
                                 <View key={i} style={styles.infoRowLine}>
