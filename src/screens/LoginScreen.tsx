@@ -783,11 +783,25 @@ export default function LoginScreen() {
         }
     };
 
+    // A visitor who lands on any of this screen's modes (Sign In, Sign Up,
+    // Join Team, Reset PIN, ...) previously had no way back to the marketing
+    // page short of the browser's own back button -- this screen never had
+    // a header, logo link, or nav of its own. Same "Back to home" pattern
+    // ContactScreen/BlogScreen already use, reused in every branch below.
+    const goLanding = () => navigate('landing');
+    const backToHomeLink = (
+        <TouchableOpacity onPress={goLanding} style={styles.backLink}>
+            <Icon name="arrow-left" size={13} color={Colors.textMuted} />
+            <Text style={styles.backLinkText}>Back to home</Text>
+        </TouchableOpacity>
+    );
+
     // ── Recover existing account on new device ────────────────────────────────
     if (mode === 'recover') {
         return (
             <SafeAreaView style={styles.safe}>
                 <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+                    {backToHomeLink}
                     <View style={styles.card}>
                         <Image source={require('../../assets/icon.png')} style={styles.logo} />
                         <Text style={styles.title}>Welcome Back</Text>
@@ -846,6 +860,7 @@ export default function LoginScreen() {
         return (
             <SafeAreaView style={styles.safe}>
                 <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+                    {backToHomeLink}
                     <View style={styles.card}>
                         <Image source={require('../../assets/icon.png')} style={styles.logo} />
                         <Text style={styles.title}>Try Quad360</Text>
@@ -935,6 +950,7 @@ export default function LoginScreen() {
         return (
             <SafeAreaView style={styles.safe}>
                 <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+                    {backToHomeLink}
                     <View style={styles.card}>
                         <Text style={styles.title}>
                             {resetIntent === 'verify-device' ? 'Verify This Device' : 'Forgot Your PIN?'}
@@ -1057,6 +1073,7 @@ export default function LoginScreen() {
         return (
             <SafeAreaView style={styles.safe}>
                 <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+                    {backToHomeLink}
                     <View style={styles.card}>
                         <Text style={styles.title}>{t(language, 'joinTeam')}</Text>
                         <Text style={styles.subtitle}>{t(language, 'joinSubtitle')}</Text>
@@ -1103,6 +1120,7 @@ export default function LoginScreen() {
         return (
             <SafeAreaView style={styles.safe}>
                 <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+                    {backToHomeLink}
                     <View style={styles.card}>
                         <Text style={styles.title}>Join as Lender</Text>
                         <Text style={styles.brandTagline}>
@@ -1298,6 +1316,7 @@ export default function LoginScreen() {
                 <SafeAreaView style={styles.safe}>
                     <View style={styles.splitShell}>
                         <View style={styles.splitBrand}>
+                            {backToHomeLink}
                             <View style={styles.splitBrandMid}>
                                 <Image source={require('../../assets/icon.png')} style={styles.splitLogo} />
                                 <Text style={styles.splitTagline}>The Financial Intelligence Layer Between African Businesses and Capital</Text>
@@ -1335,6 +1354,7 @@ export default function LoginScreen() {
         return (
             <SafeAreaView style={styles.safe}>
                 <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+                    {backToHomeLink}
                     <View style={styles.card}>
                         <Image source={require('../../assets/icon.png')} style={styles.logo} />
                         <Text style={styles.brandTagline}>
@@ -1527,6 +1547,7 @@ export default function LoginScreen() {
             <SafeAreaView style={styles.safe}>
                 <View style={styles.splitShell}>
                     <View style={styles.splitBrand}>
+                        {backToHomeLink}
                         <View style={styles.splitBrandMid}>
                             <Image source={require('../../assets/icon.png')} style={styles.splitLogo} />
                             <Text style={styles.splitTagline}>The Financial Intelligence Layer Between African Businesses and Capital</Text>
@@ -1562,6 +1583,7 @@ export default function LoginScreen() {
     return (
         <SafeAreaView style={styles.safe}>
             <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+                {backToHomeLink}
                 <View style={styles.card}>
                     <Image source={require('../../assets/icon.png')} style={styles.logo} />
                     <Text style={styles.brandTagline}>
@@ -1600,6 +1622,11 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 const styles = StyleSheet.create({
     safe:   { flex: 1, backgroundColor: Colors.bg },
     scroll: { flexGrow: 1, justifyContent: 'center', padding: 20 },
+    backLink: {
+        flexDirection: 'row', alignItems: 'center', gap: 6,
+        width: '100%', maxWidth: 480, alignSelf: 'center', marginBottom: 14,
+    },
+    backLinkText: { fontSize: 12.5, color: Colors.textMuted, fontWeight: '600' },
     card: {
         backgroundColor: Colors.surface, borderRadius: Radius.xl, padding: Spacing.xxl,
         borderWidth: 1, borderColor: Colors.border,
