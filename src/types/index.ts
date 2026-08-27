@@ -373,6 +373,7 @@ export interface NavParams {
     goalType?: GoalType;
     goalId?: string;           // pass a saved goal into Goal Bridge
     openWeeklyReport?: boolean; // open the Weekly Dashboard modal on the Dashboard screen
+    openMonthlyReview?: boolean; // open the Monthly Review modal on the Dashboard screen
     // Payment link pre-fill from invoice
     amount?: number;
     description?: string;

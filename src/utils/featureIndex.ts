@@ -26,6 +26,12 @@ export const FEATURE_INDEX: FeatureEntry[] = [
         screen: 'dashboard', navParams: { openWeeklyReport: true },
     },
     {
+        id: 'monthly-review', label: 'Monthly Review', icon: '📊',
+        description: 'Income, expenses and profit vs last month, top expense categories, unpaid invoices, goal progress, and one recommendation',
+        keywords: ['month', 'recap', 'summary', 'review', 'income vs expenses', 'profit trend'],
+        screen: 'dashboard', navParams: { openMonthlyReview: true },
+    },
+    {
         id: 'quality-of-growth', label: 'Quality of Growth', icon: '🌱',
         description: 'Is revenue growth healthy? Compares revenue growth against profit, cash, receivables and debt growth year over year',
         keywords: ['growth quality', 'healthy growth', 'fragile growth', 'revenue growth', 'year over year', 'yoy'],

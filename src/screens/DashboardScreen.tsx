@@ -210,6 +210,7 @@ export default function DashboardScreen() {
     // Deep-link from Global Search
     useEffect(() => {
         if (navParams?.openWeeklyReport) setShowWeeklyReport(true);
+        if (navParams?.openMonthlyReview) setShowMonthlyReview(true);
     }, [navParams]);
 
     useEffect(() => {
@@ -1275,6 +1276,9 @@ export default function DashboardScreen() {
                   </View>
                   <TouchableOpacity style={[styles.btn, { marginTop: 10 }]} onPress={() => setShowWeeklyReport(true)}>
                     <Text style={styles.btnText}>🗓️ Weekly Dashboard — Wins, Problems & Priorities</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.btn, { marginTop: 10 }]} onPress={() => setShowMonthlyReview(true)}>
+                    <Text style={styles.btnText}>📊 Monthly Review — Recap & Recommendation</Text>
                   </TouchableOpacity>
                 </View>
                 )}
