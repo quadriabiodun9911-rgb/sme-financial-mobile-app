@@ -19,14 +19,22 @@
  * from transaction data — inventing a number that pretends otherwise would
  * be exactly the "manufactured score" this file exists to avoid. Instead
  * it lists what evidence IS available and names what isn't, honestly.
+ *
+ * improvementProjection is the one place this file computes something new
+ * from existing numbers rather than just reframing them — see
+ * computeImprovementProjection in finance.ts for exactly how (same real
+ * factor scores, bumped for the same dimensions the top 3 actions already
+ * target, re-aggregated with the same weighting functions as everywhere
+ * else). It is explicitly an illustrative "roughly here's where you'd
+ * land" estimate, not a new canonical score.
  */
 
 import { Transaction, Invoice, Loan, InventoryItem, Asset, FinanceData, BusinessSettings, User, Budget, StaffMember, FinancialGoal } from '../types';
 import { buildBusinessFinancialDNA, BusinessFinancialDNA, detectDNADeviations, DNADeviation } from './businessFinancialDNA';
-import { getMonthlyExpenseAverage } from './finance';
+import { getMonthlyExpenseAverage, computeImprovementProjection, RiskScore } from './finance';
 import { buildFundingReadinessPack, FundingReadinessPack } from './fundingReadiness';
 import { estimateBusinessValuation, ValuationEstimate } from './businessValuation';
-import { performFinancialDiagnosis } from './financialDiagnosisEngine';
+import { performFinancialDiagnosis, RISK_FACTOR_TO_CATEGORY_KEY } from './financialDiagnosisEngine';
 import { computeDataQuality, DataQuality } from './dataQuality';
 import { analyzeTrend } from './trendAnalysis';
 import { buildStructuralSnapshot, StructuralSnapshot } from './structuralSnapshot';
@@ -41,6 +49,23 @@ import { assessGoalRisk, GoalRiskAssessment } from './goalRiskLinkage';
 // instead of showing a near-empty page. Same threshold the retired
 // ClarityScreen used.
 const MIN_TRANSACTIONS_FOR_DIAGNOSIS = 5;
+
+// Inverse of financialDiagnosisEngine's own dimension map -- lets the
+// improvement projection below target the exact RiskFactor a top action's
+// `dimension` field says it addresses, without a second hardcoded copy of
+// the name<->key pairing.
+const CATEGORY_KEY_TO_RISK_FACTOR_NAME: Record<string, string> = Object.fromEntries(
+    Object.entries(RISK_FACTOR_TO_CATEGORY_KEY).map(([name, key]) => [key, name]),
+);
+
+export interface ImprovementProjectionSummary {
+    currentHealthScore: number;
+    projectedHealthScore: number;
+    projectedHealthBand: RiskScore['band'];
+    currentFinancingReadinessScore: number;
+    projectedFinancingReadinessScore: number;
+    projectedFinancingReadinessBand: RiskScore['band'];
+}
 
 export interface InvestmentReadinessSummary {
     valuation: ValuationEstimate;
@@ -94,6 +119,13 @@ export interface BusinessPassport {
         marginTrend: BusinessFinancialDNA['risk']['marginTrendDirection'];
     };
     topActions: string[];
+    // "If you fixed these top actions, here's roughly where your scores
+    // would land" — see computeImprovementProjection in finance.ts for the
+    // exact method (same real factor scores, bumped one tier for the
+    // targeted dimensions, then re-aggregated with the same weighting
+    // functions used everywhere else). Null when there's not enough
+    // transaction history for a full diagnosis, or no actions to target.
+    improvementProjection: ImprovementProjectionSummary | null;
     // One connected paragraph tying the trend, worst root cause, and top
     // action together — see generateNarrativeSummary in
     // financialDiagnosisEngine.ts. Empty when there's not enough
@@ -138,6 +170,34 @@ export function buildBusinessPassport(
     const structuralSnapshot = hasEnoughDataForDiagnosis
         ? null
         : buildStructuralSnapshot(budgets, loans, assets, invoices, inventory, staff, goals);
+
+    // "After improvement" — targets the same dimensions the top 3 actions
+    // above already address (diagnosis.diagnoses is sorted worst-first, same
+    // ordering topOpportunities is sliced from), so the projection is always
+    // "if you did what this page just told you to do," never a
+    // disconnected, arbitrary set of factors.
+    const topDimensions = diagnosis.diagnoses.slice(0, 3).map(d => d.dimension);
+    const targetFactorNames = topDimensions
+        .map(k => CATEGORY_KEY_TO_RISK_FACTOR_NAME[k])
+        .filter((name): name is string => Boolean(name));
+    const improvementProjection: ImprovementProjectionSummary | null =
+        hasEnoughDataForDiagnosis && targetFactorNames.length > 0
+            ? (() => {
+                const projected = computeImprovementProjection(pack.riskProfile, targetFactorNames);
+                return {
+                    // Same current values as the Health/Credit Readiness
+                    // sections above (pack.score) -- never a second,
+                    // independently-computed "current" figure for the
+                    // same page.
+                    currentHealthScore: pack.score,
+                    projectedHealthScore: projected.health.score,
+                    projectedHealthBand: projected.health.band,
+                    currentFinancingReadinessScore: pack.score,
+                    projectedFinancingReadinessScore: projected.financingReadiness.score,
+                    projectedFinancingReadinessBand: projected.financingReadiness.band,
+                };
+            })()
+            : null;
 
     const valuation = estimateBusinessValuation(
         dna.financial.avgMonthlyRevenue,
@@ -236,6 +296,7 @@ export function buildBusinessPassport(
             marginTrend: dna.risk.marginTrendDirection,
         },
         topActions: diagnosis.topOpportunities,
+        improvementProjection,
         narrativeSummary: hasEnoughDataForDiagnosis ? diagnosis.narrativeSummary : '',
         goalRisks,
     };

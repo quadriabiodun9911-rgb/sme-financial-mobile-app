@@ -1163,6 +1163,16 @@ export const RISK_BAND_STYLE: Record<RiskScore['band'], { label: string; emoji: 
     Critical: { label: 'Critical', emoji: '⛔' },
 };
 
+// Shared grade/band tiering -- computeRiskScore, computeFinancingReadinessScore,
+// and computeGeneralHealthScore all bucket a 0-100 weighted total into the
+// same grade/band scale. One definition so the three can't drift apart.
+function riskGradeFromScore(score: number): RiskScore['grade'] {
+    return score >= 85 ? 'A' : score >= 70 ? 'B' : score >= 55 ? 'C' : score >= 40 ? 'D' : 'F';
+}
+function riskBandFromScore(score: number): RiskScore['band'] {
+    return score >= 90 ? 'Excellent' : score >= 75 ? 'Strong' : score >= 55 ? 'Moderate' : score >= 35 ? 'Weak' : 'Critical';
+}
+
 /**
  * The single canonical business health score — seven weighted factors, one
  * per pillar a lender or the business owner actually cares about:
@@ -1344,9 +1354,32 @@ export function computeRiskScore(
     });
 
     const score = Math.round(factors.reduce((s, f) => s + (f.score * f.weight) / 100, 0));
-    const grade: RiskScore['grade'] = score >= 85 ? 'A' : score >= 70 ? 'B' : score >= 55 ? 'C' : score >= 40 ? 'D' : 'F';
-    const band: RiskScore['band'] = score >= 90 ? 'Excellent' : score >= 75 ? 'Strong' : score >= 55 ? 'Moderate' : score >= 35 ? 'Weak' : 'Critical';
-    return { score, grade, band, factors };
+    return { score, grade: riskGradeFromScore(score), band: riskBandFromScore(score), factors };
+}
+
+// General-health mirror of computeFinancingReadinessScore below --
+// computeRiskScore's own weights (Profitability 20, Liquidity 20, Working
+// Capital 10, Debt 15, Efficiency 10, Inventory 10, Concentration 15),
+// reapplied to whatever RiskFactor[] is passed in. Exists so a factor array
+// that's been reweighted for a lending-specific purpose (e.g. the Funding
+// Readiness Pack's factors, or a hypothetical improvement projection) can
+// still be scored as general business health from the exact same factor
+// scores, without a second call to computeRiskScore against a different
+// data window.
+const GENERAL_HEALTH_WEIGHTS: Record<string, number> = {
+    'Profitability': 20,
+    'Liquidity': 20,
+    'Working Capital': 10,
+    'Debt': 15,
+    'Efficiency': 10,
+    'Inventory': 10,
+    'Concentration': 15,
+};
+
+export function computeGeneralHealthScore(factors: RiskFactor[]): RiskScore {
+    const reweighted = factors.map(f => ({ ...f, weight: GENERAL_HEALTH_WEIGHTS[f.name] ?? f.weight }));
+    const score = Math.round(reweighted.reduce((s, f) => s + (f.score * f.weight) / 100, 0));
+    return { score, grade: riskGradeFromScore(score), band: riskBandFromScore(score), factors: reweighted };
 }
 
 // Financing readiness has been sitting behind the same number as general
@@ -1377,9 +1410,42 @@ const FINANCING_READINESS_WEIGHTS: Record<string, number> = {
 export function computeFinancingReadinessScore(factors: RiskFactor[]): RiskScore {
     const reweighted = factors.map(f => ({ ...f, weight: FINANCING_READINESS_WEIGHTS[f.name] ?? f.weight }));
     const score = Math.round(reweighted.reduce((s, f) => s + (f.score * f.weight) / 100, 0));
-    const grade: RiskScore['grade'] = score >= 85 ? 'A' : score >= 70 ? 'B' : score >= 55 ? 'C' : score >= 40 ? 'D' : 'F';
-    const band: RiskScore['band'] = score >= 90 ? 'Excellent' : score >= 75 ? 'Strong' : score >= 55 ? 'Moderate' : score >= 35 ? 'Weak' : 'Critical';
-    return { score, grade, band, factors: reweighted };
+    return { score, grade: riskGradeFromScore(score), band: riskBandFromScore(score), factors: reweighted };
+}
+
+// "After improvement" projection — if a business actually fixed its worst N
+// issues (the same top diagnoses/actions already surfaced elsewhere in the
+// app, see financialDiagnosisEngine.ts), how far would its scores move?
+// Deliberately reuses the SAME real factor scores computeRiskScore already
+// produced, never a separate estimate: each targeted factor's score is
+// bumped by one realistic tier of improvement (capped at 100), then both
+// the general-health and financing-readiness totals are recomputed from
+// that adjusted factor set via the same weighting functions used everywhere
+// else. This is a bounded, honestly-labeled "if you fixed these, roughly
+// here's where you'd land" estimate, not a promise -- it does not model
+// how a specific action (e.g. "reduce receivables by X") maps to a precise
+// score delta, since that mapping isn't something transaction history alone
+// can predict.
+const PROJECTED_IMPROVEMENT_POINTS = 25;
+
+export interface ImprovementProjection {
+    health: RiskScore;             // projected, general weights
+    financingReadiness: RiskScore; // projected, financing-readiness weights
+}
+
+export function computeImprovementProjection(
+    factors: RiskFactor[],
+    targetFactorNames: string[],
+): ImprovementProjection {
+    const projectedFactors = factors.map(f =>
+        targetFactorNames.includes(f.name)
+            ? { ...f, score: Math.min(100, f.score + PROJECTED_IMPROVEMENT_POINTS) }
+            : f
+    );
+    return {
+        health: computeGeneralHealthScore(projectedFactors),
+        financingReadiness: computeFinancingReadinessScore(projectedFactors),
+    };
 }
 
 // 9. Cash flow forecast (90 days, week by week)

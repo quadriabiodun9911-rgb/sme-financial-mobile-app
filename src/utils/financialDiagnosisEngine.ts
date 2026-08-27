@@ -568,7 +568,7 @@ const CATEGORY_LABELS: Record<HealthCategory['key'], string> = {
   concentration: 'Concentration',
 };
 
-const RISK_FACTOR_TO_CATEGORY_KEY: Record<string, HealthCategory['key']> = {
+export const RISK_FACTOR_TO_CATEGORY_KEY: Record<string, HealthCategory['key']> = {
   Profitability: 'profitability',
   Liquidity: 'liquidity',
   'Working Capital': 'workingCapital',

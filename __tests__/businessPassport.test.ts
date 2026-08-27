@@ -73,6 +73,34 @@ describe('buildBusinessPassport', () => {
         expect(passport.creditReadiness.band).toBe(passport.health.band);
     });
 
+    it('projects an "after improvement" score for a business with enough history and real issues', () => {
+        // A lopsided business: heavy expenses (poor profitability), thin
+        // cash (poor liquidity), one dominant customer (concentration risk)
+        // -- enough real problems that performFinancialDiagnosis has actions
+        // to target.
+        const transactions: Transaction[] = Array.from({ length: 8 }, (_, i) => [
+            makeTx({ type: 'income', amount: 100000, description: 'Big Customer', category: 'Sales', date: daysAgo(30 * i + 5) }),
+            makeTx({ type: 'expense', category: 'Rent', amount: 95000, date: daysAgo(30 * i + 5) }),
+        ]).flat();
+        const thinCashFinance: FinanceData = { ...finance, cashBalance: 5000 };
+        const passport = buildBusinessPassport(transactions, [], [], [], [], thinCashFinance, settings, null);
+
+        expect(passport.improvementProjection).not.toBeNull();
+        if (passport.improvementProjection) {
+            expect(passport.improvementProjection.currentHealthScore).toBe(passport.health.score);
+            expect(passport.improvementProjection.currentFinancingReadinessScore).toBe(passport.creditReadiness.score);
+            // Projecting an improvement should never leave the business
+            // worse off than it is today.
+            expect(passport.improvementProjection.projectedHealthScore).toBeGreaterThanOrEqual(passport.improvementProjection.currentHealthScore);
+            expect(passport.improvementProjection.projectedFinancingReadinessScore).toBeGreaterThanOrEqual(passport.improvementProjection.currentFinancingReadinessScore);
+        }
+    });
+
+    it('has no improvement projection when there is not enough history for a diagnosis', () => {
+        const passport = buildBusinessPassport([makeTx({})], [], [], [], [], finance, settings, null);
+        expect(passport.improvementProjection).toBeNull();
+    });
+
     it('reflects a growing months-of-history track record as data accumulates', () => {
         const thin = buildBusinessPassport([makeTx({})], [], [], [], [], finance, settings, null);
         const rich: Transaction[] = Array.from({ length: 6 }, (_, i) => makeTx({ date: daysAgo(30 * i + 1) }));

@@ -328,6 +328,44 @@ export default function BusinessPassportScreen() {
                         <Text style={s.linkText}>See the full action plan →</Text>
                     </TouchableOpacity>
                 </View>
+
+                {/* 10. After Improvement — an illustrative "if you fixed the
+                    actions above, here's roughly where your scores would
+                    land" projection. Not a promise: see
+                    computeImprovementProjection in finance.ts for exactly
+                    how it's derived (same real factor scores, no new
+                    estimate invented). Hidden whenever there's nothing to
+                    project from (too little history, or no targeted
+                    actions). */}
+                {passport.improvementProjection && (
+                    <View style={s.improvementCard}>
+                        <Text style={s.cardTitle}>After Improvement</Text>
+                        <Text style={s.cardSubtitle}>If you complete the actions above</Text>
+                        <View style={s.improvementRow}>
+                            <Text style={s.improvementLabel}>Financial Health</Text>
+                            <View style={s.improvementScoreRow}>
+                                <Text style={s.improvementCurrent}>{passport.improvementProjection.currentHealthScore}</Text>
+                                <Icon name="arrow-right" size={13} color={Colors.textMuted} />
+                                <Text style={[s.improvementProjected, { color: BAND_COLOR[passport.improvementProjection.projectedHealthBand] }]}>
+                                    {passport.improvementProjection.projectedHealthScore}
+                                </Text>
+                            </View>
+                        </View>
+                        <View style={s.improvementRow}>
+                            <Text style={s.improvementLabel}>Financing Readiness</Text>
+                            <View style={s.improvementScoreRow}>
+                                <Text style={s.improvementCurrent}>{passport.improvementProjection.currentFinancingReadinessScore}</Text>
+                                <Icon name="arrow-right" size={13} color={Colors.textMuted} />
+                                <Text style={[s.improvementProjected, { color: BAND_COLOR[passport.improvementProjection.projectedFinancingReadinessBand] }]}>
+                                    {passport.improvementProjection.projectedFinancingReadinessScore}
+                                </Text>
+                            </View>
+                        </View>
+                        <Text style={s.improvementCaveat}>
+                            An illustrative estimate based on your own recorded numbers, not a guarantee.
+                        </Text>
+                    </View>
+                )}
             </ScrollView>
             <FooterNav />
         </SafeAreaView>
@@ -438,6 +476,13 @@ const s = StyleSheet.create({
         width: 20, height: 20, textAlign: 'center', lineHeight: 20,
     },
     actionText: { flex: 1, fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
+    improvementCard: { backgroundColor: Colors.card, borderRadius: 14, padding: Spacing.lg, marginBottom: Spacing.lg, borderLeftWidth: 4, borderLeftColor: Colors.income, ...Shadow.sm },
+    improvementRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: Spacing.sm },
+    improvementLabel: { fontSize: 13, color: Colors.textSecondary, fontWeight: '600' },
+    improvementScoreRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    improvementCurrent: { fontSize: 15, fontWeight: '700', color: Colors.textMuted },
+    improvementProjected: { fontSize: 17, fontWeight: '800' },
+    improvementCaveat: { fontSize: 10.5, color: Colors.textMuted, marginTop: 6, fontStyle: 'italic' },
 });
 
 const pStyles = StyleSheet.create({
