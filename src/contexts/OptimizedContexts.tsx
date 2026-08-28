@@ -12,6 +12,7 @@ import React, { createContext, useContext, useState, useMemo, useEffect, useRef,
 import { Platform } from 'react-native';
 import { User, Invoice, InvoiceStatus, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, MerchantFinancingApplication, FinancingOutcomeInput, LoanPurpose, StaffMember, PayrollRun, PayrollItem, CashPocket, CapitalCommitment, ReadinessSnapshot, DataConfidenceSnapshot, UserRole } from '../types';
 import { computeFinance, computeAssetCurrentValue, countActiveMonths, getMonthlyExpenseAverage, computeRiskScore } from '../utils/finance';
+import { buildLoanFromMerchantFinancing } from '../utils/merchantFinancingConversion';
 import { buildReadinessSnapshot, shouldRecordSnapshot, appendReadinessSnapshot } from '../utils/readinessHistory';
 import { computeDataQuality } from '../utils/dataQuality';
 import { buildDataConfidenceSnapshot, shouldRecordDataConfidenceSnapshot, appendDataConfidenceSnapshot } from '../utils/dataConfidenceHistory';
@@ -165,6 +166,7 @@ interface FinanceContextValue {
   financing: FinancingContextData;
   applyForMerchantFinancing: (amount: number, purpose: LoanPurpose) => Promise<void>;
   recordFinancingOutcome: (outcome: FinancingOutcomeInput) => void;
+  confirmMerchantFinancingFunded: (fundingDate: string) => void;
 
   capitalCommitments: CapitalCommitment[];
   addCommitment: (c: Omit<CapitalCommitment, 'id' | 'createdAt' | 'updatedAt'>) => void;
@@ -191,7 +193,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [dataConfidenceHistory, setDataConfidenceHistory] = useState<DataConfidenceSnapshot[]>([]);
   const [financing, setFinancing] = useState<FinancingContextData>({
     isQualified: false, qualification: undefined, minQualifiedAmount: undefined,
-    maxQualifiedAmount: undefined, application: undefined, activeLoan: undefined,
+    maxQualifiedAmount: undefined, application: undefined,
     pastApplications: [], applicationStatus: null,
   });
   const [hydrated, setHydrated] = useState(false);
@@ -218,7 +220,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setStaff([]); setPayrollRuns([]); setCashPockets([]); setCapitalCommitments([]); setReadinessHistory([]);
     setFinancing({
       isQualified: false, qualification: undefined, minQualifiedAmount: undefined,
-      maxQualifiedAmount: undefined, application: undefined, activeLoan: undefined,
+      maxQualifiedAmount: undefined, application: undefined,
       pastApplications: [], applicationStatus: null,
     });
 
@@ -659,6 +661,38 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             lenderName: outcome.lenderName?.trim() || prev.application.lenderName,
           };
           return { ...prev, application: resolved, applicationStatus: 'approved' };
+        });
+      },
+      // Closes the SECOND dead end: 'approved' had no path to 'funded' at
+      // all -- the UI just asserted "Funds will be transferred within 24
+      // hours" with nothing anywhere that could ever confirm it happened.
+      // Self-reported, same discipline as recordFinancingOutcome above.
+      // Critically, this also creates a REAL Loan record (not just a
+      // financing.application status flip) -- previously a funded merchant
+      // loan would have been invisible to DSCR, the Business Health Score's
+      // Debt factor, Risk Radar, and the Loans screen's own totals, because
+      // nothing ever wrote it into the `loans` array those all read. A
+      // no-op if there's no approved application to confirm.
+      confirmMerchantFinancingFunded: (fundingDate) => {
+        const app = financing.application;
+        if (!app || app.status !== 'approved') return;
+        const loanFields = buildLoanFromMerchantFinancing(app, fundingDate);
+        if (!isDemoMode) trackLoanAdded(loanFields.principal, settingsForFinance?.settings?.currency ?? '₦');
+        setLoans((prev) => [...prev, {
+          ...loanFields,
+          id: genId(),
+          payments: [],
+          createdAt: new Date().toISOString(),
+        }]);
+        setFinancing((prev) => {
+          if (!prev.application || prev.application.status !== 'approved') return prev;
+          const funded: MerchantFinancingApplication = { ...prev.application, status: 'funded', fundingDate };
+          return {
+            ...prev,
+            application: undefined,
+            applicationStatus: null,
+            pastApplications: [...(prev.pastApplications ?? []), funded],
+          };
         });
       },
     }),
@@ -2198,7 +2232,7 @@ export function useApp() {
     cashPockets: finance?.cashPockets ?? [],
     financing: finance?.financing ?? {
       isQualified: false, qualification: undefined, minQualifiedAmount: undefined,
-      maxQualifiedAmount: undefined, application: undefined, activeLoan: undefined,
+      maxQualifiedAmount: undefined, application: undefined,
       pastApplications: [], applicationStatus: null,
     },
 
@@ -2238,6 +2272,7 @@ export function useApp() {
     isLockedOut: auth.isLockedOut,
     applyForMerchantFinancing: finance?.applyForMerchantFinancing || (async () => {}),
     recordFinancingOutcome: finance?.recordFinancingOutcome || (() => {}),
+    confirmMerchantFinancingFunded: finance?.confirmMerchantFinancingFunded || (() => {}),
     setupAccount: auth.setupAccount,
     updateProfile: auth.updateProfile || (() => {}),
     updateInventoryItem: finance?.updateInventoryItem || (() => {}),

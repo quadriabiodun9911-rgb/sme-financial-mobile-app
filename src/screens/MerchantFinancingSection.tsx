@@ -28,12 +28,11 @@ const PURPOSE_OPTIONS: { id: LoanPurpose; label: string; icon: IconName }[] = [
 // ── MAIN SECTION COMPONENT ────────────────────────────────────────────────────
 
 export default function MerchantFinancingSection() {
-    const { user, financing, applyForMerchantFinancing, recordFinancingOutcome, settings, navigate, transactions, loans } = useApp();
+    const { user, financing, applyForMerchantFinancing, recordFinancingOutcome, confirmMerchantFinancingFunded, settings, navigate, transactions, loans } = useApp();
     const { currency } = settings;
 
     const [showApplyModal, setShowApplyModal] = useState(false);
     const [showOutcomeModal, setShowOutcomeModal] = useState(false);
-    const [expandedId, setExpandedId] = useState<string | null>(null);
 
     // Same DSCR the Financing Marketplace already gates every third-party
     // product on -- a business whose current income doesn't cover its
@@ -53,8 +52,7 @@ export default function MerchantFinancingSection() {
     }, [user?.daysActive, user?.avgMonthlyRevenue, user?.financialHealthScore, dscr.dscr]);
 
     const hasApplied = financing?.applicationStatus !== null;
-    const isApproved = financing?.applicationStatus === 'approved' || financing?.applicationStatus === 'funded';
-    const hasActiveLoan = financing?.activeLoan != null;
+    const isApproved = financing?.applicationStatus === 'approved';
 
     // Show loading state if user data not loaded yet
     if (!user) {
@@ -67,43 +65,26 @@ export default function MerchantFinancingSection() {
 
     return (
         <View style={s.container}>
-            {/* SECTION 1: Active Merchant Loan - Priority 1 */}
-            {hasActiveLoan && financing?.activeLoan ? (
-                <ActiveMerchantLoanCard
-                    loan={financing.activeLoan}
-                    currency={currency}
-                    expanded={expandedId === 'active'}
-                    onToggle={() => setExpandedId(expandedId === 'active' ? null : 'active')}
-                />
-            ) : hasActiveLoan && !financing?.activeLoan ? (
-                /* Fallback: hasActiveLoan is true but activeLoan data is missing */
-                <View style={s.emptyStateContainer}>
-                    <View style={s.emptyStateIcon}>
-                        <Icon name="dollar-sign" size={40} color={Colors.textMuted} />
-                    </View>
-                    <Text style={s.emptyStateTitle}>Active Merchant Loan</Text>
-                    <Text style={s.emptyStateSubtitle}>Your loan details are loading...</Text>
-                </View>
-            ) : null}
-
-            {/* SECTION 2: Application Status - Priority 2 -- ApplicationStatusCard
-                already renders pending/approved/rejected correctly; gating this
-                on !isApproved as well as hasActiveLoan used to hide it the moment
-                recordFinancingOutcome marked an application approved, leaving
-                nothing on screen until it's manually converted into a Loan
-                Register entry. Gate on hasActiveLoan alone so it keeps showing
-                the approved application (and its "funds transferred" notice)
-                until that conversion actually happens. */}
-            {hasApplied && !hasActiveLoan && financing?.application ? (
+            {/* SECTION 1: Application Status - Priority 1. Once approved and
+                confirmed funded (confirmMerchantFinancingFunded), the
+                application clears and the loan itself lives in the Loans
+                register from here on -- this section has nothing further to
+                track, so it drops out and SECTION 2 can offer a fresh
+                application again. */}
+            {hasApplied && financing?.application ? (
                 <ApplicationStatusCard
                     application={financing.application}
                     currency={currency}
                     onRecordOutcome={() => setShowOutcomeModal(true)}
+                    onConfirmFunded={(fundingDate) => {
+                        confirmMerchantFinancingFunded(fundingDate);
+                        showAlert('Added to Loans', 'This is now tracked as an active loan -- find it under Understand > Loans to record repayments.');
+                    }}
                 />
             ) : null}
 
-            {/* SECTION 3: Pre-Qualification Widget - Priority 3 */}
-            {!hasActiveLoan && isQualified && !hasApplied ? (
+            {/* SECTION 2: Pre-Qualification Widget - Priority 2 */}
+            {isQualified && !hasApplied ? (
                 <PreQualificationWidget
                     maxLoan={financing?.maxQualifiedAmount || 5000000}
                     minLoan={financing?.minQualifiedAmount || 2000000}
@@ -113,7 +94,7 @@ export default function MerchantFinancingSection() {
                 />
             ) : null}
 
-            {/* SECTION 4: Application History */}
+            {/* SECTION 3: Application History */}
             {financing?.pastApplications && financing.pastApplications.length > 0 ? (
                 <View style={s.historySection}>
                     <Text style={s.sectionTitle}>Previous Applications</Text>
@@ -129,7 +110,7 @@ export default function MerchantFinancingSection() {
             ) : null}
 
             {/* EMPTY STATE: Not Qualified Yet - Fallback */}
-            {!hasActiveLoan && !hasApplied && !isQualified ? (
+            {!hasApplied && !isQualified ? (
                 <NotQualifiedState
                     daysActive={user?.daysActive || 0}
                     monthlyRevenue={user?.avgMonthlyRevenue || 0}
@@ -140,14 +121,14 @@ export default function MerchantFinancingSection() {
             ) : null}
 
             {/* EMPTY STATE: Qualified No Activity - Fallback */}
-            {!hasActiveLoan && isQualified && !hasApplied && !isApproved ? (
+            {isQualified && !hasApplied && !isApproved ? (
                 <QualifiedEmptyState
                     onApply={() => setShowApplyModal(true)}
                 />
             ) : null}
 
             {/* ULTIMATE FALLBACK: If absolutely nothing rendered, show a message */}
-            {hasActiveLoan || hasApplied || isApproved || isQualified ? null : (
+            {hasApplied || isApproved || isQualified ? null : (
                 <View style={s.emptyStateContainer}>
                     <Text style={s.emptyStateTitle}>Merchant Financing</Text>
                     <Text style={s.emptyStateSubtitle}>Complete your profile to get started</Text>
@@ -266,143 +247,14 @@ function PreQualificationWidget({ maxLoan, minLoan, readinessScore, currency, on
 }
 
 /**
- * ACTIVE MERCHANT LOAN CARD
- * Shows loan details, repayment status, and next payment
- */
-function ActiveMerchantLoanCard({ loan, currency, expanded, onToggle }: {
-    loan: any;
-    currency: string;
-    expanded: boolean;
-    onToggle: () => void;
-}) {
-    const balance = loan.approvedAmount - (loan.totalRepaid || 0);
-    const progress = Math.min(100, ((loan.totalRepaid || 0) / loan.approvedAmount) * 100);
-    const monthlyPayment = loan.monthlyPayment || 0;
-    const repaymentCapacity = (loan.monthlyProfitAtApproval || 0) / monthlyPayment;
-
-    const isOnTrack = repaymentCapacity > 3;
-    const isTight = repaymentCapacity > 1 && repaymentCapacity <= 3;
-    const isRisky = repaymentCapacity <= 1;
-
-    const capacityColor = isOnTrack ? Colors.income : isTight ? Colors.warning : Colors.expense;
-
-    return (
-        <View style={s.activeLoanCard}>
-            <TouchableOpacity onPress={onToggle} activeOpacity={0.8}>
-                {/* Header */}
-                <View style={s.activeLoanHeader}>
-                    <View>
-                        <View style={[s.badgeRow, { marginBottom: Spacing.xs }]}>
-                            <Icon name="dollar-sign" size={11} color={Colors.primary} />
-                            <Text style={s.loanBadge}>MERCHANT FINANCING</Text>
-                        </View>
-                        <Text style={s.activeLoanTitle}>Approved Inventory Loan</Text>
-                    </View>
-                    <View style={{ alignItems: 'flex-end' }}>
-                        <View style={[s.badgeRow, { marginBottom: 2 }]}>
-                            <Icon name="check-circle" size={11} color={Colors.income} />
-                            <Text style={[s.statusBadge, { color: Colors.income, marginBottom: 0 }]}>
-                                {loan.status === 'repaying' ? 'Active' : 'Funded'}
-                            </Text>
-                        </View>
-                        <Text style={s.balanceText}>
-                            {currency}{balance.toLocaleString(undefined, { maximumFractionDigits: 0 })} left
-                        </Text>
-                    </View>
-                </View>
-
-                {/* Progress Bar */}
-                <View style={s.progressBg}>
-                    <View style={[s.progressFill, { width: `${progress}%` as any, backgroundColor: Colors.primary }]} />
-                </View>
-                <Text style={s.progressLabel}>
-                    {progress.toFixed(0)}% repaid · {currency}{(loan.totalRepaid || 0).toLocaleString()} of {currency}{loan.approvedAmount.toLocaleString()}
-                </Text>
-
-                {/* Quick Stats */}
-                <View style={s.activeLoanMetrics}>
-                    <Metric label="Loan Amount" value={`${currency}${loan.approvedAmount.toLocaleString()}`} />
-                    <Metric label="Monthly Payment" value={`${currency}${monthlyPayment.toFixed(0)}`} />
-                    <Metric label="Rate" value={`${loan.interestRate}% p.a.`} />
-                    <Metric label="Capacity" value={`${repaymentCapacity.toFixed(1)}x`} color={capacityColor} />
-                </View>
-            </TouchableOpacity>
-
-            {/* Expanded Section */}
-            {expanded && (
-                <View style={s.expandedContent}>
-                    {/* Repayment Capacity Gauge */}
-                    <RepaymentCapacityGauge
-                        monthlyProfit={loan.monthlyProfitCurrent || loan.monthlyProfitAtApproval}
-                        monthlyPayment={monthlyPayment}
-                        capacityRatio={repaymentCapacity}
-                        currency={currency}
-                        isOnTrack={isOnTrack}
-                        isTight={isTight}
-                    />
-
-                    {/* Next Payment */}
-                    {loan.nextPaymentDue && (
-                        <View style={s.nextPaymentBox}>
-                            <Text style={s.nextPaymentLabel}>Next Payment Due</Text>
-                            <Text style={s.nextPaymentDate}>{loan.nextPaymentDue}</Text>
-                            <Text style={s.nextPaymentAmount}>
-                                {currency}{monthlyPayment.toFixed(0)}
-                            </Text>
-                        </View>
-                    )}
-
-                    {/* Loan Details */}
-                    <View style={s.loanDetailsBox}>
-                        <Text style={s.detailsTitle}>Loan Details</Text>
-                        <DetailRow label="Approved Date" value={loan.approvalDate} />
-                        <DetailRow label="Funded Date" value={loan.fundingDate} />
-                        <DetailRow label="Payoff Date" value={loan.payoffDate} />
-                        <DetailRow label="Purpose" value={loan.purpose || 'Inventory'} />
-                        <DetailRow label="Lender" value={loan.lenderName || 'Zenith Bank'} />
-                    </View>
-
-                    {/* Payment History */}
-                    {loan.payments && loan.payments.length > 0 && (
-                        <View style={s.paymentHistoryBox}>
-                            <Text style={s.paymentHistoryTitle}>Recent Payments</Text>
-                            {loan.payments.slice(-3).reverse().map((p: any, idx: number) => (
-                                <View key={idx} style={s.paymentRow}>
-                                    <Text style={s.paymentDate}>{p.date}</Text>
-                                    <Text style={s.paymentNote}>{p.note || 'Payment'}</Text>
-                                    <Text style={[s.paymentAmount, { color: Colors.income }]}>
-                                        +{currency}{p.amount.toLocaleString()}
-                                    </Text>
-                                </View>
-                            ))}
-                        </View>
-                    )}
-
-                    {/* Action Buttons */}
-                    <View style={s.actionRow}>
-                        <TouchableOpacity style={[s.actionBtn, { borderColor: Colors.income }]}>
-                            <Text style={[s.actionBtnText, { color: Colors.income, fontWeight: '600' }]}>
-                                + Record Payment
-                            </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={s.actionBtn}>
-                            <Text style={s.actionBtnText}>View Details</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            )}
-        </View>
-    );
-}
-
-/**
  * APPLICATION STATUS CARD
  * Shows status of pending or rejected applications
  */
-function ApplicationStatusCard({ application, currency, onRecordOutcome }: {
+function ApplicationStatusCard({ application, currency, onRecordOutcome, onConfirmFunded }: {
     application: any;
     currency: string;
     onRecordOutcome: () => void;
+    onConfirmFunded: (fundingDate: string) => void;
 }) {
     const statusDisplay = {
         pending: { text: 'Under Review', icon: 'clock' as IconName, color: Colors.warning, bg: 'rgba(245,158,11,0.1)' },
@@ -436,13 +288,26 @@ function ApplicationStatusCard({ application, currency, onRecordOutcome }: {
                 </View>
             )}
 
+            {/* Quad360 has no lender integration, so it can't detect a
+                transfer landing in your account either -- same "the owner
+                tells us" discipline as onRecordOutcome above. Until this is
+                confirmed, this approval sits here and nothing tracks it as
+                an actual debt. */}
             {application.status === 'approved' && (
-                <View style={[s.infoBox, { marginTop: Spacing.md, backgroundColor: 'rgba(34,197,94,0.05)' }]}>
-                    <Icon name="star" size={16} color={Colors.income} />
-                    <Text style={[s.infoText, { color: Colors.textPrimary }]}>
-                        Funds will be transferred within 24 hours.
-                    </Text>
-                </View>
+                <>
+                    <View style={[s.infoBox, { marginTop: Spacing.md, backgroundColor: 'rgba(34,197,94,0.05)' }]}>
+                        <Icon name="star" size={16} color={Colors.income} />
+                        <Text style={[s.infoText, { color: Colors.textPrimary }]}>
+                            Once the funds actually arrive in your account, confirm below -- this adds it to your Loans register so you can track repayment and it's reflected in your credit and cash flow figures.
+                        </Text>
+                    </View>
+                    <TouchableOpacity
+                        style={[s.reapplyBtn, { backgroundColor: Colors.income }]}
+                        onPress={() => onConfirmFunded(new Date().toISOString().split('T')[0])}
+                    >
+                        <Text style={s.reapplyBtnText}>Confirm Funds Received →</Text>
+                    </TouchableOpacity>
+                </>
             )}
 
             {application.status === 'rejected' && (
@@ -475,6 +340,7 @@ function PastApplicationCard({ application, currency, onReapply }: {
     onReapply: () => void;
 }) {
     const statusColor = application.status === 'rejected' ? Colors.expense : Colors.income;
+    const statusLabel = application.status === 'rejected' ? 'Declined' : application.status === 'funded' ? 'Funded' : 'Approved';
 
     return (
         <View style={s.historyCard}>
@@ -485,11 +351,12 @@ function PastApplicationCard({ application, currency, onReapply }: {
                 </View>
                 <View style={s.badgeRow}>
                     <Icon name={application.status === 'rejected' ? 'x-circle' : 'check-circle'} size={12} color={statusColor} />
-                    <Text style={[s.historyStatus, { color: statusColor }]}>
-                        {application.status === 'rejected' ? 'Declined' : 'Approved'}
-                    </Text>
+                    <Text style={[s.historyStatus, { color: statusColor }]}>{statusLabel}</Text>
                 </View>
             </View>
+            {application.status === 'funded' && (
+                <Text style={s.historyDate}>Now tracked as an active loan under Understand &gt; Loans</Text>
+            )}
         </View>
     );
 }
@@ -654,77 +521,6 @@ function QualifiedEmptyState({ onApply }: { onApply: () => void }) {
                     Approval takes ~2 hours. Funds arrive within 24 hours. No collateral needed.
                 </Text>
             </View>
-        </View>
-    );
-}
-
-/**
- * REPAYMENT CAPACITY GAUGE
- * Shows visual representation of whether SME can afford the loan
- */
-function RepaymentCapacityGauge({ monthlyProfit, monthlyPayment, capacityRatio, currency, isOnTrack, isTight }: {
-    monthlyProfit: number;
-    monthlyPayment: number;
-    capacityRatio: number;
-    currency: string;
-    isOnTrack: boolean;
-    isTight: boolean;
-}) {
-    const gaugeColor = isOnTrack ? Colors.income : isTight ? Colors.warning : Colors.expense;
-    const gaugeLabel = isOnTrack ? 'Safe' : isTight ? 'Tight' : 'At Risk';
-    const gaugeWidth = Math.min(100, capacityRatio * 25);
-
-    return (
-        <View style={s.gaugeBox}>
-            <View style={s.gaugeHeader}>
-                <Text style={s.gaugeTitle}>Repayment Capacity</Text>
-                <Text style={[s.gaugeLabel, { color: gaugeColor }]}>{gaugeLabel}</Text>
-            </View>
-
-            <Text style={s.gaugeMetric}>
-                Monthly profit (<Text style={{ fontWeight: '700', color: gaugeColor }}>{currency}{monthlyProfit.toFixed(0)}</Text>) ÷ Loan payment (<Text style={{ fontWeight: '700' }}>{currency}{monthlyPayment.toFixed(0)}</Text>)
-            </Text>
-
-            {/* Gauge Visualization */}
-            <View style={s.gaugeContainer}>
-                <View style={s.gaugeBg}>
-                    <View style={[s.gaugeFill, { width: `${gaugeWidth}%`, backgroundColor: gaugeColor }]} />
-                </View>
-                <View style={s.gaugeMarkersRow}>
-                    <Text style={s.gaugeMark}>1x</Text>
-                    <Text style={s.gaugeMark}>2x</Text>
-                    <Text style={s.gaugeMark}>3x</Text>
-                    <Text style={s.gaugeMark}>4x</Text>
-                </View>
-            </View>
-
-            {/* Interpretation */}
-            {isOnTrack && (
-                <View style={[s.gaugeInterpretation, s.gaugeInterpretationRow, { backgroundColor: 'rgba(34,197,94,0.1)' }]}>
-                    <Icon name="check-circle" size={14} color={Colors.income} />
-                    <Text style={[s.gaugeInterpText, { color: Colors.income }]}>
-                        Your profit covers this payment {capacityRatio.toFixed(1)}x over. This is a safe loan.
-                    </Text>
-                </View>
-            )}
-
-            {isTight && (
-                <View style={[s.gaugeInterpretation, s.gaugeInterpretationRow, { backgroundColor: 'rgba(245,158,11,0.1)' }]}>
-                    <Icon name="alert-triangle" size={14} color={Colors.warning} />
-                    <Text style={[s.gaugeInterpText, { color: Colors.warning }]}>
-                        Your profit covers payment {capacityRatio.toFixed(1)}x. If revenue drops, budget carefully.
-                    </Text>
-                </View>
-            )}
-
-            {!isOnTrack && !isTight && (
-                <View style={[s.gaugeInterpretation, s.gaugeInterpretationRow, { backgroundColor: 'rgba(239,68,68,0.1)' }]}>
-                    <Icon name="x-circle" size={14} color={Colors.expense} />
-                    <Text style={[s.gaugeInterpText, { color: Colors.expense }]}>
-                        Payment exceeds your available profit. Consider a smaller loan amount.
-                    </Text>
-                </View>
-            )}
         </View>
     );
 }
@@ -1151,15 +947,6 @@ function MetricPill({ label, value, color }: { label: string; value: string; col
     );
 }
 
-function Metric({ label, value, color }: { label: string; value: string; color?: string }) {
-    return (
-        <View style={{ flex: 1, alignItems: 'center' }}>
-            <Text style={s.metricLabel}>{label}</Text>
-            <Text style={[s.metricValue, color ? { color } : {}]}>{value}</Text>
-        </View>
-    );
-}
-
 function DetailRow({ label, value }: { label: string; value: string }) {
     return (
         <View style={s.detailRow}>
@@ -1325,189 +1112,6 @@ const s = StyleSheet.create({
         lineHeight: 18,
     },
 
-    // ── Active Loan Card ──────────────────────────────────────────────────
-    activeLoanCard: {
-        backgroundColor: Colors.surface,
-        borderRadius: Radius.md,
-        borderWidth: 1,
-        borderColor: Colors.border,
-        padding: 14,
-        marginBottom: Spacing.lg,
-        ...Shadow.sm,
-    },
-    activeLoanHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        marginBottom: Spacing.md,
-    },
-    loanBadge: {
-        fontSize: 10,
-        fontWeight: '700',
-        color: Colors.primary,
-    },
-    activeLoanTitle: {
-        fontSize: 15,
-        fontWeight: '700',
-        color: Colors.textPrimary,
-    },
-    statusBadge: {
-        fontSize: 11,
-        fontWeight: '600',
-        marginBottom: 2,
-    },
-    balanceText: {
-        fontSize: 16,
-        fontWeight: '800',
-        color: Colors.expense,
-    },
-    progressBg: {
-        height: 6,
-        backgroundColor: Colors.border,
-        borderRadius: 3,
-        marginBottom: Spacing.xs,
-        overflow: 'hidden',
-    },
-    progressFill: {
-        height: 6,
-        borderRadius: 3,
-    },
-    progressLabel: {
-        fontSize: 10,
-        color: Colors.textMuted,
-        marginBottom: Spacing.md,
-    },
-    activeLoanMetrics: {
-        flexDirection: 'row',
-        borderTopWidth: 1,
-        borderTopColor: Colors.border,
-        paddingTop: 10,
-    },
-    metricLabel: {
-        fontSize: 9,
-        color: Colors.textMuted,
-        marginBottom: 2,
-        textAlign: 'center',
-    },
-    metricValue: {
-        fontSize: 11,
-        fontWeight: '700',
-        color: Colors.textPrimary,
-        textAlign: 'center',
-    },
-    expandedContent: {
-        borderTopWidth: 1,
-        borderTopColor: Colors.border,
-        marginTop: 10,
-        paddingTop: Spacing.md,
-    },
-
-    // ── Repayment Capacity Gauge ──────────────────────────────────────────
-    gaugeBox: {
-        backgroundColor: Colors.bg,
-        borderRadius: 10,
-        padding: Spacing.md,
-        marginBottom: Spacing.md,
-    },
-    gaugeHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginBottom: Spacing.sm,
-    },
-    gaugeTitle: {
-        fontSize: 12,
-        fontWeight: '700',
-        color: Colors.textPrimary,
-    },
-    gaugeLabel: {
-        fontSize: 11,
-        fontWeight: '700',
-    },
-    gaugeMetric: {
-        fontSize: 11,
-        color: Colors.textSecondary,
-        marginBottom: 10,
-        lineHeight: 16,
-    },
-    gaugeContainer: {
-        marginBottom: 10,
-    },
-    gaugeBg: {
-        height: 12,
-        backgroundColor: Colors.border,
-        borderRadius: 6,
-        overflow: 'hidden',
-        marginBottom: 6,
-    },
-    gaugeFill: {
-        height: 12,
-        borderRadius: 6,
-    },
-    gaugeMarkersRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        paddingHorizontal: 2,
-    },
-    gaugeMark: {
-        fontSize: 8,
-        color: Colors.textMuted,
-        fontWeight: '600',
-    },
-    gaugeInterpretation: {
-        borderRadius: Radius.sm,
-        padding: 10,
-    },
-    gaugeInterpretationRow: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        gap: Spacing.sm,
-    },
-    gaugeInterpText: {
-        flex: 1,
-        fontSize: 11,
-        lineHeight: 16,
-    },
-
-    // ── Next Payment Box ──────────────────────────────────────────────────
-    nextPaymentBox: {
-        backgroundColor: 'rgba(34,197,94,0.1)',
-        borderRadius: Radius.sm,
-        padding: Spacing.md,
-        marginBottom: Spacing.md,
-        borderLeftWidth: 4,
-        borderLeftColor: Colors.income,
-    },
-    nextPaymentLabel: {
-        fontSize: 10,
-        color: Colors.textMuted,
-        marginBottom: 4,
-    },
-    nextPaymentDate: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: Colors.textPrimary,
-        marginBottom: 2,
-    },
-    nextPaymentAmount: {
-        fontSize: 12,
-        fontWeight: '600',
-        color: Colors.income,
-    },
-
-    // ── Loan Details Box ──────────────────────────────────────────────────
-    loanDetailsBox: {
-        backgroundColor: Colors.bg,
-        borderRadius: Radius.sm,
-        padding: 10,
-        marginBottom: Spacing.md,
-    },
-    detailsTitle: {
-        fontSize: 11,
-        fontWeight: '700',
-        color: Colors.textSecondary,
-        marginBottom: Spacing.sm,
-        textTransform: 'uppercase',
-    },
     detailRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -1523,61 +1127,6 @@ const s = StyleSheet.create({
         fontSize: 11,
         fontWeight: '600',
         color: Colors.textPrimary,
-    },
-
-    // ── Payment History Box ───────────────────────────────────────────────
-    paymentHistoryBox: {
-        backgroundColor: Colors.bg,
-        borderRadius: Radius.sm,
-        padding: 10,
-        marginBottom: Spacing.md,
-    },
-    paymentHistoryTitle: {
-        fontSize: 11,
-        fontWeight: '700',
-        color: Colors.textSecondary,
-        marginBottom: Spacing.sm,
-        textTransform: 'uppercase',
-    },
-    paymentRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 6,
-        borderBottomWidth: 1,
-        borderBottomColor: Colors.border,
-    },
-    paymentDate: {
-        fontSize: 10,
-        color: Colors.textMuted,
-        width: 80,
-    },
-    paymentNote: {
-        flex: 1,
-        fontSize: 10,
-        color: Colors.textSecondary,
-    },
-    paymentAmount: {
-        fontSize: 11,
-        fontWeight: '700',
-    },
-
-    // ── Action Buttons ────────────────────────────────────────────────────
-    actionRow: {
-        flexDirection: 'row',
-        gap: Spacing.sm,
-    },
-    actionBtn: {
-        flex: 1,
-        paddingVertical: Spacing.sm,
-        borderRadius: 6,
-        borderWidth: 1,
-        borderColor: Colors.border,
-        alignItems: 'center',
-    },
-    actionBtnText: {
-        fontSize: 12,
-        fontWeight: '600',
-        color: Colors.textSecondary,
     },
 
     // ── Application Status Card ───────────────────────────────────────────

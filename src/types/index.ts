@@ -578,6 +578,11 @@ export interface Loan {
     // (merchant financing, unsecured working-capital loans) have neither.
     collateralPledged?: string;  // what's pledged as security, e.g. "Delivery van, shop inventory"
     covenants?: string;          // restrictions/conditions attached to the facility, e.g. "No further borrowing without lender consent"
+    // Set only when this Loan was created from a funded MerchantFinancingApplication
+    // (see confirmMerchantFinancingFunded) -- lets the Loans screen and history
+    // tell "applied for through Quad360" apart from a loan the owner just typed
+    // in directly, without a second, disconnected place to track the same debt.
+    merchantFinancingApplicationId?: string;
 }
 
 // ─── Financing Marketplace ──────────────────────────────────────────────────
@@ -832,7 +837,6 @@ export interface FinancingContextData {
     minQualifiedAmount?: number;
     maxQualifiedAmount?: number;
     application?: MerchantFinancingApplication;
-    activeLoan?: MerchantFinancingApplication;
     pastApplications?: MerchantFinancingApplication[];
     applicationStatus?: MerchantFinancingStatus | null;
 }
