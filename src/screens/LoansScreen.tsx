@@ -21,7 +21,8 @@ import FooterNav from '../components/FooterNav';
 import { Loan, LoanStatus, Transaction, ReadinessSnapshot } from '../types';
 import DateInput from '../components/DateInput';
 import MerchantFinancingSection from './MerchantFinancingSection';
-import { computeDebtOptimiser, computeDSCR, computeInterestRateShock, DSCRResult } from '../utils/finance';
+import { computeDebtOptimiser, computeDSCR, computeInterestRateShock, DSCRResult, computeUnlinkedLoanRepayments, computeLoanPaymentSplit } from '../utils/finance';
+import { generateId } from '../utils/uuid';
 import { computePostFinancingMonitor, PostFinancingStatus } from '../utils/postFinancingMonitor';
 import { buildPostFinancingShareExport } from '../utils/lenderSummaryExport';
 import { generatePDF, sharePDF } from '../utils/pdfExport';
@@ -69,7 +70,7 @@ const isOverdue = isLoanPaymentOverdue;
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────
 
 export default function LoansScreen() {
-    const { loans, addLoan, updateLoan, deleteLoan, addLoanPayment, settings, navigate, finance, navParams, transactions, readinessHistory, user, language, isDemoMode, inventory } = useApp();
+    const { loans, addLoan, updateLoan, deleteLoan, addLoanPayment, settings, navigate, finance, navParams, transactions, updateTransaction, readinessHistory, user, language, isDemoMode, inventory } = useApp();
     const { currency } = settings;
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
@@ -195,6 +196,24 @@ export default function LoansScreen() {
         setShowPayment(id);
         setPayDate(new Date().toISOString().split('T')[0]);
     }, []);
+
+    // Bank-statement import can tag a row "Loan Repayment" but can't know
+    // which loan it belongs to (see computeUnlinkedLoanRepayments) -- this
+    // surfaces those so completing the link is one tap when there's only
+    // one active loan to apply it to, or one tap-to-pick when there's more.
+    const unlinkedRepayments = useMemo(() => computeUnlinkedLoanRepayments(transactions), [transactions]);
+    const [pickingLoanForRepayment, setPickingLoanForRepayment] = useState<string | null>(null);
+    const applyRepaymentToLoan = useCallback((transactionId: string, loanId: string) => {
+        const tx = transactions.find(t => t.id === transactionId);
+        const loan = loans.find(l => l.id === loanId);
+        if (!tx || !loan) return;
+        const { principalPortion, interestPortion } = computeLoanPaymentSplit(loan, tx.amount ?? 0);
+        updateTransaction(transactionId, { principalPortion });
+        const payments = [...(loan.payments ?? []), { id: generateId(), date: tx.date, amount: principalPortion, interestPortion, note: tx.description }];
+        const totalPrincipalPaid = payments.reduce((s, p) => s + p.amount, 0);
+        updateLoan(loanId, { payments, status: totalPrincipalPaid >= loan.principal ? 'paid_off' : loan.status });
+        setPickingLoanForRepayment(null);
+    }, [transactions, loans, updateTransaction, updateLoan]);
 
     // Summary stats
     const activeLoans = loans.filter(l => l.status === 'active');
@@ -421,6 +440,50 @@ export default function LoansScreen() {
                                 </Text>
                             </View>
                             <NextStepLink text={t(language, 'seeCreditScoreEffect')} onPress={() => navigate('credit-worthiness')} />
+                        </View>
+                    )}
+
+                    {/* Loan repayments imported from a bank statement (see
+                        computeUnlinkedLoanRepayments) -- until linked to a
+                        loan, the full amount silently overstates expense
+                        (only interest should hit the P&L) and the loan's
+                        outstanding balance never reflects that it was paid. */}
+                    {unlinkedRepayments.length > 0 && (
+                        <View style={s.detectedAlert}>
+                            <View style={s.alertTextRow}>
+                                <Icon name="upload" size={14} color={Colors.primary} />
+                                <Text style={[s.alertText, { color: Colors.primary }]}>
+                                    {unlinkedRepayments.length} loan repayment{unlinkedRepayments.length > 1 ? 's' : ''} found in your transactions {unlinkedRepayments.length > 1 ? "aren't" : "isn't"} linked to a loan yet.
+                                </Text>
+                            </View>
+                            {unlinkedRepayments.slice(0, 3).map(r => (
+                                <View key={r.transactionId} style={s.unlinkedRow}>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={s.unlinkedName} numberOfLines={1}>{r.description}</Text>
+                                        <Text style={s.unlinkedMeta}>{r.date} · {currency}{r.amount.toLocaleString()}</Text>
+                                        {pickingLoanForRepayment === r.transactionId && activeLoans.length > 1 && (
+                                            <View style={s.loanPickRow}>
+                                                {activeLoans.map(l => (
+                                                    <TouchableOpacity key={l.id} style={s.loanPickChip} onPress={() => applyRepaymentToLoan(r.transactionId, l.id)}>
+                                                        <Text style={s.loanPickChipText}>{l.lenderName || 'Loan'}</Text>
+                                                    </TouchableOpacity>
+                                                ))}
+                                            </View>
+                                        )}
+                                    </View>
+                                    {activeLoans.length === 0 ? (
+                                        <Text style={s.unlinkedMeta}>Add the loan first</Text>
+                                    ) : activeLoans.length === 1 ? (
+                                        <TouchableOpacity onPress={() => applyRepaymentToLoan(r.transactionId, activeLoans[0].id)}>
+                                            <Text style={s.unlinkedAdd}>Apply to {activeLoans[0].lenderName || 'loan'} →</Text>
+                                        </TouchableOpacity>
+                                    ) : pickingLoanForRepayment !== r.transactionId ? (
+                                        <TouchableOpacity onPress={() => setPickingLoanForRepayment(r.transactionId)}>
+                                            <Text style={s.unlinkedAdd}>Apply to loan →</Text>
+                                        </TouchableOpacity>
+                                    ) : null}
+                                </View>
+                            ))}
                         </View>
                     )}
 
@@ -1099,6 +1162,15 @@ const s = StyleSheet.create({
     alertBanner: { backgroundColor: 'rgba(239,68,68,0.12)', borderWidth: 1, borderColor: Colors.expense, borderRadius: 10, padding: Spacing.md, marginBottom: Spacing.md },
     alertTextRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm },
     alertText: { color: Colors.expense, fontWeight: '600', fontSize: 13, textAlign: 'center' },
+
+    detectedAlert: { backgroundColor: Colors.primary + '12', borderWidth: 1, borderColor: Colors.primary, borderRadius: 10, padding: Spacing.md, marginBottom: Spacing.md },
+    unlinkedRow: { flexDirection: 'row', alignItems: 'center', paddingTop: Spacing.sm, marginTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.primary + '30', gap: Spacing.sm },
+    unlinkedName: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary },
+    unlinkedMeta: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
+    unlinkedAdd: { fontSize: 11.5, color: Colors.primary, fontWeight: '700' },
+    loanPickRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs, marginTop: Spacing.xs },
+    loanPickChip: { backgroundColor: Colors.primary + '18', borderWidth: 1, borderColor: Colors.primary, borderRadius: 8, paddingVertical: 4, paddingHorizontal: 8 },
+    loanPickChipText: { fontSize: 11, fontWeight: '700', color: Colors.primary },
 
     emptyState: { alignItems: 'center', paddingTop: 60 },
     emptyIcon: { marginBottom: Spacing.md },

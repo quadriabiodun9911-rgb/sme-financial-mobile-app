@@ -11,7 +11,7 @@
 import React, { createContext, useContext, useState, useMemo, useEffect, useRef, useCallback, ReactNode } from 'react';
 import { Platform } from 'react-native';
 import { User, Invoice, InvoiceStatus, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, MerchantFinancingApplication, FinancingOutcomeInput, LoanPurpose, StaffMember, PayrollRun, PayrollItem, CashPocket, CapitalCommitment, ReadinessSnapshot, DataConfidenceSnapshot, UserRole } from '../types';
-import { computeFinance, computeAssetCurrentValue, countActiveMonths, getMonthlyExpenseAverage, computeRiskScore } from '../utils/finance';
+import { computeFinance, computeAssetCurrentValue, countActiveMonths, getMonthlyExpenseAverage, computeRiskScore, computeLoanPaymentSplit } from '../utils/finance';
 import { buildLoanFromMerchantFinancing } from '../utils/merchantFinancingConversion';
 import { buildReadinessSnapshot, shouldRecordSnapshot, appendReadinessSnapshot } from '../utils/readinessHistory';
 import { computeDataQuality } from '../utils/dataQuality';
@@ -157,7 +157,7 @@ interface FinanceContextValue {
   addStaff: (s: Omit<StaffMember, 'id' | 'createdAt'>) => void;
   updateStaff: (id: string, patch: Partial<StaffMember>) => void;
   deleteStaff: (id: string) => void;
-  runPayroll: (period: string, items: PayrollItem[], deductionRate?: number) => void;
+  runPayroll: (period: string, items: PayrollItem[], deductionRate?: number, existingTransactionId?: string) => void;
   deletePayrollRun: (id: string) => void;
   addCashPocket: (name: string, amount: number) => void;
   updateCashPocket: (id: string, amount: number) => void;
@@ -466,11 +466,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         let principalPortion = payment.amount;
         let interestPortion = 0;
         if (loan) {
-          const priorPrincipalPaid = (loan.payments ?? []).reduce((s, p) => s + p.amount, 0);
-          const balanceBefore = Math.max(0, loan.principal - priorPrincipalPaid);
-          const monthlyRate = (loan.interestRate || 0) / 100 / 12;
-          interestPortion = Math.min(payment.amount, balanceBefore * monthlyRate);
-          principalPortion = Math.max(0, Math.min(balanceBefore, payment.amount - interestPortion));
+          ({ principalPortion, interestPortion } = computeLoanPaymentSplit(loan, payment.amount));
 
           setTransactions((prev) => [
             {
@@ -579,19 +575,27 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       addStaff: (s) => setStaff((prev) => [...prev, { ...s, id: genId(), createdAt: new Date().toISOString() } as StaffMember]),
       updateStaff: (id, patch) => setStaff((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x))),
       deleteStaff: (id) => setStaff((prev) => prev.filter((x) => x.id !== id)),
-      runPayroll: (period, items) => {
+      runPayroll: (period, items, _deductionRate, existingTransactionId) => {
         const totalGross = items.reduce((s, i) => s + i.grossSalary, 0);
         const totalDeductions = items.reduce((s, i) => s + i.deductions, 0);
         const totalNet = totalGross - totalDeductions;
         const [py, pm] = period.split('-').map(Number);
         const periodEndDate = new Date(py, pm, 0).toISOString().split('T')[0];
         const now = new Date().toISOString();
-        const txId = genId();
-        // Record the net payroll as a Salaries expense so it flows into finance.
-        setTransactions((prev) => [...prev, {
-          id: txId, date: periodEndDate, description: `Payroll — ${period}`,
-          type: 'expense', category: 'Salaries', amount: totalNet, status: 'paid',
-        } as Transaction]);
+        // A payroll payment that already exists as an imported bank
+        // transaction (tagged "Payroll" -- see computeUnlinkedPayrollTransactions)
+        // is linked to this run instead of getting a second, duplicate
+        // expense: the run's own items/totals are computed from real Staff
+        // records either way, only where the matching cash movement is
+        // recorded differs.
+        const txId = existingTransactionId ?? genId();
+        if (!existingTransactionId) {
+          // Record the net payroll as a Salaries expense so it flows into finance.
+          setTransactions((prev) => [...prev, {
+            id: txId, date: periodEndDate, description: `Payroll — ${period}`,
+            type: 'expense', category: 'Salaries', amount: totalNet, status: 'paid',
+          } as Transaction]);
+        }
         const run: PayrollRun = {
           id: genId(), period, runDate: now, items, totalGross, totalDeductions,
           totalNet, status: 'paid', transactionId: txId, createdAt: now,
@@ -599,10 +603,19 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         setPayrollRuns((prev) => [...prev, run]);
       },
       deletePayrollRun: (id) => {
-        // Remove the linked Salaries expense transaction too, so deleting a
-        // payroll run doesn't leave an orphan expense understating profit.
+        // Remove the linked expense transaction too, so deleting a payroll
+        // run doesn't leave an orphan expense understating profit -- but
+        // only when this run created that transaction itself (category
+        // 'Salaries', set above). A run linked to a pre-existing imported
+        // transaction (category 'Payroll') must not delete real bank
+        // history the run never created.
         const run = payrollRuns.find((r) => r.id === id);
-        if (run?.transactionId) setTransactions((txs) => txs.filter((t) => t.id !== run.transactionId));
+        if (run?.transactionId) {
+          const linkedTx = transactions.find((t) => t.id === run.transactionId);
+          if (linkedTx?.category === 'Salaries') {
+            setTransactions((txs) => txs.filter((t) => t.id !== run.transactionId));
+          }
+        }
         setPayrollRuns((prev) => prev.filter((r) => r.id !== id));
       },
       addCashPocket: (name, amount) => setCashPockets((prev) => [...prev, { id: genId(), name, amount, updatedAt: new Date().toISOString() }]),

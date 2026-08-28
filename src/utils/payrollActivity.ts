@@ -1,4 +1,4 @@
-import { Transaction } from '../types';
+import { Transaction, PayrollRun } from '../types';
 
 export interface PayrollActivityEntry {
     date: string;
@@ -116,4 +116,32 @@ export function describePayrollActivity(summary: PayrollActivitySummary, currenc
         return `${countStr} averaging ${amountStr}, roughly every ${summary.averageIntervalDays} days.`;
     }
     return `${countStr} averaging ${amountStr} -- not enough of a pattern yet to say when in the month it usually happens.`;
+}
+
+export interface UnlinkedPayrollTransaction {
+    transactionId: string;
+    date: string;
+    description: string;
+    amount: number;
+    period: string; // YYYY-MM derived from the transaction's own date
+}
+
+// A "Payroll"-tagged transaction (import or manual entry) that no
+// PayrollRun points at yet (PayrollRun.transactionId). Unlike the
+// per-staff breakdown a run needs, "has this payment been turned into a
+// run" is knowable directly from the data already on hand -- no guessing
+// required -- so this is offered as a one-tap completion (see
+// PayrollScreen's use of this), while the run's own items/totals still
+// come from real Staff records, never from the bank line.
+export function computeUnlinkedPayrollTransactions(transactions: Transaction[], payrollRuns: PayrollRun[]): UnlinkedPayrollTransaction[] {
+    const linkedIds = new Set(payrollRuns.map(r => r.transactionId).filter((id): id is string => !!id));
+    return transactions
+        .filter(t => t.type === 'expense' && t.category === 'Payroll' && !linkedIds.has(t.id))
+        .map(t => ({
+            transactionId: t.id,
+            date: t.date,
+            description: t.description || 'Payroll',
+            amount: t.amount ?? 0,
+            period: t.date.slice(0, 7),
+        }));
 }

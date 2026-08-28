@@ -21,6 +21,7 @@ import { t } from '../utils/i18n';
 import { computeEarlyPaymentDiscount } from '../utils/earlyPaymentDiscount';
 import { checkCustomerCreditLimit, findCreditLimit } from '../utils/customerCredit';
 import { hasRecurringInvoiceSchedule, nextRecurringInvoiceDueDate, nextRecurringInvoiceDueDateStr, isRecurringInvoiceDue } from '../utils/recurringInvoices';
+import { computeUnlinkedInvoicePayments } from '../utils/finance';
 import { effectiveInvoiceStatus } from '../utils/overdueTransactions';
 import { RecurringFrequency } from '../types';
 
@@ -123,7 +124,7 @@ ${inv.notes ? `<div class="notes" style="clear:both;margin-top:60px"><b>Notes:</
 
 
 export default function InvoicesScreen() {
-    const { invoices, addInvoice, updateInvoice, deleteInvoice, markInvoiceStatus, settings, updateSettings, user, navigate, language } = useApp();
+    const { invoices, addInvoice, updateInvoice, deleteInvoice, markInvoiceStatus, settings, updateSettings, user, navigate, language, transactions, updateTransaction } = useApp();
     const currency = settings.currency;
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
@@ -189,6 +190,21 @@ export default function InvoicesScreen() {
         () => getInvoicesDueForReminder(invoices, reminderState),
         [invoices, reminderState]
     );
+
+    // A customer payment that settles an unpaid invoice can arrive as an
+    // ordinary imported income transaction with no link back to the
+    // invoice it pays -- see computeUnlinkedInvoicePayments. Linking it
+    // reuses the exact mechanism TransactionsScreen's own "mark paid"
+    // already relies on (reference === invoiceNumber), just applied the
+    // other direction: from the invoice side instead of the transaction side.
+    const unlinkedInvoicePayments = useMemo(
+        () => computeUnlinkedInvoicePayments(invoices, transactions),
+        [invoices, transactions]
+    );
+    const linkInvoicePayment = (invoiceId: string, invoiceNumber: string, transactionId: string) => {
+        updateTransaction(transactionId, { reference: invoiceNumber });
+        markInvoiceStatus(invoiceId, 'paid');
+    };
 
     const startReminderRun = () => {
         setReminderQueue(remindersDue);
@@ -442,6 +458,33 @@ export default function InvoicesScreen() {
                             text={t(language, 'seeHowPaidAffectsCashForecast')}
                             onPress={() => navigate('cashflow')}
                         />
+                    )}
+
+                    {/* A payment already sitting in your transactions that
+                        matches an unpaid invoice by client name + amount --
+                        see computeUnlinkedInvoicePayments. Linking it marks
+                        the invoice paid using money that's already arrived,
+                        instead of it sitting "overdue" forever. */}
+                    {unlinkedInvoicePayments.length > 0 && (
+                        <View style={styles.detectedAlert}>
+                            <View style={styles.detectedAlertTextRow}>
+                                <Icon name="upload" size={14} color={Colors.primary} />
+                                <Text style={styles.detectedAlertText}>
+                                    {unlinkedInvoicePayments.length} payment{unlinkedInvoicePayments.length > 1 ? 's' : ''} in your transactions match{unlinkedInvoicePayments.length > 1 ? '' : 'es'} an unpaid invoice.
+                                </Text>
+                            </View>
+                            {unlinkedInvoicePayments.slice(0, 3).map(p => (
+                                <View key={p.transactionId} style={styles.detectedRow}>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={styles.detectedName} numberOfLines={1}>{p.invoiceNumber} — {p.clientName}</Text>
+                                        <Text style={styles.detectedMeta}>{p.transactionDate} · {currency}{p.amount.toLocaleString()}</Text>
+                                    </View>
+                                    <TouchableOpacity onPress={() => linkInvoicePayment(p.invoiceId, p.invoiceNumber, p.transactionId)}>
+                                        <Text style={styles.detectedAdd}>Mark paid →</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            ))}
+                        </View>
                     )}
 
                     {/* Project/retainer profitability — Professional Services only,
@@ -934,6 +977,14 @@ const styles = StyleSheet.create({
     summaryCard:  { flex: 1, backgroundColor: Colors.surface, borderRadius: 10, padding: 10, alignItems: 'center' },
     summaryLabel: { fontSize: 9, color: Colors.textMuted, marginBottom: Spacing.xs, textAlign: 'center' },
     summaryValue: { fontSize: 13, fontWeight: 'bold' },
+
+    detectedAlert: { backgroundColor: Colors.primary + '12', borderWidth: 1, borderColor: Colors.primary, borderRadius: 10, padding: Spacing.md, marginBottom: Spacing.md },
+    detectedAlertTextRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
+    detectedAlertText: { flex: 1, fontSize: 12.5, fontWeight: '600', color: Colors.primary, lineHeight: 18 },
+    detectedRow: { flexDirection: 'row', alignItems: 'center', paddingTop: Spacing.sm, marginTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.primary + '30', gap: Spacing.sm },
+    detectedName: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary },
+    detectedMeta: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
+    detectedAdd: { fontSize: 11.5, color: Colors.primary, fontWeight: '700' },
 
     filterRow:       { flexDirection: 'row', gap: 6, marginBottom: 14, flexWrap: 'wrap' },
     filterTab:       { paddingHorizontal: Spacing.md, paddingVertical: 6, backgroundColor: Colors.surface, borderRadius: Radius.xl },

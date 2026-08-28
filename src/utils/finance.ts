@@ -336,6 +336,93 @@ export function computeUnregisteredAssetPurchases(transactions: Transaction[], a
         .map(t => ({ transactionId: t.id, date: t.date, description: t.description || 'Asset purchase', amount: t.amount ?? 0 }));
 }
 
+// Same amortization split addLoanPayment (OptimizedContexts.tsx) uses when a
+// payment is recorded from the Loans screen -- pulled out here so a payment
+// that arrives a different way (an imported bank-statement line, see
+// computeUnlinkedLoanRepayments below) can be given the identical
+// principal/interest split instead of a screen re-deriving its own copy.
+export function computeLoanPaymentSplit(loan: Loan, amount: number): { principalPortion: number; interestPortion: number } {
+    const priorPrincipalPaid = (loan.payments ?? []).reduce((s, p) => s + p.amount, 0);
+    const balanceBefore = Math.max(0, loan.principal - priorPrincipalPaid);
+    const monthlyRate = (loan.interestRate || 0) / 100 / 12;
+    const interestPortion = Math.min(amount, balanceBefore * monthlyRate);
+    const principalPortion = Math.max(0, Math.min(balanceBefore, amount - interestPortion));
+    return { principalPortion, interestPortion };
+}
+
+export interface UnlinkedLoanRepayment {
+    transactionId: string;
+    date: string;
+    description: string;
+    amount: number;
+}
+
+// A bank-statement import can tag a row "Loan Repayment" (see
+// ImportTransactionsScreen's CATEGORY_OPTIONS), but it can't know which
+// loan that payment belongs to, so it can only set category — never
+// principalPortion, and it never touches loan.payments[]. Left as-is, that
+// transaction's full amount is treated as a P&L expense (silently
+// overstating expense / understating profit, since only the interest
+// portion should be) and the loan's outstanding balance never reflects
+// money that actually left the business. A payment recorded from the Loans
+// screen itself (addLoanPayment) always sets principalPortion in the same
+// action that updates loan.payments[], so its presence/absence on a
+// 'Loan Repayment' transaction is a reliable signal for "this one was
+// never linked to a loan" -- no date/amount matching needed.
+export function computeUnlinkedLoanRepayments(transactions: Transaction[]): UnlinkedLoanRepayment[] {
+    return transactions
+        .filter(t => t.type === 'expense' && t.category === 'Loan Repayment' && t.principalPortion === undefined)
+        .map(t => ({ transactionId: t.id, date: t.date, description: t.description || 'Loan repayment', amount: t.amount ?? 0 }));
+}
+
+export interface UnlinkedInvoicePayment {
+    invoiceId: string;
+    invoiceNumber: string;
+    clientName: string;
+    transactionId: string;
+    transactionDate: string;
+    amount: number;
+}
+
+// The Invoices equivalent of computeUnregisteredAssetPurchases: a customer
+// payment that settles an existing unpaid invoice can arrive as an ordinary
+// imported income transaction with no link back to the invoice it pays --
+// nothing marks the invoice paid, so it sits "overdue" forever even though
+// the money already arrived. Matches on exact amount + normalized client
+// name (the same name-normalization computeCustomerConcentration uses)
+// rather than inventing a new link field; each transaction is only offered
+// once even if it happens to match more than one invoice. Deliberately does
+// NOT try to guess a brand-new invoice for an unnamed/unmatched payment --
+// unlike an asset purchase, an ordinary sale has no reliable signal that it
+// was ever meant to be a formal invoice in the first place.
+export function computeUnlinkedInvoicePayments(invoices: Invoice[], transactions: Transaction[]): UnlinkedInvoicePayment[] {
+    const normalize = (s: string | undefined | null) => (s ?? '').split(' | ')[0]?.trim().toLowerCase();
+    const usedTransactionIds = new Set<string>();
+    const results: UnlinkedInvoicePayment[] = [];
+    for (const inv of invoices) {
+        if (inv.status === 'paid') continue;
+        const match = transactions.find(t =>
+            t.type === 'income' &&
+            !usedTransactionIds.has(t.id) &&
+            Math.abs((t.amount ?? 0) - inv.total) < 0.01 &&
+            normalize(t.vendorCustomer) === normalize(inv.clientName) &&
+            t.date >= inv.issueDate
+        );
+        if (match) {
+            usedTransactionIds.add(match.id);
+            results.push({
+                invoiceId: inv.id,
+                invoiceNumber: inv.invoiceNumber,
+                clientName: inv.clientName,
+                transactionId: match.id,
+                transactionDate: match.date,
+                amount: match.amount ?? 0,
+            });
+        }
+    }
+    return results;
+}
+
 export interface AssetPaybackInfo {
     id: string;
     name: string;

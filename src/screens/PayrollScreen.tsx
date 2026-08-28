@@ -17,7 +17,7 @@ import { computeProfitCashImpact } from '../utils/impactChain';
 import PayrollProviderCard from '../components/PayrollProviderCard';
 import { showAlert, confirmAction } from '../utils/webAlert';
 import { getPayrollReminderStatus } from '../utils/payrollReminders';
-import { computePayrollActivitySummary, describePayrollActivity } from '../utils/payrollActivity';
+import { computePayrollActivitySummary, describePayrollActivity, computeUnlinkedPayrollTransactions } from '../utils/payrollActivity';
 
 type Tab = 'staff' | 'run' | 'history';
 
@@ -59,6 +59,24 @@ export default function PayrollScreen() {
     // per-staff PayrollRun (a lump bank line has no real per-staff split).
     const payrollActivity = useMemo(() => computePayrollActivitySummary(transactions), [transactions]);
     const payrollActivityDescription = useMemo(() => describePayrollActivity(payrollActivity, sym), [payrollActivity, sym]);
+
+    // A "Payroll"-tagged transaction (import or manual entry) that no run
+    // has claimed yet -- see computeUnlinkedPayrollTransactions. Applying
+    // one uses the *current* active staff list to build the run's real
+    // items (never invented from the bank line), then links the run to
+    // this existing transaction instead of creating a duplicate expense.
+    const unlinkedPayroll = useMemo(() => computeUnlinkedPayrollTransactions(transactions, payrollRuns), [transactions, payrollRuns]);
+    const applyPayrollTransaction = (transactionId: string, period: string) => {
+        if (activeStaff.length === 0) { showAlert('No active staff', 'Add staff before linking this payment to a payroll run.'); return; }
+        if (payrollRuns.some(r => r.period === period)) { showAlert('Already run', `Payroll for ${period} already exists.`); return; }
+        const rate = (parseFloat(deductRate) || 0) / 100;
+        const items: PayrollItem[] = activeStaff.map(m => {
+            const gross = m.salaryType === 'monthly' ? m.salary : m.salaryType === 'weekly' ? m.salary * 4.33 : m.salary * 22;
+            const deductions = gross * rate;
+            return { staffId: m.id, staffName: m.name, grossSalary: gross, deductions, netSalary: gross - deductions };
+        });
+        runPayroll(period, items, parseFloat(deductRate), transactionId);
+    };
     const totalMonthlyPayroll = useMemo(() =>
         activeStaff.reduce((s, m) => s + (m.salaryType === 'monthly' ? m.salary : m.salaryType === 'weekly' ? m.salary * 4.33 : m.salary * 22), 0),
         [activeStaff]
@@ -307,6 +325,31 @@ export default function PayrollScreen() {
                             )}
                         </View>
 
+                        {/* A payroll payment already sitting in your
+                            transactions with no run to show for it --
+                            linking it uses your current staff list for the
+                            real per-person breakdown, and attaches this
+                            existing payment instead of recording a second,
+                            duplicate expense. */}
+                        {unlinkedPayroll.length > 0 && (
+                            <View style={styles.activityCard}>
+                                <Text style={styles.activityTitle}>
+                                    {unlinkedPayroll.length} payroll payment{unlinkedPayroll.length > 1 ? 's' : ''} {unlinkedPayroll.length > 1 ? "aren't" : "isn't"} linked to a run yet
+                                </Text>
+                                {unlinkedPayroll.slice(0, 3).map(p => (
+                                    <View key={p.transactionId} style={styles.activityRow}>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={styles.activityDesc} numberOfLines={1}>{p.description}</Text>
+                                            <Text style={[styles.activityDate, { width: undefined }]}>{p.date} · {fmt(p.amount)}</Text>
+                                        </View>
+                                        <TouchableOpacity onPress={() => applyPayrollTransaction(p.transactionId, p.period)}>
+                                            <Text style={styles.linkAction}>Run Payroll for {p.period} →</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                ))}
+                            </View>
+                        )}
+
                         {payrollRuns.length > 0 && (
                             <NextStepLink text="See the effect of payroll on your cash forecast" onPress={() => setCurrentScreen('cashflow')} />
                         )}
@@ -492,6 +535,7 @@ const styles = StyleSheet.create({
     activityDesc: { fontSize: 12, color: Colors.textSecondary, flex: 1 },
     activityAmount: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary },
     activityMore: { fontSize: 11, color: Colors.textMuted, fontStyle: 'italic', marginTop: 6 },
+    linkAction: { fontSize: 11.5, color: Colors.primary, fontWeight: '700' },
 
     runCard: { backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.border, padding: 16, marginBottom: 12 },
     runCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 },
