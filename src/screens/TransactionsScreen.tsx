@@ -149,8 +149,10 @@ export default function TransactionsScreen() {
 
     const [modalOpen, setModalOpen]   = useState(false);
     const [editingId, setEditingId]   = useState<string | null>(null);
-    const [search, setSearch]         = useState('');
-    const [typeFilter, setTypeFilter] = useState<FilterType>(navParams?.filter === 'collect' ? 'collect' : 'all');
+    const [search, setSearch]         = useState(typeof navParams?.search === 'string' ? navParams.search : '');
+    const [typeFilter, setTypeFilter] = useState<FilterType>(
+        (['collect', 'expense', 'income'] as const).includes(navParams?.filter) ? navParams.filter : 'all'
+    );
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
     const [reviewOnly, setReviewOnly] = useState(navParams?.filter === 'review');
     const [personalOnly, setPersonalOnly] = useState(navParams?.filter === 'personal');

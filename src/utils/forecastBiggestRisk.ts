@@ -12,7 +12,14 @@
 
 import { ForecastSummary, describeCashFlowPressure } from './forecastSummary';
 
+// Discriminates which of the four signals fired, so a caller (the
+// forecast screen) can route "do something about this" to the one place
+// that actually addresses that specific cause, without re-deriving the
+// same priority logic a second time.
+export type BiggestForecastRiskKind = 'cashflow' | 'external' | 'margin' | 'health';
+
 export interface BiggestForecastRisk {
+    kind: BiggestForecastRiskKind;
     icon: string;
     title: string;
     detail: string;
@@ -22,6 +29,7 @@ export function computeBiggestForecastRisk(forecast: ForecastSummary, currency: 
     const pressuredMonth = forecast.cashFlowMonths.find(m => m.pressured);
     if (pressuredMonth) {
         return {
+            kind: 'cashflow',
             icon: '🔴',
             title: `Cash-flow pressure in ${pressuredMonth.monthLabel}`,
             detail: describeCashFlowPressure(pressuredMonth) ?? 'Expected outflows may exceed expected inflows this month.',
@@ -32,6 +40,7 @@ export function computeBiggestForecastRisk(forecast: ForecastSummary, currency: 
     if (worstExternal) {
         const item = forecast.externalFactors.items.find(i => i.driver === worstExternal.driver);
         return {
+            kind: 'external',
             icon: '🔴',
             title: `${worstExternal.label} exposure`,
             detail: item?.sentence ?? `${worstExternal.label} is flagged as a high-impact, corroborated risk to your forecast.`,
@@ -40,6 +49,7 @@ export function computeBiggestForecastRisk(forecast: ForecastSummary, currency: 
 
     if (forecast.marginRisk.show) {
         return {
+            kind: 'margin',
             icon: '🟠',
             title: 'Margin risk from rising discounts',
             detail: `Your average discount has climbed ${forecast.marginRisk.ratePctChange.toFixed(1)} points recently — if it continues, that could cost roughly ${currency}${Math.round(forecast.marginRisk.estimatedProfitImpact).toLocaleString()} in profit.`,
@@ -50,6 +60,7 @@ export function computeBiggestForecastRisk(forecast: ForecastSummary, currency: 
     const drop = hf.currentScore.score - hf.projectedScore.score;
     if (drop >= 5) {
         return {
+            kind: 'health',
             icon: '🟠',
             title: 'Financial health projected to decline',
             detail: `Your health score is projected to fall from ${hf.currentScore.score} to ${hf.projectedScore.score}${hf.movedFactors[0] ? `, driven mainly by ${hf.movedFactors[0].name}` : ''}.`,

@@ -241,9 +241,22 @@ export default function RiskManagementScreen() {
                                     <RiskBadge risk={c.risk} />
                                 </View>
                             ))}
-                            {customerConc.some(c => c.risk === 'high') && (
-                                <NextStepLink text="Review this customer's invoices" onPress={() => navigate('invoices')} />
-                            )}
+                            {(() => {
+                                const topRisk = customerConc.find(c => c.risk === 'high');
+                                if (!topRisk) return null;
+                                // Same "Unknown" bucket as Supplier Dependency
+                                // Risk below -- income transactions with no
+                                // customer name recorded. Nothing to look up
+                                // in Invoices for a customer that isn't named.
+                                return topRisk.customer === 'Unknown' ? (
+                                    <NextStepLink
+                                        text="Add customer names to your income"
+                                        onPress={() => navigate('transactions', { filter: 'income' })}
+                                    />
+                                ) : (
+                                    <NextStepLink text="Review this customer's invoices" onPress={() => navigate('invoices')} />
+                                );
+                            })()}
                         </View>
 
                         <View style={s.card}>
@@ -263,6 +276,28 @@ export default function RiskManagementScreen() {
                                     <RiskBadge risk={c.risk} />
                                 </View>
                             ))}
+                            {(() => {
+                                const topRisk = supplierConc.find(c => c.risk === 'high');
+                                if (!topRisk) return null;
+                                // "Unknown" is the bucket for expenses with no
+                                // vendor recorded at all -- there's no name to
+                                // search for, so searching literal "Unknown"
+                                // text against transactions would just come up
+                                // empty. Point at the real fix instead: get
+                                // vendor names recorded so this concentration
+                                // can even be attributed to a real supplier.
+                                return topRisk.supplier === 'Unknown' ? (
+                                    <NextStepLink
+                                        text="Add vendor names to your expenses"
+                                        onPress={() => navigate('transactions', { filter: 'expense' })}
+                                    />
+                                ) : (
+                                    <NextStepLink
+                                        text="Review this supplier's expenses"
+                                        onPress={() => navigate('transactions', { filter: 'expense', search: topRisk.supplier })}
+                                    />
+                                );
+                            })()}
                         </View>
 
                         <View style={s.card}>

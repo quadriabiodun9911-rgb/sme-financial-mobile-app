@@ -5,6 +5,7 @@ import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import Icon from '../components/ui/Icon';
+import NextStepLink from '../components/NextStepLink';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { buildFutureFinancialStatements, NO_ADJUSTMENTS, ForecastAdjustments } from '../utils/futureFinancialStatements';
 import { computeForecastSummary, describeCashFlowPressure, ForecastPeriod, PERIOD_LABELS } from '../utils/forecastSummary';
@@ -341,11 +342,19 @@ export default function FutureFinancialStatementsScreen() {
                             entirely when nothing material is flagged. */}
                         {biggestRisk && (() => {
                             const accent = biggestRisk.icon === '🔴' ? Colors.expense : Colors.warning;
+                            const BIGGEST_RISK_ACTION: Record<typeof biggestRisk.kind, { text: string; onPress: () => void }> = {
+                                cashflow: { text: 'Work through this in Cash Flow', onPress: () => navigate('cashflow') },
+                                external: { text: 'Review this in External Factors', onPress: () => navigate('macro-assumptions') },
+                                margin: { text: 'Fix pricing to protect margin', onPress: () => navigate('inventory', { tab: 'pricing' }) },
+                                health: { text: 'See the full health breakdown', onPress: () => navigate('financial-assessment') },
+                            };
+                            const action = BIGGEST_RISK_ACTION[biggestRisk.kind];
                             return (
                                 <View style={[s.biggestRiskCard, { backgroundColor: accent + '14', borderColor: accent + '55' }]}>
                                     <Text style={[s.biggestRiskTitle, { color: accent }]}>{biggestRisk.icon} Biggest Risk</Text>
                                     <Text style={s.biggestRiskSubtitle}>{biggestRisk.title}</Text>
                                     <Text style={s.biggestRiskDetail}>{biggestRisk.detail}</Text>
+                                    <NextStepLink text={action.text} onPress={action.onPress} />
                                 </View>
                             );
                         })()}
@@ -499,6 +508,7 @@ export default function FutureFinancialStatementsScreen() {
                                     If this pattern continues, it could reduce gross profit by approximately{' '}
                                     <Text style={s.riskBold}>{fmt(forecastSummary.marginRisk.estimatedProfitImpact)}</Text> over the next {PERIOD_LABELS[forecastPeriod].toLowerCase()}.
                                 </Text>
+                                <NextStepLink text="Fix pricing to protect margin" onPress={() => navigate('inventory', { tab: 'pricing' })} />
                             </View>
                         )}
 
@@ -510,9 +520,12 @@ export default function FutureFinancialStatementsScreen() {
                             <Row label="Expected inventory purchases" value={`+${fmt(forecastSummary.inventoryForecast.expectedPurchases)}`} valueColor={Colors.income} />
                             <Row label="Projected inventory value" value={fmt(forecastSummary.inventoryForecast.projectedInventoryValue)} bold />
                             {forecastSummary.inventoryForecast.atRiskItemCount > 0 ? (
-                                <Text style={s.insightLine}>
-                                    🔴 {forecastSummary.inventoryForecast.atRiskItemCount} product{forecastSummary.inventoryForecast.atRiskItemCount === 1 ? '' : 's'} may reach low-stock levels within 14 days.
-                                </Text>
+                                <>
+                                    <Text style={s.insightLine}>
+                                        🔴 {forecastSummary.inventoryForecast.atRiskItemCount} product{forecastSummary.inventoryForecast.atRiskItemCount === 1 ? '' : 's'} may reach low-stock levels within 14 days.
+                                    </Text>
+                                    <NextStepLink text="See which products" onPress={() => navigate('inventory')} />
+                                </>
                             ) : forecastSummary.inventoryForecast.daysOfCoverage != null && (
                                 <Text style={s.coverageInsightOk}>
                                     🟠 Sufficient stock for ~{Math.round(forecastSummary.inventoryForecast.daysOfCoverage)} days at your current sales pace.
@@ -601,6 +614,9 @@ export default function FutureFinancialStatementsScreen() {
                                     Projected by {month.monthLabel}:{' '}
                                     {fmt(forecast.riskAdjustedCategoryMonthlySpend * Math.pow(1 + forecast.riskAdjustedCategoryGrowthPct / 100, (selectedMonthIdx + 1) / forecast.riskAdjustedCategoryWindowMonths))}/mo
                                 </Text>
+                                {forecast.riskAdjustedCategoryInsight && (
+                                    <NextStepLink text="Review this assumption" onPress={() => navigate('macro-assumptions')} />
+                                )}
                             </View>
                         )}
 
