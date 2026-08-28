@@ -17,7 +17,7 @@ import { ROLE_DISPLAY_LABEL } from '../utils/rolePermissions';
 const DISMISSED_ALERTS_KEY = '@quad360/dismissed_alerts';
 
 export default function Header() {
-    const { user, logout, setCurrentScreen, goBack, currentScreen, finance, transactions, invoices, loans, staff, payrollRuns, settings, goals, budgets, assets, inventory, localAccounts, switchAccountDirect, teamMemberships, refreshTeamMemberships, switchBusiness, userRole } = useApp();
+    const { user, logout, setCurrentScreen, goBack, currentScreen, finance, transactions, invoices, loans, staff, payrollRuns, settings, goals, budgets, assets, inventory, localAccounts, switchAccountDirect, teamMemberships, refreshTeamMemberships, switchBusiness, userRole, canViewFinancials } = useApp();
     const showBack = currentScreen !== 'dashboard' && currentScreen !== 'login';
     const { width } = useWindowDimensions();
     const isNarrow = width < 480;
@@ -75,6 +75,12 @@ export default function Header() {
     }, []);
 
     const alerts = useMemo(() => {
+        // Cash balance, loans, budgets, assets, and goals -- exactly the
+        // P&L/cash-balance/loan detail canViewFinancials exists to keep
+        // from a 'staff' role. This bell icon renders on every screen
+        // (unlike DashboardScreen's own gated sections), so it was a real
+        // leak of financial detail to a role explicitly meant not to see it.
+        if (!canViewFinancials) return [];
         const base = detectFinancialAlerts(finance?.cashBalance ?? 0, transactions ?? [], invoices ?? [], currency, dismissedIds, loans ?? [], staff ?? [], payrollRuns ?? [], settings?.nextTaxDeadline, goals ?? [], budgets ?? [], assets ?? [], inventory ?? [], finance?.totalTaxCollected, finance?.totalTaxPaid, settings?.minReserve);
         // Additive: same negative_forecast alert type as detectFinancialAlerts
         // produces, but sourced from the richer forecastSummary.ts engine
@@ -82,7 +88,7 @@ export default function Header() {
         // of forecastEngine.ts's shallower model. See forecastRiskAlert.ts.
         const forecastRisk = finance ? computeForecastRiskAlert(transactions ?? [], loans ?? [], finance, staff ?? [], settings?.macroAssumptions ?? [], inventory ?? [], settings?.futureEvents ?? [], budgets ?? [], currency, dismissedIds) : null;
         return forecastRisk ? [...base, forecastRisk] : base;
-    }, [finance, transactions, invoices, currency, dismissedIds, loans, staff, payrollRuns, settings?.nextTaxDeadline, settings?.macroAssumptions, settings?.futureEvents, goals, budgets, assets, inventory, finance?.totalTaxCollected, finance?.totalTaxPaid, settings?.minReserve]);
+    }, [canViewFinancials, finance, transactions, invoices, currency, dismissedIds, loans, staff, payrollRuns, settings?.nextTaxDeadline, settings?.macroAssumptions, settings?.futureEvents, goals, budgets, assets, inventory, finance?.totalTaxCollected, finance?.totalTaxPaid, settings?.minReserve]);
 
     const handleDismiss = useCallback((alertId: string) => {
         setDismissedIds(prev => {
@@ -146,13 +152,15 @@ export default function Header() {
                 </TouchableOpacity>
             </View>
             <View style={styles.right}>
-                <AlertsWidget
-                    alerts={alerts}
-                    currency={currency}
-                    onDismiss={handleDismiss}
-                    canNotify={canNotify}
-                    onNotify={handleNotify}
-                />
+                {canViewFinancials && (
+                    <AlertsWidget
+                        alerts={alerts}
+                        currency={currency}
+                        onDismiss={handleDismiss}
+                        canNotify={canNotify}
+                        onNotify={handleNotify}
+                    />
+                )}
                 {canSwitch && isNarrow && (
                     <TouchableOpacity style={styles.iconBtn} onPress={() => setSwitcherOpen(true)} activeOpacity={0.7}>
                         <Icon name="repeat" size={16} color={Colors.textSecondary} />

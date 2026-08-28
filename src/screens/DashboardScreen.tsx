@@ -1127,6 +1127,15 @@ export default function DashboardScreen() {
                   </TouchableOpacity>
                 )}
 
+                {/* This whole priorities block (top priorities, the "all
+                    clear" fallback, and "what else needs attention") is
+                    built from cash balance, loans, budgets, assets, and
+                    goals -- exactly the P&L/cash-balance/loan detail
+                    canViewFinancials exists to keep from a 'staff' role.
+                    Every other financially-derived section on this screen
+                    is already gated the same way; this one was missed. */}
+                {canViewFinancials && (
+                <>
                 {/* YOUR TOP PRIORITIES — up to 3 numbered items from the
                     same real, already-sorted priority list (attention tier
                     first, real dollar-impact descending). A short, finite
@@ -1228,6 +1237,8 @@ export default function DashboardScreen() {
                       );
                     })}
                   </View>
+                )}
+                </>
                 )}
 
                 {/* IF YOU NEED CAPITAL — an ambient answer to "how much
