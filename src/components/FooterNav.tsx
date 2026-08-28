@@ -13,23 +13,44 @@ import { Screen } from '../types';
 import { isScreenAllowedForRole } from '../utils/rolePermissions';
 
 // ─── Icon accent colours per section ────────────────────────────────────────
-// Grouped around the same 5-stage decision journey a business owner
-// actually moves through -- Understand where you stand, Anticipate what's
-// coming, Decide what to do, Improve based on what worked, and Fund the
-// gap -- rather than a flat, engineering-shaped list (what used to be one
-// "Analytics" bucket and one "Finance" bucket). Purely a regrouping of the
-// same destinations: every Screen id below is unchanged, so no route, deep
-// link, or existing screen is touched by this reorg. Item placement follows
-// the exact stage definitions given for this reorg -- e.g. Cash Flow and
-// Inventory sit under Understand ("where do I stand"), not as generic
-// "operations," and Improve is scoped tightly to outcome-tracking (Action
-// Tracker) rather than a catch-all for anything left over.
+// A closed loop, not a flat list: Understand where you stand -> Anticipate
+// what's coming -> Decide what to do -> Act & see Results -> which feeds
+// back into Understand (a completed tactic's before/after health score is
+// the next thing you'd check on the Scoreboard). Fund sits outside the
+// loop deliberately -- raising capital isn't a stage everyone passes
+// through each cycle, it's an on-demand tool you reach for when the loop
+// says you need it. Every Screen id below is unchanged, so no route, deep
+// link, or existing screen is touched by this reorg -- only grouping,
+// order, and the copy that explains the order.
+//
+// Within each stage, item ORDER encodes the sequence a business owner
+// would actually work through, not alphabetical or arbitrary placement:
+//  - Understand: overall score first, then the two things that most
+//    directly threaten survival day to day (cash, stock), then your
+//    biggest recurring fixed cost (payroll), and last a hygiene check
+//    (reconciliation) that verifies the numbers behind everything above
+//    are actually correct -- worth doing once you know what you're
+//    checking, not before.
+//  - Anticipate: you can't usefully forecast or plan growth without
+//    first knowing what could go wrong (risk), so risk leads; forecast
+//    (what's likely) comes next; growth (what's possible) last, since
+//    it builds on both.
+//  - Decide: Insights surfaces what actually needs a decision; Advisor
+//    is the fastest way to ask about it; Analysis & Decisions is where
+//    you dig into why and model what-if scenarios; Before You Decide
+//    pressure-tests one specific real decision against your numbers;
+//    Goals sets the target that decision is aimed at; Budget turns that
+//    target into a spending plan.
+//  - Act & Results: one screen, two halves in a fixed order -- Action
+//    Tracker shows what's worked before (Results) above the tactics you
+//    can start or advance (Act), then links back to the Scoreboard so
+//    a measured outcome closes the loop into Understand.
 const UNDERSTAND_ITEMS: { label: string; icon: IconName; screen: Screen; color: string; desc: string }[] = [
     { label: 'Scoreboard',     icon: 'activity',      screen: 'scoreboard',     color: '#22d3ee', desc: 'Financial health at a glance' },
-    { label: 'Inventory',      icon: 'package',       screen: 'inventory',      color: '#f59e0b', desc: 'Stock levels & margins' },
     { label: 'Cash Flow',      icon: 'droplet',       screen: 'cashflow',       color: '#3b82f6', desc: 'Runway & receivables risk' },
-    { label: 'Reconciliation', icon: 'link-2',        screen: 'reconciliation', color: '#8b5cf6', desc: 'Match bank vs app records' },
+    { label: 'Inventory',      icon: 'package',       screen: 'inventory',      color: '#f59e0b', desc: 'Stock levels & margins' },
     { label: 'Payroll',        icon: 'users',         screen: 'payroll',        color: '#10b981', desc: 'Staff & monthly pay runs' },
+    { label: 'Reconciliation', icon: 'link-2',        screen: 'reconciliation', color: '#8b5cf6', desc: 'Confirm the numbers above match your bank' },
 ];
 
 const ANTICIPATE_ITEMS: { label: string; icon: IconName; screen: Screen; color: string }[] = [
@@ -38,22 +59,17 @@ const ANTICIPATE_ITEMS: { label: string; icon: IconName; screen: Screen; color: 
     { label: 'Growth',   icon: 'trending-up',     screen: 'growth',   color: '#10b981' },
 ];
 
-// 'analysis' moved here from Understand -- its two tabs (Why is this
-// happening, What if I...) are root-cause diagnosis and scenario
-// modeling, not passive reporting; it belongs with the rest of Decide's
-// "what should I do" tools, not filed as a P&L-trends report it no
-// longer resembles.
 const DECIDE_ITEMS: { label: string; icon: IconName; screen: Screen; color: string; desc: string }[] = [
-    { label: 'Advisor',  icon: 'message-circle',  screen: 'cfo',      color: '#8b5cf6', desc: 'AI diagnosis — ask questions, get answers' },
+    { label: 'Insights', icon: 'zap',             screen: 'insights', color: '#f59e0b', desc: 'What actually needs a decision right now' },
+    { label: 'Advisor',  icon: 'message-circle',  screen: 'cfo',      color: '#8b5cf6', desc: 'Ask about it — AI diagnosis, plain answers' },
     { label: 'Analysis & Decisions', icon: 'pie-chart', screen: 'analysis', color: '#14b8a6', desc: 'Why is this happening, and what if I...' },
-    { label: 'Before You Decide', icon: 'help-circle', screen: 'before-you-decide', color: '#06b6d4', desc: 'Check a hire, purchase, discount, or loan against your numbers' },
-    { label: 'Insights', icon: 'zap',             screen: 'insights', color: '#f59e0b', desc: 'Flagged risks & opportunities' },
-    { label: 'Goals',    icon: 'target',          screen: 'goals',    color: '#ef4444', desc: 'Set and track targets' },
-    { label: 'Budget',   icon: 'dollar-sign',     screen: 'budget',   color: '#10b981', desc: 'Plan spending by category' },
+    { label: 'Before You Decide', icon: 'help-circle', screen: 'before-you-decide', color: '#06b6d4', desc: 'Pressure-test a hire, purchase, discount, or loan' },
+    { label: 'Goals',    icon: 'target',          screen: 'goals',    color: '#ef4444', desc: 'Set the target this decision is aimed at' },
+    { label: 'Budget',   icon: 'dollar-sign',     screen: 'budget',   color: '#10b981', desc: 'Put a spending plan behind that target' },
 ];
 
 const IMPROVE_ITEMS: { label: string; icon: IconName; screen: Screen; color: string; desc: string }[] = [
-    { label: 'Action Tracker', icon: 'check-circle', screen: 'action-tracker', color: '#ef4444', desc: 'Did it work? Track outcomes & before/after' },
+    { label: 'Action Tracker', icon: 'check-circle', screen: 'action-tracker', color: '#ef4444', desc: 'Act on it, then see if it worked' },
 ];
 
 const FUND_ITEMS: { label: string; icon: IconName; screen: Screen; color: string }[] = [
@@ -250,6 +266,7 @@ export default function FooterNav() {
                         {/* ── Understand ────────────────────────────────── */}
                         <Text style={styles.sectionHeader}>Understand</Text>
                         <Text style={styles.sectionSubtitle}>Where does my business stand?</Text>
+                        <Text style={styles.flowHint}>Start with your score, then cash and stock, then payroll — finish by confirming the numbers match your bank.</Text>
                         <View style={styles.listCard}>
                             {visibleUnderstand.map((item, i, arr) => (
                                 <TouchableOpacity
@@ -273,6 +290,7 @@ export default function FooterNav() {
                         {/* ── Anticipate ────────────────────────────────── */}
                         <Text style={styles.sectionHeader}>Anticipate</Text>
                         <Text style={styles.sectionSubtitle}>What is likely to happen?</Text>
+                        <Text style={styles.flowHint}>Know your risks first, then what's likely ahead, then where you could grow.</Text>
                         <View style={styles.gridCard}>
                             {visibleAnticipate.map(item => (
                                 <TouchableOpacity
@@ -292,6 +310,7 @@ export default function FooterNav() {
                         {/* ── Decide ────────────────────────────────────── */}
                         <Text style={styles.sectionHeader}>Decide</Text>
                         <Text style={styles.sectionSubtitle}>What should I do?</Text>
+                        <Text style={styles.flowHint}>See what's flagged, ask about it, dig into why, test the decision — then set a target and budget for it.</Text>
                         <View style={styles.listCard}>
                             {visibleDecide.map((item, i, arr) => (
                                 <TouchableOpacity
@@ -312,9 +331,10 @@ export default function FooterNav() {
                             ))}
                         </View>
 
-                        {/* ── Improve ───────────────────────────────────── */}
-                        <Text style={styles.sectionHeader}>Improve</Text>
-                        <Text style={styles.sectionSubtitle}>Did my decision work?</Text>
+                        {/* ── Act & Results ─────────────────────────────── */}
+                        <Text style={styles.sectionHeader}>Act & Results</Text>
+                        <Text style={styles.sectionSubtitle}>Did I act on it? Did it work?</Text>
+                        <Text style={styles.flowHint}>Track what you do, then see if it moved your score — closing the loop back to Understand.</Text>
                         <View style={styles.listCard}>
                             {visibleImprove.map((item, i, arr) => (
                                 <TouchableOpacity
@@ -338,6 +358,7 @@ export default function FooterNav() {
                         {/* ── Fund ──────────────────────────────────────── */}
                         <Text style={styles.sectionHeader}>Fund</Text>
                         <Text style={styles.sectionSubtitle}>Am I ready for capital?</Text>
+                        <Text style={styles.flowHint}>Not a stage in the loop — reach for this whenever a decision needs outside capital.</Text>
                         <View style={styles.gridCard}>
                             {visibleFund.map(item => (
                                 <TouchableOpacity
@@ -480,6 +501,16 @@ const styles = StyleSheet.create({
         color: Colors.textSecondary,
         marginBottom: Spacing.sm,
         marginLeft: Spacing.xl,
+    },
+    flowHint: {
+        fontSize: 10.5,
+        color: Colors.textMuted,
+        fontStyle: 'italic',
+        marginTop: -Spacing.xs,
+        marginBottom: Spacing.sm,
+        marginLeft: Spacing.xl,
+        marginRight: Spacing.xl,
+        lineHeight: 14,
     },
 
     // Icon grid

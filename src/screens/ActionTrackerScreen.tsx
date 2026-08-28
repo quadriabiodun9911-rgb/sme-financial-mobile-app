@@ -297,6 +297,7 @@ export default function ActionTrackerScreen() {
                 </View>
               </View>
             ))}
+            <NextStepLink text="See this reflected in your Business Health Score" onPress={() => setCurrentScreen('scoreboard')} />
           </View>
         )}
 
