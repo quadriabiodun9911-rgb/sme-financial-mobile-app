@@ -34,6 +34,7 @@ import Icon, { IconName } from '../components/ui/Icon';
 import StatTile from '../components/ui/StatTile';
 import RadialGauge from '../components/RadialGauge';
 import TrendSparkline from '../components/TrendSparkline';
+import NextStepLink from '../components/NextStepLink';
 import { buildFinancingFitInput } from '../utils/financingFit';
 import { recommendFinancingTypes } from '../utils/financingRecommendation';
 import { computeReadinessDelta } from '../utils/readinessHistory';
@@ -1007,10 +1008,11 @@ export default function DashboardScreen() {
                     >=5-transaction gate as that diagnosis so a near-empty
                     account doesn't get a guessed narrative. */}
                 {canViewFinancials && diagnosisForNextGoal && (
-                  <View style={styles.narrativeCard}>
+                  <TouchableOpacity style={styles.narrativeCard} onPress={() => setCurrentScreen('financial-assessment')} activeOpacity={0.85}>
                     <Text style={styles.narrativeEyebrow}>WHAT QUAD360 SEES</Text>
                     <Text style={styles.narrativeText}>{diagnosisForNextGoal.narrativeSummary}</Text>
-                  </View>
+                    <NextStepLink text="Full diagnosis & what to do about it →" onPress={() => setCurrentScreen('financial-assessment')} />
+                  </TouchableOpacity>
                 )}
 
                 {personalSpending.flaggedCount > 0 && (
