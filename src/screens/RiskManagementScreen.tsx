@@ -17,6 +17,8 @@ import {
 } from '../utils/finance';
 import { computeRiskRadar, RiskLevel } from '../utils/riskRadar';
 import { computeExternalRiskInsights, DRIVER_LABEL } from '../utils/externalRiskInsights';
+import { computeExpenseSeasonalityPattern } from '../utils/seasonality';
+import { MACRO_ASSUMPTION_SUGGESTIONS } from '../utils/macroAssumptionSuggestions';
 
 type Tab = 'overview' | 'concentration' | 'seasonal' | 'economic';
 
@@ -81,6 +83,7 @@ export default function RiskManagementScreen() {
     const supplierConc  = useMemo(() => computeSupplierConcentration(transactions), [transactions]);
     const lenderConc    = useMemo(() => computeLenderConcentration(loans), [loans]);
     const seasonal      = useMemo(() => computeSeasonalRisk(transactions), [transactions]);
+    const expenseSeasonality = useMemo(() => computeExpenseSeasonalityPattern(transactions), [transactions]);
     const externalRisk  = useMemo(
         () => computeExternalRiskInsights(transactions, settings.macroAssumptions ?? []),
         [transactions, settings.macroAssumptions]
@@ -91,6 +94,30 @@ export default function RiskManagementScreen() {
         )[0],
         [externalRisk.insights]
     );
+
+    // Overview's own reason to exist, separate from the Scoreboard's health
+    // score (which already covers Business Health + a Risk Radar teaser):
+    // pull the single worst signal out of each of THIS screen's other three
+    // tabs (Concentration, Seasonal, Economic) into one triage list, so
+    // opening this screen answers "which of these four areas needs my
+    // attention right now" instead of restating numbers already shown
+    // elsewhere.
+    const worstConcentration = useMemo(() => {
+        const candidates = [
+            ...customerConc.filter(c => c.customer !== 'Unknown').map(c => ({ name: c.customer, kind: 'customer' as const, pct: c.percentage, risk: c.risk })),
+            ...supplierConc.map(c => ({ name: c.supplier, kind: 'supplier' as const, pct: c.percentage, risk: c.risk })),
+            ...lenderConc.map(c => ({ name: c.lenderName, kind: 'lender' as const, pct: c.percentage, risk: c.risk })),
+        ];
+        if (candidates.length === 0) return null;
+        return candidates.sort((a, b) => b.pct - a.pct)[0];
+    }, [customerConc, supplierConc, lenderConc]);
+
+    const worstSeasonalMonth = useMemo(() => {
+        const flagged = seasonal.filter(m => m.hasData && m.riskLevel !== 'low');
+        if (flagged.length === 0) return null;
+        const high = flagged.find(m => m.riskLevel === 'high');
+        return high ?? flagged[0];
+    }, [seasonal]);
 
     const MONTHS_GRID = [seasonal.slice(0, 6), seasonal.slice(6, 12)];
 
@@ -118,28 +145,62 @@ export default function RiskManagementScreen() {
                 {/* ── OVERVIEW ─────────────────────────────────────────── */}
                 {tab === 'overview' && (
                     <>
-                        <View style={s.card}>
-                            <Text style={s.cardTitle}>Business Risk Score</Text>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-                                <RadialGauge displayValue={String(risk.score)} label={risk.grade} progress={risk.score / 100} color={riskLabel(risk.score).color} size={80} strokeWidth={8} />
-                                <View style={{ flex: 1, marginLeft: 16 }}>
-                                    <Text style={{ fontSize: 16, fontWeight: '700', color: riskLabel(risk.score).color, marginBottom: 4 }}>
-                                        {riskLabel(risk.score).label}
+                        {/* Business Health itself lives on the Scoreboard now
+                            (score, factors, and their explanations) -- this
+                            screen's job is the detail Scoreboard only teases:
+                            triage across Concentration/Seasonal/Economic,
+                            then the full Risk Radar breakdown below. */}
+                        <TouchableOpacity style={[s.card, { borderLeftWidth: 4, borderLeftColor: riskLabel(risk.score).color }]} onPress={() => setCurrentScreen('scoreboard')} activeOpacity={0.85}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                <RadialGauge displayValue={String(risk.score)} label={risk.grade} progress={risk.score / 100} color={riskLabel(risk.score).color} size={56} strokeWidth={6} />
+                                <View style={{ flex: 1, marginLeft: 14 }}>
+                                    <Text style={{ fontSize: 14, fontWeight: '700', color: riskLabel(risk.score).color }}>
+                                        Business Health: {riskLabel(risk.score).label}
                                     </Text>
-                                    <Text style={s.cardSub}>Lower score = more risk. Above 70 is solid.</Text>
+                                    <Text style={s.cardSub}>See the full score breakdown & why → Scoreboard</Text>
                                 </View>
+                                <Icon name="chevron-right" size={16} color={Colors.textMuted} />
                             </View>
-                            {risk.factors.map(f => (
-                                <View key={f.name} style={{ marginBottom: 10 }}>
-                                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 3 }}>
-                                        <Text style={[s.pillarDot, { color: f.status === 'good' ? Colors.income : f.status === 'warning' ? Colors.warning : Colors.expense }]}>●</Text>
-                                        <Text style={s.pillarName}>{f.name}</Text>
-                                        <Text style={[s.pillarScore, { color: f.status === 'good' ? Colors.income : f.status === 'warning' ? Colors.warning : Colors.expense }]}>{f.score}/100</Text>
+                        </TouchableOpacity>
+
+                        <Text style={s.sectionTitle}>Biggest Exposures Right Now</Text>
+                        <View style={s.card}>
+                            <Text style={s.cardSub}>The single worst signal from each area below — not a repeat of the score above.</Text>
+                            {worstConcentration && (
+                                <TouchableOpacity style={s.exposureRow} onPress={() => setTab('concentration')} activeOpacity={0.7}>
+                                    <Text style={s.radarDot}>{tierColor(worstConcentration.risk) === Colors.expense ? '🔴' : tierColor(worstConcentration.risk) === Colors.warning ? '🟡' : '🟢'}</Text>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={s.exposureLabel}>Concentration: {worstConcentration.name}</Text>
+                                        <Text style={s.exposureDetail}>
+                                            {worstConcentration.pct.toFixed(0)}% of your {worstConcentration.kind === 'customer' ? 'revenue' : worstConcentration.kind === 'supplier' ? 'spend' : 'debt'} rests on this one {worstConcentration.kind}.
+                                        </Text>
                                     </View>
-                                    <MiniBar pct={f.score} color={f.status === 'good' ? Colors.income : f.status === 'warning' ? Colors.warning : Colors.expense} />
-                                    <Text style={s.factorExplain}>{f.explanation}</Text>
-                                </View>
-                            ))}
+                                    <Icon name="chevron-right" size={14} color={Colors.textMuted} />
+                                </TouchableOpacity>
+                            )}
+                            {worstSeasonalMonth && (
+                                <TouchableOpacity style={s.exposureRow} onPress={() => setTab('seasonal')} activeOpacity={0.7}>
+                                    <Text style={s.radarDot}>{worstSeasonalMonth.riskLevel === 'high' ? '🔴' : '🟡'}</Text>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={s.exposureLabel}>Seasonal: {worstSeasonalMonth.month}</Text>
+                                        <Text style={s.exposureDetail}>{worstSeasonalMonth.warning}</Text>
+                                    </View>
+                                    <Icon name="chevron-right" size={14} color={Colors.textMuted} />
+                                </TouchableOpacity>
+                            )}
+                            {externalRisk.hasAssumptions && externalRisk.insights.length > 0 && (
+                                <TouchableOpacity style={s.exposureRow} onPress={() => setTab('economic')} activeOpacity={0.7}>
+                                    <Text style={s.radarDot}>🟡</Text>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={s.exposureLabel}>Economic: {topExternalInsight.title.replace('⚠️ ', '')}</Text>
+                                        <Text style={s.exposureDetail} numberOfLines={2}>{topExternalInsight.whatChanged}</Text>
+                                    </View>
+                                    <Icon name="chevron-right" size={14} color={Colors.textMuted} />
+                                </TouchableOpacity>
+                            )}
+                            {!worstConcentration && !worstSeasonalMonth && !(externalRisk.hasAssumptions && externalRisk.insights.length > 0) && (
+                                <Text style={s.empty}>Nothing standing out across concentration, seasonal, or economic risk right now.</Text>
+                            )}
                         </View>
 
                         <Text style={s.sectionTitle}>Risk Radar</Text>
@@ -249,6 +310,40 @@ export default function RiskManagementScreen() {
                     </View>
                 )}
 
+                {/* Expenses have their own seasonal rhythm -- a rent review,
+                    a stock-up before a busy season, year-end bonuses -- that
+                    doesn't necessarily line up with when revenue peaks or
+                    dips. Same real month-of-year pattern already computed
+                    for behavioralProfile.ts's narrative, given its own
+                    section here since a cost spike and a revenue dip are
+                    different risks even when they land in the same month. */}
+                {tab === 'seasonal' && (
+                    <View style={s.card}>
+                        <Text style={s.cardTitle}>Expense Seasonality</Text>
+                        <Text style={s.cardSub}>Months where your costs historically run above or below your own average.</Text>
+                        {!expenseSeasonality.available ? (
+                            <Text style={s.empty}>
+                                Needs at least {expenseSeasonality.minMonthsRequired} months of history to detect a pattern — {expenseSeasonality.monthsOfHistory} so far.
+                            </Text>
+                        ) : expenseSeasonality.peakMonths.length === 0 && expenseSeasonality.troughMonths.length === 0 ? (
+                            <Text style={s.empty}>Your costs run fairly even across the year — no month stands out.</Text>
+                        ) : (
+                            <>
+                                {expenseSeasonality.peakMonths.map(m => (
+                                    <Text key={`peak-${m.month}`} style={[s.seasonWarning, { color: Colors.expense }]}>
+                                        {m.monthName} costs typically run {Math.round((m.index - 1) * 100)}% above average ({m.sampleCount} year{m.sampleCount === 1 ? '' : 's'} of data) — budget ahead for it.
+                                    </Text>
+                                ))}
+                                {expenseSeasonality.troughMonths.map(m => (
+                                    <Text key={`trough-${m.month}`} style={[s.seasonWarning, { color: Colors.income }]}>
+                                        {m.monthName} costs typically run {Math.round((1 - m.index) * 100)}% below average ({m.sampleCount} year{m.sampleCount === 1 ? '' : 's'} of data).
+                                    </Text>
+                                ))}
+                            </>
+                        )}
+                    </View>
+                )}
+
                 {/* ── ECONOMIC ──────────────────────────────────────────── */}
                 {tab === 'economic' && (
                     <>
@@ -259,7 +354,25 @@ export default function RiskManagementScreen() {
                                 expense categories they actually affect.
                             </Text>
                             {(settings.macroAssumptions ?? []).length === 0 ? (
-                                <Text style={s.empty}>No assumptions logged yet.</Text>
+                                <>
+                                    <Text style={s.empty}>No assumptions logged yet.</Text>
+                                    {/* Most owners don't already know what an
+                                        "economic assumption" is supposed to
+                                        be -- these are the four things that
+                                        most commonly move an SME's costs,
+                                        with a plain question and where to
+                                        actually check, so a blank state
+                                        doesn't leave someone with no macro
+                                        background stuck. */}
+                                    <Text style={s.suggestTitle}>Not sure where to start? Check these first:</Text>
+                                    {MACRO_ASSUMPTION_SUGGESTIONS.map(sug => (
+                                        <View key={sug.driver} style={s.suggestRow}>
+                                            <Text style={s.suggestLabel}>{sug.label}</Text>
+                                            <Text style={s.suggestPrompt}>{sug.prompt}</Text>
+                                            <Text style={s.suggestWhere}>💡 {sug.whereToCheck}</Text>
+                                        </View>
+                                    ))}
+                                </>
                             ) : (settings.macroAssumptions ?? []).map(a => (
                                 <View key={a.id} style={s.assumptionRow}>
                                     <View style={{ flex: 1 }}>
@@ -338,10 +451,9 @@ const s = StyleSheet.create({
     cardSub: { fontSize: 12, color: Colors.textMuted, lineHeight: 17, marginBottom: 12 },
     empty: { color: Colors.textMuted, fontSize: 13, textAlign: 'center', paddingVertical: 8 },
 
-    pillarDot: { fontSize: 10, marginRight: 6 },
-    pillarName: { flex: 1, fontSize: 13, fontWeight: '600', color: Colors.textPrimary },
-    pillarScore: { fontSize: 12, fontWeight: '700' },
-    factorExplain: { fontSize: 11, color: Colors.textMuted, lineHeight: 15, marginTop: 3 },
+    exposureRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 10, borderTopWidth: 1, borderTopColor: Colors.border },
+    exposureLabel: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
+    exposureDetail: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17, marginTop: 2 },
 
     miniBarTrack: { height: 5, backgroundColor: Colors.border, borderRadius: 3, flex: 1 },
     miniBarFill: { height: 5, borderRadius: 3 },
@@ -365,6 +477,12 @@ const s = StyleSheet.create({
 
     assumptionRow: { paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border },
     assumptionMeta: { fontSize: 11, color: Colors.textMuted, marginTop: 2, lineHeight: 16 },
+
+    suggestTitle: { fontSize: 12, fontWeight: '700', color: Colors.textPrimary, marginTop: 10, marginBottom: 8 },
+    suggestRow: { paddingVertical: 8, borderTopWidth: 1, borderTopColor: Colors.border },
+    suggestLabel: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
+    suggestPrompt: { fontSize: 12, color: Colors.textSecondary, marginTop: 2, lineHeight: 17 },
+    suggestWhere: { fontSize: 11, color: Colors.textMuted, marginTop: 4, lineHeight: 15 },
 
     insightCard: { backgroundColor: Colors.bg, borderRadius: 10, padding: 12, marginBottom: 8 },
     insightTitle: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: 4 },
