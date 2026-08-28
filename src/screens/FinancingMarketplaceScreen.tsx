@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { SafeAreaView, ScrollView, View, Text, TouchableOpacity, StyleSheet, TextInput } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -197,7 +197,7 @@ function ProductCard({ result, currency, expanded, onToggle }: { result: Financi
 }
 
 export default function FinancingMarketplaceScreen() {
-    const { user, finance, transactions, loans, inventory, invoices, assets, settings, navigate, readinessHistory, userRole } = useApp();
+    const { user, finance, transactions, loans, inventory, invoices, assets, settings, navigate, navParams, readinessHistory, userRole } = useApp();
     const { currency } = settings;
     const [amountText, setAmountText] = useState('');
     const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -210,6 +210,21 @@ export default function FinancingMarketplaceScreen() {
     const [screenStep, setScreenStep] = useState<'categories' | 'results'>('categories');
     const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
     const selectedCategory = CATEGORIES.find(c => c.id === selectedCategoryId) ?? null;
+
+    // A caller (e.g. Reports' Asset Replacement Forecast card) can jump
+    // straight to a sized, categorized result instead of the "what are you
+    // financing?" picker -- the same one-time-consumed prefill pattern
+    // MacroAssumptionsScreen uses, so re-rendering this screen doesn't
+    // re-trigger it and stomp on manual edits the user makes afterward.
+    const consumedPrefill = useRef(false);
+    useEffect(() => {
+        if (consumedPrefill.current || !navParams?.prefill) return;
+        consumedPrefill.current = true;
+        const { category, amount } = navParams.prefill as { category?: string; amount?: number };
+        if (category && CATEGORIES.some(c => c.id === category)) setSelectedCategoryId(category);
+        if (typeof amount === 'number' && amount > 0) setAmountText(String(Math.round(amount)));
+        setScreenStep('results');
+    }, [navParams]);
 
     const risk: RiskScore = useMemo(() => computeRiskScore(finance, loans, transactions, inventory), [finance, loans, transactions, inventory]);
     const dscr = useMemo(() => computeDSCR(transactions, loans), [transactions, loans]);

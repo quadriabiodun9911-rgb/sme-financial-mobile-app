@@ -35,7 +35,11 @@ import CashFlowFormalStatement from '../components/CashFlowFormalStatement';
 import GroupedBarChart from '../components/GroupedBarChart';
 import { computeBalanceSheetTrend } from '../utils/balanceSheetTrend';
 import { computeAllTimeMonthlyBuckets } from '../utils/trendAnalysis';
-import { filterByPeriod, filterByDateRange, getPreviousPeriodRange, computeFinance, computeAssetCurrentValue, computeAssetReplacementForecast, computeMonthlyTrend, computeEnhancedPnL, computeProperCashFlow, computeWorkingCapitalMetrics, classifyBusinessSize, sizeLabel, transactionsToCSV, ReportPeriod, MonthlyPoint, DateRange } from '../utils/finance';
+import { filterByPeriod, filterByDateRange, getPreviousPeriodRange, computeFinance, computeAssetCurrentValue, computeAssetReplacementForecast, computeMonthlyTrend, computeEnhancedPnL, computeProperCashFlow, computeWorkingCapitalMetrics, classifyBusinessSize, sizeLabel, transactionsToCSV, computeRiskScore, computeDSCR, computeFinancingReadinessScore, ReportPeriod, MonthlyPoint, DateRange } from '../utils/finance';
+import { buildFinancingFitInput } from '../utils/financingFit';
+import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
+import { assessCapitalNeed } from '../utils/capitalNeedAssessment';
+import { computeDataQuality } from '../utils/dataQuality';
 import { trackReportViewed, trackDataExported } from '../utils/analytics';
 import { auditEvents } from '../utils/auditLog';
 import { FinanceData } from '../types';
@@ -706,6 +710,25 @@ export default function ReportsScreen() {
                     {activeTab === 'assets' && (() => {
                         const health = computeAssetHealthScore(allFinance, assets, allTimeWcMetrics.accountsReceivable, inventoryValue);
                         const replacementForecast = computeAssetReplacementForecast(assets, 24);
+                        // Same lending-capacity pipeline the Financing Marketplace
+                        // uses for its own "can you actually support this ask"
+                        // check -- reused here so a replacement-due asset isn't
+                        // just information, it's a one-tap path to "can I afford
+                        // this, and if not, here's financing sized to what I can
+                        // actually support" (assessCapitalNeed), not a second,
+                        // independently-invented affordability heuristic.
+                        const risk = computeRiskScore(allFinance, loansList, transactions, inventory);
+                        const dscr = computeDSCR(transactions, loansList);
+                        const financingReadiness = computeFinancingReadinessScore(risk.factors);
+                        const dataQuality = computeDataQuality(transactions);
+                        const fitInput = buildFinancingFitInput(transactions, loansList, settings, user, undefined);
+                        const lendingCapacity = computeLendingCapacityEstimate({
+                            overallCreditScore: financingReadiness.score,
+                            avgMonthlyRevenue: fitInput.avgMonthlyRevenue,
+                            dscr: dscr.dscr,
+                            hasReliableData: dataQuality.confidence !== 'none' && dataQuality.confidence !== 'limited',
+                            inventoryValue,
+                        });
                         return (
                             <>
                                 <TouchableOpacity style={styles.assetTeaserCard} onPress={() => setCurrentScreen('assets')} activeOpacity={0.85}>
@@ -734,7 +757,9 @@ export default function ReportsScreen() {
                                             <Text style={styles.cardSub}>
                                                 Based on each asset's own purchase cost, useful life and elapsed time — projecting when it depreciates to 20% of its original cost, the same threshold the replacement alerts use.
                                             </Text>
-                                            {replacementForecast.items.map(item => (
+                                            {replacementForecast.items.map(item => {
+                                                const need = assessCapitalNeed(item.purchaseCost, lendingCapacity.minAmount, lendingCapacity.maxAmount, currency);
+                                                return (
                                                 <View key={item.id} style={styles.assetForecastRow}>
                                                     <View style={{ flex: 1 }}>
                                                         <Text style={styles.assetForecastName}>{item.name}</Text>
@@ -744,10 +769,16 @@ export default function ReportsScreen() {
                                                                 : `Due around ${item.projectedThresholdMonth} (${item.monthsUntilThreshold} mo away)`}
                                                             {' · '}{Math.round(item.pctValueRemaining)}% value remaining
                                                         </Text>
+                                                        <Text style={styles.assetForecastSub}>{need.message}</Text>
+                                                        <NextStepLink
+                                                            text={need.withinCapacity === false ? 'See financing options →' : 'Plan financing for this →'}
+                                                            onPress={() => navigate('financing-marketplace', { prefill: { category: 'asset_equipment', amount: item.purchaseCost } })}
+                                                        />
                                                     </View>
                                                     <Text style={styles.assetForecastCost}>{currency}{item.purchaseCost.toLocaleString()}</Text>
                                                 </View>
-                                            ))}
+                                                );
+                                            })}
                                             <View style={styles.assetForecastTotalRow}>
                                                 <Text style={styles.assetForecastTotalLabel}>Total original cost of assets due in this window</Text>
                                                 <Text style={styles.assetForecastTotalValue}>{currency}{replacementForecast.totalReplacementCostDue.toLocaleString()}</Text>
