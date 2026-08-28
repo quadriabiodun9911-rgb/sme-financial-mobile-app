@@ -1,9 +1,17 @@
 import { Alert, Platform } from 'react-native';
+import { pushWebAlert } from '../components/AlertHost';
 
 // Alert.alert is a silent no-op on react-native-web. Centralized here so
 // every screen falls back the same way instead of each reimplementing (and
 // subtly diverging on) the same Platform.OS branch — six screens had done
 // exactly that independently before this was extracted.
+//
+// The web fallback renders through AlertHost rather than window.alert/
+// window.confirm: those browser dialogs are silently suppressed in a
+// standalone (home-screen-installed) PWA on iOS and in several in-app
+// webview wrappers — the action underneath still runs, but the user never
+// sees whether it succeeded or failed, which is indistinguishable from the
+// feature being broken.
 //
 // onAcknowledge covers the "single-button alert that also does something
 // on dismiss" shape (e.g. a save confirmation that navigates away once the
@@ -11,10 +19,7 @@ import { Alert, Platform } from 'react-native';
 // Platform.OS branch again just for that one case.
 export function showAlert(title: string, message?: string, onAcknowledge?: () => void): void {
     if (Platform.OS === 'web') {
-        if (typeof window !== 'undefined' && typeof window.alert === 'function') {
-            window.alert(message ? `${title}\n\n${message}` : title);
-        }
-        onAcknowledge?.();
+        pushWebAlert({ title, message, buttons: [{ text: 'OK', onPress: onAcknowledge }] });
     } else if (onAcknowledge) {
         Alert.alert(title, message, [{ text: 'OK', onPress: onAcknowledge }]);
     } else {
@@ -36,9 +41,14 @@ export function confirmAction(
     destructive: boolean = true,
 ): void {
     if (Platform.OS === 'web') {
-        if (typeof window !== 'undefined' && typeof window.confirm === 'function' && window.confirm(`${title}\n\n${message}`)) {
-            onConfirm();
-        }
+        pushWebAlert({
+            title,
+            message,
+            buttons: [
+                { text: 'Cancel', style: 'cancel' },
+                { text: confirmLabel, style: destructive ? 'destructive' : 'default', onPress: onConfirm },
+            ],
+        });
     } else {
         Alert.alert(title, message, [
             { text: 'Cancel', style: 'cancel' },

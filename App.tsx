@@ -8,6 +8,7 @@ import { AuthProvider, SettingsProvider, FinanceProvider, GoalProvider, InvoiceP
 import { trackScreenViewed, trackAppOpened } from './src/utils/analytics';
 import { initSentry, setSentryUser } from './src/utils/sentry';
 import ErrorBoundary from './src/components/ErrorBoundary';
+import AlertHost from './src/components/AlertHost';
 import LandingScreen from './src/screens/LandingScreen';
 import ContactScreen from './src/screens/ContactScreen';
 import BlogScreen from './src/screens/BlogScreen';
@@ -269,6 +270,7 @@ export default function App() {
                                         <ErrorBoundary>
                                             <NavigatorContent />
                                         </ErrorBoundary>
+                                        <AlertHost />
                                     </InvoiceProvider>
                                 </GoalProvider>
                             </FinanceProvider>
