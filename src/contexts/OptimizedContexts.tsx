@@ -203,6 +203,16 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const syncUserId = authForSync?.user?.email;
   const isDemoMode = authForSync?.isDemoMode ?? false;
   const demoBusinessId = authForSync?.demoBusinessId ?? null;
+  // 'staff' has no visibility into P&L/cash-balance/loan/payroll detail
+  // (rolePermissions.ts's canViewFinancials/STAFF_ALLOWED_SCREENS) -- this
+  // provider previously loaded all of it into memory regardless of role,
+  // which is what let it leak into Header's alert bell and the Dashboard's
+  // priorities card (see the commits gating those). Skipping the load here
+  // closes that at the source rather than only at each render site, and is
+  // also the precondition for eventually restricting these tables' SELECT
+  // at the database level for 'staff' -- the client must stop depending on
+  // this data for that role before RLS can safely stop returning it.
+  const isStaffRole = authForSync?.user?.role === 'staff';
   // The real opening-balance settings (Settings > Financial Set Up) — see
   // the `finance` useMemo below for why this has to be read here instead
   // of assumed zero.
@@ -243,7 +253,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     (async () => {
       try {
         const [t, a, l, b, inv] = await Promise.all([
-          loadTransactions(), loadAssets(), loadLoans(), loadBudgets(), loadInventory(),
+          loadTransactions(),
+          isStaffRole ? Promise.resolve(null) : loadAssets(),
+          isStaffRole ? Promise.resolve(null) : loadLoans(),
+          isStaffRole ? Promise.resolve(null) : loadBudgets(),
+          loadInventory(),
         ]);
         if (t) setTransactions(t);
         if (a) setAssets(a);
@@ -251,7 +265,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         if (b) setBudgets(b);
         if (inv) setInventory(inv);
         const [st, pr, cp, cc, rh, dch] = await Promise.all([
-          loadStaff(), loadPayrollRuns(), loadCashPockets(), loadCapitalCommitments(), loadReadinessHistory(), loadDataConfidenceHistory(),
+          isStaffRole ? Promise.resolve(null) : loadStaff(),
+          isStaffRole ? Promise.resolve(null) : loadPayrollRuns(),
+          isStaffRole ? Promise.resolve(null) : loadCashPockets(),
+          isStaffRole ? Promise.resolve(null) : loadCapitalCommitments(),
+          loadReadinessHistory(), loadDataConfidenceHistory(),
         ]);
         if (st) setStaff(st);
         if (pr) setPayrollRuns(pr);
@@ -259,7 +277,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         if (cc) setCapitalCommitments(cc);
         if (rh) setReadinessHistory(rh);
         if (dch) setDataConfidenceHistory(dch);
-        const financingRaw = await AsyncStorage.getItem('@quad360/financing').catch(() => null);
+        const financingRaw = isStaffRole ? null : await AsyncStorage.getItem('@quad360/financing').catch(() => null);
         if (financingRaw) {
           try { setFinancing(JSON.parse(financingRaw)); } catch { /* corrupted cache, keep default */ }
         }
@@ -271,23 +289,34 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [syncUserId, isDemoMode, demoBusinessId]);
+  }, [syncUserId, isDemoMode, demoBusinessId, isStaffRole]);
 
   // Persist on change (only after the initial load, and never in demo mode
   // — "Nothing will be saved" is a promise made on the demo picker screen).
+  // The financially-restricted fields below are also skipped for 'staff' --
+  // not just at load, but at save too. Skipping only the load would leave
+  // these arrays at their empty initial state for a staff session, and the
+  // save effect firing on that empty state would read as "the real owner's
+  // assets/loans/etc. were all deleted," which save*()'s remote-diff-and-
+  // delete logic (see saveAssets's own comment) would then actually carry
+  // out against the real data. A role that can never load this data must
+  // also never be the one who persists (or wipes) it.
   useEffect(() => { if (hydrated && !isDemoMode) saveTransactions(transactions).catch(() => {}); }, [transactions, hydrated, isDemoMode]);
-  useEffect(() => { if (hydrated && !isDemoMode) saveAssets(assets).catch(() => {}); }, [assets, hydrated, isDemoMode]);
-  useEffect(() => { if (hydrated && !isDemoMode) saveLoans(loans).catch(() => {}); }, [loans, hydrated, isDemoMode]);
-  useEffect(() => { if (hydrated && !isDemoMode) { console.log(`[Finance] saving ${budgets.length} budgets`); saveBudgets(budgets).catch((e) => console.error('[Finance] saveBudgets failed:', e)); } }, [budgets, hydrated, isDemoMode]);
+  useEffect(() => { if (hydrated && !isDemoMode && !isStaffRole) saveAssets(assets).catch(() => {}); }, [assets, hydrated, isDemoMode, isStaffRole]);
+  useEffect(() => { if (hydrated && !isDemoMode && !isStaffRole) saveLoans(loans).catch(() => {}); }, [loans, hydrated, isDemoMode, isStaffRole]);
+  useEffect(() => { if (hydrated && !isDemoMode && !isStaffRole) { console.log(`[Finance] saving ${budgets.length} budgets`); saveBudgets(budgets).catch((e) => console.error('[Finance] saveBudgets failed:', e)); } }, [budgets, hydrated, isDemoMode, isStaffRole]);
   useEffect(() => { if (hydrated && !isDemoMode) saveInventory(inventory).catch(() => {}); }, [inventory, hydrated, isDemoMode]);
-  useEffect(() => { if (hydrated && !isDemoMode) saveStaff(staff).catch(() => {}); }, [staff, hydrated, isDemoMode]);
-  useEffect(() => { if (hydrated && !isDemoMode) savePayrollRuns(payrollRuns).catch(() => {}); }, [payrollRuns, hydrated, isDemoMode]);
-  useEffect(() => { if (hydrated && !isDemoMode) saveCashPockets(cashPockets).catch(() => {}); }, [cashPockets, hydrated, isDemoMode]);
-  useEffect(() => { if (hydrated && !isDemoMode) saveCapitalCommitments(capitalCommitments).catch(() => {}); }, [capitalCommitments, hydrated, isDemoMode]);
+  useEffect(() => { if (hydrated && !isDemoMode && !isStaffRole) saveStaff(staff).catch(() => {}); }, [staff, hydrated, isDemoMode, isStaffRole]);
+  useEffect(() => { if (hydrated && !isDemoMode && !isStaffRole) savePayrollRuns(payrollRuns).catch(() => {}); }, [payrollRuns, hydrated, isDemoMode, isStaffRole]);
+  useEffect(() => { if (hydrated && !isDemoMode && !isStaffRole) saveCashPockets(cashPockets).catch(() => {}); }, [cashPockets, hydrated, isDemoMode, isStaffRole]);
+  useEffect(() => { if (hydrated && !isDemoMode && !isStaffRole) saveCapitalCommitments(capitalCommitments).catch(() => {}); }, [capitalCommitments, hydrated, isDemoMode, isStaffRole]);
   useEffect(() => { if (hydrated && !isDemoMode) saveReadinessHistory(readinessHistory).catch(() => {}); }, [readinessHistory, hydrated, isDemoMode]);
   useEffect(() => { if (hydrated && !isDemoMode) saveDataConfidenceHistory(dataConfidenceHistory).catch(() => {}); }, [dataConfidenceHistory, hydrated, isDemoMode]);
   useEffect(() => {
-    if (hydrated && !isDemoMode) {
+    // Never loaded for 'staff' (see the hydrate effect above), so `financing`
+    // is still just the never-qualified default here -- writing that would
+    // overwrite the real owner's merchant_financing row with a blank state.
+    if (hydrated && !isDemoMode && !isStaffRole) {
       AsyncStorage.setItem('@quad360/financing', JSON.stringify(financing)).catch(() => {});
       // Restores a Supabase write that existed in the pre-split AppContext.tsx
       // (syncFinancingToSupabase) but was dropped when this provider replaced
@@ -295,7 +324,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       // AsyncStorage on the applicant's own device, never Quad360 itself.
       if (syncUserId) syncFinancingToSupabase(financing, syncUserId).catch(() => {});
     }
-  }, [financing, hydrated, isDemoMode, syncUserId]);
+  }, [financing, hydrated, isDemoMode, syncUserId, isStaffRole]);
 
   // Blank Guest Mode (demoBusinessId === null) is the one demo-mode case
   // where the data is real, user-entered work, not sample data — and per
@@ -733,12 +762,20 @@ export function GoalProvider({ children }: { children: ReactNode }) {
   const authCtx = useContext(AuthContext);
   const syncUserId = authCtx?.user?.email;
   const isDemoMode = authCtx?.isDemoMode ?? false;
+  // Goals carry target/current values and progress toward revenue, margin,
+  // and cash-reserve targets -- P&L-adjacent detail 'staff' has no
+  // visibility into (see the matching isStaffRole comment in
+  // FinanceProvider). Skipped at both load and save for the same reason:
+  // saveGoals's remote-diff-and-delete would wipe the real owner's goals
+  // if this ever saved an empty array a staff session never actually loaded.
+  const isStaffRole = authCtx?.user?.role === 'staff';
 
   useEffect(() => {
     setHydrated(false);
     setGoals([]); // clear the previous identity's goals before loading the new one
 
     if (isDemoMode) { setHydrated(true); return; } // demo businesses carry no sample goals
+    if (isStaffRole) { setHydrated(true); return; }
 
     (async () => {
       try {
@@ -749,8 +786,8 @@ export function GoalProvider({ children }: { children: ReactNode }) {
       finally { setHydrated(true); }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [syncUserId, isDemoMode]);
-  useEffect(() => { if (hydrated && !isDemoMode) saveGoals(goals).catch(() => {}); }, [goals, hydrated, isDemoMode]);
+  }, [syncUserId, isDemoMode, isStaffRole]);
+  useEffect(() => { if (hydrated && !isDemoMode && !isStaffRole) saveGoals(goals).catch(() => {}); }, [goals, hydrated, isDemoMode, isStaffRole]);
 
   const value: GoalContextValue = useMemo(
     () => ({
