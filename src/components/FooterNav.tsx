@@ -23,13 +23,29 @@ import { isScreenAllowedForRole } from '../utils/rolePermissions';
 // link, or existing screen is touched by this reorg -- only grouping,
 // order, and the copy that explains the order.
 //
+// Assets and Loans moved here from Fund. Both are record-keeping screens a
+// business owner needs regardless of whether they're currently raising
+// capital -- what you own and its condition (Assets), what you owe and
+// its repayment status (Loans) -- exactly the same role Inventory already
+// plays here, and exactly the same role Invoices plays as a persistent
+// bottom tab. All four ALSO feed the lending math on Credit-Worthiness
+// behind the scenes (asset book value + inventory value = the Collateral
+// pillar of the Five C's; loan history drives the DSCR/Capacity pillar;
+// unpaid invoices are counted as a receivable asset in the leverage
+// ratios) -- but that's Credit reading their data, not a reason to file
+// the data-entry screens themselves under a capital-raising label. Fund
+// now holds only the two screens whose entire job IS assessing or
+// pursuing capital: Credit-Worthiness (reads Assets/Loans/Inventory to
+// show what a lender would see) and the Financing Marketplace.
+//
 // Within each stage, item ORDER encodes the sequence a business owner
 // would actually work through, not alphabetical or arbitrary placement:
-//  - Understand: overall score first, then the two things that most
-//    directly threaten survival day to day (cash, stock), then your
-//    biggest recurring fixed cost (payroll), and last a hygiene check
-//    (reconciliation) that verifies the numbers behind everything above
-//    are actually correct -- worth doing once you know what you're
+//  - Understand: overall score first; then cash (the most liquid, most
+//    urgent resource); then the things you hold -- stock (Inventory) and
+//    equipment/property (Assets); then what you owe against them (Loans);
+//    then your biggest recurring fixed cost (Payroll); and last a hygiene
+//    check (Reconciliation) that verifies the numbers behind everything
+//    above are actually correct -- worth doing once you know what you're
 //    checking, not before.
 //  - Anticipate: you can't usefully forecast or plan growth without
 //    first knowing what could go wrong (risk), so risk leads; forecast
@@ -49,6 +65,8 @@ const UNDERSTAND_ITEMS: { label: string; icon: IconName; screen: Screen; color: 
     { label: 'Scoreboard',     icon: 'activity',      screen: 'scoreboard',     color: '#22d3ee', desc: 'Financial health at a glance' },
     { label: 'Cash Flow',      icon: 'droplet',       screen: 'cashflow',       color: '#3b82f6', desc: 'Runway & receivables risk' },
     { label: 'Inventory',      icon: 'package',       screen: 'inventory',      color: '#f59e0b', desc: 'Stock levels & margins' },
+    { label: 'Assets',         icon: 'briefcase',     screen: 'assets',         color: '#0ea5e9', desc: 'What you own & what it\'s worth' },
+    { label: 'Loans',          icon: 'percent',       screen: 'loans',          color: '#f97316', desc: 'What you owe & repayment status' },
     { label: 'Payroll',        icon: 'users',         screen: 'payroll',        color: '#10b981', desc: 'Staff & monthly pay runs' },
     { label: 'Reconciliation', icon: 'link-2',        screen: 'reconciliation', color: '#8b5cf6', desc: 'Confirm the numbers above match your bank' },
 ];
@@ -73,8 +91,6 @@ const IMPROVE_ITEMS: { label: string; icon: IconName; screen: Screen; color: str
 ];
 
 const FUND_ITEMS: { label: string; icon: IconName; screen: Screen; color: string }[] = [
-    { label: 'Assets',      icon: 'briefcase',    screen: 'assets',            color: '#3b82f6' },
-    { label: 'Loans',       icon: 'percent',      screen: 'loans',             color: '#f97316' },
     { label: 'Credit',      icon: 'credit-card',  screen: 'credit-worthiness', color: '#eab308' },
     { label: 'Financing',   icon: 'search',       screen: 'financing-marketplace', color: '#14b8a6' },
 ];
@@ -266,7 +282,7 @@ export default function FooterNav() {
                         {/* ── Understand ────────────────────────────────── */}
                         <Text style={styles.sectionHeader}>Understand</Text>
                         <Text style={styles.sectionSubtitle}>Where does my business stand?</Text>
-                        <Text style={styles.flowHint}>Start with your score, then cash and stock, then payroll — finish by confirming the numbers match your bank.</Text>
+                        <Text style={styles.flowHint}>Start with your score, then cash, stock and equipment, then what you owe and pay out — finish by confirming the numbers match your bank.</Text>
                         <View style={styles.listCard}>
                             {visibleUnderstand.map((item, i, arr) => (
                                 <TouchableOpacity
@@ -358,7 +374,7 @@ export default function FooterNav() {
                         {/* ── Fund ──────────────────────────────────────── */}
                         <Text style={styles.sectionHeader}>Fund</Text>
                         <Text style={styles.sectionSubtitle}>Am I ready for capital?</Text>
-                        <Text style={styles.flowHint}>Not a stage in the loop — reach for this whenever a decision needs outside capital.</Text>
+                        <Text style={styles.flowHint}>Not a stage in the loop — reads your Assets, Loans and Inventory to show what a lender would see, and where to look for capital.</Text>
                         <View style={styles.gridCard}>
                             {visibleFund.map(item => (
                                 <TouchableOpacity
