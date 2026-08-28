@@ -309,6 +309,87 @@ export function computeAssetsNearingReplacement(assets: Asset[]): Asset[] {
     return assets.filter(a => a.status === 'active' && a.purchaseCost > 0 && computeAssetCurrentValue(a) <= a.purchaseCost * 0.2);
 }
 
+export interface UnregisteredAssetPurchase {
+    transactionId: string;
+    date: string;
+    description: string;
+    amount: number;
+}
+
+// Bank-statement import already classifies a row as an asset purchase (see
+// ImportTransactionsScreen's 'Asset Purchase' category, which sets
+// transactionCategory: 'purchase') -- this finds ones that never became a
+// real Asset record, so the Asset Register can prompt to complete them
+// instead of silently losing the signal in the transaction list. Matches
+// on date+amount rather than an explicit link (none exists yet) since
+// that's the same real data both sides share; deliberately does NOT
+// auto-create the Asset itself, because usefulLifeYears/category/residual
+// value aren't knowable from a bank line and guessing them would corrupt
+// every depreciation-based number (current value, payback, replacement
+// forecast) built on top of this record.
+export function computeUnregisteredAssetPurchases(transactions: Transaction[], assets: Asset[]): UnregisteredAssetPurchase[] {
+    const key = (date: string, amount: number) => `${date}|${Math.round(amount * 100)}`;
+    const registered = new Set(assets.map(a => key(a.purchaseDate, a.purchaseCost)));
+    return transactions
+        .filter(t => t.type === 'expense' && t.transactionCategory === 'purchase')
+        .filter(t => !registered.has(key(t.date, t.amount ?? 0)))
+        .map(t => ({ transactionId: t.id, date: t.date, description: t.description || 'Asset purchase', amount: t.amount ?? 0 }));
+}
+
+export interface AssetPaybackInfo {
+    id: string;
+    name: string;
+    purchaseCost: number;
+    monthsElapsed: number;
+    paybackMonths: number | null;   // null when the business isn't currently profitable -- no meaningful payback estimate exists
+    monthsRemaining: number | null; // null when already recovered or paybackMonths is null
+    recovered: boolean;
+}
+
+export interface AssetPaybackSummary {
+    available: boolean;
+    reason?: string;
+    averageMonthlyProfit: number;
+    items: AssetPaybackInfo[];
+}
+
+// "How long before this purchase pays for itself" -- the app has no way to
+// attribute revenue to one specific piece of equipment (a delivery van and
+// a laptop both just show up as a purchase transaction), so this
+// deliberately does NOT pretend to know that. Instead it uses the
+// business's own real average monthly profit as the yardstick: "at what
+// the business is actually earning overall, this purchase represents N
+// months of that." Honest about being a business-wide estimate, not a
+// claim that this specific asset generated that profit.
+export function computeAssetPaybackSummary(assets: Asset[], averageMonthlyProfit: number): AssetPaybackSummary {
+    const active = assets.filter(a => a.status === 'active' && a.purchaseCost > 0);
+    if (active.length === 0) {
+        return { available: false, reason: 'No active assets on record yet.', averageMonthlyProfit, items: [] };
+    }
+
+    const now = new Date();
+    const MS_PER_MONTH = 30.44 * 24 * 3600 * 1000;
+
+    const items: AssetPaybackInfo[] = active.map(a => {
+        const purchaseDate = new Date(a.purchaseDate);
+        const monthsElapsed = Math.max(0, (now.getTime() - purchaseDate.getTime()) / MS_PER_MONTH);
+        const paybackMonths = averageMonthlyProfit > 0 ? a.purchaseCost / averageMonthlyProfit : null;
+        const recovered = paybackMonths !== null && monthsElapsed >= paybackMonths;
+        const monthsRemaining = paybackMonths !== null && !recovered ? Math.ceil(paybackMonths - monthsElapsed) : null;
+        return {
+            id: a.id,
+            name: a.name,
+            purchaseCost: a.purchaseCost,
+            monthsElapsed: Math.round(monthsElapsed),
+            paybackMonths: paybackMonths !== null ? Math.round(paybackMonths) : null,
+            monthsRemaining,
+            recovered,
+        };
+    });
+
+    return { available: true, averageMonthlyProfit, items };
+}
+
 export interface AssetReplacementForecastItem {
     id: string;
     name: string;
@@ -1553,7 +1634,20 @@ export function computeCashFlowForecast(
     const last90 = new Date(today); last90.setDate(today.getDate() - 90);
     const last90Str = last90.toISOString().split('T')[0];
     const recurringExpenses = transactions.filter(t => t.type === 'expense' && t.isRecurring && t.date >= last90Str);
-    const weeklyExpenseBase = recurringExpenses.reduce((s, t) => s + (t.amount ?? 0), 0) / 13; // 13 weeks in 90 days
+    const weeklyRecurringExpenseBase = recurringExpenses.reduce((s, t) => s + (t.amount ?? 0), 0) / 13; // 13 weeks in 90 days
+
+    // Ordinary (not explicitly tagged "recurring") paid activity over the
+    // same trailing 90 days, averaged into a weekly baseline. Without this,
+    // a business that just logs day-to-day sales and expenses one at a
+    // time -- the normal way, never checking "recurring" -- got every week
+    // projected at exactly zero inflow and only loan/budget outflow,
+    // regardless of how much real cash was actually moving. This mirrors
+    // the trailing-90-day historical baseline generateCashFlowForecast
+    // (forecastEngine.ts) already uses for the same reason.
+    const ordinaryRecent = transactions.filter(t => t.date >= last90Str && (t.status ?? 'paid') === 'paid' && !t.isRecurring);
+    const weeklyOrdinaryIncomeBase = ordinaryRecent.filter(t => t.type === 'income').reduce((s, t) => s + (t.amount ?? 0), 0) / 13;
+    const weeklyOrdinaryExpenseBase = ordinaryRecent.filter(t => t.type === 'expense').reduce((s, t) => s + (t.amount ?? 0), 0) / 13;
+    const weeklyExpenseBase = weeklyRecurringExpenseBase + weeklyOrdinaryExpenseBase;
 
     // Monthly loan payments
     const monthlyLoanCost = loans.filter(l => l.status === 'active').reduce((s, l) => s + loanMonthlyPayment(l.principal, l.interestRate, l.termMonths), 0);
@@ -1582,7 +1676,11 @@ export function computeCashFlowForecast(
         const weekStart = new Date(today); weekStart.setDate(today.getDate() + w * 7);
         const weekEnd   = new Date(today); weekEnd.setDate(today.getDate() + (w + 1) * 7 - 1);
         const weekKey = `W${w + 1}`;
-        const inflow  = invoiceMap.get(weekKey) ?? 0;
+        // Invoiced amounts due this week, plus the ordinary day-to-day
+        // sales baseline -- an invoice is a specific, already-committed
+        // future payment; the baseline covers everything else (walk-in
+        // sales, informal payments) that never gets a formal invoice.
+        const inflow  = (invoiceMap.get(weekKey) ?? 0) + weeklyOrdinaryIncomeBase;
         // A committed budget only speaks for weeks that actually fall in the
         // period it was set for; use whichever base is higher, since the
         // budget represents a floor on planned spend, not a cap on real spend.

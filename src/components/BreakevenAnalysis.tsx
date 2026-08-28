@@ -32,6 +32,25 @@ export default function BreakevenAnalysis({ result, currency }: Props) {
         costStructureUpsideDown,
     } = result;
 
+    // Revenue and fixed costs both at zero means there's simply no activity
+    // recorded for this period yet -- not a business that has genuinely hit
+    // its exact breakeven point. Without this, that reads as a trivially
+    // true "ABOVE BREAKEVEN" (0 >= 0) with every line item at zero, which
+    // looks like the feature is broken rather than just waiting on data.
+    if (currentRevenue === 0 && fixedCosts === 0 && variableCostRatio === 0) {
+        return (
+            <View style={styles.card}>
+                <Text style={styles.title}>BREAKEVEN ANALYSIS — YOUR ACTUAL BUSINESS</Text>
+                <View style={[styles.belowBox, { borderColor: Colors.border }]}>
+                    <Text style={[styles.belowTitle, { color: Colors.textMuted }]}>NOT ENOUGH DATA YET</Text>
+                    <Text style={styles.belowText}>
+                        No revenue or expenses recorded for this period, so there's nothing real to compare against a breakeven point. Record some transactions and this will fill in automatically.
+                    </Text>
+                </View>
+            </View>
+        );
+    }
+
     const isAboveBreakeven = !costStructureUpsideDown && surplusOrGap >= 0;
     const contributionMarginPct = (1 - variableCostRatio) * 100;
     const contributionMargin = contributionMarginPct.toFixed(1);

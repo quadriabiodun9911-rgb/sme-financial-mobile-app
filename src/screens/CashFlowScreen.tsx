@@ -218,9 +218,18 @@ export default function CashFlowScreen() {
                         <View style={styles.noteBoxRow}>
                             <Icon name="zap" size={14} color={Colors.primary} />
                             <Text style={styles.noteText}>
-                                Inflows are based on pending invoice due dates. Outflows use your recurring expenses, active loan payments{usesBudget ? ', and this month\'s committed budget' : ''}. Add more transactions to improve accuracy.
+                                Inflows are pending invoice due dates plus your average weekly sales from the last 90 days. Outflows use your recurring expenses, average ordinary spending, active loan payments{usesBudget ? ', and this month\'s committed budget' : ''}. Add more transactions to improve accuracy.
                             </Text>
                         </View>
+
+                        {totalInflow === 0 && totalOutflow === 0 && (
+                            <View style={styles.alertBanner}>
+                                <Icon name="info" size={16} color={Colors.textMuted} />
+                                <Text style={[styles.alertText, { color: Colors.textMuted }]}>
+                                    Every week shows {fmt(0)} because there's no recorded activity to project from yet — no paid transactions in the last 90 days, no unpaid invoices due soon, no active loans, and no budget set. Record some transactions to see a real forecast here.
+                                </Text>
+                            </View>
+                        )}
 
                         <NextStepLink
                             emphasis="button"

@@ -9,7 +9,7 @@ import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { t } from '../utils/i18n';
 import { Asset, AssetCategory } from '../types';
-import { computeAssetCurrentValue, computeAssetAnnualDepreciation, computeAssetsNearingReplacement } from '../utils/finance';
+import { computeAssetCurrentValue, computeAssetAnnualDepreciation, computeAssetsNearingReplacement, computeAssetPaybackSummary, countActiveMonths, computeUnregisteredAssetPurchases } from '../utils/finance';
 import { analyzeAcquisition } from '../utils/assetAcquisitionEngine';
 import AssetProductivityAnalysis from '../components/AssetProductivityAnalysis';
 import { monthlyPayment } from '../utils/loanMath';
@@ -35,7 +35,7 @@ function categoryLabel(cat: AssetCategory, lang: Parameters<typeof t>[0]): strin
 type FilterTab = 'active' | 'disposed' | 'all';
 
 export default function AssetsScreen() {
-    const { assets, addAsset, updateAsset, deleteAsset, disposeAsset, settings, language, setCurrentScreen, navigate, finance, addLoan, addTransaction } = useApp();
+    const { assets, addAsset, updateAsset, deleteAsset, disposeAsset, settings, language, setCurrentScreen, navigate, finance, addLoan, addTransaction, transactions } = useApp();
     const { currency } = settings;
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
@@ -77,6 +77,23 @@ export default function AssetsScreen() {
     };
 
     const openAdd = () => { resetForm(); setShowForm(true); };
+
+    // Prefills the same Add Asset form with what the bank statement already
+    // told us for real (name, cost, date) -- useful life/category/residual
+    // still need a person's judgment, so those stay at resetForm()'s
+    // defaults for the user to set rather than being guessed.
+    const openAddFromTransaction = (name: string, cost: number, date: string) => {
+        resetForm();
+        setName(name);
+        setPCost(String(cost));
+        setPDate(date);
+        setShowForm(true);
+    };
+
+    const unregisteredPurchases = useMemo(
+        () => computeUnregisteredAssetPurchases(transactions, assets),
+        [transactions, assets],
+    );
 
     const openEdit = useCallback((a: Asset) => {
         setName(a.name); setCategory(a.category); setDesc(a.description ?? '');
@@ -185,6 +202,21 @@ export default function AssetsScreen() {
         [activeAssets],
     );
 
+    // "How long before this purchase pays for itself" -- how many months of
+    // the business's own real average monthly profit this asset's cost
+    // represents, and whether that many months have already passed since
+    // it was bought. Business-wide profit, not a claim about what this one
+    // asset specifically earned (the app has no way to attribute revenue to
+    // one piece of equipment) -- the UI is explicit about that.
+    const averageMonthlyProfit = useMemo(
+        () => finance.profit / countActiveMonths(transactions),
+        [finance.profit, transactions],
+    );
+    const paybackSummary = useMemo(
+        () => computeAssetPaybackSummary(activeAssets, averageMonthlyProfit),
+        [activeAssets, averageMonthlyProfit],
+    );
+
     const grouped = useMemo(() => {
         const map = new Map<AssetCategory, Asset[]>();
         for (const a of filtered) {
@@ -226,6 +258,68 @@ export default function AssetsScreen() {
                     keep — ROA, turnover, efficiency — not just their book value. */}
                 {activeAssets.length > 0 && (
                     <AssetProductivityAnalysis finance={finance} assets={assets} currency={currency} />
+                )}
+
+                {/* Payback / break-even: how long before each purchase has
+                    paid for itself, at the business's own real profit rate. */}
+                {paybackSummary.available && (
+                    <View style={s.summaryCard}>
+                        <Text style={s.summaryLabel}>Asset Payback (Estimated)</Text>
+                        <Text style={s.paybackCaveat}>
+                            {averageMonthlyProfit > 0
+                                ? `Based on your business's average profit of ${currency}${Math.round(averageMonthlyProfit).toLocaleString()}/month — an aggregate estimate, not a claim about what any one asset itself earned.`
+                                : "Your business hasn't been profitable on average, so a payback estimate can't be calculated yet."}
+                        </Text>
+                        {paybackSummary.items.map(item => (
+                            <View key={item.id} style={s.paybackRow}>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={s.paybackName}>{item.name}</Text>
+                                    <Text style={s.paybackDetail}>
+                                        {item.paybackMonths === null
+                                            ? `${currency}${item.purchaseCost.toLocaleString()} — no payback estimate available`
+                                            : item.recovered
+                                            ? item.paybackMonths === 0
+                                                ? `Recovered — pays for itself in under a month at this rate`
+                                                : `Recovered — ${item.monthsElapsed} months since purchase covers the ${item.paybackMonths}-month estimate`
+                                            : `~${item.monthsRemaining} month${item.monthsRemaining === 1 ? '' : 's'} left of an estimated ${item.paybackMonths}-month payback`}
+                                    </Text>
+                                </View>
+                                {item.paybackMonths !== null && (
+                                    <View style={[s.paybackBadge, { backgroundColor: (item.recovered ? Colors.income : Colors.warning) + '20' }]}>
+                                        <Text style={[s.paybackBadgeText, { color: item.recovered ? Colors.income : Colors.warning }]}>
+                                            {item.recovered ? 'Paid Back' : `${item.paybackMonths}mo est.`}
+                                        </Text>
+                                    </View>
+                                )}
+                            </View>
+                        ))}
+                    </View>
+                )}
+
+                {/* Asset purchases the import classifier already flagged
+                    ("Asset Purchase" category) that never became a real
+                    Asset record -- the real cost/date is filled in, only
+                    category/useful life need a person's input. */}
+                {unregisteredPurchases.length > 0 && (
+                    <View style={s.detectedAlert}>
+                        <View style={s.replaceAlertRow}>
+                            <Icon name="upload" size={14} color={Colors.primary} />
+                            <Text style={[s.replaceAlertText, { color: Colors.primary }]}>
+                                {unregisteredPurchases.length} asset purchase{unregisteredPurchases.length > 1 ? 's' : ''} found in your transaction history {unregisteredPurchases.length > 1 ? "aren't" : "isn't"} in this Register yet.
+                            </Text>
+                        </View>
+                        {unregisteredPurchases.slice(0, 3).map(p => (
+                            <View key={p.transactionId} style={s.unregisteredRow}>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={s.unregisteredName} numberOfLines={1}>{p.description}</Text>
+                                    <Text style={s.unregisteredMeta}>{p.date} · {currency}{p.amount.toLocaleString()}</Text>
+                                </View>
+                                <TouchableOpacity onPress={() => openAddFromTransaction(p.description, p.amount, p.date)}>
+                                    <Text style={s.unregisteredAdd}>Add to Register →</Text>
+                                </TouchableOpacity>
+                            </View>
+                        ))}
+                    </View>
                 )}
 
                 {/* Replacement alerts */}
@@ -539,6 +633,13 @@ const s = StyleSheet.create({
     summaryValue: { fontSize: 28, fontWeight: 'bold', color: Colors.income },
     summaryMeta:  { fontSize: 11, color: Colors.textMuted, marginTop: Spacing.xs },
 
+    paybackCaveat: { fontSize: 11, color: Colors.textMuted, lineHeight: 15, marginTop: Spacing.xs, marginBottom: Spacing.md },
+    paybackRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.border, gap: Spacing.sm },
+    paybackName: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
+    paybackDetail: { fontSize: 11.5, color: Colors.textSecondary, marginTop: 2, lineHeight: 15 },
+    paybackBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: Radius.pill },
+    paybackBadgeText: { fontSize: 10.5, fontWeight: '800' },
+
     tabRow: { flexDirection: 'row', marginBottom: 14, gap: Spacing.sm },
     tab:        { flex: 1, paddingVertical: 7, borderRadius: Radius.sm, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
     tabActive:  { backgroundColor: Colors.primary, borderColor: Colors.primary },
@@ -573,6 +674,12 @@ const s = StyleSheet.create({
     replaceAlert:  { backgroundColor: 'rgba(245,158,11,0.12)', borderWidth: 1, borderColor: Colors.warning, borderRadius: 10, padding: Spacing.md, marginBottom: 10 },
     replaceAlertRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
     replaceAlertText: { flex: 1, fontSize: 12, color: Colors.warning, lineHeight: 18 },
+
+    detectedAlert: { backgroundColor: Colors.primary + '12', borderWidth: 1, borderColor: Colors.primary, borderRadius: 10, padding: Spacing.md, marginBottom: 10 },
+    unregisteredRow: { flexDirection: 'row', alignItems: 'center', paddingTop: Spacing.sm, marginTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.primary + '30', gap: Spacing.sm },
+    unregisteredName: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary },
+    unregisteredMeta: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
+    unregisteredAdd: { fontSize: 11.5, color: Colors.primary, fontWeight: '700' },
 
     actionRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.xs },
     actionBtn: { flex: 1, paddingVertical: 6, borderRadius: 6, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },

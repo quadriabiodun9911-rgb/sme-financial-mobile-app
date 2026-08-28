@@ -17,6 +17,7 @@ import { computeProfitCashImpact } from '../utils/impactChain';
 import PayrollProviderCard from '../components/PayrollProviderCard';
 import { showAlert, confirmAction } from '../utils/webAlert';
 import { getPayrollReminderStatus } from '../utils/payrollReminders';
+import { computePayrollActivitySummary, describePayrollActivity } from '../utils/payrollActivity';
 
 type Tab = 'staff' | 'run' | 'history';
 
@@ -27,7 +28,7 @@ const EMPTY_STAFF: Omit<StaffMember, 'id' | 'createdAt'> = {
 };
 
 export default function PayrollScreen() {
-    const { staff, addStaff, updateStaff, deleteStaff, payrollRuns, runPayroll, deletePayrollRun, settings, updateSettings, setCurrentScreen, finance } = useApp();
+    const { staff, addStaff, updateStaff, deleteStaff, payrollRuns, runPayroll, deletePayrollRun, settings, updateSettings, setCurrentScreen, finance, transactions } = useApp();
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
     // see FooterNav.tsx for the reference fix. presentationStyle="pageSheet"
@@ -50,6 +51,14 @@ export default function PayrollScreen() {
 
     const activeStaff = useMemo(() => staff.filter(s => s.status === 'active'), [staff]);
     const payrollStatus = useMemo(() => getPayrollReminderStatus(staff, payrollRuns), [staff, payrollRuns]);
+
+    // Behavioral signal read straight from recorded/imported bank
+    // transactions tagged "Payroll" -- when and roughly how much the
+    // business actually pays staff, independent of whether a formal Run
+    // Payroll was ever done in-app. Deliberately not a fabricated
+    // per-staff PayrollRun (a lump bank line has no real per-staff split).
+    const payrollActivity = useMemo(() => computePayrollActivitySummary(transactions), [transactions]);
+    const payrollActivityDescription = useMemo(() => describePayrollActivity(payrollActivity, sym), [payrollActivity, sym]);
     const totalMonthlyPayroll = useMemo(() =>
         activeStaff.reduce((s, m) => s + (m.salaryType === 'monthly' ? m.salary : m.salaryType === 'weekly' ? m.salary * 4.33 : m.salary * 22), 0),
         [activeStaff]
@@ -271,6 +280,33 @@ export default function PayrollScreen() {
                 {/* ── History Tab ───────────────────────────────────────── */}
                 {tab === 'history' && (
                     <>
+                        {/* What the bank statement itself already shows about
+                            payroll -- when and how much the business pays
+                            staff -- independent of whether a formal Run
+                            Payroll was ever done in-app. Not a per-staff
+                            breakdown (a lump bank line can't tell us that),
+                            just the real pattern. */}
+                        <View style={styles.activityCard}>
+                            <Text style={styles.activityTitle}>Payroll Activity From Your Records</Text>
+                            {payrollActivity.available ? (
+                                <>
+                                    <Text style={styles.activityDescription}>{payrollActivityDescription}</Text>
+                                    {payrollActivity.entries.slice(0, 5).map((entry, i) => (
+                                        <View key={i} style={styles.activityRow}>
+                                            <Text style={styles.activityDate}>{entry.date}</Text>
+                                            <Text style={styles.activityDesc} numberOfLines={1}>{entry.description}</Text>
+                                            <Text style={styles.activityAmount}>{fmt(entry.amount)}</Text>
+                                        </View>
+                                    ))}
+                                    {payrollActivity.entries.length > 5 && (
+                                        <Text style={styles.activityMore}>+{payrollActivity.entries.length - 5} more recorded</Text>
+                                    )}
+                                </>
+                            ) : (
+                                <Text style={styles.activityDescription}>{payrollActivity.reason}</Text>
+                            )}
+                        </View>
+
                         {payrollRuns.length > 0 && (
                             <NextStepLink text="See the effect of payroll on your cash forecast" onPress={() => setCurrentScreen('cashflow')} />
                         )}
@@ -447,6 +483,15 @@ const styles = StyleSheet.create({
     runBtnDisabled: { backgroundColor: Colors.textMuted },
     runBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
     noStaffNote: { textAlign: 'center', fontSize: 12, color: Colors.textMuted, marginTop: 8 },
+
+    activityCard: { backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.border, padding: 16, marginBottom: 16 },
+    activityTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: 8 },
+    activityDescription: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18, marginBottom: 10 },
+    activityRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderTopWidth: 1, borderTopColor: Colors.border, gap: 8 },
+    activityDate: { fontSize: 11, color: Colors.textMuted, width: 78 },
+    activityDesc: { fontSize: 12, color: Colors.textSecondary, flex: 1 },
+    activityAmount: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary },
+    activityMore: { fontSize: 11, color: Colors.textMuted, fontStyle: 'italic', marginTop: 6 },
 
     runCard: { backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.border, padding: 16, marginBottom: 12 },
     runCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 },

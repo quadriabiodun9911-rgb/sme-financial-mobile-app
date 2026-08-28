@@ -151,3 +151,55 @@ describe('computeCashFlowForecast — budget awareness', () => {
         expect(weeks.every(w => w.usedBudget === false)).toBe(true);
     });
 });
+
+// A business that just logs day-to-day sales/expenses one at a time --
+// never tagging anything "recurring" -- used to get every week projected
+// at zero inflow (recurring/invoice/budget were its only inputs), no
+// matter how much real cash was actually moving. This is the same
+// historical-average-fallback fix generateCashFlowForecast already had.
+describe('computeCashFlowForecast — ordinary (non-recurring) transaction history', () => {
+    const recentDate = (daysAgo: number) => {
+        const d = new Date();
+        d.setDate(d.getDate() - daysAgo);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+
+    it('projects nonzero inflow/outflow from recent ordinary paid transactions even with none marked recurring', () => {
+        const txs: Transaction[] = [
+            makeTx({ type: 'income', amount: 130000, status: 'paid', date: recentDate(10) }),
+            makeTx({ type: 'expense', amount: 65000, status: 'paid', date: recentDate(5), category: 'Rent' }),
+        ];
+        const weeks = computeCashFlowForecast(txs, [], []);
+        expect(weeks[0].projectedInflow).toBeGreaterThan(0);
+        expect(weeks[0].projectedOutflow).toBeGreaterThan(0);
+    });
+
+    it('ignores paid ordinary transactions older than 90 days', () => {
+        const txs: Transaction[] = [
+            makeTx({ type: 'income', amount: 500000, status: 'paid', date: recentDate(200) }),
+        ];
+        const weeks = computeCashFlowForecast(txs, [], []);
+        expect(weeks.every(w => w.projectedInflow === 0)).toBe(true);
+    });
+
+    it('excludes unpaid transactions from the ordinary baseline', () => {
+        const txs: Transaction[] = [
+            makeTx({ type: 'income', amount: 500000, status: 'pending', date: recentDate(10) }),
+        ];
+        const weeks = computeCashFlowForecast(txs, [], []);
+        expect(weeks.every(w => w.projectedInflow === 0)).toBe(true);
+    });
+
+    it('does not double-count a transaction already tagged recurring in the ordinary baseline', () => {
+        const txs: Transaction[] = [
+            makeTx({ type: 'expense', amount: 65000, status: 'paid', date: recentDate(5), isRecurring: true }),
+        ];
+        const onlyRecurring = computeCashFlowForecast(txs, [], []);
+        const recurringPlusDuplicate = computeCashFlowForecast([...txs, { ...txs[0], id: 'dup', isRecurring: false }], [], []);
+        // The non-recurring duplicate should add its own share on top, not
+        // silently get skipped -- confirms recurring and ordinary buckets
+        // are mutually exclusive (isRecurring transactions are filtered out
+        // of the ordinary baseline), not double-summed for the same row.
+        expect(recurringPlusDuplicate[0].projectedOutflow).toBeGreaterThan(onlyRecurring[0].projectedOutflow);
+    });
+});

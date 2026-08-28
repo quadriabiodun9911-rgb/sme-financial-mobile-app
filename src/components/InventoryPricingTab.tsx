@@ -228,6 +228,15 @@ export default function InventoryPricingTab() {
                         </TouchableOpacity>
                     )}
                 </View>
+                {/* Stated before the numbers, not after -- so a reader who
+                    types a new price for an untracked item understands
+                    up front why the totals below won't move, instead of
+                    reading a flat $0 and a footnote as a broken feature. */}
+                <Text style={s.disc}>
+                    {scenario.itemsWithSalesData === 0
+                        ? "None of your items have recorded sales through Inventory's \"Sell\" action yet, so profit below can't move -- margin per product still updates instantly as you type a price."
+                        : `Revenue and profit below are based on ${scenario.itemsWithSalesData} item${scenario.itemsWithSalesData === 1 ? '' : 's'} with recent recorded sales${scenario.itemsWithoutSalesData > 0 ? ` (${scenario.itemsWithoutSalesData} more have no sales data yet, so a new price for them won't move these totals)` : ''}.`}
+                </Text>
                 <View style={s.kpiRow}>
                     <Kpi label="Current Revenue" value={fmt(currency, scenario.currentMonthlyRevenue)} color={Colors.textPrimary} />
                     <Kpi label="Scenario Revenue" value={fmt(currency, scenario.scenarioMonthlyRevenue)} color={Colors.income} />
@@ -243,10 +252,6 @@ export default function InventoryPricingTab() {
                         {' '}({scenario.profitGainPct >= 0 ? '+' : ''}{scenario.profitGainPct.toFixed(0)}%)
                     </Text>
                 </View>
-                <Text style={s.disc}>
-                    Based on {scenario.itemsWithSalesData} item{scenario.itemsWithSalesData === 1 ? '' : 's'} with recent recorded sales
-                    {scenario.itemsWithoutSalesData > 0 ? ` (${scenario.itemsWithoutSalesData} more have no sales data yet)` : ''}.
-                </Text>
             </View>
 
             {inventoryDecisions.length > 0 && (
@@ -319,11 +324,18 @@ function ProductRow({ row, currency, draft, onChangeDraft }: {
                 onChangeText={onChangeDraft}
                 keyboardType="decimal-pad"
             />
+            {/* Margin is price vs. this item's own cost price -- always
+                computable, sales history or not -- so it updates the
+                instant a new price is typed. Monthly Profit multiplies
+                that margin by units actually sold, which for an item with
+                no recorded sales through Inventory's "Sell" action has
+                nothing real to multiply by, so it stays blank rather than
+                inventing a volume. */}
             <Text style={[s.td, { color: row.scenarioMargin < 0 ? Colors.expense : row.scenarioMargin < 15 ? Colors.warning : Colors.income }]}>
-                {row.hasSalesData || draft ? `${row.scenarioMargin.toFixed(0)}%` : '—'}
+                {row.scenarioMargin.toFixed(0)}%
             </Text>
-            <Text style={[s.td, { fontWeight: '700', color: row.scenarioMonthlyProfit >= 0 ? Colors.income : Colors.expense }]}>
-                {row.hasSalesData ? fmt(currency, row.scenarioMonthlyProfit) : '—'}
+            <Text style={[s.td, row.hasSalesData ? { fontWeight: '700', color: row.scenarioMonthlyProfit >= 0 ? Colors.income : Colors.expense } : s.noSalesData]}>
+                {row.hasSalesData ? fmt(currency, row.scenarioMonthlyProfit) : 'No sales yet'}
             </Text>
         </View>
     );
@@ -382,6 +394,7 @@ const s = StyleSheet.create({
     th: { flex: 1, fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase' },
     tableRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border, gap: 4 },
     td: { flex: 1, fontSize: 12, color: Colors.textSecondary },
+    noSalesData: { fontSize: 10.5, color: Colors.textMuted, fontStyle: 'italic' },
     productName: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary },
     productCategory: { fontSize: 10, color: Colors.textMuted, marginTop: 2 },
     priceInput: { flex: 1, backgroundColor: Colors.bg, borderRadius: 6, borderWidth: 1, borderColor: Colors.border, paddingVertical: 6, paddingHorizontal: 8, fontSize: 12, color: Colors.textPrimary },
