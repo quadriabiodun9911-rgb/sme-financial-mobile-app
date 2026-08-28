@@ -24,7 +24,6 @@ import DailyTargetCard from '../components/DailyTargetCard';
 import MonthlyReview from '../components/MonthlyReview';
 import CashPocketsModal from '../components/CashPocketsModal';
 import DailyReportModal from '../components/DailyReportModal';
-import MerchantFinancingQualificationWidget from '../components/MerchantFinancingQualificationWidget';
 import StickyMetricsHeader from '../components/StickyMetricsHeader';
 import { MetricsComputer } from '../utils/metricsComputer';
 import GreetingCard from '../components/GreetingCard';
@@ -49,7 +48,7 @@ import { getUninvoicedOverdueTransactions } from '../utils/overdueTransactions';
 import { getTaxDeadlineStatus } from '../utils/taxDeadline';
 import { isRecurringTransactionOverdue, daysUntilRecurringDue, hasRecurringSchedule } from '../utils/recurringTransactions';
 import { isBudgetActiveForPeriod, isBudgetPeriodLapsed, currentPeriodString } from '../utils/budgetPeriod';
-import { computeAssetsNearingReplacement, computeAssetCurrentValue, getMonthlyExpenseAverage, computeOneThingInsight, computeRiskScore, computeDSCR, computeFinancingReadinessScore } from '../utils/finance';
+import { computeAssetsNearingReplacement, computeAssetCurrentValue, getMonthlyExpenseAverage, computeOneThingInsight, computeRiskScore, computeDSCR, computeFinancingReadinessScore, RISK_BAND_STYLE } from '../utils/finance';
 import { computeStockVelocity, computeInventoryValue } from '../utils/stockVelocity';
 import { computeDataQuality } from '../utils/dataQuality';
 import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
@@ -79,6 +78,17 @@ const RISK_LEVEL_META: Record<RiskLevel, { color: string; dot: string }> = {
     low:       { color: Colors.income,     dot: '🟢' },
     'no-data': { color: Colors.textMuted,  dot: '⚪' },
 };
+
+// Same band/status colors the Scoreboard screen uses for computeRiskScore's
+// output -- one canonical score shown consistently everywhere it appears.
+const HEALTH_BAND_COLOR: Record<string, string> = {
+    Excellent: Colors.income,
+    Strong: '#10b981',
+    Moderate: Colors.warning,
+    Weak: '#fb923c',
+    Critical: Colors.expense,
+};
+const HEALTH_FACTOR_STATUS_COLOR: Record<string, string> = { good: Colors.income, warning: Colors.warning, danger: Colors.expense };
 
 const PRIORITY_TIER_META: Record<PriorityTier, { emoji: string; label: string; color: string; tinted: boolean }> = {
     attention:   { emoji: '🔴', label: 'Attention',   color: Colors.expense, tinted: true },
@@ -305,6 +315,22 @@ export default function DashboardScreen() {
     // would. Deliberately excludes the always-available Working Capital
     // fallback (see financingRecommendation.ts) -- a generic "you might
     // want financing" card here would just be clutter.
+    // The single canonical business health score (computeRiskScore) -- same
+    // seven weighted pillars (Profitability, Liquidity, Working Capital,
+    // Debt, Efficiency, Inventory, Concentration) the Scoreboard screen
+    // shows, computed once here and reused by both the Dashboard's own
+    // health-score card below and financingCapacity's lending estimate, so
+    // the two never independently recompute (and can never drift from) the
+    // same underlying score.
+    const businessHealth = useMemo(
+        () => computeRiskScore(finance, loans, transactions, inventory),
+        [finance, loans, transactions, inventory]
+    );
+    const healthBandMeta = useMemo(
+        () => ({ ...RISK_BAND_STYLE[businessHealth.band], color: HEALTH_BAND_COLOR[businessHealth.band] }),
+        [businessHealth.band]
+    );
+
     const financingOpportunity = useMemo(() => {
         const fitInput = buildFinancingFitInput(transactions, loans, settings, user);
         const readinessTrend = computeReadinessDelta(readinessHistory)?.trend ?? null;
@@ -323,11 +349,10 @@ export default function DashboardScreen() {
     const financingCapacity = useMemo(() => {
         if (transactions.length < 5) return null;
         const fitInput = buildFinancingFitInput(transactions, loans, settings, user);
-        const risk = computeRiskScore(finance, loans, transactions, inventory);
         // Reweighted toward debt-service coverage and liquidity -- what
         // actually predicts repayment ability -- same as Credit-Worthiness
         // and the Financing Marketplace's own lending-capacity estimate.
-        const financingReadiness = computeFinancingReadinessScore(risk.factors);
+        const financingReadiness = computeFinancingReadinessScore(businessHealth.factors);
         const dscr = computeDSCR(transactions, loans);
         const dataQuality = computeDataQuality(transactions);
         const inventoryValue = computeInventoryValue(inventory);
@@ -338,7 +363,7 @@ export default function DashboardScreen() {
             hasReliableData: dataQuality.confidence !== 'none' && dataQuality.confidence !== 'limited',
             inventoryValue,
         });
-    }, [transactions, loans, settings, user, finance, inventory]);
+    }, [transactions, loans, settings, user, businessHealth, inventory]);
 
     // Best-effort device notification mirroring the dashboard card above —
     // notifyFinancingOpportunity throttles itself to once per 14 days, so
@@ -1320,19 +1345,38 @@ export default function DashboardScreen() {
                 </View>
                 )}
 
-                {/* SECTION 5: Financing Status */}
-                {canViewFinancials && !isDemoMode && user && (
+                {/* SECTION 5: Business Health -- replaces the old Merchant
+                    Financing Qualification tracker with the same canonical
+                    computeRiskScore the Scoreboard screen shows, so "how is
+                    my business doing" is answered right on the Dashboard
+                    instead of only after navigating to a financing-specific
+                    screen. Tapping through goes to the full breakdown. */}
+                {canViewFinancials && (
                     <View style={styles.operationsSection}>
-                      <Text style={styles.operationsSectionTitle}>🎯 GROWTH TRACKER</Text>
-                      <MerchantFinancingQualificationWidget
-                        daysActive={user.daysActive || 0}
-                        monthlyRevenue={user.avgMonthlyRevenue || 0}
-                        healthScore={user.financialHealthScore || 0}
-                        currency={settings.currency || '₦'}
-                        isQualified={financing.isQualified || false}
-                        hasActiveLoan={financing.activeLoan !== undefined && financing.activeLoan !== null}
-                        onPress={() => navigate('loans', { tab: 'financing' })}
-                      />
+                      <Text style={styles.operationsSectionTitle}>🩺 BUSINESS HEALTH</Text>
+                      <TouchableOpacity
+                        style={[styles.healthScoreCard, { borderColor: healthBandMeta.color }]}
+                        activeOpacity={0.85}
+                        onPress={() => setCurrentScreen('scoreboard')}
+                      >
+                        <View style={styles.healthScoreRow}>
+                            <Text style={[styles.healthScoreValue, { color: healthBandMeta.color }]}>{Math.round(businessHealth.score)}</Text>
+                            <View style={[styles.healthBandBadge, { backgroundColor: healthBandMeta.color + '22' }]}>
+                                <Text style={[styles.healthBandBadgeText, { color: healthBandMeta.color }]}>
+                                    {healthBandMeta.emoji} {healthBandMeta.label} · {businessHealth.grade}
+                                </Text>
+                            </View>
+                        </View>
+                        <View style={styles.healthFactorsRow}>
+                            {businessHealth.factors.map(f => (
+                                <View key={f.name} style={styles.healthFactorChip}>
+                                    <View style={[styles.healthFactorDot, { backgroundColor: HEALTH_FACTOR_STATUS_COLOR[f.status] }]} />
+                                    <Text style={styles.healthFactorChipText}>{f.name}</Text>
+                                </View>
+                            ))}
+                        </View>
+                        <Text style={styles.healthLinkText}>See full breakdown & trend →</Text>
+                      </TouchableOpacity>
                     </View>
                 )}
 
@@ -2021,6 +2065,63 @@ const styles = StyleSheet.create({
       color: Colors.textMuted,
       textTransform: 'uppercase',
       letterSpacing: 0.8,
+    },
+    healthScoreCard: {
+      backgroundColor: Colors.surface,
+      borderRadius: Radius.lg,
+      borderWidth: 1.5,
+      padding: Spacing.lg,
+    },
+    healthScoreRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.md,
+      marginBottom: Spacing.md,
+    },
+    healthScoreValue: {
+      fontSize: 36,
+      fontWeight: '800',
+    },
+    healthBandBadge: {
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: Radius.pill,
+    },
+    healthBandBadgeText: {
+      fontSize: 12,
+      fontWeight: '800',
+    },
+    healthFactorsRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      marginBottom: Spacing.sm,
+    },
+    healthFactorChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      backgroundColor: Colors.bg,
+      borderRadius: Radius.pill,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderWidth: 1,
+      borderColor: Colors.border,
+    },
+    healthFactorDot: {
+      width: 7,
+      height: 7,
+      borderRadius: 4,
+    },
+    healthFactorChipText: {
+      fontSize: 10.5,
+      fontWeight: '600',
+      color: Colors.textSecondary,
+    },
+    healthLinkText: {
+      fontSize: 12.5,
+      color: Colors.primary,
+      fontWeight: '700',
     },
     vitalCard: {
       backgroundColor: Colors.surface,
