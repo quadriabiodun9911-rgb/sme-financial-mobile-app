@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -75,6 +75,15 @@ const GOAL_STATUS_META: Record<GoalStatus, { label: string; color: string }> = {
 export default function ScoreboardScreen() {
     const { transactions, invoices, loans, inventory, finance, settings, goals, readinessHistory, navigate, setCurrentScreen } = useApp();
     const { currency } = settings;
+
+    // Every colored dot on this screen already carries a real, computed
+    // explanation (RiskFactor.explanation / ExposureFactor.detail /
+    // RiskCategory.summary) -- it just wasn't surfaced anywhere. Tapping a
+    // chip reveals its own real text right underneath it; tapping it again
+    // (or another chip) closes it. One shared key namespaced by section so
+    // only one explanation is open across the whole screen at a time.
+    const [expandedChip, setExpandedChip] = useState<string | null>(null);
+    const toggleChip = (key: string) => setExpandedChip(prev => (prev === key ? null : key));
 
     const risk = useMemo(() => computeRiskScore(finance, loans, transactions, inventory), [finance, loans, transactions, inventory]);
     const bandMeta = useMemo(() => ({ ...RISK_BAND_STYLE[risk.band], color: BAND_COLOR[risk.band] }), [risk.band]);
@@ -165,13 +174,21 @@ export default function ScoreboardScreen() {
                         </View>
                     </View>
                     <View style={s.factorChipsRow}>
-                        {risk.factors.map(f => (
-                            <View key={f.name} style={s.factorChip}>
-                                <View style={[s.factorDot, { backgroundColor: FACTOR_STATUS_COLOR[f.status] }]} />
-                                <Text style={s.factorChipText}>{f.name}</Text>
-                            </View>
-                        ))}
+                        {risk.factors.map(f => {
+                            const key = `health:${f.name}`;
+                            const isOpen = expandedChip === key;
+                            return (
+                                <TouchableOpacity key={f.name} style={[s.factorChip, isOpen && s.factorChipOpen]} onPress={() => toggleChip(key)} activeOpacity={0.7}>
+                                    <View style={[s.factorDot, { backgroundColor: FACTOR_STATUS_COLOR[f.status] }]} />
+                                    <Text style={s.factorChipText}>{f.name}</Text>
+                                </TouchableOpacity>
+                            );
+                        })}
                     </View>
+                    {risk.factors.map(f => expandedChip === `health:${f.name}` && (
+                        <Text key={f.name} style={s.chipExplanation}>{f.explanation}</Text>
+                    ))}
+                    <Text style={s.chipHint}>Tap a dot above to see why it's that color</Text>
 
                     {readinessHistory.length < 2 ? (
                         <Text style={s.trendNote}>
@@ -214,13 +231,25 @@ export default function ScoreboardScreen() {
                     </View>
                     <Text style={s.cardBodyText}>How much a single bad event — a lost customer, a rate move, slow-moving stock — would hurt the business right now.</Text>
                     <View style={[s.factorChipsRow, { marginTop: Spacing.sm }]}>
-                        {exposure.factors.map(f => (
-                            <View key={f.key} style={s.factorChip}>
-                                <Text style={s.riskDot}>{EXPOSURE_LEVEL_META[f.level].dot}</Text>
-                                <Text style={s.factorChipText}>{f.label.replace(' Exposure', '')}</Text>
-                            </View>
-                        ))}
+                        {exposure.factors.map(f => {
+                            const key = `exposure:${f.key}`;
+                            const isOpen = expandedChip === key;
+                            return (
+                                <TouchableOpacity
+                                    key={f.key}
+                                    style={[s.factorChip, isOpen && s.factorChipOpen]}
+                                    onPress={(e) => { e.stopPropagation(); toggleChip(key); }}
+                                    activeOpacity={0.7}
+                                >
+                                    <Text style={s.riskDot}>{EXPOSURE_LEVEL_META[f.level].dot}</Text>
+                                    <Text style={s.factorChipText}>{f.label.replace(' Exposure', '')}</Text>
+                                </TouchableOpacity>
+                            );
+                        })}
                     </View>
+                    {exposure.factors.map(f => expandedChip === `exposure:${f.key}` && (
+                        <Text key={f.key} style={s.chipExplanation}>{f.detail}</Text>
+                    ))}
                     {resilience.topConcerns.length > 0 && (
                         <Text style={s.cardBodyText}>
                             <Text style={{ fontWeight: '700', color: Colors.textPrimary }}>Biggest exposure: </Text>
@@ -241,13 +270,25 @@ export default function ScoreboardScreen() {
                         </View>
                     </View>
                     <View style={s.factorChipsRow}>
-                        {riskRadar.categories.map(c => (
-                            <View key={c.key} style={s.factorChip}>
-                                <Text style={s.riskDot}>{RISK_LEVEL_META[c.level].dot}</Text>
-                                <Text style={s.factorChipText}>{c.label}</Text>
-                            </View>
-                        ))}
+                        {riskRadar.categories.map(c => {
+                            const key = `radar:${c.key}`;
+                            const isOpen = expandedChip === key;
+                            return (
+                                <TouchableOpacity
+                                    key={c.key}
+                                    style={[s.factorChip, isOpen && s.factorChipOpen]}
+                                    onPress={(e) => { e.stopPropagation(); toggleChip(key); }}
+                                    activeOpacity={0.7}
+                                >
+                                    <Text style={s.riskDot}>{RISK_LEVEL_META[c.level].dot}</Text>
+                                    <Text style={s.factorChipText}>{c.label}</Text>
+                                </TouchableOpacity>
+                            );
+                        })}
                     </View>
+                    {riskRadar.categories.map(c => expandedChip === `radar:${c.key}` && (
+                        <Text key={c.key} style={s.chipExplanation}>{c.summary}</Text>
+                    ))}
                     {riskRadar.topRisks.length > 0 ? (
                         <Text style={s.cardBodyText}>
                             <Text style={{ fontWeight: '700', color: Colors.textPrimary }}>Biggest risk: </Text>
@@ -356,9 +397,12 @@ const s = StyleSheet.create({
 
     factorChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: Spacing.sm },
     factorChip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: Colors.bg, borderRadius: Radius.pill, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: Colors.border },
+    factorChipOpen: { borderColor: Colors.primary, backgroundColor: Colors.primary + '11' },
     factorDot: { width: 7, height: 7, borderRadius: 4 },
     factorChipText: { fontSize: 10.5, fontWeight: '600', color: Colors.textSecondary },
     riskDot: { fontSize: 9 },
+    chipExplanation: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17, backgroundColor: Colors.bg, borderRadius: Radius.sm, padding: Spacing.sm, marginTop: -2, marginBottom: Spacing.sm },
+    chipHint: { fontSize: 10, color: Colors.textMuted, fontStyle: 'italic', marginTop: -4, marginBottom: Spacing.sm },
 
     goalRow: { marginTop: Spacing.sm },
     goalTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },

@@ -72,7 +72,7 @@ const ACCOUNT_ITEMS: { label: string; icon: IconName; screen: Screen; color: str
 const TABS: { label: string; screen: Screen; icon: IconName }[] = [
     { label: 'Home',      screen: 'dashboard',        icon: 'home' },
     { label: 'Passport',  screen: 'business-passport', icon: 'shield' },
-    { label: 'Sales',     screen: 'transactions',      icon: 'shopping-bag' },
+    { label: 'Transactions', screen: 'transactions',   icon: 'list' },
     { label: 'Invoices',  screen: 'invoices',          icon: 'file-text' },
     { label: 'Reports',   screen: 'reports',           icon: 'bar-chart-2' },
 ];

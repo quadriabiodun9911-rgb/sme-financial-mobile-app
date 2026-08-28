@@ -15,6 +15,12 @@ export interface StockRestockImpact {
     extraCost: number;
 }
 
+export interface DelayComparison {
+    delayDays: number;
+    runsOutBeforeDelayResolves: boolean;
+    daysDifference: number; // how many days short (if runsOut) or to spare (if not)
+}
+
 export interface CashFlowStressTestResult {
     baselineRunwayDays: number;
     stressedDailyBurn: number;
@@ -23,6 +29,13 @@ export interface CashFlowStressTestResult {
     verdict: StressVerdict;
     reason: string;
     stockRestockImpact: StockRestockImpact | null;
+    // Payment Delay and Cash At Risk answer two different questions together:
+    // "how much is stuck" (delayedIncome, already reflected in
+    // stressedRunwayDays) and "for how long" (collectionsDelayDays) -- this
+    // is the direct answer to the question that pairing exists to ask: does
+    // the business run out of cash before that delayed payment actually
+    // arrives? Null when no delay is being tested.
+    delayComparison: DelayComparison | null;
 }
 
 const CRITICAL_BELOW_DAYS = 30;
@@ -70,12 +83,27 @@ export function computeCashFlowStressTest(input: CashFlowStressTestInput): CashF
         ? baselineRunwayDays - stressedRunwayDays
         : 0;
 
+    // Payment Delay (days) doesn't change how much cash is available -- Cash
+    // At Risk already did that by leaving the delayed amount out of
+    // effectiveCash above, on the conservative assumption it may never
+    // arrive. What the day count answers is a timing question: will the
+    // business still be standing WHEN that payment is due, or does it run
+    // dry first. Computed independently of the verdict tier so it shows up
+    // whether the overall scenario reads safe, caution, or critical.
+    const delayComparison: DelayComparison | null = collectionsDelayDays > 0 && isFinite(stressedRunwayDays)
+        ? (() => {
+            const runsOutBeforeDelayResolves = stressedRunwayDays < collectionsDelayDays;
+            const daysDifference = Math.abs(stressedRunwayDays - collectionsDelayDays);
+            return { delayDays: collectionsDelayDays, runsOutBeforeDelayResolves, daysDifference };
+        })()
+        : null;
+
     let verdict: StressVerdict;
     let reason: string;
 
     if (stressedRunwayDays < CRITICAL_BELOW_DAYS) {
         verdict = 'critical';
-        reason = collectionsDelayDays > 0
+        reason = delayComparison?.runsOutBeforeDelayResolves
             ? `Under this scenario, cash would run critically low in under a month — before the ${collectionsDelayDays}-day delay you're testing even resolves.`
             : `Under this scenario, cash would run critically low in under a month at the stressed cost level.`;
     } else if (stressedRunwayDays < CAUTION_BELOW_DAYS) {
@@ -86,5 +114,5 @@ export function computeCashFlowStressTest(input: CashFlowStressTestInput): CashF
         reason = `Even under this scenario, runway stays above 3 months — the buffer can absorb this shock.`;
     }
 
-    return { baselineRunwayDays, stressedDailyBurn, stressedRunwayDays, runwayLostDays, verdict, reason, stockRestockImpact };
+    return { baselineRunwayDays, stressedDailyBurn, stressedRunwayDays, runwayLostDays, verdict, reason, stockRestockImpact, delayComparison };
 }

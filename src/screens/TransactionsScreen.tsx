@@ -23,6 +23,7 @@ import { isOverdueIncomeTransaction, getOverdueIncomeTransactions } from '../uti
 import { classifyTransactions } from '../utils/dataQuality';
 import { detectPersonalSpending, DISMISSED_PERSONAL_KEY } from '../utils/personalSpendingDetector';
 import CostExposureTab from '../components/CostExposureTab';
+import RevenueExposureTab from '../components/RevenueExposureTab';
 
 type FilterType   = 'all' | 'income' | 'expense' | 'collect';
 type StatusFilter = 'all' | 'paid' | 'pending' | 'overdue';
@@ -135,7 +136,9 @@ export default function TransactionsScreen() {
     // about sales/revenue erosion (a category eating a bigger share of
     // every naira of revenue), so it lives alongside the transactions it's
     // computed from rather than on the inventory side.
-    const [screenTab, setScreenTab] = useState<'list' | 'exposure'>(navParams?.tab === 'exposure' ? 'exposure' : 'list');
+    const [screenTab, setScreenTab] = useState<'list' | 'exposure' | 'revenue'>(
+        navParams?.tab === 'exposure' ? 'exposure' : navParams?.tab === 'revenue' ? 'revenue' : 'list'
+    );
     const { currency, defaultTaxRate } = settings;
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
@@ -396,11 +399,19 @@ export default function TransactionsScreen() {
                     <Icon name="alert-triangle" size={13} color={screenTab === 'exposure' ? Colors.primary : Colors.muted} />
                     <Text style={[styles.screenTabText, screenTab === 'exposure' && styles.screenTabTextActive]}>Cost Exposure</Text>
                 </TouchableOpacity>
+                <TouchableOpacity style={[styles.screenTab, screenTab === 'revenue' && styles.screenTabActive]} onPress={() => setScreenTab('revenue')}>
+                    <Icon name="trending-up" size={13} color={screenTab === 'revenue' ? Colors.primary : Colors.muted} />
+                    <Text style={[styles.screenTabText, screenTab === 'revenue' && styles.screenTabTextActive]}>Revenue Exposure</Text>
+                </TouchableOpacity>
             </View>
 
             {screenTab === 'exposure' ? (
                 <ScrollView style={styles.scroll} contentContainerStyle={styles.pad}>
                     <CostExposureTab />
+                </ScrollView>
+            ) : screenTab === 'revenue' ? (
+                <ScrollView style={styles.scroll} contentContainerStyle={styles.pad}>
+                    <RevenueExposureTab />
                 </ScrollView>
             ) : (
             <>

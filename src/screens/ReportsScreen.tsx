@@ -35,7 +35,7 @@ import CashFlowFormalStatement from '../components/CashFlowFormalStatement';
 import GroupedBarChart from '../components/GroupedBarChart';
 import { computeBalanceSheetTrend } from '../utils/balanceSheetTrend';
 import { computeAllTimeMonthlyBuckets } from '../utils/trendAnalysis';
-import { filterByPeriod, filterByDateRange, getPreviousPeriodRange, computeFinance, computeAssetCurrentValue, computeMonthlyTrend, computeEnhancedPnL, computeProperCashFlow, computeWorkingCapitalMetrics, classifyBusinessSize, sizeLabel, transactionsToCSV, ReportPeriod, MonthlyPoint, DateRange } from '../utils/finance';
+import { filterByPeriod, filterByDateRange, getPreviousPeriodRange, computeFinance, computeAssetCurrentValue, computeAssetReplacementForecast, computeMonthlyTrend, computeEnhancedPnL, computeProperCashFlow, computeWorkingCapitalMetrics, classifyBusinessSize, sizeLabel, transactionsToCSV, ReportPeriod, MonthlyPoint, DateRange } from '../utils/finance';
 import { trackReportViewed, trackDataExported } from '../utils/analytics';
 import { auditEvents } from '../utils/auditLog';
 import { FinanceData } from '../types';
@@ -705,16 +705,60 @@ export default function ReportsScreen() {
                         copy of the component. */}
                     {activeTab === 'assets' && (() => {
                         const health = computeAssetHealthScore(allFinance, assets, allTimeWcMetrics.accountsReceivable, inventoryValue);
+                        const replacementForecast = computeAssetReplacementForecast(assets, 24);
                         return (
-                            <TouchableOpacity style={styles.assetTeaserCard} onPress={() => setCurrentScreen('assets')} activeOpacity={0.85}>
-                                <View style={styles.assetTeaserHeaderRow}>
-                                    <Text style={styles.assetTeaserTitle}>Asset Productivity</Text>
-                                    <View style={[styles.assetTeaserBadge, { backgroundColor: health.color + '20' }]}>
-                                        <Text style={[styles.assetTeaserBadgeText, { color: health.color }]}>{health.score}/100</Text>
+                            <>
+                                <TouchableOpacity style={styles.assetTeaserCard} onPress={() => setCurrentScreen('assets')} activeOpacity={0.85}>
+                                    <View style={styles.assetTeaserHeaderRow}>
+                                        <Text style={styles.assetTeaserTitle}>Asset Productivity</Text>
+                                        <View style={[styles.assetTeaserBadge, { backgroundColor: health.color + '20' }]}>
+                                            <Text style={[styles.assetTeaserBadgeText, { color: health.color }]}>{health.score}/100</Text>
+                                        </View>
                                     </View>
+                                    <NextStepLink text="Full health score, turnover, ROA & recommendations → Assets" onPress={() => setCurrentScreen('assets')} />
+                                </TouchableOpacity>
+
+                                {/* The actual "planning and forecasting" content
+                                    this tab is named for: projects forward from
+                                    each active asset's own depreciation schedule
+                                    to say WHEN it will need replacing, not just
+                                    which ones already do. */}
+                                <View style={styles.card}>
+                                    <Text style={styles.cardTitle}>Asset Replacement Forecast — Next 24 Months</Text>
+                                    {!replacementForecast.available ? (
+                                        <Text style={styles.cardSub}>{replacementForecast.reason}</Text>
+                                    ) : replacementForecast.items.length === 0 ? (
+                                        <Text style={styles.cardSub}>No active asset is projected to need replacement in the next 24 months based on its depreciation schedule.</Text>
+                                    ) : (
+                                        <>
+                                            <Text style={styles.cardSub}>
+                                                Based on each asset's own purchase cost, useful life and elapsed time — projecting when it depreciates to 20% of its original cost, the same threshold the replacement alerts use.
+                                            </Text>
+                                            {replacementForecast.items.map(item => (
+                                                <View key={item.id} style={styles.assetForecastRow}>
+                                                    <View style={{ flex: 1 }}>
+                                                        <Text style={styles.assetForecastName}>{item.name}</Text>
+                                                        <Text style={styles.assetForecastSub}>
+                                                            {item.monthsUntilThreshold === 0
+                                                                ? 'Already at replacement threshold'
+                                                                : `Due around ${item.projectedThresholdMonth} (${item.monthsUntilThreshold} mo away)`}
+                                                            {' · '}{Math.round(item.pctValueRemaining)}% value remaining
+                                                        </Text>
+                                                    </View>
+                                                    <Text style={styles.assetForecastCost}>{currency}{item.purchaseCost.toLocaleString()}</Text>
+                                                </View>
+                                            ))}
+                                            <View style={styles.assetForecastTotalRow}>
+                                                <Text style={styles.assetForecastTotalLabel}>Total original cost of assets due in this window</Text>
+                                                <Text style={styles.assetForecastTotalValue}>{currency}{replacementForecast.totalReplacementCostDue.toLocaleString()}</Text>
+                                            </View>
+                                            <Text style={styles.assetForecastCaveat}>
+                                                This is what these assets originally cost, not a prediction of tomorrow's replacement price — use it as a floor when budgeting, not the full expected outlay.
+                                            </Text>
+                                        </>
+                                    )}
                                 </View>
-                                <NextStepLink text="Full health score, turnover, ROA & recommendations → Assets" onPress={() => setCurrentScreen('assets')} />
-                            </TouchableOpacity>
+                            </>
                         );
                     })()}
 
@@ -1207,7 +1251,17 @@ const styles = StyleSheet.create({
     card:          { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.lg, marginBottom: 16, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     cardTitle:     { fontSize: 16, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 12 },
     cardHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+    cardSub:       { fontSize: 12, color: Colors.textMuted, lineHeight: 17, marginBottom: 12, marginTop: -6 },
     note:          { fontSize: 11, color: Colors.textMuted, fontStyle: 'italic', marginTop: 10, lineHeight: 16 },
+
+    assetForecastRow:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border, gap: 10 },
+    assetForecastName:       { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },
+    assetForecastSub:        { fontSize: 11, color: Colors.textMuted },
+    assetForecastCost:       { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
+    assetForecastTotalRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12, marginTop: 4 },
+    assetForecastTotalLabel: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary, flex: 1, marginRight: 10 },
+    assetForecastTotalValue: { fontSize: 15, fontWeight: '800', color: Colors.textPrimary },
+    assetForecastCaveat:     { fontSize: 10.5, color: Colors.textMuted, fontStyle: 'italic', marginTop: 8, lineHeight: 14 },
     sizeBadge:     { fontSize: 11, color: Colors.primary, fontWeight: '600', backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.primary, borderRadius: Radius.pill, paddingHorizontal: 8, paddingVertical: 2 },
     exportText:    { fontSize: 11, color: Colors.textPrimary, fontWeight: '600' },
 

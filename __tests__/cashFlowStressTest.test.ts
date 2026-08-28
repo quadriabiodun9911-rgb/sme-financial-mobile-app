@@ -76,4 +76,32 @@ describe('computeCashFlowStressTest', () => {
         expect(r.stockRestockImpact!.stressedRestockCost).toBeCloseTo(600000, 5);
         expect(r.stockRestockImpact!.extraCost).toBeCloseTo(100000, 5);
     });
+
+    describe('delayComparison', () => {
+        it('is null when no delay is being tested', () => {
+            const r = computeCashFlowStressTest({ ...base, delayedIncome: 100000 });
+            expect(r.delayComparison).toBeNull();
+        });
+
+        it('flags running out before the delay resolves when stressed runway is shorter than the delay', () => {
+            // effective cash = 300000-100000=200000, burn 5000 -> 40 days runway, delay is 60 days
+            const r = computeCashFlowStressTest({ ...base, delayedIncome: 100000, collectionsDelayDays: 60 });
+            expect(r.delayComparison).not.toBeNull();
+            expect(r.delayComparison!.runsOutBeforeDelayResolves).toBe(true);
+            expect(r.delayComparison!.daysDifference).toBeCloseTo(20, 5); // 60 - 40
+        });
+
+        it('reports days to spare when runway outlasts the delay', () => {
+            // effective cash = 300000-50000=250000, burn 5000 -> 50 days runway, delay is 20 days
+            const r = computeCashFlowStressTest({ ...base, delayedIncome: 50000, collectionsDelayDays: 20 });
+            expect(r.delayComparison).not.toBeNull();
+            expect(r.delayComparison!.runsOutBeforeDelayResolves).toBe(false);
+            expect(r.delayComparison!.daysDifference).toBeCloseTo(30, 5); // 50 - 20
+        });
+
+        it('is null when runway is infinite (zero burn), since the comparison has nothing to measure against', () => {
+            const r = computeCashFlowStressTest({ ...base, dailyBurn: 0, delayedIncome: 100000, collectionsDelayDays: 30 });
+            expect(r.delayComparison).toBeNull();
+        });
+    });
 });

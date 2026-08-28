@@ -93,12 +93,15 @@ export default function CashFlowStressTester({ currency, currentCashBalance, dai
             <DataConfidenceBadge transactions={transactions} />
 
             <Field label="Cost Increase (fuel, freight, materials)" suffix="%" value={costIncreasePct} onChange={setCostIncreasePct} placeholder="0" hint="e.g. 20 for a 20% rise in what you pay to run the business" />
+
+            <Text style={s.groupLabel}>Delayed Customer Payments</Text>
+            <Text style={s.groupHint}>These two work together: how much money might not arrive on time, and for how long — used to check if you'd run out of cash before it shows up.</Text>
             <View style={s.row}>
                 <View style={{ flex: 1 }}>
-                    <Field label="Payment Delay" suffix="days" value={delayDays} onChange={setDelayDays} placeholder="0" hint="How much later than usual" />
+                    <Field label="Amount at Risk" currency={currency} value={delayedIncome} onChange={setDelayedIncome} placeholder="0" hint="Money you're expecting (e.g. an overdue invoice) that might not land on time" />
                 </View>
                 <View style={{ flex: 1 }}>
-                    <Field label="Cash At Risk" currency={currency} value={delayedIncome} onChange={setDelayedIncome} placeholder="0" hint="Expected but delayed" />
+                    <Field label="Expected Delay" suffix="days" value={delayDays} onChange={setDelayDays} placeholder="0" hint="How many days late that money would be" />
                 </View>
             </View>
 
@@ -121,6 +124,20 @@ export default function CashFlowStressTester({ currency, currentCashBalance, dai
                 <View style={[s.verdictBox, { borderColor: VERDICT_COLOR[result.verdict] }]}>
                     <Text style={[s.verdictLabel, { color: VERDICT_COLOR[result.verdict] }]}>{VERDICT_LABEL[result.verdict]}</Text>
                     <Text style={s.verdictReason}>{result.reason}</Text>
+                </View>
+            )}
+
+            {/* The direct answer to what "Expected Delay" is actually for --
+                does the business run dry before that late payment shows up,
+                stated as its own sentence instead of only surfacing inside
+                the critical-tier reason text above. */}
+            {hasStress && result.delayComparison && (
+                <View style={[s.delayBox, { borderColor: result.delayComparison.runsOutBeforeDelayResolves ? Colors.expense : Colors.income }]}>
+                    <Text style={[s.delayText, { color: result.delayComparison.runsOutBeforeDelayResolves ? Colors.expense : Colors.income }]}>
+                        {result.delayComparison.runsOutBeforeDelayResolves
+                            ? `⚠️ Cash would run out about ${Math.round(result.delayComparison.daysDifference)} day${Math.round(result.delayComparison.daysDifference) === 1 ? '' : 's'} before this ${result.delayComparison.delayDays}-day delay resolves.`
+                            : `✅ Cash would last about ${Math.round(result.delayComparison.daysDifference)} day${Math.round(result.delayComparison.daysDifference) === 1 ? '' : 's'} past this ${result.delayComparison.delayDays}-day delay — the payment should arrive before you run out.`}
+                    </Text>
                 </View>
             )}
 
@@ -217,6 +234,10 @@ const s = StyleSheet.create({
     subtitle: { fontSize: 12, color: Colors.textMuted, marginBottom: 14, lineHeight: 17 },
 
     row: { flexDirection: 'row', gap: 10 },
+    groupLabel: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary, marginTop: 4, marginBottom: 2 },
+    groupHint: { fontSize: 11, color: Colors.textMuted, lineHeight: 15, marginBottom: 10 },
+    delayBox: { borderRadius: 10, borderWidth: 1.5, padding: 12, marginTop: 10 },
+    delayText: { fontSize: 12.5, lineHeight: 18, fontWeight: '600' },
     field: { marginBottom: 12 },
     fieldLabel: { fontSize: 12.5, fontWeight: '600', color: Colors.textSecondary, marginBottom: 6 },
     fieldHint: { fontSize: 11, color: Colors.textMuted, marginTop: 4, lineHeight: 15 },

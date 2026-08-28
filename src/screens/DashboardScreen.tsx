@@ -906,6 +906,41 @@ export default function DashboardScreen() {
                     </View>
                 )}
 
+                {/* BUSINESS HEALTH -- the single "how is my business doing"
+                    answer, using the same canonical computeRiskScore the
+                    Scoreboard screen shows, placed at the very top of the
+                    Dashboard (above Vital Signs and everything else) since
+                    it's the first thing an owner wants on opening the app.
+                    Tapping through goes to the full breakdown. */}
+                {canViewFinancials && (
+                    <View style={styles.operationsSection}>
+                      <Text style={styles.operationsSectionTitle}>🩺 BUSINESS HEALTH</Text>
+                      <TouchableOpacity
+                        style={[styles.healthScoreCard, { borderColor: healthBandMeta.color }]}
+                        activeOpacity={0.85}
+                        onPress={() => setCurrentScreen('scoreboard')}
+                      >
+                        <View style={styles.healthScoreRow}>
+                            <Text style={[styles.healthScoreValue, { color: healthBandMeta.color }]}>{Math.round(businessHealth.score)}</Text>
+                            <View style={[styles.healthBandBadge, { backgroundColor: healthBandMeta.color + '22' }]}>
+                                <Text style={[styles.healthBandBadgeText, { color: healthBandMeta.color }]}>
+                                    {healthBandMeta.emoji} {healthBandMeta.label} · {businessHealth.grade}
+                                </Text>
+                            </View>
+                        </View>
+                        <View style={styles.healthFactorsRow}>
+                            {businessHealth.factors.map(f => (
+                                <View key={f.name} style={styles.healthFactorChip}>
+                                    <View style={[styles.healthFactorDot, { backgroundColor: HEALTH_FACTOR_STATUS_COLOR[f.status] }]} />
+                                    <Text style={styles.healthFactorChipText}>{f.name}</Text>
+                                </View>
+                            ))}
+                        </View>
+                        <Text style={styles.healthLinkText}>See full breakdown & trend →</Text>
+                      </TouchableOpacity>
+                    </View>
+                )}
+
                 {/* ══════════════════════════════════════════════════════════════════
                     ⚙️ OPERATIONS COMMAND CENTRE
                     ══════════════════════════════════════════════════════════════════ */}
@@ -1010,13 +1045,13 @@ export default function DashboardScreen() {
                     activeOpacity={0.8}
                   >
                     <Icon
-                      name={!readinessDelta ? 'clock' : readinessDelta.trend === 'improving' ? 'trending-up' : readinessDelta.trend === 'declining' ? 'trending-down' : 'minus'}
+                      name={!readinessDelta ? 'activity' : readinessDelta.trend === 'improving' ? 'trending-up' : readinessDelta.trend === 'declining' ? 'trending-down' : 'minus'}
                       size={16}
-                      color={readinessDelta?.trend === 'improving' ? Colors.income : readinessDelta?.trend === 'declining' ? Colors.expense : Colors.textMuted}
+                      color={!readinessDelta ? healthBandMeta.color : readinessDelta?.trend === 'improving' ? Colors.income : readinessDelta?.trend === 'declining' ? Colors.expense : Colors.textMuted}
                     />
                     <Text style={styles.progressCardText}>
                       {!readinessDelta ? (
-                        "Quad360 is building your progress story — check back in about a week."
+                        <>Your Business Health is <Text style={{ color: healthBandMeta.color, fontWeight: '800' }}>{Math.round(businessHealth.score)}/100 ({healthBandMeta.label})</Text> — trend builds up after a week of data.</>
                       ) : readinessDelta.trend === 'improving' ? (
                         <>Your readiness improved <Text style={{ color: Colors.income, fontWeight: '800' }}>{readinessDelta.scoreDelta} points</Text> over {readinessDelta.periodLabel}{readinessTopMover ? ` — ${readinessTopMover.name} is the biggest driver.` : '.'}</>
                       ) : readinessDelta.trend === 'declining' ? (
@@ -1343,41 +1378,6 @@ export default function DashboardScreen() {
                     <Text style={styles.btnText}>📆 Daily Report — Today's Recap</Text>
                   </TouchableOpacity>
                 </View>
-                )}
-
-                {/* SECTION 5: Business Health -- replaces the old Merchant
-                    Financing Qualification tracker with the same canonical
-                    computeRiskScore the Scoreboard screen shows, so "how is
-                    my business doing" is answered right on the Dashboard
-                    instead of only after navigating to a financing-specific
-                    screen. Tapping through goes to the full breakdown. */}
-                {canViewFinancials && (
-                    <View style={styles.operationsSection}>
-                      <Text style={styles.operationsSectionTitle}>🩺 BUSINESS HEALTH</Text>
-                      <TouchableOpacity
-                        style={[styles.healthScoreCard, { borderColor: healthBandMeta.color }]}
-                        activeOpacity={0.85}
-                        onPress={() => setCurrentScreen('scoreboard')}
-                      >
-                        <View style={styles.healthScoreRow}>
-                            <Text style={[styles.healthScoreValue, { color: healthBandMeta.color }]}>{Math.round(businessHealth.score)}</Text>
-                            <View style={[styles.healthBandBadge, { backgroundColor: healthBandMeta.color + '22' }]}>
-                                <Text style={[styles.healthBandBadgeText, { color: healthBandMeta.color }]}>
-                                    {healthBandMeta.emoji} {healthBandMeta.label} · {businessHealth.grade}
-                                </Text>
-                            </View>
-                        </View>
-                        <View style={styles.healthFactorsRow}>
-                            {businessHealth.factors.map(f => (
-                                <View key={f.name} style={styles.healthFactorChip}>
-                                    <View style={[styles.healthFactorDot, { backgroundColor: HEALTH_FACTOR_STATUS_COLOR[f.status] }]} />
-                                    <Text style={styles.healthFactorChipText}>{f.name}</Text>
-                                </View>
-                            ))}
-                        </View>
-                        <Text style={styles.healthLinkText}>See full breakdown & trend →</Text>
-                      </TouchableOpacity>
-                    </View>
                 )}
 
                 {/* ── Beta Features Spotlight ──────────────────────────────── */}

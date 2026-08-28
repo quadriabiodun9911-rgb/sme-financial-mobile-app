@@ -309,6 +309,79 @@ export function computeAssetsNearingReplacement(assets: Asset[]): Asset[] {
     return assets.filter(a => a.status === 'active' && a.purchaseCost > 0 && computeAssetCurrentValue(a) <= a.purchaseCost * 0.2);
 }
 
+export interface AssetReplacementForecastItem {
+    id: string;
+    name: string;
+    purchaseCost: number;
+    currentValue: number;
+    pctValueRemaining: number;
+    monthsUntilThreshold: number; // 0 if already at/below the 20%-remaining threshold today
+    projectedThresholdMonth: string; // YYYY-MM the asset is projected to cross the 20% threshold
+}
+
+export interface AssetReplacementForecast {
+    available: boolean;
+    reason?: string;
+    horizonMonths: number;
+    items: AssetReplacementForecastItem[]; // sorted soonest first
+    totalReplacementCostDue: number; // sum of original purchaseCost for items in the window -- NOT an inflation-adjusted future price, just what these assets originally cost
+}
+
+// Forward-looking companion to computeAssetsNearingReplacement: instead of
+// only flagging assets ALREADY at the 20%-value-remaining threshold, this
+// projects forward from each asset's own depreciation schedule (same
+// straight-line math as computeAssetCurrentValue) to say WHEN it will cross
+// that threshold, so a business can plan the capital outlay before the
+// asset is already failing rather than after. An asset whose residual
+// value sits above the 20% line will depreciate down to its floor and stop
+// there without ever crossing the threshold -- those are correctly
+// excluded rather than reported as "never" in a way that looks like a bug.
+export function computeAssetReplacementForecast(assets: Asset[], horizonMonths = 24): AssetReplacementForecast {
+    const active = assets.filter(a => a.status === 'active' && a.purchaseCost > 0 && a.usefulLifeYears > 0);
+    if (active.length === 0) {
+        return { available: false, reason: 'No active depreciable assets on record yet.', horizonMonths, items: [], totalReplacementCostDue: 0 };
+    }
+
+    const now = new Date();
+    const items: AssetReplacementForecastItem[] = [];
+
+    for (const a of active) {
+        const cost = a.purchaseCost;
+        const residual = Number(a.residualValue) || 0;
+        const annualDep = computeAssetAnnualDepreciation(a);
+        const currentValue = computeAssetCurrentValue(a);
+        const pctValueRemaining = (currentValue / cost) * 100;
+        const thresholdValue = cost * 0.2;
+
+        // Never reaches the threshold if depreciation has already stopped
+        // (annualDep is 0) or the asset's own floor (residual) sits above
+        // where the threshold line is -- it will coast down to that floor
+        // and stay there, not keep falling toward 20%.
+        if (annualDep <= 0 || residual > thresholdValue) continue;
+
+        const purchaseDate = new Date(a.purchaseDate);
+        const yearsElapsed = Math.max(0, (now.getTime() - purchaseDate.getTime()) / (365.25 * 24 * 3600 * 1000));
+        const yearsToThreshold = (cost - thresholdValue) / annualDep;
+        const monthsUntilThreshold = Math.max(0, Math.round((yearsToThreshold - yearsElapsed) * 12));
+
+        if (monthsUntilThreshold > horizonMonths) continue;
+
+        const projected = new Date(now.getFullYear(), now.getMonth() + monthsUntilThreshold, 1);
+        const projectedThresholdMonth = `${projected.getFullYear()}-${String(projected.getMonth() + 1).padStart(2, '0')}`;
+
+        items.push({ id: a.id, name: a.name, purchaseCost: cost, currentValue, pctValueRemaining, monthsUntilThreshold, projectedThresholdMonth });
+    }
+
+    items.sort((x, y) => x.monthsUntilThreshold - y.monthsUntilThreshold);
+
+    return {
+        available: true,
+        horizonMonths,
+        items,
+        totalReplacementCostDue: items.reduce((s, i) => s + i.purchaseCost, 0),
+    };
+}
+
 export interface TaxTotals {
     totalTaxCollected: number;
     totalTaxPaid: number;

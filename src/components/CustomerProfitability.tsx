@@ -195,6 +195,20 @@ export default function CustomerProfitability({ invoices, transactions, currency
                                 ⏱ Avg {customer.daysToPayAvg.toFixed(0)} days to get paid
                             </Text>
                         )}
+
+                        {/* Margin here is invoice revenue minus ONLY the
+                            expense transactions explicitly tagged to this
+                            same customer name (vendorCustomer) -- never
+                            guessed from category. Zero tagged expenses
+                            reads as a perfect 100% margin, which is a real
+                            computation, not an error, but it almost always
+                            means the real cost of serving this customer
+                            just isn't tagged yet, not that it was free. */}
+                        {customer.totalExpenses === 0 && customer.totalRevenue > 0 && (
+                            <Text style={styles.untaggedNote}>
+                                No expenses are tagged to "{customer.name}" yet, so this margin only reflects revenue — tag costs to this customer (or an invoice client name) for a true figure.
+                            </Text>
+                        )}
                     </View>
                 ))}
             </View>
@@ -375,6 +389,13 @@ const styles = StyleSheet.create({
         fontSize: 11,
         color: Colors.textSecondary,
         marginTop: 6,
+    },
+    untaggedNote: {
+        fontSize: 10.5,
+        color: Colors.textMuted,
+        fontStyle: 'italic',
+        marginTop: 6,
+        lineHeight: 14,
     },
     insightCard: {
         backgroundColor: Colors.surface,

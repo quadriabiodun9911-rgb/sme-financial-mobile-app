@@ -378,6 +378,8 @@ export default function ImportTransactionsScreen() {
     const [closingBalance, setClosingBalance] = useState<number | undefined>(undefined);
     const [duplicatesSkipped, setDuplicatesSkipped] = useState(0);
     const [imported,   setImported]   = useState(0);
+    const [importedIn,  setImportedIn]  = useState(0);
+    const [importedOut, setImportedOut] = useState(0);
     const [scanning,   setScanning]   = useState(false);
     const [scanWarning, setScanWarning] = useState('');
 
@@ -696,6 +698,8 @@ export default function ImportTransactionsScreen() {
         });
 
         setImported(newRows.length);
+        setImportedIn(newRows.filter(r => r.type === 'income').reduce((s, r) => s + r.amount, 0));
+        setImportedOut(newRows.filter(r => r.type === 'expense').reduce((s, r) => s + r.amount, 0));
         setDuplicatesSkipped(duplicateCount);
         setStep('done');
         if (newRows.length > 0) auditEvents.dataImport();
@@ -912,6 +916,46 @@ export default function ImportTransactionsScreen() {
                     </Text>
                 )}
 
+                {/* Breaks down exactly what landed in the ledger from THIS
+                    upload -- money in vs money out, and each one's share of
+                    the combined total -- so the owner isn't left guessing
+                    what "3 transactions imported" actually added up to. */}
+                {imported > 0 && (importedIn + importedOut) > 0 && (
+                    <View style={styles.flowBreakdownCard}>
+                        <Text style={styles.flowBreakdownTitle}>From this upload</Text>
+                        <View style={styles.flowBar}>
+                            {importedIn > 0 && (
+                                <View style={[styles.flowBarSegment, { flex: importedIn, backgroundColor: Colors.income }]} />
+                            )}
+                            {importedOut > 0 && (
+                                <View style={[styles.flowBarSegment, { flex: importedOut, backgroundColor: '#ef4444' }]} />
+                            )}
+                        </View>
+                        <View style={styles.flowRow}>
+                            <View style={styles.flowItem}>
+                                <View style={styles.flowItemHeader}>
+                                    <View style={[styles.flowDot, { backgroundColor: Colors.income }]} />
+                                    <Text style={styles.flowItemLabel}>Money in</Text>
+                                </View>
+                                <Text style={[styles.flowItemValue, { color: Colors.income }]}>{fmt(importedIn)}</Text>
+                                <Text style={styles.flowItemPct}>
+                                    {Math.round((importedIn / (importedIn + importedOut)) * 100)}% of total
+                                </Text>
+                            </View>
+                            <View style={styles.flowItem}>
+                                <View style={styles.flowItemHeader}>
+                                    <View style={[styles.flowDot, { backgroundColor: '#ef4444' }]} />
+                                    <Text style={styles.flowItemLabel}>Money out</Text>
+                                </View>
+                                <Text style={[styles.flowItemValue, { color: '#ef4444' }]}>{fmt(importedOut)}</Text>
+                                <Text style={styles.flowItemPct}>
+                                    {Math.round((importedOut / (importedIn + importedOut)) * 100)}% of total
+                                </Text>
+                            </View>
+                        </View>
+                    </View>
+                )}
+
                 {/* What this import actually means, right here — instead of
                     making the business owner navigate away to find out. The
                     "aha moment": a score, then three scannable cards (what
@@ -1020,11 +1064,15 @@ export default function ImportTransactionsScreen() {
             <View style={styles.summaryStrip}>
                 <View style={styles.summaryItem}>
                     <Text style={styles.summaryVal}>{fmt(totalIn)}</Text>
-                    <Text style={styles.summaryLabel}>Income</Text>
+                    <Text style={styles.summaryLabel}>
+                        Income{(totalIn + totalOut) > 0 ? ` · ${Math.round((totalIn / (totalIn + totalOut)) * 100)}%` : ''}
+                    </Text>
                 </View>
                 <View style={styles.summaryItem}>
                     <Text style={[styles.summaryVal, { color: '#ef4444' }]}>{fmt(totalOut)}</Text>
-                    <Text style={styles.summaryLabel}>Expenses</Text>
+                    <Text style={styles.summaryLabel}>
+                        Expenses{(totalIn + totalOut) > 0 ? ` · ${Math.round((totalOut / (totalIn + totalOut)) * 100)}%` : ''}
+                    </Text>
                 </View>
                 <View style={styles.summaryItem}>
                     <Text style={styles.summaryVal}>{incomeRows.length + expenseRows.length}</Text>
@@ -1264,7 +1312,18 @@ const styles = StyleSheet.create({
     amountEditSaveBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
 
     // Diagnosis preview on the Done screen
-    diagnosisPreviewCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: Spacing.lg, marginTop: Spacing.xxl, width: '100%', maxWidth: 340, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
+    flowBreakdownCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: Spacing.lg, marginTop: Spacing.xxl, width: '100%', maxWidth: 340, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
+    flowBreakdownTitle: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 10 },
+    flowBar: { flexDirection: 'row', height: 8, borderRadius: 4, overflow: 'hidden', backgroundColor: Colors.border, marginBottom: 14 },
+    flowBarSegment: { height: '100%' },
+    flowRow: { flexDirection: 'row', gap: Spacing.md },
+    flowItem: { flex: 1 },
+    flowItemHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+    flowDot: { width: 8, height: 8, borderRadius: 4 },
+    flowItemLabel: { fontSize: 11, color: Colors.textMuted, fontWeight: '600' },
+    flowItemValue: { fontSize: 16, fontWeight: '800' },
+    flowItemPct: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
+    diagnosisPreviewCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: Spacing.lg, marginTop: Spacing.lg, width: '100%', maxWidth: 340, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     diagnosisPreviewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
     diagnosisPreviewLabel: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', flex: 1, marginRight: Spacing.sm },
     diagnosisPreviewBadge: { paddingHorizontal: 10, paddingVertical: Spacing.xs, borderRadius: Radius.sm },

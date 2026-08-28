@@ -170,7 +170,7 @@ export default function CashFlowSafety({ finance, transactions, invoices, curren
                     How your cash position could play out over the next {forecast.forecastPeriod.months} months.
                 </Text>
                 {scenarios.map(({ type, proj }) => (
-                    <ScenarioRow key={type} proj={proj} currency={currency} highlight={type === 'base'} />
+                    <ScenarioRow key={type} proj={proj} currency={currency} highlight={type === 'base'} currentCashBalance={finance.cashBalance} />
                 ))}
             </View>
 
@@ -215,7 +215,15 @@ const PRIORITY_COLOR: Record<'high' | 'medium' | 'low', string> = {
     low: Colors.income,
 };
 
-function ScenarioRow({ proj, currency, highlight }: { proj: ScenarioProjection; currency: string; highlight: boolean }) {
+function ScenarioRow({ proj, currency, highlight, currentCashBalance }: { proj: ScenarioProjection; currency: string; highlight: boolean; currentCashBalance: number }) {
+    // In a scenario where the business takes in more than it spends every
+    // single projected month, cash only ever grows from here -- so the
+    // "lowest" point the loop finds is trivially today's own starting
+    // balance, on today's date. That's correct, not a bug, but two
+    // scenarios both showing the exact same figure/date looks like one --
+    // this makes the reason explicit instead of leaving it to guesswork.
+    const neverDipsBelowToday = Math.round(proj.lowestCash) === Math.round(currentCashBalance);
+
     return (
         <View style={[styles.scenarioRow, highlight && styles.scenarioRowHighlight]}>
             <View style={styles.scenarioHead}>
@@ -238,6 +246,11 @@ function ScenarioRow({ proj, currency, highlight }: { proj: ScenarioProjection; 
                     {currency}{Math.round(proj.lowestCash).toLocaleString()} ({proj.lowestCashMonth})
                 </Text>
             </View>
+            {neverDipsBelowToday && (
+                <Text style={styles.scenarioNote}>
+                    Cash is projected to grow every month here, so it never dips below today's balance — that's why the figure above matches what you have right now.
+                </Text>
+            )}
         </View>
     );
 }
@@ -322,6 +335,7 @@ const styles = StyleSheet.create({
     scenarioStats: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     scenarioStatLabel: { fontSize: 11, color: Colors.textSecondary },
     scenarioStatValue: { fontSize: 13, fontWeight: '700' },
+    scenarioNote: { fontSize: 10.5, color: Colors.textMuted, fontStyle: 'italic', marginTop: 6, lineHeight: 14 },
 
     warnBadge: { backgroundColor: 'rgba(239,68,68,0.15)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
     warnBadgeText: { fontSize: 10, fontWeight: '700', color: Colors.expense },
