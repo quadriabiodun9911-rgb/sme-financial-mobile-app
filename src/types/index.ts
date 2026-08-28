@@ -768,6 +768,16 @@ export interface DataConfidenceSnapshot {
     confidencePct: number;
 }
 
+// A live FX rate recorded on this device (see macroFeed.ts / storage.ts's
+// saveFxSnapshots) -- the only way to derive a real "% change over N months"
+// from a spot-rate API that doesn't offer historical data.
+export interface FxRateSnapshot {
+    base: string;   // e.g. "USD"
+    quote: string;  // e.g. "NGN"
+    rate: number;
+    date: string;   // ISO date (YYYY-MM-DD), local device date the snapshot was taken
+}
+
 // ─── Merchant Financing ────────────────────────────────────────────────────────
 export type MerchantFinancingStatus = 'pending' | 'approved' | 'rejected' | 'funded' | 'repaying' | 'paid_off';
 export type LoanPurpose =

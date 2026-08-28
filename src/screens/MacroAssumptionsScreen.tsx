@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { SafeAreaView, ScrollView, View, Text, TouchableOpacity, StyleSheet, TextInput, Modal, Platform, useWindowDimensions } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -41,7 +41,7 @@ function driverMeta(driver: MacroDriver) {
 }
 
 export default function MacroAssumptionsScreen() {
-    const { transactions, settings, updateSettings, navigate } = useApp();
+    const { transactions, settings, updateSettings, navigate, navParams } = useApp();
     const assumptions = settings.macroAssumptions ?? [];
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
@@ -91,6 +91,35 @@ export default function MacroAssumptionsScreen() {
         setConfidence(a.confidence);
         setShowForm(true);
     }
+
+    // Opens a fresh Add form pre-filled from a real, computed suggestion
+    // (currently just the live FX-rate card on Risk Management's Economic
+    // tab) -- the owner still reviews, links a category, and taps Save
+    // themselves; nothing here writes an assumption on its own.
+    function openAddPrefilled(p: { driver: MacroDriver; label: string; changePct?: number; periodMonths?: number; source?: string; confidence?: MacroAssumptionConfidence }) {
+        setEditingId(null);
+        setDriver(p.driver);
+        setLabel(p.label);
+        setChangePct(p.changePct !== undefined ? String(Math.round(p.changePct * 10) / 10) : '');
+        setPeriodMonths(p.periodMonths !== undefined ? String(p.periodMonths) : '3');
+        setLinkedCategories([]);
+        setNote('');
+        setSource(p.source ?? '');
+        setConfidence(p.confidence);
+        setShowForm(true);
+    }
+
+    // Runs once per navigation into this screen with a prefill payload --
+    // a ref (not state) tracks whether it's already been consumed so
+    // re-renders from typing in the form don't keep re-opening it.
+    const consumedPrefill = useRef(false);
+    useEffect(() => {
+        if (navParams?.prefill && !consumedPrefill.current) {
+            consumedPrefill.current = true;
+            openAddPrefilled(navParams.prefill);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [navParams]);
 
     function toggleCategory(cat: string) {
         setLinkedCategories(prev => prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]);

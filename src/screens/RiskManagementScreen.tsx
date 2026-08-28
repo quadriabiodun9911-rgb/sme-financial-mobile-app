@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { SafeAreaView, ScrollView, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -19,6 +19,8 @@ import { computeRiskRadar, RiskLevel } from '../utils/riskRadar';
 import { computeExternalRiskInsights, DRIVER_LABEL } from '../utils/externalRiskInsights';
 import { computeExpenseSeasonalityPattern } from '../utils/seasonality';
 import { MACRO_ASSUMPTION_SUGGESTIONS } from '../utils/macroAssumptionSuggestions';
+import { fetchLiveFxRate, computeFxChangeSuggestion, recordFxSnapshot, LiveFxRate, FxChangeSuggestion } from '../utils/macroFeed';
+import { loadFxSnapshots, saveFxSnapshots } from '../utils/storage';
 
 type Tab = 'overview' | 'concentration' | 'seasonal' | 'economic';
 
@@ -370,6 +372,7 @@ export default function RiskManagementScreen() {
                                             <Text style={s.suggestLabel}>{sug.label}</Text>
                                             <Text style={s.suggestPrompt}>{sug.prompt}</Text>
                                             <Text style={s.suggestWhere}>💡 {sug.whereToCheck}</Text>
+                                            {sug.driver === 'fx' && <LiveFxSuggestionCard />}
                                         </View>
                                     ))}
                                 </>
@@ -417,6 +420,90 @@ export default function RiskManagementScreen() {
             </ScrollView>
             <FooterNav />
         </SafeAreaView>
+    );
+}
+
+// Live USD→[business currency] rate, fetched from a real public FX feed
+// (see macroFeed.ts / supabase/functions/macro-feed) -- a concrete,
+// non-fabricated starting point for the FX macro assumption, for a
+// business owner with no idea what "% change over 3 months" even means to
+// estimate on their own. This device builds its own short rate history on
+// repeat visits (there's no free historical FX endpoint), so the first few
+// visits can only show today's rate; once at least MIN_SNAPSHOT_AGE_DAYS of
+// history exists, it also suggests a real % change to prefill. The owner
+// still reviews and completes the assumption on the Add form -- this never
+// saves one on its own.
+function LiveFxSuggestionCard() {
+    const { settings, navigate, isDemoMode } = useApp();
+    const currency = settings.currency;
+    const [status, setStatus] = useState<'loading' | 'unavailable' | 'ready'>('loading');
+    const [rate, setRate] = useState<LiveFxRate | null>(null);
+    const [suggestion, setSuggestion] = useState<FxChangeSuggestion | null>(null);
+
+    useEffect(() => {
+        if (!currency || currency === 'USD') return;
+        let cancelled = false;
+        (async () => {
+            const live = await fetchLiveFxRate('USD', currency);
+            if (cancelled) return;
+            if (!live) { setStatus('unavailable'); return; }
+
+            const today = new Date().toISOString().split('T')[0];
+            // Demo businesses promise "nothing will be saved" -- still show
+            // the live rate, just don't persist a snapshot history for them.
+            const history = isDemoMode ? [] : (await loadFxSnapshots()) ?? [];
+            const change = computeFxChangeSuggestion(history, 'USD', currency, live.rate, today, 3);
+            if (cancelled) return;
+            setRate(live);
+            setSuggestion(change);
+            setStatus('ready');
+
+            if (!isDemoMode) {
+                const updated = recordFxSnapshot(history, 'USD', currency, live.rate, today);
+                saveFxSnapshots(updated).catch(() => {});
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [currency, isDemoMode]);
+
+    if (!currency || currency === 'USD') return null; // no FX relevance for a business already priced in USD
+    if (status === 'loading') {
+        return <Text style={[s.suggestWhere, { marginTop: 4 }]}>Checking today's live USD→{currency} rate…</Text>;
+    }
+    // Never show a broken widget -- if the feed is unreachable, the plain
+    // prompt/whereToCheck text above this already covers self-reporting.
+    if (status === 'unavailable' || !rate) return null;
+
+    return (
+        <View style={s.liveFxBox}>
+            <View style={s.badgeRow}>
+                <Icon name="wifi" size={11} color={Colors.income} />
+                <Text style={s.liveFxLabel}>LIVE MARKET RATE</Text>
+            </View>
+            <Text style={s.liveFxRate}>1 USD = {currency}{rate.rate.toLocaleString(undefined, { maximumFractionDigits: 2 })}</Text>
+            {suggestion ? (
+                <Text style={s.liveFxChange}>
+                    {suggestion.changePct >= 0 ? '+' : ''}{suggestion.changePct.toFixed(1)}% vs {suggestion.actualMonthsSpanned < 1 ? 'a couple weeks ago' : `~${suggestion.actualMonthsSpanned} mo ago`} (both rates this app actually recorded)
+                </Text>
+            ) : (
+                <Text style={s.liveFxNote}>Check back in a couple of weeks to see how much this has moved.</Text>
+            )}
+            <TouchableOpacity
+                style={s.liveFxBtn}
+                onPress={() => navigate('macro-assumptions', {
+                    prefill: {
+                        driver: 'fx',
+                        label: `USD/${currency} exchange rate`,
+                        changePct: suggestion?.changePct,
+                        periodMonths: suggestion ? Math.max(1, Math.round(suggestion.actualMonthsSpanned)) : 3,
+                        source: `Live market rate (${rate.source})`,
+                        confidence: 'high' as const,
+                    },
+                })}
+            >
+                <Text style={s.liveFxBtnText}>Use this →</Text>
+            </TouchableOpacity>
+        </View>
     );
 }
 
@@ -483,6 +570,14 @@ const s = StyleSheet.create({
     suggestLabel: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
     suggestPrompt: { fontSize: 12, color: Colors.textSecondary, marginTop: 2, lineHeight: 17 },
     suggestWhere: { fontSize: 11, color: Colors.textMuted, marginTop: 4, lineHeight: 15 },
+    liveFxBox: { marginTop: 10, padding: 10, borderRadius: Radius.md, backgroundColor: Colors.income + '10', borderWidth: 1, borderColor: Colors.income + '30' },
+    badgeRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+    liveFxLabel: { fontSize: 9.5, fontWeight: '700', color: Colors.income, letterSpacing: 0.5 },
+    liveFxRate: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginTop: 4 },
+    liveFxChange: { fontSize: 11, color: Colors.textSecondary, marginTop: 3, lineHeight: 15 },
+    liveFxNote: { fontSize: 11, color: Colors.textMuted, marginTop: 3, fontStyle: 'italic' },
+    liveFxBtn: { marginTop: 8, alignSelf: 'flex-start', paddingVertical: 6, paddingHorizontal: 12, borderRadius: Radius.sm, backgroundColor: Colors.income },
+    liveFxBtnText: { fontSize: 12, fontWeight: '700', color: '#fff' },
 
     insightCard: { backgroundColor: Colors.bg, borderRadius: 10, padding: 12, marginBottom: 8 },
     insightTitle: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: 4 },
