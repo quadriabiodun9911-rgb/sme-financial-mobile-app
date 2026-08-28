@@ -77,9 +77,13 @@ const ANTICIPATE_ITEMS: { label: string; icon: IconName; screen: Screen; color: 
     { label: 'Growth',   icon: 'trending-up',     screen: 'growth',   color: '#10b981' },
 ];
 
-const DECIDE_ITEMS: { label: string; icon: IconName; screen: Screen; color: string; desc: string }[] = [
+const DECIDE_ITEMS: { label: string; icon: IconName; screen: Screen; color: string; desc: string; params?: { tab: string } }[] = [
     { label: 'Insights', icon: 'zap',             screen: 'insights', color: '#f59e0b', desc: 'What actually needs a decision right now' },
-    { label: 'Advisor',  icon: 'message-circle',  screen: 'cfo',      color: '#8b5cf6', desc: 'Ask about it — AI diagnosis, plain answers' },
+    // Advisor's own screen defaults to its 'pulse' tab when opened with no
+    // params (a health-overview digest, not the Q&A) -- landing there would
+    // contradict this item's own promise of "ask about it." Deep-link
+    // straight to the Q&A tab so tapping Advisor does what it says.
+    { label: 'Advisor',  icon: 'message-circle',  screen: 'cfo',      color: '#8b5cf6', desc: 'Ask about it — AI diagnosis, plain answers', params: { tab: 'questions' } },
     { label: 'Analysis & Decisions', icon: 'pie-chart', screen: 'analysis', color: '#14b8a6', desc: 'Why is this happening, and what if I...' },
     { label: 'Before You Decide', icon: 'help-circle', screen: 'before-you-decide', color: '#06b6d4', desc: 'Pressure-test a hire, purchase, discount, or loan' },
     { label: 'Goals',    icon: 'target',          screen: 'goals',    color: '#ef4444', desc: 'Set the target this decision is aimed at' },
@@ -110,7 +114,7 @@ const TABS: { label: string; screen: Screen; icon: IconName }[] = [
 ];
 
 export default function FooterNav() {
-    const { currentScreen, setCurrentScreen, user, pendingSyncCount, transactions, goals, invoices, finance, userRole, canViewFinancials } = useApp();
+    const { currentScreen, setCurrentScreen, navigate, user, pendingSyncCount, transactions, goals, invoices, finance, userRole, canViewFinancials } = useApp();
     const [moreOpen, setMoreOpen] = useState(false);
     // Modal renders via a portal on web (react-native-web), completely
     // outside App.tsx's centeredAppColumn wrapper -- so unlike every
@@ -126,7 +130,11 @@ export default function FooterNav() {
     const enableTeam = process.env.EXPO_PUBLIC_ENABLE_TEAM !== 'false';
     const enableFinancing = process.env.EXPO_PUBLIC_ENABLE_FINANCING !== 'false';
 
-    const goTo = (screen: Screen) => { setCurrentScreen(screen); setMoreOpen(false); };
+    const goTo = (screen: Screen, params?: { tab: string }) => {
+        if (params) navigate(screen, params);
+        else setCurrentScreen(screen);
+        setMoreOpen(false);
+    };
 
     const initials = useMemo(() =>
         (user?.businessName || 'Q')
@@ -332,7 +340,7 @@ export default function FooterNav() {
                                 <TouchableOpacity
                                     key={item.label}
                                     style={[styles.listRow, i < arr.length - 1 && styles.listRowBorder]}
-                                    onPress={() => goTo(item.screen)}
+                                    onPress={() => goTo(item.screen, item.params)}
                                     activeOpacity={0.75}
                                 >
                                     <View style={[styles.listIconBox, { backgroundColor: item.color + '22' }]}>

@@ -483,7 +483,7 @@ function FinanceTab() {
             <Text style={[s.sectionHdr, { marginTop: 8 }]}>Break-Even Calculator — Plan a Price or Product</Text>
             <View style={s.card}>
                 <Text style={s.cardSub}>
-                    A what-if tool: enter hypothetical cost and pricing to find out how many units you'd need to sell to cover costs. For how your actual whole business is doing against breakeven this period, see Breakeven Analysis under Growth.
+                    A what-if tool: enter hypothetical cost and pricing to find out how many units you'd need to sell to cover costs. For how your actual whole business is doing against breakeven this period, see Breakeven Analysis under Cash Flow.
                 </Text>
                 <TextInput style={s.input} placeholder={`Monthly Fixed Costs (${currency})`} placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={fixedCosts} onChangeText={setFixedCosts} />
                 <TextInput style={s.input} placeholder={`Variable Cost per Unit (${currency})`} placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={varRate} onChangeText={setVarRate} />
@@ -624,6 +624,8 @@ function GrowthTab() {
                     ))}
                 </View>
             )}
+
+            <NextStepLink text="Looking for growth score, momentum, top customers & products → Growth Intelligence" onPress={() => navigate('growth')} />
         </ScrollView>
     );
 }
@@ -635,12 +637,16 @@ export default function CFOScreen() {
         (['pulse', 'forecast', 'finance', 'growth', 'questions'] as Tab[]).includes(navParams?.tab) ? navParams.tab : 'pulse'
     );
 
+    // 'growth' here is pricing/cost/debt levers, not the same thing as the
+    // standalone Growth Intelligence screen (score/momentum/customers) --
+    // labeling it "Growth" too made two unrelated screens look like the
+    // same destination. "Quick Wins" names what the tab actually contains.
     const TABS: { key: Tab; label: string; icon: string }[] = [
-        { key: 'pulse',     label: 'Pulse',     icon: '❤️' },
-        { key: 'forecast',  label: 'Forecast',  icon: '📅' },
-        { key: 'finance',   label: 'Finance',   icon: '📊' },
-        { key: 'growth',    label: 'Growth',    icon: '🚀' },
-        { key: 'questions', label: 'CFO Q&A',   icon: '❓' },
+        { key: 'pulse',     label: 'Pulse',      icon: '❤️' },
+        { key: 'forecast',  label: 'Forecast',   icon: '📅' },
+        { key: 'finance',   label: 'Finance',    icon: '📊' },
+        { key: 'growth',    label: 'Quick Wins', icon: '🚀' },
+        { key: 'questions', label: 'CFO Q&A',    icon: '❓' },
     ];
 
     const hasEnoughData = transactions.length >= 3;
