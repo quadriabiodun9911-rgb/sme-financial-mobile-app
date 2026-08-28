@@ -19,7 +19,10 @@ const SUNDAY_START = new Date('2026-01-04T00:00:00');
 function dateForDay(weeksFromStart: number, weekday: number): string {
     const d = new Date(SUNDAY_START);
     d.setDate(d.getDate() + weeksFromStart * 7 + weekday);
-    return d.toISOString().slice(0, 10);
+    // Local Y-M-D, not toISOString() -- must match weekdayPattern.ts's own
+    // local-date bucketing exactly, or this only passes by coincidence in a
+    // UTC-offset-0 environment.
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 describe('computeWeekdayPattern', () => {

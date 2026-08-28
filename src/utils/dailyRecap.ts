@@ -34,7 +34,11 @@ export function buildDailyRecap(
     currency: string,
     now: Date = new Date(),
 ): DailyRecapResult {
-    const todayStr = now.toISOString().slice(0, 10);
+    // Local Y-M-D, not toISOString() -- toISOString() converts to UTC, which
+    // reports yesterday's date for part of the local day in any positive
+    // UTC offset (e.g. Nigeria, WAT = UTC+1), so a recap run soon after
+    // local midnight would look up the wrong day's bucket.
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const today = computeDailyTrend(transactions).find(d => d.date === todayStr);
 
     if (!today || (today.revenue === 0 && today.expense === 0)) {

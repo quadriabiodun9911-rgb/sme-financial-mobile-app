@@ -208,7 +208,11 @@ describe('buildBehavioralProfile', () => {
                 if (weekday === 2 || weekday === 3) continue;
                 const d = new Date('2026-01-04T00:00:00');
                 d.setDate(d.getDate() + week * 7 + weekday);
-                transactions.push(makeTx({ date: d.toISOString().slice(0, 10), amount: 10000 }));
+                // Local Y-M-D, not toISOString() -- must match weekdayPattern.ts's
+                // own local-date bucketing exactly, or this test only passes by
+                // coincidence in a UTC-offset-0 environment.
+                const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                transactions.push(makeTx({ date: dateStr, amount: 10000 }));
             }
         }
         const profile = buildBehavioralProfile(baseInput({ transactions }));

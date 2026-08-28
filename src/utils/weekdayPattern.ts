@@ -90,7 +90,13 @@ export function computeWeekdayPattern(transactions: Transaction[]): WeekdayPatte
     let totalExpense = 0;
     const cursor = new Date(start);
     for (let i = 0; i < daysOfHistory; i++) {
-        const dateStr = cursor.toISOString().slice(0, 10);
+        // Local Y-M-D, not toISOString() -- toISOString() converts to UTC,
+        // which shifts the date string back a day for any positive UTC
+        // offset (e.g. Nigeria, WAT = UTC+1) while cursor.getDay() below
+        // still reports the correct local weekday. That mismatch would
+        // silently attribute each day's revenue/expense to the wrong
+        // weekday bucket for the app's actual target market.
+        const dateStr = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
         const day = dailyByDate.get(dateStr);
         const revenue = day?.revenue ?? 0;
         const expense = day?.expense ?? 0;
