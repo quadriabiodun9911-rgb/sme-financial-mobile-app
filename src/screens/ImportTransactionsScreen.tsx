@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
     View, Text, TouchableOpacity, ScrollView, StyleSheet,
     Alert, ActivityIndicator, FlatList, Modal, Platform, useWindowDimensions, TextInput,
@@ -738,6 +738,20 @@ export default function ImportTransactionsScreen() {
     const totalIn     = incomeRows.reduce((s, r)  => s + r.amount, 0);
     const totalOut    = expenseRows.reduce((s, r) => s + r.amount, 0);
 
+    // The exact same filterNewTransactions() call importRows() makes at
+    // commit time (see transactionDedup.ts), run here too so the review
+    // screen can show which rows already exist in Quad360 BEFORE the user
+    // taps Import, instead of the only signal being an aggregate count on
+    // the done screen after the fact. Reusing the identical function (not a
+    // separate check) guarantees this preview count always matches what
+    // actually gets skipped on import -- including a row that's a duplicate
+    // of another row earlier in this same batch, not just of existing data.
+    const duplicateRowIds = useMemo(() => {
+        const newOnes = new Set(filterNewTransactions(rows, transactions as any).map(r => r.id));
+        return new Set(rows.filter(r => !newOnes.has(r.id)).map(r => r.id));
+    }, [rows, transactions]);
+    const duplicateCount = duplicateRowIds.size;
+
     const fmt = (n: number) => `${currency}${n.toLocaleString('en-NG', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -973,6 +987,14 @@ export default function ImportTransactionsScreen() {
                 </TouchableOpacity>
                 <View style={{ flex: 1 }}>
                     <Text style={styles.previewTitle}>{rows.length} transactions found</Text>
+                    {duplicateCount > 0 && (
+                        <View style={styles.noteRow}>
+                            <Icon name="alert-triangle" size={12} color="#ef4444" />
+                            <Text style={styles.duplicateNote}>
+                                {duplicateCount} row{duplicateCount > 1 ? 's' : ''} already in your records — looks like this statement (or part of it) was imported before. {duplicateCount > 1 ? 'They' : 'It'} won't be added again.
+                            </Text>
+                        </View>
+                    )}
                     {flaggedRows.length > 0 && (
                         <View style={styles.noteRow}>
                             <Icon name="alert-triangle" size={12} color="#f59e0b" />
@@ -1042,8 +1064,10 @@ export default function ImportTransactionsScreen() {
                 data={rows}
                 keyExtractor={r => r.id}
                 contentContainerStyle={{ padding: 12, paddingBottom: 120 }}
-                renderItem={({ item: r }) => (
-                    <View style={[styles.txRow, (r.flagged || r.amountFlagged) && styles.txRowFlagged]}>
+                renderItem={({ item: r }) => {
+                    const isDuplicate = duplicateRowIds.has(r.id);
+                    return (
+                    <View style={[styles.txRow, (r.flagged || r.amountFlagged) && styles.txRowFlagged, isDuplicate && styles.txRowDuplicate]}>
                         <View style={styles.txLeft}>
                             <Text style={styles.txDate}>
                                 {new Date(r.date).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })}
@@ -1056,6 +1080,9 @@ export default function ImportTransactionsScreen() {
                             </TouchableOpacity>
                             {r.amountFlagged && (
                                 <Text style={styles.txAmountWarning}>⚠️ Unusually large — tap the amount to check it</Text>
+                            )}
+                            {isDuplicate && (
+                                <Text style={styles.txDuplicateWarning}>⚠️ Already in your records — won't be added again</Text>
                             )}
                         </View>
                         <View style={styles.txRight}>
@@ -1072,14 +1099,19 @@ export default function ImportTransactionsScreen() {
                             </TouchableOpacity>
                         </View>
                     </View>
-                )}
+                    );
+                }}
             />
 
             {/* Import button — fixed bottom */}
             <View style={styles.importBar}>
                 <TouchableOpacity style={styles.importBtn} onPress={handleImport}>
                     <Text style={styles.importBtnText}>
-                        Import {rows.length} transaction{rows.length !== 1 ? 's' : ''}
+                        {duplicateCount === 0
+                            ? `Import ${rows.length} transaction${rows.length !== 1 ? 's' : ''}`
+                            : duplicateCount === rows.length
+                                ? 'All transactions already recorded — nothing new to import'
+                                : `Import ${rows.length - duplicateCount} new transaction${rows.length - duplicateCount !== 1 ? 's' : ''} (${duplicateCount} duplicate${duplicateCount !== 1 ? 's' : ''} skipped)`}
                     </Text>
                 </TouchableOpacity>
             </View>
@@ -1184,6 +1216,7 @@ const styles = StyleSheet.create({
     noteRow:       { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
     flaggedNote:   { fontSize: 12, color: '#f59e0b' },
     skippedNote:   { fontSize: 11, color: Colors.textMuted },
+    duplicateNote: { fontSize: 12, color: '#ef4444', flex: 1, flexShrink: 1 },
 
     // Summary strip
     summaryStrip: { flexDirection: 'row', backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border },
@@ -1196,6 +1229,7 @@ const styles = StyleSheet.create({
     // Transaction rows
     txRow:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.sm, borderWidth: 1, borderColor: Colors.border },
     txRowFlagged: { borderWidth: 1.5, borderColor: '#f59e0b' },
+    txRowDuplicate: { borderWidth: 1.5, borderColor: '#ef4444', opacity: 0.7 },
     txLeft:       { flex: 1, paddingRight: 10 },
     txDate:       { fontSize: 11, color: Colors.textMuted, marginBottom: 2 },
     txDesc:       { fontSize: 13, fontWeight: '600', color: Colors.textPrimary, marginBottom: Spacing.xs },
@@ -1204,6 +1238,7 @@ const styles = StyleSheet.create({
     txRight:      { alignItems: 'flex-end', gap: Spacing.sm },
     txAmount:     { fontSize: 14, fontWeight: '800' },
     txAmountWarning: { fontSize: 11, color: '#ef4444', marginTop: 4, fontWeight: '600' },
+    txDuplicateWarning: { fontSize: 11, color: '#ef4444', marginTop: 4, fontWeight: '600' },
     removeBtn:    { padding: 2 },
 
     // Fixed import bar
