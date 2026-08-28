@@ -597,7 +597,12 @@ export async function loadCashPockets(): Promise<CashPocket[] | null> {
 
 // ─── Team Members ─────────────────────────────────────────────────────────────
 export async function loadTeamMembers(): Promise<TeamMember[]> {
-    const ownerId = await getAuthUserId();
+    // getWorkspaceOwnerId() -- same fix as inviteTeamMember: an admin
+    // viewing the Team screen while switched into a business they don't
+    // own must see THAT business's invitee list (email, role, status), not
+    // whatever's under their own account (typically nothing, which is what
+    // made this look like "other users can't see the invitee's email").
+    const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return [];
     try {
         const { data, error } = await supabase
@@ -720,7 +725,13 @@ export async function inviteTeamMember(
     memberEmail: string,
     role: 'accountant' | 'manager' | 'staff' | 'admin' | 'external_accountant' | 'viewer',
 ): Promise<string> {
-    const ownerId = await getAuthUserId();
+    // getWorkspaceOwnerId(), not getAuthUserId() -- an admin inviting a
+    // teammate while switched into a business they don't own must create
+    // the invite under THAT business, not under their own account. Using
+    // the caller's raw auth id here meant an admin's invite silently
+    // attached to whatever business (if any) they themselves own instead
+    // of the one they were actually trying to manage.
+    const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) throw new Error('Not authenticated.');
     // Use two segments of random to reduce collision probability
     const seg1 = Math.random().toString(36).substring(2, 5).toUpperCase();
