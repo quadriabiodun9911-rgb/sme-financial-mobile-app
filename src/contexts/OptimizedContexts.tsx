@@ -43,7 +43,7 @@ import {
   clearAllData, deleteAllBusinessRecords, exportAllData, importAllData, deleteAccountData, recordConsent,
   inviteTeamMember, removeTeamMember, loadTeamMembers, joinTeamWithCode,
   loadMyTeamMemberships, MyTeamMembership,
-  setWorkspaceOwner, clearWorkspaceOwner,
+  setWorkspaceOwner, clearWorkspaceOwner, resolveWorkspaceRole,
   registerLocalAccount, listLocalAccounts, switchLocalAccount, switchLocalAccountDirect, ensureActiveAccountRegistered, clearLocalAccountsRegistry, LocalAccountSummary,
 } from '../utils/storage';
 import { TeamMember } from '../types';
@@ -1220,7 +1220,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!profile) return 'not-found';
     setIsFirstLaunch(false);
     writeTabIdentity(profile.email);
-    setUser({ email: profile.email, businessName: profile.businessName, phone: profile.phone, role: 'Administrator', createdAt: profile.createdAt });
+    // clearWorkspaceOwner() above means this starts pointed at the
+    // account's own business, but resolve it properly anyway rather than
+    // assuming -- keeps this in one place with the boot-restore path below.
+    const role = await resolveWorkspaceRole();
+    setUser({ email: profile.email, businessName: profile.businessName, phone: profile.phone, role, createdAt: profile.createdAt });
     await routeAfterAuth();
     return 'ok';
   }, [routeAfterAuth]);
@@ -1330,7 +1334,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const { data: { session } } = await supabase.auth.getSession().catch(() => ({ data: { session: null } } as any));
             if (session?.user?.email?.toLowerCase() === profile.email.toLowerCase()) {
               writeTabIdentity(profile.email);
-              setUser({ email: profile.email, businessName: profile.businessName, phone: profile.phone, role: 'Administrator', createdAt: profile.createdAt });
+              // Never assume 'owner' here -- this boot path also runs after
+              // switchBusiness()'s reload, so the workspace pointer may name
+              // a business this device only has a restricted team_members
+              // role on. resolveWorkspaceRole() checks that pointer for
+              // real, on every single restore, rather than trusting
+              // whatever role happened to be in memory before the reload.
+              const role = await resolveWorkspaceRole();
+              setUser({ email: profile.email, businessName: profile.businessName, phone: profile.phone, role, createdAt: profile.createdAt });
               // A signed-in user who lands directly on a shared /blog link
               // should see the article, not get bounced to their dashboard.
               const isPublicBlogRoute = getInitialScreenFromUrl() === 'blog' || getInitialScreenFromUrl() === 'blog-post';
@@ -1453,7 +1464,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return true;
         }
         writeTabIdentity(profile.email);
-        setUser({ email: profile.email, businessName: profile.businessName, phone: profile.phone, role: 'Administrator', createdAt: profile.createdAt });
+        // Not necessarily 'owner' -- this device may still have a
+        // workspace pointer left over from a previous team-business switch,
+        // so resolve the real role for whichever workspace that pointer
+        // currently names instead of assuming this login is the owner.
+        {
+          const role = await resolveWorkspaceRole();
+          setUser({ email: profile.email, businessName: profile.businessName, phone: profile.phone, role, createdAt: profile.createdAt });
+        }
         await routeAfterAuth();
         auditEvents.login();
         return true;
@@ -1463,7 +1481,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const ok = await verifyTwoFactorLogin(code, method).catch(() => false);
         if (!ok || !pendingTwoFactorProfile) return false;
         writeTabIdentity(pendingTwoFactorProfile.email);
-        setUser({ email: pendingTwoFactorProfile.email, businessName: pendingTwoFactorProfile.businessName, phone: pendingTwoFactorProfile.phone, role: 'Administrator', createdAt: pendingTwoFactorProfile.createdAt });
+        const role = await resolveWorkspaceRole();
+        setUser({ email: pendingTwoFactorProfile.email, businessName: pendingTwoFactorProfile.businessName, phone: pendingTwoFactorProfile.phone, role, createdAt: pendingTwoFactorProfile.createdAt });
         setPendingTwoFactorProfile(null);
         await routeAfterAuth();
         auditEvents.login();
@@ -1553,7 +1572,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // harmless no-op there.
         setIsDemoMode(false);
         setDemoBusinessId(null);
-        setUser({ email, businessName, role: 'Administrator', phone, createdAt: new Date().toISOString() });
+        setUser({ email, businessName, role: 'owner', phone, createdAt: new Date().toISOString() });
         await refreshLocalAccounts();
         trackUserRegistered(initialSettings?.currency ?? DEFAULT_SETTINGS.currency);
         auditEvents.accountSetup(email);
@@ -1598,7 +1617,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         setIsFirstLaunch(false);
         writeTabIdentity(profile.email);
-        setUser({ email: profile.email, businessName: profile.businessName, phone: profile.phone, role: 'Administrator', createdAt: profile.createdAt });
+        const role = await resolveWorkspaceRole();
+        setUser({ email: profile.email, businessName: profile.businessName, phone: profile.phone, role, createdAt: profile.createdAt });
         await refreshLocalAccounts();
         setCurrentScreenState('dashboard');
       },
@@ -1664,7 +1684,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await saveProfile({ email, businessName: 'Team Member', createdAt: new Date().toISOString() });
         setIsFirstLaunch(false);
         writeTabIdentity(email);
-        setUser({ email, businessName: 'Team Member', role: role === 'accountant' ? 'Accountant' : role === 'manager' ? 'Manager' : 'Staff', createdAt: new Date().toISOString() });
+        // Store the real DB role verbatim (not a lossy 3-way display
+        // mapping) -- joinTeamWithCode already returns exactly one of the
+        // six team_members roles, and everything downstream (rolePermissions.ts,
+        // resolveWorkspaceRole) expects that canonical lowercase value.
+        setUser({ email, businessName: 'Team Member', role, createdAt: new Date().toISOString() });
         setCurrentScreenState('dashboard');
       },
 
@@ -1725,7 +1749,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsLenderSession(true);
         setLenderOrgId(orgId);
         setLenderOrgName(orgName);
-        setUser({ email, businessName: orgName, role: 'Administrator', createdAt: new Date().toISOString() });
+        setUser({ email, businessName: orgName, role: 'owner', createdAt: new Date().toISOString() });
         setCurrentScreenState('lender-pipeline');
       },
       isLenderSession,
@@ -1740,7 +1764,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser({
           email: 'demo-lender@quad360.demo',
           businessName: 'Demo Bank (Preview)',
-          role: 'Administrator',
+          role: 'owner',
           createdAt: new Date(Date.now() - 400 * 86400000).toISOString(),
         });
         setIsLenderSession(true);
@@ -1795,7 +1819,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser({
           email: `demo-${biz.id}@quad360.demo`,
           businessName: biz.businessName,
-          role: 'Administrator',
+          role: 'owner',
           createdAt: new Date(Date.now() - 120 * 86400000).toISOString(),
         });
         setDemoBusinessId(businessId);
@@ -1814,7 +1838,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser({
           email: `guest-${Date.now()}@quad360.guest`,
           businessName: 'My Business',
-          role: 'Administrator',
+          role: 'owner',
           createdAt: new Date().toISOString(),
         });
         setDemoBusinessId(null);
@@ -1873,6 +1897,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       switchBusiness: async (ownerUserId: string) => {
         await clearLocalFinancialCache().catch(() => {});
         await setWorkspaceOwner(ownerUserId);
+        // reloadApp() is a no-op on native (window is undefined there), so
+        // this device's in-memory role must be corrected here too, not left
+        // to depend on the reload -- resolveWorkspaceRole() looks up the
+        // real, currently-active team_members role for this specific
+        // ownerUserId rather than carrying over whatever role this session
+        // had before the switch.
+        const role = await resolveWorkspaceRole();
+        setUser((prev) => (prev ? { ...prev, role } : prev));
         reloadApp();
       },
     }),
@@ -2080,11 +2112,19 @@ export function useApp() {
     [auth.user, daysActive, avgMonthlyRevenue, avgMonthlyProfit, totalRecordedRevenue, financialHealthScore]
   );
 
+  // auth.user.role is always one of the six canonical lowercase UserRole
+  // values by the time it's set (see resolveWorkspaceRole in storage.ts) --
+  // this allowlist is defense in depth, not the primary check: an
+  // unrecognized value fails CLOSED to the most restrictive role ('staff'),
+  // never to 'owner'. Previously this only recognized three legacy display
+  // strings and defaulted everything else -- including 'admin',
+  // 'external_accountant', 'viewer', and undefined -- to 'owner', which is
+  // how a team member landed with full owner permissions after switching
+  // into another business's workspace.
+  const KNOWN_ROLES: UserRole[] = ['owner', 'admin', 'accountant', 'manager', 'staff', 'external_accountant', 'viewer'];
   const resolvedUserRole = (
-    auth.user?.role === 'Accountant' ? 'accountant' :
-    auth.user?.role === 'Manager' ? 'manager' :
-    auth.user?.role === 'Staff' ? 'staff' : 'owner'
-  ) as UserRole;
+    KNOWN_ROLES.includes(auth.user?.role as UserRole) ? (auth.user!.role as UserRole) : 'staff'
+  );
 
   return {
     // Auth state

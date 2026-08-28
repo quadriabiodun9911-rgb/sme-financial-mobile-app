@@ -43,6 +43,20 @@ export function canViewFinancials(role: UserRole): boolean {
     return role !== 'staff';
 }
 
+// Human-facing label for each canonical role -- used anywhere the app
+// displays "your role" (e.g. the Header account switcher), so display text
+// always matches the actual permission-gating role instead of a separate,
+// independently-hardcoded string that can drift out of sync with it.
+export const ROLE_DISPLAY_LABEL: Record<UserRole, string> = {
+    owner: 'Administrator',
+    admin: 'Admin',
+    accountant: 'Accountant',
+    manager: 'Manager',
+    external_accountant: 'External Accountant',
+    staff: 'Staff',
+    viewer: 'Viewer',
+};
+
 // Things that reshape who has access, where money moves, or that
 // permanently destroy business records. Every one of these was previously
 // an inline `userRole === 'owner'` check scattered across

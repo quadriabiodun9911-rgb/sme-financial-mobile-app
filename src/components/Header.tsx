@@ -12,11 +12,12 @@ import { detectFinancialAlerts, DEFAULT_THRESHOLDS } from '../utils/alertEngine'
 import { computeForecastRiskAlert } from '../utils/forecastRiskAlert';
 import { ForecastAlert } from '../types/forecast';
 import { sendCashFlowAlert, sendOverdueInvoiceAlert } from '../utils/whatsappIntegration';
+import { ROLE_DISPLAY_LABEL } from '../utils/rolePermissions';
 
 const DISMISSED_ALERTS_KEY = '@quad360/dismissed_alerts';
 
 export default function Header() {
-    const { user, logout, setCurrentScreen, goBack, currentScreen, finance, transactions, invoices, loans, staff, payrollRuns, settings, goals, budgets, assets, inventory, localAccounts, switchAccountDirect, teamMemberships, refreshTeamMemberships, switchBusiness } = useApp();
+    const { user, logout, setCurrentScreen, goBack, currentScreen, finance, transactions, invoices, loans, staff, payrollRuns, settings, goals, budgets, assets, inventory, localAccounts, switchAccountDirect, teamMemberships, refreshTeamMemberships, switchBusiness, userRole } = useApp();
     const showBack = currentScreen !== 'dashboard' && currentScreen !== 'login';
     const { width } = useWindowDimensions();
     const isNarrow = width < 480;
@@ -173,7 +174,7 @@ export default function Header() {
                             <Text style={styles.userText}>{user?.email?.split('@')[0] || 'Admin'}</Text>
                             {canSwitch && <Icon name="chevron-down" size={12} color={Colors.textMuted} />}
                         </View>
-                        <Text style={styles.userRole}>{user?.role || 'Administrator'}</Text>
+                        <Text style={styles.userRole}>{ROLE_DISPLAY_LABEL[userRole]}</Text>
                     </TouchableOpacity>
                 )}
                 <TouchableOpacity style={styles.signOutBtn} onPress={logout} activeOpacity={0.8}>

@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CryptoJS from 'crypto-js';
-import { Transaction, BusinessSettings, FinancialGoal, Invoice, TeamMember, Language, Asset, InventoryItem, Loan, Budget, StaffMember, PayrollRun, FinancingContextData, CashPocket, CapitalCommitment, ReadinessSnapshot, DataConfidenceSnapshot } from '../types';
+import { Transaction, BusinessSettings, FinancialGoal, Invoice, TeamMember, Language, Asset, InventoryItem, Loan, Budget, StaffMember, PayrollRun, FinancingContextData, CashPocket, CapitalCommitment, ReadinessSnapshot, DataConfidenceSnapshot, FxRateSnapshot } from '../types';
 import { supabase } from './supabase';
 import {
     savePinSecurely, loadPinSecurely, clearPinSecurely, clearAllSecureData, saveAuthSecretSecurely, loadAuthSecretSecurely, clearAuthSecretSecurely,
@@ -669,6 +669,53 @@ export async function loadMyTeamMemberships(): Promise<MyTeamMembership[]> {
     }
 }
 
+// Looks up this device's real, currently-active role on one specific
+// business, straight from team_members -- never trust a cached/in-memory
+// role for permission decisions, only this. Returns null when there's no
+// active membership row (revoked, or the caller is the owner themselves,
+// which is handled separately by resolveWorkspaceRole below).
+async function getMyRoleForOwner(ownerUserId: string): Promise<MyTeamMembership['role'] | null> {
+    const myId = await getAuthUserId();
+    if (!myId) return null;
+    try {
+        const { data, error } = await supabase
+            .from('team_members')
+            .select('role')
+            .eq('owner_user_id', ownerUserId)
+            .eq('member_user_id', myId)
+            .eq('status', 'active')
+            .maybeSingle();
+        if (error || !data) { if (error) logSyncError('team_members', 'get_role_for_owner', error); return null; }
+        return data.role;
+    } catch (e) {
+        logSyncError('team_members', 'get_role_for_owner', e);
+        return null;
+    }
+}
+
+// The single source of truth for "what role does this signed-in device
+// currently act as" -- called on every app boot/reload and after switching
+// business, precisely because the workspace pointer (getWorkspaceOwnerId)
+// can name either the signed-in user's own business or one they were
+// merely invited into. Returns 'owner' when the pointer names their own
+// business (the normal case). When it names someone else's business, this
+// looks up the real, currently-active team_members role for that specific
+// pairing -- it is never inferred, cached, or defaulted to a privileged
+// role. Fails CLOSED: if that membership can't be confirmed (revoked
+// access, or a lookup error), the workspace pointer is reset back to the
+// user's own business rather than ever granting an unverified role.
+export async function resolveWorkspaceRole(): Promise<'owner' | 'accountant' | 'manager' | 'staff' | 'admin' | 'external_accountant' | 'viewer'> {
+    const myId = await getAuthUserId();
+    const workspaceOwnerId = await getWorkspaceOwnerId();
+    if (!myId || !workspaceOwnerId || workspaceOwnerId === myId) return 'owner';
+    const role = await getMyRoleForOwner(workspaceOwnerId);
+    if (!role) {
+        await clearWorkspaceOwner().catch(() => {});
+        return 'owner';
+    }
+    return role;
+}
+
 export async function inviteTeamMember(
     memberEmail: string,
     role: 'accountant' | 'manager' | 'staff' | 'admin' | 'external_accountant' | 'viewer',
@@ -847,6 +894,21 @@ export async function saveDataConfidenceHistory(history: DataConfidenceSnapshot[
 export async function loadDataConfidenceHistory(): Promise<DataConfidenceSnapshot[] | null> {
     const raw = await AsyncStorage.getItem(DATA_CONFIDENCE_HISTORY_KEY);
     return safeParse<DataConfidenceSnapshot[]>(raw);
+}
+
+// ─── FX Rate Snapshots (local only) ───────────────────────────────────────────
+// Same local-only pattern as Readiness/Data Confidence History above. Live FX
+// rates (macroFeed.ts) only give a spot value -- to suggest a real "% change
+// over N months" for a MacroAssumption, this device builds its own short
+// history by recording a snapshot each time a live rate is fetched, rather
+// than paying for (or fabricating) historical data.
+const FX_SNAPSHOTS_KEY = '@quad360/fxSnapshots';
+export async function saveFxSnapshots(snapshots: FxRateSnapshot[]): Promise<void> {
+    await AsyncStorage.setItem(FX_SNAPSHOTS_KEY, JSON.stringify(snapshots));
+}
+export async function loadFxSnapshots(): Promise<FxRateSnapshot[] | null> {
+    const raw = await AsyncStorage.getItem(FX_SNAPSHOTS_KEY);
+    return safeParse<FxRateSnapshot[]>(raw);
 }
 
 // ─── PIN (local only — never sent to server) ──────────────────────────────────

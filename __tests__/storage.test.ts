@@ -75,6 +75,7 @@ import {
     saveGoals,
     loadGoals,
     setWorkspaceOwner,
+    getWorkspaceOwnerId,
     clearLocalFinancialCache,
     localProfileMatchesEmail,
     registerLocalAccount,
@@ -89,8 +90,10 @@ import {
     loadPin,
     loadAuthSecret,
     loadProfile,
+    resolveWorkspaceRole,
 } from '../src/utils/storage';
 import * as secureStorageMock from '../src/utils/secureStorage';
+import { supabase } from '../src/utils/supabase';
 
 // ─── Test data helpers ────────────────────────────────────────────────────────
 
@@ -536,5 +539,91 @@ describe('removeLocalAccount', () => {
         await removeLocalAccount(null);
 
         expect(await listLocalAccounts()).toHaveLength(1);
+    });
+});
+
+// ─── Workspace role resolution ─────────────────────────────────────────────
+// Regression coverage for a real privilege-escalation bug: switching into
+// (or simply reloading while inside) another business's workspace used to
+// leave this device's effective role hardcoded/defaulted to full owner
+// permissions, regardless of the invited team_members role actually on
+// file for that business. resolveWorkspaceRole() is the one place that
+// decides this now -- it must never grant an elevated role it hasn't
+// verified straight from team_members, and must fail CLOSED (never to
+// 'owner') when that verification can't be done.
+function mockSession(userId: string | null) {
+    (supabase.auth.getSession as jest.Mock).mockResolvedValue({
+        data: { session: userId ? { user: { id: userId } } : null },
+    });
+}
+
+function mockTeamMembersRoleLookup(result: { data: { role: string } | null; error: unknown }) {
+    jest.spyOn(supabase, 'from').mockImplementation((table: string) => {
+        if (table === 'team_members') {
+            return {
+                select: () => ({
+                    eq: () => ({
+                        eq: () => ({
+                            eq: () => ({
+                                maybeSingle: jest.fn(async () => result),
+                            }),
+                        }),
+                    }),
+                }),
+            } as any;
+        }
+        return { upsert: jest.fn(async () => ({ error: null })), select: () => ({ eq: () => ({ single: jest.fn(async () => ({ data: null, error: null })), order: () => Promise.resolve({ data: null, error: null }) }) }) } as any;
+    });
+}
+
+describe('resolveWorkspaceRole', () => {
+    it("returns 'owner' when no workspace pointer is cached (device acting as its own account)", async () => {
+        mockSession('me-1');
+        expect(await resolveWorkspaceRole()).toBe('owner');
+    });
+
+    it("returns 'owner' when the workspace pointer names the signed-in user's own id", async () => {
+        mockSession('me-1');
+        await setWorkspaceOwner('me-1');
+        expect(await resolveWorkspaceRole()).toBe('owner');
+    });
+
+    it('returns the real, currently-active team_members role for a workspace the device switched into', async () => {
+        mockSession('me-1');
+        await setWorkspaceOwner('owner-biz-1');
+        mockTeamMembersRoleLookup({ data: { role: 'staff' }, error: null });
+
+        expect(await resolveWorkspaceRole()).toBe('staff');
+    });
+
+    it('never upgrades a restricted role to owner just because the workspace switch succeeded', async () => {
+        mockSession('me-1');
+        await setWorkspaceOwner('owner-biz-1');
+        mockTeamMembersRoleLookup({ data: { role: 'admin' }, error: null });
+
+        // 'admin' is real and should pass through verbatim -- but must never
+        // silently become 'owner', the exact bug this test guards against.
+        expect(await resolveWorkspaceRole()).toBe('admin');
+    });
+
+    it('fails CLOSED (reverts to the caller\'s own workspace) when no active membership exists for the named business', async () => {
+        mockSession('me-1');
+        await setWorkspaceOwner('owner-biz-1');
+        mockTeamMembersRoleLookup({ data: null, error: null });
+
+        expect(await resolveWorkspaceRole()).toBe('owner');
+        // The stale/invalid pointer must not survive -- otherwise every
+        // subsequent screen render keeps re-deriving 'owner' against a
+        // workspace this device was never actually granted access to.
+        expect(await getWorkspaceOwnerId()).toBe('me-1');
+    });
+
+    it('fails CLOSED (never grants owner over the OTHER business) when the membership lookup errors', async () => {
+        mockSession('me-1');
+        await setWorkspaceOwner('owner-biz-1');
+        mockTeamMembersRoleLookup({ data: null, error: new Error('network error') });
+
+        expect(await resolveWorkspaceRole()).toBe('owner');
+        expect(await getWorkspaceOwnerId()).toBe('me-1');
     });
 });
