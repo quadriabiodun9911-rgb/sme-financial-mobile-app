@@ -80,6 +80,7 @@ export default function MerchantFinancingSection() {
                         confirmMerchantFinancingFunded(fundingDate);
                         showAlert('Added to Loans', 'This is now tracked as an active loan -- find it under Understand > Loans to record repayments.');
                     }}
+                    onReapply={() => setShowApplyModal(true)}
                 />
             ) : null}
 
@@ -250,11 +251,12 @@ function PreQualificationWidget({ maxLoan, minLoan, readinessScore, currency, on
  * APPLICATION STATUS CARD
  * Shows status of pending or rejected applications
  */
-function ApplicationStatusCard({ application, currency, onRecordOutcome, onConfirmFunded }: {
+function ApplicationStatusCard({ application, currency, onRecordOutcome, onConfirmFunded, onReapply }: {
     application: any;
     currency: string;
     onRecordOutcome: () => void;
     onConfirmFunded: (fundingDate: string) => void;
+    onReapply: () => void;
 }) {
     const statusDisplay = {
         pending: { text: 'Under Review', icon: 'clock' as IconName, color: Colors.warning, bg: 'rgba(245,158,11,0.1)' },
@@ -310,9 +312,13 @@ function ApplicationStatusCard({ application, currency, onRecordOutcome, onConfi
                 </>
             )}
 
+            {/* No rejectionDate is ever recorded (recordFinancingOutcome
+                only stores a reason), so there's nothing to check a "30
+                days" wait against -- the button used to claim one anyway
+                while doing nothing when tapped. */}
             {application.status === 'rejected' && (
-                <TouchableOpacity style={s.reapplyBtn}>
-                    <Text style={s.reapplyBtnText}>Reapply After 30 Days</Text>
+                <TouchableOpacity style={s.reapplyBtn} onPress={onReapply}>
+                    <Text style={s.reapplyBtnText}>Reapply</Text>
                 </TouchableOpacity>
             )}
 
