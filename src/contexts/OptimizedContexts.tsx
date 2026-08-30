@@ -1078,6 +1078,18 @@ interface AuthContextValue {
   setupAccount: (email: string, businessName: string, pin: string, loadDemo: boolean, phone?: string, initialSettings?: Partial<BusinessSettings>, guestData?: GuestSeedData) => Promise<void>;
   recoverAccount: (email: string, pin: string) => Promise<void>;
   joinTeam: (email: string, pin: string, inviteCode: string) => Promise<void>;
+  // Self-service recovery for the one join failure a device can't retry its
+  // way out of: an earlier join attempt on a DIFFERENT device got as far as
+  // creating this email's Supabase Auth account but never finished (e.g. an
+  // RLS error on the old team_members policy), so that account's real
+  // password is a random secret only that other device ever knew. Neither
+  // this device's stored secret nor the PIN can sign in to it, and there is
+  // no admin/service-role key on the client to reset it directly. An email
+  // OTP the person can only receive at their own address is the one thing
+  // that proves it's really them without needing that lost password at all.
+  // See joinTeam's own comment for how it detects this case.
+  requestJoinRecoveryOtp: (email: string) => Promise<void>;
+  completeJoinWithOtp: (email: string, otp: string, pin: string, inviteCode: string) => Promise<void>;
   // Phase 2 of the Lender Auth & Financing-Visibility Flow — see that scope
   // document. A lender never shares the SME dashboard/screen family; App.tsx
   // renders an entirely separate shell whenever isLenderSession is true.
@@ -1420,6 +1432,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
   }, [routeAfterAuth]);
 
+  // Shared tail of a successful join, once we have a real authUserId --
+  // used both by joinTeam's normal path and by completeJoinWithOtp's
+  // recovery path below, so the two can never drift on what "finishing a
+  // join" actually means.
+  const finishJoinTeam = async (authUserId: string, email: string, pin: string, inviteCode: string) => {
+    const { ownerId, role } = await joinTeamWithCode(authUserId, inviteCode);
+    // Joining a team on this device must not carry over any previous
+    // identity's locally-cached data -- must run BEFORE setWorkspaceOwner
+    // below, since clearLocalFinancialCache() now also clears the
+    // workspace-owner pointer (see its own comment) and would otherwise
+    // immediately wipe out the one this join just established.
+    await clearLocalFinancialCache().catch(() => {});
+    await setWorkspaceOwner(ownerId);
+    await savePin(pin);
+    await saveProfile({ email, businessName: 'Team Member', createdAt: new Date().toISOString() });
+    setIsFirstLaunch(false);
+    writeTabIdentity(email);
+    // Store the real DB role verbatim (not a lossy 3-way display
+    // mapping) -- joinTeamWithCode already returns exactly one of the
+    // six team_members roles, and everything downstream (rolePermissions.ts,
+    // resolveWorkspaceRole) expects that canonical lowercase value.
+    setUser({ email, businessName: 'Team Member', role, createdAt: new Date().toISOString() });
+    setCurrentScreenState('dashboard');
+  };
+
   const value: AuthContextValue = useMemo(
     () => ({
       user,
@@ -1714,7 +1751,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (!storedSecret || signInErr) {
             ({ data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({ email, password: hashPin(pin) }));
           }
-          if (signInErr) throw new Error(signInErr.message);
+          if (signInErr) {
+            // Neither this device's cached secret nor the PIN unlocks this
+            // account -- the one real cause is a join that partially
+            // completed on a DIFFERENT device (signUp succeeded there,
+            // something after it failed) whose random password only that
+            // device ever knew. A sentinel, not the raw Supabase message,
+            // so the UI can offer the actual fix (requestJoinRecoveryOtp /
+            // completeJoinWithOtp below) instead of a dead-end error.
+            throw new Error('JOIN_ACCOUNT_RECOVERY_NEEDED');
+          }
           authUserId = signInData?.user?.id;
           const { error: rotateError } = await supabase.auth.updateUser({ password: authSecret }).catch(e => ({ error: e } as any));
           if (!rotateError) await saveAuthSecret(authSecret).catch(() => {});
@@ -1722,24 +1768,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await saveAuthSecret(authSecret).catch(() => {});
         }
         if (!authUserId) throw new Error('Could not authenticate.');
-        const { ownerId, role } = await joinTeamWithCode(authUserId, inviteCode);
-        // Joining a team on this device must not carry over any previous
-        // identity's locally-cached data -- must run BEFORE setWorkspaceOwner
-        // below, since clearLocalFinancialCache() now also clears the
-        // workspace-owner pointer (see its own comment) and would otherwise
-        // immediately wipe out the one this join just established.
-        await clearLocalFinancialCache().catch(() => {});
-        await setWorkspaceOwner(ownerId);
-        await savePin(pin);
-        await saveProfile({ email, businessName: 'Team Member', createdAt: new Date().toISOString() });
-        setIsFirstLaunch(false);
-        writeTabIdentity(email);
-        // Store the real DB role verbatim (not a lossy 3-way display
-        // mapping) -- joinTeamWithCode already returns exactly one of the
-        // six team_members roles, and everything downstream (rolePermissions.ts,
-        // resolveWorkspaceRole) expects that canonical lowercase value.
-        setUser({ email, businessName: 'Team Member', role, createdAt: new Date().toISOString() });
-        setCurrentScreenState('dashboard');
+        await finishJoinTeam(authUserId, email, pin, inviteCode);
+      },
+      requestJoinRecoveryOtp: async (email) => {
+        // shouldCreateUser: false -- this must only ever sign in to the
+        // existing stuck account, never silently create a fresh one for a
+        // mistyped or unrelated address.
+        const { error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
+        if (error) throw new Error(error.message);
+      },
+      completeJoinWithOtp: async (email, otp, pin, inviteCode) => {
+        const { data, error: verifyErr } = await supabase.auth.verifyOtp({ email, token: otp, type: 'email' });
+        if (verifyErr) throw new Error(verifyErr.message);
+        const authUserId = data?.user?.id;
+        if (!authUserId) throw new Error('Could not verify code.');
+        // Now that the OTP has proven this is really them, replace the
+        // account's forgotten random password with a fresh one this
+        // device will actually remember, same as the normal join path.
+        const newAuthSecret = generateAuthSecret();
+        const { error: rotateError } = await supabase.auth.updateUser({ password: newAuthSecret }).catch(e => ({ error: e } as any));
+        if (!rotateError) await saveAuthSecret(newAuthSecret).catch(() => {});
+        await finishJoinTeam(authUserId, email, pin, inviteCode);
       },
 
       // Mirrors joinTeam above almost exactly -- same authSecret-as-real-
@@ -2343,6 +2392,8 @@ export function useApp() {
     inviteMember: auth.inviteMember || (async () => ''),
     removeMember: auth.removeMember || (() => Promise.resolve()),
     joinTeam: auth.joinTeam,
+    requestJoinRecoveryOtp: auth.requestJoinRecoveryOtp,
+    completeJoinWithOtp: auth.completeJoinWithOtp,
     isLenderSession: auth.isLenderSession,
     lenderOrgId: auth.lenderOrgId,
     lenderOrgName: auth.lenderOrgName,

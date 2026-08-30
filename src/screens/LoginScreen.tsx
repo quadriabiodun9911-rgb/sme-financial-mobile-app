@@ -77,7 +77,7 @@ type Mode = 'owner-setup' | 'owner-login' | 'join-team' | 'join-lender' | 'reset
 type LoginMethod = 'pin' | 'email';
 
 export default function LoginScreen() {
-    const { isFirstLaunch, setupAccount, login, joinTeam, joinAsLender, enterDemo, enterGuest, isDemoMode, transactions, assets, loans, inventory, invoices, settings, language, setLanguage, updateSettings, resetApp, isLockedOut, lockoutUntil, recoverAccount, navParams, recordConsent, navigate, localAccounts, switchAccount, refreshLocalAccounts } = useApp();
+    const { isFirstLaunch, setupAccount, login, joinTeam, requestJoinRecoveryOtp, completeJoinWithOtp, joinAsLender, enterDemo, enterGuest, isDemoMode, transactions, assets, loans, inventory, invoices, settings, language, setLanguage, updateSettings, resetApp, isLockedOut, lockoutUntil, recoverAccount, navParams, recordConsent, navigate, localAccounts, switchAccount, refreshLocalAccounts } = useApp();
     // The split-screen setup layout only applies on wide web viewports --
     // narrow/native rendering is untouched, so the primary mobile
     // experience carries zero risk from this. 900px comfortably fits the
@@ -234,6 +234,15 @@ export default function LoginScreen() {
     const [joinConfirm, setJoinConfirm] = useState('');
     const [inviteCode, setInviteCode]   = useState('');
     const [joiningTeam, setJoiningTeam] = useState(false);
+    // Set when joinTeam signals JOIN_ACCOUNT_RECOVERY_NEEDED -- an earlier
+    // join attempt already created the Supabase Auth account but never
+    // finished claiming the invite, so this device's password guess can
+    // never match. Switches the form into an OTP step instead of a
+    // dead-end "invalid login credentials" alert.
+    const [joinNeedsRecovery, setJoinNeedsRecovery] = useState(false);
+    const [joinOtp, setJoinOtp]         = useState('');
+    const [joinOtpSending, setJoinOtpSending] = useState(false);
+    const [joinOtpSubmitting, setJoinOtpSubmitting] = useState(false);
 
     // Join as lender (lender-side onboarding — see lenderAuth.ts / joinAsLender)
     const [lenderEmail, setLenderEmail]     = useState('');
@@ -466,8 +475,44 @@ export default function LoginScreen() {
         try {
             await joinTeam(joinEmail.trim(), joinPin, inviteCode.trim());
         } catch (e: any) {
+            if (e?.message === 'JOIN_ACCOUNT_RECOVERY_NEEDED') {
+                setJoiningTeam(false);
+                await handleRequestJoinRecoveryOtp();
+                return;
+            }
             showAlert('Join Failed', e?.message ?? 'Invalid invite code or account error.');
             setJoiningTeam(false);
+        }
+    };
+
+    // A previous join attempt already created this email's Supabase Auth
+    // account but never finished claiming the invite (e.g. it hit the RLS
+    // recursion bug that has since been fixed), so no password typed here
+    // can ever match. Proves ownership via a one-time email code instead,
+    // then rotates the account's password and completes the join --
+    // exactly what a Dashboard-side "delete the orphaned user" manual fix
+    // achieved before, but self-service.
+    const handleRequestJoinRecoveryOtp = async () => {
+        setJoinOtpSending(true);
+        try {
+            await requestJoinRecoveryOtp(joinEmail.trim());
+            setJoinNeedsRecovery(true);
+        } catch (e: any) {
+            showAlert('Join Failed', e?.message ?? 'Could not send a verification code. Please try again.');
+        } finally {
+            setJoinOtpSending(false);
+        }
+    };
+
+    const handleCompleteJoinWithOtp = async () => {
+        if (!/^\d{4,8}$/.test(joinOtp.trim())) { showAlert(t(language, 'error'), 'Enter the code we emailed you.'); return; }
+        setJoinOtpSubmitting(true);
+        try {
+            await completeJoinWithOtp(joinEmail.trim(), joinOtp.trim(), joinPin, inviteCode.trim());
+        } catch (e: any) {
+            showAlert('Join Failed', e?.message ?? 'That code didn\'t work. Please try again.');
+        } finally {
+            setJoinOtpSubmitting(false);
         }
     };
 
@@ -1076,39 +1121,70 @@ export default function LoginScreen() {
                     {backToHomeLink}
                     <View style={styles.card}>
                         <Text style={styles.title}>{t(language, 'joinTeam')}</Text>
-                        <Text style={styles.subtitle}>{t(language, 'joinSubtitle')}</Text>
 
-                        <Field label={t(language, 'yourEmail')}>
-                            <TextInput style={styles.input} value={joinEmail} onChangeText={setJoinEmail}
-                                placeholder="you@example.com" placeholderTextColor={Colors.muted}
-                                autoCapitalize="none" keyboardType="email-address" />
-                        </Field>
-                        <Field label={t(language, 'newPin')}>
-                            <TextInput style={styles.input} value={joinPin} onChangeText={setJoinPin}
-                                placeholder="••••••" placeholderTextColor={Colors.muted}
-                                secureTextEntry keyboardType="number-pad" maxLength={6} />
-                        </Field>
-                        <Field label={t(language, 'confirmPin')}>
-                            <TextInput style={styles.input} value={joinConfirm} onChangeText={setJoinConfirm}
-                                placeholder="••••••" placeholderTextColor={Colors.muted}
-                                secureTextEntry keyboardType="number-pad" maxLength={6} />
-                        </Field>
-                        <Field label={t(language, 'inviteCode')}>
-                            <TextInput style={[styles.input, styles.codeInput]}
-                                value={inviteCode} onChangeText={v => setInviteCode(v.toUpperCase())}
-                                placeholder="ABC123" placeholderTextColor={Colors.muted}
-                                autoCapitalize="characters" maxLength={6} />
-                        </Field>
+                        {!joinNeedsRecovery ? (
+                            <>
+                                <Text style={styles.subtitle}>{t(language, 'joinSubtitle')}</Text>
 
-                        <TouchableOpacity style={[styles.btn, joiningTeam && styles.btnDisabled]} onPress={handleJoinTeam} disabled={joiningTeam}>
-                            {joiningTeam
-                                ? <ActivityIndicator color="#fff" />
-                                : <Text style={styles.btnText}>{t(language, 'joinTeamBtn')}</Text>
-                            }
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.switchBtn} onPress={() => setMode(isFirstLaunch ? 'owner-setup' : 'owner-login')}>
-                            <Text style={styles.switchText}>{t(language, 'backToSignIn')}</Text>
-                        </TouchableOpacity>
+                                <Field label={t(language, 'yourEmail')}>
+                                    <TextInput style={styles.input} value={joinEmail} onChangeText={setJoinEmail}
+                                        placeholder="you@example.com" placeholderTextColor={Colors.muted}
+                                        autoCapitalize="none" keyboardType="email-address" />
+                                </Field>
+                                <Field label={t(language, 'newPin')}>
+                                    <TextInput style={styles.input} value={joinPin} onChangeText={setJoinPin}
+                                        placeholder="••••••" placeholderTextColor={Colors.muted}
+                                        secureTextEntry keyboardType="number-pad" maxLength={6} />
+                                </Field>
+                                <Field label={t(language, 'confirmPin')}>
+                                    <TextInput style={styles.input} value={joinConfirm} onChangeText={setJoinConfirm}
+                                        placeholder="••••••" placeholderTextColor={Colors.muted}
+                                        secureTextEntry keyboardType="number-pad" maxLength={6} />
+                                </Field>
+                                <Field label={t(language, 'inviteCode')}>
+                                    <TextInput style={[styles.input, styles.codeInput]}
+                                        value={inviteCode} onChangeText={v => setInviteCode(v.toUpperCase())}
+                                        placeholder="ABC123" placeholderTextColor={Colors.muted}
+                                        autoCapitalize="characters" maxLength={6} />
+                                </Field>
+
+                                <TouchableOpacity style={[styles.btn, (joiningTeam || joinOtpSending) && styles.btnDisabled]} onPress={handleJoinTeam} disabled={joiningTeam || joinOtpSending}>
+                                    {(joiningTeam || joinOtpSending)
+                                        ? <ActivityIndicator color="#fff" />
+                                        : <Text style={styles.btnText}>{t(language, 'joinTeamBtn')}</Text>
+                                    }
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.switchBtn} onPress={() => setMode(isFirstLaunch ? 'owner-setup' : 'owner-login')}>
+                                    <Text style={styles.switchText}>{t(language, 'backToSignIn')}</Text>
+                                </TouchableOpacity>
+                            </>
+                        ) : (
+                            <>
+                                <Text style={styles.subtitle}>
+                                    We found an account for {joinEmail.trim()} from an earlier join attempt that didn't finish. Enter the verification code we just emailed you to finish joining.
+                                </Text>
+
+                                <Field label="Verification Code">
+                                    <TextInput style={[styles.input, styles.codeInput]}
+                                        value={joinOtp} onChangeText={setJoinOtp}
+                                        placeholder="123456" placeholderTextColor={Colors.muted}
+                                        keyboardType="number-pad" maxLength={8} />
+                                </Field>
+
+                                <TouchableOpacity style={[styles.btn, joinOtpSubmitting && styles.btnDisabled]} onPress={handleCompleteJoinWithOtp} disabled={joinOtpSubmitting}>
+                                    {joinOtpSubmitting
+                                        ? <ActivityIndicator color="#fff" />
+                                        : <Text style={styles.btnText}>Verify & Join</Text>
+                                    }
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.switchBtn} onPress={handleRequestJoinRecoveryOtp} disabled={joinOtpSending}>
+                                    <Text style={styles.switchText}>{joinOtpSending ? 'Sending…' : "Didn't get a code? Resend"}</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.switchBtn} onPress={() => { setJoinNeedsRecovery(false); setJoinOtp(''); }}>
+                                    <Text style={styles.switchText}>← Back</Text>
+                                </TouchableOpacity>
+                            </>
+                        )}
                     </View>
                 </ScrollView>
             </SafeAreaView>

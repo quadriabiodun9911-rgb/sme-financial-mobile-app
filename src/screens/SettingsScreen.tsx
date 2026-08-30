@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
-    TouchableOpacity, StyleSheet, Modal, Share, Platform, useWindowDimensions,
+    TouchableOpacity, StyleSheet, Modal, Share, Platform, useWindowDimensions, Linking,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors, ColorThemeMode, getColorThemeMode, setColorThemeMode } from '../theme/colors';
@@ -147,6 +147,7 @@ export default function SettingsScreen() {
     const [inviteEmail, setInviteEmail]   = useState('');
     const [inviteRole, setInviteRole]     = useState<'accountant' | 'manager' | 'staff' | 'admin' | 'external_accountant' | 'viewer'>('accountant');
     const [pendingCode, setPendingCode]   = useState<string | null>(null);
+    const [pendingInviteEmail, setPendingInviteEmail] = useState('');
 
     useEffect(() => {
         if (userRole === 'owner') refreshTeam().catch(() => {});
@@ -281,11 +282,45 @@ export default function SettingsScreen() {
         if (!inviteEmail.trim()) { showAlert('Required', 'Please enter the member\'s email.'); return; }
         try {
             const code = await inviteMember(inviteEmail.trim(), inviteRole);
+            setPendingInviteEmail(inviteEmail.trim());
             setInviteEmail('');
             setPendingCode(code);
         } catch (e: any) {
             showAlert('Invite failed', e?.message ?? 'Could not create invite.');
         }
+    };
+
+    // Explicit share channels for the invite code -- the generic OS share
+    // sheet (navigator.share/Share.share, kept below as a fallback) doesn't
+    // reliably surface Mail or Messages on every platform (e.g. macOS Safari
+    // offers Notes/Reminders/Freeform but no Mail/SMS entry), so email,
+    // WhatsApp and SMS get their own one-tap buttons via explicit URL schemes.
+    const inviteShareMessage = () =>
+        `You're invited to join ${settings.businessName || 'our business'} on Quad360. Your invite code: ${pendingCode}`;
+
+    const handleShareInviteEmail = () => {
+        const subject = encodeURIComponent('Your Quad360 team invite');
+        const body = encodeURIComponent(inviteShareMessage());
+        const to = encodeURIComponent(pendingInviteEmail || '');
+        Linking.openURL(`mailto:${to}?subject=${subject}&body=${body}`).catch(() => {
+            showAlert('Could not open email', 'No email app is configured on this device.');
+        });
+    };
+
+    const handleShareInviteWhatsApp = () => {
+        const text = encodeURIComponent(inviteShareMessage());
+        const url = Platform.OS === 'web' ? `https://wa.me/?text=${text}` : `whatsapp://send?text=${text}`;
+        Linking.openURL(url).catch(() => {
+            showAlert('WhatsApp not available', 'WhatsApp isn\'t installed on this device.');
+        });
+    };
+
+    const handleShareInviteSMS = () => {
+        const body = encodeURIComponent(inviteShareMessage());
+        const separator = Platform.OS === 'ios' ? '&' : '?';
+        Linking.openURL(`sms:${separator}body=${body}`).catch(() => {
+            showAlert('Could not open messages', 'No messaging app is configured on this device.');
+        });
     };
 
     const handleRemoveMember = (id: string, email: string) => {
@@ -928,8 +963,19 @@ export default function SettingsScreen() {
                                 <Text style={[styles.hint, { marginTop: 8 }]}>
                                     They enter this code on the "Join a Team" screen in the app along with their email and a new PIN.
                                 </Text>
+                                <View style={styles.shareChannelRow}>
+                                    <TouchableOpacity style={styles.shareChannelBtn} onPress={handleShareInviteEmail}>
+                                        <Text style={styles.shareChannelBtnText}>✉️ Email</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity style={styles.shareChannelBtn} onPress={handleShareInviteWhatsApp}>
+                                        <Text style={styles.shareChannelBtnText}>💬 WhatsApp</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity style={styles.shareChannelBtn} onPress={handleShareInviteSMS}>
+                                        <Text style={styles.shareChannelBtnText}>📱 Text</Text>
+                                    </TouchableOpacity>
+                                </View>
                                 <TouchableOpacity style={styles.saveBtn} onPress={async () => {
-                                    const msg = `Your Quad360 invite code: ${pendingCode}`;
+                                    const msg = inviteShareMessage();
                                     if (Platform.OS === 'web') {
                                         if (navigator.share) { await navigator.share({ text: msg }); }
                                         else { await navigator.clipboard.writeText(msg); showAlert('Copied!', 'Invite code copied to clipboard.'); }
@@ -937,9 +983,9 @@ export default function SettingsScreen() {
                                         await Share.share({ message: msg });
                                     }
                                 }}>
-                                    <Text style={styles.saveBtnText}>Share Code</Text>
+                                    <Text style={styles.saveBtnText}>More Options / Copy</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity style={styles.cancelBtn} onPress={() => { setInviteModal(false); setPendingCode(null); }}>
+                                <TouchableOpacity style={styles.cancelBtn} onPress={() => { setInviteModal(false); setPendingCode(null); setPendingInviteEmail(''); }}>
                                     <Text style={styles.cancelBtnText}>Done</Text>
                                 </TouchableOpacity>
                             </>
@@ -1227,4 +1273,7 @@ const styles = StyleSheet.create({
 
     codeBox:  { backgroundColor: Colors.bg, borderRadius: 10, padding: Spacing.xl, alignItems: 'center', marginVertical: Spacing.md },
     codeText: { fontSize: 32, fontWeight: 'bold', color: Colors.primary, letterSpacing: 8 },
+    shareChannelRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.sm },
+    shareChannelBtn: { flex: 1, backgroundColor: Colors.bg, borderRadius: Radius.md, paddingVertical: Spacing.md, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
+    shareChannelBtnText: { color: Colors.text, fontWeight: '600', fontSize: 13 },
 });
