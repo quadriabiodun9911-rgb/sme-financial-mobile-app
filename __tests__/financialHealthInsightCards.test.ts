@@ -37,6 +37,7 @@ const makeResult = (overrides: Partial<DiagnosisResult> = {}): DiagnosisResult =
     topActionImpacts: [],
     improvementProjection: null,
     narrativeSummary: '',
+    healthSummary: { overallInterpretation: '', biggestConcern: null, biggestStrength: null },
     ...overrides,
 });
 

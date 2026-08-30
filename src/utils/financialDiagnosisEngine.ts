@@ -60,6 +60,11 @@ export interface HealthCategory {
   label: string;
   score: number; // 0-100
   status: 'strong' | 'watch' | 'high-risk';
+  // Same plain-English reason computeRiskScore's own RiskFactor carries
+  // (finance.ts) -- never a second, independently-worded explanation for
+  // the same score. Powers computeFinancialHealthSummary's "biggest
+  // strength" line below.
+  explanation: string;
 }
 
 export interface RootCauseAnalysis {
@@ -119,6 +124,25 @@ export interface DiagnosisResult {
   // sentence templates as the rest of this file (no LLM call), just
   // assembled into prose instead of separate cards. See generateNarrativeSummary.
   narrativeSummary: string;
+  // The "Dimension | Score" table framing -- one overall sentence, plus the
+  // single biggest concern and single biggest strength, both traceable to
+  // a real diagnosis/factor rather than a second independent judgment.
+  // See computeFinancialHealthSummary.
+  healthSummary: FinancialHealthSummary;
+}
+
+export interface FinancialHealthSummary {
+  // e.g. "Healthy business with emerging working-capital pressure."
+  overallInterpretation: string;
+  // The worst-ranked real diagnosis's own problem statement -- same
+  // ordering (severity, then financial impact) diagnoses[0] already uses
+  // elsewhere on this page. Null when there's nothing to flag.
+  biggestConcern: string | null;
+  // The single highest-scoring pillar that's genuinely strong (status
+  // 'strong', i.e. RiskFactor status 'good') -- never the "least bad" of a
+  // uniformly weak set. Null when no pillar clears that bar; a business
+  // with real problems everywhere doesn't get a fabricated strength.
+  biggestStrength: string | null;
 }
 
 // A diagnosis's own financialImpact number already means different things
@@ -803,6 +827,64 @@ export function generateNarrativeSummary(
   return parts.join(' ');
 }
 
+// One short phrase per pillar naming the KIND of pressure it represents,
+// used only to build the "business with X pressure" clause below -- never
+// shown as a standalone label anywhere else.
+const DIMENSION_PRESSURE_PHRASE: Record<HealthCategory['key'], string> = {
+  profitability: 'margin pressure',
+  liquidity: 'liquidity pressure',
+  workingCapital: 'working-capital pressure',
+  debt: 'debt pressure',
+  efficiency: 'cost pressure',
+  inventory: 'inventory pressure',
+  concentration: 'concentration risk',
+  cashFlow: 'cash-flow pressure',
+};
+
+const BAND_ADJECTIVE: Record<RiskScore['band'], string> = {
+  Excellent: 'Excellent',
+  Strong: 'Healthy',
+  Moderate: 'Moderate',
+  Weak: 'Struggling',
+  Critical: 'Critical',
+};
+
+/**
+ * The "Dimension | Score" table's own summary row -- one overall sentence,
+ * the single biggest concern, the single biggest strength. Every clause
+ * traces back to a real diagnosis or factor score already computed above;
+ * this only selects and phrases, never invents a new judgment. Mirrors
+ * generateNarrativeSummary's "deterministic sentence assembly, not
+ * model-generated text" discipline.
+ */
+export function computeFinancialHealthSummary(
+  band: RiskScore['band'],
+  categories: HealthCategory[],
+  diagnoses: RootCauseAnalysis[],
+): FinancialHealthSummary {
+  const worst = diagnoses[0] ?? null;
+  const biggestConcern = worst ? capitalizeFirst(worst.problem) : null;
+
+  // "Strong" here mirrors statusFromRiskFactor's own mapping (RiskFactor
+  // status 'good' -> HealthCategory status 'strong') -- the same bar a
+  // pillar already has to clear to show green anywhere else in the app.
+  const strongCategories = categories.filter(c => c.status === 'strong');
+  const bestCategory = strongCategories.length > 0
+    ? strongCategories.reduce((best, c) => (c.score > best.score ? c : best))
+    : null;
+  const biggestStrength = bestCategory ? capitalizeFirst(bestCategory.explanation) : null;
+
+  // "Emerging" only when the concern hasn't already tipped the whole score
+  // into Weak/Critical -- an actual crisis shouldn't be softened to sound
+  // like an early warning.
+  const emergingPrefix = worst && (band === 'Excellent' || band === 'Strong' || band === 'Moderate') ? 'emerging ' : '';
+  const overallInterpretation = worst
+    ? `${BAND_ADJECTIVE[band]} business with ${emergingPrefix}${DIMENSION_PRESSURE_PHRASE[worst.dimension]}.`
+    : `${BAND_ADJECTIVE[band]} business — no significant issues currently stand out.`;
+
+  return { overallInterpretation, biggestConcern, biggestStrength };
+}
+
 export interface FinancialInsightCard {
   icon: string;
   label: string;
@@ -911,6 +993,7 @@ export function performFinancialDiagnosis(
     label: CATEGORY_LABELS[RISK_FACTOR_TO_CATEGORY_KEY[f.name] ?? 'profitability'],
     score: f.score,
     status: statusFromRiskFactor(f.status),
+    explanation: f.explanation,
   }));
 
   const healthStatus: DiagnosisResult['healthStatus'] =
@@ -948,5 +1031,6 @@ export function performFinancialDiagnosis(
     topActionImpacts,
     improvementProjection,
     narrativeSummary: generateNarrativeSummary(metrics, allDiagnoses, topOpportunities, improvementProjection),
+    healthSummary: computeFinancialHealthSummary(riskScore.band, categories, allDiagnoses),
   };
 }

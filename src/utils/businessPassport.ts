@@ -34,7 +34,7 @@ import { buildBusinessFinancialDNA, BusinessFinancialDNA, detectDNADeviations, D
 import { getMonthlyExpenseAverage, computeImprovementProjection, RiskScore } from './finance';
 import { buildFundingReadinessPack, FundingReadinessPack } from './fundingReadiness';
 import { estimateBusinessValuation, ValuationEstimate } from './businessValuation';
-import { performFinancialDiagnosis, factorNamesForDimensions, ActionImpact } from './financialDiagnosisEngine';
+import { performFinancialDiagnosis, factorNamesForDimensions, ActionImpact, FinancialHealthSummary, computeFinancialHealthSummary } from './financialDiagnosisEngine';
 import { computeDataQuality, DataQuality } from './dataQuality';
 import { analyzeTrend } from './trendAnalysis';
 import { buildStructuralSnapshot, StructuralSnapshot } from './structuralSnapshot';
@@ -113,6 +113,10 @@ export interface BusinessPassport {
         score: number;
         band: FundingReadinessPack['band'];
         categories: FundingReadinessPack['riskProfile'];
+        // The "Dimension | Score" table's own summary row -- overall
+        // interpretation, biggest concern, biggest strength -- see
+        // computeFinancialHealthSummary in financialDiagnosisEngine.ts.
+        summary: FinancialHealthSummary;
     };
     risk: {
         customerConcentrationRisk: BusinessFinancialDNA['risk']['customerConcentrationRisk'];
@@ -319,6 +323,16 @@ export function buildBusinessPassport(
             score: pack.score,
             band: pack.band,
             categories: pack.riskProfile,
+            // Recomputed against pack.band, not diagnosis.healthSummary's
+            // own band -- performFinancialDiagnosis derives that from
+            // computeRiskScore's general weighting, while this section's
+            // headline score/band above is pack.score/pack.band (financing-
+            // readiness weighted). Individual factor scores/statuses are
+            // identical either way (only the aggregate weighting differs),
+            // so only the overall interpretation's band-adjective needed
+            // reconciling -- otherwise a lender could read "Weak" next to
+            // "Moderate business" in the same section.
+            summary: computeFinancialHealthSummary(pack.band, diagnosis.categories, diagnosis.diagnoses),
         },
         risk: {
             customerConcentrationRisk: dna.risk.customerConcentrationRisk,

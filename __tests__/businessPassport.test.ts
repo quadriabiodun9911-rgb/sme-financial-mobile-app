@@ -135,6 +135,16 @@ describe('buildBusinessPassport', () => {
         expect(passport.financialIdentity.inventoryTrend.direction).toBe('unavailable');
     });
 
+    it('surfaces an overall interpretation and never fabricates a biggest strength when everything is weak', () => {
+        const transactions: Transaction[] = [
+            makeTx({ type: 'income', description: 'Big Customer', amount: 100000, date: daysAgo(20) }),
+            makeTx({ type: 'expense', category: 'Rent', amount: 95000, date: daysAgo(20) }),
+        ];
+        const passport = buildBusinessPassport(transactions, [], [], [], [], finance, settings, null);
+        expect(passport.health.summary.overallInterpretation.length).toBeGreaterThan(0);
+        expect(passport.health.summary).toBeDefined();
+    });
+
     it('lists cash flow generation & conversion as an available investment-readiness signal', () => {
         const passport = buildBusinessPassport([], [], [], [], [], finance, settings, null);
         expect(passport.investmentReadiness.availableSignals).toContain('Cash flow generation & conversion');

@@ -3,7 +3,7 @@
 // daysOutstanding was hardcoded to 30 for any unpaid invoice, regardless of
 // how much was actually owed or how overdue it actually was.
 
-import { calculateFinancialMetrics, diagnoseProfitability, diagnoseLiquidity, diagnoseWorkingCapital, diagnoseDebt, diagnoseCashFlow, diagnoseInventory, diagnoseConcentration, diagnoseEfficiency, FinancialMetrics } from '../src/utils/financialDiagnosisEngine';
+import { calculateFinancialMetrics, diagnoseProfitability, diagnoseLiquidity, diagnoseWorkingCapital, diagnoseDebt, diagnoseCashFlow, diagnoseInventory, diagnoseConcentration, diagnoseEfficiency, computeFinancialHealthSummary, HealthCategory, RootCauseAnalysis, FinancialMetrics } from '../src/utils/financialDiagnosisEngine';
 import { Transaction, Invoice, Asset } from '../src/types';
 
 const makeTx = (overrides: Partial<Transaction>): Transaction => ({
@@ -424,5 +424,69 @@ describe('diagnoseCashFlow', () => {
         const diagnoses = diagnoseCashFlow({ ...baseMetrics, operatingCashFlow: -10000, cashFlowConversionPct: 10 });
         expect(diagnoses).toHaveLength(1);
         expect(diagnoses[0].problem).toMatch(/negative/i);
+    });
+});
+
+const makeCategory = (overrides: Partial<HealthCategory> = {}): HealthCategory => ({
+    key: 'profitability',
+    label: 'Profitability',
+    score: 50,
+    status: 'watch',
+    explanation: 'Profit margin is 12% -- moderate, below the 20% benchmark.',
+    ...overrides,
+});
+
+const makeDiagnosisEntry = (overrides: Partial<RootCauseAnalysis> = {}): RootCauseAnalysis => ({
+    problem: 'Low profit margin (12% vs target 20%)',
+    severity: 'warning',
+    rootCause: 'Expenses too high relative to revenue',
+    impact: 'Losing ₦10,000 potential profit monthly',
+    financialImpact: 10000,
+    opportunity: 'Increase prices or reduce expenses',
+    dimension: 'profitability',
+    ...overrides,
+});
+
+describe('computeFinancialHealthSummary', () => {
+    it('names the worst diagnosis as the biggest concern, capitalized', () => {
+        const summary = computeFinancialHealthSummary('Moderate', [], [makeDiagnosisEntry({ problem: 'receivables growing fast' })]);
+        expect(summary.biggestConcern).toBe('Receivables growing fast');
+    });
+
+    it('reports no biggest concern when there are no diagnoses', () => {
+        const summary = computeFinancialHealthSummary('Strong', [makeCategory({ status: 'strong' })], []);
+        expect(summary.biggestConcern).toBeNull();
+    });
+
+    it('picks the highest-scoring "strong" category as the biggest strength, capitalized', () => {
+        const categories = [
+            makeCategory({ key: 'profitability', status: 'strong', score: 80, explanation: 'profit margin is strong.' }),
+            makeCategory({ key: 'concentration', status: 'strong', score: 95, explanation: 'revenue is well diversified.' }),
+            makeCategory({ key: 'debt', status: 'watch', score: 60, explanation: 'debt coverage is thin.' }),
+        ];
+        const summary = computeFinancialHealthSummary('Strong', categories, []);
+        expect(summary.biggestStrength).toBe('Revenue is well diversified.');
+    });
+
+    it('reports no biggest strength when nothing clears the "strong" bar -- never fabricates one', () => {
+        const categories = [makeCategory({ status: 'watch' }), makeCategory({ status: 'high-risk' })];
+        const summary = computeFinancialHealthSummary('Weak', categories, []);
+        expect(summary.biggestStrength).toBeNull();
+    });
+
+    it('builds an overall interpretation naming the band and the worst dimension\'s pressure type', () => {
+        const summary = computeFinancialHealthSummary('Strong', [], [makeDiagnosisEntry({ dimension: 'workingCapital' })]);
+        expect(summary.overallInterpretation).toMatch(/^Healthy business with emerging working-capital pressure\.$/);
+    });
+
+    it('does not call a real crisis "emerging" once the band has already tipped to Weak or Critical', () => {
+        const summary = computeFinancialHealthSummary('Critical', [], [makeDiagnosisEntry({ dimension: 'debt' })]);
+        expect(summary.overallInterpretation).toBe('Critical business with debt pressure.');
+        expect(summary.overallInterpretation).not.toMatch(/emerging/i);
+    });
+
+    it('reports a clean "no significant issues" interpretation when there are no diagnoses', () => {
+        const summary = computeFinancialHealthSummary('Excellent', [], []);
+        expect(summary.overallInterpretation).toBe('Excellent business — no significant issues currently stand out.');
     });
 });

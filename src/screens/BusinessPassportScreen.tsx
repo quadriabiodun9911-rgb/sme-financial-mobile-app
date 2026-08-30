@@ -175,6 +175,19 @@ export default function BusinessPassportScreen() {
                             <Text style={[s.dotStatus, { color: STATUS_COLOR[f.status] }]}>{STATUS_LABEL[f.status]}</Text>
                         </View>
                     ))}
+                    <Text style={s.healthSummaryLine}>{passport.health.summary.overallInterpretation}</Text>
+                    {passport.health.summary.biggestConcern && (
+                        <View style={s.deviationRow}>
+                            <Icon name="alert-triangle" size={12} color={Colors.expense} />
+                            <Text style={s.deviationText}><Text style={{ fontWeight: '700' }}>Biggest concern: </Text>{passport.health.summary.biggestConcern}</Text>
+                        </View>
+                    )}
+                    {passport.health.summary.biggestStrength && (
+                        <View style={s.deviationRow}>
+                            <Icon name="check-circle" size={12} color={Colors.income} />
+                            <Text style={s.deviationText}><Text style={{ fontWeight: '700' }}>Biggest strength: </Text>{passport.health.summary.biggestStrength}</Text>
+                        </View>
+                    )}
                 </Section>
 
                 {/* 4. Risk */}
@@ -529,6 +542,7 @@ const s = StyleSheet.create({
     dotLabel: { flex: 1, fontSize: 12, color: Colors.textSecondary, fontWeight: '600' },
     dotStatus: { fontSize: 12, fontWeight: '700' },
     emptyText: { fontSize: 12, color: Colors.textMuted },
+    healthSummaryLine: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18, marginTop: 8, marginBottom: 6, fontStyle: 'italic' },
     deviationRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginBottom: 6 },
     deviationText: { flex: 1, fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
     readinessNote: { fontSize: 11.5, color: Colors.textMuted, lineHeight: 16, marginBottom: 10, fontStyle: 'italic' },
