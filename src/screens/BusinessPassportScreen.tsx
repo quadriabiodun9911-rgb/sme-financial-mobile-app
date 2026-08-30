@@ -28,9 +28,14 @@ const CONCENTRATION_COLOR: Record<string, string> = { low: Colors.income, medium
 const CASH_FLOW_RISK_COLOR: Record<string, string> = { low: Colors.income, moderate: Colors.warning, high: Colors.expense };
 
 function fmtCompact(currency: string, amount: number): string {
-    if (Math.abs(amount) >= 1000000) return `${currency}${(amount / 1000000).toFixed(1)}M`;
-    if (Math.abs(amount) >= 1000) return `${currency}${(amount / 1000).toFixed(0)}K`;
-    return `${currency}${Math.round(amount).toLocaleString()}`;
+    // Sign goes BEFORE the currency symbol ("-₦1.5M"), not between it and
+    // the number ("₦-1.5M") -- matters here since netProfit/operatingCashFlow
+    // legitimately go negative for a struggling business.
+    const sign = amount < 0 ? '-' : '';
+    const abs = Math.abs(amount);
+    if (abs >= 1000000) return `${sign}${currency}${(abs / 1000000).toFixed(1)}M`;
+    if (abs >= 1000) return `${sign}${currency}${(abs / 1000).toFixed(0)}K`;
+    return `${sign}${currency}${Math.round(abs).toLocaleString()}`;
 }
 
 export default function BusinessPassportScreen() {

@@ -498,16 +498,27 @@ export default function DashboardScreen() {
         notifyAssetsNearingReplacement(assetsNearingReplacement.length, total, settings?.currency ?? '₦').catch(() => {});
     }, [isDemoMode, assetsNearingReplacement, settings?.currency]);
 
+    // One velocity-per-item pass shared by both lists below, instead of each
+    // independently re-filtering the full inventory array with its own call
+    // to computeStockVelocity (which itself scans all of `transactions` per
+    // item) -- same memoized-Map pattern InventoryScreen.tsx already uses
+    // for the same function, halving the O(items × transactions) work this
+    // effect used to do on every dashboard load/transaction change.
+    const velocityByItemId = useMemo(
+        () => new Map(inventory.map(item => [item.id, computeStockVelocity(item, transactions)])),
+        [inventory, transactions]
+    );
+
     // Distinct from lowStockItems below -- this is sales-velocity-derived
     // (computeStockVelocity's 'fast' tier), so it can catch an item that's
     // well above its manually-set reorder point but still about to sell out.
     const stockoutRiskItems = useMemo(
-        () => inventory.filter(i => computeStockVelocity(i, transactions).tier === 'fast'),
-        [inventory, transactions]
+        () => inventory.filter(i => velocityByItemId.get(i.id)?.tier === 'fast'),
+        [inventory, velocityByItemId]
     );
     useEffect(() => {
         if (isDemoMode || stockoutRiskItems.length === 0) return;
-        const total = stockoutRiskItems.reduce((s, i) => s + i.quantity * (i.costPrice ?? 0), 0);
+        const total = computeInventoryValue(stockoutRiskItems);
         notifyStockoutRisk(stockoutRiskItems.length, total, settings?.currency ?? '₦').catch(() => {});
     }, [isDemoMode, stockoutRiskItems, settings?.currency]);
 
@@ -515,12 +526,12 @@ export default function DashboardScreen() {
     // isn't moving (computeStockVelocity's 'slow' tier), rather than stock
     // about to run out.
     const slowMovingItems = useMemo(
-        () => inventory.filter(i => computeStockVelocity(i, transactions).tier === 'slow'),
-        [inventory, transactions]
+        () => inventory.filter(i => velocityByItemId.get(i.id)?.tier === 'slow'),
+        [inventory, velocityByItemId]
     );
     useEffect(() => {
         if (isDemoMode || slowMovingItems.length === 0) return;
-        const total = slowMovingItems.reduce((s, i) => s + i.quantity * (i.costPrice ?? 0), 0);
+        const total = computeInventoryValue(slowMovingItems);
         notifySlowMovingStock(slowMovingItems.length, total, settings?.currency ?? '₦').catch(() => {});
     }, [isDemoMode, slowMovingItems, settings?.currency]);
 

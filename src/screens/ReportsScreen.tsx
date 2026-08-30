@@ -897,7 +897,7 @@ function InventoryReportTab({ inventory, finance, transactions, currency }: {
         }
         return Array.from(catMap.entries()).map(([cat, { items }]) => {
             const units     = items.reduce((s, i) => s + i.quantity, 0);
-            const stockCost = items.reduce((s, i) => s + i.quantity * (i.costPrice ?? 0), 0);
+            const stockCost = computeInventoryValue(items);
             const sellVal   = items.reduce((s, i) => s + i.quantity * (i.sellingPrice ?? 0), 0);
             const margin    = computeMarginPct(sellVal, stockCost);
             return { cat, count: items.length, units, stockCost, sellVal, margin };
