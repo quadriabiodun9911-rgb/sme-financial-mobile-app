@@ -127,12 +127,14 @@ function bandForScore(score: number): CashFlowHealthBand {
     return 'Critical';
 }
 
-function pctChange(current: number, prior: number): number | null {
+// Exported -- generic enough (no cash-flow-specific logic) that
+// workingCapitalHealth.ts reuses both rather than redeclaring them.
+export function pctChange(current: number, prior: number): number | null {
     if (prior === 0) return current === 0 ? 0 : null;
     return ((current - prior) / Math.abs(prior)) * 100;
 }
 
-function formatMoney(n: number, currency: string): string {
+export function formatMoney(n: number, currency: string): string {
     return `${currency}${Math.round(Math.abs(n)).toLocaleString()}`;
 }
 
@@ -140,7 +142,7 @@ function formatMoney(n: number, currency: string): string {
 // key like '2026-Q1' (the same key shape computeQuarterlyTrend produces),
 // used to scope transactions to that quarter's flow the same way
 // qualityOfGrowth.ts scopes transactions to a calendar year.
-function quarterDateRange(quarterKey: string): { start: string; end: string } {
+export function quarterDateRange(quarterKey: string): { start: string; end: string } {
     const [yearStr, qStr] = quarterKey.split('-Q');
     const year = Number(yearStr);
     const q = Number(qStr);
@@ -152,13 +154,22 @@ function quarterDateRange(quarterKey: string): { start: string; end: string } {
     return { start, end };
 }
 
+// Cash trapped (receivables + inventory - payables) is scored relative to
+// trailing quarterly revenue (scale-aware) rather than an absolute currency
+// threshold, which would be meaningless across businesses of very different
+// sizes. Exported so workingCapitalHealth.ts's own cash-trapped scoring --
+// the same AR + inventory - AP figure, just viewed through a working-
+// capital lens instead of a cash-flow one -- uses the identical bands
+// rather than an independently-tuned (and possibly disagreeing) pair.
+export const TRAPPED_CASH_RATIO_THRESHOLDS = {
+    good: 0.5,   // trapped cash <= 50% of quarterly revenue: fine
+    poor: 1.5,   // trapped cash >= 150% of quarterly revenue: poor
+} as const;
+
 const MODEL = {
     weights: { generation: 0.30, conversion: 0.25, trapped: 0.20, trajectory: 0.25 },
-    // Cash trapped is scored relative to trailing quarterly revenue (scale-
-    // aware) rather than an absolute currency threshold, which would be
-    // meaningless across businesses of very different sizes.
-    trappedRatioGood: 0.5,   // trapped cash <= 50% of quarterly revenue: fine
-    trappedRatioPoor: 1.5,   // trapped cash >= 150% of quarterly revenue: poor
+    trappedRatioGood: TRAPPED_CASH_RATIO_THRESHOLDS.good,
+    trappedRatioPoor: TRAPPED_CASH_RATIO_THRESHOLDS.poor,
 } as const;
 
 export function computeCashFlowHealth(

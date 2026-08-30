@@ -21,7 +21,10 @@ const BAND_COLOR: Record<CashFlowHealthBand, string> = {
     Critical: Colors.expense,
 };
 
-function fmtCompact(currency: string, amount: number): string {
+// Exported so WorkingCapitalHealthTab.tsx (same card-based layout, same
+// need to abbreviate large currency amounts) reuses this instead of adding
+// an 8th near-identical copy across the app's screens/components.
+export function fmtCompact(currency: string, amount: number): string {
     const sign = amount < 0 ? '-' : '';
     const abs = Math.abs(amount);
     if (abs >= 1000000) return `${sign}${currency}${(abs / 1000000).toFixed(1)}M`;
