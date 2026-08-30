@@ -7,7 +7,7 @@
  * at all (Capital, via the balance sheet), and has no honest signal for
  * the rest (Character; the macro half of Conditions).
  *
- * This file exists to say that plainly rather than let the 7-factor score
+ * This file exists to say that plainly rather than let the 8-factor score
  * imply it covers all five — the same "manufacture the evidence, not a
  * fabricated score" principle Investment Readiness (businessPassport.ts)
  * is built on.

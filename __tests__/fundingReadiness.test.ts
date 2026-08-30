@@ -85,11 +85,11 @@ describe('buildFundingReadinessPack', () => {
         expect(pack.profile.debtCurrentPortion + pack.profile.debtNonCurrentPortion).toBeCloseTo(pack.profile.debt, 6);
     });
 
-    it('produces a 7-factor risk profile matching computeRiskScore', () => {
+    it('produces an 8-factor risk profile matching computeRiskScore', () => {
         const pack = buildFundingReadinessPack([], [], [], [], [], finance, settings, 'Test Co');
-        expect(pack.riskProfile.length).toBe(7);
+        expect(pack.riskProfile.length).toBe(8);
         expect(pack.riskProfile.map(f => f.name)).toEqual(
-            expect.arrayContaining(['Profitability', 'Liquidity', 'Working Capital', 'Debt', 'Efficiency', 'Inventory', 'Concentration']),
+            expect.arrayContaining(['Profitability', 'Liquidity', 'Working Capital', 'Debt', 'Efficiency', 'Inventory', 'Concentration', 'Operating Cash Flow']),
         );
     });
 

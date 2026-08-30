@@ -1416,15 +1416,15 @@ function riskBandFromScore(score: number): RiskScore['band'] {
 }
 
 /**
- * The single canonical business health score — seven weighted factors, one
+ * The single canonical business health score — eight weighted factors, one
  * per pillar a lender or the business owner actually cares about:
  * Profitability, Liquidity, Working Capital, Debt, Efficiency, Inventory,
- * Concentration. This used to only cover five (no Working Capital, no
- * Inventory, and Concentration counted customers but not suppliers) and
- * financialDiagnosisEngine.ts computed a second, independent health score
- * from a different formula — the two could (and did) disagree for the same
- * business. financialDiagnosisEngine.ts now derives its overall score from
- * this function instead of reimplementing its own.
+ * Concentration, Operating Cash Flow. This used to only cover five (no Working
+ * Capital, no Inventory, and Concentration counted customers but not
+ * suppliers) and financialDiagnosisEngine.ts computed a second, independent
+ * health score from a different formula — the two could (and did) disagree
+ * for the same business. financialDiagnosisEngine.ts now derives its
+ * overall score from this function instead of reimplementing its own.
  */
 export function computeRiskScore(
     finance: Pick<FinanceData, 'income' | 'profit' | 'cashBalance'>,
@@ -1449,7 +1449,10 @@ export function computeRiskScore(
         }`,
     });
 
-    // Liquidity / cash runway (weight 20) — same trailing-30-day-paid-expenses
+    // Liquidity / cash runway (weight 15 -- was 20, trimmed to make room for
+    // the new Operating Cash Flow factor below, which now covers the "is
+    // cash actually being generated" question this pillar used to carry
+    // alone) — same trailing-30-day-paid-expenses
     // burn used everywhere else in the app (Dashboard, Cash Runway tab, Loans
     // & Debt), not an all-time cumulative total treated as an annual figure.
     // No burn rate is genuinely ambiguous: it could mean an established,
@@ -1465,7 +1468,7 @@ export function computeRiskScore(
     factors.push({
         name: 'Liquidity',
         score: runwayMonths >= 6 ? 100 : runwayMonths >= 3 ? 70 : runwayMonths >= 1 ? 40 : 10,
-        weight: 20,
+        weight: 15,
         status: runwayMonths >= 6 ? 'good' : runwayMonths >= 3 ? 'warning' : 'danger',
         explanation: monthlyBurn <= 0 && finance.cashBalance <= 0
             ? 'No cash on hand and no spending history yet to estimate a runway from.'
@@ -1477,7 +1480,8 @@ export function computeRiskScore(
             }`,
     });
 
-    // Working capital (weight 10) — cash conversion cycle: how many days
+    // Working capital (weight 5 -- was 10, trimmed for the same reason as
+    // Liquidity above) — cash conversion cycle: how many days
     // cash is tied up between paying suppliers and collecting from
     // customers. Shorter (or negative) is better. ccc defaults to 0 with no
     // paid transactions at all, which reads identically to "instant cash
@@ -1489,7 +1493,7 @@ export function computeRiskScore(
     factors.push({
         name: 'Working Capital',
         score: !hasWcData ? 50 : wc.ccc <= 15 ? 100 : wc.ccc <= 30 ? 70 : wc.ccc <= 60 ? 40 : 10,
-        weight: 10,
+        weight: 5,
         status: !hasWcData ? 'warning' : wc.ccc <= 30 ? 'good' : wc.ccc <= 60 ? 'warning' : 'danger',
         explanation: !hasWcData
             ? 'Not enough paid transaction history yet to measure a cash conversion cycle.'
@@ -1595,27 +1599,75 @@ export function computeRiskScore(
               }`,
     });
 
+    // Operating Cash Flow (weight 10) — is the business actually converting its own
+    // operations into real cash, not just recognizing profit on paper?
+    // Reuses computeProperCashFlow (already in this file) for the same
+    // indirect-method operating cash flow the dedicated Cash Flow Health
+    // tab (cashFlowHealth.ts) builds its own "is the business generating
+    // cash" and "profit-to-cash conversion" steps from -- this factor is
+    // deliberately a lighter, single-period version of that same idea
+    // rather than importing cashFlowHealth.ts's full multi-quarter trend
+    // engine (which needs a balance-sheet-trend reconstruction too heavy to
+    // add to this canonical, widely-called scorer). assets is unavailable
+    // in this function's scope, so the depreciation add-back is always 0
+    // here -- a minor understatement of OCF, not a correctness issue.
+    const cf = computeProperCashFlow(transactions, []);
+    const hasCfData = transactions.some(t => t.status === 'paid' || t.status === 'pending' || t.status === 'overdue');
+    let cashFlowScore: number;
+    let cashFlowStatus: RiskFactor['status'];
+    let cashFlowExplanation: string;
+    if (!hasCfData) {
+        cashFlowScore = 50;
+        cashFlowStatus = 'warning';
+        cashFlowExplanation = 'Not enough transaction history yet to measure operating cash flow.';
+    } else if (cf.operatingCF < 0) {
+        cashFlowScore = 15;
+        cashFlowStatus = 'danger';
+        cashFlowExplanation = 'Operating cash flow is negative -- normal operations are consuming cash rather than generating it.';
+    } else {
+        const conversionPct = cf.netProfit > 0 ? (cf.operatingCF / cf.netProfit) * 100 : null;
+        if (conversionPct === null) {
+            cashFlowScore = 60;
+            cashFlowStatus = 'warning';
+            cashFlowExplanation = 'Operating cash flow is positive despite no net profit this period -- likely from collecting older receivables or delaying payments, worth checking this isn\'t a one-off.';
+        } else if (conversionPct >= 90) {
+            cashFlowScore = 100;
+            cashFlowStatus = 'good';
+            cashFlowExplanation = `${conversionPct.toFixed(0)}% of profit converted into real cash -- strong earnings quality.`;
+        } else if (conversionPct >= 50) {
+            cashFlowScore = 70;
+            cashFlowStatus = 'warning';
+            cashFlowExplanation = `${conversionPct.toFixed(0)}% of profit converted into real cash -- some of it is still sitting in receivables or unpaid bills.`;
+        } else {
+            cashFlowScore = 35;
+            cashFlowStatus = 'warning';
+            cashFlowExplanation = `Only ${conversionPct.toFixed(0)}% of profit converted into real cash -- most of the profit shown on paper hasn't reached the bank yet.`;
+        }
+    }
+    factors.push({ name: 'Operating Cash Flow', score: cashFlowScore, weight: 10, status: cashFlowStatus, explanation: cashFlowExplanation });
+
     const score = Math.round(factors.reduce((s, f) => s + (f.score * f.weight) / 100, 0));
     return { score, grade: riskGradeFromScore(score), band: riskBandFromScore(score), factors };
 }
 
 // General-health mirror of computeFinancingReadinessScore below --
-// computeRiskScore's own weights (Profitability 20, Liquidity 20, Working
-// Capital 10, Debt 15, Efficiency 10, Inventory 10, Concentration 15),
-// reapplied to whatever RiskFactor[] is passed in. Exists so a factor array
-// that's been reweighted for a lending-specific purpose (e.g. the Funding
-// Readiness Pack's factors, or a hypothetical improvement projection) can
-// still be scored as general business health from the exact same factor
-// scores, without a second call to computeRiskScore against a different
-// data window.
+// computeRiskScore's own weights (Profitability 20, Liquidity 15, Working
+// Capital 5, Debt 15, Efficiency 10, Inventory 10, Concentration 15,
+// Operating Cash Flow 10), reapplied to whatever RiskFactor[] is passed in. Exists so a
+// factor array that's been reweighted for a lending-specific purpose (e.g.
+// the Funding Readiness Pack's factors, or a hypothetical improvement
+// projection) can still be scored as general business health from the
+// exact same factor scores, without a second call to computeRiskScore
+// against a different data window.
 const GENERAL_HEALTH_WEIGHTS: Record<string, number> = {
     'Profitability': 20,
-    'Liquidity': 20,
-    'Working Capital': 10,
+    'Liquidity': 15,
+    'Working Capital': 5,
     'Debt': 15,
     'Efficiency': 10,
     'Inventory': 10,
     'Concentration': 15,
+    'Operating Cash Flow': 10,
 };
 
 export function computeGeneralHealthScore(factors: RiskFactor[]): RiskScore {
@@ -1630,23 +1682,27 @@ export function computeGeneralHealthScore(factors: RiskFactor[]): RiskScore {
 // read computeRiskScore's own score) -- correct in that it's never a
 // second, independently-tuned estimate, but wrong in that "is this
 // business healthy" and "is this business ready to service debt" are
-// different questions a lender weighs differently. Debt-service coverage
-// and cash liquidity predict repayment ability far more directly than the
-// day-to-day operational factors (efficiency trend, inventory turnover)
-// computeRiskScore also folds in -- so this reweights the exact same
-// factor scores computeRiskScore already produced, never recomputing them.
-// Inventory turnover drops to 0 here: it's specifically an asset-backed/
-// trade-finance signal, already captured on its own by
-// computeLendingCapacityEstimate's inventoryBacked branch, not a general
-// borrowing-readiness factor.
+// different questions a lender weighs differently. Debt-service coverage,
+// cash liquidity, and real operating cash generation predict repayment
+// ability far more directly than the day-to-day operational factors
+// (efficiency trend, inventory turnover) computeRiskScore also folds in --
+// so this reweights the exact same factor scores computeRiskScore already
+// produced, never recomputing them. Operating Cash Flow carries real weight here
+// (15) since a business converting its profit into real cash is directly
+// what services a loan; Liquidity and Working Capital are trimmed to make
+// room for it, the same rebalancing computeRiskScore itself made. Inventory
+// turnover drops to 0 here: it's specifically an asset-backed/trade-finance
+// signal, already captured on its own by computeLendingCapacityEstimate's
+// inventoryBacked branch, not a general borrowing-readiness factor.
 const FINANCING_READINESS_WEIGHTS: Record<string, number> = {
     'Debt': 30,
-    'Liquidity': 25,
+    'Liquidity': 15,
     'Profitability': 15,
     'Concentration': 15,
-    'Working Capital': 10,
+    'Working Capital': 5,
     'Efficiency': 5,
     'Inventory': 0,
+    'Operating Cash Flow': 15,
 };
 
 export function computeFinancingReadinessScore(factors: RiskFactor[]): RiskScore {

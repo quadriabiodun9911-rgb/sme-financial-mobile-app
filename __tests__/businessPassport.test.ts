@@ -46,7 +46,7 @@ describe('buildBusinessPassport', () => {
         expect(passport.businessName).toBe('Okafor Foods');
         expect(passport.identity).toBeDefined();
         expect(passport.financialIdentity).toBeDefined();
-        expect(passport.health.categories.length).toBe(7);
+        expect(passport.health.categories.length).toBe(8);
         expect(passport.risk).toBeDefined();
         expect(passport.creditReadiness).toBeDefined();
         expect(passport.investmentReadiness).toBeDefined();

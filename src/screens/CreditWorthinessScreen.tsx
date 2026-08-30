@@ -334,7 +334,7 @@ export default function CreditWorthinessScreen() {
                 currency,
                 overallCreditScore,
                 creditRatingLabel: creditRating.label,
-                // The canonical 7-factor breakdown, not the 5 supplementary
+                // The canonical 8-factor breakdown, not the 5 supplementary
                 // factors — this has to match the score shown above it, and
                 // only the canonical factors actually sum to that score.
                 factors: risk.factors.map(f => ({

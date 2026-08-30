@@ -150,7 +150,7 @@ describe('Large datasets', () => {
         expect(pnl.revenue).toBeGreaterThan(0);
         expect(risk.score).toBeGreaterThanOrEqual(0);
         expect(risk.score).toBeLessThanOrEqual(100);
-        expect(risk.factors.length).toBe(7);
+        expect(risk.factors.length).toBe(8);
         // Generous bound (a real regression would be 10-100x this, not 2x) --
         // this is a smoke test against an accidental O(n^2)/O(n^3) reintroduced
         // into a hot path, not a strict performance benchmark.

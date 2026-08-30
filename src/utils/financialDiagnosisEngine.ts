@@ -50,7 +50,7 @@ export interface FinancialMetrics {
 }
 
 export interface HealthCategory {
-  key: 'profitability' | 'liquidity' | 'workingCapital' | 'debt' | 'efficiency' | 'inventory' | 'concentration';
+  key: 'profitability' | 'liquidity' | 'workingCapital' | 'debt' | 'efficiency' | 'inventory' | 'concentration' | 'cashFlow';
   label: string;
   score: number; // 0-100
   status: 'strong' | 'watch' | 'high-risk';
@@ -608,6 +608,7 @@ export const CATEGORY_LABELS: Record<HealthCategory['key'], string> = {
   efficiency: 'Efficiency',
   inventory: 'Inventory',
   concentration: 'Concentration',
+  cashFlow: 'Operating Cash Flow',
 };
 
 // Maps a diagnosis's `dimension` (e.g. from the top N entries of
@@ -629,6 +630,7 @@ export const RISK_FACTOR_TO_CATEGORY_KEY: Record<string, HealthCategory['key']> 
   Efficiency: 'efficiency',
   Inventory: 'inventory',
   Concentration: 'concentration',
+  'Operating Cash Flow': 'cashFlow',
 };
 
 function statusFromRiskFactor(status: 'good' | 'warning' | 'danger'): HealthCategory['status'] {
@@ -827,9 +829,9 @@ export function performFinancialDiagnosis(
   });
 
   // Overall health score — delegates to computeRiskScore, the single
-  // canonical 7-factor scorer also used by the CFO screen and Business
+  // canonical 8-factor scorer also used by the CFO screen and Business
   // Financial DNA, instead of an independent point-deduction formula that
-  // only looked at 3 of the 7 pillars and could disagree with those screens
+  // only looked at 3 of the pillars and could disagree with those screens
   // for the same business.
   const riskScore = computeRiskScore(
     { income: metrics.totalRevenue, profit: metrics.netProfit, cashBalance: metrics.cashBalance },

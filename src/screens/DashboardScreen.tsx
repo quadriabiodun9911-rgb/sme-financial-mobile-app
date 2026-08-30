@@ -317,9 +317,9 @@ export default function DashboardScreen() {
     // fallback (see financingRecommendation.ts) -- a generic "you might
     // want financing" card here would just be clutter.
     // The single canonical business health score (computeRiskScore) -- same
-    // seven weighted pillars (Profitability, Liquidity, Working Capital,
-    // Debt, Efficiency, Inventory, Concentration) the Scoreboard screen
-    // shows, computed once here and reused by both the Dashboard's own
+    // eight weighted pillars (Profitability, Liquidity, Working Capital,
+    // Debt, Efficiency, Inventory, Concentration, Operating Cash Flow) the
+    // Scoreboard screen shows, computed once here and reused by both the Dashboard's own
     // health-score card below and financingCapacity's lending estimate, so
     // the two never independently recompute (and can never drift from) the
     // same underlying score.

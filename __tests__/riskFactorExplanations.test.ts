@@ -97,7 +97,12 @@ describe('computeRiskScore factor explanations', () => {
     // two parts of the same screen visibly disagreeing with each other.
     it('does not score a completely blank account as "Strong" -- no data is not the same as healthy', () => {
         const { score, band } = computeRiskScore({ income: 0, profit: 0, cashBalance: 0 }, [], [], []);
-        expect(score).toBeLessThan(55);
+        // Loosened from <55 to <60 when the Cash Flow factor was added: it
+        // also treats "no data" as neutral (50), same convention as Working
+        // Capital/Efficiency/Concentration here, which nudges the blank-
+        // account total up slightly -- the real invariant this test guards
+        // (blank must never read Strong/Excellent, i.e. >=75) is unaffected.
+        expect(score).toBeLessThan(60);
         expect(band).not.toBe('Strong');
         expect(band).not.toBe('Excellent');
     });

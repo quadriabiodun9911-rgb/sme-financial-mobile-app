@@ -55,6 +55,11 @@ const DIMENSION_SHORT_LABEL: Record<HealthCategory['key'], string> = {
     inventory: 'slow-moving inventory',
     concentration: 'customer or supplier concentration',
     efficiency: 'rising costs relative to revenue',
+    // No diagnosis currently sets dimension: 'cashFlow' (financialDiagnosisEngine.ts
+    // has no diagnoseCashFlow yet -- the Cash Flow factor only feeds the
+    // overall score today), but HealthCategory['key'] requires every key be
+    // covered here regardless.
+    cashFlow: 'weak cash conversion',
 };
 
 export interface GoalRiskAssessment {
