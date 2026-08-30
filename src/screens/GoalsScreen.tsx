@@ -170,9 +170,9 @@ export default function GoalsScreen() {
     // fabricated number.
     const planGoalRisk = useMemo(() => {
         if (!planGoal || !planDiagnosis || !planBridge) return null;
-        const riskRadar = computeRiskRadar(transactions, loans, settings?.macroAssumptions ?? []);
+        const riskRadar = computeRiskRadar(transactions, loans, settings?.macroAssumptions ?? [], new Date(), assets);
         return assessGoalRisk(planGoal.type, planDiagnosis.diagnoses, riskRadar, planBridge.successProbability);
-    }, [planGoal, planDiagnosis, planBridge, transactions, loans, settings?.macroAssumptions]);
+    }, [planGoal, planDiagnosis, planBridge, transactions, loans, settings?.macroAssumptions, assets]);
 
     // Whether what's actually committed (this month's Budget) and what's
     // actually trending (the near-term Cash Flow Forecast, which already

@@ -68,7 +68,7 @@ export default function CFOQuestionsTab() {
                 finance,
                 settings,
                 diagnosis,
-                computeRiskRadar(transactions, loans, settings?.macroAssumptions ?? []),
+                computeRiskRadar(transactions, loans, settings?.macroAssumptions ?? [], new Date(), assets),
                 goals,
                 capitalCommitments,
                 // Same real pattern/prediction/financing-fit chain Business

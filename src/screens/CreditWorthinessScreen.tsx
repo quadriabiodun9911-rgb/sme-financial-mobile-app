@@ -246,7 +246,7 @@ export default function CreditWorthinessScreen() {
     const goalRiskByGoalId = useMemo(() => {
         if (transactions.length < 5 || activeGoals.length === 0) return {};
         const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), currency, loans, inventory, assets);
-        const riskRadar = computeRiskRadar(transactions, loans, settings?.macroAssumptions ?? []);
+        const riskRadar = computeRiskRadar(transactions, loans, settings?.macroAssumptions ?? [], new Date(), assets);
         const tactics = generateActionPlan(diagnosis, diagnosis.metrics, currency);
         const allTactics = [...tactics.immediateActions, ...tactics.shortTermActions, ...tactics.strategicActions];
         const map: Record<string, GoalRiskAssessment> = {};

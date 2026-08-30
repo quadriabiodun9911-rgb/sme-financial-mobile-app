@@ -703,8 +703,8 @@ export default function DashboardScreen() {
     // concentration/seasonal cards, Settings' macro assumptions), never
     // otherwise summarized in one place.
     const riskRadar = useMemo(
-        () => computeRiskRadar(transactions, loans, settings?.macroAssumptions ?? []),
-        [transactions, loans, settings?.macroAssumptions]
+        () => computeRiskRadar(transactions, loans, settings?.macroAssumptions ?? [], new Date(), assets),
+        [transactions, loans, settings?.macroAssumptions, assets]
     );
 
     // Same "not personal" confirmations TransactionsScreen's row action

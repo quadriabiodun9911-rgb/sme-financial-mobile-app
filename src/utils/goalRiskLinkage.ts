@@ -101,6 +101,7 @@ const RISK_CATEGORY_ACTION: Record<RiskRadarCategory['key'], string> = {
     lenderConcentration: "Line up a second lending relationship so this goal doesn't depend on one bank line.",
     seasonal: 'Time major pushes toward this goal around your strongest historical months.',
     economic: "Watch input costs closely — rising costs can erase progress toward this goal.",
+    cashFlow: 'Tighten collection on outstanding invoices so this goal is funded by real cash, not just paper profit.',
 };
 
 const SEVERITY_RANK: Record<GoalRiskSeverity, number> = { high: 0, medium: 1, low: 2 };

@@ -212,7 +212,7 @@ export function buildBusinessPassport(
     const activeGoals = goals.filter(g => g.status !== 'achieved');
     const goalRisks = (hasEnoughDataForDiagnosis && activeGoals.length > 0)
         ? (() => {
-            const riskRadar = computeRiskRadar(transactions, loans, settings.macroAssumptions ?? []);
+            const riskRadar = computeRiskRadar(transactions, loans, settings.macroAssumptions ?? [], new Date(), assets);
             const tactics = generateActionPlan(diagnosis, diagnosis.metrics, settings.currency);
             const allTactics = [...tactics.immediateActions, ...tactics.shortTermActions, ...tactics.strategicActions];
             return activeGoals.map(g => {

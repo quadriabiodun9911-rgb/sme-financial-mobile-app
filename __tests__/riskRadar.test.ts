@@ -1,5 +1,5 @@
 import { computeRiskRadar } from '../src/utils/riskRadar';
-import { Transaction, Loan, MacroAssumption } from '../src/types';
+import { Transaction, Loan, MacroAssumption, Asset } from '../src/types';
 
 function makeTx(overrides: Partial<Transaction>): Transaction {
     return {
@@ -164,5 +164,63 @@ describe('computeRiskRadar — overall level and topRisks', () => {
         const radar = computeRiskRadar([], []);
         expect(radar.overallLevel).toBe('low');
         expect(radar.topRisks).toHaveLength(0);
+    });
+});
+
+// Mirrors computeRiskScore's own Operating Cash Flow factor tiers exactly
+// (finance.ts) so this category never disagrees with that pillar's score.
+describe('computeRiskRadar — cash flow', () => {
+    it('reports no-data with no transaction history', () => {
+        const radar = computeRiskRadar([], []);
+        const cashFlow = radar.categories.find(c => c.key === 'cashFlow');
+        expect(cashFlow?.level).toBe('no-data');
+    });
+
+    it('reports high when operating cash flow is negative', () => {
+        const txs = [
+            makeTx({ type: 'income', amount: 50000, status: 'paid' }),
+            makeTx({ type: 'expense', category: 'Rent', amount: 200000, status: 'paid' }),
+        ];
+        const radar = computeRiskRadar(txs, []);
+        const cashFlow = radar.categories.find(c => c.key === 'cashFlow');
+        expect(cashFlow?.level).toBe('high');
+        expect(cashFlow?.summary).toMatch(/negative/i);
+    });
+
+    it('reports medium when conversion is positive but below 90%', () => {
+        const txs = [
+            makeTx({ type: 'income', amount: 200000, status: 'paid' }),
+            makeTx({ type: 'income', amount: 100000, status: 'pending' }), // uncollected -- drags OCF below profit
+            makeTx({ type: 'expense', category: 'Rent', amount: 50000, status: 'paid' }),
+        ];
+        const radar = computeRiskRadar(txs, []);
+        const cashFlow = radar.categories.find(c => c.key === 'cashFlow');
+        expect(cashFlow?.level).toBe('medium');
+    });
+
+    it('reports low when nearly all profit converts into real cash', () => {
+        const txs = [
+            makeTx({ type: 'income', amount: 200000, status: 'paid' }),
+            makeTx({ type: 'expense', category: 'Rent', amount: 100000, status: 'paid' }),
+        ];
+        const radar = computeRiskRadar(txs, []);
+        const cashFlow = radar.categories.find(c => c.key === 'cashFlow');
+        expect(cashFlow?.level).toBe('low');
+    });
+
+    it('adds back depreciation from assets passed in', () => {
+        const txs = [
+            makeTx({ type: 'income', amount: 200000, status: 'paid' }),
+            makeTx({ type: 'expense', category: 'Rent', amount: 100000, status: 'paid' }),
+        ];
+        const asset: Asset = {
+            id: 'a1', name: 'Van', category: 'vehicle', description: '',
+            purchaseDate: '2025-01-01', purchaseCost: 120000, usefulLifeYears: 10,
+            residualValue: 0, status: 'active', createdAt: '2025-01-01',
+        };
+        const withoutAsset = computeRiskRadar(txs, []);
+        const withAsset = computeRiskRadar(txs, [], [], new Date(), [asset]);
+        const summaryFor = (r: typeof withAsset) => r.categories.find(c => c.key === 'cashFlow')?.summary;
+        expect(summaryFor(withAsset)).not.toBe(summaryFor(withoutAsset));
     });
 });

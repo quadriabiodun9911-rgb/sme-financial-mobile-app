@@ -14,14 +14,14 @@
  * there isn't enough information yet.
  */
 
-import { Transaction, Loan, MacroAssumption } from '../types';
-import { computeDSCR, computeCustomerConcentration, computeSupplierConcentration, computeLenderConcentration, computeSeasonalRisk, SeasonalRisk } from './finance';
+import { Transaction, Loan, Asset, MacroAssumption } from '../types';
+import { computeDSCR, computeCustomerConcentration, computeSupplierConcentration, computeLenderConcentration, computeSeasonalRisk, computeProperCashFlow, SeasonalRisk } from './finance';
 import { computeExternalRiskInsights } from './externalRiskInsights';
 
 export type RiskLevel = 'low' | 'medium' | 'high' | 'no-data';
 
 export interface RiskRadarCategory {
-    key: 'debtCoverage' | 'customerConcentration' | 'supplierConcentration' | 'lenderConcentration' | 'seasonal' | 'economic';
+    key: 'debtCoverage' | 'customerConcentration' | 'supplierConcentration' | 'lenderConcentration' | 'seasonal' | 'economic' | 'cashFlow';
     label: string;
     level: RiskLevel;
     summary: string;
@@ -46,6 +46,7 @@ export function computeRiskRadar(
     loans: Loan[],
     macroAssumptions: MacroAssumption[] = [],
     referenceDate: Date = new Date(),
+    assets: Asset[] = [],
 ): RiskRadar {
     const categories: RiskRadarCategory[] = [];
 
@@ -65,6 +66,33 @@ export function computeRiskRadar(
                     ? `Debt payments leave little margin for a bad month (DSCR ${dscr.dscr.toFixed(2)}).`
                     : `Income comfortably covers debt payments (DSCR ${dscr.dscr.toFixed(2)}).`,
     });
+
+    // Operating Cash Flow -- is the business actually converting its own
+    // operations into real cash? Same computeProperCashFlow primitive and
+    // tiering computeRiskScore's own Operating Cash Flow factor uses
+    // (finance.ts), so this category never disagrees with that pillar's
+    // own score or chip color.
+    const cf = computeProperCashFlow(transactions, assets);
+    const hasCfData = transactions.some(t => t.status === 'paid' || t.status === 'pending' || t.status === 'overdue');
+    const cfConversionPct = cf.netProfit > 0 ? (cf.operatingCF / cf.netProfit) * 100 : null;
+    let cashFlowLevel: RiskLevel;
+    let cashFlowSummary: string;
+    if (!hasCfData) {
+        cashFlowLevel = 'no-data';
+        cashFlowSummary = 'Not enough transaction history yet to measure operating cash flow.';
+    } else if (cf.operatingCF < 0) {
+        cashFlowLevel = 'high';
+        cashFlowSummary = 'Operating cash flow is negative -- normal operations are consuming cash rather than generating it.';
+    } else if (cfConversionPct !== null && cfConversionPct < 90) {
+        cashFlowLevel = 'medium';
+        cashFlowSummary = `Only ${cfConversionPct.toFixed(0)}% of profit has converted into real cash.`;
+    } else {
+        cashFlowLevel = 'low';
+        cashFlowSummary = cfConversionPct !== null
+            ? `${cfConversionPct.toFixed(0)}% of profit is converting into real cash.`
+            : 'Operating cash flow is positive.';
+    }
+    categories.push({ key: 'cashFlow', label: 'Cash Flow', level: cashFlowLevel, summary: cashFlowSummary });
 
     // Customer concentration
     const topCustomer = computeCustomerConcentration(transactions)[0];

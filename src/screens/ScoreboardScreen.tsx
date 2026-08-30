@@ -90,8 +90,8 @@ export default function ScoreboardScreen() {
     const readinessDelta = useMemo(() => computeReadinessDelta(readinessHistory), [readinessHistory]);
 
     const riskRadar = useMemo(
-        () => computeRiskRadar(transactions, loans, settings?.macroAssumptions ?? []),
-        [transactions, loans, settings?.macroAssumptions],
+        () => computeRiskRadar(transactions, loans, settings?.macroAssumptions ?? [], new Date(), assets),
+        [transactions, loans, settings?.macroAssumptions, assets],
     );
 
     const exposure = useMemo(

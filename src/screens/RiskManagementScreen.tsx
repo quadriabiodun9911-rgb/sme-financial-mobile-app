@@ -72,7 +72,7 @@ function MiniBar({ pct, color }: { pct: number; color: string }) {
  * (DSCR detail, Interest Rate Shock, Debt Optimizer) now live there.
  */
 export default function RiskManagementScreen() {
-    const { transactions, loans, finance, inventory, settings, navigate, setCurrentScreen, navParams } = useApp();
+    const { transactions, loans, finance, inventory, settings, navigate, setCurrentScreen, navParams, assets } = useApp();
     const currency = settings.currency || '₦';
 
     const [tab, setTab] = useState<Tab>(
@@ -80,7 +80,7 @@ export default function RiskManagementScreen() {
     );
 
     const risk         = useMemo(() => computeRiskScore(finance, loans, transactions, inventory), [finance, loans, transactions, inventory]);
-    const riskRadar     = useMemo(() => computeRiskRadar(transactions, loans, settings?.macroAssumptions ?? []), [transactions, loans, settings?.macroAssumptions]);
+    const riskRadar     = useMemo(() => computeRiskRadar(transactions, loans, settings?.macroAssumptions ?? [], new Date(), assets), [transactions, loans, settings?.macroAssumptions, assets]);
     const customerConc  = useMemo(() => computeCustomerConcentration(transactions), [transactions]);
     const supplierConc  = useMemo(() => computeSupplierConcentration(transactions), [transactions]);
     const lenderConc    = useMemo(() => computeLenderConcentration(loans), [loans]);
