@@ -24,6 +24,7 @@ import ProductPerformance from '../components/ProductPerformance';
 import GrowthOutlook from '../components/GrowthOutlook';
 import MultiYearTrends from '../components/MultiYearTrends';
 import QualityOfGrowthTab from '../components/QualityOfGrowthTab';
+import CashFlowHealthTab from '../components/CashFlowHealthTab';
 import NextStepLink from '../components/NextStepLink';
 import CashFlowStatement from '../components/CashFlowStatement';
 import DataQualityBadge from '../components/DataQualityBadge';
@@ -66,7 +67,7 @@ type SubTab =
     | 'balancesheet' | 'pnl' | 'inventory' | 'accrual'
     | 'aging'
     | 'tax' | 'tax-filing' | 'tax-planning'
-    | 'cashflow' | 'cashsafety' | 'debt' | 'assets'
+    | 'cashflow' | 'cashhealth' | 'cashsafety' | 'debt' | 'assets'
     | 'growth' | 'history' | 'quality' | 'customers' | 'products';
 
 const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
@@ -74,6 +75,7 @@ const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
         { key: 'balancesheet', label: 'What I Own & Owe' },
         { key: 'pnl',          label: 'Profit & Loss' },
         { key: 'cashflow',     label: 'Cash Flow Statement' },
+        { key: 'cashhealth',   label: 'Cash Flow Health' },
         { key: 'inventory',    label: 'Stock' },
         { key: 'accrual',      label: 'Accrual vs Cash' },
     ],
@@ -674,6 +676,16 @@ export default function ReportsScreen() {
                                 currency={currency}
                             />
                         </View>
+                    )}
+
+                    {/* ── CASH FLOW HEALTH ─────────────────────────────── */}
+                    {activeTab === 'cashhealth' && (
+                        <CashFlowHealthTab
+                            transactions={transactions}
+                            assets={assets}
+                            inventory={inventory}
+                            currency={currency}
+                        />
                     )}
 
                     {/* ── CASH FLOW & SAFETY ───────────────────────────── */}

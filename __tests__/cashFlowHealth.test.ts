@@ -122,6 +122,23 @@ describe('computeCashFlowHealth', () => {
         expect(result.riskFlags.some(f => f.message.match(/weakened/i))).toBe(true);
     });
 
+    it('never leaks the literal string "undefined" into the headline when no risk flags fire', () => {
+        // A moderate-score, single-quarter scenario with no risk flags at
+        // all exercises the headline's "adequate but watch X" branch with
+        // riskFlags[0] undefined -- regression for a bug where optional
+        // chaining short-circuited to the literal string "undefined"
+        // instead of an empty fallback.
+        const txs = [
+            makeTx({ date: '2026-01-10', type: 'income', amount: 300000, status: 'paid' }),
+            makeTx({ date: '2026-01-15', type: 'expense', category: 'Rent', amount: 250000, status: 'paid' }),
+        ];
+        const result = computeCashFlowHealth(txs, NO_ASSETS, NO_INVENTORY);
+        expect(result.headline).not.toMatch(/undefined/i);
+        for (const flag of result.riskFlags) {
+            expect(flag.message).not.toMatch(/undefined/i);
+        }
+    });
+
     it('reports insufficient-data trajectory with a single quarter of history', () => {
         const txs = [
             makeTx({ date: '2026-01-10', type: 'income', amount: 100000, status: 'paid' }),

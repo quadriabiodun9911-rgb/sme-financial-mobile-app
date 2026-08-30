@@ -323,12 +323,15 @@ export function computeCashFlowHealth(
     const band = bandForScore(score);
 
     const criticalFlag = riskFlags.find(f => f.severity === 'critical');
+    const firstWarning = riskFlags[0]?.message;
     const headline = criticalFlag
         ? criticalFlag.message
         : score >= 70
             ? 'Core operations are generating cash and the trend is holding up.'
             : score >= 50
-                ? `Cash generation is adequate, but ${riskFlags[0]?.message.charAt(0).toLowerCase()}${riskFlags[0]?.message.slice(1) ?? 'watch the working-capital signals below'}`
+                ? (firstWarning
+                    ? `Cash generation is adequate, but ${firstWarning.charAt(0).toLowerCase()}${firstWarning.slice(1)}`
+                    : 'Cash generation is adequate, with no major working-capital pressure right now.')
                 : 'Cash generation needs attention — see the risk signals below for the specific cause.';
 
     return { available: true, score, band, headline, cashGeneration, profitToCash, cashTrapped, trajectory, riskFlags };
