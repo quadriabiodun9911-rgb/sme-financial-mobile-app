@@ -195,6 +195,53 @@ describe('computeCashFlowHealth', () => {
         }
     });
 
+    it('flags payables growing rapidly vs the prior quarter', () => {
+        const txs = [
+            makeTx({ date: '2025-01-10', type: 'income', amount: 300000, status: 'paid' }),
+            makeTx({ date: '2025-01-15', type: 'expense', category: 'Supplies', amount: 50000, status: 'pending' }),
+            makeTx({ date: '2025-04-10', type: 'income', amount: 300000, status: 'paid' }),
+            makeTx({ date: '2025-04-15', type: 'expense', category: 'Supplies', amount: 100000, status: 'pending' }),
+        ];
+        const result = computeCashFlowHealth(txs, NO_ASSETS, NO_INVENTORY);
+        expect(result.riskFlags.some(f => f.message.match(/owed to suppliers grew/i))).toBe(true);
+    });
+
+    it('does not flag payables when there were none in the prior quarter to compare against', () => {
+        const txs = [
+            makeTx({ date: '2025-01-10', type: 'income', amount: 300000, status: 'paid' }),
+            makeTx({ date: '2025-04-10', type: 'income', amount: 300000, status: 'paid' }),
+            makeTx({ date: '2025-04-15', type: 'expense', category: 'Supplies', amount: 100000, status: 'pending' }),
+        ];
+        const result = computeCashFlowHealth(txs, NO_ASSETS, NO_INVENTORY);
+        expect(result.riskFlags.some(f => f.message.match(/owed to suppliers grew/i))).toBe(false);
+    });
+
+    it('flags cash runway declining across 3+ reconstructed quarters', () => {
+        const txs = [
+            makeTx({ date: '2025-01-10', type: 'income', amount: 500000, status: 'paid' }),
+            makeTx({ date: '2025-01-15', type: 'expense', category: 'Rent', amount: 100000, status: 'paid' }),
+            makeTx({ date: '2025-04-10', type: 'income', amount: 100000, status: 'paid' }),
+            makeTx({ date: '2025-04-15', type: 'expense', category: 'Rent', amount: 150000, status: 'paid' }),
+            makeTx({ date: '2025-07-10', type: 'income', amount: 50000, status: 'paid' }),
+            makeTx({ date: '2025-07-15', type: 'expense', category: 'Rent', amount: 200000, status: 'paid' }),
+        ];
+        const result = computeCashFlowHealth(txs, NO_ASSETS, NO_INVENTORY);
+        expect(result.riskFlags.some(f => f.message.match(/runway has declined/i))).toBe(true);
+    });
+
+    it('does not flag runway declining when it is actually improving', () => {
+        const txs = [
+            makeTx({ date: '2025-01-10', type: 'income', amount: 100000, status: 'paid' }),
+            makeTx({ date: '2025-01-15', type: 'expense', category: 'Rent', amount: 90000, status: 'paid' }),
+            makeTx({ date: '2025-04-10', type: 'income', amount: 300000, status: 'paid' }),
+            makeTx({ date: '2025-04-15', type: 'expense', category: 'Rent', amount: 90000, status: 'paid' }),
+            makeTx({ date: '2025-07-10', type: 'income', amount: 500000, status: 'paid' }),
+            makeTx({ date: '2025-07-15', type: 'expense', category: 'Rent', amount: 90000, status: 'paid' }),
+        ];
+        const result = computeCashFlowHealth(txs, NO_ASSETS, NO_INVENTORY);
+        expect(result.riskFlags.some(f => f.message.match(/runway has declined/i))).toBe(false);
+    });
+
     it('reports insufficient-data trajectory with a single quarter of history', () => {
         const txs = [
             makeTx({ date: '2026-01-10', type: 'income', amount: 100000, status: 'paid' }),

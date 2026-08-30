@@ -199,6 +199,13 @@ export function computeCashFlowHealth(
         const qTx = transactions.filter(t => t.date >= start && t.date <= end);
         const cf = computeProperCashFlow(qTx, assetsAsOf(end));
         const bs = bsTrend.find(p => p.key === q.quarter);
+        // Days actually spanned by this quarter's date range -- the last
+        // quarter of a business's history is very likely partial (it ends
+        // "today", not at a real calendar quarter-end), so dividing by a
+        // fixed ~91 would understate its daily burn and overstate the
+        // runway estimate built from it below.
+        const daysInQuarter = Math.round((new Date(end).getTime() - new Date(start).getTime()) / 86400000) + 1;
+        const paidExpensesInQuarter = qTx.filter(t => t.type === 'expense' && t.status === 'paid').reduce((s, t) => s + (t.amount ?? 0), 0);
         return {
             quarter: q.quarter,
             label: q.label,
@@ -207,6 +214,13 @@ export function computeCashFlowHealth(
             netProfit: cf.netProfit,
             capex: capexInQuarter(start, end),
             accountsReceivable: bs?.accountsReceivable ?? null,
+            accountsPayable: bs?.accountsPayable ?? null,
+            // Runway "as of" this quarter's end, using cash actually on
+            // hand then (bs.cashOnHand, dated-transaction-based, same
+            // reconstruction qualityOfGrowth.ts's receivables signal
+            // relies on) against what this quarter itself actually spent --
+            // never today's real-time runway restated for the past.
+            runwayDays: bs && paidExpensesInQuarter > 0 ? bs.cashOnHand / (paidExpensesInQuarter / daysInQuarter) : null,
         };
     });
 
@@ -338,6 +352,35 @@ export function computeCashFlowHealth(
     }
     if (trappedCash > 0 && latest.revenue > 0 && trappedCash > latest.revenue * MODEL.trappedRatioPoor) {
         riskFlags.push({ severity: 'warning', message: `${formatMoney(trappedCash, currency)} is tied up in receivables and inventory relative to this quarter's revenue — a large share of the business's cash is currently locked in working capital.` });
+    }
+    // Payables increasing rapidly -- same bsTrend reconstruction as the
+    // receivables flag above. Deliberately not compared against revenue
+    // growth the way receivables is: growing payables isn't inherently a
+    // symptom of slower sales the way growing receivables is, so a plain
+    // growth-rate threshold is the honest read here, not a fabricated
+    // "vs revenue" framing. Not automatically bad -- rising payables can
+    // mean healthy growth in purchasing OR delayed supplier payments from
+    // cash pressure; the message says so rather than picking one.
+    if (prior && prior.accountsPayable !== null && latest.accountsPayable !== null && prior.accountsPayable > 0) {
+        const apGrowthPct = pctChange(latest.accountsPayable, prior.accountsPayable);
+        if (apGrowthPct !== null && apGrowthPct > 40) {
+            riskFlags.push({ severity: 'warning', message: `Amounts owed to suppliers grew ${apGrowthPct.toFixed(0)}% vs last quarter — this can be healthy growth in purchasing, or a sign of delayed supplier payments; worth checking which.` });
+        }
+    }
+    // Cash runway declining -- reconstructed per-quarter from real dated
+    // cash-on-hand and that quarter's own spending (see runwayDays above),
+    // never today's live runway restated for the past. Requires 3
+    // reconstructed points for the same "don't call a trend from 2 numbers"
+    // discipline the OCF trajectory above applies.
+    if (quarterFigures.length >= 3) {
+        const runwayPoints = quarterFigures.filter((q): q is typeof q & { runwayDays: number } => q.runwayDays !== null);
+        if (runwayPoints.length >= 3) {
+            const recentRunway = runwayPoints.slice(-3);
+            const runwayDiffs = [recentRunway[1].runwayDays - recentRunway[0].runwayDays, recentRunway[2].runwayDays - recentRunway[1].runwayDays];
+            if (runwayDiffs.every(d => d < 0)) {
+                riskFlags.push({ severity: 'warning', message: `Estimated cash runway has declined for ${runwayDiffs.length} consecutive quarters (${Math.round(recentRunway[0].runwayDays)} → ${Math.round(recentRunway[2].runwayDays)} days) — the buffer for absorbing a bad month is shrinking.` });
+            }
+        }
     }
 
     // ── Composite score ───────────────────────────────────────────────────
