@@ -26,6 +26,20 @@ const makeItem = (overrides: Partial<InventoryItem>): InventoryItem => ({
     ...overrides,
 });
 
+const makeAsset = (overrides: Partial<Asset>): Asset => ({
+    id: `asset-${Math.random()}`,
+    name: 'Delivery Van',
+    category: 'vehicle',
+    description: 'Test asset',
+    purchaseDate: '2026-01-10',
+    purchaseCost: 100000,
+    usefulLifeYears: 5,
+    residualValue: 0,
+    status: 'active',
+    createdAt: '2026-01-10',
+    ...overrides,
+});
+
 const NO_ASSETS: Asset[] = [];
 const NO_INVENTORY: InventoryItem[] = [];
 
@@ -74,6 +88,48 @@ describe('computeCashFlowHealth', () => {
         expect(result.profitToCash.netProfit).toBe(250000);
         expect(result.profitToCash.conversionPct).not.toBeNull();
         expect(result.profitToCash.conversionPct!).toBeLessThan(100);
+    });
+
+    it('equals operating cash flow when there is no capital spending this quarter', () => {
+        const txs = [
+            makeTx({ date: '2026-01-10', type: 'income', amount: 500000, status: 'paid' }),
+            makeTx({ date: '2026-01-15', type: 'expense', category: 'Rent', amount: 150000, status: 'paid' }),
+        ];
+        const result = computeCashFlowHealth(txs, NO_ASSETS, NO_INVENTORY);
+        expect(result.freeCashFlow.capex).toBe(0);
+        expect(result.freeCashFlow.freeCashFlow).toBe(result.cashGeneration.operatingCF);
+        expect(result.freeCashFlow.narrative).toMatch(/no equipment or property/i);
+    });
+
+    it('subtracts only THIS quarter\'s capex from operating cash flow, not an asset bought in an earlier quarter', () => {
+        const txs = [
+            // Q1 2026: healthy operating cash flow, one asset purchase
+            makeTx({ date: '2026-01-10', type: 'income', amount: 500000, status: 'paid' }),
+            makeTx({ date: '2026-01-15', type: 'expense', category: 'Rent', amount: 150000, status: 'paid' }),
+            // Q2 2026: same pattern, no new asset purchase this quarter
+            makeTx({ date: '2026-04-10', type: 'income', amount: 500000, status: 'paid' }),
+            makeTx({ date: '2026-04-15', type: 'expense', category: 'Rent', amount: 150000, status: 'paid' }),
+        ];
+        const assets = [makeAsset({ purchaseDate: '2026-01-20', purchaseCost: 200000 })]; // bought in Q1 only
+        const result = computeCashFlowHealth(txs, assets, NO_INVENTORY);
+        // The latest quarter is Q2, which had no capex of its own -- an
+        // asset bought back in Q1 must not be double-charged against Q2.
+        expect(result.freeCashFlow.capex).toBe(0);
+        expect(result.freeCashFlow.freeCashFlow).toBe(result.cashGeneration.operatingCF);
+    });
+
+    it('reports negative free cash flow when capital spending exceeds operating cash flow, and flags it', () => {
+        const txs = [
+            makeTx({ date: '2026-01-10', type: 'income', amount: 300000, status: 'paid' }),
+            makeTx({ date: '2026-01-15', type: 'expense', category: 'Rent', amount: 150000, status: 'paid' }),
+        ];
+        const assets = [makeAsset({ purchaseDate: '2026-01-20', purchaseCost: 500000 })]; // bigger than OCF
+        const result = computeCashFlowHealth(txs, assets, NO_INVENTORY);
+        expect(result.cashGeneration.operatingCF).toBeGreaterThan(0);
+        expect(result.freeCashFlow.capex).toBe(500000);
+        expect(result.freeCashFlow.freeCashFlow).toBeLessThan(0);
+        expect(result.freeCashFlow.narrative).toMatch(/negative/i);
+        expect(result.riskFlags.some(f => f.message.match(/free cash flow is negative/i))).toBe(true);
     });
 
     it('reports cash trapped as receivables plus inventory minus payables', () => {

@@ -74,6 +74,23 @@ export default function CashFlowHealthTab({ transactions, assets, inventory, cur
 
                 <View style={s.divider} />
 
+                <Text style={s.cardTitle}>Free Cash Flow</Text>
+                {result.freeCashFlow.capex > 0 && (
+                    <View style={s.metricRow}>
+                        <Text style={s.metricLabel}>Spent on equipment / property</Text>
+                        <Text style={[s.metricValue, { color: Colors.expense }]}>-{fmtCompact(currency, result.freeCashFlow.capex)}</Text>
+                    </View>
+                )}
+                <View style={s.metricRow}>
+                    <Text style={s.metricLabel}>Free cash flow</Text>
+                    <Text style={[s.metricValue, { color: result.freeCashFlow.freeCashFlow >= 0 ? Colors.income : Colors.expense }]}>
+                        {fmtCompact(currency, result.freeCashFlow.freeCashFlow)}
+                    </Text>
+                </View>
+                <Text style={s.narrative}>{result.freeCashFlow.narrative}</Text>
+
+                <View style={s.divider} />
+
                 <Text style={s.cardTitle}>Profit-to-Cash Conversion</Text>
                 <View style={s.metricRow}>
                     <Text style={s.metricLabel}>Net profit (this quarter)</Text>

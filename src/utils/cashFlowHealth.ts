@@ -43,6 +43,18 @@ export interface CashGenerationSignal {
     narrative: string;
 }
 
+// Operating cash flow minus capital expenditure -- what's genuinely left
+// over after running the business AND buying/replacing the equipment or
+// property it needed this quarter, not just what's left after running the
+// business. A business can show healthy operating cash flow and still have
+// nothing free if it all went straight into new equipment.
+export interface FreeCashFlowSignal {
+    operatingCF: number;
+    capex: number; // capital expenditure incurred THIS quarter only (assets purchased within the period)
+    freeCashFlow: number; // operatingCF - capex
+    narrative: string;
+}
+
 export interface ProfitToCashSignal {
     netProfit: number;
     operatingCF: number;
@@ -85,6 +97,7 @@ export interface CashFlowHealthResult {
     band: CashFlowHealthBand;
     headline: string;
     cashGeneration: CashGenerationSignal;
+    freeCashFlow: FreeCashFlowSignal;
     profitToCash: ProfitToCashSignal;
     cashTrapped: CashTrappedSignal;
     trajectory: TrajectorySignal;
@@ -98,6 +111,7 @@ const UNAVAILABLE = (reason: string): CashFlowHealthResult => ({
     band: 'Critical',
     headline: '',
     cashGeneration: { operatingCF: 0, priorOperatingCF: null, changePct: null, narrative: '' },
+    freeCashFlow: { operatingCF: 0, capex: 0, freeCashFlow: 0, narrative: '' },
     profitToCash: { netProfit: 0, operatingCF: 0, conversionPct: null, narrative: '' },
     cashTrapped: { receivables: 0, inventoryValue: 0, payables: 0, trappedCash: 0, narrative: '' },
     trajectory: { points: [], direction: 'insufficient-data', narrative: '' },
@@ -170,6 +184,16 @@ export function computeCashFlowHealth(
     const bsTrend = computeBalanceSheetTrend('quarterly', monthKeys, transactions, assets, []);
 
     const assetsAsOf = (dateStr: string) => assets.filter(a => (a.purchaseDate || '') <= dateStr);
+    // Capex incurred strictly WITHIN a given quarter -- deliberately NOT
+    // computeProperCashFlow's own assetPurchases field, which (via
+    // assetsAsOf above) totals every asset owned as of the quarter's end,
+    // not just ones bought that quarter. Reusing it here would subtract an
+    // entire business's lifetime equipment spend from a single quarter's
+    // operating cash flow, understating free cash flow more and more with
+    // each additional quarter of history. See finance.ts's freeCashFlow
+    // field comment for the same caveat on the other (all-time) side.
+    const capexInQuarter = (start: string, end: string) =>
+        assets.filter(a => (a.purchaseDate || '') >= start && (a.purchaseDate || '') <= end).reduce((s, a) => s + a.purchaseCost, 0);
     const quarterFigures = recentQuarters.map(q => {
         const { start, end } = quarterDateRange(q.quarter);
         const qTx = transactions.filter(t => t.date >= start && t.date <= end);
@@ -181,6 +205,7 @@ export function computeCashFlowHealth(
             revenue: q.revenue,
             operatingCF: cf.operatingCF,
             netProfit: cf.netProfit,
+            capex: capexInQuarter(start, end),
             accountsReceivable: bs?.accountsReceivable ?? null,
         };
     });
@@ -197,6 +222,19 @@ export function computeCashFlowHealth(
         narrative: latest.operatingCF >= 0
             ? `Your business generated ${formatMoney(latest.operatingCF, currency)} from normal operations this quarter${changePct !== null ? `, ${changePct >= 0 ? 'up' : 'down'} ${Math.abs(changePct).toFixed(0)}% vs the previous quarter` : ''}.`
             : `Your business consumed ${formatMoney(latest.operatingCF, currency)} more cash than it generated from normal operations this quarter — worth understanding why before assuming a problem.`,
+    };
+
+    // ── Free Cash Flow — is there anything left over after capital spending? ──
+    const fcf = latest.operatingCF - latest.capex;
+    const freeCashFlow: FreeCashFlowSignal = {
+        operatingCF: latest.operatingCF,
+        capex: latest.capex,
+        freeCashFlow: fcf,
+        narrative: latest.capex === 0
+            ? `No equipment or property purchases recorded this quarter, so free cash flow equals operating cash flow: ${formatMoney(fcf, currency)}.`
+            : fcf >= 0
+                ? `After ${formatMoney(latest.capex, currency)} spent on equipment or property this quarter, ${formatMoney(fcf, currency)} is genuinely free — available to pay down debt, build reserves, or reinvest elsewhere.`
+                : `After ${formatMoney(latest.capex, currency)} spent on equipment or property this quarter, free cash flow is negative — operating cash flow didn't fully cover this quarter's capital spending, so the difference came from existing cash reserves or new borrowing.`,
     };
 
     // ── Step 2: Profit-to-Cash Conversion ────────────────────────────────
@@ -282,6 +320,12 @@ export function computeCashFlowHealth(
     if (conversionPct !== null && conversionPct < 50) {
         riskFlags.push({ severity: 'warning', message: `Cash conversion is weak — only ${conversionPct.toFixed(0)}% of profit has turned into real cash this quarter.` });
     }
+    // Only flagged when operating cash flow is itself positive -- a negative-
+    // OCF quarter already trips the critical flag above, and adding this one
+    // too would just repeat the same underlying problem in different words.
+    if (latest.operatingCF >= 0 && fcf < 0) {
+        riskFlags.push({ severity: 'warning', message: `Free cash flow is negative this quarter — spending on equipment or property (${formatMoney(latest.capex, currency)}) exceeded the cash generated from operations.` });
+    }
     // Receivables growing faster than revenue -- uses computeBalanceSheetTrend's
     // documented "still unpaid as of that date" floor, the same reconstruction
     // qualityOfGrowth.ts already relies on for its own receivables signal.
@@ -334,5 +378,5 @@ export function computeCashFlowHealth(
                     : 'Cash generation is adequate, with no major working-capital pressure right now.')
                 : 'Cash generation needs attention — see the risk signals below for the specific cause.';
 
-    return { available: true, score, band, headline, cashGeneration, profitToCash, cashTrapped, trajectory, riskFlags };
+    return { available: true, score, band, headline, cashGeneration, freeCashFlow, profitToCash, cashTrapped, trajectory, riskFlags };
 }

@@ -62,6 +62,10 @@ export default function CashFlowFormalStatement({ businessName, sinceLabel, cf, 
             <StatementLine label="Net Cash Used in Investing Activities" amount={cf.investingCF} currency={currency} total deduction={cf.investingCF < 0} />
 
             <StatementSpacer />
+            <StatementLine label="Free Cash Flow (memo)" amount={cf.freeCashFlow} currency={currency} bold deduction={cf.freeCashFlow < 0} />
+            <StatementNote text="Operating cash flow minus what was spent on equipment and property -- what's genuinely left over to pay down debt, build reserves, or reinvest, after running the business AND replacing/growing what it owns. A supplemental figure, not part of the GAAP statement above." />
+
+            <StatementSpacer />
             <StatementSection label="Cash Flows from Financing Activities" />
             {cf.principalRepayments > 0
                 ? <StatementLine label="Repayment of Loan Principal" amount={cf.principalRepayments} currency={currency} indent={1} deduction />

@@ -236,6 +236,18 @@ export interface ProperCashFlow {
     paidExpenses: number;
     uncollectedAR: number;
     unpaidAP: number;
+    // Operating cash flow minus capital expenditure (assetPurchases) -- the
+    // classic "what's actually left over after running the business AND
+    // buying the equipment/property it needed" figure, not just what's left
+    // after running the business. Correct as long as `assets` and
+    // `transactions` cover the SAME window (true for every existing caller,
+    // which always passes full since-inception history -- see
+    // CashFlowFormalStatement.tsx's own doc comment); a caller that instead
+    // scopes `transactions` to a shorter period than `assets` would get a
+    // freeCashFlow that double-counts capex from outside that period, so
+    // period-scoped callers (see cashFlowHealth.ts) compute their own
+    // period-scoped capex rather than trusting this field.
+    freeCashFlow: number;
 }
 
 export function computeProperCashFlow(transactions: Transaction[], assets: Asset[]): ProperCashFlow {
@@ -274,8 +286,9 @@ export function computeProperCashFlow(transactions: Transaction[], assets: Asset
     const principalRepayments = paidExpenseTx.reduce((s, t) => s + (t.principalPortion || 0), 0);
     const financingCF    = -principalRepayments;
     const netCashChange  = operatingCF + investingCF + financingCF;
+    const freeCashFlow   = operatingCF - assetPurchases;
 
-    return { netProfit, depreciation, changeInAR, changeInAP, operatingCF, assetPurchases, assetDisposals, investingCF, financingCF, principalRepayments, netCashChange, collectedRevenue, paidExpenses, uncollectedAR, unpaidAP };
+    return { netProfit, depreciation, changeInAR, changeInAP, operatingCF, assetPurchases, assetDisposals, investingCF, financingCF, principalRepayments, netCashChange, collectedRevenue, paidExpenses, uncollectedAR, unpaidAP, freeCashFlow };
 }
 
 export function computeAssetCurrentValue(asset: Asset): number {
