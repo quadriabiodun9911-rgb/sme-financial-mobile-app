@@ -245,7 +245,7 @@ export default function CreditWorthinessScreen() {
     const activeGoals = useMemo(() => goals.filter(g => g.status !== 'achieved'), [goals]);
     const goalRiskByGoalId = useMemo(() => {
         if (transactions.length < 5 || activeGoals.length === 0) return {};
-        const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), currency, loans, inventory);
+        const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), currency, loans, inventory, assets);
         const riskRadar = computeRiskRadar(transactions, loans, settings?.macroAssumptions ?? []);
         const tactics = generateActionPlan(diagnosis, diagnosis.metrics, currency);
         const allTactics = [...tactics.immediateActions, ...tactics.shortTermActions, ...tactics.strategicActions];
@@ -255,7 +255,7 @@ export default function CreditWorthinessScreen() {
             map[g.id] = assessGoalRisk(g.type, diagnosis.diagnoses, riskRadar, bridge.successProbability);
         }
         return map;
-    }, [transactions, invoices, finance, currency, loans, inventory, activeGoals, settings?.macroAssumptions]);
+    }, [transactions, invoices, finance, currency, loans, inventory, assets, activeGoals, settings?.macroAssumptions]);
 
     // Same conditions rendered by the "What Lenders Look For" checkpoints
     // below — kept in one place so the exported summary and the on-screen

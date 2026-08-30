@@ -73,7 +73,7 @@ const GOAL_STATUS_META: Record<GoalStatus, { label: string; color: string }> = {
  * duplicating it.
  */
 export default function ScoreboardScreen() {
-    const { transactions, invoices, loans, inventory, finance, settings, goals, readinessHistory, navigate, setCurrentScreen } = useApp();
+    const { transactions, invoices, loans, inventory, finance, settings, goals, readinessHistory, navigate, setCurrentScreen, assets } = useApp();
     const { currency } = settings;
 
     // Every colored dot on this screen already carries a real, computed
@@ -127,7 +127,7 @@ export default function ScoreboardScreen() {
     // than every goal, since this recomputes a full goal-bridge per goal.
     const goalRiskByGoalId = useMemo(() => {
         if (transactions.length < 5 || activeGoals.length === 0) return {};
-        const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), currency, loans, inventory);
+        const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), currency, loans, inventory, assets);
         const tactics = generateActionPlan(diagnosis, diagnosis.metrics, currency);
         const allTactics = [...tactics.immediateActions, ...tactics.shortTermActions, ...tactics.strategicActions];
         const map: Record<string, GoalRiskAssessment> = {};
@@ -136,7 +136,7 @@ export default function ScoreboardScreen() {
             map[g.id] = assessGoalRisk(g.type, diagnosis.diagnoses, riskRadar, bridge.successProbability);
         }
         return map;
-    }, [transactions, invoices, finance, currency, loans, inventory, activeGoals, riskRadar]);
+    }, [transactions, invoices, finance, currency, loans, inventory, assets, activeGoals, riskRadar]);
 
     // The single most useful thing to say about goals at a glance: which one
     // is least ready, in its own words -- not a repeat of every goal's list.

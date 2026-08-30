@@ -69,7 +69,7 @@ const RISK_SEVERITY_COLORS: Record<GoalRiskSeverity, string> = { high: Colors.ex
 const ALIGNMENT_STATUS_COLORS: Record<string, string> = { aligned: Colors.income, budget_too_high: Colors.expense, no_active_budget: Colors.warning };
 
 export default function GoalsScreen() {
-    const { goals, addGoal, deleteGoal, updateGoal, finance, transactions, invoices, settings, navParams, navigate, setCurrentScreen, loans, inventory, budgets } = useApp();
+    const { goals, addGoal, deleteGoal, updateGoal, finance, transactions, invoices, settings, navParams, navigate, setCurrentScreen, loans, inventory, budgets, assets } = useApp();
     const { currency } = settings;
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
@@ -115,8 +115,8 @@ export default function GoalsScreen() {
     const shouldComputeGoalDiagnosis = !!planGoal || (transactions.length >= 5 && goals.length > 0);
     const goalDiagnosis = useMemo(() => {
         if (!shouldComputeGoalDiagnosis) return null;
-        return performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), settings.currency, loans, inventory);
-    }, [shouldComputeGoalDiagnosis, transactions, invoices, finance.cashBalance, finance.expense, settings.currency, loans, inventory]);
+        return performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), settings.currency, loans, inventory, assets);
+    }, [shouldComputeGoalDiagnosis, transactions, invoices, finance.cashBalance, finance.expense, settings.currency, loans, inventory, assets]);
 
     // Feasibility per goal — reuses the same root-cause diagnosis + tactics
     // engine as Goal Bridge, so every goal card shows at a glance whether it's

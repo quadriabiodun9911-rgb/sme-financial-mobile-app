@@ -357,7 +357,7 @@ const CATEGORY_OPTIONS: { label: string; category: TxCategory; subCategory: stri
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function ImportTransactionsScreen() {
-    const { navigate, goBack, addTransaction, transactions, invoices, finance, settings, loans, inventory } = useApp();
+    const { navigate, goBack, addTransaction, transactions, invoices, finance, settings, loans, inventory, assets } = useApp();
     const currency = (settings as any).currency || '₦';
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
@@ -402,9 +402,10 @@ export default function ImportTransactionsScreen() {
             getMonthlyExpenseAverage(finance.expense, transactions),
             currency,
             loans,
-            inventory
+            inventory,
+            assets
         );
-    }, [step, transactions, invoices, finance, currency, loans, inventory]);
+    }, [step, transactions, invoices, finance, currency, loans, inventory, assets]);
 
     const processFile = useCallback(async (uri: string, name: string) => {
         setLoading(true);

@@ -52,7 +52,7 @@ function AdjustmentInput({ label, value, onChange, suffix }: { label: string; va
 }
 
 export default function FutureFinancialStatementsScreen() {
-    const { transactions, loans, finance, settings, staff, goBack, inventory, invoices, navigate } = useApp();
+    const { transactions, loans, finance, settings, staff, goBack, inventory, invoices, navigate, assets } = useApp();
     const { currency } = settings;
 
     const [activeStatement, setActiveStatement] = useState<Statement>('pnl');
@@ -234,8 +234,8 @@ export default function FutureFinancialStatementsScreen() {
     // uses -- reused as-is rather than writing a third recommendation
     // generator, so "what should I do" never disagrees between screens.
     const diagnosis = useMemo(
-        () => performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), currency, loans, inventory),
-        [transactions, invoices, finance, currency, loans, inventory],
+        () => performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), currency, loans, inventory, assets),
+        [transactions, invoices, finance, currency, loans, inventory, assets],
     );
     const actionPlan = useMemo(
         () => generateActionPlan(diagnosis, diagnosis.metrics, currency),

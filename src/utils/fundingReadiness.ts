@@ -125,7 +125,7 @@ export function buildFundingReadinessPack(
     // trust -- same threshold businessPassport.ts uses for the same reason.
     const hasEnoughDataForDiagnosis = transactions.length >= 5;
     const diagnosis = hasEnoughDataForDiagnosis
-        ? performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), settings.currency, loans, inventory)
+        ? performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), settings.currency, loans, inventory, assets)
         : null;
     const topActions = diagnosis?.topOpportunities ?? [];
     const topActionImpacts = diagnosis?.topActionImpacts ?? [];

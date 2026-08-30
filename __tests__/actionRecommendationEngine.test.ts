@@ -7,6 +7,7 @@ const makeMetrics = (overrides: Partial<FinancialMetrics> = {}): FinancialMetric
     accountsReceivable: 0, accountsPayable: 0, daysOutstanding: 0,
     dso: 20, dpo: 20, cashConversionCycleDays: 0,
     dscr: 2, dscrStatus: 'healthy', monthlyDebtService: 0,
+    operatingCashFlow: 40000, cashFlowConversionPct: 100,
     inventoryValue: 0, slowMovingValuePct: 0,
     topCustomerConcentrationPct: 10, topSupplierConcentrationPct: 10,
     expensesByCategory: { rent: 40000, utilities: 20000 },

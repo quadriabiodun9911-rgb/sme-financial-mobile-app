@@ -3,8 +3,8 @@
  * Audits financial statements and identifies root causes
  */
 
-import { Transaction, Invoice, Loan, InventoryItem, GoalType } from '../types';
-import { computeDSCR, computeWorkingCapitalMetrics, computeCustomerConcentration, computeSupplierConcentration, computeRiskScore, computeImprovementProjection, RiskScore, DSCRResult } from './finance';
+import { Transaction, Invoice, Loan, InventoryItem, Asset, GoalType } from '../types';
+import { computeDSCR, computeWorkingCapitalMetrics, computeCustomerConcentration, computeSupplierConcentration, computeRiskScore, computeImprovementProjection, computeProperCashFlow, RiskScore, DSCRResult } from './finance';
 import { computeStockVelocity } from './stockVelocity';
 
 export interface FinancialMetrics {
@@ -30,6 +30,12 @@ export interface FinancialMetrics {
   dscr: number;
   dscrStatus: DSCRResult['status'];
   monthlyDebtService: number;
+
+  // Cash Flow -- same indirect-method operating cash flow and conversion-%
+  // thresholds computeRiskScore's own Operating Cash Flow factor uses, so
+  // the diagnosis narrative below and the pillar score never disagree.
+  operatingCashFlow: number;
+  cashFlowConversionPct: number | null; // null when there's no positive profit this month to rate a conversion % against
 
   // Inventory
   inventoryValue: number;
@@ -152,7 +158,8 @@ export function calculateFinancialMetrics(
   cashBalance: number,
   monthlyExpenseAverage: number,
   loans: Loan[] = [],
-  inventory: InventoryItem[] = []
+  inventory: InventoryItem[] = [],
+  assets: Asset[] = []
 ): FinancialMetrics {
   const now = new Date();
   // "This month" means the most recent month the business actually has
@@ -231,6 +238,17 @@ export function calculateFinancialMetrics(
   const totalExpenses = thisMonthExpenses;
   const netProfit = totalRevenue - totalExpenses;
   const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
+
+  // Cash Flow -- indirect-method operating cash flow for the same "this
+  // month" window everything else in this function uses. assets is scoped
+  // to everything owned as of this month's end (not just assets bought
+  // this month) so depreciation reflects the whole asset base, matching
+  // standard accounting -- see computeProperCashFlow's own doc comment.
+  const thisMonthAllTransactions = transactions.filter(t => t.date.startsWith(thisMonth));
+  const thisMonthEndDate = new Date(thisMonthYear, thisMonthNum, 0).toISOString().slice(0, 10);
+  const assetsAsOfThisMonth = assets.filter(a => (a.purchaseDate || '') <= thisMonthEndDate);
+  const operatingCashFlow = computeProperCashFlow(thisMonthAllTransactions, assetsAsOfThisMonth).operatingCF;
+  const cashFlowConversionPct = netProfit > 0 ? (operatingCashFlow / netProfit) * 100 : null;
 
   // Growth calculation
   const monthOverMonthGrowth =
@@ -333,6 +351,8 @@ export function calculateFinancialMetrics(
     dscr: dscrResult.dscr,
     dscrStatus: dscrResult.status,
     monthlyDebtService: dscrResult.totalDebtService / 12,
+    operatingCashFlow,
+    cashFlowConversionPct,
     inventoryValue,
     slowMovingValuePct,
     topCustomerConcentrationPct: customerConcentration[0]?.percentage ?? 0,
@@ -491,6 +511,49 @@ export function diagnoseDebt(
       financialImpact: metrics.monthlyDebtService,
       opportunity: 'Grow operating income, refinance for lower payments, or pause new borrowing until DSCR recovers',
       dimension: 'debt',
+    });
+  }
+
+  return diagnoses;
+}
+
+// Mirrors computeRiskScore's own Operating Cash Flow factor tiers exactly
+// (finance.ts): negative OCF is that factor's only 'danger' case, and
+// EVERY conversion tier below 90% (both the 50-90 "some still sitting in
+// receivables" band and the under-50 "most hasn't reached the bank" band)
+// scores 'warning' there, never 'danger'. This used to only fire below
+// 50% (and escalated below 25% to 'critical'), which disagreed with the
+// pillar's own chip color: a business could see an amber "Watch" Operating
+// Cash Flow chip with nothing in "What Quad360 Sees" explaining why, or a
+// diagnosis marked more severe than the chip it belongs to ever shows.
+export function diagnoseCashFlow(
+  metrics: FinancialMetrics,
+  currency: string = '₦'
+): RootCauseAnalysis[] {
+  const diagnoses: RootCauseAnalysis[] = [];
+
+  if (metrics.operatingCashFlow < 0) {
+    diagnoses.push({
+      problem: `Operating cash flow is negative (${currency}${Math.round(metrics.operatingCashFlow).toLocaleString()} this month)`,
+      severity: 'critical',
+      rootCause: 'Normal business operations are consuming cash rather than generating it',
+      impact: 'Cash reserves are being drawn down just to keep day-to-day operations running',
+      financialImpact: Math.abs(metrics.operatingCashFlow),
+      opportunity: 'Collect overdue invoices, delay non-essential spending, or revisit pricing until operations generate cash again',
+      dimension: 'cashFlow',
+    });
+  } else if (metrics.cashFlowConversionPct !== null && metrics.cashFlowConversionPct < 90) {
+    const uncertainCash = metrics.netProfit - metrics.operatingCashFlow;
+    diagnoses.push({
+      problem: `Only ${metrics.cashFlowConversionPct.toFixed(0)}% of profit converted into real cash this month`,
+      severity: 'warning',
+      rootCause: metrics.cashFlowConversionPct < 50
+        ? 'Reported profit is mostly sitting in unpaid customer invoices or unpaid bills rather than reaching the bank'
+        : 'Some of this month\'s reported profit is still sitting in unpaid customer invoices or unpaid bills',
+      impact: `${currency}${Math.round(uncertainCash).toLocaleString()} of this month's profit hasn't turned into cash yet`,
+      financialImpact: uncertainCash,
+      opportunity: 'Tighten collection on outstanding invoices and review payment terms with slow-paying customers',
+      dimension: 'cashFlow',
     });
   }
 
@@ -796,7 +859,8 @@ export function performFinancialDiagnosis(
   monthlyExpenseAverage: number,
   currency: string = '₦',
   loans: Loan[] = [],
-  inventory: InventoryItem[] = []
+  inventory: InventoryItem[] = [],
+  assets: Asset[] = []
 ): DiagnosisResult {
   // Calculate metrics
   const metrics = calculateFinancialMetrics(
@@ -805,7 +869,8 @@ export function performFinancialDiagnosis(
     cashBalance,
     monthlyExpenseAverage,
     loans,
-    inventory
+    inventory,
+    assets
   );
 
   // Run diagnosis engines — one per pillar, so a business's actual biggest
@@ -817,6 +882,7 @@ export function performFinancialDiagnosis(
     ...diagnoseLiquidity(metrics, currency),
     ...diagnoseWorkingCapital(metrics),
     ...diagnoseDebt(metrics, currency),
+    ...diagnoseCashFlow(metrics, currency),
     ...diagnoseEfficiency(metrics, currency),
     ...diagnoseInventory(metrics, currency),
     ...diagnoseConcentration(metrics),

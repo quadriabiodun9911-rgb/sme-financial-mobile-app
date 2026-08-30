@@ -166,7 +166,7 @@ export function buildBusinessPassport(
     const dna = buildBusinessFinancialDNA(transactions, loans, inventory, finance, settings, user);
     const pack = buildFundingReadinessPack(transactions, invoices, loans, inventory, assets, finance, settings, dna.identity.businessName);
     const deviations = detectDNADeviations(transactions, settings.currency);
-    const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), settings.currency, loans, inventory);
+    const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), settings.currency, loans, inventory, assets);
     const dataQuality = computeDataQuality(transactions);
     const trend = analyzeTrend(transactions);
 

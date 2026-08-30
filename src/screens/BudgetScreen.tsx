@@ -29,7 +29,7 @@ const EXPENSE_CATEGORIES = [
 ];
 
 export default function BudgetScreen() {
-    const { transactions, budgets, addBudget, updateBudget, deleteBudget, settings, navigate, finance, loans, invoices, inventory, goals } = useApp();
+    const { transactions, budgets, addBudget, updateBudget, deleteBudget, settings, navigate, finance, loans, invoices, inventory, goals, assets } = useApp();
     const { currency } = settings;
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
@@ -189,9 +189,9 @@ export default function BudgetScreen() {
     // a generic "you're over budget" flag.
     const expenseTactics = useMemo(() => {
         if (transactions.length < 5) return [];
-        const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), settings.currency, loans, inventory);
+        const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), settings.currency, loans, inventory, assets);
         return generateExpenseReductionActions(diagnosis, diagnosis.metrics, settings.currency).slice(0, 3);
-    }, [transactions, invoices, finance.cashBalance, finance.expense, settings.currency, loans, inventory]);
+    }, [transactions, invoices, finance.cashBalance, finance.expense, settings.currency, loans, inventory, assets]);
 
     // Auto-generated budget: sized against forward-looking revenue (via
     // computeRevenueForecast inside generateAutoBudget), scaled down if

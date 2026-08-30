@@ -3,8 +3,8 @@
 // daysOutstanding was hardcoded to 30 for any unpaid invoice, regardless of
 // how much was actually owed or how overdue it actually was.
 
-import { calculateFinancialMetrics, diagnoseProfitability, diagnoseLiquidity, diagnoseWorkingCapital, diagnoseDebt, diagnoseInventory, diagnoseConcentration, diagnoseEfficiency, FinancialMetrics } from '../src/utils/financialDiagnosisEngine';
-import { Transaction, Invoice } from '../src/types';
+import { calculateFinancialMetrics, diagnoseProfitability, diagnoseLiquidity, diagnoseWorkingCapital, diagnoseDebt, diagnoseCashFlow, diagnoseInventory, diagnoseConcentration, diagnoseEfficiency, FinancialMetrics } from '../src/utils/financialDiagnosisEngine';
+import { Transaction, Invoice, Asset } from '../src/types';
 
 const makeTx = (overrides: Partial<Transaction>): Transaction => ({
     id: 'tx1',
@@ -194,6 +194,56 @@ describe('calculateFinancialMetrics — accountsReceivable & daysOutstanding are
     });
 });
 
+describe('calculateFinancialMetrics — operatingCashFlow & cashFlowConversionPct', () => {
+    it('matches netProfit when everything is paid and there is no AR/AP movement', () => {
+        const txs = [
+            makeTx({ id: 't1', type: 'income', category: 'Sales', amount: 100000, status: 'paid', date: '2026-01-10' }),
+            makeTx({ id: 't2', type: 'expense', category: 'Rent', amount: 60000, status: 'paid', date: '2026-01-15' }),
+        ];
+        const m = calculateFinancialMetrics(txs, [], 10000, 5000);
+        expect(m.netProfit).toBe(40000);
+        expect(m.operatingCashFlow).toBe(40000);
+        expect(m.cashFlowConversionPct).toBe(100);
+    });
+
+    it('reduces operating cash flow (but not net profit) for uncollected revenue this month', () => {
+        const txs = [
+            makeTx({ id: 't1', type: 'income', category: 'Sales', amount: 100000, status: 'paid', date: '2026-01-10' }),
+            makeTx({ id: 't2', type: 'income', category: 'Sales', amount: 50000, status: 'pending', date: '2026-01-20' }),
+            makeTx({ id: 't3', type: 'expense', category: 'Rent', amount: 60000, status: 'paid', date: '2026-01-15' }),
+        ];
+        const m = calculateFinancialMetrics(txs, [], 10000, 5000);
+        expect(m.netProfit).toBe(90000); // accrual: includes the pending 50,000
+        expect(m.operatingCashFlow).toBe(40000); // cash: pending revenue backed out
+        expect(m.cashFlowConversionPct).toBeCloseTo((40000 / 90000) * 100, 5);
+    });
+
+    it('adds back depreciation from assets owned as of this month', () => {
+        const txs = [
+            makeTx({ id: 't1', type: 'income', category: 'Sales', amount: 100000, status: 'paid', date: '2026-01-10' }),
+            makeTx({ id: 't2', type: 'expense', category: 'Rent', amount: 60000, status: 'paid', date: '2026-01-15' }),
+        ];
+        const asset: Asset = {
+            id: 'a1', name: 'Van', category: 'vehicle', description: '',
+            purchaseDate: '2025-01-01', purchaseCost: 120000, usefulLifeYears: 10,
+            residualValue: 0, status: 'active', createdAt: '2025-01-01',
+        };
+        const m = calculateFinancialMetrics(txs, [], 10000, 5000, [], [], [asset]);
+        // 120,000 / 10 years = 12,000/year annual depreciation add-back.
+        expect(m.operatingCashFlow).toBe(40000 + 12000);
+    });
+
+    it('is null when there is no positive profit to rate conversion against', () => {
+        const txs = [
+            makeTx({ id: 't1', type: 'income', category: 'Sales', amount: 50000, status: 'paid', date: '2026-01-10' }),
+            makeTx({ id: 't2', type: 'expense', category: 'Rent', amount: 60000, status: 'paid', date: '2026-01-15' }),
+        ];
+        const m = calculateFinancialMetrics(txs, [], 10000, 5000);
+        expect(m.netProfit).toBeLessThan(0);
+        expect(m.cashFlowConversionPct).toBeNull();
+    });
+});
+
 // suggestedGoalType is set explicitly per diagnosis (not inferred from the
 // problem text) so DashboardScreen's "achieve a goal -> here's your next
 // one" loop only ever proposes a goal type that's actually trackable
@@ -216,6 +266,8 @@ describe('diagnose* functions — suggestedGoalType', () => {
         dscr: 2,
         dscrStatus: 'healthy',
         monthlyDebtService: 0,
+        operatingCashFlow: 300000,
+        cashFlowConversionPct: 100,
         inventoryValue: 0,
         slowMovingValuePct: 0,
         topCustomerConcentrationPct: 10,
@@ -276,6 +328,12 @@ describe('diagnose* functions — suggestedGoalType', () => {
         expect(diagnoses[0].suggestedGoalType).toBeUndefined();
     });
 
+    it('leaves suggestedGoalType unset for a cash-flow diagnosis', () => {
+        const diagnoses = diagnoseCashFlow({ ...healthyMetrics, operatingCashFlow: -50000 });
+        expect(diagnoses).toHaveLength(1);
+        expect(diagnoses[0].suggestedGoalType).toBeUndefined();
+    });
+
     it('leaves suggestedGoalType unset for a slow-moving-inventory diagnosis', () => {
         const diagnoses = diagnoseInventory({ ...healthyMetrics, inventoryValue: 100000, slowMovingValuePct: 60 });
         expect(diagnoses).toHaveLength(1);
@@ -298,5 +356,73 @@ describe('diagnose* functions — suggestedGoalType', () => {
         const diagnoses = diagnoseEfficiency({ ...healthyMetrics, totalExpenses: 100000, expensesByCategory: { Rent: 50000 } });
         const found = diagnoses.find(d => d.problem.includes('Rent'));
         expect(found?.suggestedGoalType).toBe('cost_reduction');
+    });
+});
+
+// Same thresholds computeRiskScore's own Operating Cash Flow factor scores
+// against (finance.ts) -- this only checks that diagnoseCashFlow fires at
+// the right boundaries with the right severity, not the scoring itself.
+describe('diagnoseCashFlow', () => {
+    const baseMetrics: FinancialMetrics = {
+        totalRevenue: 1000000, totalExpenses: 700000, netProfit: 300000, profitMargin: 30,
+        cashBalance: 500000, runwayDays: 90,
+        accountsReceivable: 0, accountsPayable: 0, daysOutstanding: 10,
+        dso: 10, dpo: 10, cashConversionCycleDays: 10,
+        dscr: 2, dscrStatus: 'healthy', monthlyDebtService: 0,
+        operatingCashFlow: 300000, cashFlowConversionPct: 100,
+        inventoryValue: 0, slowMovingValuePct: 0,
+        topCustomerConcentrationPct: 10, topSupplierConcentrationPct: 10,
+        expensesByCategory: {},
+        revenueRecurringPct: 60, expenseGrowthPct: 5,
+        monthOverMonthGrowth: 5, profitTrend: 'stable',
+    };
+
+    it('reports no diagnosis for healthy operating cash flow and full conversion', () => {
+        expect(diagnoseCashFlow(baseMetrics)).toHaveLength(0);
+    });
+
+    it('flags negative operating cash flow as critical', () => {
+        const diagnoses = diagnoseCashFlow({ ...baseMetrics, operatingCashFlow: -50000 });
+        expect(diagnoses).toHaveLength(1);
+        expect(diagnoses[0].severity).toBe('critical');
+        expect(diagnoses[0].dimension).toBe('cashFlow');
+        expect(diagnoses[0].financialImpact).toBe(50000);
+    });
+
+    it('flags any conversion below 90% as a warning -- never critical, matching computeRiskScore\'s own tiers', () => {
+        const diagnoses = diagnoseCashFlow({ ...baseMetrics, operatingCashFlow: 150000, cashFlowConversionPct: 40 });
+        expect(diagnoses).toHaveLength(1);
+        expect(diagnoses[0].severity).toBe('warning');
+        expect(diagnoses[0].problem).toMatch(/40%/);
+    });
+
+    it('still reports a warning (not critical) even for very weak conversion, consistent with the pillar chip never going to danger for conversion alone', () => {
+        const diagnoses = diagnoseCashFlow({ ...baseMetrics, operatingCashFlow: 50000, cashFlowConversionPct: 17 });
+        expect(diagnoses).toHaveLength(1);
+        expect(diagnoses[0].severity).toBe('warning');
+    });
+
+    it('flags the 50-90% band too, matching the pillar\'s own "some still sitting in receivables" warning tier', () => {
+        const diagnoses = diagnoseCashFlow({ ...baseMetrics, operatingCashFlow: 250000, cashFlowConversionPct: 76 });
+        expect(diagnoses).toHaveLength(1);
+        expect(diagnoses[0].severity).toBe('warning');
+    });
+
+    it('reports no diagnosis at or above 90% conversion', () => {
+        const diagnoses = diagnoseCashFlow({ ...baseMetrics, operatingCashFlow: 290000, cashFlowConversionPct: 90 });
+        expect(diagnoses).toHaveLength(0);
+    });
+
+    it('does not flag conversion when there is no positive profit to rate it against', () => {
+        const diagnoses = diagnoseCashFlow({ ...baseMetrics, operatingCashFlow: 20000, netProfit: 0, cashFlowConversionPct: null });
+        expect(diagnoses).toHaveLength(0);
+    });
+
+    it('only reports the negative-OCF diagnosis, not both, when OCF is negative', () => {
+        // Negative OCF makes cashFlowConversionPct meaningless as a second
+        // problem to report on top of it -- the two must not double up.
+        const diagnoses = diagnoseCashFlow({ ...baseMetrics, operatingCashFlow: -10000, cashFlowConversionPct: 10 });
+        expect(diagnoses).toHaveLength(1);
+        expect(diagnoses[0].problem).toMatch(/negative/i);
     });
 });

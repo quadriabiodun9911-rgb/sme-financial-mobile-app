@@ -15,7 +15,7 @@ import { describeDataConfidenceTrend } from '../utils/dataConfidenceHistory';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 
 export default function FinancialAssessmentScreen() {
-  const { transactions, invoices, finance, settings, setCurrentScreen, navigate, loans, inventory, dataConfidenceHistory } = useApp();
+  const { transactions, invoices, finance, settings, setCurrentScreen, navigate, loans, inventory, assets, dataConfidenceHistory } = useApp();
   const [selectedDiagnosis, setSelectedDiagnosis] = useState<number>(0);
   const dataConfidenceTrend = useMemo(() => describeDataConfidenceTrend(dataConfidenceHistory), [dataConfidenceHistory]);
 
@@ -27,9 +27,10 @@ export default function FinancialAssessmentScreen() {
       getMonthlyExpenseAverage(finance.expense, transactions),
       settings.currency,
       loans,
-      inventory
+      inventory,
+      assets
     );
-  }, [transactions, invoices, finance, settings, loans, inventory]);
+  }, [transactions, invoices, finance, settings, loans, inventory, assets]);
 
   const actionPlan = useMemo(() => {
     return generateActionPlan(diagnosis, diagnosis.metrics, settings.currency, [], settings.primaryGoal);

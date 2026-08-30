@@ -45,7 +45,7 @@ function trailingSnapshot(transactions: { type: string; amount: number; date: st
 }
 
 export default function ActionTrackerScreen() {
-  const { transactions, invoices, finance, settings, setCurrentScreen, loans, inventory } = useApp();
+  const { transactions, invoices, finance, settings, setCurrentScreen, loans, inventory, assets } = useApp();
   const [activeTab, setActiveTab] = useState<'immediate' | 'shortterm' | 'strategic'>('immediate');
   const [expandedActionId, setExpandedActionId] = useState<string | null>(null);
 
@@ -131,9 +131,10 @@ export default function ActionTrackerScreen() {
       getMonthlyExpenseAverage(finance.expense, transactions),
       settings.currency,
       loans,
-      inventory
+      inventory,
+      assets
     );
-  }, [transactions, invoices, finance, settings, loans, inventory]);
+  }, [transactions, invoices, finance, settings, loans, inventory, assets]);
 
   // Measures a completed tactic's outcome once -- and only once -- enough
   // time has passed since it started for the comparison to mean anything
