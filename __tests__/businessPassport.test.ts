@@ -108,6 +108,38 @@ describe('buildBusinessPassport', () => {
         expect(established.trackRecord.monthsOfRecordedHistory).toBeGreaterThan(thin.trackRecord.monthsOfRecordedHistory);
     });
 
+    it('surfaces operating cash flow, conversion %, and collection period in financialIdentity', () => {
+        const transactions: Transaction[] = [
+            makeTx({ type: 'income', amount: 500000, status: 'paid', date: daysAgo(20) }),
+            makeTx({ type: 'income', amount: 200000, status: 'pending', date: daysAgo(5) }),
+            makeTx({ type: 'expense', category: 'Rent', amount: 100000, status: 'paid', date: daysAgo(20) }),
+        ];
+        const passport = buildBusinessPassport(transactions, [], [], [], [], finance, settings, null);
+        expect(passport.financialIdentity.operatingCashFlow).toBeLessThan(passport.financialIdentity.netProfit);
+        expect(passport.financialIdentity.cashFlowConversionPct).not.toBeNull();
+        expect(passport.financialIdentity.averageCollectionPeriodDays).toBeGreaterThanOrEqual(0);
+    });
+
+    it('flags cash-flow risk as high when operating cash flow is negative, matching the Operating Cash Flow pillar', () => {
+        const transactions: Transaction[] = [
+            makeTx({ type: 'income', amount: 50000, status: 'paid', date: daysAgo(20) }),
+            makeTx({ type: 'expense', category: 'Rent', amount: 500000, status: 'paid', date: daysAgo(20) }),
+        ];
+        const passport = buildBusinessPassport(transactions, [], [], [], [], finance, settings, null);
+        expect(passport.risk.cashFlowRisk.level).toBe('high');
+        expect(passport.risk.cashFlowRisk.summary).toMatch(/negative/i);
+    });
+
+    it('reports inventory trend as unavailable with no stock-purchase history, never a fabricated value', () => {
+        const passport = buildBusinessPassport([], [], [], [], [], finance, settings, null);
+        expect(passport.financialIdentity.inventoryTrend.direction).toBe('unavailable');
+    });
+
+    it('lists cash flow generation & conversion as an available investment-readiness signal', () => {
+        const passport = buildBusinessPassport([], [], [], [], [], finance, settings, null);
+        expect(passport.investmentReadiness.availableSignals).toContain('Cash flow generation & conversion');
+    });
+
     it('only lists the valuation range as evidenced once there is enough history to estimate it', () => {
         // Too little history (< 3 months) — estimateBusinessValuation can't produce a range,
         // so it must not be claimed as evidenced.

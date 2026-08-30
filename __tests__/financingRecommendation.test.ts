@@ -1,5 +1,6 @@
-import { recommendFinancingTypes, FinancingRecommendationInput } from '../src/utils/financingRecommendation';
+import { recommendFinancingTypes, FinancingRecommendationInput, buildFinancingProfileNarrative, FinancingRecommendation } from '../src/utils/financingRecommendation';
 import { FinancingFitInput } from '../src/utils/financingFit';
+import { CashFlowHealthResult } from '../src/utils/cashFlowHealth';
 import { Transaction, Invoice, Asset, InventoryItem } from '../src/types';
 
 const makeFitInput = (overrides: Partial<FinancingFitInput> = {}): FinancingFitInput => ({
@@ -163,5 +164,78 @@ describe('recommendFinancingTypes', () => {
         if (firstModerate !== -1) {
             expect(confidenceOrder.slice(firstModerate)).not.toContain('strong');
         }
+    });
+});
+
+const makeCashFlowHealth = (overrides: Partial<CashFlowHealthResult> = {}): CashFlowHealthResult => ({
+    available: true,
+    score: 70,
+    band: 'Healthy',
+    headline: '',
+    cashGeneration: { operatingCF: 200000, priorOperatingCF: null, changePct: null, narrative: '' },
+    freeCashFlow: { operatingCF: 200000, capex: 0, freeCashFlow: 200000, narrative: '' },
+    profitToCash: { netProfit: 250000, operatingCF: 200000, conversionPct: 80, narrative: '' },
+    cashTrapped: { receivables: 0, inventoryValue: 0, payables: 0, trappedCash: 0, narrative: '' },
+    trajectory: { points: [], direction: 'insufficient-data', narrative: '' },
+    riskFlags: [],
+    ...overrides,
+});
+
+const makeRec = (overrides: Partial<FinancingRecommendation> = {}): FinancingRecommendation => ({
+    productType: 'working_capital',
+    label: 'Working Capital',
+    confidence: 'moderate',
+    reasons: ['Working capital is the most general-purpose financing type.'],
+    ...overrides,
+});
+
+describe('buildFinancingProfileNarrative', () => {
+    it('describes stable revenue and positive cash generation with no pressure clause when nothing is wrong', () => {
+        const narrative = buildFinancingProfileNarrative(makeCashFlowHealth(), [], 'stable');
+        expect(narrative).toContain('stable revenue');
+        expect(narrative).toContain('positive cash generation');
+        expect(narrative).not.toContain('but');
+    });
+
+    it('surfaces the single worst risk flag as the pressure clause, never inventing one', () => {
+        const cfh = makeCashFlowHealth({
+            riskFlags: [{ severity: 'warning', message: 'Receivables grew 45% while revenue grew 20% — customers may be taking longer to pay.' }],
+        });
+        const narrative = buildFinancingProfileNarrative(cfh, [], 'stable');
+        expect(narrative).toMatch(/but receivables grew 45%/i);
+    });
+
+    it('describes negative operating cash flow as operations consuming cash, not "the business is failing"', () => {
+        const cfh = makeCashFlowHealth({ cashGeneration: { operatingCF: -80000, priorOperatingCF: null, changePct: null, narrative: '' } });
+        const narrative = buildFinancingProfileNarrative(cfh, [], 'stable');
+        expect(narrative).toContain('consuming more cash than they generate');
+        expect(narrative.toLowerCase()).not.toContain('failing');
+    });
+
+    it('never fabricates a pressure clause when Cash Flow Health is unavailable', () => {
+        const narrative = buildFinancingProfileNarrative(makeCashFlowHealth({ available: false }), [], 'stable');
+        expect(narrative).toContain('not enough transaction history');
+        expect(narrative).not.toContain('but');
+    });
+
+    it('contrasts a short-term recommendation against longer-term structural financing', () => {
+        const narrative = buildFinancingProfileNarrative(makeCashFlowHealth(), [makeRec({ productType: 'working_capital', label: 'Working Capital' })], 'stable');
+        expect(narrative).toMatch(/better suited to Working Capital than longer-term structural financing/i);
+    });
+
+    it('contrasts a long-term recommendation against shorter-term working-capital options', () => {
+        const narrative = buildFinancingProfileNarrative(makeCashFlowHealth(), [makeRec({ productType: 'term_loan', label: 'Term Loan' })], 'stable');
+        expect(narrative).toMatch(/better suited to Term Loan than shorter-term working-capital options/i);
+    });
+
+    it('includes the top recommendation\'s own grounded reason, not just the label', () => {
+        const rec = makeRec({ reasons: ['You have ₦600K in unpaid customer invoices — invoice financing advances that cash now.'] });
+        const narrative = buildFinancingProfileNarrative(makeCashFlowHealth(), [rec], 'stable');
+        expect(narrative).toContain('₦600K in unpaid customer invoices');
+    });
+
+    it('omits the financing-type sentence entirely when there are no recommendations', () => {
+        const narrative = buildFinancingProfileNarrative(makeCashFlowHealth(), [], 'stable');
+        expect(narrative).not.toContain('better suited to');
     });
 });

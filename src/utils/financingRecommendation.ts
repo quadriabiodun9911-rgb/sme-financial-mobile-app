@@ -22,6 +22,7 @@ import { computeAssetsNearingReplacement } from './finance';
 import { ReadinessTrend } from './readinessHistory';
 import { computeStockVelocity } from './stockVelocity';
 import { computeSeasonalityPattern } from './seasonality';
+import { CashFlowHealthResult } from './cashFlowHealth';
 
 export interface FinancingRecommendation {
     productType: FinancingProductType;
@@ -162,4 +163,66 @@ export function recommendFinancingTypes(input: FinancingRecommendationInput, cur
     return recs
         .sort((a, b) => (a.confidence === b.confidence ? 0 : a.confidence === 'strong' ? -1 : 1))
         .slice(0, 3);
+}
+
+function lowerFirst(s: string): string {
+    return s.length === 0 ? s : s.charAt(0).toLowerCase() + s.slice(1);
+}
+
+const SHORT_TERM_TYPES: FinancingProductType[] = ['working_capital', 'invoice_financing', 'trade_finance', 'overdraft'];
+const LONG_TERM_CONTRAST_LABEL = 'longer-term structural financing (like a term loan or asset financing)';
+const SHORT_TERM_CONTRAST_LABEL = 'shorter-term working-capital options';
+
+/**
+ * "Your business currently demonstrates X, but Y has increased" -- then
+ * "you may be better suited to A than B" -- exactly the two-sentence shape
+ * a financing decision should read as, never a bare "you qualify for ₦Xm".
+ * Deliberately assembled from real, already-computed signals (Cash Flow
+ * Health's own generation/trajectory/risk-flag output, revenueVolatility
+ * from businessFinancialDNA.ts, and recommendFinancingTypes' own ranked
+ * output above) -- no new judgment invented here, just synthesized into
+ * one connected paragraph the way generateNarrativeSummary
+ * (financialDiagnosisEngine.ts) already does for the Financial Health
+ * score.
+ */
+export function buildFinancingProfileNarrative(
+    cashFlowHealth: CashFlowHealthResult,
+    recommendations: FinancingRecommendation[],
+    revenueVolatility: 'stable' | 'variable' | 'volatile',
+): string {
+    const parts: string[] = [];
+
+    const revenuePhrase = revenueVolatility === 'stable' ? 'stable revenue'
+        : revenueVolatility === 'variable' ? 'somewhat variable revenue'
+        : 'highly volatile revenue';
+    const cashPhrase = !cashFlowHealth.available
+        ? 'not enough transaction history yet to judge cash generation'
+        : cashFlowHealth.cashGeneration.operatingCF >= 0
+            ? 'positive cash generation from operations'
+            : 'operations currently consuming more cash than they generate';
+
+    // Only the single most relevant pressure signal, if the business
+    // genuinely has one -- never invented when Cash Flow Health shows
+    // nothing wrong, and never more than one so this stays a single
+    // readable clause rather than a run-on list of every flag that fired.
+    let pressureClause = '';
+    if (cashFlowHealth.available) {
+        const worstFlag = cashFlowHealth.riskFlags[0];
+        if (worstFlag) {
+            pressureClause = `, but ${lowerFirst(worstFlag.message)}`;
+        } else if (cashFlowHealth.trajectory.direction === 'weakening') {
+            pressureClause = ', though cash generation has weakened over recent quarters';
+        }
+    }
+
+    parts.push(`Your business currently shows ${revenuePhrase} and ${cashPhrase}${pressureClause}.`);
+
+    if (recommendations.length > 0) {
+        const top = recommendations[0];
+        const contrastLabel = SHORT_TERM_TYPES.includes(top.productType) ? LONG_TERM_CONTRAST_LABEL : SHORT_TERM_CONTRAST_LABEL;
+        parts.push(`Based on your current financial profile, you may be better suited to ${top.label} than ${contrastLabel} right now.`);
+        if (top.reasons[0]) parts.push(top.reasons[0]);
+    }
+
+    return parts.join(' ');
 }

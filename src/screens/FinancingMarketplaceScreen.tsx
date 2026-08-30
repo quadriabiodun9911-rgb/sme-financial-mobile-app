@@ -13,7 +13,10 @@ import { buildFinancingFitInput, rankFinancingProducts, FinancingFitResult, Fina
 import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
 import { assessCapitalNeed, CAPITAL_PURPOSE_PRODUCT_TYPES } from '../utils/capitalNeedAssessment';
 import { computeReadinessDelta } from '../utils/readinessHistory';
-import { recommendFinancingTypes, FinancingRecommendation } from '../utils/financingRecommendation';
+import { recommendFinancingTypes, FinancingRecommendation, buildFinancingProfileNarrative } from '../utils/financingRecommendation';
+import { computeCashFlowHealth } from '../utils/cashFlowHealth';
+import { buildFinancialBehaviour } from '../utils/businessFinancialDNA';
+import { analyzeTrend } from '../utils/trendAnalysis';
 import { canPublishToLenders as computeCanPublishToLenders } from '../utils/rolePermissions';
 import { computeDataQuality } from '../utils/dataQuality';
 import { computeInventoryValue } from '../utils/stockVelocity';
@@ -282,6 +285,24 @@ export default function FinancingMarketplaceScreen() {
         [fitInput, invoices, assets, readinessDelta, currency, transactions, inventory],
     );
 
+    // "Your business currently demonstrates X, but Y has increased" -- then
+    // "you may be better suited to A than B" -- see
+    // buildFinancingProfileNarrative's own doc comment for why this is
+    // assembled from real signals (Cash Flow Health + the recommendations
+    // above + revenue volatility) rather than a bare "you qualify for ₦Xm".
+    const cashFlowHealth = useMemo(
+        () => computeCashFlowHealth(transactions, assets, inventory, currency),
+        [transactions, assets, inventory, currency],
+    );
+    const revenueVolatility = useMemo(
+        () => buildFinancialBehaviour(transactions, loans, analyzeTrend(transactions)).revenueVolatility,
+        [transactions, loans],
+    );
+    const financingProfileNarrative = useMemo(
+        () => buildFinancingProfileNarrative(cashFlowHealth, recommendations, revenueVolatility),
+        [cashFlowHealth, recommendations, revenueVolatility],
+    );
+
     // Real, admin-managed listings replace the illustrative sample list the
     // moment there's at least one -- this is the switch from "demo" to a
     // genuine marketplace. Falls back to the sample list on any failure
@@ -430,6 +451,9 @@ export default function FinancingMarketplaceScreen() {
                     {recommendations.length > 0 && (
                         <View style={s.recommendBox}>
                             <Text style={s.recommendTitle}>Not sure? Here's what fits your business right now</Text>
+                            {!!financingProfileNarrative && (
+                                <Text style={s.profileNarrative}>{financingProfileNarrative}</Text>
+                            )}
                             {recommendations.map(r => (
                                 <TouchableOpacity
                                     key={r.productType}
@@ -738,6 +762,7 @@ const s = StyleSheet.create({
 
     recommendBox: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.lg, marginBottom: 18, borderWidth: 1, borderColor: Colors.primary + '40' },
     recommendTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: Spacing.md },
+    profileNarrative: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18, marginBottom: Spacing.md },
     recommendCard: { backgroundColor: Colors.bg, borderRadius: Radius.sm, padding: Spacing.md, marginBottom: Spacing.sm },
     recommendCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
     recommendCardLabel: { fontSize: 13.5, fontWeight: '700', color: Colors.textPrimary },

@@ -43,6 +43,7 @@ import { generateActionPlan } from './actionRecommendationEngine';
 import { calculateGoalBridge, mapSavedGoalToBridge } from './goalBridgeEngine';
 import { assessGoalRisk, GoalRiskAssessment } from './goalRiskLinkage';
 import { buildBehavioralProfile, BehavioralProfile } from './behavioralProfile';
+import { computeInventoryPace } from './inventoryIntelligence';
 
 // Below this many recorded transactions, a full diagnosis is too thin to
 // trust — the Passport falls back to a structural snapshot built from
@@ -87,6 +88,26 @@ export interface BusinessPassport {
         avgMonthlyRevenue: number;
         avgMonthlyProfitMargin: number;
         revenueVolatility: BusinessFinancialDNA['financial']['revenueVolatility'];
+        // Same indirect-method operating cash flow and conversion-%
+        // computeRiskScore's own Operating Cash Flow factor uses (finance.ts,
+        // via performFinancialDiagnosis's metrics) -- never a second,
+        // independently-computed cash figure for the same document.
+        operatingCashFlow: number;
+        cashFlowConversionPct: number | null; // null when there's no positive profit to rate a conversion % against
+        // Days Sales Outstanding -- how long, on average, cash sits in
+        // receivables before it's collected. Same figure Working Capital
+        // and the CFO screen already show, just named for a lender reading
+        // this document rather than someone already familiar with "DSO".
+        averageCollectionPeriodDays: number;
+        // Honest proxy, not a fabricated value trend: this app has no dated
+        // history of past inventory VALUE (see balanceSheetTrend.ts's own
+        // doc comment), so "inventory trend" here reads real dated stock-
+        // in transactions instead -- is the business buying more or less
+        // stock lately, not whether unsold value is rising or falling.
+        inventoryTrend: {
+            direction: 'increasing' | 'decreasing' | 'stable' | 'unavailable';
+            summary: string;
+        };
     };
     health: {
         score: number;
@@ -96,6 +117,11 @@ export interface BusinessPassport {
     risk: {
         customerConcentrationRisk: BusinessFinancialDNA['risk']['customerConcentrationRisk'];
         supplierConcentrationRisk: BusinessFinancialDNA['risk']['supplierConcentrationRisk'];
+        // Mirrors computeRiskScore's own Operating Cash Flow factor tiers
+        // exactly (finance.ts) -- negative OCF is 'high', any conversion
+        // below 90% is 'moderate', else 'low' -- so this never disagrees
+        // with that pillar's own score or chip color anywhere else in the app.
+        cashFlowRisk: { level: 'low' | 'moderate' | 'high'; summary: string };
         deviations: DNADeviation[];
     };
     creditReadiness: {
@@ -209,6 +235,28 @@ export function buildBusinessPassport(
         settings.currency,
     );
 
+    // Cash-flow risk -- same tiers computeRiskScore's own Operating Cash
+    // Flow factor uses (finance.ts), so this label never disagrees with
+    // that pillar's score or chip color anywhere else in the app.
+    const cashFlowRisk: BusinessPassport['risk']['cashFlowRisk'] = diagnosis.metrics.operatingCashFlow < 0
+        ? { level: 'high', summary: 'Operating cash flow is negative -- normal operations are consuming cash rather than generating it.' }
+        : diagnosis.metrics.cashFlowConversionPct !== null && diagnosis.metrics.cashFlowConversionPct < 90
+            ? { level: 'moderate', summary: `Only ${diagnosis.metrics.cashFlowConversionPct.toFixed(0)}% of profit has converted into real cash this period.` }
+            : { level: 'low', summary: 'Operating cash flow is positive and converting well into real cash.' };
+
+    // Inventory trend -- deliberately a purchase-PACE proxy (real, dated
+    // stock-in transactions), not a fabricated value trend. See the
+    // inventoryTrend field's own doc comment on BusinessPassport above.
+    const inventoryPace = computeInventoryPace(transactions);
+    const inventoryTrend: BusinessPassport['financialIdentity']['inventoryTrend'] =
+        inventoryPace.purchaseGrowthPct === null
+            ? { direction: 'unavailable', summary: 'Not enough recent stock-purchase history to trend this yet.' }
+            : inventoryPace.purchaseGrowthPct >= 15
+                ? { direction: 'increasing', summary: `Stock purchases are up ${inventoryPace.purchaseGrowthPct.toFixed(0)}% vs last month.` }
+                : inventoryPace.purchaseGrowthPct <= -15
+                    ? { direction: 'decreasing', summary: `Stock purchases are down ${Math.abs(inventoryPace.purchaseGrowthPct).toFixed(0)}% vs last month.` }
+                    : { direction: 'stable', summary: 'Stock purchase pace has held steady vs last month.' };
+
     const activeGoals = goals.filter(g => g.status !== 'achieved');
     const goalRisks = (hasEnoughDataForDiagnosis && activeGoals.length > 0)
         ? (() => {
@@ -262,6 +310,10 @@ export function buildBusinessPassport(
             avgMonthlyRevenue: dna.financial.avgMonthlyRevenue,
             avgMonthlyProfitMargin: dna.financial.avgMonthlyProfitMargin,
             revenueVolatility: dna.financial.revenueVolatility,
+            operatingCashFlow: diagnosis.metrics.operatingCashFlow,
+            cashFlowConversionPct: diagnosis.metrics.cashFlowConversionPct,
+            averageCollectionPeriodDays: diagnosis.metrics.dso,
+            inventoryTrend,
         },
         health: {
             score: pack.score,
@@ -271,6 +323,7 @@ export function buildBusinessPassport(
         risk: {
             customerConcentrationRisk: dna.risk.customerConcentrationRisk,
             supplierConcentrationRisk: dna.risk.supplierConcentrationRisk,
+            cashFlowRisk,
             deviations,
         },
         creditReadiness: {
@@ -297,6 +350,7 @@ export function buildBusinessPassport(
                 'Gross/net margin',
                 'Recurring revenue share',
                 'Customer & supplier concentration',
+                'Cash flow generation & conversion',
                 ...(valuation.hasReliableData ? ['Illustrative valuation range'] : []),
             ],
             missingSignals: [

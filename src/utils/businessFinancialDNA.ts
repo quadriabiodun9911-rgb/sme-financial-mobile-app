@@ -61,7 +61,7 @@ export interface FinancialBehaviour {
     seasonalLowMonths: string[]; // months where revenue historically runs well below average
 }
 
-function buildFinancialBehaviour(transactions: Transaction[], loans: Loan[], trend: TrendAnalysis): FinancialBehaviour {
+export function buildFinancialBehaviour(transactions: Transaction[], loans: Loan[], trend: TrendAnalysis): FinancialBehaviour {
     const wc = computeWorkingCapitalMetrics(transactions);
     const seasonal = computeSeasonalRisk(transactions);
 

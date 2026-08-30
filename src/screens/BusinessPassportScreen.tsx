@@ -25,6 +25,7 @@ const BAND_COLOR: Record<string, string> = {
 };
 
 const CONCENTRATION_COLOR: Record<string, string> = { low: Colors.income, medium: Colors.warning, high: Colors.expense };
+const CASH_FLOW_RISK_COLOR: Record<string, string> = { low: Colors.income, moderate: Colors.warning, high: Colors.expense };
 
 function fmtCompact(currency: string, amount: number): string {
     if (Math.abs(amount) >= 1000000) return `${currency}${(amount / 1000000).toFixed(1)}M`;
@@ -147,8 +148,19 @@ export default function BusinessPassportScreen() {
                         <Stat label="Cash" value={fmtCompact(currency, passport.financialIdentity.cash)} />
                         <Stat label="Receivables" value={fmtCompact(currency, passport.financialIdentity.receivables)} />
                         <Stat label="Debt" value={fmtCompact(currency, passport.financialIdentity.debt)} sub={passport.financialIdentity.debtCurrentPortion > 0 ? `${fmtCompact(currency, passport.financialIdentity.debtCurrentPortion)} due within 1yr` : undefined} />
+                        <Stat
+                            label="Operating Cash Flow"
+                            value={fmtCompact(currency, passport.financialIdentity.operatingCashFlow)}
+                            color={passport.financialIdentity.operatingCashFlow >= 0 ? Colors.income : Colors.expense}
+                            sub={passport.financialIdentity.cashFlowConversionPct !== null ? `${passport.financialIdentity.cashFlowConversionPct.toFixed(0)}% of profit converted` : undefined}
+                        />
+                        <Stat label="Avg. Collection Period" value={`${passport.financialIdentity.averageCollectionPeriodDays} days`} sub="Days sales outstanding" />
                     </View>
                     <Row label="Revenue predictability" value={passport.financialIdentity.revenueVolatility} />
+                    <Row label="Inventory trend" value={passport.financialIdentity.inventoryTrend.direction} />
+                    {passport.financialIdentity.inventoryTrend.direction !== 'unavailable' && (
+                        <Text style={s.emptyText}>{passport.financialIdentity.inventoryTrend.summary}</Text>
+                    )}
                 </Section>
 
                 {/* 3. Health */}
@@ -169,6 +181,8 @@ export default function BusinessPassportScreen() {
                 <Section title="Risk" subtitle="What could go wrong?" teaser={`${passport.risk.customerConcentrationRisk} customer concentration risk`}>
                     <Row label="Customer concentration" value={passport.risk.customerConcentrationRisk} valueColor={CONCENTRATION_COLOR[passport.risk.customerConcentrationRisk]} />
                     <Row label="Supplier concentration" value={passport.risk.supplierConcentrationRisk} valueColor={CONCENTRATION_COLOR[passport.risk.supplierConcentrationRisk]} />
+                    <Row label="Cash-flow risk" value={passport.risk.cashFlowRisk.level} valueColor={CASH_FLOW_RISK_COLOR[passport.risk.cashFlowRisk.level]} />
+                    <Text style={s.emptyText}>{passport.risk.cashFlowRisk.summary}</Text>
                     {passport.risk.deviations.length === 0 ? (
                         <Text style={s.emptyText}>No significant recent changes vs. this business's own history.</Text>
                     ) : (
