@@ -1,5 +1,5 @@
 import { computeCashFlowHealth } from '../src/utils/cashFlowHealth';
-import { Transaction, Asset, InventoryItem } from '../src/types';
+import { Transaction, Asset, InventoryItem, Loan } from '../src/types';
 
 const makeTx = (overrides: Partial<Transaction>): Transaction => ({
     id: `tx-${Math.random()}`,
@@ -42,6 +42,21 @@ const makeAsset = (overrides: Partial<Asset>): Asset => ({
 
 const NO_ASSETS: Asset[] = [];
 const NO_INVENTORY: InventoryItem[] = [];
+
+const todayStr = new Date().toISOString().split('T')[0];
+const makeLoan = (overrides: Partial<Loan> = {}): Loan => ({
+    id: `loan-${Math.random()}`,
+    lenderName: 'Test Bank',
+    purpose: 'Working capital',
+    principal: 500000,
+    interestRate: 12,
+    termMonths: 24,
+    startDate: todayStr,
+    status: 'active',
+    payments: [],
+    createdAt: todayStr,
+    ...overrides,
+});
 
 describe('computeCashFlowHealth', () => {
     it('is unavailable with no transactions', () => {
@@ -240,6 +255,52 @@ describe('computeCashFlowHealth', () => {
         ];
         const result = computeCashFlowHealth(txs, NO_ASSETS, NO_INVENTORY);
         expect(result.riskFlags.some(f => f.message.match(/runway has declined/i))).toBe(false);
+    });
+
+    it('flags operating cash as insufficient for a large upcoming loan repayment', () => {
+        const txs = [
+            makeTx({ date: '2026-01-10', type: 'income', amount: 300000, status: 'paid' }),
+            makeTx({ date: '2026-01-15', type: 'expense', category: 'Rent', amount: 250000, status: 'paid' }), // OCF ~50,000
+        ];
+        // Principal 1,000,000 at 12%/24mo -> monthly payment ~47k, so 3
+        // months (~141k) comfortably exceeds this quarter's ~50k OCF.
+        const loans = [makeLoan({ principal: 1_000_000, termMonths: 24 })];
+        const result = computeCashFlowHealth(txs, NO_ASSETS, NO_INVENTORY, '₦', loans);
+        expect(result.cashGeneration.operatingCF).toBeGreaterThan(0);
+        expect(result.riskFlags.some(f => f.message.match(/loan repayments and supplier bills coming due/i))).toBe(true);
+    });
+
+    it('does not flag upcoming obligations when they are comfortably covered by operating cash flow', () => {
+        const txs = [
+            makeTx({ date: '2026-01-10', type: 'income', amount: 300000, status: 'paid' }),
+            makeTx({ date: '2026-01-15', type: 'expense', category: 'Rent', amount: 250000, status: 'paid' }), // OCF ~50,000
+        ];
+        // A small loan's quarterly debt service is nowhere near this
+        // quarter's OCF.
+        const loans = [makeLoan({ principal: 50_000, termMonths: 24 })];
+        const result = computeCashFlowHealth(txs, NO_ASSETS, NO_INVENTORY, '₦', loans);
+        expect(result.riskFlags.some(f => f.message.match(/loan repayments and supplier bills coming due/i))).toBe(false);
+    });
+
+    it('does not flag upcoming obligations when there are no active loans', () => {
+        const txs = [
+            makeTx({ date: '2026-01-10', type: 'income', amount: 300000, status: 'paid' }),
+            makeTx({ date: '2026-01-15', type: 'expense', category: 'Rent', amount: 250000, status: 'paid' }),
+        ];
+        const loans = [makeLoan({ principal: 5_000_000, status: 'paid_off' })];
+        const result = computeCashFlowHealth(txs, NO_ASSETS, NO_INVENTORY, '₦', loans);
+        expect(result.riskFlags.some(f => f.message.match(/loan repayments and supplier bills coming due/i))).toBe(false);
+    });
+
+    it('does not double-flag upcoming obligations on top of an already-negative operating cash flow', () => {
+        const txs = [
+            makeTx({ date: '2026-01-10', type: 'income', amount: 100000, status: 'paid' }),
+            makeTx({ date: '2026-01-15', type: 'expense', category: 'Rent', amount: 500000, status: 'paid' }),
+        ];
+        const loans = [makeLoan({ principal: 1_000_000, termMonths: 24 })];
+        const result = computeCashFlowHealth(txs, NO_ASSETS, NO_INVENTORY, '₦', loans);
+        expect(result.cashGeneration.operatingCF).toBeLessThan(0);
+        expect(result.riskFlags.some(f => f.message.match(/loan repayments and supplier bills coming due/i))).toBe(false);
     });
 
     it('reports insufficient-data trajectory with a single quarter of history', () => {

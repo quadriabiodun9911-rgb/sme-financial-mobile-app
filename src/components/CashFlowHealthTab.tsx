@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
-import { Transaction, Asset, InventoryItem } from '../types';
+import { Transaction, Asset, InventoryItem, Loan } from '../types';
 import { computeCashFlowHealth, CashFlowHealthBand, CashFlowRiskFlag, TrajectoryPoint } from '../utils/cashFlowHealth';
 import RadialGauge from './RadialGauge';
 
@@ -10,6 +10,7 @@ interface Props {
     assets: Asset[];
     inventory: InventoryItem[];
     currency: string;
+    loans?: Loan[];
 }
 
 const BAND_COLOR: Record<CashFlowHealthBand, string> = {
@@ -28,10 +29,10 @@ function fmtCompact(currency: string, amount: number): string {
     return `${sign}${currency}${Math.round(abs).toLocaleString()}`;
 }
 
-export default function CashFlowHealthTab({ transactions, assets, inventory, currency }: Props) {
+export default function CashFlowHealthTab({ transactions, assets, inventory, currency, loans = [] }: Props) {
     const result = useMemo(
-        () => computeCashFlowHealth(transactions, assets, inventory, currency),
-        [transactions, assets, inventory, currency]
+        () => computeCashFlowHealth(transactions, assets, inventory, currency, loans),
+        [transactions, assets, inventory, currency, loans]
     );
 
     if (!result.available) {

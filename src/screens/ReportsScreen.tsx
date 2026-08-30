@@ -685,6 +685,7 @@ export default function ReportsScreen() {
                             assets={assets}
                             inventory={inventory}
                             currency={currency}
+                            loans={loansList}
                         />
                     )}
 

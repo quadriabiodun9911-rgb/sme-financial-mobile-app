@@ -291,8 +291,8 @@ export default function FinancingMarketplaceScreen() {
     // assembled from real signals (Cash Flow Health + the recommendations
     // above + revenue volatility) rather than a bare "you qualify for ₦Xm".
     const cashFlowHealth = useMemo(
-        () => computeCashFlowHealth(transactions, assets, inventory, currency),
-        [transactions, assets, inventory, currency],
+        () => computeCashFlowHealth(transactions, assets, inventory, currency, loans),
+        [transactions, assets, inventory, currency, loans],
     );
     const revenueVolatility = useMemo(
         () => buildFinancialBehaviour(transactions, loans, analyzeTrend(transactions)).revenueVolatility,

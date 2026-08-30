@@ -28,11 +28,12 @@
  * used below instead.
  */
 
-import { Transaction, Asset, InventoryItem } from '../types';
+import { Transaction, Asset, InventoryItem, Loan } from '../types';
 import { computeProperCashFlow, computeWorkingCapitalMetrics } from './finance';
 import { computeInventoryValue } from './stockVelocity';
 import { computeAllTimeMonthlyBuckets, computeQuarterlyTrend } from './trendAnalysis';
 import { computeBalanceSheetTrend } from './balanceSheetTrend';
+import { computeObligationsWaterfall } from './cfoMetrics';
 
 export type CashFlowHealthBand = 'Excellent' | 'Healthy' | 'Watchful' | 'Weak' | 'Critical';
 
@@ -165,6 +166,7 @@ export function computeCashFlowHealth(
     assets: Asset[],
     inventory: InventoryItem[],
     currency: string = '₦',
+    loans: Loan[] = [],
 ): CashFlowHealthResult {
     if (transactions.length === 0) {
         return UNAVAILABLE('No transaction history yet — import a bank statement or start recording transactions to see cash flow health.');
@@ -380,6 +382,30 @@ export function computeCashFlowHealth(
             if (runwayDiffs.every(d => d < 0)) {
                 riskFlags.push({ severity: 'warning', message: `Estimated cash runway has declined for ${runwayDiffs.length} consecutive quarters (${Math.round(recentRunway[0].runwayDays)} → ${Math.round(recentRunway[2].runwayDays)} days) — the buffer for absorbing a bad month is shrinking.` });
             }
+        }
+    }
+
+    // Operating cash insufficient for upcoming obligations -- forward-looking
+    // and cash-based, unlike computeDSCR (a trailing 12-month, accrual-income
+    // ratio) or the "cash trapped" flag above (a current working-capital
+    // snapshot, not a claim against a specific future obligation).
+    // computeObligationsWaterfall's Q1 bucket already schedules exactly this
+    // (loan debt service due next quarter + payables due within 30 days) for
+    // the CFO Questions tab -- reused as-is rather than re-deriving a second
+    // obligations schedule. Tax due is deliberately passed as 0: estimating
+    // it needs the business's tax settings, which this function doesn't
+    // receive, so this flag undercounts total obligations rather than
+    // guessing at a tax rate -- the message says so explicitly. Only fires
+    // when operating cash flow is itself positive: a negative-OCF quarter
+    // already trips the critical flag above, and this would just restate the
+    // same problem with a smaller number.
+    if (latest.operatingCF > 0 && loans.some(l => l.status === 'active')) {
+        const nextQuarterObligations = computeObligationsWaterfall(loans, wc.accountsPayable, 0).quarters[0].total;
+        if (nextQuarterObligations > latest.operatingCF) {
+            riskFlags.push({
+                severity: 'warning',
+                message: `Loan repayments and supplier bills coming due next quarter (about ${formatMoney(nextQuarterObligations, currency)}, excluding tax) would use up more cash than operations generated this quarter (${formatMoney(latest.operatingCF, currency)}) -- worth lining up collections or a cash buffer before they're due.`,
+            });
         }
     }
 
