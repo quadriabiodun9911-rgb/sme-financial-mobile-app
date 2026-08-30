@@ -270,6 +270,34 @@ describe('computeCashFlowHealth', () => {
         expect(result.riskFlags.some(f => f.message.match(/loan repayments and supplier bills coming due/i))).toBe(true);
     });
 
+    it('does not mistake a long-overdue, aged-out payable for cash due next quarter', () => {
+        // Regression: this flag must scope payables to the "due within 30
+        // days" aging bucket (computeAgingBuckets), NOT
+        // computeWorkingCapitalMetrics's accountsPayable, which sums every
+        // pending/overdue expense ever recorded with no date filter at all.
+        // A huge, ancient unpaid bill (long past its due date -- squarely in
+        // the 90+ day aging bucket) must not get treated as "coming due next
+        // quarter" just because it's still technically unpaid.
+        const daysAgo = (n: number) => {
+            const d = new Date();
+            d.setDate(d.getDate() - n);
+            return d.toISOString().split('T')[0];
+        };
+        const txs = [
+            makeTx({ date: '2026-01-10', type: 'income', amount: 300000, status: 'paid' }),
+            makeTx({ date: '2026-01-15', type: 'expense', category: 'Rent', amount: 250000, status: 'paid' }), // OCF ~50,000
+            // A very old, very large unpaid supplier bill -- more than 90
+            // days past its own due date, so it belongs in the "90+ days"
+            // aging bucket, not "due within 30 days".
+            makeTx({ date: daysAgo(950), type: 'expense', category: 'Supplies', amount: 2_000_000, status: 'overdue', dueDate: daysAgo(950) }),
+        ];
+        // A trivial loan just to exercise the "has an active loan" guard --
+        // its own quarterly debt service is negligible next to the ~50,000 OCF.
+        const loans = [makeLoan({ principal: 1_000, termMonths: 24 })];
+        const result = computeCashFlowHealth(txs, NO_ASSETS, NO_INVENTORY, '₦', loans);
+        expect(result.riskFlags.some(f => f.message.match(/loan repayments and supplier bills coming due/i))).toBe(false);
+    });
+
     it('does not flag upcoming obligations when they are comfortably covered by operating cash flow', () => {
         const txs = [
             makeTx({ date: '2026-01-10', type: 'income', amount: 300000, status: 'paid' }),

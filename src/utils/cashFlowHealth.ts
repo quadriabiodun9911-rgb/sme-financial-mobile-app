@@ -29,7 +29,7 @@
  */
 
 import { Transaction, Asset, InventoryItem, Loan } from '../types';
-import { computeProperCashFlow, computeWorkingCapitalMetrics } from './finance';
+import { computeProperCashFlow, computeWorkingCapitalMetrics, computeAgingBuckets } from './finance';
 import { computeInventoryValue } from './stockVelocity';
 import { computeAllTimeMonthlyBuckets, computeQuarterlyTrend } from './trendAnalysis';
 import { computeBalanceSheetTrend } from './balanceSheetTrend';
@@ -399,8 +399,17 @@ export function computeCashFlowHealth(
     // when operating cash flow is itself positive: a negative-OCF quarter
     // already trips the critical flag above, and this would just restate the
     // same problem with a smaller number.
+    //
+    // upcoming30dayAP MUST be the same "Current (0-30 days)" aging bucket
+    // CFOQuestionsTab.tsx uses (computeAgingBuckets(transactions,'expense')[0]),
+    // not wc.accountsPayable -- that field is every pending/overdue expense
+    // ever recorded with no date filter, so a business with old, already-
+    // overdue-by-months supplier balances would have its entire historical
+    // payables balance mistaken for "due next quarter", firing this flag (or
+    // wildly overstating its number) for businesses that are actually fine.
     if (latest.operatingCF > 0 && loans.some(l => l.status === 'active')) {
-        const nextQuarterObligations = computeObligationsWaterfall(loans, wc.accountsPayable, 0).quarters[0].total;
+        const upcoming30dayAP = computeAgingBuckets(transactions, 'expense')[0]?.total ?? 0;
+        const nextQuarterObligations = computeObligationsWaterfall(loans, upcoming30dayAP, 0).quarters[0].total;
         if (nextQuarterObligations > latest.operatingCF) {
             riskFlags.push({
                 severity: 'warning',

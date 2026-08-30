@@ -26,13 +26,22 @@ export interface InventoryPace {
     salesGrowthPct: number | null;
 }
 
-function monthKey(d: Date): string {
-    return d.toISOString().slice(0, 7);
+// Built from the LOCAL year/month getters, never `.toISOString()` -- that
+// reads the date back in UTC, which for any positive UTC-offset timezone
+// (this app's default currency market, Nigeria, included) rolls back to the
+// previous local day near midnight, and near a month boundary that means the
+// previous month too. A purchase logged at 00:15 local time on the 1st would
+// then match neither thisMonthKey nor lastMonthKey below and silently drop
+// out of both totals -- the same bug class computeAgingBuckets's own doc
+// comment already calls out and avoids elsewhere in this app.
+function monthKey(year: number, month0: number): string {
+    return `${year}-${String(month0 + 1).padStart(2, '0')}`;
 }
 
 export function computeInventoryPace(transactions: Transaction[], now: Date = new Date()): InventoryPace {
-    const thisMonthKey = monthKey(now);
-    const lastMonthKey = monthKey(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+    const thisMonthKey = monthKey(now.getFullYear(), now.getMonth());
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonthKey = monthKey(lastMonth.getFullYear(), lastMonth.getMonth());
 
     const sumFor = (category: 'purchase' | 'sale', key: string) =>
         transactions

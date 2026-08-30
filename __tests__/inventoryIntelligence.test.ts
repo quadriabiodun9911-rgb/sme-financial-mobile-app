@@ -56,6 +56,23 @@ describe('computeInventoryPace', () => {
         expect(result.purchasesThisMonth).toBe(0);
         expect(result.purchasesLastMonth).toBe(0);
     });
+
+    it('classifies "this month" from now\'s local calendar date, not a UTC round-trip', () => {
+        // Regression: monthKey used to go through `.toISOString()`, which
+        // reads a Date back in UTC -- for any positive-UTC-offset timezone
+        // (this app's default currency market, Nigeria, included), a `now`
+        // near local midnight could round-trip back to the previous UTC
+        // day, and near a month boundary that means the previous month too,
+        // silently dropping that month's purchases/sales from both totals.
+        // Built with the Date(year, month, day, hour, minute) local
+        // constructor, not an ISO string, matching the fix's use of
+        // now.getFullYear()/now.getMonth() (both local getters).
+        const earlyLocalMorning = new Date(2026, 7, 1, 0, 15); // Aug 1, 2026, 00:15 local time
+        const txs = [purchaseTx(75000, '2026-08-01'), purchaseTx(60000, '2026-07-20')];
+        const result = computeInventoryPace(txs, earlyLocalMorning);
+        expect(result.purchasesThisMonth).toBe(75000);
+        expect(result.purchasesLastMonth).toBe(60000);
+    });
 });
 
 describe('computeSlowMovingValue', () => {
