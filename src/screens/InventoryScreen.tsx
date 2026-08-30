@@ -20,6 +20,7 @@ import { computeDiscountSummary } from '../utils/inventorySalesTrend';
 import { appendPriceChange, computeMarginPct } from '../utils/priceHistory';
 import { appendStockCount, describeStockCount } from '../utils/stockCount';
 import { computeInventoryPace, computeSlowMovingValue } from '../utils/inventoryIntelligence';
+import { computeInventoryHealth } from '../utils/inventoryHealth';
 import { computeWorkingCapitalMetrics } from '../utils/finance';
 import { computeStockReconciliation } from '../utils/stockReconciliation';
 import RecipeCostCalculator from '../components/RecipeCostCalculator';
@@ -176,6 +177,10 @@ export default function InventoryScreen() {
     // becoming a problem (slow-moving stock, purchases outpacing sales).
     const inventoryPace = useMemo(() => computeInventoryPace(transactions), [transactions]);
     const slowMovingValue = useMemo(() => computeSlowMovingValue(inventory, transactions), [inventory, transactions]);
+    const inventoryHealth = useMemo(
+        () => computeInventoryHealth(inventory, transactions, finance?.cashBalance ?? 0, currency),
+        [inventory, transactions, finance?.cashBalance, currency],
+    );
     const workingCapital = useMemo(() => computeWorkingCapitalMetrics(transactions), [transactions]);
     const totalWorkingCapitalTiedUp = (finance?.cashBalance ?? 0) + totalStockValue + workingCapital.accountsReceivable;
 
@@ -207,6 +212,8 @@ export default function InventoryScreen() {
         return list;
     }, [inventory, slowMovingValue, inventoryPace, currency]);
     const insightColor = (tier: InventoryInsightTier) => tier === 'good' ? Colors.income : tier === 'critical' ? Colors.expense : Colors.warning;
+    const inventoryHealthColor = (status: typeof inventoryHealth.status) =>
+        status === 'good' ? Colors.income : status === 'warning' ? Colors.warning : Colors.expense;
 
     // Best margin items (top 3)
     const itemsWithMargin = inventory.map(item => ({
@@ -596,6 +603,31 @@ export default function InventoryScreen() {
                 {/* ── ANALYTICS TAB ──────────────────────────────────────── */}
                 {activeTab === 'analytics' && (
                     <>
+                        {/* Inventory Health */}
+                        <View style={styles.analyticsCard}>
+                            <View style={styles.inventoryHealthHeader}>
+                                <Text style={styles.analyticsCardTitle}>Inventory Health</Text>
+                                <View style={[styles.inventoryHealthBadge, { backgroundColor: inventoryHealthColor(inventoryHealth.status) }]}>
+                                    <Text style={styles.inventoryHealthBadgeText}>{inventoryHealth.score}/100</Text>
+                                </View>
+                            </View>
+                            <Text style={styles.intelligenceAdvisory}>{inventoryHealth.narrative}</Text>
+
+                            {inventoryHealth.topDecisions.length > 0 && (
+                                <>
+                                    <Text style={[styles.discountLabel, { marginTop: Spacing.md, marginBottom: 4 }]}>What to do about it</Text>
+                                    {inventoryHealth.topDecisions.map(decision => (
+                                        <View key={decision.itemId} style={[styles.insightBanner, { borderColor: decision.action === 'reorder' ? Colors.income : decision.action === 'reduce' ? Colors.warning : Colors.expense }]}>
+                                            <Text style={[styles.insightTitle, { color: decision.action === 'reorder' ? Colors.income : decision.action === 'reduce' ? Colors.warning : Colors.expense }]}>
+                                                {decision.action === 'reorder' ? '🔁 Reorder' : decision.action === 'reduce' ? '⏸️ Hold off reordering' : '🛑 Discontinue'} — {decision.itemName}
+                                            </Text>
+                                            <Text style={styles.insightDetail}>{decision.detail}</Text>
+                                        </View>
+                                    ))}
+                                </>
+                            )}
+                        </View>
+
                         {/* Inventory Intelligence */}
                         <View style={styles.analyticsCard}>
                             <Text style={styles.analyticsCardTitle}>Inventory Intelligence</Text>
@@ -1422,6 +1454,9 @@ const styles = StyleSheet.create({
     // Analytics
     analyticsCard:      { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 14, marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     analyticsCardTitle: { fontSize: 14, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 10 },
+    inventoryHealthHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
+    inventoryHealthBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
+    inventoryHealthBadgeText: { fontSize: 12, fontWeight: '800', color: '#fff' },
     analyticsRow:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: Colors.border },
     analyticsBorderTop: { borderTopWidth: 1, borderTopColor: Colors.textMuted, marginTop: 4, paddingTop: 10, borderBottomWidth: 0 },
     analyticsLabel:     { fontSize: 13, color: Colors.textSecondary, flex: 1 },
