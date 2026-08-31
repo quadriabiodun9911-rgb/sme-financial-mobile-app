@@ -9,6 +9,7 @@ import MissionVisionCard from '../components/MissionVisionCard';
 import { generatePDF, sharePDF } from '../utils/pdfExport';
 import { buildBusinessPassportExport } from '../utils/lenderSummaryExport';
 import { buildBusinessPassport } from '../utils/businessPassport';
+import { computeRevenueConcentrationAlert } from '../utils/revenueConcentrationAlert';
 import { showAlert } from '../utils/webAlert';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
@@ -46,6 +47,17 @@ export default function BusinessPassportScreen() {
     const passport = useMemo(
         () => buildBusinessPassport(transactions, invoices, loans, inventory, assets, finance, settings, user, budgets, staff, goals, financing),
         [transactions, invoices, loans, inventory, assets, finance, settings, user, budgets, staff, goals, financing],
+    );
+
+    // Revenue Concentration Alert -- the same customer-concentration data
+    // as passport.risk.customerConcentrationRisk above, windowed to the
+    // trailing 6 months (a lender cares about who's paying NOW, not two
+    // years ago) and written out as a full alert rather than a one-word
+    // risk label. See revenueConcentrationAlert.ts's own doc comment for
+    // why this reuses computeCustomerConcentration's exact thresholds.
+    const concentrationAlert = useMemo(
+        () => computeRevenueConcentrationAlert(transactions, 6),
+        [transactions],
     );
 
     const maxTrendRevenue = Math.max(1, ...passport.growth.trend.map(m => Math.max(m.revenue, m.expense)));
@@ -198,6 +210,15 @@ export default function BusinessPassportScreen() {
                 {/* 4. Risk */}
                 <Section title="Risk" subtitle="What could go wrong?" teaser={`${passport.risk.customerConcentrationRisk} customer concentration risk`}>
                     <Row label="Customer concentration" value={passport.risk.customerConcentrationRisk} valueColor={CONCENTRATION_COLOR[passport.risk.customerConcentrationRisk]} />
+                    {concentrationAlert.available && concentrationAlert.severity !== 'none' && (
+                        <View style={[s.deviationRow, { alignItems: 'flex-start' }]}>
+                            <Icon name={concentrationAlert.severity === 'high' ? 'alert-triangle' : 'info'} size={12} color={concentrationAlert.severity === 'high' ? Colors.expense : Colors.warning} />
+                            <View style={{ flex: 1 }}>
+                                <Text style={s.deviationText}>{concentrationAlert.narrative}</Text>
+                                <Text style={[s.deviationText, { fontWeight: '700', marginTop: 4 }]}>Recommended focus: <Text style={{ fontWeight: '400' }}>{concentrationAlert.recommendedFocus}</Text></Text>
+                            </View>
+                        </View>
+                    )}
                     <Row label="Supplier concentration" value={passport.risk.supplierConcentrationRisk} valueColor={CONCENTRATION_COLOR[passport.risk.supplierConcentrationRisk]} />
                     <Row label="Cash-flow risk" value={passport.risk.cashFlowRisk.level} valueColor={CASH_FLOW_RISK_COLOR[passport.risk.cashFlowRisk.level]} />
                     <Text style={s.emptyText}>{passport.risk.cashFlowRisk.summary}</Text>
