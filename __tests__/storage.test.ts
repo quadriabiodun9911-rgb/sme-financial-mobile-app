@@ -91,6 +91,7 @@ import {
     loadAuthSecret,
     loadProfile,
     resolveWorkspaceRole,
+    SNAPSHOT_HISTORY_KEYS,
 } from '../src/utils/storage';
 import * as secureStorageMock from '../src/utils/secureStorage';
 import { supabase } from '../src/utils/supabase';
@@ -300,14 +301,13 @@ describe('clearLocalFinancialCache', () => {
     // Regression test for a second account (e.g. via the switcher, or a
     // fresh setup/recover on a device that previously had a different
     // account active) rendering the FIRST account's data as its own.
-    // READINESS_HISTORY_KEY specifically has no Supabase table backing it
-    // (see storage.ts's own comment) -- if it isn't cleared here, there is
-    // NO other mechanism that will ever overwrite it with the new
+    // These specifically have no Supabase table backing them (see each
+    // one's own comment in storage.ts) -- if any isn't cleared here, there
+    // is NO other mechanism that will ever overwrite it with the new
     // account's own (empty) history, unlike cloud-backed entities that
     // self-correct once the new session's own data loads.
     it('clears every business-data key a second account on this device must never inherit', async () => {
         const leftoverKeys = [
-            '@quad360/readinessHistory',
             'quad360_learned_category_rules_v1',
             '@smeApp_bankProfiles',
             '@quad360/celebrated_goal_ids',
@@ -326,6 +326,26 @@ describe('clearLocalFinancialCache', () => {
         await clearLocalFinancialCache();
 
         for (const key of leftoverKeys) {
+            expect(await AsyncStorage.getItem(key)).toBeNull();
+        }
+    });
+
+    // Same regression, but asserted against SNAPSHOT_HISTORY_KEYS itself
+    // rather than a hand-typed copy of it -- this is what actually closes
+    // the loophole that let readinessHistory (once) and then
+    // forecastHistory/dataConfidenceHistory (once more) ship without being
+    // cleared here: any key added to SNAPSHOT_HISTORY_KEYS in storage.ts is
+    // automatically covered by this test with no second list to remember
+    // to update, instead of a bug class that could recur a fourth time.
+    it('clears every snapshot-history key, driven directly from SNAPSHOT_HISTORY_KEYS', async () => {
+        expect(SNAPSHOT_HISTORY_KEYS.length).toBeGreaterThan(0);
+        for (const key of SNAPSHOT_HISTORY_KEYS) {
+            await AsyncStorage.setItem(key, JSON.stringify(['leftover-from-account-a']));
+        }
+
+        await clearLocalFinancialCache();
+
+        for (const key of SNAPSHOT_HISTORY_KEYS) {
             expect(await AsyncStorage.getItem(key)).toBeNull();
         }
     });

@@ -885,7 +885,7 @@ export async function loadCapitalCommitments(): Promise<CapitalCommitment[] | nu
 // for this yet, so a business's readiness trend doesn't follow them across
 // devices. Good enough for a v1: the trend still builds correctly as long
 // as they keep using the same device.
-const READINESS_HISTORY_KEY = '@quad360/readinessHistory';
+export const READINESS_HISTORY_KEY = '@quad360/readinessHistory';
 export async function saveReadinessHistory(history: ReadinessSnapshot[]): Promise<void> {
     await AsyncStorage.setItem(READINESS_HISTORY_KEY, JSON.stringify(history));
 }
@@ -899,7 +899,7 @@ export async function loadReadinessHistory(): Promise<ReadinessSnapshot[] | null
 // the 12-month annual revenue forecast, so "Forecast -> Actual -> Variance ->
 // Update -> Forecast again" has an actual trend to show instead of only ever
 // today's number. See forecastHistory.ts.
-const FORECAST_HISTORY_KEY = '@quad360/forecastHistory';
+export const FORECAST_HISTORY_KEY = '@quad360/forecastHistory';
 export async function saveForecastHistory(history: ForecastSnapshot[]): Promise<void> {
     await AsyncStorage.setItem(FORECAST_HISTORY_KEY, JSON.stringify(history));
 }
@@ -912,7 +912,7 @@ export async function loadForecastHistory(): Promise<ForecastSnapshot[] | null> 
 // Same local-only pattern as Readiness History above -- the "cold start"
 // trend (see dataConfidenceHistory.ts) only needs to survive on this
 // device to do its job.
-const DATA_CONFIDENCE_HISTORY_KEY = '@quad360/dataConfidenceHistory';
+export const DATA_CONFIDENCE_HISTORY_KEY = '@quad360/dataConfidenceHistory';
 export async function saveDataConfidenceHistory(history: DataConfidenceSnapshot[]): Promise<void> {
     await AsyncStorage.setItem(DATA_CONFIDENCE_HISTORY_KEY, JSON.stringify(history));
 }
@@ -920,6 +920,24 @@ export async function loadDataConfidenceHistory(): Promise<DataConfidenceSnapsho
     const raw = await AsyncStorage.getItem(DATA_CONFIDENCE_HISTORY_KEY);
     return safeParse<DataConfidenceSnapshot[]>(raw);
 }
+
+// Every local-only snapshot-history key above, in one place. All three
+// share the exact trait that makes them dangerous to forget clearing: no
+// Supabase table backs them (see each section's own comment), and they
+// carry no per-account namespacing, so a second identity on this device
+// silently inherits the first one's history with nothing else that will
+// ever overwrite it. This list is the single source FINANCIAL_CACHE_KEYS
+// spreads below AND that storage.test.ts asserts against directly --
+// exactly the bug class that already shipped twice (readinessHistory
+// once, then forecastHistory/dataConfidenceHistory once more) because the
+// old approach was "remember to add the new key to two separate hand
+// -maintained lists." A fourth history slice now only has to be added
+// HERE to be covered by both the account-switch clear and its test.
+export const SNAPSHOT_HISTORY_KEYS = [
+    READINESS_HISTORY_KEY,
+    FORECAST_HISTORY_KEY,
+    DATA_CONFIDENCE_HISTORY_KEY,
+] as const;
 
 // ─── FX Rate Snapshots (local only) ───────────────────────────────────────────
 // Same local-only pattern as Readiness/Data Confidence History above. Live FX
@@ -1361,7 +1379,7 @@ const FINANCIAL_CACHE_KEYS = [
     KEYS.assets, KEYS.loans, KEYS.staff, KEYS.payrollRuns,
     '@quad360/inventory', '@quad360/budgets', CASH_POCKETS_KEY, CAPITAL_COMMITMENTS_KEY,
     'quad360_tactic_executions_v1', 'quad360_tactic_outcomes_v1', '@quad360/financing',
-    READINESS_HISTORY_KEY, FORECAST_HISTORY_KEY,
+    ...SNAPSHOT_HISTORY_KEYS,
     // transactionCategorization.ts's learned category-correction rules --
     // keyed by transaction description text, so this can otherwise leak
     // one business's actual supplier/customer names into another
