@@ -9,6 +9,7 @@ import { computeExternalRiskInsights, ExternalRiskInsight } from '../utils/exter
 import { computeLaborProductivity } from '../utils/laborProductivity';
 import { computeExpenseLeaks, ExpenseLeakResult } from '../utils/expenseLeakDetection';
 import { computeUnusualSpending, UnusualSpendingResult } from '../utils/unusualSpending';
+import { computeExpenseIntelligence, ExpenseIntelligenceResult } from '../utils/expenseIntelligence';
 import RadialGauge from './RadialGauge';
 import BarList from './BarList';
 import GroupedBarChart from './GroupedBarChart';
@@ -55,6 +56,7 @@ export default function CostExposureTab() {
     const labor = useMemo(() => computeLaborProductivity(transactions, staff ?? []), [transactions, staff]);
     const expenseLeaks = useMemo(() => computeExpenseLeaks(transactions, currency), [transactions, currency]);
     const unusualSpending = useMemo(() => computeUnusualSpending(transactions, currency), [transactions, currency]);
+    const expenseIntelligence = useMemo(() => computeExpenseIntelligence(transactions, currency, 6), [transactions, currency]);
 
     if (!result.available) {
         return (
@@ -240,6 +242,15 @@ export default function CostExposureTab() {
             {expenseLeaks.available && expenseLeaks.recurringGroups.length > 0 && (
                 <ExpenseLeakCard result={expenseLeaks} currency={currency} />
             )}
+
+            {/* Expense Intelligence -- each recurring category's own
+                growth rate held directly against revenue's growth rate
+                over the same window ("Software increased 37% while
+                revenue increased 8%"), not the percentage-POINT-of-revenue
+                framing the cost-concentration card above uses. */}
+            {expenseIntelligence.available && expenseIntelligence.categories.length > 0 && (
+                <ExpenseIntelligenceCard result={expenseIntelligence} currency={currency} />
+            )}
         </View>
     );
 }
@@ -285,6 +296,32 @@ function UnusualSpendingCard({ result }: { result: UnusualSpendingResult }) {
             {result.flags.map((flag, i) => (
                 <View key={i} style={[s.laborNoteBox, { borderLeftColor: Colors.warning, borderLeftWidth: 3 }]}>
                     <Text style={s.laborNoteText}>{flag.message}</Text>
+                </View>
+            ))}
+        </View>
+    );
+}
+
+function ExpenseIntelligenceCard({ result, currency }: { result: ExpenseIntelligenceResult; currency: string }) {
+    return (
+        <View style={s.card}>
+            <Text style={s.cardTitle}>Recurring Expense Analysis — Last {result.windowMonths} Months</Text>
+            {result.categories.slice(0, 6).map(cat => (
+                <View key={cat.category} style={s.driverRow}>
+                    <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: Colors.textPrimary }}>{cat.category}</Text>
+                        <Text style={{ fontSize: 11, color: Colors.textMuted, marginTop: 1 }}>{fmtCompact(currency, cat.monthlyRate)}/month</Text>
+                    </View>
+                    {cat.spendGrowthPct !== null && (
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: cat.concern ? Colors.expense : Colors.textSecondary }}>
+                            {cat.spendGrowthPct >= 0 ? '+' : ''}{cat.spendGrowthPct.toFixed(0)}%
+                        </Text>
+                    )}
+                </View>
+            ))}
+            {result.categories.filter(c => c.concern).map(cat => (
+                <View key={`concern-${cat.category}`} style={[s.laborNoteBox, { borderLeftColor: Colors.expense, borderLeftWidth: 3 }]}>
+                    <Text style={s.laborNoteText}>{cat.narrative}</Text>
                 </View>
             ))}
         </View>
