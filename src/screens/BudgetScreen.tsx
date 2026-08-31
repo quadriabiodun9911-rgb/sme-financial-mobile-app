@@ -14,6 +14,8 @@ import { generateExpenseReductionActions } from '../utils/actionRecommendationEn
 import { generateAutoBudget, AutoBudgetSuggestion } from '../utils/budgetEngine';
 import { isBudgetPeriodLapsed } from '../utils/budgetPeriod';
 import { computeGoalBudgetAlignment } from '../utils/goalAlignment';
+import { computeSmartBudgetRevenue } from '../utils/smartBudget';
+import { computeBudgetIntelligence } from '../utils/budgetIntelligence';
 import NextStepLink from '../components/NextStepLink';
 import ProfitCashImpactCard from '../components/ProfitCashImpactCard';
 import { computeProfitCashImpact } from '../utils/impactChain';
@@ -21,6 +23,10 @@ import { Budget } from '../types';
 import { showAlert, confirmAction } from '../utils/webAlert';
 import Icon from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
+
+const FAVORABILITY_COLOR: Record<'favorable' | 'unfavorable' | 'on_track', string> = {
+    favorable: Colors.income, unfavorable: Colors.expense, on_track: Colors.textMuted,
+};
 
 const EXPENSE_CATEGORIES = [
     'Office & Admin', 'Salaries', 'Marketing', 'Equipment', 'Software',
@@ -54,6 +60,17 @@ export default function BudgetScreen() {
     const [adjustedAmounts, setAdjustedAmounts] = useState<Record<string, string>>({});
 
     const bva = useMemo(() => computeBudgetVsActual(transactions, budgets, currentMonth), [transactions, budgets, currentMonth]);
+
+    // Smart Budget Builder's revenue half -- see smartBudget.ts's own doc
+    // comment. No revenue-budget UI exists yet, so the Base scenario also
+    // doubles as the revenue figure Budget Intelligence below measures
+    // actual revenue against, unless/until an owner-set revenue target
+    // exists elsewhere in the app.
+    const smartRevenue = useMemo(() => computeSmartBudgetRevenue(transactions, currency), [transactions, currency]);
+    const budgetIntel = useMemo(
+        () => computeBudgetIntelligence(transactions, budgets, currentMonth, smartRevenue.available ? smartRevenue.scenarios.base : 0, currency),
+        [transactions, budgets, currentMonth, smartRevenue, currency],
+    );
 
     // budgets is never empty here and computeBudgetVsActual now filters to
     // the current period only (see finance.ts) -- when every category is
@@ -521,6 +538,56 @@ export default function BudgetScreen() {
                     </View>
                 )}
 
+                {/* Budget Intelligence -- Revenue vs. target, Net Cash Flow,
+                    a synthesized narrative, and a WHY explanation per
+                    over-budget category. Doesn't replace the per-category
+                    table below (still the place to edit a budget); this is
+                    the "don't stop at the table" layer on top of it. */}
+                {budgetIntel.available && (
+                    <View style={s.summaryCard}>
+                        <View style={s.sheetTitleRow}>
+                            <Icon name="zap" size={16} color={Colors.textPrimary} />
+                            <Text style={[s.sheetTitle, { marginBottom: 0 }]}>Budget Intelligence</Text>
+                        </View>
+                        <Text style={s.intelNarrative}>{budgetIntel.narrative}</Text>
+
+                        {budgetIntel.revenueLine && (
+                            <View style={[s.intelRow, { borderLeftColor: FAVORABILITY_COLOR[budgetIntel.revenueLine.favorability] }]}>
+                                <Text style={s.intelRowLabel}>Revenue</Text>
+                                <Text style={s.intelRowVal}>
+                                    {currency}{Math.round(budgetIntel.revenueLine.actual).toLocaleString()} vs {currency}{Math.round(budgetIntel.revenueLine.budgeted).toLocaleString()} target
+                                    {' '}({budgetIntel.revenueLine.variancePct >= 0 ? '+' : ''}{budgetIntel.revenueLine.variancePct.toFixed(0)}%)
+                                </Text>
+                            </View>
+                        )}
+                        {budgetIntel.netCashFlowLine && (
+                            <View style={[s.intelRow, { borderLeftColor: FAVORABILITY_COLOR[budgetIntel.netCashFlowLine.favorability] }]}>
+                                <Text style={s.intelRowLabel}>Net Cash Flow</Text>
+                                <Text style={s.intelRowVal}>
+                                    {currency}{Math.round(budgetIntel.netCashFlowLine.actual).toLocaleString()} vs {currency}{Math.round(budgetIntel.netCashFlowLine.budgeted).toLocaleString()} planned
+                                </Text>
+                            </View>
+                        )}
+
+                        {budgetIntel.explanations.length > 0 && (
+                            <View style={{ marginTop: Spacing.sm }}>
+                                <Text style={s.intelWhyLabel}>Why?</Text>
+                                {budgetIntel.explanations.map((ex, i) => (
+                                    <Text key={i} style={[s.intelWhyText, { color: ex.verdict === 'review-needed' ? Colors.expense : Colors.textSecondary }]}>
+                                        {ex.message}
+                                    </Text>
+                                ))}
+                            </View>
+                        )}
+
+                        {smartRevenue.available && (
+                            <Text style={s.intelFootnote}>
+                                Revenue target is Quad360's suggested base case ({currency}{Math.round(smartRevenue.scenarios.base).toLocaleString()}/mo) — not yet something you've set yourself.
+                            </Text>
+                        )}
+                    </View>
+                )}
+
                 {/* Budget vs actual table */}
                 {budgets.length === 0 && displayBva.length === 0 ? (
                     <View style={s.emptyState}>
@@ -691,6 +758,35 @@ export default function BudgetScreen() {
                         {currency}{Math.round(autoBudget.projectedRevenue).toLocaleString(undefined, { maximumFractionDigits: 0 })} projected revenue next month
                         {autoBudget.loanBurden > 0 ? ` (after ${currency}${Math.round(autoBudget.loanBurden).toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo loan repayments)` : ''}.
                     </Text>
+
+                    {/* Smart Budget Builder's revenue half -- "don't ask the
+                        owner what revenue to expect, suggest a realistic
+                        starting point instead" (smartBudget.ts). Informational
+                        here, not yet wired to re-scale the expense suggestions
+                        below against a chosen scenario. */}
+                    {smartRevenue.available && (
+                        <View style={s.revenueScenarioBox}>
+                            <Text style={s.revenueScenarioTitle}>{smartRevenue.recommendationLabel}</Text>
+                            <View style={s.revenueScenarioRow}>
+                                <View style={s.revenueScenarioCell}>
+                                    <Text style={s.revenueScenarioLabel}>Conservative</Text>
+                                    <Text style={s.revenueScenarioVal}>{currency}{Math.round(smartRevenue.scenarios.conservative).toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                                </View>
+                                <View style={[s.revenueScenarioCell, s.revenueScenarioCellBase]}>
+                                    <Text style={s.revenueScenarioLabel}>Base</Text>
+                                    <Text style={[s.revenueScenarioVal, { color: Colors.primary }]}>{currency}{Math.round(smartRevenue.scenarios.base).toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                                </View>
+                                <View style={s.revenueScenarioCell}>
+                                    <Text style={s.revenueScenarioLabel}>Growth</Text>
+                                    <Text style={s.revenueScenarioVal}>{currency}{Math.round(smartRevenue.scenarios.growth).toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                                </View>
+                            </View>
+                            <Text style={s.revenueScenarioFootnote}>
+                                Based on your last {smartRevenue.windowMonths} month{smartRevenue.windowMonths !== 1 ? 's' : ''} (revenue {smartRevenue.volatility}
+                                {smartRevenue.growthTrendPct !== null ? `, trending ${smartRevenue.growthTrendPct >= 0 ? '+' : ''}${smartRevenue.growthTrendPct.toFixed(0)}%` : ''}).
+                            </Text>
+                        </View>
+                    )}
 
                     {autoBudget.scaled && (
                         <View style={s.autoGenScaledNote}>
@@ -866,6 +962,23 @@ const s = StyleSheet.create({
     overCard:      { backgroundColor: 'rgba(239,68,68,0.1)', borderWidth: 1, borderColor: Colors.expense, borderRadius: 10, padding: Spacing.md, marginBottom: 10 },
     overCardTitle: { fontSize: 13, fontWeight: '700', color: Colors.expense, marginBottom: 4 },
     overCardText:  { fontSize: 12, color: Colors.textSecondary },
+
+    intelNarrative:  { fontSize: 13, color: Colors.textPrimary, lineHeight: 19, marginBottom: Spacing.md },
+    intelRow:        { borderLeftWidth: 3, borderRadius: 8, backgroundColor: Colors.bg, padding: Spacing.sm, marginBottom: Spacing.sm },
+    intelRowLabel:   { fontSize: 10.5, fontWeight: '800', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 2 },
+    intelRowVal:     { fontSize: 12.5, color: Colors.textPrimary, fontWeight: '600' },
+    intelWhyLabel:   { fontSize: 11, fontWeight: '800', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
+    intelWhyText:    { fontSize: 12, lineHeight: 17, marginBottom: 6 },
+    intelFootnote:   { fontSize: 10.5, color: Colors.textMuted, fontStyle: 'italic', marginTop: 4 },
+
+    revenueScenarioBox:       { backgroundColor: Colors.bg, borderRadius: 10, padding: Spacing.md, marginBottom: Spacing.md },
+    revenueScenarioTitle:     { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: Spacing.sm },
+    revenueScenarioRow:       { flexDirection: 'row', gap: Spacing.sm },
+    revenueScenarioCell:      { flex: 1, alignItems: 'center', paddingVertical: Spacing.sm, borderRadius: 8, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },
+    revenueScenarioCellBase:  { borderColor: Colors.primary },
+    revenueScenarioLabel:     { fontSize: 10, color: Colors.textMuted, fontWeight: '700', textTransform: 'uppercase', marginBottom: 2 },
+    revenueScenarioVal:       { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
+    revenueScenarioFootnote:  { fontSize: 10.5, color: Colors.textMuted, marginTop: Spacing.sm },
 
     overlay:      { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
     sheet:        { backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Spacing.xl, paddingBottom: Spacing.huge, ...Shadow.md },

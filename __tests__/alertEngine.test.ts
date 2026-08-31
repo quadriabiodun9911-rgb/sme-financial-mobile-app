@@ -476,6 +476,46 @@ describe('alertEngine', () => {
         });
     });
 
+    describe('budget overspend alerts', () => {
+        function makeBudget(overrides: Partial<Budget> = {}): Budget {
+            return { id: 'b1', category: 'Marketing', monthlyAmount: 200000, period: currentPeriod(), ...overrides };
+        }
+
+        it('flags a category meaningfully over its budget for the current period', () => {
+            const tx = makeTx({ type: 'expense', category: 'Marketing', amount: 310000, date: isoDaysAgo(5) });
+            const alerts = detectAlerts(
+                1000000, [tx], [], undefined, undefined, undefined, '₦', [], [], [], undefined, [], [makeBudget()]
+            );
+            const overspend = alerts.find(a => a.type === 'budget_overspend');
+            expect(overspend).toBeDefined();
+            expect(overspend?.id).toBe(`alert-budget-overspend-${currentPeriod()}-Marketing`);
+            expect(overspend?.description).toMatch(/Marketing/);
+        });
+
+        it('marks a severe overspend (50%+) as high priority', () => {
+            const tx = makeTx({ type: 'expense', category: 'Marketing', amount: 400000, date: isoDaysAgo(5) }); // +100%
+            const alerts = detectAlerts(
+                1000000, [tx], [], undefined, undefined, undefined, '₦', [], [], [], undefined, [], [makeBudget()]
+            );
+            const overspend = alerts.find(a => a.type === 'budget_overspend');
+            expect(overspend?.priority).toBe('high');
+        });
+
+        it('never flags a category tracking within its budget', () => {
+            const tx = makeTx({ type: 'expense', category: 'Marketing', amount: 205000, date: isoDaysAgo(5) }); // +2.5%, within the 5% band
+            const alerts = detectAlerts(
+                1000000, [tx], [], undefined, undefined, undefined, '₦', [], [], [], undefined, [], [makeBudget()]
+            );
+            expect(alerts.some(a => a.type === 'budget_overspend')).toBe(false);
+        });
+
+        it('never flags when there are no budgets at all', () => {
+            const tx = makeTx({ type: 'expense', category: 'Marketing', amount: 999999, date: isoDaysAgo(5) });
+            const alerts = detectAlerts(1000000, [tx], []);
+            expect(alerts.some(a => a.type === 'budget_overspend')).toBe(false);
+        });
+    });
+
     describe('asset replacement alerts', () => {
         function makeAsset(overrides: Partial<Asset> = {}): Asset {
             return {

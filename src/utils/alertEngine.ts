@@ -1,7 +1,7 @@
 import { Transaction, Invoice, Loan, StaffMember, PayrollRun, FinancialGoal, Budget, Asset, InventoryItem } from '../types';
 import { ForecastAlert, AlertThresholds, CashFlowForecast, ForecastInput } from '../types/forecast';
 import { generateCashFlowForecast } from './forecastEngine';
-import { computeMonthlyTrend, formatCurrencyAbbreviated, latestTransactionDate } from './finance';
+import { computeMonthlyTrend, formatCurrencyAbbreviated, latestTransactionDate, computeBudgetVsActual } from './finance';
 import { nextLoanPaymentDueDate, daysUntilLoanPaymentDue, isLoanPaymentOverdue } from './loanMath';
 import { getPayrollReminderStatus, DEFAULT_PAYROLL_DUE_SOON_DAY } from './payrollReminders';
 import { getUninvoicedOverdueTransactions } from './overdueTransactions';
@@ -144,6 +144,10 @@ export class AlertEngine {
     // Budgeting has gone dormant for the current month
     const budgetLapsedAlert = this.detectBudgetPeriodLapsedAlert();
     if (budgetLapsedAlert) alerts.push(budgetLapsedAlert);
+
+    // A budgeted category is meaningfully over its cap for the current month
+    const budgetOverspendAlerts = this.detectBudgetOverspendAlerts();
+    alerts.push(...budgetOverspendAlerts);
 
     // Assets nearing the end of their useful life
     const assetReplacementAlerts = this.detectAssetReplacementAlerts();
@@ -618,6 +622,42 @@ export class AlertEngine {
       ],
       createdAt: new Date().toISOString(),
     };
+  }
+
+  /**
+   * Detect a budgeted category running meaningfully over its cap this
+   * month -- the pipeline's missing "Alert" stage. computeBudgetVsActual
+   * (finance.ts) already computes the variance BudgetScreen displays as a
+   * per-category callout; this is the same numbers, surfaced proactively
+   * rather than only when the owner happens to open Budget. Only fires
+   * for a category actually 'over' (>5% past its cap, computeBudgetVsActual's
+   * own threshold) so a category tracking normally never alerts.
+   */
+  private detectBudgetOverspendAlerts(): ForecastAlert[] {
+    if (this.budgets.length === 0) return [];
+    const period = currentPeriodString();
+    const bva = computeBudgetVsActual(this.transactions, this.budgets, period);
+
+    return bva
+      .filter(b => b.status === 'over')
+      .map(b => {
+        const overage = Math.abs(b.variance);
+        const overPct = Math.abs(b.variancePct);
+        return {
+          id: `alert-budget-overspend-${period}-${b.category}`,
+          type: 'budget_overspend',
+          priority: overPct >= 50 ? 'high' : 'medium',
+          title: `⚠️ Over Budget: ${b.category}`,
+          description: `${b.category} spending is ${formatCurrencyAbbreviated(overage, this.currency)} (${overPct.toFixed(0)}%) over its ${period} budget of ${formatCurrencyAbbreviated(b.budgeted, this.currency)}.`,
+          amount: overage,
+          affectedDate: period,
+          recommendations: [
+            `Review recent ${b.category} transactions for anything avoidable this month`,
+            'Or reallocate budget from an under-spent category to cover it',
+          ],
+          createdAt: new Date().toISOString(),
+        };
+      });
   }
 
   /**

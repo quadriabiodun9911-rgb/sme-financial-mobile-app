@@ -22,6 +22,7 @@ import { showAlert, confirmAction } from '../utils/webAlert';
 import { computeRiskRadar } from '../utils/riskRadar';
 import { assessGoalRisk, GoalRiskSeverity } from '../utils/goalRiskLinkage';
 import { computeGoalBudgetAlignment, computeGoalForecastAlignment, computeRevenueMarginForecastAlignment } from '../utils/goalAlignment';
+import { computeGoalForecastGap } from '../utils/goalForecastGap';
 
 // Maps each goal type to the closest matching solution category — a
 // revenue/margin goal is fundamentally a pricing/growth problem, a cost or
@@ -201,6 +202,17 @@ export default function GoalsScreen() {
         const revenueForecast = computeRevenueForecast(transactions, 3, latestTransactionDate(transactions) ?? undefined);
         return computeRevenueMarginForecastAlignment(planGoal, revenueForecast, budgets, transactions, finance);
     }, [planGoal, transactions, budgets, finance]);
+
+    // "Is Your Forecast On Pace?" above asks whether the current monthly
+    // RATE is fast enough; this asks the product-vision question directly
+    // -- what TOTAL you'll actually reach by the deadline at that rate,
+    // and the gap against the target in real currency. See
+    // goalForecastGap.ts's own comment for why the two coexist rather than
+    // one replacing the other.
+    const planGoalForecastGap = useMemo(() => {
+        if (!planGoal || planGoal.type !== 'revenue_growth') return null;
+        return computeGoalForecastGap(planGoal, transactions, settings.currency);
+    }, [planGoal, transactions, settings.currency]);
 
     const showAlignmentTab = planGoal?.type === 'cost_reduction' || planGoal?.type === 'cash_reserve'
         || planGoal?.type === 'margin_improvement' || planGoal?.type === 'revenue_growth';
@@ -798,6 +810,26 @@ export default function GoalsScreen() {
                                                     </View>
                                                     {!planRevenueMarginForecastAlignment.onPace && (
                                                         <NextStepLink text="See the full revenue forecast" onPress={() => { setPlanGoalId(null); navigate('cfo', { tab: 'forecast' }); }} />
+                                                    )}
+                                                </>
+                                            )}
+
+                                            {planGoalForecastGap?.available && (
+                                                <>
+                                                    <View style={[styles.sectionTitleRow, { marginTop: 16 }]}>
+                                                        <Icon name="target" size={15} color={Colors.textPrimary} />
+                                                        <Text style={[styles.sectionTitle, styles.sectionTitleInRow]}>Target vs. Forecast</Text>
+                                                    </View>
+                                                    <View style={[styles.assessmentCard, { borderLeftColor: planGoalForecastGap.gap > 0 ? Colors.expense : Colors.income }]}>
+                                                        <Text style={styles.readinessNarrative}>{planGoalForecastGap.headline}</Text>
+                                                        {planGoalForecastGap.gap > 0 && (
+                                                            <Text style={[styles.readinessNarrative, { marginTop: 6, fontWeight: '700' }]}>
+                                                                Gap: {settings.currency}{Math.round(planGoalForecastGap.gap).toLocaleString()}
+                                                            </Text>
+                                                        )}
+                                                    </View>
+                                                    {planGoalForecastGap.prompt && (
+                                                        <Text style={[styles.strategyFooter, { fontStyle: 'italic' }]}>{planGoalForecastGap.prompt}</Text>
                                                     )}
                                                 </>
                                             )}

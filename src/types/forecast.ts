@@ -149,6 +149,7 @@ export type AlertType =
   | 'recurring_transaction_overdue'
   | 'recurring_transaction_due_soon'
   | 'budget_period_lapsed'
+  | 'budget_overspend'
   | 'asset_nearing_replacement'
   | 'inventory_stockout_risk'
   | 'tax_ability_to_pay_shortfall'

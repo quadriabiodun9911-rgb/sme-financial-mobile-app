@@ -61,6 +61,24 @@ export interface FinancialBehaviour {
     seasonalLowMonths: string[]; // months where revenue historically runs well below average
 }
 
+export type RevenueVolatility = FinancialBehaviour['revenueVolatility'];
+
+// Coefficient of variation on a set of monthly revenue figures -- a simple,
+// honest read on how predictable a business's income is, independent of
+// whether it's growing or shrinking. Extracted as its own export so any
+// other engine that needs a volatility read (e.g. smartBudget.ts's revenue
+// scenario bands) uses the exact same thresholds rather than an
+// independently-tuned second classification that could disagree with the
+// one shown on this DNA profile.
+export function computeRevenueVolatility(monthlyRevenues: number[]): RevenueVolatility {
+    if (monthlyRevenues.length < 3) return 'stable';
+    const mean = monthlyRevenues.reduce((s, v) => s + v, 0) / monthlyRevenues.length;
+    const variance = monthlyRevenues.reduce((s, v) => s + Math.pow(v - mean, 2), 0) / monthlyRevenues.length;
+    const stdDev = Math.sqrt(variance);
+    const cv = mean > 0 ? stdDev / mean : 0;
+    return cv >= 0.5 ? 'volatile' : cv >= 0.25 ? 'variable' : 'stable';
+}
+
 export function buildFinancialBehaviour(transactions: Transaction[], loans: Loan[], trend: TrendAnalysis): FinancialBehaviour {
     const wc = computeWorkingCapitalMetrics(transactions);
     const seasonal = computeSeasonalRisk(transactions);
@@ -70,17 +88,7 @@ export function buildFinancialBehaviour(transactions: Transaction[], loans: Loan
         ? monthsWithRevenue.reduce((s, m) => s + m.revenue, 0) / monthsWithRevenue.length
         : 0;
 
-    // Coefficient of variation on monthly revenue — a simple, honest read on
-    // how predictable this business's income is, independent of whether it's
-    // growing or shrinking.
-    let revenueVolatility: FinancialBehaviour['revenueVolatility'] = 'stable';
-    if (monthsWithRevenue.length >= 3) {
-        const mean = avgMonthlyRevenue;
-        const variance = monthsWithRevenue.reduce((s, m) => s + Math.pow(m.revenue - mean, 2), 0) / monthsWithRevenue.length;
-        const stdDev = Math.sqrt(variance);
-        const cv = mean > 0 ? stdDev / mean : 0;
-        revenueVolatility = cv >= 0.5 ? 'volatile' : cv >= 0.25 ? 'variable' : 'stable';
-    }
+    const revenueVolatility = computeRevenueVolatility(monthsWithRevenue.map(m => m.revenue));
 
     return {
         avgMonthlyRevenue,
