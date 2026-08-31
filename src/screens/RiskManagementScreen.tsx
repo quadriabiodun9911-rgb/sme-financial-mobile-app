@@ -21,6 +21,7 @@ import { computeExpenseSeasonalityPattern } from '../utils/seasonality';
 import { MACRO_ASSUMPTION_SUGGESTIONS } from '../utils/macroAssumptionSuggestions';
 import { fetchLiveFxRate, computeFxChangeSuggestion, recordFxSnapshot, LiveFxRate, FxChangeSuggestion } from '../utils/macroFeed';
 import { loadFxSnapshots, saveFxSnapshots } from '../utils/storage';
+import { computeSupplierIntelligence } from '../utils/supplierIntelligence';
 
 type Tab = 'overview' | 'concentration' | 'seasonal' | 'economic';
 
@@ -83,6 +84,7 @@ export default function RiskManagementScreen() {
     const riskRadar     = useMemo(() => computeRiskRadar(transactions, loans, settings?.macroAssumptions ?? [], new Date(), assets), [transactions, loans, settings?.macroAssumptions, assets]);
     const customerConc  = useMemo(() => computeCustomerConcentration(transactions), [transactions]);
     const supplierConc  = useMemo(() => computeSupplierConcentration(transactions), [transactions]);
+    const supplierIntel = useMemo(() => computeSupplierIntelligence(transactions, inventory, currency), [transactions, inventory, currency]);
     const lenderConc    = useMemo(() => computeLenderConcentration(loans), [loans]);
     const seasonal      = useMemo(() => computeSeasonalRisk(transactions), [transactions]);
     const expenseSeasonality = useMemo(() => computeExpenseSeasonalityPattern(transactions), [transactions]);
@@ -299,6 +301,35 @@ export default function RiskManagementScreen() {
                                 );
                             })()}
                         </View>
+
+                        {supplierIntel.available && (
+                            <View style={s.card}>
+                                <Text style={s.cardTitle}>Supplier Intelligence</Text>
+                                <Text style={s.cardSub}>Purchase frequency and cost trend for each supplier, plus current payment terms and logistics spend.</Text>
+                                {supplierIntel.suppliers.slice(0, 8).map((sp, i) => (
+                                    <View key={i} style={[s.concRow, { flexDirection: 'column', alignItems: 'stretch' }]}>
+                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                                            <Text style={s.concName}>{sp.supplier}</Text>
+                                            <Text style={s.concPct}>{currency}{Math.round(sp.totalSpent).toLocaleString()}</Text>
+                                        </View>
+                                        <Text style={[s.cardSub, { marginTop: 2, marginBottom: sp.priceCreep ? 2 : 0 }]}>{sp.frequencyLabel}</Text>
+                                        {sp.priceCreep && (
+                                            <Text style={[s.cardSub, { color: Colors.warning }]}>⚠ {sp.priceCreep.message}</Text>
+                                        )}
+                                    </View>
+                                ))}
+                                <Text style={[s.cardSub, { marginTop: 8 }]}>
+                                    Current supplier payment terms: about {Math.round(supplierIntel.currentPayablesDays)} days.
+                                    {' '}<Text style={{ color: Colors.primary }} onPress={() => navigate('reports', { reportSection: 'statements', reportTab: 'workingcapitalhealth' })}>See the payment-terms trend →</Text>
+                                </Text>
+                                {supplierIntel.logistics?.available && (
+                                    <Text style={[s.cardSub, { marginTop: 6 }]}>🚚 {supplierIntel.logistics.message}</Text>
+                                )}
+                                {supplierIntel.inventoryTurnover.length > 0 && supplierIntel.inventoryTurnover.map((t, i) => (
+                                    <Text key={i} style={[s.cardSub, { marginTop: 4 }]}>📦 {t.supplier}: {t.summary}</Text>
+                                ))}
+                            </View>
+                        )}
 
                         <View style={s.card}>
                             <Text style={s.cardTitle}>Lender Dependency Risk</Text>

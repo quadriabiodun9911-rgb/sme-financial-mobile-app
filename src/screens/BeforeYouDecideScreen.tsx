@@ -13,6 +13,7 @@ import LoanAffordabilityChecker from '../components/LoanAffordabilityChecker';
 import { computeCashRunway } from '../utils/cashRunway';
 import { loanMonthlyPayment } from '../utils/finance';
 import { computeBreakeven } from '../utils/profitability';
+import { computeInventoryDecisions, summarizeInventoryDecisions } from '../utils/inventoryDecisions';
 
 /**
  * These four checks already existed — GrowthAffordabilityCalculator and
@@ -27,7 +28,7 @@ import { computeBreakeven } from '../utils/profitability';
  * same components (and therefore the same numbers) reused as-is.
  */
 export default function BeforeYouDecideScreen() {
-    const { finance, transactions, loans, settings, navigate } = useApp();
+    const { finance, transactions, loans, inventory, settings, navigate } = useApp();
     const { currency } = settings;
 
     // Same trailing-30-day burn/profit derivation LoansAndDebt.tsx already
@@ -51,6 +52,16 @@ export default function BeforeYouDecideScreen() {
         .reduce((s, l) => s + loanMonthlyPayment(l.principal, l.interestRate, l.termMonths), 0);
 
     const breakeven = computeBreakeven(transactions, settings);
+
+    // Reuses the exact same reorder-affordability signal already shown on
+    // Inventory & Stock's Pricing tab (InventoryPricingTab.tsx) -- this is
+    // "Can I afford to hire/expand/borrow?" grouped alongside "Can I afford
+    // to restock?", not a second, independently-computed affordability
+    // check.
+    const inventoryDecisions = computeInventoryDecisions(inventory, transactions, finance.cashBalance, currency);
+    const inventorySummary = summarizeInventoryDecisions(inventoryDecisions);
+    const reorderDecisions = inventoryDecisions.filter(d => d.action === 'reorder');
+    const unaffordableReorders = reorderDecisions.filter(d => d.affordable === false);
 
     return (
         <SafeAreaView style={styles.safe}>
@@ -90,6 +101,31 @@ export default function BeforeYouDecideScreen() {
                 <Collapsible title="Discount & Breakeven Impact">
                     <BreakevenAnalysis result={breakeven} currency={currency} />
                 </Collapsible>
+
+                {reorderDecisions.length > 0 && (
+                    <>
+                        <View style={styles.decisionCard}>
+                            <Text style={styles.decisionQuestion}>Planning to restock inventory?</Text>
+                            <Text style={styles.decisionHelp}>Whether cash on hand actually covers what's due for reorder right now.</Text>
+                        </View>
+                        <Collapsible title="Restock Affordability">
+                            <Text style={styles.decisionHelp}>
+                                {inventorySummary.reorderCount} item{inventorySummary.reorderCount !== 1 ? 's' : ''} at or below reorder level, totalling about {currency}{Math.round(inventorySummary.reorderCost).toLocaleString()} to restock.
+                                {unaffordableReorders.length > 0
+                                    ? ` ${unaffordableReorders.length} of those would exceed your current cash on hand (${currency}${Math.round(finance.cashBalance).toLocaleString()}).`
+                                    : ' Current cash on hand covers all of them.'}
+                            </Text>
+                            {reorderDecisions.slice(0, 8).map(d => (
+                                <Text key={d.itemId} style={[styles.decisionHelp, { marginTop: 6, color: d.affordable ? Colors.textSecondary : Colors.expense }]}>
+                                    {d.affordable ? '✓' : '✗'} {d.itemName} — {d.detail}
+                                </Text>
+                            ))}
+                            <TouchableOpacity onPress={() => navigate('inventory', { tab: 'pricing' })}>
+                                <Text style={[styles.decisionHelp, { color: Colors.primary, marginTop: 8 }]}>See full restock/reduce/discontinue list → Inventory</Text>
+                            </TouchableOpacity>
+                        </Collapsible>
+                    </>
+                )}
 
                 <View style={styles.decisionCard}>
                     <Text style={styles.decisionQuestion}>Taking a loan?</Text>
