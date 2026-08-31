@@ -12,6 +12,11 @@ import { computeRiskRadar, RiskLevel } from '../utils/riskRadar';
 import { computeReadinessDelta } from '../utils/readinessHistory';
 import { computeBusinessExposure, computeBusinessResilience, describeHealthResilienceGap, ExposureLevel } from '../utils/businessExposure';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
+import { computeFinancialHealthPillars, PillarStatus } from '../utils/financialHealthPillars';
+import { analyzeTrend } from '../utils/trendAnalysis';
+import { buildFinancialBehaviour } from '../utils/businessFinancialDNA';
+import { computeExpenseLeaks } from '../utils/expenseLeakDetection';
+import { computeUnusualSpending } from '../utils/unusualSpending';
 import { generateActionPlan } from '../utils/actionRecommendationEngine';
 import { calculateGoalBridge, mapSavedGoalToBridge } from '../utils/goalBridgeEngine';
 import { assessGoalRisk, GoalRiskAssessment } from '../utils/goalRiskLinkage';
@@ -33,6 +38,7 @@ const RISK_LEVEL_META: Record<RiskLevel, { color: string; dot: string }> = {
 };
 
 const FACTOR_STATUS_COLOR: Record<string, string> = { good: Colors.income, warning: Colors.warning, danger: Colors.expense };
+const PILLAR_STATUS_COLOR: Record<PillarStatus, string> = { good: Colors.income, warning: Colors.warning, danger: Colors.expense };
 
 const EXPOSURE_LEVEL_META: Record<ExposureLevel, { color: string; dot: string }> = {
     high:    { color: Colors.expense,  dot: '🔴' },
@@ -100,6 +106,25 @@ export default function ScoreboardScreen() {
     );
     const resilience = useMemo(() => computeBusinessResilience(exposure), [exposure]);
     const resilienceGap = useMemo(() => describeHealthResilienceGap(risk.score, resilience), [risk.score, resilience]);
+
+    // Financial Health Score, regrouped into the product-vision document's
+    // 8-pillar taxonomy -- see financialHealthPillars.ts's own doc comment
+    // for why this is a relabeling of the SAME risk/resilience numbers
+    // above, not a second score. The three narrative extras are each cheap,
+    // pure, transactions-only reads (no gating needed the way the goal-risk
+    // diagnosis above requires 5+ transactions).
+    const trend = useMemo(() => analyzeTrend(transactions), [transactions]);
+    const behaviour = useMemo(() => buildFinancialBehaviour(transactions, loans, trend), [transactions, loans, trend]);
+    const expenseLeaks = useMemo(() => computeExpenseLeaks(transactions, currency), [transactions, currency]);
+    const unusualSpending = useMemo(() => computeUnusualSpending(transactions, currency), [transactions, currency]);
+    const pillars = useMemo(
+        () => computeFinancialHealthPillars(risk, transactions, resilience, {
+            revenueVolatility: behaviour.revenueVolatility,
+            expenseLeakCount: expenseLeaks.available ? expenseLeaks.recurringGroups.length : undefined,
+            unusualSpendingCount: unusualSpending.available ? unusualSpending.flags.length : undefined,
+        }),
+        [risk, transactions, resilience, behaviour, expenseLeaks, unusualSpending],
+    );
 
     // Same worsened/improved factors CreditWorthinessScreen lists in full,
     // condensed into the single flowing sentence next to the score itself
@@ -214,6 +239,35 @@ export default function ScoreboardScreen() {
                     <TouchableOpacity style={s.linkRow} onPress={() => setCurrentScreen('credit-worthiness')}>
                         <Text style={s.linkText}>See full readiness trend & breakdown →</Text>
                     </TouchableOpacity>
+                </View>
+
+                {/* Financial Health Score, by pillar -- the exact same score
+                    above, broken down a second way (Cash Health, Working
+                    Capital folding in Inventory, Revenue Health isolating
+                    customer concentration specifically, etc.) instead of
+                    computeRiskScore's own factor names. Same tap-to-expand
+                    pattern as the chips above. */}
+                <View style={s.card}>
+                    <View style={s.cardHeaderRow}>
+                        <Icon name="grid" size={14} color={Colors.textMuted} />
+                        <Text style={s.cardTitle}>Financial Health — By Pillar</Text>
+                    </View>
+                    <View style={s.factorChipsRow}>
+                        {pillars.pillars.map(p => {
+                            const key = `pillar:${p.key}`;
+                            const isOpen = expandedChip === key;
+                            return (
+                                <TouchableOpacity key={p.key} style={[s.factorChip, isOpen && s.factorChipOpen]} onPress={() => toggleChip(key)} activeOpacity={0.7}>
+                                    <View style={[s.factorDot, { backgroundColor: PILLAR_STATUS_COLOR[p.status] }]} />
+                                    <Text style={s.factorChipText}>{p.label}</Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
+                    {pillars.pillars.map(p => expandedChip === `pillar:${p.key}` && (
+                        <Text key={p.key} style={s.chipExplanation}>{p.score}/100 — {p.explanation}</Text>
+                    ))}
+                    <Text style={s.chipHint}>Tap a pillar above to see why it's that color</Text>
                 </View>
 
                 {/* Business Exposure & Resilience -- complements Health:
