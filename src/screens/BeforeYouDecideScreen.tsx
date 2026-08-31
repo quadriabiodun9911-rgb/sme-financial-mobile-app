@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { SafeAreaView, ScrollView, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -10,10 +10,13 @@ import GrowthAffordabilityCalculator from '../components/GrowthAffordabilityCalc
 import BuyVsFinanceCalculator from '../components/BuyVsFinanceCalculator';
 import BreakevenAnalysis from '../components/BreakevenAnalysis';
 import LoanAffordabilityChecker from '../components/LoanAffordabilityChecker';
+import DecisionSimulator from '../components/DecisionSimulator';
 import { computeCashRunway } from '../utils/cashRunway';
-import { loanMonthlyPayment } from '../utils/finance';
+import { computeRiskScore, loanMonthlyPayment } from '../utils/finance';
 import { computeBreakeven } from '../utils/profitability';
 import { computeInventoryDecisions, summarizeInventoryDecisions } from '../utils/inventoryDecisions';
+import { computeBusinessExposure, computeBusinessResilience } from '../utils/businessExposure';
+import { computeFinancialHealthPillars } from '../utils/financialHealthPillars';
 
 /**
  * These four checks already existed — GrowthAffordabilityCalculator and
@@ -28,8 +31,20 @@ import { computeInventoryDecisions, summarizeInventoryDecisions } from '../utils
  * same components (and therefore the same numbers) reused as-is.
  */
 export default function BeforeYouDecideScreen() {
-    const { finance, transactions, loans, inventory, settings, navigate } = useApp();
+    const { finance, transactions, loans, inventory, assets, settings, navigate } = useApp();
     const { currency } = settings;
+
+    // Same risk/resilience/pillar pipeline the Scoreboard already computes
+    // for its "Financial Health -- By Pillar" card -- reused here only for
+    // the Decision Simulator's Expansion Readiness banner below, never a
+    // second, independently-tuned score.
+    const risk = useMemo(() => computeRiskScore(finance, loans, transactions, inventory), [finance, loans, transactions, inventory]);
+    const exposure = useMemo(
+        () => computeBusinessExposure(transactions, loans, inventory, settings?.macroAssumptions ?? [], finance, settings?.nextTaxDeadline, currency),
+        [transactions, loans, inventory, settings?.macroAssumptions, finance, settings?.nextTaxDeadline, currency],
+    );
+    const resilience = useMemo(() => computeBusinessResilience(exposure), [exposure]);
+    const pillars = useMemo(() => computeFinancialHealthPillars(risk, transactions, resilience), [risk, transactions, resilience]);
 
     // Same trailing-30-day burn/profit derivation LoansAndDebt.tsx already
     // uses for these exact same components -- kept identical so a number
@@ -84,6 +99,16 @@ export default function BeforeYouDecideScreen() {
                 </View>
                 <Collapsible title="Growth Affordability Check">
                     <GrowthAffordabilityCalculator currency={currency} currentCashBalance={finance.cashBalance} monthlyBurn={monthlyBurn} />
+                </Collapsible>
+
+                {/* Financial Decision Simulator -- "can my business afford
+                    this decision?" as one direct question (a hire's salary,
+                    a second location's added fixed cost), distinct from the
+                    Growth Affordability Check above, which is the right tool
+                    when there's an upfront cost and a revenue ramp-up to
+                    model. See financialDecisionSimulator.ts. */}
+                <Collapsible title="Quick Affordability Check (hire, new cost, or expansion)">
+                    <DecisionSimulator currency={currency} transactions={transactions} currentCashBalance={finance.cashBalance} pillars={pillars.pillars} />
                 </Collapsible>
 
                 <View style={styles.decisionCard}>

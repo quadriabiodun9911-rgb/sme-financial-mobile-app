@@ -93,4 +93,87 @@ describe('computeExpenseIntelligence', () => {
         expect(legal.spendGrowthPct).toBeNull();
         expect(legal.narrative).toMatch(/new or newly-active expense category/i);
     });
+
+    describe('expense tier classification', () => {
+        // Same vendor key per category (vendorCustomer), distinct across
+        // categories, so computeExpenseLeaks' vendor grouping never
+        // collides two test categories into one recurring group.
+        function categoryTx(category: string, vendor: string, amount: number, date: string, type: 'expense' | 'income' = 'expense'): Transaction {
+            return makeTx({ category, vendorCustomer: vendor, amount, date, type });
+        }
+
+        it('classifies a category growing meaningfully faster than revenue as Review', () => {
+            const priorSoftware = monthlyCategorySpend('Software & Subscriptions', Array(6).fill(100000), '2025-07');
+            const currentSoftware = monthlyCategorySpend('Software & Subscriptions', Array(6).fill(137000), '2026-01');
+            const priorRevenue = monthlyCategorySpend('Sales', Array(6).fill(1000000), '2025-07').map(t => ({ ...t, type: 'income' as const }));
+            const currentRevenue = monthlyCategorySpend('Sales', Array(6).fill(1080000), '2026-01').map(t => ({ ...t, type: 'income' as const }));
+            const txs = [...priorSoftware, ...currentSoftware, ...priorRevenue, ...currentRevenue];
+
+            const result = computeExpenseIntelligence(txs, '₦', 6);
+            const software = result.categories.find(c => c.category === 'Software & Subscriptions')!;
+            expect(software.tier).toBe('review');
+        });
+
+        it('classifies a recurring vendor whose per-charge price has crept up as Reduce, when the category overall does not look concerning', () => {
+            const priorAmounts = [90000, 100000, 100000, 100000, 100000, 100000];
+            const currentAmounts = [100000, 100000, 100000, 100000, 100000, 115000];
+            const hosting: Transaction[] = [];
+            [...priorAmounts.map((a, i) => ({ a, m: `2025-${String(7 + i).padStart(2, '0')}` })),
+             ...currentAmounts.map((a, i) => ({ a, m: `2026-${String(1 + i).padStart(2, '0')}` }))]
+                .forEach(({ a, m }) => hosting.push(categoryTx('Hosting & Infrastructure', 'HostingCo', a, `${m}-10`)));
+            const revenue = [
+                ...Array(6).fill(0).map((_, i) => categoryTx('Sales', 'Customer', 1000000, `2025-${String(7 + i).padStart(2, '0')}-05`, 'income')),
+                ...Array(6).fill(0).map((_, i) => categoryTx('Sales', 'Customer', 1000000, `2026-${String(1 + i).padStart(2, '0')}-05`, 'income')),
+            ];
+            const result = computeExpenseIntelligence([...hosting, ...revenue], '₦', 6);
+            const hostingInsight = result.categories.find(c => c.category === 'Hosting & Infrastructure')!;
+            expect(hostingInsight.concern).toBe(false);
+            expect(hostingInsight.tier).toBe('reduce');
+        });
+
+        it('classifies a category growing alongside (not ahead of) revenue growth as Invest', () => {
+            const priorAmounts = Array(6).fill(100000);
+            const currentAmounts = Array(6).fill(110000); // +10%
+            const marketing: Transaction[] = [
+                ...priorAmounts.map((a, i) => categoryTx('Marketing', `Vendor${i}`, a, `2025-${String(7 + i).padStart(2, '0')}-10`)),
+                ...currentAmounts.map((a, i) => categoryTx('Marketing', `Vendor${i}`, a, `2026-${String(1 + i).padStart(2, '0')}-10`)),
+            ];
+            const revenue = [
+                ...Array(6).fill(0).map((_, i) => categoryTx('Sales', 'Customer', 1000000, `2025-${String(7 + i).padStart(2, '0')}-05`, 'income')),
+                ...Array(6).fill(0).map((_, i) => categoryTx('Sales', 'Customer', 1200000, `2026-${String(1 + i).padStart(2, '0')}-05`, 'income')), // +20%
+            ];
+            const result = computeExpenseIntelligence([...marketing, ...revenue], '₦', 6);
+            const marketingInsight = result.categories.find(c => c.category === 'Marketing')!;
+            expect(marketingInsight.concern).toBe(false);
+            expect(marketingInsight.tier).toBe('invest');
+        });
+
+        it('classifies a flat, ongoing recurring category as Protect', () => {
+            const rent = [
+                ...Array(6).fill(0).map((_, i) => categoryTx('Rent', 'Landlord', 100000, `2025-${String(7 + i).padStart(2, '0')}-01`)),
+                ...Array(6).fill(0).map((_, i) => categoryTx('Rent', 'Landlord', 100000, `2026-${String(1 + i).padStart(2, '0')}-01`)),
+            ];
+            const revenue = [
+                ...Array(6).fill(0).map((_, i) => categoryTx('Sales', 'Customer', 1000000, `2025-${String(7 + i).padStart(2, '0')}-05`, 'income')),
+                ...Array(6).fill(0).map((_, i) => categoryTx('Sales', 'Customer', 1000000, `2026-${String(1 + i).padStart(2, '0')}-05`, 'income')),
+            ];
+            const result = computeExpenseIntelligence([...rent, ...revenue], '₦', 6);
+            const rentInsight = result.categories.find(c => c.category === 'Rent')!;
+            expect(rentInsight.tier).toBe('protect');
+        });
+
+        it('falls back to Optimize for a flat, non-recurring (different vendor each month) category', () => {
+            const misc = [
+                ...Array(6).fill(0).map((_, i) => categoryTx('Miscellaneous', `Vendor${i}`, 20000, `2025-${String(7 + i).padStart(2, '0')}-15`)),
+                ...Array(6).fill(0).map((_, i) => categoryTx('Miscellaneous', `Vendor${6 + i}`, 20000, `2026-${String(1 + i).padStart(2, '0')}-15`)),
+            ];
+            const revenue = [
+                ...Array(6).fill(0).map((_, i) => categoryTx('Sales', 'Customer', 1000000, `2025-${String(7 + i).padStart(2, '0')}-05`, 'income')),
+                ...Array(6).fill(0).map((_, i) => categoryTx('Sales', 'Customer', 1000000, `2026-${String(1 + i).padStart(2, '0')}-05`, 'income')),
+            ];
+            const result = computeExpenseIntelligence([...misc, ...revenue], '₦', 6);
+            const miscInsight = result.categories.find(c => c.category === 'Miscellaneous')!;
+            expect(miscInsight.tier).toBe('optimize');
+        });
+    });
 });

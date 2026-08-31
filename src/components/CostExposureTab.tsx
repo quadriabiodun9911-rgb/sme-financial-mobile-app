@@ -9,7 +9,7 @@ import { computeExternalRiskInsights, ExternalRiskInsight } from '../utils/exter
 import { computeLaborProductivity } from '../utils/laborProductivity';
 import { computeExpenseLeaks, ExpenseLeakResult } from '../utils/expenseLeakDetection';
 import { computeUnusualSpending, UnusualSpendingResult } from '../utils/unusualSpending';
-import { computeExpenseIntelligence, ExpenseIntelligenceResult } from '../utils/expenseIntelligence';
+import { computeExpenseIntelligence, ExpenseIntelligenceResult, ExpenseTier } from '../utils/expenseIntelligence';
 import RadialGauge from './RadialGauge';
 import BarList from './BarList';
 import GroupedBarChart from './GroupedBarChart';
@@ -17,6 +17,14 @@ import GroupedBarChart from './GroupedBarChart';
 const DECISION_COLOR: Record<CostDecisionAction, string> = {
     cut: Colors.expense,
     negotiate: Colors.warning,
+};
+
+const TIER_META: Record<ExpenseTier, { label: string; color: string }> = {
+    protect: { label: 'Protect', color: Colors.income },
+    invest: { label: 'Invest', color: Colors.primary },
+    optimize: { label: 'Optimize', color: Colors.textMuted },
+    review: { label: 'Review', color: Colors.warning },
+    reduce: { label: 'Reduce', color: Colors.expense },
 };
 const DECISION_LABEL: Record<CostDecisionAction, string> = {
     cut: 'Cut',
@@ -309,7 +317,12 @@ function ExpenseIntelligenceCard({ result, currency }: { result: ExpenseIntellig
             {result.categories.slice(0, 6).map(cat => (
                 <View key={cat.category} style={s.driverRow}>
                     <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 13, fontWeight: '700', color: Colors.textPrimary }}>{cat.category}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Text style={{ fontSize: 13, fontWeight: '700', color: Colors.textPrimary }}>{cat.category}</Text>
+                            <View style={[s.tierPill, { backgroundColor: TIER_META[cat.tier].color + '22' }]}>
+                                <Text style={[s.tierPillText, { color: TIER_META[cat.tier].color }]}>{TIER_META[cat.tier].label}</Text>
+                            </View>
+                        </View>
                         <Text style={{ fontSize: 11, color: Colors.textMuted, marginTop: 1 }}>{fmtCompact(currency, cat.monthlyRate)}/month</Text>
                     </View>
                     {cat.spendGrowthPct !== null && (
@@ -319,11 +332,12 @@ function ExpenseIntelligenceCard({ result, currency }: { result: ExpenseIntellig
                     )}
                 </View>
             ))}
-            {result.categories.filter(c => c.concern).map(cat => (
-                <View key={`concern-${cat.category}`} style={[s.laborNoteBox, { borderLeftColor: Colors.expense, borderLeftWidth: 3 }]}>
-                    <Text style={s.laborNoteText}>{cat.narrative}</Text>
+            {result.categories.filter(c => c.tier === 'review' || c.tier === 'reduce').map(cat => (
+                <View key={`tier-${cat.category}`} style={[s.laborNoteBox, { borderLeftColor: TIER_META[cat.tier].color, borderLeftWidth: 3 }]}>
+                    <Text style={s.laborNoteText}>{cat.narrative} {cat.tierReason}</Text>
                 </View>
             ))}
+            <Text style={s.tierDisclaimer}>Protect / Optimize / Review / Reduce / Invest are recommendations to think about, not automatic financial advice.</Text>
         </View>
     );
 }
@@ -463,4 +477,8 @@ const s = StyleSheet.create({
     laborText: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 19 },
     laborNoteBox: { marginTop: 10, backgroundColor: Colors.warning + '15', borderRadius: 10, padding: 10 },
     laborNoteText: { fontSize: 11.5, color: Colors.textSecondary, lineHeight: 16 },
+
+    tierPill: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },
+    tierPillText: { fontSize: 9.5, fontWeight: '800' },
+    tierDisclaimer: { fontSize: 10, color: Colors.textMuted, fontStyle: 'italic', marginTop: 10 },
 });

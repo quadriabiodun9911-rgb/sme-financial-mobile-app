@@ -15,11 +15,33 @@
  * category's OWN growth rate against revenue's OWN growth rate over the
  * same window, which is the comparison this product-vision example
  * actually wants.
+ *
+ * Each category is also classified into one of five tiers -- Protect,
+ * Optimize, Review, Reduce, Invest -- a RECOMMENDATION, not automatic
+ * financial advice, built entirely from signals this app already computes
+ * elsewhere, never a new independently-tuned score:
+ *  - Review: exactly the existing `concern` flag above (spend growth
+ *    meaningfully outpacing revenue growth) -- the "Marketing +31% while
+ *    revenue +6%" example is already a Review by this same rule.
+ *  - Reduce: the category has an active price-creep flag from
+ *    computeExpenseLeaks -- a specific vendor's charge climbing on its own,
+ *    already-vetted evidence of "declining return," not a guess.
+ *  - Invest: spend AND revenue are both growing, and it's NOT a Review --
+ *    growth that's keeping pace with (not outrunning) the business's own
+ *    growth reads as "connected to" that growth.
+ *  - Protect: the category matches a recurring vendor group
+ *    (computeExpenseLeaks' own recurring-charge detector) and isn't
+ *    flagged Review or Reduce -- an ongoing, stable commitment.
+ *  - Optimize: the fallback for everything else -- a real, meaningful
+ *    expense with no strong signal either way, worth a look.
  */
 
 import { Transaction } from '../types';
 import { computeAllTimeMonthlyBuckets } from './trendAnalysis';
 import { computeCostExposure } from './costExposure';
+import { computeExpenseLeaks } from './expenseLeakDetection';
+
+export type ExpenseTier = 'protect' | 'optimize' | 'review' | 'reduce' | 'invest';
 
 export interface RecurringExpenseCategoryInsight {
     category: string;
@@ -27,6 +49,8 @@ export interface RecurringExpenseCategoryInsight {
     spendGrowthPct: number | null;
     narrative: string;
     concern: boolean; // expense growth is meaningfully outpacing revenue growth
+    tier: ExpenseTier;
+    tierReason: string;
 }
 
 export interface ExpenseIntelligenceResult {
@@ -90,6 +114,16 @@ export function computeExpenseIntelligence(
     }
     const revenueGrowthPct = priorRevenue > 0 ? ((currentRevenue - priorRevenue) / priorRevenue) * 100 : null;
 
+    // Reuse computeExpenseLeaks' own vendor-level findings rather than
+    // re-deriving "is this category a leak / a recurring commitment" --
+    // matched by category name, since that engine already groups by
+    // individual vendor, not category.
+    const leaks = computeExpenseLeaks(transactions, currency);
+    const priceCreepCategories = new Set(
+        leaks.leaks.filter(l => l.reason === 'price-creep' && l.group).map(l => l.group!.category)
+    );
+    const recurringCategories = new Set(leaks.recurringGroups.map(g => g.category));
+
     const categories: RecurringExpenseCategoryInsight[] = exposure.signals
         .filter(s => s.currentSpend > 0)
         .map(s => {
@@ -103,9 +137,43 @@ export function computeExpenseIntelligence(
             const concern = s.spendGrowthPct !== null
                 && s.spendGrowthPct > 0
                 && (revenueGrowthPct === null || s.spendGrowthPct - revenueGrowthPct >= CONCERN_GAP_PCT_POINTS);
-            return { category: s.category, monthlyRate, spendGrowthPct: s.spendGrowthPct, narrative, concern };
+
+            const { tier, tierReason } = classifyExpenseTier(
+                s.category, s.spendGrowthPct, revenueGrowthPct, concern,
+                priceCreepCategories.has(s.category), recurringCategories.has(s.category),
+            );
+
+            return { category: s.category, monthlyRate, spendGrowthPct: s.spendGrowthPct, narrative, concern, tier, tierReason };
         })
         .sort((a, b) => b.monthlyRate - a.monthlyRate);
 
     return { available: true, windowMonths, revenueGrowthPct, categories };
+}
+
+function classifyExpenseTier(
+    category: string,
+    spendGrowthPct: number | null,
+    revenueGrowthPct: number | null,
+    concern: boolean,
+    isPriceCreepFlagged: boolean,
+    isRecurring: boolean,
+): { tier: ExpenseTier; tierReason: string } {
+    // Review (a business-level "this category's trajectory relative to
+    // revenue is a concern") takes priority over Reduce (a narrower,
+    // single-vendor "this specific recurring charge has crept up") --
+    // the former is the stronger, more actionable signal when both would
+    // otherwise apply to the same category.
+    if (concern) {
+        return { tier: 'review', tierReason: `${category} is growing meaningfully faster than revenue — worth reviewing efficiency here before increasing this budget further.` };
+    }
+    if (isPriceCreepFlagged) {
+        return { tier: 'reduce', tierReason: `${category} has a vendor charge that's been climbing on its own — worth negotiating or replacing.` };
+    }
+    if (spendGrowthPct !== null && spendGrowthPct > 0 && revenueGrowthPct !== null && revenueGrowthPct > 0) {
+        return { tier: 'invest', tierReason: `${category} is growing alongside revenue, not ahead of it — spending here appears connected to measurable growth.` };
+    }
+    if (isRecurring) {
+        return { tier: 'protect', tierReason: `${category} is an ongoing, stable commitment — critical to keeping operations running.` };
+    }
+    return { tier: 'optimize', tierReason: `${category} is a meaningful expense with no strong signal either way — a reasonable candidate to review for efficiency.` };
 }
