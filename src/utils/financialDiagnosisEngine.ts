@@ -6,6 +6,8 @@
 import { Transaction, Invoice, Loan, InventoryItem, Asset, GoalType } from '../types';
 import { computeDSCR, computeWorkingCapitalMetrics, computeCustomerConcentration, computeSupplierConcentration, computeRiskScore, computeImprovementProjection, computeProperCashFlow, RiskScore, DSCRResult } from './finance';
 import { computeStockVelocity } from './stockVelocity';
+import { computeBalanceSheetTrend } from './balanceSheetTrend';
+import { pctChange } from './cashFlowHealth';
 
 export interface FinancialMetrics {
   // Profitability
@@ -36,6 +38,12 @@ export interface FinancialMetrics {
   // the diagnosis narrative below and the pillar score never disagree.
   operatingCashFlow: number;
   cashFlowConversionPct: number | null; // null when there's no positive profit this month to rate a conversion % against
+  // Month-over-month growth in the accounts receivable BALANCE (a genuine
+  // snapshot-vs-snapshot comparison via computeBalanceSheetTrend), not the
+  // flow-based uncollectedAR computeProperCashFlow uses for the OCF
+  // adjustment itself. Powers diagnoseCashFlow's "key driver" line -- null
+  // when last month had no receivable balance to compare against.
+  receivablesGrowthPct: number | null;
 
   // Inventory
   inventoryValue: number;
@@ -71,6 +79,11 @@ export interface RootCauseAnalysis {
   problem: string;
   severity: 'critical' | 'warning' | 'info';
   rootCause: string;
+  // Optional, quantified "why is this happening" line -- e.g. "Accounts
+  // receivable increased by 24% while revenue increased by only 8%." Set
+  // only where a concrete driver can be pinned down (currently just the
+  // cash-flow diagnosis below); most diagnoses have none, hence optional.
+  keyDriver?: string;
   impact: string;
   financialImpact: number;
   opportunity: string;
@@ -274,6 +287,19 @@ export function calculateFinancialMetrics(
   const operatingCashFlow = computeProperCashFlow(thisMonthAllTransactions, assetsAsOfThisMonth).operatingCF;
   const cashFlowConversionPct = netProfit > 0 ? (operatingCashFlow / netProfit) * 100 : null;
 
+  // Receivables balance month-over-month -- a real snapshot-vs-snapshot
+  // comparison (computeBalanceSheetTrend's "still unpaid as of that date"
+  // reconstruction), distinct from the uncollectedAR flow figure used just
+  // above for the OCF adjustment. This is what lets diagnoseCashFlow name a
+  // concrete driver ("receivables grew X% while revenue grew Y%") instead
+  // of only reporting that conversion is low.
+  const bsTrendForDriver = computeBalanceSheetTrend('monthly', [lastMonth, thisMonth].sort(), transactions, assets, []);
+  const thisMonthBS = bsTrendForDriver.find(p => p.key === thisMonth);
+  const lastMonthBS = bsTrendForDriver.find(p => p.key === lastMonth);
+  const receivablesGrowthPct = thisMonthBS && lastMonthBS && lastMonthBS.accountsReceivable > 0
+    ? pctChange(thisMonthBS.accountsReceivable, lastMonthBS.accountsReceivable)
+    : null;
+
   // Growth calculation
   const monthOverMonthGrowth =
     lastMonthRevenueComparable > 0 ? ((thisMonthRevenue - lastMonthRevenueComparable) / lastMonthRevenueComparable) * 100 : 0;
@@ -377,6 +403,7 @@ export function calculateFinancialMetrics(
     monthlyDebtService: dscrResult.totalDebtService / 12,
     operatingCashFlow,
     cashFlowConversionPct,
+    receivablesGrowthPct,
     inventoryValue,
     slowMovingValuePct,
     topCustomerConcentrationPct: customerConcentration[0]?.percentage ?? 0,
@@ -550,6 +577,26 @@ export function diagnoseDebt(
 // pillar's own chip color: a business could see an amber "Watch" Operating
 // Cash Flow chip with nothing in "What Quad360 Sees" explaining why, or a
 // diagnosis marked more severe than the chip it belongs to ever shows.
+// Names a concrete, quantified reason for weak cash conversion when one is
+// actually identifiable -- e.g. "Accounts receivable increased by 24% while
+// revenue increased by only 8%." Deliberately only fires when receivables
+// growth genuinely outpaces revenue growth (not merely whenever conversion
+// is imperfect, which would assert a driver that isn't really there), and
+// falls back to an inventory-based driver, then no driver at all, rather
+// than guessing.
+function cashFlowKeyDriver(metrics: FinancialMetrics): string | undefined {
+  if (metrics.receivablesGrowthPct !== null && metrics.receivablesGrowthPct > 10 && metrics.receivablesGrowthPct > metrics.monthOverMonthGrowth) {
+    const revenueDesc = metrics.monthOverMonthGrowth >= 0
+      ? `revenue increased by only ${metrics.monthOverMonthGrowth.toFixed(0)}%`
+      : `revenue actually fell ${Math.abs(metrics.monthOverMonthGrowth).toFixed(0)}%`;
+    return `Accounts receivable increased by ${metrics.receivablesGrowthPct.toFixed(0)}% while ${revenueDesc}.`;
+  }
+  if (metrics.inventoryValue > 0 && metrics.slowMovingValuePct > 25) {
+    return `${metrics.slowMovingValuePct.toFixed(0)}% of inventory value is sitting in slow-moving stock instead of turning into cash.`;
+  }
+  return undefined;
+}
+
 export function diagnoseCashFlow(
   metrics: FinancialMetrics,
   currency: string = '₦'
@@ -561,6 +608,7 @@ export function diagnoseCashFlow(
       problem: `Operating cash flow is negative (${currency}${Math.round(metrics.operatingCashFlow).toLocaleString()} this month)`,
       severity: 'critical',
       rootCause: 'Normal business operations are consuming cash rather than generating it',
+      keyDriver: cashFlowKeyDriver(metrics),
       impact: 'Cash reserves are being drawn down just to keep day-to-day operations running',
       financialImpact: Math.abs(metrics.operatingCashFlow),
       opportunity: 'Collect overdue invoices, delay non-essential spending, or revisit pricing until operations generate cash again',
@@ -571,6 +619,7 @@ export function diagnoseCashFlow(
     diagnoses.push({
       problem: `Only ${metrics.cashFlowConversionPct.toFixed(0)}% of profit converted into real cash this month`,
       severity: 'warning',
+      keyDriver: cashFlowKeyDriver(metrics),
       rootCause: metrics.cashFlowConversionPct < 50
         ? 'Reported profit is mostly sitting in unpaid customer invoices or unpaid bills rather than reaching the bank'
         : 'Some of this month\'s reported profit is still sitting in unpaid customer invoices or unpaid bills',

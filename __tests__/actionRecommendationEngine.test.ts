@@ -12,7 +12,7 @@ const makeMetrics = (overrides: Partial<FinancialMetrics> = {}): FinancialMetric
     topCustomerConcentrationPct: 10, topSupplierConcentrationPct: 10,
     expensesByCategory: { rent: 40000, utilities: 20000 },
     revenueRecurringPct: 50, expenseGrowthPct: 0,
-    monthOverMonthGrowth: 5, profitTrend: 'stable',
+    monthOverMonthGrowth: 5, profitTrend: 'stable', receivablesGrowthPct: null,
     ...overrides,
 });
 

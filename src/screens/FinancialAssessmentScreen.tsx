@@ -334,6 +334,15 @@ export default function FinancialAssessmentScreen() {
                 {diagnosis.diagnoses[selectedDiagnosis].rootCause}
               </Text>
 
+              {diagnosis.diagnoses[selectedDiagnosis].keyDriver && (
+                <>
+                  <Text style={styles.diagnosisLabel}>Key Driver</Text>
+                  <Text style={styles.diagnosisText}>
+                    {diagnosis.diagnoses[selectedDiagnosis].keyDriver}
+                  </Text>
+                </>
+              )}
+
               <Text style={styles.diagnosisLabel}>Impact</Text>
               <Text style={styles.diagnosisText}>
                 {diagnosis.diagnoses[selectedDiagnosis].impact}

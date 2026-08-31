@@ -118,6 +118,30 @@ describe('calculateFinancialMetrics — uses the latest data month, not real-wor
     });
 });
 
+describe('calculateFinancialMetrics — receivablesGrowthPct is a real balance-vs-balance comparison', () => {
+    it('computes growth from the accounts receivable BALANCE at each month-end, not new pending amounts alone', () => {
+        const txs = [
+            makeTx({ id: 'feb-paid', type: 'income', amount: 50000, status: 'paid', date: '2025-02-05' }),
+            makeTx({ id: 'feb-pending', type: 'income', amount: 20000, status: 'pending', date: '2025-02-10' }),
+            makeTx({ id: 'mar-paid', type: 'income', amount: 50000, status: 'paid', date: '2025-03-05' }),
+            makeTx({ id: 'mar-pending', type: 'income', amount: 30000, status: 'pending', date: '2025-03-10' }),
+        ];
+        const m = calculateFinancialMetrics(txs, [], 10000, 5000);
+        // AR as of Feb end = 20,000 (the one pending transaction).
+        // AR as of Mar end = 20,000 (still outstanding) + 30,000 (new) = 50,000.
+        expect(m.receivablesGrowthPct).toBeCloseTo(150, 0);
+    });
+
+    it('is null when the prior month had no receivable balance to compare against', () => {
+        const txs = [
+            makeTx({ id: 'feb-paid', type: 'income', amount: 50000, status: 'paid', date: '2025-02-05' }),
+            makeTx({ id: 'mar-paid', type: 'income', amount: 50000, status: 'paid', date: '2025-03-05' }),
+        ];
+        const m = calculateFinancialMetrics(txs, [], 10000, 5000);
+        expect(m.receivablesGrowthPct).toBeNull();
+    });
+});
+
 describe('calculateFinancialMetrics — runway uses actual monthly expense, not a lifetime total', () => {
     it('does not collapse runway to near-zero from a large all-time expense total', () => {
         // Several months of history summing to a large lifetime total, but
@@ -277,6 +301,7 @@ describe('diagnose* functions — suggestedGoalType', () => {
         expenseGrowthPct: 5,
         monthOverMonthGrowth: 5,
         profitTrend: 'stable',
+        receivablesGrowthPct: null,
     };
 
     it('flags margin_improvement for a low profit margin', () => {
@@ -375,6 +400,7 @@ describe('diagnoseCashFlow', () => {
         expensesByCategory: {},
         revenueRecurringPct: 60, expenseGrowthPct: 5,
         monthOverMonthGrowth: 5, profitTrend: 'stable',
+        receivablesGrowthPct: null,
     };
 
     it('reports no diagnosis for healthy operating cash flow and full conversion', () => {
@@ -424,6 +450,44 @@ describe('diagnoseCashFlow', () => {
         const diagnoses = diagnoseCashFlow({ ...baseMetrics, operatingCashFlow: -10000, cashFlowConversionPct: 10 });
         expect(diagnoses).toHaveLength(1);
         expect(diagnoses[0].problem).toMatch(/negative/i);
+    });
+
+    it('names receivables outpacing revenue as the key driver when that is genuinely the case', () => {
+        const diagnoses = diagnoseCashFlow({
+            ...baseMetrics, operatingCashFlow: 150000, cashFlowConversionPct: 50,
+            receivablesGrowthPct: 24, monthOverMonthGrowth: 8,
+        });
+        expect(diagnoses[0].keyDriver).toMatch(/accounts receivable increased by 24%/i);
+        expect(diagnoses[0].keyDriver).toMatch(/revenue increased by only 8%/i);
+    });
+
+    it('describes revenue as falling, not "increased by only", when revenue actually shrank', () => {
+        const diagnoses = diagnoseCashFlow({
+            ...baseMetrics, operatingCashFlow: 150000, cashFlowConversionPct: 50,
+            receivablesGrowthPct: 30, monthOverMonthGrowth: -10,
+        });
+        expect(diagnoses[0].keyDriver).toMatch(/revenue actually fell 10%/i);
+    });
+
+    it('does not name receivables as the driver when they grew no faster than revenue', () => {
+        const diagnoses = diagnoseCashFlow({
+            ...baseMetrics, operatingCashFlow: 150000, cashFlowConversionPct: 50,
+            receivablesGrowthPct: 5, monthOverMonthGrowth: 8,
+        });
+        expect(diagnoses[0].keyDriver).toBeUndefined();
+    });
+
+    it('falls back to a slow-moving-inventory driver when receivables are not the explanation', () => {
+        const diagnoses = diagnoseCashFlow({
+            ...baseMetrics, operatingCashFlow: 150000, cashFlowConversionPct: 50,
+            receivablesGrowthPct: null, inventoryValue: 200000, slowMovingValuePct: 40,
+        });
+        expect(diagnoses[0].keyDriver).toMatch(/40% of inventory value/i);
+    });
+
+    it('reports no key driver when neither receivables nor inventory explain the gap', () => {
+        const diagnoses = diagnoseCashFlow({ ...baseMetrics, operatingCashFlow: 150000, cashFlowConversionPct: 50 });
+        expect(diagnoses[0].keyDriver).toBeUndefined();
     });
 });
 
