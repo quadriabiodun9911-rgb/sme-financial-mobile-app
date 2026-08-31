@@ -25,6 +25,8 @@ import { generateActionPlan } from '../utils/actionRecommendationEngine';
 import { calculateGoalBridge, mapSavedGoalToBridge } from '../utils/goalBridgeEngine';
 import { assessGoalRisk, GoalRiskAssessment } from '../utils/goalRiskLinkage';
 import { computeRiskRadar } from '../utils/riskRadar';
+import { computeForecastSummary } from '../utils/forecastSummary';
+import { computeForwardFinancingReadiness } from '../utils/forwardFinancingReadiness';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 
@@ -37,6 +39,7 @@ const FP_BAND_COLOR: Record<string, string> = {
     Weak: '#fb923c',
     Critical: Colors.expense,
 };
+const DSCR_STATUS_COLOR: Record<'healthy' | 'warning' | 'danger', string> = { healthy: Colors.income, warning: Colors.warning, danger: Colors.expense };
 
 function fmtCompact(currency: string, amount: number): string {
     // Sign goes BEFORE the currency symbol ("-₦1.5M"), not between it and
@@ -288,6 +291,18 @@ export default function CreditWorthinessScreen() {
     // distinction used throughout the credit factors above.
     const dscrResult = useMemo(() => computeDSCR(transactions, loans), [transactions, loans]);
     const inventoryValue = useMemo(() => computeInventoryValue(inventory), [inventory]);
+    // Forward-Looking Financing Readiness -- "here's what's likely to
+    // happen" alongside the trailing figures above. Built on the same
+    // 12-month forecast the Forecast screen itself shows (computeForecastSummary),
+    // never a second, independently-tuned projection. See forwardFinancingReadiness.ts.
+    const forecastSummary12m = useMemo(
+        () => computeForecastSummary(transactions, loans, finance, '12m', [], settings?.macroAssumptions ?? [], undefined, inventory, []),
+        [transactions, loans, finance, settings?.macroAssumptions, inventory],
+    );
+    const forwardReadiness = useMemo(
+        () => computeForwardFinancingReadiness(forecastSummary12m.cashFlowMonths, forecastSummary12m.headline.expectedRevenue, forecastSummary12m.monthsInPeriod, dscrResult),
+        [forecastSummary12m, dscrResult],
+    );
     // Reweighted toward debt-service coverage and liquidity -- what actually
     // predicts repayment ability -- rather than the general Credit-
     // Worthiness score above, which intentionally stays the same canonical
@@ -635,6 +650,45 @@ export default function CreditWorthinessScreen() {
                             );
                         })}
                         <NextStepLink text="See the full risk breakdown for each goal →" onPress={() => navigate('goals')} />
+                    </View>
+                )}
+
+                {/* Forward-Looking Financing Readiness — "here's what
+                    happened" (the trailing DSCR/factors above) plus "here's
+                    what's likely to happen next, and under a downside".
+                    Built on the same 12-month forecast the Forecast screen
+                    already shows -- see forwardFinancingReadiness.ts. */}
+                {forwardReadiness.available && (
+                    <View style={s.section}>
+                        <Text style={s.sectionTitle}>🔮 Forward-Looking Financing Readiness</Text>
+                        <Text style={s.improvementDescription}>
+                            Not just what happened — what's likely to happen next, the way a financing partner would want to see it.
+                        </Text>
+                        <View style={s.improvementCard}>
+                            <View style={s.improvementHeader}>
+                                <Text style={s.improvementName}>Base Case (next 12 months)</Text>
+                                <Text style={[s.improvementScore, { color: DSCR_STATUS_COLOR[forwardReadiness.base.dscrStatus] }]}>
+                                    {forwardReadiness.base.dscr >= 999 ? '∞' : `${forwardReadiness.base.dscr.toFixed(1)}×`}
+                                </Text>
+                            </View>
+                            <Text style={s.improvementDescription}>
+                                Base-case projected revenue: {currency}{Math.round(forwardReadiness.baseCaseRevenue).toLocaleString()}{'\n'}
+                                Expected operating cash flow: {currency}{Math.round(forwardReadiness.base.annualizedOperatingCashFlow).toLocaleString()}{'\n'}
+                                Expected debt service coverage: {forwardReadiness.base.dscr >= 999 ? 'No scheduled debt service' : `${forwardReadiness.base.dscr.toFixed(1)}×`}
+                            </Text>
+                        </View>
+                        <View style={s.improvementCard}>
+                            <View style={s.improvementHeader}>
+                                <Text style={s.improvementName}>Downside (-{forwardReadiness.downsideRevenueDropPct}% revenue)</Text>
+                                <Text style={[s.improvementScore, { color: forwardReadiness.downsideStaysPositive ? Colors.income : Colors.expense }]}>
+                                    {forwardReadiness.downsideStaysPositive ? 'Stays positive' : 'Turns negative'}
+                                </Text>
+                            </View>
+                            <Text style={s.improvementDescription}>
+                                Operating cash flow: {currency}{Math.round(forwardReadiness.downside.annualizedOperatingCashFlow).toLocaleString()}{'\n'}
+                                Debt service coverage: {forwardReadiness.downside.dscr >= 999 ? 'No scheduled debt service' : `${forwardReadiness.downside.dscr.toFixed(1)}×`}
+                            </Text>
+                        </View>
                     </View>
                 )}
 

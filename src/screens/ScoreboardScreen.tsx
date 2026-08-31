@@ -12,7 +12,9 @@ import { computeRiskRadar, RiskLevel } from '../utils/riskRadar';
 import { computeReadinessDelta } from '../utils/readinessHistory';
 import { computeBusinessExposure, computeBusinessResilience, describeHealthResilienceGap, ExposureLevel } from '../utils/businessExposure';
 import { performFinancialDiagnosis, computeRevenueRecurringPct } from '../utils/financialDiagnosisEngine';
-import { computeFinancialHealthPillars, PillarStatus } from '../utils/financialHealthPillars';
+import { computeFinancialHealthPillars, diagnoseFinancialHealth, PillarStatus } from '../utils/financialHealthPillars';
+import { computeFinancialResilience, ResilienceStatus } from '../utils/cashReservePlanning';
+import { computeQualityOfGrowth } from '../utils/qualityOfGrowth';
 import { analyzeTrend } from '../utils/trendAnalysis';
 import { buildFinancialBehaviour } from '../utils/businessFinancialDNA';
 import { computeExpenseLeaks } from '../utils/expenseLeakDetection';
@@ -41,6 +43,11 @@ const RISK_LEVEL_META: Record<RiskLevel, { color: string; dot: string }> = {
 const FACTOR_STATUS_COLOR: Record<string, string> = { good: Colors.income, warning: Colors.warning, danger: Colors.expense };
 const PILLAR_STATUS_COLOR: Record<PillarStatus, string> = { good: Colors.income, warning: Colors.warning, danger: Colors.expense };
 const LEAK_SEVERITY_COLOR: Record<LeakSeverity, string> = { critical: Colors.expense, warning: Colors.warning, info: Colors.textMuted };
+const RESILIENCE_STATUS_META: Record<ResilienceStatus, { color: string; dot: string }> = {
+    good: { color: Colors.income, dot: '🟢' },
+    warning: { color: Colors.warning, dot: '🟠' },
+    danger: { color: Colors.expense, dot: '🔴' },
+};
 
 const EXPOSURE_LEVEL_META: Record<ExposureLevel, { color: string; dot: string }> = {
     high:    { color: Colors.expense,  dot: '🔴' },
@@ -133,6 +140,27 @@ export default function ScoreboardScreen() {
             unusualSpendingCount: unusualSpending.available ? unusualSpending.flags.length : undefined,
         }),
         [risk, transactions, resilience, behaviour, revenueRecurringPct, expenseLeaks, unusualSpending],
+    );
+
+    // Cash Reserve Planning -- "businesses should keep 3 months of cash" as
+    // an actual, business-specific metric (essential monthly expenses vs.
+    // current reserve vs. what THIS business's own revenue volatility says
+    // it should hold), not generic advice. See cashReservePlanning.ts.
+    const financialResilience = useMemo(
+        () => computeFinancialResilience(transactions, finance.cashBalance),
+        [transactions, finance.cashBalance],
+    );
+    // Gated the same way the Quality of Growth tab already gates itself
+    // (needs 2 full years of history) -- only used here to pull its own
+    // already-vetted receivables/cash-conversion flags into the pillar
+    // diagnosis below, never recomputed.
+    const growthQuality = useMemo(() => computeQualityOfGrowth(transactions, assets, loans), [transactions, assets, loans]);
+    // Budgeting connects directly to the Financial Health Score: strongest/
+    // weakest pillar plus the concrete facts behind them, instead of the
+    // score and the budgeting-adjacent signals living as separate features.
+    const healthDiagnosis = useMemo(
+        () => diagnoseFinancialHealth(pillars, financialResilience, growthQuality),
+        [pillars, financialResilience, growthQuality],
     );
 
     // Same worsened/improved factors CreditWorthinessScreen lists in full,
@@ -277,6 +305,61 @@ export default function ScoreboardScreen() {
                         <Text key={p.key} style={s.chipExplanation}>{p.score}/100 — {p.explanation}</Text>
                     ))}
                     <Text style={s.chipHint}>Tap a pillar above to see why it's that color</Text>
+
+                    {/* Budgeting connects directly to the score above, not as
+                        a separate feature -- this is the diagnosis: which
+                        pillar is strongest/weakest, plus the concrete facts
+                        (reserve months, receivables outpacing revenue, cash
+                        conversion weakening) that explain why, each one only
+                        shown once the underlying engine has enough data to
+                        support it. See diagnoseFinancialHealth. */}
+                    <View style={s.diagnosisBox}>
+                        <Text style={s.diagnosisText}>
+                            Your strongest area is <Text style={s.diagnosisStrong}>{healthDiagnosis.strongestPillar.label}</Text>.
+                            {' '}Your biggest weakness is <Text style={s.diagnosisStrong}>{healthDiagnosis.weakestPillar.label}</Text>.
+                        </Text>
+                        {healthDiagnosis.notes.map((note, i) => (
+                            <Text key={i} style={s.diagnosisNote}>• {note}</Text>
+                        ))}
+                    </View>
+                </View>
+
+                {/* Cash Reserve Planning -- "how many months of essential
+                    expenses would our current cash reserve actually cover,
+                    and what SHOULD this specific business be holding" --
+                    instead of generic "keep 3 months of cash" advice. See
+                    cashReservePlanning.ts. */}
+                <View style={s.card}>
+                    <View style={s.cardHeaderRow}>
+                        <Icon name="shield" size={14} color={Colors.textMuted} />
+                        <Text style={s.cardTitle}>Financial Resilience</Text>
+                    </View>
+                    {financialResilience.available ? (
+                        <>
+                            <View style={s.resilienceRow}>
+                                <Text style={s.resilienceLabel}>Essential monthly expenses</Text>
+                                <Text style={s.resilienceValue}>{currency}{Math.round(financialResilience.essentialMonthlyExpenses).toLocaleString()}</Text>
+                            </View>
+                            <View style={s.resilienceRow}>
+                                <Text style={s.resilienceLabel}>Current reserve</Text>
+                                <Text style={s.resilienceValue}>{currency}{Math.round(financialResilience.currentReserve).toLocaleString()}</Text>
+                            </View>
+                            <View style={s.resilienceRow}>
+                                <Text style={s.resilienceLabel}>Reserve coverage</Text>
+                                <Text style={s.resilienceValue}>
+                                    {Number.isFinite(financialResilience.reserveCoverageMonths) ? `${financialResilience.reserveCoverageMonths.toFixed(1)} months` : 'No ongoing burn'}
+                                </Text>
+                            </View>
+                            <View style={[s.resilienceBadge, { backgroundColor: RESILIENCE_STATUS_META[financialResilience.status].color + '18' }]}>
+                                <Text style={[s.resilienceBadgeText, { color: RESILIENCE_STATUS_META[financialResilience.status].color }]}>
+                                    {RESILIENCE_STATUS_META[financialResilience.status].dot} {financialResilience.headline}
+                                </Text>
+                            </View>
+                            <Text style={s.cardBodyText}>{financialResilience.assessment}</Text>
+                        </>
+                    ) : (
+                        <Text style={s.cardBodyText}>{financialResilience.assessment}</Text>
+                    )}
                 </View>
 
                 {/* Financial Leaks -- "where is my money leaking", not just
@@ -501,6 +584,17 @@ const s = StyleSheet.create({
     readinessPillText: { fontSize: 9.5, fontWeight: '800' },
     goalRiskNote: { marginTop: Spacing.md, paddingTop: Spacing.md, borderTopWidth: 1, borderTopColor: Colors.border },
     goalRiskNoteText: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
+
+    diagnosisBox: { marginTop: Spacing.sm, paddingTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.border },
+    diagnosisText: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18, marginBottom: 4 },
+    diagnosisStrong: { fontWeight: '700', color: Colors.textPrimary },
+    diagnosisNote: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17, marginTop: 2 },
+
+    resilienceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 5 },
+    resilienceLabel: { fontSize: 12.5, color: Colors.textSecondary },
+    resilienceValue: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
+    resilienceBadge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: Radius.pill, marginTop: Spacing.sm, marginBottom: Spacing.sm },
+    resilienceBadgeText: { fontSize: 12, fontWeight: '700' },
 
     leakRow: { borderLeftWidth: 3, borderRadius: Radius.sm, backgroundColor: Colors.bg, padding: Spacing.sm, marginTop: Spacing.sm },
     leakLabel: { fontSize: 10, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 2 },

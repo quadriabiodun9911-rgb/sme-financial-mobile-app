@@ -31,6 +31,8 @@
 
 import { RiskScore, RiskFactor, computeCustomerConcentration, computeFinancingReadinessScore } from './finance';
 import { BusinessResilience } from './businessExposure';
+import { FinancialResilience } from './cashReservePlanning';
+import { QualityOfGrowthResult } from './qualityOfGrowth';
 import { Transaction } from './../types';
 
 export type PillarStatus = 'good' | 'warning' | 'danger';
@@ -203,4 +205,49 @@ export function computeFinancialHealthPillars(
     ];
 
     return { score: riskScore.score, band: riskScore.band, pillars };
+}
+
+/**
+ * Budgeting connects directly to the Financial Health Score, rather than
+ * living as a separate feature: this is the diagnosis a business owner
+ * reads alongside their pillar scores -- which pillar is strongest, which
+ * is weakest, and the handful of concrete supporting facts (reserve
+ * months, receivables outpacing revenue, cash conversion weakening) that
+ * explain WHY, drawn from the same engines the rest of the app already
+ * trusts for those specific numbers rather than restated here.
+ *
+ * Every note below is either directly reused text from an existing,
+ * gated engine (computeQualityOfGrowth's own flags, which already require
+ * two full years of history before firing) or a single fact from
+ * computeFinancialResilience -- nothing here computes a new number.
+ */
+export interface FinancialHealthDiagnosis {
+    strongestPillar: FinancialHealthPillar;
+    weakestPillar: FinancialHealthPillar;
+    notes: string[];
+}
+
+export function diagnoseFinancialHealth(
+    pillars: FinancialHealthPillarsResult,
+    resilience: FinancialResilience,
+    growthQuality?: QualityOfGrowthResult,
+): FinancialHealthDiagnosis {
+    const sorted = [...pillars.pillars].sort((a, b) => b.score - a.score);
+    const strongestPillar = sorted[0];
+    const weakestPillar = sorted[sorted.length - 1];
+
+    const notes: string[] = [];
+    if (resilience.available) {
+        const monthsWord = resilience.reserveCoverageMonths === 1 ? 'month' : 'months';
+        notes.push(`Cash reserves cover approximately ${resilience.reserveCoverageMonths.toFixed(1)} ${monthsWord} of essential expenses.`);
+    }
+    if (growthQuality?.available) {
+        const receivablesFlag = growthQuality.flags.find(f => f.toLowerCase().includes('receivable'));
+        if (receivablesFlag) notes.push(receivablesFlag);
+        const cashConversionFlag = growthQuality.flags.find(f =>
+            f.toLowerCase().includes("isn't converting into real cash") || f.toLowerCase().includes('draining cash reserves'));
+        if (cashConversionFlag) notes.push(cashConversionFlag);
+    }
+
+    return { strongestPillar, weakestPillar, notes };
 }

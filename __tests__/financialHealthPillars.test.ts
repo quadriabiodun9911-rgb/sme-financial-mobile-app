@@ -1,7 +1,24 @@
-import { computeFinancialHealthPillars } from '../src/utils/financialHealthPillars';
+import { computeFinancialHealthPillars, diagnoseFinancialHealth } from '../src/utils/financialHealthPillars';
 import { computeRiskScore } from '../src/utils/finance';
 import { computeBusinessResilience, BusinessExposure } from '../src/utils/businessExposure';
+import { FinancialResilience } from '../src/utils/cashReservePlanning';
+import { QualityOfGrowthResult } from '../src/utils/qualityOfGrowth';
 import { Transaction, FinanceData, InventoryItem } from '../src/types';
+
+const UNAVAILABLE_RESILIENCE: FinancialResilience = {
+    available: false, essentialMonthlyExpenses: 0, currentReserve: 0, reserveCoverageMonths: Infinity,
+    recommendedMonths: 2, volatility: 'stable', status: 'warning', headline: 'Not enough expense history yet', assessment: '',
+};
+
+const AVAILABLE_RESILIENCE: FinancialResilience = {
+    available: true, essentialMonthlyExpenses: 500000, currentReserve: 850000, reserveCoverageMonths: 1.7,
+    recommendedMonths: 3.5, volatility: 'variable', status: 'warning', headline: 'Below recommended resilience level',
+    assessment: 'Your business currently has approximately 1.7 months of essential operating expenses available in cash.',
+};
+
+const UNAVAILABLE_GROWTH_QUALITY: QualityOfGrowthResult = {
+    available: false, reason: 'not enough history', periodLabel: '', score: 0, band: 'Critical', signals: [], flags: [], verdict: '',
+};
 
 const finance: Pick<FinanceData, 'income' | 'profit' | 'cashBalance'> = { income: 0, profit: 0, cashBalance: 500000 };
 
@@ -140,5 +157,61 @@ describe('computeFinancialHealthPillars', () => {
         expect(enrichedExpense.score).toBe(plainExpense.score);
         expect(enrichedExpense.explanation).toMatch(/3 recurring vendor charges/);
         expect(enrichedExpense.explanation).toMatch(/1 category shows unusual spending/);
+    });
+});
+
+describe('diagnoseFinancialHealth', () => {
+    it('picks the highest- and lowest-scoring pillar as strongest/weakest', () => {
+        const transactions = [
+            makeTx({ type: 'income', amount: 500000, date: daysAgo(20) }),
+            makeTx({ type: 'expense', category: 'Rent', amount: 100000, date: daysAgo(20) }),
+        ];
+        const risk = computeRiskScore(finance, [], transactions, []);
+        const resilience = computeBusinessResilience(EMPTY_EXPOSURE);
+        const pillars = computeFinancialHealthPillars(risk, transactions, resilience);
+        const diagnosis = diagnoseFinancialHealth(pillars, UNAVAILABLE_RESILIENCE);
+
+        const sorted = [...pillars.pillars].sort((a, b) => b.score - a.score);
+        expect(diagnosis.strongestPillar.key).toBe(sorted[0].key);
+        expect(diagnosis.weakestPillar.key).toBe(sorted[sorted.length - 1].key);
+    });
+
+    it('adds a reserve-coverage note only when the resilience read is available', () => {
+        const transactions = [makeTx({ type: 'income', amount: 500000, date: daysAgo(20) })];
+        const risk = computeRiskScore(finance, [], transactions, []);
+        const resilience = computeBusinessResilience(EMPTY_EXPOSURE);
+        const pillars = computeFinancialHealthPillars(risk, transactions, resilience);
+
+        const withReserve = diagnoseFinancialHealth(pillars, AVAILABLE_RESILIENCE);
+        expect(withReserve.notes.some(n => n.includes('1.7') && n.includes('essential expenses'))).toBe(true);
+
+        const withoutReserve = diagnoseFinancialHealth(pillars, UNAVAILABLE_RESILIENCE);
+        expect(withoutReserve.notes.some(n => n.includes('essential expenses'))).toBe(false);
+    });
+
+    it('reuses computeQualityOfGrowth\'s own receivables and cash-conversion flags verbatim, only when available', () => {
+        const transactions = [makeTx({ type: 'income', amount: 500000, date: daysAgo(20) })];
+        const risk = computeRiskScore(finance, [], transactions, []);
+        const resilience = computeBusinessResilience(EMPTY_EXPOSURE);
+        const pillars = computeFinancialHealthPillars(risk, transactions, resilience);
+
+        const growthQuality: QualityOfGrowthResult = {
+            available: true, periodLabel: '2026 vs 2025', score: 45, band: 'Weak',
+            signals: [],
+            flags: [
+                'Receivables grew 40% — 2.0x faster than revenue\'s 20% — more sales are sitting uncollected.',
+                'Operating cash flow fell 12% even as revenue grew 20% — growth is draining cash reserves.',
+            ],
+            verdict: 'Revenue grew 20%, but the business is paying for that growth in margin, cash or debt — this is fragile growth, not healthy growth.',
+        };
+        const diagnosis = diagnoseFinancialHealth(pillars, UNAVAILABLE_RESILIENCE, growthQuality);
+        expect(diagnosis.notes).toContain(growthQuality.flags[0]);
+        expect(diagnosis.notes).toContain(growthQuality.flags[1]);
+
+        const withoutGrowthQuality = diagnoseFinancialHealth(pillars, UNAVAILABLE_RESILIENCE, UNAVAILABLE_GROWTH_QUALITY);
+        expect(withoutGrowthQuality.notes.some(n => n.includes('Receivables grew'))).toBe(false);
+
+        const withNoGrowthQualityArg = diagnoseFinancialHealth(pillars, UNAVAILABLE_RESILIENCE);
+        expect(withNoGrowthQualityArg.notes).toEqual([]);
     });
 });
