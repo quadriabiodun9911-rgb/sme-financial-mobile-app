@@ -171,10 +171,10 @@ export function computeFinancialHealthPillars(
     // than recomputed here since computeBusinessExposure needs several
     // inputs (macro assumptions, tax deadline, currency) this function has
     // no reason to also require -- every existing caller of this pillar
-    // view already computes it for its own "Business Resilience" card.
+    // view already computes it for its own "Shock Resilience" card.
     const resilienceStatus: PillarStatus = resilienceResult.score >= 70 ? 'good' : resilienceResult.score >= 45 ? 'warning' : 'danger';
     const resilience: FinancialHealthPillar = {
-        key: 'resilience', label: 'Resilience', score: resilienceResult.score, status: resilienceStatus,
+        key: 'resilience', label: 'Shock Resilience', score: resilienceResult.score, status: resilienceStatus,
         explanation: resilienceResult.topConcerns.length > 0
             ? `Biggest exposure: ${resilienceResult.topConcerns[0].label} -- ${resilienceResult.topConcerns[0].detail}`
             : 'No significant shock exposure identified right now.',

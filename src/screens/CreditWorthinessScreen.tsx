@@ -10,6 +10,7 @@ import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import LowDataNotice from '../components/LowDataNotice';
 import NextStepLink from '../components/NextStepLink';
+import Collapsible from '../components/Collapsible';
 import { generatePDF, sharePDF } from '../utils/pdfExport';
 import { buildLenderSummaryExport, buildFundingReadinessPackExport } from '../utils/lenderSummaryExport';
 import { computeDSCR, computeRiskScore, computeFinancingReadinessScore, computeAssetCurrentValue, computeWorkingCapitalMetrics, RiskScore, RISK_BAND_STYLE, getMonthlyExpenseAverage } from '../utils/finance';
@@ -473,6 +474,44 @@ export default function CreditWorthinessScreen() {
                             <Text style={s.fiveCSummary}>{c.summary}</Text>
                         </View>
                     ))}
+
+                    {/* Additional Lender Signals used to be a whole separate
+                        section below -- it's the same idea as the Five C's
+                        above (real repayment behavior and credit
+                        utilization the canonical score doesn't capture),
+                        just at the individual-factor level instead of
+                        grouped by C, so it belongs in the same card as
+                        supporting detail, not a second scroll away. */}
+                    <Text style={[s.visibilitySub, { marginTop: Spacing.md, marginBottom: Spacing.sm }]}>
+                        The individual signals behind the Five C's above:
+                    </Text>
+                    {creditFactors.map((factor, idx) => (
+                        <View key={idx} style={s.factorCard}>
+                            <View style={s.factorHeader}>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={s.factorName}>{factor.name}</Text>
+                                    <Text style={s.factorDescription}>{factor.description}</Text>
+                                </View>
+                                <View style={{ alignItems: 'flex-end' }}>
+                                    <Text style={[s.factorScore, { color: factor.score >= 70 ? Colors.income : Colors.warning }]}>
+                                        {Math.round(factor.score)}
+                                    </Text>
+                                    <Text style={s.factorStatus}>{factor.status}</Text>
+                                </View>
+                            </View>
+                            <View style={s.progressBar}>
+                                <View
+                                    style={[
+                                        s.progressFill,
+                                        {
+                                            width: `${factor.score}%`,
+                                            backgroundColor: factor.score >= 70 ? Colors.income : Colors.warning,
+                                        },
+                                    ]}
+                                />
+                            </View>
+                        </View>
+                    ))}
                 </View>
 
                 {/* Visibility Score */}
@@ -532,6 +571,44 @@ export default function CreditWorthinessScreen() {
                                 Based on {currency}{inventoryValue.toLocaleString()} of stock on hand, at a conservative {lendingCapacity.inventoryBacked.advanceRatePctRange[0]}–{lendingCapacity.inventoryBacked.advanceRatePctRange[1]}% advance rate. {lendingCapacity.inventoryBacked.reason}
                             </Text>
                         </View>
+                    )}
+
+                    {/* Forward-Looking Financing Readiness -- the range above
+                        is backward-looking capacity ("what your history
+                        supports"); this is the forward-looking half of the
+                        same "how much/how ready" question, so it belongs in
+                        the same card, not a separate scroll away. */}
+                    {forwardReadiness.available && (
+                        <>
+                            <Text style={[s.capacitySub, { marginTop: Spacing.md, fontWeight: '700', color: Colors.textPrimary }]}>
+                                🔮 Forward-looking: what's likely to happen next, and under a downside
+                            </Text>
+                            <View style={s.improvementCard}>
+                                <View style={s.improvementHeader}>
+                                    <Text style={s.improvementName}>Base Case (next 12 months)</Text>
+                                    <Text style={[s.improvementScore, { color: DSCR_STATUS_COLOR[forwardReadiness.base.dscrStatus] }]}>
+                                        {forwardReadiness.base.dscr >= 999 ? '∞' : `${forwardReadiness.base.dscr.toFixed(1)}×`}
+                                    </Text>
+                                </View>
+                                <Text style={s.improvementDescription}>
+                                    Base-case projected revenue: {currency}{Math.round(forwardReadiness.baseCaseRevenue).toLocaleString()}{'\n'}
+                                    Expected operating cash flow: {currency}{Math.round(forwardReadiness.base.annualizedOperatingCashFlow).toLocaleString()}{'\n'}
+                                    Expected debt service coverage: {forwardReadiness.base.dscr >= 999 ? 'No scheduled debt service' : `${forwardReadiness.base.dscr.toFixed(1)}×`}
+                                </Text>
+                            </View>
+                            <View style={s.improvementCard}>
+                                <View style={s.improvementHeader}>
+                                    <Text style={s.improvementName}>Downside (-{forwardReadiness.downsideRevenueDropPct}% revenue)</Text>
+                                    <Text style={[s.improvementScore, { color: forwardReadiness.downsideStaysPositive ? Colors.income : Colors.expense }]}>
+                                        {forwardReadiness.downsideStaysPositive ? 'Stays positive' : 'Turns negative'}
+                                    </Text>
+                                </View>
+                                <Text style={s.improvementDescription}>
+                                    Operating cash flow: {currency}{Math.round(forwardReadiness.downside.annualizedOperatingCashFlow).toLocaleString()}{'\n'}
+                                    Debt service coverage: {forwardReadiness.downside.dscr >= 999 ? 'No scheduled debt service' : `${forwardReadiness.downside.dscr.toFixed(1)}×`}
+                                </Text>
+                            </View>
+                        </>
                     )}
                 </View>
 
@@ -653,82 +730,13 @@ export default function CreditWorthinessScreen() {
                     </View>
                 )}
 
-                {/* Forward-Looking Financing Readiness — "here's what
-                    happened" (the trailing DSCR/factors above) plus "here's
-                    what's likely to happen next, and under a downside".
-                    Built on the same 12-month forecast the Forecast screen
-                    already shows -- see forwardFinancingReadiness.ts. */}
-                {forwardReadiness.available && (
-                    <View style={s.section}>
-                        <Text style={s.sectionTitle}>🔮 Forward-Looking Financing Readiness</Text>
-                        <Text style={s.improvementDescription}>
-                            Not just what happened — what's likely to happen next, the way a financing partner would want to see it.
-                        </Text>
-                        <View style={s.improvementCard}>
-                            <View style={s.improvementHeader}>
-                                <Text style={s.improvementName}>Base Case (next 12 months)</Text>
-                                <Text style={[s.improvementScore, { color: DSCR_STATUS_COLOR[forwardReadiness.base.dscrStatus] }]}>
-                                    {forwardReadiness.base.dscr >= 999 ? '∞' : `${forwardReadiness.base.dscr.toFixed(1)}×`}
-                                </Text>
-                            </View>
-                            <Text style={s.improvementDescription}>
-                                Base-case projected revenue: {currency}{Math.round(forwardReadiness.baseCaseRevenue).toLocaleString()}{'\n'}
-                                Expected operating cash flow: {currency}{Math.round(forwardReadiness.base.annualizedOperatingCashFlow).toLocaleString()}{'\n'}
-                                Expected debt service coverage: {forwardReadiness.base.dscr >= 999 ? 'No scheduled debt service' : `${forwardReadiness.base.dscr.toFixed(1)}×`}
-                            </Text>
-                        </View>
-                        <View style={s.improvementCard}>
-                            <View style={s.improvementHeader}>
-                                <Text style={s.improvementName}>Downside (-{forwardReadiness.downsideRevenueDropPct}% revenue)</Text>
-                                <Text style={[s.improvementScore, { color: forwardReadiness.downsideStaysPositive ? Colors.income : Colors.expense }]}>
-                                    {forwardReadiness.downsideStaysPositive ? 'Stays positive' : 'Turns negative'}
-                                </Text>
-                            </View>
-                            <Text style={s.improvementDescription}>
-                                Operating cash flow: {currency}{Math.round(forwardReadiness.downside.annualizedOperatingCashFlow).toLocaleString()}{'\n'}
-                                Debt service coverage: {forwardReadiness.downside.dscr >= 999 ? 'No scheduled debt service' : `${forwardReadiness.downside.dscr.toFixed(1)}×`}
-                            </Text>
-                        </View>
-                    </View>
-                )}
-
-                {/* Additional Lender Signals — real repayment behavior and
-                    credit utilization the canonical score above doesn't
-                    capture (it only sees DSCR, not on-time payment history).
-                    These are supplementary context, not part of the score
-                    composition shown above. */}
-                <View style={s.section}>
-                    <Text style={s.sectionTitle}>📊 Additional Lender Signals</Text>
-                    {creditFactors.map((factor, idx) => (
-                        <View key={idx} style={s.factorCard}>
-                            <View style={s.factorHeader}>
-                                <View style={{ flex: 1 }}>
-                                    <Text style={s.factorName}>{factor.name}</Text>
-                                    <Text style={s.factorDescription}>{factor.description}</Text>
-                                </View>
-                                <View style={{ alignItems: 'flex-end' }}>
-                                    <Text style={[s.factorScore, { color: factor.score >= 70 ? Colors.income : Colors.warning }]}>
-                                        {Math.round(factor.score)}
-                                    </Text>
-                                    <Text style={s.factorStatus}>{factor.status}</Text>
-                                </View>
-                            </View>
-                            <View style={s.progressBar}>
-                                <View
-                                    style={[
-                                        s.progressFill,
-                                        {
-                                            width: `${factor.score}%`,
-                                            backgroundColor: factor.score >= 70 ? Colors.income : Colors.warning,
-                                        },
-                                    ]}
-                                />
-                            </View>
-                        </View>
-                    ))}
-                </View>
-
-                {/* Lender Requirements */}
+                {/* Lender Requirements -- checked against this business's
+                    own numbers, kept as the headline content. The generic
+                    "how to improve" tips below used to be a separate full
+                    box; they're static advice (not read from this
+                    business's data), so they're worth keeping but not
+                    worth the same always-visible weight as the checklist
+                    above -- tucked behind a tap instead. */}
                 <View style={s.section}>
                     <Text style={s.sectionTitle}>🏦 What Lenders Look For</Text>
                     {lenderCheckpoints.map((c, idx) => (
@@ -737,17 +745,14 @@ export default function CreditWorthinessScreen() {
                     {!(finance.runway && finance.runway >= 90) && (
                         <NextStepLink text="Improve your cash runway" onPress={() => navigate('cashflow')} />
                     )}
-                </View>
-
-                {/* Tips Box */}
-                <View style={s.tipsBox}>
-                    <Text style={s.tipsTitle}>💡 How to Improve Your Credit Profile</Text>
-                    <TipItem emoji="💳" text="Make all payments on time - set up payment reminders" />
-                    <TipItem emoji="📊" text="Keep credit utilization low - use less than 30% of available credit" />
-                    <TipItem emoji="📈" text="Maintain consistent revenue - log all transactions" />
-                    <TipItem emoji="💰" text="Build cash reserves - aim for 3-6 months runway" />
-                    <TipItem emoji="📝" text="Document business records - keep receipts and contracts" />
-                    <TipItem emoji="🎯" text="Show growth - increase revenue and profitability" />
+                    <Collapsible title="💡 How to Improve Your Credit Profile">
+                        <TipItem emoji="💳" text="Make all payments on time - set up payment reminders" />
+                        <TipItem emoji="📊" text="Keep credit utilization low - use less than 30% of available credit" />
+                        <TipItem emoji="📈" text="Maintain consistent revenue - log all transactions" />
+                        <TipItem emoji="💰" text="Build cash reserves - aim for 3-6 months runway" />
+                        <TipItem emoji="📝" text="Document business records - keep receipts and contracts" />
+                        <TipItem emoji="🎯" text="Show growth - increase revenue and profitability" />
+                    </Collapsible>
                 </View>
                 </>
                 ) : (

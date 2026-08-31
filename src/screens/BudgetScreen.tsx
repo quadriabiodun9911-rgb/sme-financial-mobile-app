@@ -18,6 +18,7 @@ import { computeSmartBudgetRevenue } from '../utils/smartBudget';
 import { computeBudgetIntelligence } from '../utils/budgetIntelligence';
 import { computeBudgetHealth, BudgetHealthFactorKey } from '../utils/budgetHealth';
 import NextStepLink from '../components/NextStepLink';
+import Collapsible from '../components/Collapsible';
 import ProfitCashImpactCard from '../components/ProfitCashImpactCard';
 import { computeProfitCashImpact } from '../utils/impactChain';
 import { Budget } from '../types';
@@ -561,17 +562,30 @@ export default function BudgetScreen() {
                 )}
 
                 {/* Budget Intelligence -- Revenue vs. target, Net Cash Flow,
-                    a synthesized narrative, and a WHY explanation per
-                    over-budget category. Doesn't replace the per-category
-                    table below (still the place to edit a budget); this is
-                    the "don't stop at the table" layer on top of it. */}
-                {budgetIntel.available && (
+                    a synthesized narrative, a WHY explanation per over
+                    -budget category, and (folded in below, not a second
+                    scorecard) Budget Health's 0-100 trust score for that
+                    same narrative. Doesn't replace the per-category table
+                    below (still the place to edit a budget); this is the
+                    "don't stop at the table" layer on top of it. */}
+                {(budgetIntel.available || budgetHealth.available) && (
                     <View style={s.summaryCard}>
                         <View style={s.sheetTitleRow}>
                             <Icon name="zap" size={16} color={Colors.textPrimary} />
-                            <Text style={[s.sheetTitle, { marginBottom: 0 }]}>Budget Intelligence</Text>
+                            <Text style={[s.sheetTitle, { marginBottom: 0, flex: 1 }]}>Budget Intelligence</Text>
+                            {budgetHealth.available && (
+                                <View style={[s.budgetHealthPill, { borderColor: budgetHealthScoreColor(budgetHealth.score) }]}>
+                                    <Text style={[s.budgetHealthPillText, { color: budgetHealthScoreColor(budgetHealth.score) }]}>
+                                        Health {budgetHealth.score}/100
+                                    </Text>
+                                </View>
+                            )}
                         </View>
-                        <Text style={s.intelNarrative}>{budgetIntel.narrative}</Text>
+
+                        {budgetIntel.available && <Text style={s.intelNarrative}>{budgetIntel.narrative}</Text>}
+                        {budgetHealth.narrative && (
+                            <Text style={[s.intelNarrative, { color: Colors.expense }]}>{budgetHealth.narrative}</Text>
+                        )}
 
                         {budgetIntel.revenueLine && (
                             <View style={[s.intelRow, { borderLeftColor: FAVORABILITY_COLOR[budgetIntel.revenueLine.favorability] }]}>
@@ -607,33 +621,22 @@ export default function BudgetScreen() {
                                 Revenue target is Quad360's suggested base case ({currency}{Math.round(smartRevenue.scenarios.base).toLocaleString()}/mo) — not yet something you've set yourself.
                             </Text>
                         )}
-                    </View>
-                )}
 
-                {/* Budget Health -- a separate indicator from the general
-                    Financial Health Score, specifically about how much this
-                    business should trust its own budget/forecast right now.
-                    See budgetHealth.ts for what each factor reuses. */}
-                {budgetHealth.available && (
-                    <View style={s.summaryCard}>
-                        <View style={s.sheetTitleRow}>
-                            <Icon name="activity" size={16} color={Colors.textPrimary} />
-                            <Text style={[s.sheetTitle, { marginBottom: 0 }]}>Budget Health: {budgetHealth.score}/100</Text>
-                        </View>
-                        {budgetHealth.narrative && (
-                            <Text style={[s.intelNarrative, { color: Colors.expense }]}>{budgetHealth.narrative}</Text>
+                        {budgetHealth.available && (
+                            <Collapsible title={`See what makes up the ${budgetHealth.score}/100 Budget Health score`}>
+                                {budgetHealth.factors.map(f => (
+                                    <View
+                                        key={f.key}
+                                        style={[s.intelRow, { borderLeftColor: f.available ? budgetHealthScoreColor(f.score) : Colors.border }]}
+                                    >
+                                        <Text style={s.intelRowLabel}>{BUDGET_HEALTH_FACTOR_LABEL[f.key]}</Text>
+                                        <Text style={s.intelRowVal}>
+                                            {f.available ? `${f.score}/100 — ${f.explanation}` : f.explanation}
+                                        </Text>
+                                    </View>
+                                ))}
+                            </Collapsible>
                         )}
-                        {budgetHealth.factors.map(f => (
-                            <View
-                                key={f.key}
-                                style={[s.intelRow, { borderLeftColor: f.available ? budgetHealthScoreColor(f.score) : Colors.border }]}
-                            >
-                                <Text style={s.intelRowLabel}>{BUDGET_HEALTH_FACTOR_LABEL[f.key]}</Text>
-                                <Text style={s.intelRowVal}>
-                                    {f.available ? `${f.score}/100 — ${f.explanation}` : f.explanation}
-                                </Text>
-                            </View>
-                        ))}
                     </View>
                 )}
 
@@ -1019,6 +1022,8 @@ const s = StyleSheet.create({
     intelWhyLabel:   { fontSize: 11, fontWeight: '800', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
     intelWhyText:    { fontSize: 12, lineHeight: 17, marginBottom: 6 },
     intelFootnote:   { fontSize: 10.5, color: Colors.textMuted, fontStyle: 'italic', marginTop: 4 },
+    budgetHealthPill: { borderWidth: 1.5, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+    budgetHealthPillText: { fontSize: 11, fontWeight: '800' },
 
     revenueScenarioBox:       { backgroundColor: Colors.bg, borderRadius: 10, padding: Spacing.md, marginBottom: Spacing.md },
     revenueScenarioTitle:     { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: Spacing.sm },

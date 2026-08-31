@@ -332,7 +332,7 @@ export default function ScoreboardScreen() {
                 <View style={s.card}>
                     <View style={s.cardHeaderRow}>
                         <Icon name="shield" size={14} color={Colors.textMuted} />
-                        <Text style={s.cardTitle}>Financial Resilience</Text>
+                        <Text style={s.cardTitle}>Cash Reserve Resilience</Text>
                     </View>
                     {financialResilience.available ? (
                         <>
@@ -393,7 +393,7 @@ export default function ScoreboardScreen() {
                 <TouchableOpacity style={s.card} onPress={() => setCurrentScreen('risk-management')} activeOpacity={0.85}>
                     <View style={s.cardHeaderRow}>
                         <Icon name="shield" size={14} color={Colors.textMuted} />
-                        <Text style={s.cardTitle}>Business Resilience</Text>
+                        <Text style={s.cardTitle}>Shock Resilience</Text>
                         <View style={[s.bandBadge, { backgroundColor: RESILIENCE_BAND_COLOR[resilience.band] + '22', marginLeft: 'auto' }]}>
                             <Text style={[s.bandBadgeText, { color: RESILIENCE_BAND_COLOR[resilience.band] }]}>
                                 {resilience.score} · {resilience.band}

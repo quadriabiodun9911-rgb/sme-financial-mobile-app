@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { SafeAreaView, ScrollView, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -33,6 +33,7 @@ import { computeFinancialHealthPillars } from '../utils/financialHealthPillars';
 export default function BeforeYouDecideScreen() {
     const { finance, transactions, loans, inventory, assets, settings, navigate } = useApp();
     const { currency } = settings;
+    const [affordabilityMode, setAffordabilityMode] = useState<'quick' | 'detailed'>('quick');
 
     // Same risk/resilience/pillar pipeline the Scoreboard already computes
     // for its "Financial Health -- By Pillar" card -- reused here only for
@@ -97,18 +98,33 @@ export default function BeforeYouDecideScreen() {
                     <Text style={styles.decisionQuestion}>Planning to hire or expand?</Text>
                     <Text style={styles.decisionHelp}>Can your cash survive the gap between paying for it and it paying for itself?</Text>
                 </View>
-                <Collapsible title="Growth Affordability Check">
-                    <GrowthAffordabilityCalculator currency={currency} currentCashBalance={finance.cashBalance} monthlyBurn={monthlyBurn} />
-                </Collapsible>
-
-                {/* Financial Decision Simulator -- "can my business afford
-                    this decision?" as one direct question (a hire's salary,
-                    a second location's added fixed cost), distinct from the
-                    Growth Affordability Check above, which is the right tool
-                    when there's an upfront cost and a revenue ramp-up to
-                    model. See financialDecisionSimulator.ts. */}
-                <Collapsible title="Quick Affordability Check (hire, new cost, or expansion)">
-                    <DecisionSimulator currency={currency} transactions={transactions} currentCashBalance={finance.cashBalance} pillars={pillars.pillars} />
+                {/* One affordability check, not two -- Quick (just a new
+                    monthly cost, no upfront/ramp-up assumed) and Detailed
+                    (upfront cost, ramp-up months, expected added revenue)
+                    are the same underlying question at two levels of
+                    complexity, not two different tools. See
+                    financialDecisionSimulator.ts / growthAffordability.ts
+                    for why the math itself stays two separate engines. */}
+                <Collapsible title="Can I Afford This? (Hire, Expand, or New Cost)">
+                    <View style={styles.modeToggleRow}>
+                        <TouchableOpacity
+                            style={[styles.modeToggleBtn, affordabilityMode === 'quick' && styles.modeToggleBtnActive]}
+                            onPress={() => setAffordabilityMode('quick')}
+                        >
+                            <Text style={[styles.modeToggleText, affordabilityMode === 'quick' && styles.modeToggleTextActive]}>Quick</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.modeToggleBtn, affordabilityMode === 'detailed' && styles.modeToggleBtnActive]}
+                            onPress={() => setAffordabilityMode('detailed')}
+                        >
+                            <Text style={[styles.modeToggleText, affordabilityMode === 'detailed' && styles.modeToggleTextActive]}>Detailed (upfront cost + ramp-up)</Text>
+                        </TouchableOpacity>
+                    </View>
+                    {affordabilityMode === 'quick' ? (
+                        <DecisionSimulator currency={currency} transactions={transactions} currentCashBalance={finance.cashBalance} pillars={pillars.pillars} />
+                    ) : (
+                        <GrowthAffordabilityCalculator currency={currency} currentCashBalance={finance.cashBalance} monthlyBurn={monthlyBurn} />
+                    )}
                 </Collapsible>
 
                 <View style={styles.decisionCard}>
@@ -186,4 +202,10 @@ const styles = StyleSheet.create({
     },
     decisionQuestion: { fontSize: 15, fontWeight: '800', color: Colors.textPrimary, marginBottom: 4 },
     decisionHelp: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
+
+    modeToggleRow: { flexDirection: 'row', gap: 8, marginBottom: Spacing.sm },
+    modeToggleBtn: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: Radius.pill, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.bg },
+    modeToggleBtnActive: { backgroundColor: Colors.primary + '18', borderColor: Colors.primary },
+    modeToggleText: { fontSize: 12, fontWeight: '700', color: Colors.textSecondary },
+    modeToggleTextActive: { color: Colors.primary },
 });

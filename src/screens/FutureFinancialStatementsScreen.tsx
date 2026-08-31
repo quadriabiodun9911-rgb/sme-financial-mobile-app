@@ -6,6 +6,7 @@ import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import Icon from '../components/ui/Icon';
 import NextStepLink from '../components/NextStepLink';
+import Collapsible from '../components/Collapsible';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { buildFutureFinancialStatements, NO_ADJUSTMENTS, ForecastAdjustments } from '../utils/futureFinancialStatements';
 import { computeForecastSummary, describeCashFlowPressure, findReserveBreach, ForecastPeriod, PERIOD_LABELS } from '../utils/forecastSummary';
@@ -441,35 +442,37 @@ export default function FutureFinancialStatementsScreen() {
                             />
                             <Row label="Expected collection period" value={`${Math.round(forecastSummary.expectedCollectionDays)} days`} />
                             <Row label="Forecast confidence" value={`${forecastSummary.confidencePct}%`} bold />
-                        </View>
 
-                        {/* Rolling Forecast -- replaces "set a budget in
-                            January, compare it in December" with a monthly-
-                            updated trail: Forecast -> Actual -> Variance ->
-                            Update -> Forecast again. Only shown once a
-                            second monthly snapshot exists to actually form a
-                            trend. */}
-                        {forecastHistory.length >= 2 && (
-                            <View style={s.card}>
-                                <Text style={s.cardTitle}>🔁 Rolling Forecast</Text>
-                                <Text style={s.riskText}>
-                                    Every month Quad360 re-forecasts your annual revenue from the latest data, instead of comparing to a number set once and never revisited.
-                                </Text>
-                                {forecastHistory.map(snap => (
-                                    <Row
-                                        key={snap.id}
-                                        label={new Date(snap.date).toLocaleString('default', { month: 'short', year: '2-digit' })}
-                                        value={fmt(snap.annualRevenueForecast)}
-                                    />
-                                ))}
-                                {forecastAccuracy.available && (
-                                    <Text style={[s.riskText, { marginTop: Spacing.sm }]}>
-                                        Past forecasts have been off by an average of {forecastAccuracy.meanAbsPctError.toFixed(0)}% once the forecasted period actually played out
-                                        (forecast accuracy: <Text style={s.riskBold}>{forecastAccuracy.accuracyScore}/100</Text>, from {forecastAccuracy.comparisons} checkable snapshot{forecastAccuracy.comparisons !== 1 ? 's' : ''}).
+                            {/* Rolling Forecast -- both this and the rows above
+                                are context ABOUT the forecast, shown before the
+                                numbers themselves, so it lives in the same card
+                                rather than a second one: replaces "set a budget
+                                in January, compare it in December" with a
+                                monthly trail (Forecast -> Actual -> Variance ->
+                                Update -> Forecast again). Only shown once a
+                                second monthly snapshot exists to form a trend. */}
+                            {forecastHistory.length >= 2 && (
+                                <>
+                                    <Text style={[s.plSubheading, s.plSubheadingDivider, { marginTop: Spacing.md }]}>🔁 Rolling Forecast</Text>
+                                    <Text style={s.riskText}>
+                                        Every month Quad360 re-forecasts your annual revenue from the latest data, instead of comparing to a number set once and never revisited.
                                     </Text>
-                                )}
-                            </View>
-                        )}
+                                    {forecastHistory.map(snap => (
+                                        <Row
+                                            key={snap.id}
+                                            label={new Date(snap.date).toLocaleString('default', { month: 'short', year: '2-digit' })}
+                                            value={fmt(snap.annualRevenueForecast)}
+                                        />
+                                    ))}
+                                    {forecastAccuracy.available && (
+                                        <Text style={[s.riskText, { marginTop: Spacing.sm }]}>
+                                            Past forecasts have been off by an average of {forecastAccuracy.meanAbsPctError.toFixed(0)}% once the forecasted period actually played out
+                                            (forecast accuracy: <Text style={s.riskBold}>{forecastAccuracy.accuracyScore}/100</Text>, from {forecastAccuracy.comparisons} checkable snapshot{forecastAccuracy.comparisons !== 1 ? 's' : ''}).
+                                        </Text>
+                                    )}
+                                </>
+                            )}
+                        </View>
 
                         {/* Reserve Breach -- "Quad360 can use [everything] to
                             create a 12-Month Cash Forecast and identify
@@ -517,10 +520,18 @@ export default function FutureFinancialStatementsScreen() {
                             })}
                         </View>
 
-                        {/* Revenue Forecast */}
+                        {/* P&L Forecast — Revenue, Expenses, and Profit used to be
+                            three separate cards, but they're already one
+                            computed object (profitBridge): revenue minus
+                            expenses minus COGS is what profit IS, not a
+                            fourth independent number. One card, three
+                            sub-sections, so the arithmetic reads top to
+                            bottom instead of being scattered across three
+                            scrolls. */}
                         <View style={s.card}>
-                            <Text style={s.cardTitle}>📈 Revenue Forecast</Text>
-                            <Text style={s.baselineNote}>Next {PERIOD_LABELS[forecastPeriod]}</Text>
+                            <Text style={s.cardTitle}>📊 P&amp;L Forecast</Text>
+
+                            <Text style={s.plSubheading}>Revenue — Next {PERIOD_LABELS[forecastPeriod]}</Text>
                             <View style={s.tableHeaderRow}>
                                 <Text style={[s.tableCell, s.tableHeaderText, { flex: 1.3 }]}>Period</Text>
                                 <Text style={[s.tableCell, s.tableHeaderText]}>Actual</Text>
@@ -554,12 +565,8 @@ export default function FutureFinancialStatementsScreen() {
                                     </TouchableOpacity>
                                 </View>
                             )}
-                        </View>
 
-                        {/* Expense Forecast */}
-                        <View style={s.card}>
-                            <Text style={s.cardTitle}>💸 Expense Forecast</Text>
-                            <Text style={s.baselineNote}>Expected next {PERIOD_LABELS[forecastPeriod].toLowerCase()}</Text>
+                            <Text style={[s.plSubheading, s.plSubheadingDivider, { marginTop: Spacing.md }]}>Expenses — Next {PERIOD_LABELS[forecastPeriod].toLowerCase()}</Text>
                             {forecastSummary.expenseByCategory.map(c => (
                                 <Row key={c.category} label={c.category} value={fmt(c.amount)} />
                             ))}
@@ -569,11 +576,8 @@ export default function FutureFinancialStatementsScreen() {
                                     ⚠️ {largestExpenseCategory.category} purchases are expected to be your largest cash outflow over the next {PERIOD_LABELS[forecastPeriod].toLowerCase()}.
                                 </Text>
                             )}
-                        </View>
 
-                        {/* Profit Forecast */}
-                        <View style={s.card}>
-                            <Text style={s.cardTitle}>📊 Profit Forecast</Text>
+                            <Text style={[s.plSubheading, s.plSubheadingDivider, { marginTop: Spacing.md }]}>Profit</Text>
                             <Row label="Projected Revenue" value={fmt(pb.revenue)} />
                             <Row label="Projected COGS" value={`−${fmt(pb.cogs)}`} valueColor={Colors.expense} />
                             <Row label="Gross Profit" value={fmt(pb.grossProfit)} bold />
@@ -729,7 +733,18 @@ export default function FutureFinancialStatementsScreen() {
                             </Text>
                         </View>
 
-                        {/* External Factors */}
+                        {/* External Factors, Known Future Events, Seasonality,
+                            Risk Radar, and Combined Insights used to be five
+                            separate always-visible cards -- they're all
+                            genuinely "what's affecting this forecast, beyond
+                            your own transaction history," just five different
+                            lenses on that one question. Grouped under one tap
+                            -to-expand section so the default scroll shows the
+                            forecast itself first, not five cards of context
+                            before it. Each sub-section keeps its own controls
+                            (add a macro assumption, add a future event, etc.)
+                            unchanged. */}
+                        <Collapsible title="🔗 What's Affecting This Forecast">
                         <View style={s.card}>
                             <Text style={s.cardTitle}>🌍 External Factors</Text>
                             {forecastSummary.externalFactors.items.length === 0 ? (
@@ -878,7 +893,7 @@ export default function FutureFinancialStatementsScreen() {
                         {/* Internal + External combined insights */}
                         {forecastSummary.combinedInsights.length > 0 && (
                             <View style={s.card}>
-                                <Text style={s.cardTitle}>🔗 What's Happening Inside &amp; Outside</Text>
+                                <Text style={s.cardTitle}>🔗 Combined Insights</Text>
                                 {forecastSummary.combinedInsights.map((insight, i) => (
                                     <View key={i} style={[s.combinedInsightRow, insight.tone === 'opportunity' && s.combinedInsightRowOpportunity]}>
                                         <Text style={s.combinedInsightTitle}>{insight.icon} {insight.title}</Text>
@@ -887,6 +902,7 @@ export default function FutureFinancialStatementsScreen() {
                                 ))}
                             </View>
                         )}
+                        </Collapsible>
 
                         <View style={s.card}>
                             <Text style={s.cardTitle}>🧪 What If? Scenario Planner</Text>
@@ -913,7 +929,7 @@ export default function FutureFinancialStatementsScreen() {
                                     <View style={[s.checkbox, applySeasonality && s.checkboxActive]}>
                                         {applySeasonality && <Icon name="check" size={12} color="#fff" />}
                                     </View>
-                                    <Text style={s.checkboxLabel}>Adjust for seasonality (based on your own month-of-year history, see above)</Text>
+                                    <Text style={s.checkboxLabel}>Adjust for seasonality (based on your own month-of-year history — see "What's Affecting This Forecast" above)</Text>
                                 </TouchableOpacity>
                             )}
                         </View>
@@ -956,12 +972,18 @@ export default function FutureFinancialStatementsScreen() {
                         )}
 
                         {/* Impact Analysis -- profit first (the number owners
-                            actually think in), cash second. Shown whenever
-                            either waterfall has a driver to explain, not just
-                            when What If? adjustments are dialed in: a rising
-                            cost trend the engine detected on its own is
-                            exactly the kind of thing this section exists to
-                            surface. */}
+                            actually think in), cash second, then how
+                            resilient the plan is to being wrong. These three
+                            used to be three separate always-visible cards;
+                            the "If this happens" summary above already gives
+                            the headline numbers, so the WHY and the range
+                            behind them are detail worth a tap, not a default
+                            scroll. Shown whenever there's a driver to
+                            explain, not just when What If? adjustments are
+                            dialed in: a rising cost trend the engine
+                            detected on its own is exactly the kind of thing
+                            this section exists to surface. */}
+                        <Collapsible title="📊 Impact Analysis — Why, and How Resilient">
                         {profitExplanation.drivers.length > 0 && (
                             <View style={s.card}>
                                 <Text style={s.cardTitle}>Why is profit projected to change?</Text>
@@ -1023,6 +1045,7 @@ export default function FutureFinancialStatementsScreen() {
                                 </View>
                             ))}
                         </View>
+                        </Collapsible>
 
                         {/* AI recommendation box — driven by what the FORECAST itself
                             is warning about (forecastRiskActions), not the separate
@@ -1290,6 +1313,8 @@ const s = StyleSheet.create({
     cardTitle: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, marginBottom: 10 },
     emptyText: { fontSize: 14, color: Colors.textSecondary, lineHeight: 20 },
     baselineNote: { fontSize: 12, color: Colors.textSecondary, marginBottom: 14, lineHeight: 17 },
+    plSubheading: { fontSize: 12, fontWeight: '800', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
+    plSubheadingDivider: { paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.border },
     refCard: {
         backgroundColor: Colors.surfaceVariant, borderRadius: Radius.md, padding: 14, marginBottom: 14,
         borderWidth: 1, borderColor: Colors.border, ...Shadow.sm,
