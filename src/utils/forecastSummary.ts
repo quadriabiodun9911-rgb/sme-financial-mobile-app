@@ -218,6 +218,51 @@ export function describeCashFlowPressure(month: CashFlowMonth): string | null {
     return `Your cash position may come under pressure in ${month.monthLabel} because expected expenses are higher than projected cash inflows.`;
 }
 
+export interface ReserveBreach {
+    monthLabel: string;
+    monthIndex: number; // 0-based index into cashFlowMonths
+    endingCash: number;
+    minReserve: number;
+    shortfall: number;  // minReserve - endingCash, always > 0
+    message: string;
+}
+
+// "Cash pressure expected in October: forecast cash balance may fall below
+// your recommended operating reserve" -- a genuinely different question
+// than CashFlowMonth.pressured (net < 0 for that one month). A business can
+// have one bad month while sitting on a large cushion (pressured=true, but
+// never actually short of its reserve), or consistently-small-positive
+// months that never trip pressured=true while sitting below reserve the
+// whole time (real risk, currently unflagged by pressured alone). Reuses
+// describeCashFlowPressure's own driver-identification thresholds (loan
+// -share / inventory-share of outflow) for the specific month that first
+// breaches reserve, rather than a second, differently-tuned driver read.
+// Only ever reports the FIRST breach month -- once cash is below reserve,
+// every later month would also qualify, and that's not new information.
+export function findReserveBreach(cashFlowMonths: CashFlowMonth[], minReserve: number): ReserveBreach | null {
+    if (minReserve <= 0) return null;
+    const idx = cashFlowMonths.findIndex(m => m.endingCash < minReserve);
+    if (idx === -1) return null;
+    const month = cashFlowMonths[idx];
+    const shortfall = minReserve - month.endingCash;
+
+    const loanShare = month.outflow > 0 ? month.loanRepayment / month.outflow : 0;
+    const inventoryShare = month.outflow > 0 ? month.inventoryPurchase / month.outflow : 0;
+    let driver = 'expected expenses running higher than projected cash inflows';
+    if (inventoryShare >= 0.4) driver = 'a scheduled inventory purchase making up a large share of expected outflow';
+    else if (loanShare >= 0.4) driver = 'loan repayment making up a large share of expected outflow';
+    else if (!month.pressured) driver = 'lower cash generation than usual, even without any single month going net-negative';
+
+    return {
+        monthLabel: month.monthLabel,
+        monthIndex: idx,
+        endingCash: month.endingCash,
+        minReserve,
+        shortfall,
+        message: `Cash pressure expected in ${month.monthLabel}. Forecast cash balance may fall below your recommended operating reserve because of ${driver}.`,
+    };
+}
+
 export function computeForecastSummary(
     transactions: Transaction[],
     loans: Loan[],

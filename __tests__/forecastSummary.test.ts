@@ -1,4 +1,4 @@
-import { computeForecastSummary, computeCashFlowForecastMonths, describeCashFlowPressure, computeDetectedRevenueGrowthPctPerMonth } from '../src/utils/forecastSummary';
+import { computeForecastSummary, computeCashFlowForecastMonths, describeCashFlowPressure, computeDetectedRevenueGrowthPctPerMonth, findReserveBreach } from '../src/utils/forecastSummary';
 import { buildFutureFinancialStatements, NO_ADJUSTMENTS, ForecastAdjustments } from '../src/utils/futureFinancialStatements';
 import { Transaction, FinanceData } from '../src/types';
 
@@ -216,6 +216,59 @@ describe('describeCashFlowPressure', () => {
         const month2 = cashFlowMonths[1];
         expect(month2.pressured).toBe(true);
         expect(describeCashFlowPressure(month2)).toContain('loan repayment');
+    });
+});
+
+describe('findReserveBreach', () => {
+    it('returns null with no minimum reserve set', () => {
+        const stmts = buildFutureFinancialStatements(flatMonths(), [], finance, NO_ADJUSTMENTS, 3, []);
+        const cashFlowMonths = computeCashFlowForecastMonths(stmts, NO_ADJUSTMENTS);
+        expect(findReserveBreach(cashFlowMonths, 0)).toBeNull();
+    });
+
+    it('returns null when every projected month stays above the reserve', () => {
+        // flatMonths() nets +600,000/mo -- comfortably above a 100,000 reserve.
+        const stmts = buildFutureFinancialStatements(flatMonths(), [], finance, NO_ADJUSTMENTS, 3, []);
+        const cashFlowMonths = computeCashFlowForecastMonths(stmts, NO_ADJUSTMENTS);
+        expect(findReserveBreach(cashFlowMonths, 100000)).toBeNull();
+    });
+
+    it('flags the first month where forecast cash falls below the reserve, distinct from net<0 pressure', () => {
+        // Every month here is still net-positive (not "pressured"), but a
+        // high reserve threshold set above the ending balance should still
+        // flag a breach -- the two questions are genuinely different.
+        const stmts = buildFutureFinancialStatements(flatMonths(), [], finance, NO_ADJUSTMENTS, 3, []);
+        const cashFlowMonths = computeCashFlowForecastMonths(stmts, NO_ADJUSTMENTS);
+        expect(cashFlowMonths[0].pressured).toBe(false);
+        const breach = findReserveBreach(cashFlowMonths, 2000000);
+        expect(breach).not.toBeNull();
+        expect(breach!.monthIndex).toBe(0);
+        expect(breach!.monthLabel).toBe(cashFlowMonths[0].monthLabel);
+        expect(breach!.message).toContain(cashFlowMonths[0].monthLabel);
+        expect(breach!.message).toMatch(/recommended operating reserve/i);
+    });
+
+    it('reports the shortfall as the gap between the reserve and the ending cash', () => {
+        const stmts = buildFutureFinancialStatements(flatMonths(), [], finance, NO_ADJUSTMENTS, 3, []);
+        const cashFlowMonths = computeCashFlowForecastMonths(stmts, NO_ADJUSTMENTS);
+        const breach = findReserveBreach(cashFlowMonths, 2000000)!;
+        expect(breach.shortfall).toBeCloseTo(2000000 - cashFlowMonths[0].endingCash, 0);
+    });
+
+    it('names the inventory purchase as the driver when it dominates the breaching month\'s outflow', () => {
+        const adjustments: ForecastAdjustments = { ...NO_ADJUSTMENTS, oneOffInventoryPurchase: 800000 };
+        const stmts = buildFutureFinancialStatements(flatMonths(), [], finance, adjustments, 1, []);
+        const cashFlowMonths = computeCashFlowForecastMonths(stmts, adjustments);
+        const breach = findReserveBreach(cashFlowMonths, 5000000)!;
+        expect(breach.message).toMatch(/inventory purchase/i);
+    });
+
+    it('only ever reports the FIRST breaching month, not every month after it', () => {
+        const stmts = buildFutureFinancialStatements(flatMonths(), [], finance, NO_ADJUSTMENTS, 3, []);
+        const cashFlowMonths = computeCashFlowForecastMonths(stmts, NO_ADJUSTMENTS);
+        // A reserve above every projected month's ending cash -- all 3 "breach".
+        const breach = findReserveBreach(cashFlowMonths, 10000000)!;
+        expect(breach.monthIndex).toBe(0);
     });
 });
 

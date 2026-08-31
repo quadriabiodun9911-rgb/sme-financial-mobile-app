@@ -8,7 +8,8 @@ import Icon from '../components/ui/Icon';
 import NextStepLink from '../components/NextStepLink';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { buildFutureFinancialStatements, NO_ADJUSTMENTS, ForecastAdjustments } from '../utils/futureFinancialStatements';
-import { computeForecastSummary, describeCashFlowPressure, ForecastPeriod, PERIOD_LABELS } from '../utils/forecastSummary';
+import { computeForecastSummary, describeCashFlowPressure, findReserveBreach, ForecastPeriod, PERIOD_LABELS } from '../utils/forecastSummary';
+import { DEFAULT_THRESHOLDS } from '../utils/alertEngine';
 import { getEconomicReference } from '../utils/economicContext';
 import { DRIVER_LABEL } from '../utils/externalRiskInsights';
 import { RiskScore, RISK_BAND_STYLE, getMonthlyExpenseAverage } from '../utils/finance';
@@ -112,6 +113,20 @@ export default function FutureFinancialStatementsScreen() {
         () => computeForecastSummary(transactions, loans, finance, forecastPeriod, staff, macroAssumptions, NO_ADJUSTMENTS, inventory, futureEvents),
         [transactions, loans, finance, forecastPeriod, staff, macroAssumptions, inventory, futureEvents],
     );
+    // Distinct from CashFlowMonth.pressured (net < 0 for one month) -- this
+    // is "will the forecast dip below the reserve you've told Quad360 to
+    // keep on hand", the question "12-Month Cash Forecast... identify
+    // potential cash pressure" is actually asking. See findReserveBreach's
+    // own comment for why the two can disagree.
+    // Falls back to the same default low-cash threshold the Dashboard's
+    // alert bell already uses (alertEngine.ts) when the owner hasn't set
+    // their own reserve target in Settings -- otherwise this feature would
+    // silently do nothing for the majority of accounts that have never
+    // touched that field, including every fresh signup.
+    const reserveBreach = useMemo(
+        () => findReserveBreach(forecastSummary.cashFlowMonths, parseFloat(settings.minReserve || '') || DEFAULT_THRESHOLDS.lowCashThreshold),
+        [forecastSummary.cashFlowMonths, settings.minReserve],
+    );
     // Debt-service coverage under the What If? plan -- not part of
     // forecastSummary itself, computed here from the same annualized
     // projected profit plus the existing + any new loan's payment
@@ -131,6 +146,20 @@ export default function FutureFinancialStatementsScreen() {
             adjusted: adjustedAnnualDebtService > 0 ? adjustedAnnualProfit / adjustedAnnualDebtService : null,
         };
     }, [adjustments.newLoanAmount, adjustments.newLoanAnnualRatePct, adjustments.newLoanTermMonths, forecast.existingLoanMonthlyPayment, noAdjustmentsSummary, forecastSummary]);
+    // Runway under the What If? plan -- projected ending cash divided by
+    // the scenario's own average monthly expense, so a hire, a loan draw,
+    // or an inventory buy all show up in the one number an owner actually
+    // asks "how long would this last me" with. Infinity (not a magnitude
+    // sentinel) when the scenario's average expense is zero or negative,
+    // matching computeCashRunway's own convention elsewhere in the app.
+    const whatIfRunway = useMemo(() => {
+        const baseMonthlyExpense = noAdjustmentsSummary.headline.expectedExpenses / noAdjustmentsSummary.monthsInPeriod;
+        const adjustedMonthlyExpense = forecastSummary.headline.expectedExpenses / forecastSummary.monthsInPeriod;
+        return {
+            base: baseMonthlyExpense > 0 ? noAdjustmentsSummary.headline.expectedCashPosition / baseMonthlyExpense : Infinity,
+            adjusted: adjustedMonthlyExpense > 0 ? forecastSummary.headline.expectedCashPosition / adjustedMonthlyExpense : Infinity,
+        };
+    }, [noAdjustmentsSummary, forecastSummary]);
     // Real, corroborated external pressure (from the same Macro
     // Assumptions the External Factors panel below reads) folds into the
     // scenario swing -- Conservative gets worse by however much cost
@@ -396,6 +425,27 @@ export default function FutureFinancialStatementsScreen() {
                             <Row label="Expected collection period" value={`${Math.round(forecastSummary.expectedCollectionDays)} days`} />
                             <Row label="Forecast confidence" value={`${forecastSummary.confidencePct}%`} bold />
                         </View>
+
+                        {/* Reserve Breach -- "Quad360 can use [everything] to
+                            create a 12-Month Cash Forecast and identify
+                            potential cash pressure." Shown once, for the
+                            first month the forecast dips below the owner's
+                            own minimum reserve (set in Settings), ahead of
+                            the month-by-month cards below. */}
+                        {reserveBreach && (
+                            <View style={s.riskCard}>
+                                <View style={s.riskTitleRow}>
+                                    <Icon name="alert-triangle" size={14} color={Colors.expense} />
+                                    <Text style={[s.riskTitle, s.riskTitleInRow]}>🔴 Cash Pressure Expected</Text>
+                                </View>
+                                <Text style={s.riskText}>{reserveBreach.message}</Text>
+                                <Text style={s.riskText}>
+                                    Forecast balance: <Text style={s.riskBold}>{fmt(reserveBreach.endingCash)}</Text> vs. your{' '}
+                                    <Text style={s.riskBold}>{fmt(reserveBreach.minReserve)}</Text> reserve target — a shortfall of{' '}
+                                    <Text style={s.riskBold}>{fmt(reserveBreach.shortfall)}</Text>.
+                                </Text>
+                            </View>
+                        )}
 
                         {/* Cash Flow Forecast — the centerpiece */}
                         <View style={s.card}>
@@ -845,6 +895,9 @@ export default function FutureFinancialStatementsScreen() {
                                 </Text>
                                 <Text style={s.impactLine}>
                                     Margin: {noAdjustmentsSummary.profitBridge.forecastMarginPct.toFixed(1)}% → {forecastSummary.profitBridge.forecastMarginPct.toFixed(1)}%
+                                </Text>
+                                <Text style={s.impactLine}>
+                                    Runway: {Number.isFinite(whatIfRunway.base) ? `${whatIfRunway.base.toFixed(1)} months` : 'Not burning down'} → {Number.isFinite(whatIfRunway.adjusted) ? `${whatIfRunway.adjusted.toFixed(1)} months` : 'Not burning down'}
                                 </Text>
                                 {(whatIfDscr.base !== null || whatIfDscr.adjusted !== null) && (
                                     <Text style={s.impactLine}>
