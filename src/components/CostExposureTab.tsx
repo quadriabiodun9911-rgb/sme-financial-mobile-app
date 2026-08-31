@@ -8,6 +8,7 @@ import { computeCostExposureForecast } from '../utils/costExposureForecast';
 import { computeExternalRiskInsights, ExternalRiskInsight } from '../utils/externalRiskInsights';
 import { computeLaborProductivity } from '../utils/laborProductivity';
 import { computeExpenseLeaks, ExpenseLeakResult } from '../utils/expenseLeakDetection';
+import { computeUnusualSpending, UnusualSpendingResult } from '../utils/unusualSpending';
 import RadialGauge from './RadialGauge';
 import BarList from './BarList';
 import GroupedBarChart from './GroupedBarChart';
@@ -53,6 +54,7 @@ export default function CostExposureTab() {
     );
     const labor = useMemo(() => computeLaborProductivity(transactions, staff ?? []), [transactions, staff]);
     const expenseLeaks = useMemo(() => computeExpenseLeaks(transactions, currency), [transactions, currency]);
+    const unusualSpending = useMemo(() => computeUnusualSpending(transactions, currency), [transactions, currency]);
 
     if (!result.available) {
         return (
@@ -67,6 +69,9 @@ export default function CostExposureTab() {
                     often say something real even while the rest of this tab
                     is still waiting on data. */}
                 {labor.available && <LaborProductivityCard labor={labor} currency={currency} />}
+                {unusualSpending.available && unusualSpending.flags.length > 0 && (
+                    <UnusualSpendingCard result={unusualSpending} />
+                )}
                 {expenseLeaks.available && expenseLeaks.recurringGroups.length > 0 && (
                     <ExpenseLeakCard result={expenseLeaks} currency={currency} />
                 )}
@@ -220,6 +225,14 @@ export default function CostExposureTab() {
                 instead of sitting alone as a percentage. */}
             {labor.available && <LaborProductivityCard labor={labor} currency={currency} />}
 
+            {/* Unusual Spending -- a sudden one-off spike or brand-new
+                category this month, distinct from the cost-concentration
+                view above (which needs 6+ months and only catches a
+                SUSTAINED multi-month drift, not a single unusual month). */}
+            {unusualSpending.available && unusualSpending.flags.length > 0 && (
+                <UnusualSpendingCard result={unusualSpending} />
+            )}
+
             {/* Expense Leak Detection -- pattern-detected from raw vendor
                 history (no manual "mark as recurring" needed), distinct
                 from the labor/category views above which only look at
@@ -261,6 +274,19 @@ function LaborProductivityCard({ labor, currency }: { labor: ReturnType<typeof c
                     <Text style={s.laborNoteText}>{labor.note}</Text>
                 </View>
             )}
+        </View>
+    );
+}
+
+function UnusualSpendingCard({ result }: { result: UnusualSpendingResult }) {
+    return (
+        <View style={s.card}>
+            <Text style={s.cardTitle}>⚠️ Unusual Spending This Month</Text>
+            {result.flags.map((flag, i) => (
+                <View key={i} style={[s.laborNoteBox, { borderLeftColor: Colors.warning, borderLeftWidth: 3 }]}>
+                    <Text style={s.laborNoteText}>{flag.message}</Text>
+                </View>
+            ))}
         </View>
     );
 }
