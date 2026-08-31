@@ -65,10 +65,22 @@ export interface WorkingCapitalTrendSignal {
 }
 
 export type WorkingCapitalRiskSeverity = 'critical' | 'warning';
+// Stable identifiers for each flag this engine can raise -- lets a
+// downstream consumer (e.g. financialLeaks.ts's Collection Leakage card)
+// pick out a specific flag reliably instead of pattern-matching the
+// human-readable message string.
+export type WorkingCapitalRiskKey = 'dso-lengthening' | 'dpo-shrinking' | 'ccc-lengthening' | 'cash-trapped';
 
 export interface WorkingCapitalRiskFlag {
+    key: WorkingCapitalRiskKey;
     severity: WorkingCapitalRiskSeverity;
     message: string;
+    // Populated only for the two day-count flags (dso-lengthening,
+    // dpo-shrinking) -- the "from N to M days" figures the message already
+    // states in prose, exposed structured so a caller doesn't have to
+    // re-parse it out of the sentence.
+    fromDays?: number;
+    toDays?: number;
 }
 
 export interface WorkingCapitalHealthResult {
@@ -231,8 +243,11 @@ export function computeWorkingCapitalHealth(
         const dsoGrowthPct = pctChange(latest.dso, prior.dso);
         if (dsoGrowthPct !== null && dsoGrowthPct > 30) {
             riskFlags.push({
+                key: 'dso-lengthening',
                 severity: 'warning',
                 message: `Customers are taking noticeably longer to pay -- days sales outstanding grew from ${Math.round(prior.dso)} to ${Math.round(latest.dso)} days vs last quarter.`,
+                fromDays: prior.dso,
+                toDays: latest.dso,
             });
         }
     }
@@ -248,8 +263,11 @@ export function computeWorkingCapitalHealth(
         const dpoChangePct = pctChange(latest.dpo, prior.dpo);
         if (dpoChangePct !== null && dpoChangePct < -30) {
             riskFlags.push({
+                key: 'dpo-shrinking',
                 severity: 'warning',
                 message: `Suppliers are being paid noticeably faster than before -- days payable outstanding fell from ${Math.round(prior.dpo)} to ${Math.round(latest.dpo)} days vs last quarter, pulling cash out of the business sooner. This can be a deliberate early-payment discount, or a sign less supplier financing is available -- worth checking which.`,
+                fromDays: prior.dpo,
+                toDays: latest.dpo,
             });
         }
     }
@@ -262,6 +280,7 @@ export function computeWorkingCapitalHealth(
         const cccDiffs = [recentCcc[1].ccc - recentCcc[0].ccc, recentCcc[2].ccc - recentCcc[1].ccc];
         if (cccDiffs.every(d => d > 0)) {
             riskFlags.push({
+                key: 'ccc-lengthening',
                 severity: 'warning',
                 message: `The cash conversion cycle has lengthened for ${cccDiffs.length} consecutive quarters (${Math.round(recentCcc[0].ccc)} → ${Math.round(recentCcc[2].ccc)} days) — more cash is getting tied up in the cycle each quarter.`,
             });
@@ -274,6 +293,7 @@ export function computeWorkingCapitalHealth(
     // rather than a duplicate of that one.
     if (trappedCash > 0 && latest.revenue > 0 && trappedCash > latest.revenue * TRAPPED_CASH_RATIO_THRESHOLDS.poor) {
         riskFlags.push({
+            key: 'cash-trapped',
             severity: 'critical',
             message: `${formatMoney(trappedCash, currency)} is tied up in receivables and inventory relative to this quarter's revenue -- a large share of the business's cash is currently locked in working capital.`,
         });

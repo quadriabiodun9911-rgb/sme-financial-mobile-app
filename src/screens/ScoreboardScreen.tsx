@@ -17,6 +17,7 @@ import { analyzeTrend } from '../utils/trendAnalysis';
 import { buildFinancialBehaviour } from '../utils/businessFinancialDNA';
 import { computeExpenseLeaks } from '../utils/expenseLeakDetection';
 import { computeUnusualSpending } from '../utils/unusualSpending';
+import { computeFinancialLeaks, LeakSeverity } from '../utils/financialLeaks';
 import { generateActionPlan } from '../utils/actionRecommendationEngine';
 import { calculateGoalBridge, mapSavedGoalToBridge } from '../utils/goalBridgeEngine';
 import { assessGoalRisk, GoalRiskAssessment } from '../utils/goalRiskLinkage';
@@ -39,6 +40,7 @@ const RISK_LEVEL_META: Record<RiskLevel, { color: string; dot: string }> = {
 
 const FACTOR_STATUS_COLOR: Record<string, string> = { good: Colors.income, warning: Colors.warning, danger: Colors.expense };
 const PILLAR_STATUS_COLOR: Record<PillarStatus, string> = { good: Colors.income, warning: Colors.warning, danger: Colors.expense };
+const LEAK_SEVERITY_COLOR: Record<LeakSeverity, string> = { critical: Colors.expense, warning: Colors.warning, info: Colors.textMuted };
 
 const EXPOSURE_LEVEL_META: Record<ExposureLevel, { color: string; dot: string }> = {
     high:    { color: Colors.expense,  dot: '🔴' },
@@ -118,6 +120,11 @@ export default function ScoreboardScreen() {
     const expenseLeaks = useMemo(() => computeExpenseLeaks(transactions, currency), [transactions, currency]);
     const unusualSpending = useMemo(() => computeUnusualSpending(transactions, currency), [transactions, currency]);
     const revenueRecurringPct = useMemo(() => computeRevenueRecurringPct(transactions), [transactions]);
+    // "Instead of merely showing expenses, Quad360 finds problems" -- see
+    // financialLeaks.ts's own doc comment for why each of the 5 leak types
+    // is a reframing of a signal that already exists elsewhere, not a new
+    // independently-tuned computation.
+    const financialLeaks = useMemo(() => computeFinancialLeaks(transactions, loans, currency), [transactions, loans, currency]);
     const pillars = useMemo(
         () => computeFinancialHealthPillars(risk, transactions, resilience, {
             revenueVolatility: behaviour.revenueVolatility,
@@ -271,6 +278,31 @@ export default function ScoreboardScreen() {
                     ))}
                     <Text style={s.chipHint}>Tap a pillar above to see why it's that color</Text>
                 </View>
+
+                {/* Financial Leaks -- "where is my money leaking", not just
+                    "here are my expenses". Each leak below is a plain
+                    -language finding with a quantified impact, reusing
+                    signals already computed for the pillars above (see
+                    financialLeaks.ts). Only rendered once real leaks are
+                    found -- a clean business shouldn't see an empty
+                    "leaks" card. */}
+                {financialLeaks.available && financialLeaks.leaks.length > 0 && (
+                    <View style={s.card}>
+                        <View style={s.cardHeaderRow}>
+                            <Icon name="alert-triangle" size={14} color={Colors.textMuted} />
+                            <Text style={s.cardTitle}>Financial Leaks</Text>
+                        </View>
+                        <Text style={s.cardBodyText}>Where your money is quietly leaking out, found automatically from your own transactions.</Text>
+                        {financialLeaks.leaks.map(leak => (
+                            <View key={leak.key} style={[s.leakRow, { borderLeftColor: LEAK_SEVERITY_COLOR[leak.severity] }]}>
+                                <Text style={s.leakLabel}>{leak.label}</Text>
+                                <Text style={s.leakHeadline}>{leak.headline}</Text>
+                                <Text style={s.leakDetail}>{leak.detail}</Text>
+                                <Text style={[s.leakImpact, { color: LEAK_SEVERITY_COLOR[leak.severity] }]}>{leak.estimatedImpact}</Text>
+                            </View>
+                        ))}
+                    </View>
+                )}
 
                 {/* Business Exposure & Resilience -- complements Health:
                     Health asks "is the business doing well", this asks
@@ -469,6 +501,12 @@ const s = StyleSheet.create({
     readinessPillText: { fontSize: 9.5, fontWeight: '800' },
     goalRiskNote: { marginTop: Spacing.md, paddingTop: Spacing.md, borderTopWidth: 1, borderTopColor: Colors.border },
     goalRiskNoteText: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
+
+    leakRow: { borderLeftWidth: 3, borderRadius: Radius.sm, backgroundColor: Colors.bg, padding: Spacing.sm, marginTop: Spacing.sm },
+    leakLabel: { fontSize: 10, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 2 },
+    leakHeadline: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: 3, lineHeight: 18 },
+    leakDetail: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17, marginBottom: 5 },
+    leakImpact: { fontSize: 12, fontWeight: '700' },
 
     linkRow: { paddingVertical: Spacing.sm, marginBottom: Spacing.sm },
     linkText: { fontSize: 12.5, color: Colors.primary, fontWeight: '700' },
