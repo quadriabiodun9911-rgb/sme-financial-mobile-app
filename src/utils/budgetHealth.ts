@@ -38,6 +38,7 @@
  */
 
 import { Transaction, Budget, InventoryItem, ForecastSnapshot } from '../types';
+import { latestTransactionDate } from './finance';
 import { computeAllTimeMonthlyBuckets } from './trendAnalysis';
 import { computeRevenueVolatility, RevenueVolatility } from './businessFinancialDNA';
 import { computeWorkingCapitalHealth } from './workingCapitalHealth';
@@ -102,11 +103,19 @@ export function computeBudgetHealth(
     currentCashBalance: number,
     forecastHistory: ForecastSnapshot[],
     currency: string = '₦',
-    now: Date = new Date(),
+    nowOverride?: Date,
 ): BudgetHealthResult {
     if (transactions.length === 0) {
         return { available: false, reason: 'No transaction history yet.', score: 0, factors: [], narrative: null };
     }
+
+    // Anchored to this business's own latest transaction date, not the real
+    // system clock -- an imported historical statement or a demo business
+    // whose data predates today would otherwise silently zero out the
+    // Budget Variance and Forecast Accuracy factors (their own lookback
+    // windows would land on calendar months with no data at all), dropping
+    // 40% of this score's weight with no visible explanation.
+    const now = nowOverride ?? latestTransactionDate(transactions) ?? new Date();
 
     const monthlyBuckets = computeAllTimeMonthlyBuckets(transactions);
     const monthlyRevenue = monthlyBuckets.filter(b => b.revenue > 0).map(b => b.revenue);

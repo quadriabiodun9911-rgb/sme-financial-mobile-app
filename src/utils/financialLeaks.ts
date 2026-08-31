@@ -107,7 +107,7 @@ export function computeFinancialLeaks(
         const groups = expenseLeaks.recurringGroups;
         const estimatedAnnualTotal = groups.reduce((s, g) => s + estimateAnnualCost(g), 0);
         const priceCreepGroups = groups.filter(g => g.amountGrowthPct !== null && g.amountGrowthPct > 15);
-        const severity: LeakSeverity = priceCreepGroups.some(g => (g.amountGrowthPct ?? 0) > 30) ? 'warning'
+        const severity: LeakSeverity = priceCreepGroups.some(g => (g.amountGrowthPct ?? 0) > 30) ? 'critical'
             : priceCreepGroups.length > 0 ? 'warning' : 'info';
         leaks.push({
             key: 'subscription',

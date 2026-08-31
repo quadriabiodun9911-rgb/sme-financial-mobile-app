@@ -58,6 +58,18 @@ describe('computeFinancialLeaks', () => {
         expect(leak.detail).toMatch(/ToolCo/);
     });
 
+    it('escalates Subscription Leakage to critical severity when price creep exceeds 30%, matching every other leak type\'s own threshold', () => {
+        const txs = [
+            // 50,000 -> 75,000 = 50% growth, well past the 30% critical threshold.
+            makeTx({ category: 'Software & Subscriptions', vendorCustomer: 'ToolCo', amount: 50000, date: '2026-01-05' }),
+            makeTx({ category: 'Software & Subscriptions', vendorCustomer: 'ToolCo', amount: 50000, date: '2026-02-05' }),
+            makeTx({ category: 'Software & Subscriptions', vendorCustomer: 'ToolCo', amount: 75000, date: '2026-03-05' }),
+        ];
+        const result = computeFinancialLeaks(txs, []);
+        const leak = result.leaks.find(l => l.key === 'subscription')!;
+        expect(leak.severity).toBe('critical');
+    });
+
     it('detects Expense Growth Leakage matching the Efficiency factor\'s own gap calculation', () => {
         // computeMonthlyTrend(transactions, 3) anchors to the real clock (no
         // override), the same convention computeRiskScore's Efficiency

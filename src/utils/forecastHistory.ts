@@ -79,11 +79,21 @@ const UNAVAILABLE_ACCURACY = (reason: string): ForecastAccuracyResult => ({
 export function computeForecastAccuracy(
     history: ForecastSnapshot[],
     monthlyRevenueByMonth: Map<string, number>, // 'YYYY-MM' -> actual revenue that month
-    now: Date = new Date(),
+    nowOverride?: Date,
 ): ForecastAccuracyResult {
     if (history.length === 0) {
         return UNAVAILABLE_ACCURACY('No forecast history recorded yet — check back after a month of using Quad360.');
     }
+
+    // Anchored to the latest month actually present in monthlyRevenueByMonth
+    // (itself derived from real transaction dates), not the real system
+    // clock -- otherwise a business whose data predates today would have
+    // every snapshot read as "not old enough yet" even when real elapsed
+    // history exists to check it against.
+    const latestDataMonthKey = monthlyRevenueByMonth.size > 0 ? Array.from(monthlyRevenueByMonth.keys()).sort().pop()! : null;
+    const now = nowOverride ?? (latestDataMonthKey
+        ? new Date(Number(latestDataMonthKey.slice(0, 4)), Number(latestDataMonthKey.slice(5, 7)) - 1, 1)
+        : new Date());
 
     const errors: number[] = [];
     for (const snapshot of history) {

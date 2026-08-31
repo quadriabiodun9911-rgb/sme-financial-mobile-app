@@ -233,6 +233,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setHydrated(false);
     setTransactions([]); setAssets([]); setLoans([]); setBudgets([]); setInventory([]);
     setStaff([]); setPayrollRuns([]); setCashPockets([]); setCapitalCommitments([]); setReadinessHistory([]);
+    setForecastHistory([]); setDataConfidenceHistory([]);
     setFinancing({
       isQualified: false, qualification: undefined, minQualifiedAmount: undefined,
       maxQualifiedAmount: undefined, application: undefined,

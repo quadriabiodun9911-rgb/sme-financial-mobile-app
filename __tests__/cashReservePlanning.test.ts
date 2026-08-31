@@ -46,13 +46,16 @@ describe('computeFinancialResilience', () => {
     });
 
     it('flags below-recommended coverage for a stable business under its 2-month target', () => {
+        // 3 flat months of revenue -- genuinely 'stable' (not just defaulted
+        // to it for lack of history), so recommendedMonths = 2.
         const transactions: Transaction[] = [
+            ...[0, 1, 2].map(m => tx({ type: 'income', amount: 1_000_000, category: 'Sales', date: `${monthKey(m)}-05` })),
             tx({ type: 'expense', amount: 500_000, category: 'Rent', date: `${monthKey(0)}-01`, isRecurring: true, recurringFrequency: 'monthly' }),
         ];
-        // Stable (default, <3 revenue months) business -> recommendedMonths = 2.
         // Reserve of 500k covers exactly 1 month -- below the 2-month target,
         // but not below half of it (1.0), so this should read 'warning', not 'danger'.
         const result = computeFinancialResilience(transactions, 500_000);
+        expect(result.volatility).toBe('stable');
         expect(result.recommendedMonths).toBe(2);
         expect(result.reserveCoverageMonths).toBeCloseTo(1, 0);
         expect(result.status).toBe('warning');
@@ -104,5 +107,22 @@ describe('computeFinancialResilience', () => {
         const result = computeFinancialResilience(transactions, 850_000);
         expect(result.assessment).toContain('month');
         expect(result.assessment).toContain(`${result.recommendedMonths}`);
+    });
+
+    it('does not claim revenue is "steady" with fewer than 3 months of revenue history, and uses the cautious middle target instead of the least-protective one', () => {
+        // Only 1 month of revenue on record -- computeRevenueVolatility's
+        // own <3-month default of 'stable' would otherwise leak through
+        // here and assert a track record the business hasn't earned yet,
+        // while also picking the SMALLEST (least protective) reserve
+        // target of the three tiers for the least-proven case.
+        const transactions: Transaction[] = [
+            tx({ type: 'income', amount: 1_000_000, category: 'Sales', date: `${monthKey(0)}-05` }),
+            tx({ type: 'expense', amount: 300_000, category: 'Rent', date: `${monthKey(0)}-01`, isRecurring: true, recurringFrequency: 'monthly' }),
+        ];
+        const result = computeFinancialResilience(transactions, 900_000);
+        expect(result.volatility).toBe('variable');
+        expect(result.recommendedMonths).toBe(3.5);
+        expect(result.assessment).not.toMatch(/fairly steady/);
+        expect(result.assessment).toMatch(/isn't yet enough revenue history/);
     });
 });

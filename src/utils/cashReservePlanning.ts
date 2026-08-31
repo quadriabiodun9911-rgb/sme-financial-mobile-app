@@ -67,7 +67,18 @@ export function computeFinancialResilience(
     const monthlyRevenues = computeAllTimeMonthlyBuckets(transactions)
         .filter(b => b.revenue > 0)
         .map(b => b.revenue);
-    const volatility = computeRevenueVolatility(monthlyRevenues);
+    // computeRevenueVolatility itself defaults to 'stable' below its own
+    // 3-month minimum -- appropriate when IT'S just one input among many
+    // (e.g. blended into a wider score), but wrong here, where "stable"
+    // directly drives the narrative's own claim ("your revenue has been
+    // fairly steady") and picks the SMALLEST, least protective reserve
+    // target of the three tiers. An unproven business gets read this
+    // week's placeholder as a genuine track record. Guard against that by
+    // treating <3 months of revenue history as unproven and defaulting to
+    // the middle 'variable' tier -- a cautious assumption, not a claim of
+    // steadiness the data hasn't earned yet.
+    const hasEnoughHistoryForVolatility = monthlyRevenues.length >= 3;
+    const volatility = hasEnoughHistoryForVolatility ? computeRevenueVolatility(monthlyRevenues) : 'variable';
     const recommendedMonths = RECOMMENDED_RESERVE_MONTHS[volatility];
 
     if (!available) {
@@ -95,7 +106,10 @@ export function computeFinancialResilience(
 
     const volatilityPhrase = volatility === 'stable' ? 'fairly steady' : volatility === 'variable' ? 'somewhat variable' : 'highly volatile';
     const monthsWord = reserveCoverageMonths === 1 ? 'month' : 'months';
-    const assessment = `Your business currently has approximately ${reserveCoverageMonths.toFixed(1)} ${monthsWord} of essential operating expenses available in cash. Because your revenue has been ${volatilityPhrase} month to month, Quad360 recommends holding at least ${recommendedMonths} months in reserve. ${
+    const volatilityClause = hasEnoughHistoryForVolatility
+        ? `Because your revenue has been ${volatilityPhrase} month to month, Quad360 recommends holding at least ${recommendedMonths} months in reserve.`
+        : `There isn't yet enough revenue history to judge how predictable your income is, so Quad360 is using a cautious ${recommendedMonths}-month reserve target until more history builds up.`;
+    const assessment = `Your business currently has approximately ${reserveCoverageMonths.toFixed(1)} ${monthsWord} of essential operating expenses available in cash. ${volatilityClause} ${
         reserveCoverageMonths < recommendedMonths
             ? 'Your cash position may become vulnerable if revenue declines or customer payments are delayed.'
             : 'This gives you a reasonable cushion if revenue declines or customer payments are delayed.'

@@ -24,7 +24,7 @@
  */
 
 import { Transaction, Budget } from '../types';
-import { computeBudgetVsActual, BudgetVsActual } from './finance';
+import { computeBudgetVsActual, BudgetVsActual, latestTransactionDate } from './finance';
 import { activeBudgetsForPeriod } from './budgetPeriod';
 
 export type LineFavorability = 'favorable' | 'unfavorable' | 'on_track';
@@ -221,8 +221,16 @@ export function computeBudgetVarianceStreak(
     transactions: Transaction[],
     budgets: Budget[],
     monthsBack: number = 6,
-    now: Date = new Date(),
+    nowOverride?: Date,
 ): BudgetVarianceStreakResult {
+    // Anchored to this business's own latest transaction date, not the real
+    // system clock -- see latestTransactionDate's own comment. A business
+    // whose most recent activity predates the real current calendar month
+    // (an imported historical statement, a demo business) would otherwise
+    // have every lookback month land on calendar months with no data,
+    // making this silently unavailable for a business that actually has
+    // real budget history to check.
+    const now = nowOverride ?? latestTransactionDate(transactions) ?? new Date();
     const monthKeys: string[] = [];
     for (let i = monthsBack - 1; i >= 0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
