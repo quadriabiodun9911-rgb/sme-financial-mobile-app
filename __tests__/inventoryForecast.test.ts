@@ -7,10 +7,24 @@ const daysAgo = (n: number) => {
     d.setDate(d.getDate() - n);
     return d.toISOString().split('T')[0];
 };
+// Regression: `d.setMonth(d.getMonth() - n)` cloned from "today" collapses
+// distinct months together whenever "today" falls on the 29th-31st -- e.g.
+// from Aug 31, going back 2 months hit June 31 (invalid, June has 30 days)
+// and overflowed FORWARD to July 1, landing on the exact same month key
+// "going back 1 month" already produced. Two of this test's three intended
+// distinct purchase months collapsed into one, understating the average.
+// Computed directly from year/month arithmetic (day-of-month is irrelevant
+// to a 'YYYY-MM' key) instead of via Date day rollover, and without a
+// `.toISOString()` round-trip (which reads the date back in UTC and could
+// shift the month for a negative-offset timezone) -- the same local-
+// getters, no-ISO-round-trip pattern already used elsewhere in this app
+// (see computeInventoryPace's monthKey in inventoryIntelligence.ts) for
+// exactly this bug class.
 const monthsAgoKey = (n: number) => {
-    const d = new Date(today);
-    d.setMonth(d.getMonth() - n);
-    return d.toISOString().slice(0, 7);
+    const targetIndex = today.getMonth() - n;
+    const year = today.getFullYear() + Math.floor(targetIndex / 12);
+    const month = ((targetIndex % 12) + 12) % 12;
+    return `${year}-${String(month + 1).padStart(2, '0')}`;
 };
 
 const makeItem = (overrides: Partial<InventoryItem> = {}): InventoryItem => ({
