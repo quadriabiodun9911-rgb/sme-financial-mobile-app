@@ -21,6 +21,7 @@ import { buildAdvisorContext } from '../utils/aiAdvisor';
 import { buildBehavioralProfile } from '../utils/behavioralProfile';
 import { computeReadinessDelta } from '../utils/readinessHistory';
 import AIAdvisorCard from './AIAdvisorCard';
+import CashConversionCycleVisual from './CashConversionCycleVisual';
 
 function fmt(currency: string, n: number): string {
     return `${currency}${Math.round(n).toLocaleString()}`;
@@ -195,12 +196,7 @@ export default function CFOQuestionsTab() {
             <View style={s.card}>
                 <Text style={s.qLabel}>Q2</Text>
                 <Text style={s.qTitle}>How fast do earnings turn into cash?</Text>
-                <View style={s.statRow}>
-                    <Stat label="DSO" value={`${ccc.dso.toFixed(0)}d`} />
-                    <Stat label="DIO" value={`${ccc.dio.toFixed(0)}d`} />
-                    <Stat label="DPO" value={`${ccc.dpo.toFixed(0)}d`} />
-                    <Stat label="Cash Cycle" value={`${ccc.ccc.toFixed(0)}d`} highlight />
-                </View>
+                <CashConversionCycleVisual dso={ccc.dso} dio={ccc.dio} dpo={ccc.dpo} ccc={ccc.ccc} />
                 <Text style={s.qNote}>
                     Days Sales + Days Inventory − Days Payables Outstanding. Lower means cash is tied up for fewer days between spending and collecting. DIO/DPO use total costs as a base (no separate COGS category exists across every business type), so treat this as directional, not exact.
                 </Text>
