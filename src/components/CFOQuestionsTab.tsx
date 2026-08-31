@@ -22,6 +22,18 @@ import { buildBehavioralProfile } from '../utils/behavioralProfile';
 import { computeReadinessDelta } from '../utils/readinessHistory';
 import AIAdvisorCard from './AIAdvisorCard';
 import CashConversionCycleVisual from './CashConversionCycleVisual';
+import { computeRevenueStressTest, StressRiskTier } from '../utils/revenueStressTest';
+
+// Same 4-color gradient this app's other Band-style scores already use
+// (CashFlowHealthBand/WorkingCapitalHealthBand's BAND_COLOR: income ->
+// warning -> a distinct orange -> expense) rather than inventing a new
+// palette for this one table.
+const STRESS_RISK_META: Record<StressRiskTier, { color: string; dot: string }> = {
+    safe: { color: Colors.income, dot: '🟢' },
+    caution: { color: Colors.warning, dot: '🟡' },
+    warning: { color: '#fb923c', dot: '🟠' },
+    critical: { color: Colors.expense, dot: '🔴' },
+};
 
 function fmt(currency: string, n: number): string {
     return `${currency}${Math.round(n).toLocaleString()}`;
@@ -152,6 +164,15 @@ export default function CFOQuestionsTab() {
         [finance.cashBalance, dailyBurn, trailing30Revenue, revenueMissPct],
     );
 
+    // Revenue Stress Test -- the multi-scenario table (Current, -10%, -20%,
+    // -30%) alongside Q6's single user-chosen % above, plus the specific
+    // vulnerability threshold neither Q6 nor a coarse 3-point table alone
+    // can show.
+    const revenueStress = useMemo(
+        () => computeRevenueStressTest(transactions, finance.cashBalance, currency),
+        [transactions, finance.cashBalance, currency],
+    );
+
     const resetForm = () => {
         setForm(EMPTY_COMMITMENT_FORM);
         setShowAddCommitment(false);
@@ -268,6 +289,35 @@ export default function CFOQuestionsTab() {
                 </View>
             </View>
 
+            {/* Revenue Stress Test -- decision intelligence, not just a
+                historical report: several revenue-decline scenarios side by
+                side, plus the exact tipping point into vulnerability. */}
+            {revenueStress.available && (
+                <View style={s.card}>
+                    <Text style={s.qLabel}>Stress Test</Text>
+                    <Text style={s.qTitle}>What happens if sales suddenly slow down?</Text>
+
+                    <View style={s.tableHeader}>
+                        <Text style={[s.th, { flex: 1.2 }]}>Scenario</Text>
+                        <Text style={s.th}>Cash</Text>
+                        <Text style={s.th}>Runway</Text>
+                        <Text style={[s.th, { flex: 0.6, textAlign: 'right' }]}>Risk</Text>
+                    </View>
+                    {revenueStress.scenarios.map(scenario => (
+                        <View key={scenario.label} style={s.tableRow}>
+                            <Text style={[s.td, { flex: 1.2 }]}>{scenario.label}</Text>
+                            <Text style={s.td}>{fmt(currency, scenario.cashPosition)}</Text>
+                            <Text style={s.td}>{Number.isFinite(scenario.runwayMonths) ? `${scenario.runwayMonths.toFixed(1)}mo` : '∞'}</Text>
+                            <Text style={[s.td, { flex: 0.6, textAlign: 'right' }]}>{STRESS_RISK_META[scenario.risk].dot}</Text>
+                        </View>
+                    ))}
+
+                    <View style={[s.verdictBox, { borderColor: revenueStress.vulnerabilityThresholdPct !== null ? '#fb923c' : Colors.income }]}>
+                        <Text style={s.verdictText}>{revenueStress.insight}</Text>
+                    </View>
+                </View>
+            )}
+
             {/* Q7 */}
             <View style={s.card}>
                 <Text style={s.qLabel}>Q7</Text>
@@ -366,6 +416,11 @@ const s = StyleSheet.create({
     stat: { flex: 1, backgroundColor: Colors.bg, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, padding: 10, alignItems: 'center' },
     statLabel: { fontSize: 10, color: Colors.textMuted, marginBottom: 4 },
     statVal: { fontSize: 15, fontWeight: '800', color: Colors.textPrimary },
+
+    tableHeader: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: Colors.border, paddingBottom: 8, marginBottom: 6 },
+    th: { flex: 1, fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase' },
+    tableRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    td: { flex: 1, fontSize: 12, color: Colors.textSecondary },
 
     quarterRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: Colors.border },
     quarterLabel: { fontSize: 12.5, fontWeight: '800', color: Colors.textSecondary, width: 30 },
