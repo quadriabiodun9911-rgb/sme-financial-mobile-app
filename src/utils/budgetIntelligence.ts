@@ -185,3 +185,74 @@ export function computeBudgetIntelligence(
 
     return { available: true, period, revenueLine, expenseLines, netCashFlowLine, narrative, explanations };
 }
+
+/**
+ * Budget Variance Streak — "actual expenses have exceeded forecast for
+ * three consecutive months" as a real, computed signal, not a one-off
+ * monthly comparison. Reuses computeBudgetVsActual verbatim, called once
+ * per recent calendar month, summed to a total budgeted/actual for that
+ * month (only months with an active budget count -- a month nothing was
+ * budgeted for isn't comparable either way). Feeds Budget Health's
+ * "Budget Variance" factor.
+ */
+export interface MonthlyBudgetTotal {
+    month: string; // 'YYYY-MM'
+    budgeted: number;
+    actual: number;
+    variancePct: number; // (actual - budgeted) / budgeted * 100 -- positive means over budget
+    overBudget: boolean;
+}
+
+export interface BudgetVarianceStreakResult {
+    available: boolean;
+    reason?: string;
+    months: MonthlyBudgetTotal[]; // chronological, only months with an active budget
+    currentStreak: number; // consecutive over-budget months ending at the most recent budgeted month
+    narrative: string | null; // set only once the streak reaches 3, matching the product-vision example
+}
+
+// Same +/-5% on-track tolerance computeBudgetVsActual's own per-category
+// status already uses -- a month within that band isn't "over budget",
+// it's on track.
+const OVER_BUDGET_BAND_PCT = 5;
+const STREAK_NARRATIVE_THRESHOLD = 3;
+
+export function computeBudgetVarianceStreak(
+    transactions: Transaction[],
+    budgets: Budget[],
+    monthsBack: number = 6,
+    now: Date = new Date(),
+): BudgetVarianceStreakResult {
+    const monthKeys: string[] = [];
+    for (let i = monthsBack - 1; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        monthKeys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+    }
+
+    const months: MonthlyBudgetTotal[] = [];
+    for (const month of monthKeys) {
+        const rows = computeBudgetVsActual(transactions, budgets, month);
+        if (rows.length === 0) continue;
+        const budgeted = rows.reduce((s, r) => s + r.budgeted, 0);
+        const actual = rows.reduce((s, r) => s + r.actual, 0);
+        if (budgeted <= 0) continue;
+        const variancePct = ((actual - budgeted) / budgeted) * 100;
+        months.push({ month, budgeted, actual, variancePct, overBudget: variancePct > OVER_BUDGET_BAND_PCT });
+    }
+
+    if (months.length === 0) {
+        return { available: false, reason: 'No budgets have been set for any of the last few months to compare.', months: [], currentStreak: 0, narrative: null };
+    }
+
+    let currentStreak = 0;
+    for (let i = months.length - 1; i >= 0; i--) {
+        if (!months[i].overBudget) break;
+        currentStreak++;
+    }
+
+    const narrative = currentStreak >= STREAK_NARRATIVE_THRESHOLD
+        ? `Your budget is becoming less reliable because actual expenses have exceeded forecast for ${currentStreak} consecutive months.`
+        : null;
+
+    return { available: true, months, currentStreak, narrative };
+}

@@ -757,6 +757,20 @@ export interface ReadinessSnapshot {
     factors: ReadinessFactorSnapshot[];
 }
 
+// A periodic snapshot of the 12-month annual revenue forecast
+// (computeForecastSummary's headline.expectedRevenue) -- the "Rolling
+// Forecast" this app otherwise recomputes fresh on every render, with no
+// memory of what last month's forecast actually said. Same memory-of-
+// the-past role for the forecast that ReadinessSnapshot plays for the
+// readiness score, deliberately on a monthly (not weekly) cadence -- see
+// forecastHistory.ts.
+export interface ForecastSnapshot {
+    id: string;
+    date: string; // ISO date (YYYY-MM-DD) the snapshot was taken
+    annualRevenueForecast: number; // 12-month expectedRevenue at the time of this snapshot
+    confidencePct: number;
+}
+
 // A dated point-in-time reading of dataConfidenceHistory.ts's blended
 // coverage/classification % -- the "cold start" trend: a fresh account
 // starts low simply because it has little history yet, and this is what

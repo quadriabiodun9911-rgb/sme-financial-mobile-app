@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CryptoJS from 'crypto-js';
-import { Transaction, BusinessSettings, FinancialGoal, Invoice, TeamMember, Language, Asset, InventoryItem, Loan, Budget, StaffMember, PayrollRun, FinancingContextData, CashPocket, CapitalCommitment, ReadinessSnapshot, DataConfidenceSnapshot, FxRateSnapshot } from '../types';
+import { Transaction, BusinessSettings, FinancialGoal, Invoice, TeamMember, Language, Asset, InventoryItem, Loan, Budget, StaffMember, PayrollRun, FinancingContextData, CashPocket, CapitalCommitment, ReadinessSnapshot, ForecastSnapshot, DataConfidenceSnapshot, FxRateSnapshot } from '../types';
 import { supabase } from './supabase';
 import {
     savePinSecurely, loadPinSecurely, clearPinSecurely, clearAllSecureData, saveAuthSecretSecurely, loadAuthSecretSecurely, clearAuthSecretSecurely,
@@ -894,6 +894,20 @@ export async function loadReadinessHistory(): Promise<ReadinessSnapshot[] | null
     return safeParse<ReadinessSnapshot[]>(raw);
 }
 
+// ─── Forecast History (Rolling Forecast) ─────────────────────────────────────
+// Same local-only pattern as Readiness History above -- monthly snapshots of
+// the 12-month annual revenue forecast, so "Forecast -> Actual -> Variance ->
+// Update -> Forecast again" has an actual trend to show instead of only ever
+// today's number. See forecastHistory.ts.
+const FORECAST_HISTORY_KEY = '@quad360/forecastHistory';
+export async function saveForecastHistory(history: ForecastSnapshot[]): Promise<void> {
+    await AsyncStorage.setItem(FORECAST_HISTORY_KEY, JSON.stringify(history));
+}
+export async function loadForecastHistory(): Promise<ForecastSnapshot[] | null> {
+    const raw = await AsyncStorage.getItem(FORECAST_HISTORY_KEY);
+    return safeParse<ForecastSnapshot[]>(raw);
+}
+
 // ─── Data Confidence History ─────────────────────────────────────────────────
 // Same local-only pattern as Readiness History above -- the "cold start"
 // trend (see dataConfidenceHistory.ts) only needs to survive on this
@@ -1245,6 +1259,7 @@ export interface AppBackup {
     payrollRuns?: PayrollRun[];
     capitalCommitments?: CapitalCommitment[];
     readinessHistory?: ReadinessSnapshot[];
+    forecastHistory?: ForecastSnapshot[];
     dataConfidenceHistory?: DataConfidenceSnapshot[];
     auditLogs?: unknown[];
     consents?: unknown[];
@@ -1264,6 +1279,7 @@ export interface ExportInput {
     payrollRuns: PayrollRun[];
     capitalCommitments: CapitalCommitment[];
     readinessHistory: ReadinessSnapshot[];
+    forecastHistory: ForecastSnapshot[];
     dataConfidenceHistory: DataConfidenceSnapshot[];
 }
 
@@ -1318,6 +1334,7 @@ export async function importAllData(json: string): Promise<AppBackup> {
     if (parsed.payrollRuns) restores.push(savePayrollRuns(parsed.payrollRuns));
     if (parsed.capitalCommitments) restores.push(saveCapitalCommitments(parsed.capitalCommitments));
     if (parsed.readinessHistory) restores.push(saveReadinessHistory(parsed.readinessHistory));
+    if (parsed.forecastHistory) restores.push(saveForecastHistory(parsed.forecastHistory));
     if (parsed.dataConfidenceHistory) restores.push(saveDataConfidenceHistory(parsed.dataConfidenceHistory));
     await Promise.all(restores);
     return parsed;
@@ -1344,7 +1361,7 @@ const FINANCIAL_CACHE_KEYS = [
     KEYS.assets, KEYS.loans, KEYS.staff, KEYS.payrollRuns,
     '@quad360/inventory', '@quad360/budgets', CASH_POCKETS_KEY, CAPITAL_COMMITMENTS_KEY,
     'quad360_tactic_executions_v1', 'quad360_tactic_outcomes_v1', '@quad360/financing',
-    READINESS_HISTORY_KEY,
+    READINESS_HISTORY_KEY, FORECAST_HISTORY_KEY,
     // transactionCategorization.ts's learned category-correction rules --
     // keyed by transaction description text, so this can otherwise leak
     // one business's actual supplier/customer names into another

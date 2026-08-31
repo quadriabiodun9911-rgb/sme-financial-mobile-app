@@ -1,4 +1,4 @@
-import { computeBudgetIntelligence } from '../src/utils/budgetIntelligence';
+import { computeBudgetIntelligence, computeBudgetVarianceStreak } from '../src/utils/budgetIntelligence';
 import { Transaction, Budget } from '../src/types';
 
 const makeTx = (overrides: Partial<Transaction>): Transaction => ({
@@ -141,5 +141,72 @@ describe('computeBudgetIntelligence', () => {
             // Same magnitude, opposite sign.
             expect(line.variance).toBe(-match.variance);
         }
+    });
+});
+
+describe('computeBudgetVarianceStreak', () => {
+    const makeTx = (overrides: Partial<Transaction>): Transaction => ({
+        id: `tx-${Math.random()}`, date: '2026-01-01', description: 'Test',
+        type: 'expense', category: 'Marketing', amount: 0, status: 'paid', ...overrides,
+    });
+
+    function monthBudget(month: string, amount: number): Budget {
+        return { id: `b-${month}`, category: 'Marketing', monthlyAmount: amount, period: month };
+    }
+    function monthActual(month: string, amount: number): Transaction {
+        return makeTx({ category: 'Marketing', amount, date: `${month}-10` });
+    }
+
+    const NOW = new Date('2026-06-15');
+
+    it('is unavailable with no active budgets in the lookback window', () => {
+        const result = computeBudgetVarianceStreak([], [], 6, NOW);
+        expect(result.available).toBe(false);
+    });
+
+    it('counts a single over-budget month without producing a narrative', () => {
+        const budgets = [monthBudget('2026-06', 100000)];
+        const txs = [monthActual('2026-06', 150000)]; // +50%, well over the 5% band
+        const result = computeBudgetVarianceStreak(txs, budgets, 6, NOW);
+        expect(result.available).toBe(true);
+        expect(result.currentStreak).toBe(1);
+        expect(result.narrative).toBeNull();
+    });
+
+    it('matches the product-vision example: 3 consecutive over-budget months produce the exact narrative', () => {
+        const months = ['2026-04', '2026-05', '2026-06'];
+        const budgets = months.map(m => monthBudget(m, 100000));
+        const txs = months.map(m => monthActual(m, 130000)); // +30% each month
+        const result = computeBudgetVarianceStreak(txs, budgets, 6, NOW);
+        expect(result.currentStreak).toBe(3);
+        expect(result.narrative).toBe('Your budget is becoming less reliable because actual expenses have exceeded forecast for 3 consecutive months.');
+    });
+
+    it('only counts the TRAILING consecutive run, not the total number of over-budget months', () => {
+        const budgets = ['2026-03', '2026-04', '2026-05', '2026-06'].map(m => monthBudget(m, 100000));
+        const txs = [
+            monthActual('2026-03', 150000), // over
+            monthActual('2026-04', 90000),  // on track -- breaks the streak
+            monthActual('2026-05', 150000), // over
+            monthActual('2026-06', 150000), // over
+        ];
+        const result = computeBudgetVarianceStreak(txs, budgets, 6, NOW);
+        expect(result.currentStreak).toBe(2); // only May + June
+    });
+
+    it('is 0 when the most recent budgeted month is on track', () => {
+        const budgets = ['2026-05', '2026-06'].map(m => monthBudget(m, 100000));
+        const txs = [monthActual('2026-05', 150000), monthActual('2026-06', 100000)]; // June on track
+        const result = computeBudgetVarianceStreak(txs, budgets, 6, NOW);
+        expect(result.currentStreak).toBe(0);
+        expect(result.narrative).toBeNull();
+    });
+
+    it('skips months with no active budget rather than treating them as under-budget', () => {
+        const budgets = [monthBudget('2026-06', 100000)]; // only June has a budget
+        const txs = [monthActual('2026-01', 999999), monthActual('2026-06', 100000)];
+        const result = computeBudgetVarianceStreak(txs, budgets, 6, NOW);
+        expect(result.months).toHaveLength(1);
+        expect(result.months[0].month).toBe('2026-06');
     });
 });

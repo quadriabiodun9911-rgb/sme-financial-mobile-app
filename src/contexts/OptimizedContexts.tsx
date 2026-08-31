@@ -10,10 +10,12 @@
 
 import React, { createContext, useContext, useState, useMemo, useEffect, useRef, useCallback, ReactNode } from 'react';
 import { Platform } from 'react-native';
-import { User, Invoice, InvoiceStatus, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, MerchantFinancingApplication, FinancingOutcomeInput, LoanPurpose, StaffMember, PayrollRun, PayrollItem, CashPocket, CapitalCommitment, ReadinessSnapshot, DataConfidenceSnapshot, UserRole } from '../types';
+import { User, Invoice, InvoiceStatus, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, MerchantFinancingApplication, FinancingOutcomeInput, LoanPurpose, StaffMember, PayrollRun, PayrollItem, CashPocket, CapitalCommitment, ReadinessSnapshot, ForecastSnapshot, DataConfidenceSnapshot, UserRole } from '../types';
 import { computeFinance, computeAssetCurrentValue, countActiveMonths, getMonthlyExpenseAverage, computeRiskScore, computeLoanPaymentSplit } from '../utils/finance';
 import { buildLoanFromMerchantFinancing } from '../utils/merchantFinancingConversion';
 import { buildReadinessSnapshot, shouldRecordSnapshot, appendReadinessSnapshot } from '../utils/readinessHistory';
+import { buildForecastSnapshot, shouldRecordForecastSnapshot, appendForecastSnapshot } from '../utils/forecastHistory';
+import { computeForecastSummary } from '../utils/forecastSummary';
 import { computeDataQuality } from '../utils/dataQuality';
 import { buildDataConfidenceSnapshot, shouldRecordDataConfidenceSnapshot, appendDataConfidenceSnapshot } from '../utils/dataConfidenceHistory';
 import { trackTransactionAdded, trackInventoryItemAdded, trackAssetAdded, trackLoanAdded, trackGoalCreated, trackAppOpened, trackUserRegistered, trackUserLoggedOut, trackDemoStarted } from '../utils/analytics';
@@ -35,6 +37,7 @@ import {
   loadCashPockets, saveCashPockets,
   loadCapitalCommitments, saveCapitalCommitments,
   loadReadinessHistory, saveReadinessHistory,
+  loadForecastHistory, saveForecastHistory,
   loadDataConfidenceHistory, saveDataConfidenceHistory,
   clearLocalFinancialCache,
   syncFinancingToSupabase,
@@ -174,6 +177,7 @@ interface FinanceContextValue {
   deleteCommitment: (id: string) => void;
 
   readinessHistory: ReadinessSnapshot[];
+  forecastHistory: ForecastSnapshot[];
   dataConfidenceHistory: DataConfidenceSnapshot[];
 }
 
@@ -190,6 +194,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [cashPockets, setCashPockets] = useState<CashPocket[]>([]);
   const [capitalCommitments, setCapitalCommitments] = useState<CapitalCommitment[]>([]);
   const [readinessHistory, setReadinessHistory] = useState<ReadinessSnapshot[]>([]);
+  const [forecastHistory, setForecastHistory] = useState<ForecastSnapshot[]>([]);
   const [dataConfidenceHistory, setDataConfidenceHistory] = useState<DataConfidenceSnapshot[]>([]);
   const [financing, setFinancing] = useState<FinancingContextData>({
     isQualified: false, qualification: undefined, minQualifiedAmount: undefined,
@@ -264,18 +269,19 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         if (l) setLoans(l.map((x) => ({ ...x, payments: x.payments ?? [] })));
         if (b) setBudgets(b);
         if (inv) setInventory(inv);
-        const [st, pr, cp, cc, rh, dch] = await Promise.all([
+        const [st, pr, cp, cc, rh, fh, dch] = await Promise.all([
           isStaffRole ? Promise.resolve(null) : loadStaff(),
           isStaffRole ? Promise.resolve(null) : loadPayrollRuns(),
           isStaffRole ? Promise.resolve(null) : loadCashPockets(),
           isStaffRole ? Promise.resolve(null) : loadCapitalCommitments(),
-          loadReadinessHistory(), loadDataConfidenceHistory(),
+          loadReadinessHistory(), loadForecastHistory(), loadDataConfidenceHistory(),
         ]);
         if (st) setStaff(st);
         if (pr) setPayrollRuns(pr);
         if (cp) setCashPockets(cp);
         if (cc) setCapitalCommitments(cc);
         if (rh) setReadinessHistory(rh);
+        if (fh) setForecastHistory(fh);
         if (dch) setDataConfidenceHistory(dch);
         const financingRaw = isStaffRole ? null : await AsyncStorage.getItem('@quad360/financing').catch(() => null);
         if (financingRaw) {
@@ -311,6 +317,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { if (hydrated && !isDemoMode && !isStaffRole) saveCashPockets(cashPockets).catch(() => {}); }, [cashPockets, hydrated, isDemoMode, isStaffRole]);
   useEffect(() => { if (hydrated && !isDemoMode && !isStaffRole) saveCapitalCommitments(capitalCommitments).catch(() => {}); }, [capitalCommitments, hydrated, isDemoMode, isStaffRole]);
   useEffect(() => { if (hydrated && !isDemoMode) saveReadinessHistory(readinessHistory).catch(() => {}); }, [readinessHistory, hydrated, isDemoMode]);
+  useEffect(() => { if (hydrated && !isDemoMode) saveForecastHistory(forecastHistory).catch(() => {}); }, [forecastHistory, hydrated, isDemoMode]);
   useEffect(() => { if (hydrated && !isDemoMode) saveDataConfidenceHistory(dataConfidenceHistory).catch(() => {}); }, [dataConfidenceHistory, hydrated, isDemoMode]);
   useEffect(() => {
     // Never loaded for 'staff' (see the hydrate effect above), so `financing`
@@ -392,6 +399,23 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     if (!hydrated || isDemoMode || transactions.length === 0) return;
     setReadinessHistory(prev => shouldRecordSnapshot(prev) ? appendReadinessSnapshot(prev, buildReadinessSnapshot(risk)) : prev);
   }, [hydrated, isDemoMode, transactions.length, risk]);
+
+  // Rolling Forecast: same auto-snapshot pattern as readinessHistory above,
+  // but monthly instead of weekly, and of the 12-month annual revenue
+  // forecast rather than the readiness score -- "Forecast -> Actual ->
+  // Variance -> Update -> Forecast again" needs an actual monthly trend to
+  // show, not just today's number recomputed fresh every time. macroAssumptions/
+  // futureEvents default to [] here (SettingsProvider is a sibling context,
+  // not reachable from FinanceProvider) -- computeForecastSummary already
+  // treats both as optional refinements, not required inputs.
+  const forecastSummary12m = useMemo(
+    () => computeForecastSummary(transactions, loans, finance, '12m', staff, [], undefined, inventory, []),
+    [transactions, loans, finance, staff, inventory],
+  );
+  useEffect(() => {
+    if (!hydrated || isDemoMode || transactions.length === 0) return;
+    setForecastHistory(prev => shouldRecordForecastSnapshot(prev) ? appendForecastSnapshot(prev, buildForecastSnapshot(forecastSummary12m)) : prev);
+  }, [hydrated, isDemoMode, transactions.length, forecastSummary12m]);
 
   // Same weekly-snapshot pattern as readinessHistory above, but for the
   // "cold start" data-confidence trend -- see dataConfidenceHistory.ts.
@@ -633,6 +657,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       deleteCommitment: (id) => setCapitalCommitments((prev) => prev.filter((c) => c.id !== id)),
 
       readinessHistory,
+      forecastHistory,
       dataConfidenceHistory,
 
       financing,
@@ -738,7 +763,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         });
       },
     }),
-    [transactions, assets, loans, budgets, inventory, staff, payrollRuns, cashPockets, capitalCommitments, readinessHistory, dataConfidenceHistory, financing, syncUserId, finance, isDemoMode, settingsForFinance?.settings?.currency]
+    [transactions, assets, loans, budgets, inventory, staff, payrollRuns, cashPockets, capitalCommitments, readinessHistory, forecastHistory, dataConfidenceHistory, financing, syncUserId, finance, isDemoMode, settingsForFinance?.settings?.currency]
   );
 
   return (
@@ -2428,6 +2453,7 @@ export function useApp() {
     updateCommitment: finance?.updateCommitment || (() => {}),
     deleteCommitment: finance?.deleteCommitment || (() => {}),
     readinessHistory: finance?.readinessHistory ?? [],
+    forecastHistory: finance?.forecastHistory ?? [],
     dataConfidenceHistory: finance?.dataConfidenceHistory ?? [],
     // Explicit return type on the fallback so it matches auth.changePin's
     // signature exactly instead of TypeScript inferring a narrower
@@ -2451,6 +2477,7 @@ export function useApp() {
       invoices: invoicesArray, assets, loans, budgets, inventory,
       cashPockets: finance?.cashPockets ?? [], staff: finance?.staff ?? [], payrollRuns: finance?.payrollRuns ?? [],
       capitalCommitments: finance?.capitalCommitments ?? [], readinessHistory: finance?.readinessHistory ?? [],
+      forecastHistory: finance?.forecastHistory ?? [],
       dataConfidenceHistory: finance?.dataConfidenceHistory ?? [],
     }),
     recordConsent,

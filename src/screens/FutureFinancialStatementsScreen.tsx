@@ -9,6 +9,8 @@ import NextStepLink from '../components/NextStepLink';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { buildFutureFinancialStatements, NO_ADJUSTMENTS, ForecastAdjustments } from '../utils/futureFinancialStatements';
 import { computeForecastSummary, describeCashFlowPressure, findReserveBreach, ForecastPeriod, PERIOD_LABELS } from '../utils/forecastSummary';
+import { computeForecastAccuracy } from '../utils/forecastHistory';
+import { computeAllTimeMonthlyBuckets } from '../utils/trendAnalysis';
 import { DEFAULT_THRESHOLDS } from '../utils/alertEngine';
 import { getEconomicReference } from '../utils/economicContext';
 import { DRIVER_LABEL } from '../utils/externalRiskInsights';
@@ -53,7 +55,7 @@ function AdjustmentInput({ label, value, onChange, suffix }: { label: string; va
 }
 
 export default function FutureFinancialStatementsScreen() {
-    const { transactions, loans, finance, settings, staff, goBack, inventory, invoices, navigate, assets } = useApp();
+    const { transactions, loans, finance, settings, staff, goBack, inventory, invoices, navigate, assets, forecastHistory } = useApp();
     const { currency } = settings;
 
     const [activeStatement, setActiveStatement] = useState<Statement>('pnl');
@@ -112,6 +114,21 @@ export default function FutureFinancialStatementsScreen() {
     const noAdjustmentsSummary = useMemo(
         () => computeForecastSummary(transactions, loans, finance, forecastPeriod, staff, macroAssumptions, NO_ADJUSTMENTS, inventory, futureEvents),
         [transactions, loans, finance, forecastPeriod, staff, macroAssumptions, inventory, futureEvents],
+    );
+    // Rolling Forecast: "Forecast -> Actual -> Variance -> Update -> Forecast
+    // again" -- forecastHistory (AppContext) is a monthly snapshot trail of
+    // the 12-month annual revenue forecast (see forecastHistory.ts). This
+    // just reads it and scores past snapshots against what actually
+    // happened since, using real monthly revenue buckets already computed
+    // the same way the rest of this app's trend views do.
+    const monthlyRevenueByMonth = useMemo(() => {
+        const map = new Map<string, number>();
+        for (const b of computeAllTimeMonthlyBuckets(transactions)) map.set(b.month, b.revenue);
+        return map;
+    }, [transactions]);
+    const forecastAccuracy = useMemo(
+        () => computeForecastAccuracy(forecastHistory, monthlyRevenueByMonth),
+        [forecastHistory, monthlyRevenueByMonth],
     );
     // Distinct from CashFlowMonth.pressured (net < 0 for one month) -- this
     // is "will the forecast dip below the reserve you've told Quad360 to
@@ -425,6 +442,34 @@ export default function FutureFinancialStatementsScreen() {
                             <Row label="Expected collection period" value={`${Math.round(forecastSummary.expectedCollectionDays)} days`} />
                             <Row label="Forecast confidence" value={`${forecastSummary.confidencePct}%`} bold />
                         </View>
+
+                        {/* Rolling Forecast -- replaces "set a budget in
+                            January, compare it in December" with a monthly-
+                            updated trail: Forecast -> Actual -> Variance ->
+                            Update -> Forecast again. Only shown once a
+                            second monthly snapshot exists to actually form a
+                            trend. */}
+                        {forecastHistory.length >= 2 && (
+                            <View style={s.card}>
+                                <Text style={s.cardTitle}>🔁 Rolling Forecast</Text>
+                                <Text style={s.riskText}>
+                                    Every month Quad360 re-forecasts your annual revenue from the latest data, instead of comparing to a number set once and never revisited.
+                                </Text>
+                                {forecastHistory.map(snap => (
+                                    <Row
+                                        key={snap.id}
+                                        label={new Date(snap.date).toLocaleString('default', { month: 'short', year: '2-digit' })}
+                                        value={fmt(snap.annualRevenueForecast)}
+                                    />
+                                ))}
+                                {forecastAccuracy.available && (
+                                    <Text style={[s.riskText, { marginTop: Spacing.sm }]}>
+                                        Past forecasts have been off by an average of {forecastAccuracy.meanAbsPctError.toFixed(0)}% once the forecasted period actually played out
+                                        (forecast accuracy: <Text style={s.riskBold}>{forecastAccuracy.accuracyScore}/100</Text>, from {forecastAccuracy.comparisons} checkable snapshot{forecastAccuracy.comparisons !== 1 ? 's' : ''}).
+                                    </Text>
+                                )}
+                            </View>
+                        )}
 
                         {/* Reserve Breach -- "Quad360 can use [everything] to
                             create a 12-Month Cash Forecast and identify

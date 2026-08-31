@@ -16,6 +16,7 @@ import { isBudgetPeriodLapsed } from '../utils/budgetPeriod';
 import { computeGoalBudgetAlignment } from '../utils/goalAlignment';
 import { computeSmartBudgetRevenue } from '../utils/smartBudget';
 import { computeBudgetIntelligence } from '../utils/budgetIntelligence';
+import { computeBudgetHealth, BudgetHealthFactorKey } from '../utils/budgetHealth';
 import NextStepLink from '../components/NextStepLink';
 import ProfitCashImpactCard from '../components/ProfitCashImpactCard';
 import { computeProfitCashImpact } from '../utils/impactChain';
@@ -23,6 +24,19 @@ import { Budget } from '../types';
 import { showAlert, confirmAction } from '../utils/webAlert';
 import Icon from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
+
+const BUDGET_HEALTH_FACTOR_LABEL: Record<BudgetHealthFactorKey, string> = {
+    forecastAccuracy: 'Forecast Accuracy',
+    revenuePredictability: 'Revenue Predictability',
+    expensePredictability: 'Expense Predictability',
+    cashCoverage: 'Cash Coverage',
+    budgetVariance: 'Budget Variance',
+    reserveAdequacy: 'Reserve Adequacy',
+    scenarioResilience: 'Scenario Resilience',
+};
+function budgetHealthScoreColor(score: number): string {
+    return score >= 70 ? Colors.income : score >= 45 ? Colors.warning : Colors.expense;
+}
 
 const FAVORABILITY_COLOR: Record<'favorable' | 'unfavorable' | 'on_track', string> = {
     favorable: Colors.income, unfavorable: Colors.expense, on_track: Colors.textMuted,
@@ -35,7 +49,7 @@ const EXPENSE_CATEGORIES = [
 ];
 
 export default function BudgetScreen() {
-    const { transactions, budgets, addBudget, updateBudget, deleteBudget, settings, navigate, finance, loans, invoices, inventory, goals, assets } = useApp();
+    const { transactions, budgets, addBudget, updateBudget, deleteBudget, settings, navigate, finance, loans, invoices, inventory, goals, assets, forecastHistory } = useApp();
     const { currency } = settings;
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
@@ -70,6 +84,14 @@ export default function BudgetScreen() {
     const budgetIntel = useMemo(
         () => computeBudgetIntelligence(transactions, budgets, currentMonth, smartRevenue.available ? smartRevenue.scenarios.base : 0, currency),
         [transactions, budgets, currentMonth, smartRevenue, currency],
+    );
+    // Budget Health: a separate 0-100 indicator for "how much should this
+    // business trust its own budget/forecast right now" -- distinct from
+    // the general Financial Health Score, built from signals this app
+    // already computes elsewhere. See budgetHealth.ts.
+    const budgetHealth = useMemo(
+        () => computeBudgetHealth(transactions, budgets, inventory, finance.cashBalance, forecastHistory, currency),
+        [transactions, budgets, inventory, finance.cashBalance, forecastHistory, currency],
     );
 
     // budgets is never empty here and computeBudgetVsActual now filters to
@@ -585,6 +607,33 @@ export default function BudgetScreen() {
                                 Revenue target is Quad360's suggested base case ({currency}{Math.round(smartRevenue.scenarios.base).toLocaleString()}/mo) — not yet something you've set yourself.
                             </Text>
                         )}
+                    </View>
+                )}
+
+                {/* Budget Health -- a separate indicator from the general
+                    Financial Health Score, specifically about how much this
+                    business should trust its own budget/forecast right now.
+                    See budgetHealth.ts for what each factor reuses. */}
+                {budgetHealth.available && (
+                    <View style={s.summaryCard}>
+                        <View style={s.sheetTitleRow}>
+                            <Icon name="activity" size={16} color={Colors.textPrimary} />
+                            <Text style={[s.sheetTitle, { marginBottom: 0 }]}>Budget Health: {budgetHealth.score}/100</Text>
+                        </View>
+                        {budgetHealth.narrative && (
+                            <Text style={[s.intelNarrative, { color: Colors.expense }]}>{budgetHealth.narrative}</Text>
+                        )}
+                        {budgetHealth.factors.map(f => (
+                            <View
+                                key={f.key}
+                                style={[s.intelRow, { borderLeftColor: f.available ? budgetHealthScoreColor(f.score) : Colors.border }]}
+                            >
+                                <Text style={s.intelRowLabel}>{BUDGET_HEALTH_FACTOR_LABEL[f.key]}</Text>
+                                <Text style={s.intelRowVal}>
+                                    {f.available ? `${f.score}/100 — ${f.explanation}` : f.explanation}
+                                </Text>
+                            </View>
+                        ))}
                     </View>
                 )}
 
