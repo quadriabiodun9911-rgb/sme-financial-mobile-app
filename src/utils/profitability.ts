@@ -151,7 +151,11 @@ export interface BreakevenResult {
 
 const FIXED_COST_CATEGORIES = ['rent', 'salary', 'salaries', 'admin', 'office', 'insurance', 'utilities', 'payroll'];
 
-function isFixedCost(tx: Transaction): boolean {
+// Exported so other engines that need the same fixed/variable split (e.g.
+// businessExposure.ts's "Expense Flexibility" resilience factor) reuse this
+// exact categorization rather than re-deriving their own, which could
+// classify the same transaction differently.
+export function isFixedCost(tx: Transaction): boolean {
     const cat = (tx.category ?? '').toLowerCase();
     return FIXED_COST_CATEGORIES.some(k => cat.includes(k));
 }

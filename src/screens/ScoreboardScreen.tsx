@@ -11,7 +11,7 @@ import { computeRiskScore, RISK_BAND_STYLE, getMonthlyExpenseAverage } from '../
 import { computeRiskRadar, RiskLevel } from '../utils/riskRadar';
 import { computeReadinessDelta } from '../utils/readinessHistory';
 import { computeBusinessExposure, computeBusinessResilience, describeHealthResilienceGap, ExposureLevel } from '../utils/businessExposure';
-import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
+import { performFinancialDiagnosis, computeRevenueRecurringPct } from '../utils/financialDiagnosisEngine';
 import { computeFinancialHealthPillars, PillarStatus } from '../utils/financialHealthPillars';
 import { analyzeTrend } from '../utils/trendAnalysis';
 import { buildFinancialBehaviour } from '../utils/businessFinancialDNA';
@@ -117,13 +117,15 @@ export default function ScoreboardScreen() {
     const behaviour = useMemo(() => buildFinancialBehaviour(transactions, loans, trend), [transactions, loans, trend]);
     const expenseLeaks = useMemo(() => computeExpenseLeaks(transactions, currency), [transactions, currency]);
     const unusualSpending = useMemo(() => computeUnusualSpending(transactions, currency), [transactions, currency]);
+    const revenueRecurringPct = useMemo(() => computeRevenueRecurringPct(transactions), [transactions]);
     const pillars = useMemo(
         () => computeFinancialHealthPillars(risk, transactions, resilience, {
             revenueVolatility: behaviour.revenueVolatility,
+            revenueRecurringPct,
             expenseLeakCount: expenseLeaks.available ? expenseLeaks.recurringGroups.length : undefined,
             unusualSpendingCount: unusualSpending.available ? unusualSpending.flags.length : undefined,
         }),
-        [risk, transactions, resilience, behaviour, expenseLeaks, unusualSpending],
+        [risk, transactions, resilience, behaviour, revenueRecurringPct, expenseLeaks, unusualSpending],
     );
 
     // Same worsened/improved factors CreditWorthinessScreen lists in full,

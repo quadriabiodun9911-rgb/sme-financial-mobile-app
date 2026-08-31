@@ -124,6 +124,67 @@ describe('computeBusinessExposure', () => {
         const cashFlow = result.factors.find(f => f.key === 'cashFlow')!;
         expect(cashFlow.level).toBe('low');
     });
+
+    it('flags high expense-flexibility exposure when most costs are fixed (rent/salary/admin)', () => {
+        const txs = [
+            makeTx({ type: 'expense', category: 'Rent', amount: 400000 }),
+            makeTx({ type: 'expense', category: 'Salaries', amount: 400000 }),
+            makeTx({ type: 'expense', category: 'Inventory', amount: 200000 }),
+        ];
+        const result = computeBusinessExposure(txs, [], [], [], finance, undefined);
+        const flex = result.factors.find(f => f.key === 'expenseFlexibility')!;
+        expect(flex.level).toBe('high');
+        expect(flex.detail).toMatch(/80% of your cost base is fixed/);
+    });
+
+    it('flags low expense-flexibility exposure when most costs are variable', () => {
+        const txs = [
+            makeTx({ type: 'expense', category: 'Inventory', amount: 800000 }),
+            makeTx({ type: 'expense', category: 'Logistics', amount: 100000 }),
+            makeTx({ type: 'expense', category: 'Rent', amount: 100000 }),
+        ];
+        const result = computeBusinessExposure(txs, [], [], [], finance, undefined);
+        const flex = result.factors.find(f => f.key === 'expenseFlexibility')!;
+        expect(flex.level).toBe('low');
+    });
+
+    it('marks expense-flexibility exposure unknown with no expense history', () => {
+        const result = computeBusinessExposure([], [], [], [], finance, undefined);
+        const flex = result.factors.find(f => f.key === 'expenseFlexibility')!;
+        expect(flex.level).toBe('unknown');
+    });
+
+    it('flags high stress-test exposure when a small revenue drop tips the business into vulnerability', () => {
+        // 3 months of revenue barely above expenses, with very little cash --
+        // even a small revenue decline should breach the safety buffer fast.
+        const txs: Transaction[] = [];
+        for (let m = 4; m <= 6; m++) {
+            txs.push(makeTx({ type: 'income', amount: 100000, date: `2024-0${m}-10` }));
+            txs.push(makeTx({ type: 'expense', category: 'Rent', amount: 98000, date: `2024-0${m}-15` }));
+        }
+        const tightFinance = { cashBalance: 20000, totalTaxCollected: 0, totalTaxPaid: 0 };
+        const result = computeBusinessExposure(txs, [], [], [], tightFinance, undefined);
+        const stress = result.factors.find(f => f.key === 'stressTest')!;
+        expect(stress.level).toBe('high');
+    });
+
+    it('flags low stress-test exposure when the business can absorb a severe revenue drop', () => {
+        const txs: Transaction[] = [];
+        for (let m = 4; m <= 6; m++) {
+            txs.push(makeTx({ type: 'income', amount: 1000000, date: `2024-0${m}-10` }));
+            txs.push(makeTx({ type: 'expense', category: 'Rent', amount: 200000, date: `2024-0${m}-15` }));
+        }
+        const richFinance = { cashBalance: 20000000, totalTaxCollected: 0, totalTaxPaid: 0 };
+        const result = computeBusinessExposure(txs, [], [], [], richFinance, undefined);
+        const stress = result.factors.find(f => f.key === 'stressTest')!;
+        expect(stress.level).toBe('low');
+    });
+
+    it('marks stress-test exposure unknown with no revenue history', () => {
+        const result = computeBusinessExposure([], [], [], [], finance, undefined);
+        const stress = result.factors.find(f => f.key === 'stressTest')!;
+        expect(stress.level).toBe('unknown');
+    });
 });
 
 const makeExposure = (levels: Partial<Record<string, 'low' | 'medium' | 'high' | 'unknown'>>): BusinessExposure => {

@@ -189,6 +189,27 @@ const INDUSTRY_BENCHMARKS = {
   runwayDaysSafe: 60,
 };
 
+// Recurring revenue percentage, standalone — recurring income THIS MONTH
+// (the latest month the business has data for, not the real calendar
+// month, per calculateFinancialMetrics's own "this month" convention
+// below) as a share of THIS MONTH's total revenue. Extracted out of
+// calculateFinancialMetrics's own computation so a screen that only needs
+// this one figure (e.g. the Revenue Health pillar in
+// financialHealthPillars.ts) doesn't have to run the full diagnosis
+// pipeline -- which needs cashBalance, invoices, monthlyExpenseAverage,
+// loans, inventory, assets -- just to read it. calculateFinancialMetrics
+// now calls this too, so the two can never independently drift apart.
+export function computeRevenueRecurringPct(transactions: Transaction[]): number {
+  const dataMonths = Array.from(new Set(transactions.map(t => (t.date || '').slice(0, 7)))).filter(Boolean).sort();
+  const thisMonth = dataMonths.length > 0 ? dataMonths[dataMonths.length - 1] : new Date().toISOString().slice(0, 7);
+  const thisMonthTransactions = transactions.filter(t => t.type === 'income' && t.date.startsWith(thisMonth));
+  const thisMonthRevenue = thisMonthTransactions.reduce((sum, t) => sum + (t.amount ?? 0), 0);
+  const thisMonthRecurringRevenue = thisMonthTransactions
+    .filter(t => t.isRecurring)
+    .reduce((sum, t) => sum + (t.amount ?? 0), 0);
+  return thisMonthRevenue > 0 ? (thisMonthRecurringRevenue / thisMonthRevenue) * 100 : 0;
+}
+
 export function calculateFinancialMetrics(
   transactions: Transaction[],
   invoices: Invoice[],
@@ -359,12 +380,10 @@ export function calculateFinancialMetrics(
   // THIS MONTH's total revenue. Previously divided an all-time count of
   // recurring transactions (any type, any month) by this month's income
   // transaction count — numerator and denominator were on different
-  // timescales and could produce percentages over 100%.
-  const thisMonthRecurringRevenue = thisMonthTransactions
-    .filter(t => t.isRecurring)
-    .reduce((sum, t) => sum + (t.amount ?? 0), 0);
-  const revenueRecurringPct =
-    thisMonthRevenue > 0 ? (thisMonthRecurringRevenue / thisMonthRevenue) * 100 : 0;
+  // timescales and could produce percentages over 100%. Now delegates to
+  // computeRevenueRecurringPct (above) so this and the Revenue Health
+  // pillar can't independently drift apart.
+  const revenueRecurringPct = computeRevenueRecurringPct(transactions);
 
   // Profit trend
   let profitTrend: 'improving' | 'declining' | 'stable' = 'stable';

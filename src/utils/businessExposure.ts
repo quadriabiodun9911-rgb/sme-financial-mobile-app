@@ -22,6 +22,8 @@ import { computeSlowMovingValue } from './inventoryIntelligence';
 import { computeInventoryValue } from './stockVelocity';
 import { computeTaxAbilityToPay } from './taxFilingReadiness';
 import { daysUntilTaxDeadline } from './taxDeadline';
+import { isFixedCost } from './profitability';
+import { computeRevenueStressTest } from './revenueStressTest';
 
 export type ExposureLevel = 'low' | 'medium' | 'high' | 'unknown';
 
@@ -130,7 +132,56 @@ export function computeBusinessExposure(
             : `About ${Math.round(runway.runwayDays)} days of cash runway at the current burn rate.`,
     });
 
-    // 8. Regulatory exposure -- overdue filing or an uncovered tax liability
+    // 8. Expense flexibility -- how much of the cost base is fixed (locked
+    // in regardless of a downturn) vs. variable (shrinks with it). Reuses
+    // profitability.ts's isFixedCost categorization -- the exact same
+    // classification the Breakeven Analysis screen builds its own
+    // fixed/variable split from -- rather than a second, independently
+    // -tuned category list that could disagree with it. This asks a
+    // different question than that screen does (share of the cost BASE
+    // that's fixed, for "how exposed is this business to a downturn" —
+    // not variableCosts/revenue, which answers "what's the contribution
+    // margin").
+    const allExpenses = transactions.filter(t => t.type === 'expense');
+    const fixedCostTotal = allExpenses.filter(isFixedCost).reduce((s, t) => s + (t.amount ?? 0) - (t.principalPortion || 0), 0);
+    const variableCostTotal = allExpenses.filter(t => !isFixedCost(t)).reduce((s, t) => s + (t.amount ?? 0) - (t.principalPortion || 0), 0);
+    const totalCostBase = fixedCostTotal + variableCostTotal;
+    if (totalCostBase > 0) {
+        const fixedSharePct = (fixedCostTotal / totalCostBase) * 100;
+        const flexLevel: ExposureLevel = fixedSharePct >= 60 ? 'high' : fixedSharePct >= 35 ? 'medium' : 'low';
+        factors.push({
+            key: 'expenseFlexibility', label: 'Expense Flexibility', level: flexLevel,
+            detail: `${fixedSharePct.toFixed(0)}% of your cost base is fixed (rent, salaries, admin) rather than variable -- ${
+                fixedSharePct >= 60 ? 'most costs would stay in place even if revenue dropped sharply.' :
+                fixedSharePct >= 35 ? 'a moderate share of costs are locked in regardless of revenue.' :
+                                       'most costs would shrink automatically if revenue dropped.'
+            }`,
+        });
+    } else {
+        factors.push({ key: 'expenseFlexibility', label: 'Expense Flexibility', level: 'unknown', detail: 'No expense history yet to assess fixed vs. variable costs.' });
+    }
+
+    // 9. Stress-test resilience -- reuses revenueStressTest.ts's own
+    // vulnerability scan (the smallest revenue-drop % at which risk first
+    // reaches 'warning' or worse) rather than a second, independently-run
+    // stress scenario. A low threshold means only a small revenue decline
+    // is needed to put the business in real trouble -- genuinely high
+    // exposure to a demand shock, distinct from every other factor here.
+    const stressTest = computeRevenueStressTest(transactions, finance.cashBalance, currency);
+    if (stressTest.available) {
+        const threshold = stressTest.vulnerabilityThresholdPct;
+        const stressLevel: ExposureLevel = threshold === null ? 'low' : threshold <= 10 ? 'high' : threshold <= 25 ? 'medium' : 'low';
+        factors.push({
+            key: 'stressTest', label: 'Revenue Stress-Test Resilience', level: stressLevel,
+            detail: threshold === null
+                ? 'Can absorb even a severe revenue drop without breaching a 3-month cash buffer.'
+                : `Becomes financially vulnerable if revenue falls approximately ${threshold}%.`,
+        });
+    } else {
+        factors.push({ key: 'stressTest', label: 'Revenue Stress-Test Resilience', level: 'unknown', detail: 'Not enough revenue history yet to run a stress test.' });
+    }
+
+    // 10. Regulatory exposure -- overdue filing or an uncovered tax liability
     const daysToDeadline = taxDeadline ? daysUntilTaxDeadline(taxDeadline) : null;
     const abilityToPay = computeTaxAbilityToPay(finance);
     let regLevel: ExposureLevel = 'low';

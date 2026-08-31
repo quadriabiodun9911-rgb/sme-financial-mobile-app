@@ -23,6 +23,7 @@ import {
     latestTransactionDate,
 } from '../utils/finance';
 import { computeInventoryValue } from '../utils/stockVelocity';
+import { computeFinancialRatiosDashboard, RatioTier } from '../utils/financialRatiosEngine';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { computeForecastSummary } from '../utils/forecastSummary';
@@ -57,6 +58,10 @@ function statusColor(status: string) {
     if (status === 'warning') return Colors.warning;
     return Colors.expense;
 }
+
+const RATIO_TIER_COLOR: Record<RatioTier, string> = {
+    strong: Colors.income, moderate: Colors.warning, weak: Colors.expense, unavailable: Colors.textMuted,
+};
 
 // Mini horizontal bar
 function MiniBar({ pct, color }: { pct: number; color: string }) {
@@ -392,6 +397,16 @@ function FinanceTab() {
     const inventoryValue = useMemo(() => computeInventoryValue(inventory), [inventory]);
     const ratios = useMemo(() => computeFinancialRatios(finance, loans, transactions, inventoryValue), [finance, loans, transactions, inventoryValue]);
     const dscr   = useMemo(() => computeDSCR(transactions, loans), [transactions, loans]);
+    // "Don't ask SMEs to calculate ratios -- Quad360 should calculate them
+    // automatically... and translate them into plain business language."
+    // See financialRatiosEngine.ts's own doc comment for why every figure
+    // here is sourced from an existing engine (computeFinancialRatios,
+    // computeCashConversionCycle, computeDSCR, computeMonthlyTrend) rather
+    // than a second, independently-tuned computation.
+    const ratiosDashboard = useMemo(
+        () => computeFinancialRatiosDashboard(finance, loans, transactions, inventory),
+        [finance, loans, transactions, inventory],
+    );
 
     const [fixedCosts, setFixedCosts]     = useState('');
     const [varRate, setVarRate]           = useState('');
@@ -454,7 +469,29 @@ function FinanceTab() {
 
     return (
         <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
-            <Text style={s.sectionHdr}>Key Financial Ratios</Text>
+            <Text style={s.sectionHdr}>Financial Ratios — In Plain Language</Text>
+            <Text style={s.cardSub}>Every ratio below is calculated automatically from your own transactions -- no formulas to know, just what each one means for your business.</Text>
+            {ratiosDashboard.categories.map(category => (
+                <View key={category.key} style={s.card}>
+                    <Text style={s.cardTitle}>{category.label}</Text>
+                    {category.readings.map(reading => (
+                        <View key={reading.key} style={[s.ratioRow, { borderLeftColor: RATIO_TIER_COLOR[reading.tier] }]}>
+                            <View style={{ flex: 1 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+                                    <Text style={s.ratioLabel}>{reading.label}</Text>
+                                    <Text style={{ fontSize: 10, fontWeight: '700', color: RATIO_TIER_COLOR[reading.tier], marginLeft: 8, textTransform: 'uppercase' }}>
+                                        {reading.tierLabel}
+                                    </Text>
+                                </View>
+                                <Text style={s.ratioExplain}>{reading.plainLanguage}</Text>
+                            </View>
+                            <Text style={[s.ratioVal, { color: RATIO_TIER_COLOR[reading.tier], fontSize: 15 }]}>{reading.displayValue}</Text>
+                        </View>
+                    ))}
+                </View>
+            ))}
+
+            <Text style={s.sectionHdr}>Key Financial Ratios (Detailed)</Text>
             {ratioCards.map((r, i) => (
                 <View key={i} style={[s.ratioRow, { borderLeftColor: r.good ? Colors.income : Colors.expense }]}>
                     <View style={{ flex: 1 }}>

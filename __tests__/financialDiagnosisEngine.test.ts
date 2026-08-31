@@ -3,7 +3,7 @@
 // daysOutstanding was hardcoded to 30 for any unpaid invoice, regardless of
 // how much was actually owed or how overdue it actually was.
 
-import { calculateFinancialMetrics, diagnoseProfitability, diagnoseLiquidity, diagnoseWorkingCapital, diagnoseDebt, diagnoseCashFlow, diagnoseInventory, diagnoseConcentration, diagnoseEfficiency, computeFinancialHealthSummary, HealthCategory, RootCauseAnalysis, FinancialMetrics } from '../src/utils/financialDiagnosisEngine';
+import { calculateFinancialMetrics, diagnoseProfitability, diagnoseLiquidity, diagnoseWorkingCapital, diagnoseDebt, diagnoseCashFlow, diagnoseInventory, diagnoseConcentration, diagnoseEfficiency, computeFinancialHealthSummary, HealthCategory, RootCauseAnalysis, FinancialMetrics, computeRevenueRecurringPct } from '../src/utils/financialDiagnosisEngine';
 import { Transaction, Invoice, Asset } from '../src/types';
 
 const makeTx = (overrides: Partial<Transaction>): Transaction => ({
@@ -552,5 +552,35 @@ describe('computeFinancialHealthSummary', () => {
     it('reports a clean "no significant issues" interpretation when there are no diagnoses', () => {
         const summary = computeFinancialHealthSummary('Excellent', [], []);
         expect(summary.overallInterpretation).toBe('Excellent business — no significant issues currently stand out.');
+    });
+});
+
+describe('computeRevenueRecurringPct', () => {
+    const makeTx = (overrides: Partial<Transaction>): Transaction => ({
+        id: `tx-${Math.random()}`, date: '2024-06-01', description: 'Test', type: 'income',
+        category: 'Sales', amount: 1000, status: 'paid', ...overrides,
+    });
+
+    it('is 0 with no revenue history', () => {
+        expect(computeRevenueRecurringPct([])).toBe(0);
+    });
+
+    it('computes recurring revenue as a share of the latest data month only', () => {
+        const txs = [
+            makeTx({ amount: 60000, isRecurring: true, date: '2024-06-05' }),
+            makeTx({ amount: 40000, isRecurring: false, date: '2024-06-10' }),
+            // An older month with a different recurring share shouldn't leak in.
+            makeTx({ amount: 100000, isRecurring: false, date: '2024-01-05' }),
+        ];
+        expect(computeRevenueRecurringPct(txs)).toBeCloseTo(60, 5);
+    });
+
+    it('matches the figure calculateFinancialMetrics reports for the same transactions', () => {
+        const txs = [
+            makeTx({ amount: 60000, isRecurring: true, date: '2024-06-05' }),
+            makeTx({ amount: 40000, isRecurring: false, date: '2024-06-10' }),
+        ];
+        const metrics = calculateFinancialMetrics(txs, [], 500000, 50000);
+        expect(metrics.revenueRecurringPct).toBeCloseTo(computeRevenueRecurringPct(txs), 5);
     });
 });
