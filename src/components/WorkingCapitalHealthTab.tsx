@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { Transaction, InventoryItem } from '../types';
 import { computeWorkingCapitalHealth, WorkingCapitalHealthBand, WorkingCapitalRiskFlag, WorkingCapitalTrendPoint } from '../utils/workingCapitalHealth';
+import { computeSupplierPaymentPressure, SupplierPaymentPressureLevel } from '../utils/supplierPaymentPressure';
 import { fmtCompact } from './CashFlowHealthTab';
 import RadialGauge from './RadialGauge';
 
@@ -10,7 +11,14 @@ interface Props {
     transactions: Transaction[];
     inventory: InventoryItem[];
     currency: string;
+    cashBalance: number;
 }
+
+const PRESSURE_COLOR: Record<SupplierPaymentPressureLevel, string> = {
+    low: Colors.income,
+    moderate: Colors.warning,
+    high: Colors.expense,
+};
 
 const BAND_COLOR: Record<WorkingCapitalHealthBand, string> = {
     Excellent: Colors.income,
@@ -20,10 +28,14 @@ const BAND_COLOR: Record<WorkingCapitalHealthBand, string> = {
     Critical: Colors.expense,
 };
 
-export default function WorkingCapitalHealthTab({ transactions, inventory, currency }: Props) {
+export default function WorkingCapitalHealthTab({ transactions, inventory, currency, cashBalance }: Props) {
     const result = useMemo(
         () => computeWorkingCapitalHealth(transactions, inventory, currency),
         [transactions, inventory, currency]
+    );
+    const pressure = useMemo(
+        () => computeSupplierPaymentPressure(transactions, cashBalance, currency),
+        [transactions, cashBalance, currency]
     );
 
     if (!result.available) {
@@ -117,6 +129,30 @@ export default function WorkingCapitalHealthTab({ transactions, inventory, curre
                     {result.riskFlags.map((flag, i) => <RiskFlagRow key={i} flag={flag} />)}
                 </View>
             )}
+
+            {/* Supplier Payment Pressure -- is supplier credit being used
+                effectively, or is payment simply being delayed under
+                pressure? Distinct from the cycle/DPO figures above, which
+                only say how long payment takes on average, not whether any
+                of it is actually overdue. */}
+            {pressure.available && pressure.totalPayables > 0 && (
+                <View style={[s.card, { borderLeftWidth: 4, borderLeftColor: PRESSURE_COLOR[pressure.level] }]}>
+                    <View style={s.pressureHeader}>
+                        <Text style={s.cardTitle}>Supplier Payment Pressure</Text>
+                        <View style={[s.pressureBadge, { backgroundColor: PRESSURE_COLOR[pressure.level] }]}>
+                            <Text style={s.pressureBadgeText}>{pressure.level.toUpperCase()}</Text>
+                        </View>
+                    </View>
+                    <Text style={s.narrative}>{pressure.headline}</Text>
+                    <Text style={[s.narrative, { marginTop: 6 }]}>{pressure.narrative}</Text>
+                    {pressure.riskFlags.map((flag, i) => (
+                        <View key={i} style={s.flagRow}>
+                            <Text style={s.flagBullet}>{flag.severity === 'critical' ? '🔴' : '🟠'}</Text>
+                            <Text style={s.flagText}>{flag.message}</Text>
+                        </View>
+                    ))}
+                </View>
+            )}
         </View>
     );
 }
@@ -161,6 +197,9 @@ const s = StyleSheet.create({
 
     card: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14 },
     cardTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: 10 },
+    pressureHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
+    pressureBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
+    pressureBadgeText: { fontSize: 11, fontWeight: '800', color: '#fff' },
 
     metricRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
     metricLabel: { fontSize: 12.5, color: Colors.textSecondary, flex: 1 },

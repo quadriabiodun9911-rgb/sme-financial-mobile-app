@@ -697,6 +697,7 @@ export default function ReportsScreen() {
                             transactions={transactions}
                             inventory={inventory}
                             currency={currency}
+                            cashBalance={allFinance.cashBalance}
                         />
                     )}
 

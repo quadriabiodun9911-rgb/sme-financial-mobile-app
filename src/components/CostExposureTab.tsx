@@ -7,6 +7,7 @@ import { computeCostDecisions, CostDecisionAction } from '../utils/costDecisions
 import { computeCostExposureForecast } from '../utils/costExposureForecast';
 import { computeExternalRiskInsights, ExternalRiskInsight } from '../utils/externalRiskInsights';
 import { computeLaborProductivity } from '../utils/laborProductivity';
+import { computeExpenseLeaks, ExpenseLeakResult } from '../utils/expenseLeakDetection';
 import RadialGauge from './RadialGauge';
 import BarList from './BarList';
 import GroupedBarChart from './GroupedBarChart';
@@ -51,6 +52,7 @@ export default function CostExposureTab() {
         [transactions, settings.macroAssumptions]
     );
     const labor = useMemo(() => computeLaborProductivity(transactions, staff ?? []), [transactions, staff]);
+    const expenseLeaks = useMemo(() => computeExpenseLeaks(transactions, currency), [transactions, currency]);
 
     if (!result.available) {
         return (
@@ -65,6 +67,9 @@ export default function CostExposureTab() {
                     often say something real even while the rest of this tab
                     is still waiting on data. */}
                 {labor.available && <LaborProductivityCard labor={labor} currency={currency} />}
+                {expenseLeaks.available && expenseLeaks.recurringGroups.length > 0 && (
+                    <ExpenseLeakCard result={expenseLeaks} currency={currency} />
+                )}
             </View>
         );
     }
@@ -214,6 +219,14 @@ export default function CostExposureTab() {
                 decision (cut cost, or grow revenue with the same team)
                 instead of sitting alone as a percentage. */}
             {labor.available && <LaborProductivityCard labor={labor} currency={currency} />}
+
+            {/* Expense Leak Detection -- pattern-detected from raw vendor
+                history (no manual "mark as recurring" needed), distinct
+                from the labor/category views above which only look at
+                THIS period's spend. */}
+            {expenseLeaks.available && expenseLeaks.recurringGroups.length > 0 && (
+                <ExpenseLeakCard result={expenseLeaks} currency={currency} />
+            )}
         </View>
     );
 }
@@ -248,6 +261,38 @@ function LaborProductivityCard({ labor, currency }: { labor: ReturnType<typeof c
                     <Text style={s.laborNoteText}>{labor.note}</Text>
                 </View>
             )}
+        </View>
+    );
+}
+
+function ExpenseLeakCard({ result, currency }: { result: ExpenseLeakResult; currency: string }) {
+    return (
+        <View style={s.card}>
+            <Text style={s.cardTitle}>Recurring Charges &amp; Expense Leaks</Text>
+            <Text style={s.laborText}>{result.summary}</Text>
+
+            {result.leaks.map((flag, i) => (
+                <View key={i} style={[s.laborNoteBox, { borderLeftColor: flag.severity === 'warning' ? Colors.warning : Colors.textMuted, borderLeftWidth: 3 }]}>
+                    <Text style={s.laborNoteText}>{flag.message}</Text>
+                </View>
+            ))}
+
+            <View style={s.tableHeader}>
+                <Text style={[s.th, { flex: 1.3 }]}>Vendor</Text>
+                <Text style={s.th}>Months</Text>
+                <Text style={s.th}>Latest</Text>
+                <Text style={s.th}>Change</Text>
+            </View>
+            {result.recurringGroups.map(group => (
+                <View key={group.vendorKey} style={s.tableRow}>
+                    <Text style={[s.td, { flex: 1.3 }]} numberOfLines={1}>{group.displayName}</Text>
+                    <Text style={s.td}>{group.occurrenceCount}</Text>
+                    <Text style={s.td}>{fmtCompact(currency, group.latestAmount)}</Text>
+                    <Text style={[s.td, { color: group.amountGrowthPct !== null && group.amountGrowthPct > 15 ? Colors.expense : Colors.textSecondary }]}>
+                        {group.amountGrowthPct === null ? '—' : `${group.amountGrowthPct >= 0 ? '+' : ''}${group.amountGrowthPct.toFixed(0)}%`}
+                    </Text>
+                </View>
+            ))}
         </View>
     );
 }
