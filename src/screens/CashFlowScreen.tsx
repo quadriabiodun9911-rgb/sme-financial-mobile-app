@@ -10,6 +10,7 @@ import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { computeCashFlowForecast, computeDSCR } from '../utils/finance';
 import { computeCashRunway } from '../utils/cashRunway';
+import { computeBurnRateAnalysis } from '../utils/burnRateAnalysis';
 import { computeBreakeven } from '../utils/profitability';
 import BreakevenAnalysis from '../components/BreakevenAnalysis';
 import NextStepLink from '../components/NextStepLink';
@@ -49,6 +50,16 @@ export default function CashFlowScreen() {
     );
 
     const runwayColor = runwayDays < 30 ? Colors.expense : runwayDays < 90 ? Colors.warning : Colors.income;
+
+    // Startup Burn Rate -- the complementary "at the actual rate you're
+    // going, revenue included" view alongside the worst-case gross-burn
+    // runway above (see burnRateAnalysis.ts's own doc comment for why this
+    // is additive, not a replacement).
+    const burnRate = useMemo(
+        () => computeBurnRateAnalysis(transactions, finance.cashBalance, sym),
+        [transactions, finance.cashBalance, sym]
+    );
+    const burnRateColor = burnRate.status === 'danger' ? Colors.expense : burnRate.status === 'warning' ? Colors.warning : Colors.income;
 
     // Automated from real recorded transactions -- fixed/variable costs are
     // derived from this period's actual categorized expenses, not entered
@@ -293,6 +304,57 @@ export default function CashFlowScreen() {
                                 {' '}Full breakdown & Interest Rate Shock on Loans →
                             </Text>
                         </TouchableOpacity>
+
+                        {/* Startup Burn Rate -- Gross Burn / Net Burn / a
+                            net-burn-based runway, plus what's actually
+                            changing it. Distinct from the Cash Runway card
+                            above (which assumes revenue stops entirely);
+                            this one nets in actual revenue and explains
+                            WHY the trend is moving. */}
+                        {burnRate.available && (
+                            <View style={[styles.runwayCard, { borderColor: burnRateColor }]}>
+                                <Text style={styles.runwayLabel}>
+                                    {burnRate.status === 'danger' ? '🔴' : burnRate.status === 'warning' ? '🟡' : '🟢'} {burnRate.headline}
+                                </Text>
+                                <Text style={styles.runwaySub}>{burnRate.narrative}</Text>
+
+                                <View style={[styles.row2, { marginTop: Spacing.md }]}>
+                                    <View style={styles.card2}>
+                                        <Text style={styles.card2Label}>Gross Burn / mo</Text>
+                                        <Text style={[styles.card2Val, { color: Colors.expense }]}>{fmt(burnRate.grossBurn)}</Text>
+                                    </View>
+                                    <View style={styles.card2}>
+                                        <Text style={styles.card2Label}>Net Burn / mo</Text>
+                                        <Text style={[styles.card2Val, { color: burnRate.netBurn > 0 ? Colors.expense : Colors.income }]}>
+                                            {fmt(burnRate.netBurn)}
+                                        </Text>
+                                    </View>
+                                </View>
+
+                                {burnRate.trend.direction !== 'insufficient-data' && burnRate.trend.driver && (
+                                    <>
+                                        <Text style={[styles.dscrTitle, { marginTop: Spacing.md, marginBottom: 4 }]}>What changed?</Text>
+                                        {burnRate.trend.driver.revenueGrowthPct !== null && (
+                                            <Text style={styles.runwaySub}>
+                                                • Revenue {burnRate.trend.driver.revenueGrowthPct >= 0 ? '↑' : '↓'} {Math.abs(burnRate.trend.driver.revenueGrowthPct).toFixed(0)}%
+                                            </Text>
+                                        )}
+                                        {burnRate.trend.driver.topExpenseDrivers.map(d => (
+                                            <Text key={d.category} style={styles.runwaySub}>
+                                                • {d.category} {d.growthPct !== null && d.growthPct >= 0 ? '↑' : '↓'} {d.growthPct !== null ? Math.abs(d.growthPct).toFixed(0) : '—'}%
+                                            </Text>
+                                        ))}
+                                    </>
+                                )}
+
+                                {burnRate.trend.insight && (
+                                    <View style={styles.infoCard}>
+                                        <Text style={styles.dscrTitle}>Quad360 Insight</Text>
+                                        <Text style={styles.runwaySub}>{burnRate.trend.insight}</Text>
+                                    </View>
+                                )}
+                            </View>
+                        )}
 
                         <Text style={styles.sectionTitle}>What Affects Your Runway</Text>
                         <View style={styles.infoCard}>
