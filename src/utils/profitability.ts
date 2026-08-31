@@ -9,24 +9,42 @@ export interface WaterfallItem {
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 
-function getPeriodBounds(): { currentStart: Date; currentEnd: Date; prevStart: Date; prevEnd: Date } {
-    const now = new Date();
-    const currentEnd = new Date(now);
-    const currentStart = new Date(now);
-    currentStart.setDate(currentStart.getDate() - 30);
+// 'YYYY-MM-DD' string arithmetic throughout -- never a `new Date(tx.date)`
+// comparison. That used to parse a date-only string as UTC midnight and
+// compare it against a period boundary built from local wall-clock time,
+// which can silently shift which day a transaction lands in depending on
+// the server's timezone and time of day. String comparison of ISO date
+// strings sorts correctly with no timezone involved at all.
+function shiftDateStr(dateStr: string, days: number): string {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const dt = new Date(y, (m || 1) - 1, (d || 1) + days);
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+}
 
-    const prevEnd = new Date(currentStart);
-    const prevStart = new Date(currentStart);
-    prevStart.setDate(prevStart.getDate() - 30);
+// Anchored to the latest transaction date actually present, not real-world
+// "now" -- the same calendar-blindness convention used everywhere else in
+// this app (financialDiagnosisEngine.ts, burnRateAnalysis.ts, etc). This
+// function previously anchored to `new Date()`, so a business whose most
+// recent recorded activity wasn't dated in the real current 30 days --
+// imported historical bank statements being the common case -- saw
+// Breakeven Analysis, the Profit Waterfall, and Profit Drivers all report
+// "no activity" despite having real, complete transaction history.
+function getPeriodBounds(transactions: Transaction[]): { currentStart: string; currentEnd: string; prevStart: string; prevEnd: string } {
+    let currentEnd = '';
+    for (const t of transactions) {
+        if (t.date && t.date > currentEnd) currentEnd = t.date;
+    }
+    if (!currentEnd) currentEnd = new Date().toISOString().slice(0, 10);
+
+    const currentStart = shiftDateStr(currentEnd, -29); // 30 days inclusive
+    const prevEnd = shiftDateStr(currentStart, -1);     // day before currentStart -- no overlap
+    const prevStart = shiftDateStr(prevEnd, -29);        // another 30-day window
 
     return { currentStart, currentEnd, prevStart, prevEnd };
 }
 
-function filterByPeriod(transactions: Transaction[], start: Date, end: Date): Transaction[] {
-    return transactions.filter(tx => {
-        const d = new Date(tx.date);
-        return d >= start && d < end;
-    });
+function filterByPeriod(transactions: Transaction[], start: string, end: string): Transaction[] {
+    return transactions.filter(tx => tx.date >= start && tx.date <= end);
 }
 
 // Loan principal repayments are excluded from expense sums (GAAP/IFRS:
@@ -37,7 +55,7 @@ function sumByType(txs: Transaction[], type: 'income' | 'expense'): number {
 }
 
 export function computeProfitWaterfall(transactions: Transaction[]): WaterfallItem[] {
-    const { currentStart, currentEnd, prevStart, prevEnd } = getPeriodBounds();
+    const { currentStart, currentEnd, prevStart, prevEnd } = getPeriodBounds(transactions);
 
     const prevTxs = filterByPeriod(transactions, prevStart, prevEnd);
     const currTxs = filterByPeriod(transactions, currentStart, currentEnd);
@@ -161,7 +179,7 @@ export function isFixedCost(tx: Transaction): boolean {
 }
 
 export function computeBreakeven(transactions: Transaction[], settings: BusinessSettings): BreakevenResult {
-    const { currentStart, currentEnd } = getPeriodBounds();
+    const { currentStart, currentEnd } = getPeriodBounds(transactions);
     const currTxs = filterByPeriod(transactions, currentStart, currentEnd);
 
     const currentRevenue = sumByType(currTxs, 'income');
@@ -190,7 +208,7 @@ export function computeBreakeven(transactions: Transaction[], settings: Business
     // revenue trend closes a gap that gets worse with every extra sale.
     let monthsToBreakeven: number | null = null;
     if (!costStructureUpsideDown && surplusOrGap < 0) {
-        const { prevStart, prevEnd } = getPeriodBounds();
+        const { prevStart, prevEnd } = getPeriodBounds(transactions);
         const prevTxs = filterByPeriod(transactions, prevStart, prevEnd);
         const prevRevenue = sumByType(prevTxs, 'income');
         const monthlyGrowth = currentRevenue - prevRevenue;
@@ -295,7 +313,7 @@ export interface ProfitDriver {
 }
 
 export function identifyProfitDrivers(transactions: Transaction[]): ProfitDriver[] {
-    const { currentStart, currentEnd, prevStart, prevEnd } = getPeriodBounds();
+    const { currentStart, currentEnd, prevStart, prevEnd } = getPeriodBounds(transactions);
 
     const currTxs = filterByPeriod(transactions, currentStart, currentEnd);
     const prevTxs = filterByPeriod(transactions, prevStart, prevEnd);
