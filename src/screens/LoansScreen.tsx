@@ -22,6 +22,7 @@ import { Loan, LoanStatus, Transaction, ReadinessSnapshot } from '../types';
 import DateInput from '../components/DateInput';
 import MerchantFinancingSection from './MerchantFinancingSection';
 import { computeDebtOptimiser, computeDSCR, computeInterestRateShock, DSCRResult, computeUnlinkedLoanRepayments, computeLoanPaymentSplit } from '../utils/finance';
+import { computeDSCRIntelligence } from '../utils/metricIntelligence';
 import { generateId } from '../utils/uuid';
 import { computePostFinancingMonitor, PostFinancingStatus } from '../utils/postFinancingMonitor';
 import { buildPostFinancingShareExport } from '../utils/lenderSummaryExport';
@@ -225,6 +226,11 @@ export default function LoansScreen() {
     // with 2+ active loans; a single loan has no ordering decision to make.
     const debtOpt = useMemo(() => computeDebtOptimiser(loans, currency), [loans, currency]);
     const dscr = useMemo(() => computeDSCR(transactions, loans), [transactions, loans]);
+    // Metric Intelligence pilot -- same Definition/Owner-confidence/Trigger
+    // treatment as the Dashboard's Business Health Score. See
+    // metricIntelligence.ts for exactly what's reused vs new.
+    const dscrIntelligence = useMemo(() => computeDSCRIntelligence(dscr, transactions), [dscr, transactions]);
+    const [dscrWhyOpen, setDscrWhyOpen] = useState(false);
     const showDebtStrategy = activeLoans.length >= 2;
     const dscrStatusColor = dscr.status === 'healthy' ? Colors.income : dscr.status === 'warning' ? Colors.warning : Colors.expense;
 
@@ -310,6 +316,26 @@ export default function LoansScreen() {
                                 <Text style={s.dscrDetailLabel}>Annual Debt Payments</Text>
                                 <Text style={[s.dscrDetailVal, { color: Colors.expense }]}>{currency}{Math.round(dscr.totalDebtService).toLocaleString()}</Text>
                             </View>
+
+                            <TouchableOpacity style={s.dscrWhyBtn} onPress={() => setDscrWhyOpen(o => !o)}>
+                                <Text style={s.dscrWhyBtnText}>Why? What is this built on?</Text>
+                                <Text style={s.dscrWhyBtnText}>{dscrWhyOpen ? '▲' : '▼'}</Text>
+                            </TouchableOpacity>
+                            {dscrWhyOpen && (
+                                <View style={s.dscrWhyBox}>
+                                    <Text style={s.dscrWhyLabel}>Definition</Text>
+                                    <Text style={s.dscrWhyText}>{dscrIntelligence.definition}</Text>
+
+                                    <Text style={s.dscrWhyLabel}>Data confidence</Text>
+                                    <Text style={s.dscrWhyText}>{dscrIntelligence.dataQuality.summary}</Text>
+                                    {dscrIntelligence.builtOn.map((line, i) => (
+                                        <Text key={i} style={s.dscrWhyBullet}>• {line}</Text>
+                                    ))}
+
+                                    <Text style={s.dscrWhyLabel}>Trigger</Text>
+                                    <Text style={[s.dscrWhyText, { color: Colors.warning, fontWeight: '700' }]}>⚠️ {dscrIntelligence.trigger}</Text>
+                                </View>
+                            )}
                         </View>
                     )}
 
@@ -1148,6 +1174,12 @@ const s = StyleSheet.create({
     dscrDetailRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6, borderTopWidth: 1, borderTopColor: Colors.border },
     dscrDetailLabel: { fontSize: 12.5, color: Colors.textSecondary },
     dscrDetailVal: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
+    dscrWhyBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.border },
+    dscrWhyBtnText: { fontSize: 11.5, fontWeight: '600', color: Colors.textMuted },
+    dscrWhyBox: { backgroundColor: Colors.bg, borderRadius: Radius.md, padding: Spacing.md, marginTop: 8, gap: 2 },
+    dscrWhyLabel: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 8 },
+    dscrWhyText: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
+    dscrWhyBullet: { fontSize: 11, color: Colors.textMuted, lineHeight: 16, marginTop: 2 },
 
     shockChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 16, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.bg },
     shockChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },

@@ -1,5 +1,5 @@
-import { computeBusinessHealthIntelligence, computeFinancingReadinessIntelligence, computeCashRunwayIntelligence } from '../src/utils/metricIntelligence';
-import { computeRiskScore, RiskScore } from '../src/utils/finance';
+import { computeBusinessHealthIntelligence, computeFinancingReadinessIntelligence, computeCashRunwayIntelligence, computeDSCRIntelligence } from '../src/utils/metricIntelligence';
+import { computeRiskScore, RiskScore, DSCRResult } from '../src/utils/finance';
 import { computeDataQuality, computeDataConfidenceBullets } from '../src/utils/dataQuality';
 import { CashRunway } from '../src/utils/cashRunway';
 import { Transaction } from '../src/types';
@@ -119,6 +119,32 @@ describe('computeCashRunwayIntelligence', () => {
     it('reuses computeDataQuality verbatim', () => {
         const txs = [makeTx({ type: 'expense', amount: 50000, status: 'paid' })];
         const result = computeCashRunwayIntelligence(makeRunway(45), txs);
+        expect(result.dataQuality).toEqual(computeDataQuality(txs));
+        expect(result.builtOn).toEqual(computeDataConfidenceBullets(computeDataQuality(txs)));
+    });
+});
+
+describe('computeDSCRIntelligence', () => {
+    const makeDSCR = (dscr: number, status: DSCRResult['status']): DSCRResult => ({ dscr, netOperatingIncome: 0, totalDebtService: 0, status });
+
+    it('states a recovery trigger for danger-status DSCR, matching the exact threshold diagnoseDebt already fires on', () => {
+        const result = computeDSCRIntelligence(makeDSCR(0.6, 'danger'), []);
+        expect(result.trigger).toBe('Resolves once DSCR recovers above 1.25x, the comfortable-coverage threshold.');
+    });
+
+    it('states an escalation-to-critical trigger for warning-status DSCR', () => {
+        const result = computeDSCRIntelligence(makeDSCR(1.1, 'warning'), []);
+        expect(result.trigger).toBe('Becomes critical if DSCR falls below 1.00x — income would no longer cover debt payments at all.');
+    });
+
+    it('states a drops-out-of-comfortable-coverage trigger for healthy-status DSCR, not "nothing to say"', () => {
+        const result = computeDSCRIntelligence(makeDSCR(1.8, 'healthy'), []);
+        expect(result.trigger).toBe('Drops out of comfortable coverage if DSCR falls below 1.25x — still covers payments down to 1.00x, just with less room to spare.');
+    });
+
+    it('reuses computeDataQuality verbatim', () => {
+        const txs = [makeTx({ type: 'expense', amount: 20000, status: 'paid' })];
+        const result = computeDSCRIntelligence(makeDSCR(1.5, 'healthy'), txs);
         expect(result.dataQuality).toEqual(computeDataQuality(txs));
         expect(result.builtOn).toEqual(computeDataConfidenceBullets(computeDataQuality(txs)));
     });

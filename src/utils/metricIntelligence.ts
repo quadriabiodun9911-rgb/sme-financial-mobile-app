@@ -3,9 +3,9 @@
  * was to give every important number a Definition / Owner / Assumption /
  * Trigger explanation. Retrofitting that onto every metric in this app at
  * once would touch dozens of screens on a guess at what's worth the effort
- * -- instead this applies the idea, in full, to three of the app's most
+ * -- instead this applies the idea, in full, to four of the app's most
  * prominent numbers (Business Health Score, Financing Readiness Score,
- * Cash Runway), as real, working examples rather than a speculative
+ * Cash Runway, DSCR), as real, working examples rather than a speculative
  * abstraction built for metrics nobody has asked to instrument yet.
  *
  * Every piece here is reused, not invented:
@@ -21,10 +21,14 @@
  *    diagnoseLiquidity (financialDiagnosisEngine.ts) already fires its own
  *    Early Warning Signal on (INDUSTRY_BENCHMARKS) -- the same numbers
  *    that already color the Dashboard's runway gauge red/amber/green.
+ *  - The DSCR trigger reads DSCR_THRESHOLDS (finance.ts) -- the same
+ *    1.0x/1.25x cutoffs computeDSCR's own status field, computeRiskScore's
+ *    Debt factor, and diagnoseDebt's own Early Warning Signal all already
+ *    use, not a fourth independently-typed copy of the same two numbers.
  *  - No threshold anywhere in this file is invented for this module alone.
  */
 
-import { RiskScore, RISK_BAND_CUTOFFS } from './finance';
+import { RiskScore, RISK_BAND_CUTOFFS, DSCRResult, DSCR_THRESHOLDS } from './finance';
 import { computeDataQuality, computeDataConfidenceBullets, DataQuality } from './dataQuality';
 import { INDUSTRY_BENCHMARKS } from './financialDiagnosisEngine';
 import { CashRunway } from './cashRunway';
@@ -89,6 +93,38 @@ export function computeCashRunwayIntelligence(runway: CashRunway, transactions: 
 
     return {
         definition: 'Current cash balance ÷ average daily burn rate — the trailing 30 days of paid, non-recurring expenses plus your recorded recurring expenses converted to a daily rate. How many days operations could continue with no further income at all.',
+        dataQuality,
+        builtOn: computeDataConfidenceBullets(dataQuality),
+        trigger,
+    };
+}
+
+export interface DSCRIntelligence {
+    definition: string;
+    dataQuality: DataQuality;
+    builtOn: string[];
+    trigger: string;
+}
+
+export function computeDSCRIntelligence(dscr: DSCRResult, transactions: Transaction[]): DSCRIntelligence {
+    const dataQuality = computeDataQuality(transactions);
+
+    // toFixed(2) so 1.0x always reads as "1.00x", not a bare "1x" -- keeps
+    // the same two-decimal precision as the 1.25x cutoff it's paired with
+    // in every trigger sentence below.
+    const healthyLabel = DSCR_THRESHOLDS.healthy.toFixed(2);
+    const warningLabel = DSCR_THRESHOLDS.warning.toFixed(2);
+    let trigger: string;
+    if (dscr.status === 'danger') {
+        trigger = `Resolves once DSCR recovers above ${healthyLabel}x, the comfortable-coverage threshold.`;
+    } else if (dscr.status === 'warning') {
+        trigger = `Becomes critical if DSCR falls below ${warningLabel}x — income would no longer cover debt payments at all.`;
+    } else {
+        trigger = `Drops out of comfortable coverage if DSCR falls below ${healthyLabel}x — still covers payments down to ${warningLabel}x, just with less room to spare.`;
+    }
+
+    return {
+        definition: 'Debt Service Coverage Ratio = net operating income (trailing 12 months, annualized) ÷ total scheduled debt service across every active loan. How many times over your income could cover what you owe lenders this year.',
         dataQuality,
         builtOn: computeDataConfidenceBullets(dataQuality),
         trigger,

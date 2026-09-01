@@ -1081,6 +1081,11 @@ export function computeLoanAmortizationSplit(loan: Loan, outstandingBalance: num
  * business isn't judged on a partial year's income as if that were its
  * whole annual capacity.
  */
+// Exported so every DSCR-status judgment call in this file (and
+// metricIntelligence.ts's DSCR trigger) reads the same two real cutoffs
+// rather than each hardcoding its own copy of 1.25/1.0.
+export const DSCR_THRESHOLDS = { healthy: 1.25, warning: 1.0 };
+
 export function computeDSCR(transactions: Transaction[], loans: Loan[]): DSCRResult {
     const cutoff = new Date();
     cutoff.setFullYear(cutoff.getFullYear() - 1);
@@ -1112,7 +1117,7 @@ export function computeDSCR(transactions: Transaction[], loans: Loan[]): DSCRRes
     const monthlyDebtService = activeLoans.reduce((s, l) => s + loanMonthlyPayment(l.principal, l.interestRate, l.termMonths), 0);
     const totalDebtService = monthlyDebtService * 12;
     const dscr = totalDebtService > 0 ? netOperatingIncome / totalDebtService : 999;
-    const status: DSCRResult['status'] = dscr >= 1.25 ? 'healthy' : dscr >= 1.0 ? 'warning' : 'danger';
+    const status: DSCRResult['status'] = dscr >= DSCR_THRESHOLDS.healthy ? 'healthy' : dscr >= DSCR_THRESHOLDS.warning ? 'warning' : 'danger';
     return { dscr, netOperatingIncome, totalDebtService, status };
 }
 
@@ -1535,12 +1540,12 @@ export function computeRiskScore(
     const dscr = computeDSCR(transactions, loans);
     factors.push({
         name: 'Debt',
-        score: dscr.dscr >= 1.25 ? 100 : dscr.dscr >= 1.0 ? 60 : 20,
+        score: dscr.dscr >= DSCR_THRESHOLDS.healthy ? 100 : dscr.dscr >= DSCR_THRESHOLDS.warning ? 60 : 20,
         weight: 15,
         status: dscr.status === 'healthy' ? 'good' : dscr.status,
         explanation: `Debt service coverage ratio is ${dscr.dscr.toFixed(2)}x -- ${
-            dscr.dscr >= 1.25 ? 'comfortable room to cover loan payments.' :
-            dscr.dscr >= 1.0  ? 'covers current obligations, but with little room to spare.' :
+            dscr.dscr >= DSCR_THRESHOLDS.healthy ? 'comfortable room to cover loan payments.' :
+            dscr.dscr >= DSCR_THRESHOLDS.warning  ? 'covers current obligations, but with little room to spare.' :
                                 'income does not fully cover current debt payments.'
         }`,
     });
