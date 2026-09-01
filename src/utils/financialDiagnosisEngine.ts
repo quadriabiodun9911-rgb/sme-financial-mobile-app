@@ -87,6 +87,16 @@ export interface RootCauseAnalysis {
   impact: string;
   financialImpact: number;
   opportunity: string;
+  // Early Warning Signals: the next real numeric boundary this diagnosis is
+  // already tracking -- the same cutoff its own severity ternary uses to
+  // tell 'warning' from 'critical' (or, once already critical, the
+  // benchmark it needs to clear to resolve), restated as a forward-looking
+  // line rather than left implicit in an if-condition. Never a new
+  // threshold invented for this field -- set only where the diagnosis
+  // already has a second numeric tier coded; omitted (not fabricated) for
+  // diagnoses that only ever fire at one severity with no further cutoff to
+  // point to (e.g. declining revenue, negative operating cash flow).
+  trigger?: string;
   // Which HealthCategory this came from -- same discriminator as the score
   // breakdown, set explicitly per diagnosis (mirrors suggestedGoalType's
   // reasoning below) so goalRiskLinkage.ts can filter diagnoses down to the
@@ -455,6 +465,9 @@ export function diagnoseProfitability(
       opportunity: 'Increase prices or reduce expenses',
       suggestedGoalType: 'margin_improvement',
       dimension: 'profitability',
+      trigger: metrics.profitMargin < 10
+        ? `Resolves once margin recovers above the ${INDUSTRY_BENCHMARKS.profitMargin}% target.`
+        : 'Becomes critical if margin falls below 10%.',
     });
   }
 
@@ -505,6 +518,7 @@ export function diagnoseLiquidity(
       opportunity: 'Immediate: Collect overdue invoices or cut expenses',
       suggestedGoalType: 'cash_reserve',
       dimension: 'liquidity',
+      trigger: `Resolves once runway rebuilds above the ${INDUSTRY_BENCHMARKS.runwayDaysSafe}-day safe buffer.`,
     });
   } else if (metrics.runwayDays < INDUSTRY_BENCHMARKS.runwayDaysSafe) {
     diagnoses.push({
@@ -516,6 +530,7 @@ export function diagnoseLiquidity(
       opportunity: 'Build 60+ day cash buffer through revenue growth or cost cutting',
       suggestedGoalType: 'cash_reserve',
       dimension: 'liquidity',
+      trigger: 'Becomes critical if runway falls below 30 days.',
     });
   }
 
@@ -538,6 +553,9 @@ export function diagnoseLiquidity(
       opportunity: 'Implement strict payment terms; offer early payment discounts',
       suggestedGoalType: 'reduce_overdue_ar',
       dimension: 'liquidity',
+      trigger: severity === 'critical'
+        ? `Resolves once average collection time returns under ${INDUSTRY_BENCHMARKS.daysOutstandingTarget} days.`
+        : `Becomes critical if average collection time exceeds ${INDUSTRY_BENCHMARKS.daysOutstandingTarget * 2} days.`,
     });
   }
 
@@ -558,6 +576,9 @@ export function diagnoseWorkingCapital(
       financialImpact: 0,
       opportunity: 'Negotiate longer supplier payment terms or shorter customer payment terms to close the gap',
       dimension: 'workingCapital',
+      trigger: metrics.cashConversionCycleDays > 75
+        ? 'Resolves once the cycle shortens under 45 days.'
+        : 'Becomes critical if the cycle exceeds 75 days.',
     });
   }
 
@@ -581,6 +602,9 @@ export function diagnoseDebt(
       financialImpact: metrics.monthlyDebtService,
       opportunity: 'Grow operating income, refinance for lower payments, or pause new borrowing until DSCR recovers',
       dimension: 'debt',
+      trigger: metrics.dscrStatus === 'danger'
+        ? 'Resolves once DSCR recovers above 1.25x, Quad360\'s healthy threshold.'
+        : 'Becomes critical if DSCR falls below 1.0x — income would no longer cover debt payments at all.',
     });
   }
 
@@ -646,6 +670,9 @@ export function diagnoseCashFlow(
       financialImpact: uncertainCash,
       opportunity: 'Tighten collection on outstanding invoices and review payment terms with slow-paying customers',
       dimension: 'cashFlow',
+      trigger: metrics.cashFlowConversionPct >= 50
+        ? 'Watch closely if conversion drops below 50% — at that point, most of this month\'s profit wouldn\'t be reaching the bank at all.'
+        : undefined,
     });
   }
 
@@ -668,6 +695,9 @@ export function diagnoseInventory(
       financialImpact: trappedValue,
       opportunity: 'Discount or bundle slow movers to free up cash; reduce reorder quantities for these items',
       dimension: 'inventory',
+      trigger: metrics.slowMovingValuePct > 50
+        ? 'Resolves once the slow-moving share drops under 25% of inventory value.'
+        : 'Becomes critical if the slow-moving share exceeds 50% of inventory value.',
     });
   }
 
@@ -688,6 +718,9 @@ export function diagnoseConcentration(
       financialImpact: 0,
       opportunity: 'Actively diversify the customer base; cap any single customer\'s share of revenue',
       dimension: 'concentration',
+      trigger: metrics.topCustomerConcentrationPct >= 60
+        ? 'Resolves once this customer\'s share drops under 40% of revenue.'
+        : 'Becomes critical if this customer\'s share reaches 60% of revenue.',
     });
   }
 
@@ -700,6 +733,9 @@ export function diagnoseConcentration(
       financialImpact: 0,
       opportunity: 'Qualify a second supplier for critical inputs before it becomes urgent',
       dimension: 'concentration',
+      trigger: metrics.topSupplierConcentrationPct >= 60
+        ? 'Resolves once this supplier\'s share drops under 40% of spend.'
+        : 'Becomes critical if this supplier\'s share reaches 60% of spend.',
     });
   }
 
@@ -726,6 +762,9 @@ export function diagnoseEfficiency(
       opportunity: 'Freeze discretionary spend increases until revenue growth catches up',
       suggestedGoalType: 'cost_reduction',
       dimension: 'efficiency',
+      trigger: growthGap > 25
+        ? 'Resolves once expense growth is back within 10 points of revenue growth.'
+        : 'Becomes critical if expenses outgrow revenue by more than 25 points.',
     });
   }
 

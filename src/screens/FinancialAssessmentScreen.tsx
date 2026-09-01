@@ -307,7 +307,7 @@ export default function FinancialAssessmentScreen() {
           <View style={styles.diagnosisHeader}>
             <View style={styles.titleIconRow}>
               <Icon name="alert-octagon" size={14} color={Colors.expense} />
-              <Text style={styles.sectionTitle}>Issues Identified ({diagnosis.diagnoses.length})</Text>
+              <Text style={styles.sectionTitle}>Early Warning Signals ({diagnosis.diagnoses.length})</Text>
             </View>
             {diagnosis.diagnoses.length > 0 && (
               <Text style={styles.diagnosisCount}>{selectedDiagnosis + 1} of {diagnosis.diagnoses.length}</Text>
@@ -347,6 +347,15 @@ export default function FinancialAssessmentScreen() {
               <Text style={styles.diagnosisText}>
                 {diagnosis.diagnoses[selectedDiagnosis].impact}
               </Text>
+
+              {diagnosis.diagnoses[selectedDiagnosis].trigger && (
+                <>
+                  <Text style={styles.diagnosisLabel}>Trigger to Watch</Text>
+                  <Text style={[styles.diagnosisText, { color: Colors.warning }]}>
+                    ⚠️ {diagnosis.diagnoses[selectedDiagnosis].trigger}
+                  </Text>
+                </>
+              )}
 
               <Text style={styles.diagnosisLabel}>Opportunity</Text>
               <Text style={[styles.diagnosisText, { color: Colors.income, fontWeight: '600' }]}>

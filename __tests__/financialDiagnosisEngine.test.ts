@@ -384,6 +384,89 @@ describe('diagnose* functions — suggestedGoalType', () => {
     });
 });
 
+// Early Warning Signals: `trigger` restates the exact numeric boundary a
+// diagnosis's own severity ternary already uses, as a forward-looking line
+// -- never a fabricated threshold. Reuses the same healthyMetrics fixture
+// and boundary values as the suggestedGoalType tests above.
+describe('diagnose* functions — trigger', () => {
+    const healthyMetrics: FinancialMetrics = {
+        totalRevenue: 1000000,
+        totalExpenses: 700000,
+        netProfit: 300000,
+        profitMargin: 30,
+        cashBalance: 500000,
+        runwayDays: 90,
+        accountsReceivable: 0,
+        accountsPayable: 0,
+        daysOutstanding: 10,
+        dso: 10,
+        dpo: 10,
+        cashConversionCycleDays: 10,
+        dscr: 2,
+        dscrStatus: 'healthy',
+        monthlyDebtService: 0,
+        operatingCashFlow: 300000,
+        cashFlowConversionPct: 100,
+        inventoryValue: 0,
+        slowMovingValuePct: 0,
+        topCustomerConcentrationPct: 10,
+        topSupplierConcentrationPct: 10,
+        expensesByCategory: {},
+        revenueRecurringPct: 60,
+        expenseGrowthPct: 5,
+        monthOverMonthGrowth: 5,
+        profitTrend: 'stable',
+        receivablesGrowthPct: null,
+    };
+
+    it('gives a warning-severity margin diagnosis a forward escalation trigger, and a critical one a recovery trigger', () => {
+        const warning = diagnoseProfitability({ ...healthyMetrics, profitMargin: 15 })[0];
+        expect(warning.severity).toBe('warning');
+        expect(warning.trigger).toMatch(/critical if margin falls below 10%/i);
+
+        const critical = diagnoseProfitability({ ...healthyMetrics, profitMargin: 5 })[0];
+        expect(critical.severity).toBe('critical');
+        expect(critical.trigger).toMatch(/recovers above the 20% target/i);
+    });
+
+    it('never states a trigger for declining revenue -- no second coded threshold exists', () => {
+        const diagnoses = diagnoseProfitability({ ...healthyMetrics, monthOverMonthGrowth: -20 });
+        const found = diagnoses.find(d => d.problem === 'Revenue declining rapidly');
+        expect(found?.trigger).toBeUndefined();
+    });
+
+    it('gives the runway diagnosis a trigger at both severities', () => {
+        const warning = diagnoseLiquidity({ ...healthyMetrics, runwayDays: 45 })[0];
+        expect(warning.trigger).toMatch(/critical if runway falls below 30 days/i);
+
+        const critical = diagnoseLiquidity({ ...healthyMetrics, runwayDays: 10 })[0];
+        expect(critical.trigger).toMatch(/above the 60-day safe buffer/i);
+    });
+
+    it('gives the DSCR diagnosis a trigger derived from computeDSCR\'s own 1.0x/1.25x bands', () => {
+        const warning = diagnoseDebt({ ...healthyMetrics, dscrStatus: 'warning', dscr: 1.1, monthlyDebtService: 50000 })[0];
+        expect(warning.trigger).toMatch(/critical if DSCR falls below 1\.0x/i);
+
+        const critical = diagnoseDebt({ ...healthyMetrics, dscrStatus: 'danger', dscr: 0.8, monthlyDebtService: 50000 })[0];
+        expect(critical.trigger).toMatch(/above 1\.25x/i);
+    });
+
+    it('never states a trigger for negative operating cash flow -- no second coded threshold exists', () => {
+        const diagnoses = diagnoseCashFlow({ ...healthyMetrics, operatingCashFlow: -50000 });
+        expect(diagnoses[0].trigger).toBeUndefined();
+    });
+
+    it('gives a weak-but-not-worst cash conversion diagnosis a trigger at the 50% boundary already used in its own rootCause wording', () => {
+        const diagnoses = diagnoseCashFlow({ ...healthyMetrics, operatingCashFlow: 150000, cashFlowConversionPct: 76 });
+        expect(diagnoses[0].trigger).toMatch(/drops below 50%/i);
+    });
+
+    it('omits the trigger once cash conversion is already below 50% -- no further coded boundary to point to', () => {
+        const diagnoses = diagnoseCashFlow({ ...healthyMetrics, operatingCashFlow: 50000, cashFlowConversionPct: 17 });
+        expect(diagnoses[0].trigger).toBeUndefined();
+    });
+});
+
 // Same thresholds computeRiskScore's own Operating Cash Flow factor scores
 // against (finance.ts) -- this only checks that diagnoseCashFlow fires at
 // the right boundaries with the right severity, not the scoring itself.
