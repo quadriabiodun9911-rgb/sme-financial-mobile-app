@@ -31,6 +31,7 @@ import { computeForwardFinancingReadiness } from '../utils/forwardFinancingReadi
 import { computeQualityOfGrowth } from '../utils/qualityOfGrowth';
 import { computeDynamicFinancingReadiness, ReadinessDirection } from '../utils/dynamicFinancingReadiness';
 import { computeFinancialChangeExplanation } from '../utils/financialChangeExplanation';
+import { computeFinancingReadinessIntelligence } from '../utils/metricIntelligence';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 
@@ -350,6 +351,14 @@ export default function CreditWorthinessScreen() {
         () => computeDynamicFinancingReadiness(financingReadiness, growthQuality, forwardReadiness, topDiagnosis, changeExplanation),
         [financingReadiness, growthQuality, forwardReadiness, topDiagnosis, changeExplanation],
     );
+    // Metric Intelligence pilot -- same Definition/Owner-confidence/Trigger
+    // treatment as the Dashboard's Business Health Score. See
+    // metricIntelligence.ts for exactly what's reused vs new.
+    const readinessIntelligence = useMemo(
+        () => computeFinancingReadinessIntelligence(financingReadiness, transactions),
+        [financingReadiness, transactions],
+    );
+    const [readinessWhyOpen, setReadinessWhyOpen] = useState(false);
     const lendingCapacity = useMemo(() => computeLendingCapacityEstimate({
         overallCreditScore: financingReadiness.score,
         avgMonthlyRevenue: user?.avgMonthlyRevenue || 0,
@@ -553,6 +562,26 @@ export default function CreditWorthinessScreen() {
                         <View style={s.readinessMilestoneBox}>
                             <Text style={s.readinessBlockLabel}>Next Milestone</Text>
                             <Text style={s.readinessMilestoneText}>{dynamicReadiness.nextMilestone}</Text>
+                        </View>
+                    )}
+
+                    <TouchableOpacity style={s.readinessWhyBtn} onPress={() => setReadinessWhyOpen(o => !o)}>
+                        <Text style={s.readinessWhyBtnText}>Why? What is this built on?</Text>
+                        <Text style={s.readinessWhyBtnText}>{readinessWhyOpen ? '▲' : '▼'}</Text>
+                    </TouchableOpacity>
+                    {readinessWhyOpen && (
+                        <View style={s.readinessWhyBox}>
+                            <Text style={s.readinessBlockLabel}>Definition</Text>
+                            <Text style={s.readinessWhyText}>{readinessIntelligence.definition}</Text>
+
+                            <Text style={s.readinessBlockLabel}>Data confidence</Text>
+                            <Text style={s.readinessWhyText}>{readinessIntelligence.dataQuality.summary}</Text>
+                            {readinessIntelligence.builtOn.map((line, i) => (
+                                <Text key={i} style={s.readinessWhyBullet}>• {line}</Text>
+                            ))}
+
+                            <Text style={s.readinessBlockLabel}>Trigger</Text>
+                            <Text style={[s.readinessWhyText, { color: Colors.warning, fontWeight: '700' }]}>⚠️ {readinessIntelligence.trigger}</Text>
                         </View>
                     )}
                 </View>
@@ -1125,6 +1154,11 @@ const s = StyleSheet.create({
     readinessBullet: { fontSize: 12.5, lineHeight: 18, marginBottom: 2 },
     readinessMilestoneBox: { marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.border },
     readinessMilestoneText: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, lineHeight: 18 },
+    readinessWhyBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.border },
+    readinessWhyBtnText: { fontSize: 11.5, fontWeight: '600', color: Colors.textMuted },
+    readinessWhyBox: { backgroundColor: Colors.bg, borderRadius: Radius.md, padding: Spacing.md, marginTop: 8, gap: 2 },
+    readinessWhyText: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
+    readinessWhyBullet: { fontSize: 11, color: Colors.textMuted, lineHeight: 16, marginTop: 2 },
 
     trendEmpty: { fontSize: 12.5, color: Colors.textMuted, lineHeight: 18, fontStyle: 'italic' },
     trendChartArea: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 84, marginBottom: 10 },

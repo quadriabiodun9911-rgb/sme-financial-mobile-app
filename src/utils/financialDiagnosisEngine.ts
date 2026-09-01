@@ -190,12 +190,17 @@ export function deriveTopActionImpacts(diagnoses: RootCauseAnalysis[], count = 3
   }));
 }
 
-const INDUSTRY_BENCHMARKS = {
+// Exported so anything that needs the same real thresholds this engine's
+// own diagnoses fire on (e.g. metricIntelligence.ts's Cash Runway trigger)
+// reads them from here rather than hardcoding a second copy that could
+// drift from what diagnoseLiquidity below actually checks against.
+export const INDUSTRY_BENCHMARKS = {
   profitMargin: 20,
   salaryPercentOfRevenue: 30,
   cogsPercentOfRevenue: 35,
   quickRatio: 1.0,
   daysOutstandingTarget: 30,
+  runwayDaysCritical: 30,
   runwayDaysSafe: 60,
 };
 
@@ -508,7 +513,7 @@ export function diagnoseLiquidity(
   const diagnoses: RootCauseAnalysis[] = [];
 
   // Critical runway diagnosis
-  if (metrics.runwayDays === null || metrics.runwayDays < 30) {
+  if (metrics.runwayDays === null || metrics.runwayDays < INDUSTRY_BENCHMARKS.runwayDaysCritical) {
     diagnoses.push({
       problem: `Critical cash position (${metrics.runwayDays || 0}-day runway)`,
       severity: 'critical',

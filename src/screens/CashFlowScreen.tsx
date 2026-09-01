@@ -10,6 +10,7 @@ import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { computeCashFlowForecast, computeDSCR } from '../utils/finance';
 import { computeCashRunway } from '../utils/cashRunway';
+import { computeCashRunwayIntelligence } from '../utils/metricIntelligence';
 import { computeBurnRateAnalysis } from '../utils/burnRateAnalysis';
 import { computeBreakeven } from '../utils/profitability';
 import BreakevenAnalysis from '../components/BreakevenAnalysis';
@@ -55,6 +56,15 @@ export default function CashFlowScreen() {
     );
 
     const runwayColor = runwayDays < 30 ? Colors.expense : runwayDays < 90 ? Colors.warning : Colors.income;
+
+    // Metric Intelligence pilot -- same Definition/Owner-confidence/Trigger
+    // treatment as the Dashboard's Business Health Score. See
+    // metricIntelligence.ts for exactly what's reused vs new.
+    const runwayIntelligence = useMemo(
+        () => computeCashRunwayIntelligence({ runwayDays, dailyBurn, cashBalance }, transactions),
+        [runwayDays, dailyBurn, cashBalance, transactions],
+    );
+    const [runwayWhyOpen, setRunwayWhyOpen] = useState(false);
 
     // Startup Burn Rate -- the complementary "at the actual rate you're
     // going, revenue included" view alongside the worst-case gross-burn
@@ -319,6 +329,26 @@ export default function CashFlowScreen() {
                                         : 'Healthy — more than 3 months of runway'}
                                 </Text>
                             </View>
+
+                            <TouchableOpacity style={styles.runwayWhyBtn} onPress={() => setRunwayWhyOpen(o => !o)}>
+                                <Text style={styles.runwayWhyBtnText}>Why? What is this built on?</Text>
+                                <Text style={styles.runwayWhyBtnText}>{runwayWhyOpen ? '▲' : '▼'}</Text>
+                            </TouchableOpacity>
+                            {runwayWhyOpen && (
+                                <View style={styles.runwayWhyBox}>
+                                    <Text style={styles.runwayWhyLabel}>Definition</Text>
+                                    <Text style={styles.runwayWhyText}>{runwayIntelligence.definition}</Text>
+
+                                    <Text style={styles.runwayWhyLabel}>Data confidence</Text>
+                                    <Text style={styles.runwayWhyText}>{runwayIntelligence.dataQuality.summary}</Text>
+                                    {runwayIntelligence.builtOn.map((line, i) => (
+                                        <Text key={i} style={styles.runwayWhyBullet}>• {line}</Text>
+                                    ))}
+
+                                    <Text style={styles.runwayWhyLabel}>Trigger</Text>
+                                    <Text style={[styles.runwayWhyText, { color: Colors.warning, fontWeight: '700' }]}>⚠️ {runwayIntelligence.trigger}</Text>
+                                </View>
+                            )}
                         </View>
 
                         <View style={styles.row2}>
@@ -594,6 +624,12 @@ const styles = StyleSheet.create({
     runwayDays:   { fontSize: 52, fontWeight: '900' },
     runwaySubRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, marginTop: Spacing.sm },
     runwaySub:    { fontSize: 13, color: Colors.muted, textAlign: 'center' },
+    runwayWhyBtn: { alignSelf: 'stretch', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.border },
+    runwayWhyBtnText: { fontSize: 11.5, fontWeight: '600', color: Colors.muted },
+    runwayWhyBox: { alignSelf: 'stretch', backgroundColor: Colors.bg, borderRadius: Radius.md, padding: Spacing.md, marginTop: 8, gap: 2 },
+    runwayWhyLabel: { fontSize: 10, fontWeight: '700', color: Colors.muted, textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 8 },
+    runwayWhyText: { fontSize: 12, color: Colors.text, lineHeight: 17, textAlign: 'left' },
+    runwayWhyBullet: { fontSize: 11, color: Colors.muted, lineHeight: 16, marginTop: 2, textAlign: 'left' },
 
     row2:  { flexDirection: 'row', gap: 10, marginBottom: Spacing.lg },
     card2: { flex: 1, backgroundColor: Colors.card, borderRadius: Radius.md, padding: 14, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
