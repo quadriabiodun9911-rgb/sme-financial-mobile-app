@@ -80,4 +80,47 @@ describe('computeMacroShieldImpact', () => {
         const withReserve = computeMacroShieldImpact(txs, [], FINANCE(300_000), [], 500_000, { inflationPct: 60, fxDevaluationPct: 0 });
         expect(withReserve.shocked.reserveBreach).not.toBeNull();
     });
+
+    describe('revenueImpactPct lever', () => {
+        it('defaults to 0 (no revenue effect) when omitted, matching prior behavior exactly', () => {
+            const txs = steadyBusinessTransactions(1_000_000, 600_000);
+            const withField = computeMacroShieldImpact(txs, [], FINANCE(2_000_000), [], 0, { inflationPct: 20, fxDevaluationPct: 15, revenueImpactPct: 0 });
+            const omitted = computeMacroShieldImpact(txs, [], FINANCE(2_000_000), [], 0, { inflationPct: 20, fxDevaluationPct: 15 });
+            expect(omitted.monthlyRevenueDeclinePct).toBe(0);
+            expect(omitted.shocked.cashFlowMonths).toEqual(withField.shocked.cashFlowMonths);
+        });
+
+        it('derives the monthly compounding decline from the annualized revenue-impact magnitude, same shape as the cost shock', () => {
+            const txs = steadyBusinessTransactions(1_000_000, 600_000);
+            const result = computeMacroShieldImpact(txs, [], FINANCE(2_000_000), [], 0, { inflationPct: 0, fxDevaluationPct: 0, revenueImpactPct: 20 });
+            const expectedMonthly = (Math.pow(0.80, 1 / 12) - 1) * 100;
+            expect(result.monthlyRevenueDeclinePct).toBeCloseTo(expectedMonthly, 5);
+            expect(result.monthlyRevenueDeclinePct).toBeLessThan(0);
+        });
+
+        it('leaves the baseline (unshocked) scenario untouched by the revenue lever -- only the shocked scenario sees it', () => {
+            const txs = steadyBusinessTransactions(1_000_000, 600_000);
+            const noRevenueImpact = computeMacroShieldImpact(txs, [], FINANCE(2_000_000), [], 0, { inflationPct: 20, fxDevaluationPct: 0 });
+            const withRevenueImpact = computeMacroShieldImpact(txs, [], FINANCE(2_000_000), [], 0, { inflationPct: 20, fxDevaluationPct: 0, revenueImpactPct: 40 });
+            expect(withRevenueImpact.baseline.cashFlowMonths).toEqual(noRevenueImpact.baseline.cashFlowMonths);
+            // The shocked scenario's ending cash should be lower with the added revenue hit than without it
+            const lastNoImpact = noRevenueImpact.shocked.cashFlowMonths[noRevenueImpact.shocked.cashFlowMonths.length - 1].endingCash;
+            const lastWithImpact = withRevenueImpact.shocked.cashFlowMonths[withRevenueImpact.shocked.cashFlowMonths.length - 1].endingCash;
+            expect(lastWithImpact).toBeLessThan(lastNoImpact);
+        });
+
+        it('a severe revenue-impact lever alone (no cost shock) can push a business into running out of cash', () => {
+            const txs = steadyBusinessTransactions(650_000, 600_000);
+            const result = computeMacroShieldImpact(txs, [], FINANCE(300_000), [], 0, { inflationPct: 0, fxDevaluationPct: 0, revenueImpactPct: 80 });
+            expect(result.baseline.runOutMonthIndex).toBeNull();
+            expect(result.shocked.runOutMonthIndex).not.toBeNull();
+        });
+
+        it('clamps revenueImpactPct below 100 so the fractional-exponent math never produces NaN', () => {
+            const txs = steadyBusinessTransactions(1_000_000, 600_000);
+            const result = computeMacroShieldImpact(txs, [], FINANCE(2_000_000), [], 0, { inflationPct: 0, fxDevaluationPct: 0, revenueImpactPct: 500 });
+            expect(Number.isFinite(result.monthlyRevenueDeclinePct)).toBe(true);
+            expect(Number.isNaN(result.monthlyRevenueDeclinePct)).toBe(false);
+        });
+    });
 });

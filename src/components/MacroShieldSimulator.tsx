@@ -21,24 +21,32 @@ function fmt(currency: string, n: number): string {
 }
 
 const MAX_SHOCK_PCT = 100;
+// Capped lower than the cost sliders -- an 80% annualized revenue decline
+// is already a near-total collapse; the engine itself defensively clamps
+// further (see macroShield.ts) but the slider shouldn't invite a visitor
+// to drag past what's a meaningful scenario to test.
+const MAX_REVENUE_IMPACT_PCT = 80;
 
 // MacroShield -- Inflation & FX Shock Simulator. Standard banking apps show
-// a live balance; this is the predictive layer on top: drag inflation or a
-// currency devaluation up and see, in real numbers, which month it would
-// put cash below zero -- not a forecast of what WILL happen, but what
-// today's numbers say WOULD happen if a shock like this hit and nothing
-// changed. See macroShield.ts for exactly what this reuses and why both
-// shocks are modeled as a uniform cost increase.
+// a live balance; this is the predictive layer on top: drag inflation, a
+// currency devaluation, or a revenue decline up and see, in real numbers,
+// which month it would put cash below zero -- not a forecast of what WILL
+// happen, but what today's numbers say WOULD happen if a shock like this
+// hit and nothing changed. See macroShield.ts for exactly what this reuses,
+// why both cost sliders are modeled as a uniform cost increase, and why
+// the revenue slider is a plain user-set assumption rather than a derived
+// formula.
 export default function MacroShieldSimulator({ currency, transactions, loans, finance, staff, minReserve }: Props) {
     const [inflationPct, setInflationPct] = useState(0);
     const [fxDevaluationPct, setFxDevaluationPct] = useState(0);
+    const [revenueImpactPct, setRevenueImpactPct] = useState(0);
 
     const result = useMemo(
-        () => computeMacroShieldImpact(transactions, loans, finance, staff, minReserve, { inflationPct, fxDevaluationPct }),
-        [transactions, loans, finance, staff, minReserve, inflationPct, fxDevaluationPct],
+        () => computeMacroShieldImpact(transactions, loans, finance, staff, minReserve, { inflationPct, fxDevaluationPct, revenueImpactPct }),
+        [transactions, loans, finance, staff, minReserve, inflationPct, fxDevaluationPct, revenueImpactPct],
     );
 
-    const hasShock = inflationPct > 0 || fxDevaluationPct > 0;
+    const hasShock = inflationPct > 0 || fxDevaluationPct > 0 || revenueImpactPct > 0;
 
     // Whenever the shock isn't severe enough to actually push cash negative
     // within the 12-month horizon, both rows above read identically ("Cash
@@ -65,7 +73,7 @@ export default function MacroShieldSimulator({ currency, transactions, loans, fi
                 <Text style={s.title}>MacroShield</Text>
             </View>
             <Text style={s.subtitle}>
-                Drag inflation or a currency devaluation up and see exactly which month your cash would run out, if you don't raise prices or cut costs to compensate.
+                Drag inflation, a currency devaluation, or a revenue decline up and see exactly which month your cash would run out, if you don't raise prices or cut costs to compensate.
             </Text>
 
             <View style={s.sliderBlock}>
@@ -100,6 +108,26 @@ export default function MacroShieldSimulator({ currency, transactions, loans, fi
                     maximumTrackTintColor={Colors.border}
                     thumbTintColor={Colors.expense}
                 />
+            </View>
+
+            <View style={s.sliderBlock}>
+                <View style={s.sliderLabelRow}>
+                    <Text style={s.sliderLabel}>Revenue impact</Text>
+                    <Text style={s.sliderValue}>{revenueImpactPct}%</Text>
+                </View>
+                <Slider
+                    minimumValue={0}
+                    maximumValue={MAX_REVENUE_IMPACT_PCT}
+                    step={5}
+                    value={revenueImpactPct}
+                    onValueChange={setRevenueImpactPct}
+                    minimumTrackTintColor={Colors.secondary}
+                    maximumTrackTintColor={Colors.border}
+                    thumbTintColor={Colors.secondary}
+                />
+                <Text style={s.sliderHint}>
+                    Optional -- a currency crisis or inflation spike often depresses real sales too. This is your own assumption, not something Quad360 derives from the shock above.
+                </Text>
             </View>
 
             {!result.available ? (
@@ -155,7 +183,8 @@ export default function MacroShieldSimulator({ currency, transactions, loans, fi
                     )}
 
                     <Text style={s.caveat}>
-                        Modeled as a uniform increase across all your costs (equivalent to {result.monthlyExpenseGrowthPct.toFixed(1)}%/month compounding) — Quad360 doesn't yet know which specific expenses are priced in foreign currency, so this is a conservative, worst-case estimate, not a precise forecast.
+                        Costs modeled as a uniform increase across all your expenses, inventory included (equivalent to {result.monthlyExpenseGrowthPct.toFixed(1)}%/month compounding) — Quad360 doesn't yet know which specific expenses are priced in foreign currency, so this is a conservative, worst-case estimate, not a precise forecast.
+                        {revenueImpactPct > 0 && ` Revenue modeled at ${result.monthlyRevenueDeclinePct.toFixed(1)}%/month compounding — your own assumption, not derived from the shock above.`}
                     </Text>
                 </View>
             )}
@@ -173,6 +202,7 @@ const s = StyleSheet.create({
     sliderLabelRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 2 },
     sliderLabel: { fontSize: 12.5, fontWeight: '600', color: Colors.textSecondary },
     sliderValue: { fontSize: 13, fontWeight: '800', color: Colors.textPrimary },
+    sliderHint: { fontSize: 10.5, color: Colors.textMuted, fontStyle: 'italic', marginTop: 4, lineHeight: 14 },
 
     emptyHint: { fontSize: 12, color: Colors.textMuted, fontStyle: 'italic', marginTop: Spacing.sm },
 

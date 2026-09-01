@@ -28,13 +28,22 @@
  * annualized shock magnitude into the engine's existing monthly
  * compounding rate.
  *
- * Revenue is deliberately held flat under the shock (no automatic price
- * pass-through) — matching the exact scenario asked for: "which month
- * will they run out of cash if they don't adjust prices or cut costs."
- * A business that WOULD raise prices to match inflation can already model
- * that by also raising the existing What-If "Sales change" slider
- * alongside this one; this simulator's whole point is to show the
- * unmitigated worst case first.
+ * Revenue is flat by default (no automatic price pass-through, and no
+ * automatic demand-destruction effect either) — but an optional
+ * `revenueImpactPct` lever lets the owner model a real revenue decline
+ * alongside the cost shock, for the same reason the two cost sliders
+ * exist: a currency crisis or inflation spike often does depress real
+ * sales, and pretending otherwise would understate the worst case this
+ * tool exists to show. This does NOT invent a formula linking inflation
+ * magnitude to revenue decline (this app has no empirical basis for "X%
+ * inflation causes Y% less revenue" for a specific business) — it's a
+ * plain user-set assumption, annualized and converted to the same
+ * monthly-compounding shape the cost shock already uses, then fed into
+ * ForecastAdjustments.revenueGrowthPctPerMonth (as a negative rate) — the
+ * exact same field the What-If Scenario Planner's own "Sales change"
+ * slider already writes to, not a second revenue-projection mechanism.
+ * Left at 0 (its default), behavior is unchanged from before this lever
+ * existed.
  *
  * Inflation and FX devaluation are both modeled as uniform cost increases
  * — deliberately, not a shortcut: this app has no reliable signal for
@@ -43,7 +52,14 @@
  * transaction data model), so pretending to isolate the FX-exposed share
  * of costs would be fabricating a number this app can't actually back up.
  * A uniform increase is the honest, conservative (if anything,
- * worst-case-leaning) estimate; the UI says so explicitly.
+ * worst-case-leaning) estimate; the UI says so explicitly. This uniform
+ * increase already includes recurring inventory/restocking spend, if it's
+ * recorded as regular expense transactions — expenseGrowthPctPerMonth
+ * multiplies the whole trailing expense baseline
+ * (futureFinancialStatements.ts), COGS included, not just a subset of
+ * categories. Only a one-off, unscheduled stock purchase
+ * (oneOffInventoryPurchase, a cash-to-inventory balance-sheet swap with no
+ * P&L effect) sits outside this shock, and MacroShield doesn't set it.
  */
 
 import { Transaction, Loan, FinanceData, StaffMember } from '../types';
@@ -53,6 +69,11 @@ import { NO_ADJUSTMENTS, ForecastAdjustments } from './futureFinancialStatements
 export interface MacroShieldInput {
     inflationPct: number;        // annualized, e.g. 20 for a 20% inflation shock
     fxDevaluationPct: number;    // annualized, e.g. 15 for a 15% currency devaluation
+    // Optional, defaults to 0 (no revenue effect -- the original behavior).
+    // Annualized, e.g. 15 for "revenue runs 15% lower over the year than
+    // it otherwise would." A plain user-set assumption, not a derived
+    // formula -- see this file's own doc comment for why.
+    revenueImpactPct?: number;
 }
 
 export interface MacroShieldScenario {
@@ -66,8 +87,9 @@ export interface MacroShieldResult {
     available: boolean;
     reason?: string;
     monthlyExpenseGrowthPct: number; // the derived compounding %/mo this shock translates to
+    monthlyRevenueDeclinePct: number; // the derived compounding %/mo the revenue-impact lever translates to -- 0 (no-op) unless revenueImpactPct was set
     baseline: MacroShieldScenario;   // no shock applied — today's actual trajectory
-    shocked: MacroShieldScenario;    // with the inflation/FX shock applied
+    shocked: MacroShieldScenario;    // with the inflation/FX (and optional revenue) shock applied
     // How many months of runway the shock costs, only meaningful when both
     // scenarios actually run out within the 12-month horizon -- if the
     // baseline never runs out but the shock does, that's a NEW risk, not a
@@ -77,7 +99,7 @@ export interface MacroShieldResult {
 }
 
 const UNAVAILABLE = (reason: string): MacroShieldResult => ({
-    available: false, reason, monthlyExpenseGrowthPct: 0,
+    available: false, reason, monthlyExpenseGrowthPct: 0, monthlyRevenueDeclinePct: 0,
     baseline: { cashFlowMonths: [], runOutMonthIndex: null, runOutMonthLabel: null, reserveBreach: null },
     shocked: { cashFlowMonths: [], runOutMonthIndex: null, runOutMonthLabel: null, reserveBreach: null },
     monthsOfRunwayLost: null,
@@ -109,8 +131,21 @@ export function computeMacroShieldImpact(
     const combinedAnnualMultiplier = (1 + input.inflationPct / 100) * (1 + input.fxDevaluationPct / 100);
     const monthlyExpenseGrowthPct = (Math.pow(combinedAnnualMultiplier, 1 / 12) - 1) * 100;
 
+    // Same annualized-to-monthly-compounding shape as the cost shock above,
+    // just declining instead of growing. Clamped below 100 so
+    // `1 - pct/100` never hits zero or negative, which would make the
+    // fractional-exponent Math.pow undefined.
+    const revenueImpactPct = Math.min(Math.max(input.revenueImpactPct ?? 0, 0), 95);
+    const monthlyRevenueDeclinePct = revenueImpactPct > 0
+        ? (Math.pow(1 - revenueImpactPct / 100, 1 / 12) - 1) * 100
+        : 0;
+
     const baselineSummary = computeForecastSummary(transactions, loans, finance, '12m', staff, [], NO_ADJUSTMENTS, [], []);
-    const shockedAdjustments: ForecastAdjustments = { ...NO_ADJUSTMENTS, expenseGrowthPctPerMonth: monthlyExpenseGrowthPct };
+    const shockedAdjustments: ForecastAdjustments = {
+        ...NO_ADJUSTMENTS,
+        expenseGrowthPctPerMonth: monthlyExpenseGrowthPct,
+        revenueGrowthPctPerMonth: monthlyRevenueDeclinePct,
+    };
     const shockedSummary = computeForecastSummary(transactions, loans, finance, '12m', staff, [], shockedAdjustments, [], []);
 
     const baseRunOut = findRunOutMonth(baselineSummary.cashFlowMonths);
@@ -133,5 +168,5 @@ export function computeMacroShieldImpact(
         ? baseRunOut.index - shockRunOut.index
         : null;
 
-    return { available: true, monthlyExpenseGrowthPct, baseline, shocked, monthsOfRunwayLost };
+    return { available: true, monthlyExpenseGrowthPct, monthlyRevenueDeclinePct, baseline, shocked, monthsOfRunwayLost };
 }
