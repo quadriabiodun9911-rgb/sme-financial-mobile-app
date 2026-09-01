@@ -60,6 +60,9 @@ describe('computeQualityOfGrowth', () => {
         expect(result.score).toBeGreaterThanOrEqual(70);
         expect(['Strong', 'Excellent']).toContain(result.band);
         expect(result.flags.length).toBe(0);
+        // Profit (+40%) outgrew revenue (+30%) -- full credit, improving.
+        expect(result.signals.find(s => s.key === 'profit')?.direction).toBe('improving');
+        expect(result.signals.find(s => s.key === 'revenue')?.direction).toBe('improving');
     });
 
     it('scores fragile growth low and explains why', () => {
@@ -85,6 +88,34 @@ describe('computeQualityOfGrowth', () => {
         expect(result.flags.some(f => /profit fell/i.test(f))).toBe(true);
         // debt roughly quadrupled while revenue grew 30% — should be flagged
         expect(result.flags.some(f => /debt grew/i.test(f))).toBe(true);
+        // Profit fell while revenue grew -- deteriorating, not a naive
+        // "profit went down" sign check that a plain pctChange would give
+        // the same result for anyway; this asserts it uses the scored
+        // branch, not a duplicate threshold.
+        expect(result.signals.find(s => s.key === 'profit')?.direction).toBe('deteriorating');
+        // Debt roughly quadrupled while revenue grew only 30% -- flagged
+        // above as unsustainable leverage growth, so direction must agree.
+        expect(result.signals.find(s => s.key === 'debt')?.direction).toBe('deteriorating');
+    });
+
+    it('gives receivables and debt a null direction (no baseline), not a fabricated one, when the prior-period value was zero', () => {
+        const txs = [
+            makeTx({ id: '2024-inc', date: '2024-06-01', type: 'income', amount: 100000, status: 'paid' }),
+            makeTx({ id: '2024-exp', date: '2024-06-01', type: 'expense', amount: 70000, status: 'paid' }),
+            makeTx({ id: '2025-inc', date: '2025-06-01', type: 'income', amount: 100000, status: 'paid' }),
+            makeTx({ id: '2025-exp', date: '2025-06-01', type: 'expense', amount: 70000, status: 'paid' }),
+            // Receivable created only in 2025 -- 2024 had none outstanding.
+            makeTx({ id: '2025-inc-pending', date: '2025-09-01', type: 'income', amount: 20000, status: 'pending' }),
+        ];
+        // Loan taken out only in 2025 -- 2024 had no debt at all (not taken
+        // out yet, so excluded from that year's balance-sheet snapshot).
+        const loans: Loan[] = [makeLoan({ id: 'new-2025', principal: 10000, startDate: '2025-02-01', payments: [] })];
+        const result = computeQualityOfGrowth(txs, NO_ASSETS, loans);
+        expect(result.available).toBe(true);
+        expect(result.signals.find(s => s.key === 'receivables')?.growthPct).toBeNull();
+        expect(result.signals.find(s => s.key === 'receivables')?.direction).toBeNull();
+        expect(result.signals.find(s => s.key === 'debt')?.growthPct).toBeNull();
+        expect(result.signals.find(s => s.key === 'debt')?.direction).toBeNull();
     });
 
     it('flags the classic earnings-quality red flag: profit holding/growing while operating cash flow falls', () => {

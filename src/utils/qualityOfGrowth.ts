@@ -19,12 +19,21 @@ import { computeAllTimeMonthlyBuckets, computeYearlyTrend } from './trendAnalysi
 import { computeBalanceSheetTrend } from './balanceSheetTrend';
 import { computeProperCashFlow } from './finance';
 
+// 'improving'/'deteriorating' judge each signal the same way its own score
+// below does (receivables/debt growing slower than revenue reads as
+// improving even though the balance itself still rose) — never a plain
+// sign check on growthPct, which would silently disagree with this same
+// module's own flags/verdict for the exact same numbers. null when there's
+// no prior-period baseline to judge a direction from at all.
+export type GrowthDirection = 'improving' | 'deteriorating' | 'stable';
+
 export interface GrowthSignal {
     key: 'revenue' | 'profit' | 'cash' | 'receivables' | 'debt';
     label: string;
     priorValue: number;
     currentValue: number;
     growthPct: number | null; // null when the prior value was 0 — no base to rate a % change against
+    direction: GrowthDirection | null;
 }
 
 export type QualityBand = 'Excellent' | 'Strong' | 'Moderate' | 'Weak' | 'Critical';
@@ -60,6 +69,11 @@ const MODEL = {
     // that it's a sign revenue growth is being funded/propped up rather
     // than earned).
     toleratedMultiple: 2,
+    // Revenue has no score branch of its own below (everything else is
+    // scored relative to it) — a flat band around 0% keeps small
+    // noise-level swings from flipping its direction between improving and
+    // deteriorating.
+    revenueStableBandPct: 3,
 } as const;
 
 function bandForScore(score: number): QualityBand {
@@ -129,46 +143,54 @@ export function computeQualityOfGrowth(transactions: Transaction[], assets: Asse
     const receivablesGrowth = pctChange(currentBS.accountsReceivable, priorBS.accountsReceivable);
     const debtGrowth = pctChange(currentBS.loansOutstanding, priorBS.loansOutstanding);
 
-    const signals: GrowthSignal[] = [
-        { key: 'revenue', label: 'Revenue', priorValue: priorYear.revenue, currentValue: currentYear.revenue, growthPct: revenueGrowth },
-        { key: 'profit', label: 'Profit', priorValue: priorYear.profit, currentValue: currentYear.profit, growthPct: profitGrowth },
-        { key: 'cash', label: 'Operating Cash Flow', priorValue: priorOCF, currentValue: currentOCF, growthPct: cashGrowth },
-        { key: 'receivables', label: 'Receivables', priorValue: priorBS.accountsReceivable, currentValue: currentBS.accountsReceivable, growthPct: receivablesGrowth },
-        { key: 'debt', label: 'Debt Outstanding', priorValue: priorBS.loansOutstanding, currentValue: currentBS.loansOutstanding, growthPct: debtGrowth },
-    ];
-
     const flags: string[] = [];
     const rg = revenueGrowth ?? 0;
 
+    const revenueDirection: GrowthDirection | null = revenueGrowth === null ? null :
+        revenueGrowth > MODEL.revenueStableBandPct ? 'improving' :
+        revenueGrowth < -MODEL.revenueStableBandPct ? 'deteriorating' : 'stable';
+
     // 1. Profit-margin trend (35%) — is profit keeping pace with revenue?
     let profitScore: number;
+    let profitDirection: GrowthDirection | null;
     if (profitGrowth === null) {
         profitScore = 50;
+        profitDirection = null;
     } else if (rg <= 0) {
         profitScore = profitGrowth >= 0 ? 70 : profitGrowth >= MODEL.profit.flatRevenueMildDeclineFloor ? 40 : 15;
+        profitDirection = profitGrowth >= 0 ? 'improving' : profitGrowth >= MODEL.profit.flatRevenueMildDeclineFloor ? 'stable' : 'deteriorating';
     } else if (profitGrowth >= rg * MODEL.profit.fullCredit) {
         profitScore = 100;
+        profitDirection = 'improving';
     } else if (profitGrowth >= rg * MODEL.profit.partialCredit) {
         profitScore = 80;
+        profitDirection = 'improving';
     } else if (profitGrowth >= 0) {
         profitScore = 55;
+        profitDirection = 'stable';
         flags.push(`Profit grew ${profitGrowth.toFixed(0)}% while revenue grew ${rg.toFixed(0)}% — margin is compressing.`);
     } else {
         profitScore = 15;
+        profitDirection = 'deteriorating';
         flags.push(`Revenue grew ${rg.toFixed(0)}% but profit fell ${Math.abs(profitGrowth).toFixed(0)}% — growth is costing more than it's earning.`);
     }
 
     // 2. Cash generation (25%) — is the business converting profit into real
     // cash, or is the P&L profit figure not showing up in the bank?
     let cashScore: number;
+    let cashDirection: GrowthDirection | null;
     if (cashGrowth === null) {
         cashScore = 50;
+        cashDirection = null;
     } else if (cashGrowth >= 0) {
         cashScore = cashGrowth >= rg ? 100 : 75;
+        cashDirection = 'improving';
     } else if (cashGrowth >= MODEL.cash.mildDeclineFloor) {
         cashScore = 45;
+        cashDirection = 'stable';
     } else {
         cashScore = 15;
+        cashDirection = 'deteriorating';
         // Classic earnings-quality red flag: profit holding steady or
         // growing while operating cash flow falls means the profit isn't
         // real cash yet (it's sitting in receivables, inventory, etc.) --
@@ -183,32 +205,59 @@ export function computeQualityOfGrowth(transactions: Transaction[], assets: Asse
 
     // 3. Receivables discipline (20%) — is more revenue sitting uncollected?
     let arScore: number;
-    if (receivablesGrowth === null || rg <= 0) {
+    let arDirection: GrowthDirection | null;
+    if (receivablesGrowth === null) {
         arScore = 50;
+        arDirection = null;
+    } else if (rg <= 0) {
+        // Revenue isn't growing, so "faster than revenue" doesn't apply --
+        // fall back to whether the receivables balance itself is rising or
+        // falling.
+        arScore = 50;
+        arDirection = receivablesGrowth > MODEL.revenueStableBandPct ? 'deteriorating' : receivablesGrowth < -MODEL.revenueStableBandPct ? 'improving' : 'stable';
     } else if (receivablesGrowth <= rg) {
         arScore = 100;
+        arDirection = 'improving';
     } else if (receivablesGrowth <= rg * MODEL.toleratedMultiple) {
         arScore = 60;
+        arDirection = 'stable';
+        const multiple = rg > 0 ? (receivablesGrowth / rg).toFixed(1) : '—';
+        flags.push(`Receivables grew ${receivablesGrowth.toFixed(0)}% — ${multiple}x faster than revenue's ${rg.toFixed(0)}%.`);
     } else {
         arScore = 20;
+        arDirection = 'deteriorating';
         const multiple = rg > 0 ? (receivablesGrowth / rg).toFixed(1) : '—';
         flags.push(`Receivables grew ${receivablesGrowth.toFixed(0)}% — ${multiple}x faster than revenue's ${rg.toFixed(0)}% — more sales are sitting uncollected.`);
     }
 
     // 4. Debt sustainability (20%) — is leverage growing ahead of the business's ability to support it?
     let debtScore: number;
+    let debtDirection: GrowthDirection | null;
     if (debtGrowth === null) {
         debtScore = 70;
+        debtDirection = null;
     } else if (debtGrowth <= 0) {
         debtScore = 100;
+        debtDirection = 'improving';
     } else if (debtGrowth <= rg) {
         debtScore = 85;
+        debtDirection = 'improving';
     } else if (debtGrowth <= rg * MODEL.toleratedMultiple || rg <= 0) {
         debtScore = 55;
+        debtDirection = 'stable';
     } else {
         debtScore = 20;
+        debtDirection = 'deteriorating';
         flags.push(`Debt grew ${debtGrowth.toFixed(0)}% — faster than revenue's ${rg.toFixed(0)}% growth — leverage is increasing ahead of the business's ability to support it.`);
     }
+
+    const signals: GrowthSignal[] = [
+        { key: 'revenue', label: 'Revenue', priorValue: priorYear.revenue, currentValue: currentYear.revenue, growthPct: revenueGrowth, direction: revenueDirection },
+        { key: 'profit', label: 'Profit', priorValue: priorYear.profit, currentValue: currentYear.profit, growthPct: profitGrowth, direction: profitDirection },
+        { key: 'cash', label: 'Operating Cash Flow', priorValue: priorOCF, currentValue: currentOCF, growthPct: cashGrowth, direction: cashDirection },
+        { key: 'receivables', label: 'Receivables', priorValue: priorBS.accountsReceivable, currentValue: currentBS.accountsReceivable, growthPct: receivablesGrowth, direction: arDirection },
+        { key: 'debt', label: 'Debt Outstanding', priorValue: priorBS.loansOutstanding, currentValue: currentBS.loansOutstanding, growthPct: debtGrowth, direction: debtDirection },
+    ];
 
     const score = Math.round(
         profitScore * MODEL.weights.profit

@@ -15,6 +15,7 @@ import { performFinancialDiagnosis, computeRevenueRecurringPct } from '../utils/
 import { computeFinancialHealthPillars, diagnoseFinancialHealth, PillarStatus } from '../utils/financialHealthPillars';
 import { computeFinancialResilience, ResilienceStatus } from '../utils/cashReservePlanning';
 import { computeQualityOfGrowth } from '../utils/qualityOfGrowth';
+import DirectionVsStatusCard from '../components/DirectionVsStatusCard';
 import { analyzeTrend } from '../utils/trendAnalysis';
 import { buildFinancialBehaviour } from '../utils/businessFinancialDNA';
 import { computeExpenseLeaks } from '../utils/expenseLeakDetection';
@@ -323,6 +324,8 @@ export default function ScoreboardScreen() {
                         ))}
                     </View>
                 </View>
+
+                <DirectionVsStatusCard risk={risk} growthQuality={growthQuality} />
 
                 {/* Cash Reserve Planning -- "how many months of essential
                     expenses would our current cash reserve actually cover,
