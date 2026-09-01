@@ -7,9 +7,11 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
-import { getTopCategories } from '../utils/finance';
-import { generateSwot } from '../utils/swot';
-import { SwotItem } from '../types';
+import { getTopCategories, computeRiskScore, getMonthlyExpenseAverage } from '../utils/finance';
+import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
+import { computeQualityOfGrowth } from '../utils/qualityOfGrowth';
+import { computeDirectionVsStatus } from '../utils/directionVsStatus';
+import { computeDecisionCentre, DecisionCentreItem, DecisionBucket } from '../utils/decisionCentre';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { trackInsightViewed } from '../utils/analytics';
@@ -18,118 +20,23 @@ if (Platform.OS === 'android') {
     UIManager.setLayoutAnimationEnabledExperimental?.(true);
 }
 
-// ─── Derive prioritised actions from SWOT data ────────────────────────────────
-
-interface ActionItem {
-    urgency: 'urgent' | 'important' | 'opportunity';
-    title: string;
-    detail: string;
-    metric?: string;
-    source: 'weakness' | 'threat' | 'opportunity' | 'strength';
-}
-
-function deriveActions(
-    swot: ReturnType<typeof generateSwot>,
-    currency: string,
-): ActionItem[] {
-    const actions: ActionItem[] = [];
-
-    // Threats → urgent actions
-    swot.threats.forEach((item: SwotItem) => {
-        if (item.text.includes('critically low') || item.text.includes('net loss') || item.text.includes('overdue payable')) {
-            actions.push({
-                urgency: 'urgent',
-                title: extractTitle(item.text),
-                detail: item.text,
-                metric: item.metric,
-                source: 'threat',
-            });
-        }
-    });
-
-    // Weaknesses → important actions
-    swot.weaknesses.forEach((item: SwotItem) => {
-        if (!item.text.includes('Log more')) {
-            actions.push({
-                urgency: 'important',
-                title: extractTitle(item.text),
-                detail: item.text,
-                metric: item.metric,
-                source: 'weakness',
-            });
-        }
-    });
-
-    // Remaining threats not already captured
-    swot.threats.forEach((item: SwotItem) => {
-        const alreadyAdded = actions.some(a => a.detail === item.text);
-        if (!alreadyAdded) {
-            actions.push({
-                urgency: 'important',
-                title: extractTitle(item.text),
-                detail: item.text,
-                metric: item.metric,
-                source: 'threat',
-            });
-        }
-    });
-
-    // Opportunities → opportunity actions
-    swot.opportunities.forEach((item: SwotItem) => {
-        if (!item.text.includes('expand transaction')) {
-            actions.push({
-                urgency: 'opportunity',
-                title: extractTitle(item.text),
-                detail: item.text,
-                metric: item.metric,
-                source: 'opportunity',
-            });
-        }
-    });
-
-    return actions;
-}
-
-export function extractTitle(text: string): string {
-    // Truncate at a word boundary, never at punctuation — every currency
-    // amount here goes through toLocaleString(), which inserts thousands-
-    // separator commas (e.g. "₦95,000"), and phrases like "e.g." contain
-    // periods too. Splitting on the first comma/period (the previous
-    // approach) cut titles off mid-number or mid-word — "Collecting the
-    // ₦95,000 in outstanding receivables..." became just "Collecting the
-    // ₦95", and "...income categories (e.g., consulting...)" became
-    // "...income categories (e".
-    const LIMIT = 70;
-    if (text.length <= LIMIT) return text;
-    const truncated = text.slice(0, LIMIT);
-    const lastSpace = truncated.lastIndexOf(' ');
-    return (lastSpace > 30 ? truncated.slice(0, lastSpace) : truncated) + '…';
-}
-
-const URGENCY_CONFIG: Record<ActionItem['urgency'], { label: string; color: string; bg: string; icon: IconName }> = {
-    urgent: { label: 'URGENT', color: Colors.expense, bg: 'rgba(239,68,68,0.1)', icon: 'alert-circle' },
-    important: { label: 'IMPORTANT', color: Colors.warning, bg: 'rgba(245,158,11,0.1)', icon: 'alert-triangle' },
-    opportunity: { label: 'OPPORTUNITY', color: Colors.income, bg: 'rgba(16,185,129,0.1)', icon: 'trending-up' },
-};
-
-const SOURCE_LABELS = {
-    threat: 'Threat identified',
-    weakness: 'Weakness identified',
-    opportunity: 'Opportunity identified',
-    strength: 'Leverage strength',
+const BUCKET_CONFIG: Record<DecisionBucket, { label: string; color: string; bg: string; icon: IconName }> = {
+    'act-now':  { label: 'ACT NOW',  color: Colors.expense, bg: 'rgba(239,68,68,0.1)',  icon: 'alert-circle' },
+    watch:      { label: 'WATCH',    color: Colors.warning, bg: 'rgba(245,158,11,0.1)', icon: 'alert-triangle' },
+    improving:  { label: 'IMPROVING', color: Colors.income,  bg: 'rgba(16,185,129,0.1)', icon: 'trending-up' },
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function InsightsScreen() {
-    const { finance, settings, transactions, setCurrentScreen, navigate, isDemoMode } = useApp();
+    const { finance, settings, transactions, invoices, loans, inventory, assets, setCurrentScreen, navigate, isDemoMode } = useApp();
     const { currency, targetMargin, minReserve } = settings;
 
-    const [swotExpanded, setSwotExpanded] = useState(true);
+    const [decisionCentreExpanded, setDecisionCentreExpanded] = useState(true);
     const [expandedAction, setExpandedAction] = useState<number | null>(null);
 
     useEffect(() => {
-        if (!isDemoMode) trackInsightViewed('swot');
+        if (!isDemoMode) trackInsightViewed('decision-centre');
     }, [isDemoMode]);
 
     const topExpenses = useMemo(() => getTopCategories(transactions, 'expense', 5), [transactions]);
@@ -151,16 +58,23 @@ export default function InsightsScreen() {
         };
     }, [transactions]);
 
-    const swot = useMemo(
-        () => generateSwot(finance, transactions, settings),
-        [finance, transactions, settings]
+    // Decision Centre -- Act Now / Watch pulled from performFinancialDiagnosis's
+    // own severity-ranked diagnoses (the same Early Warning Signals shown on
+    // Financial Assessment), Improving from computeDirectionVsStatus (the
+    // same rows the Scoreboard's own Direction vs Status card shows). See
+    // decisionCentre.ts -- nothing here is scored independently.
+    const diagnosis = useMemo(
+        () => performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), currency, loans, inventory, assets),
+        [transactions, invoices, finance, currency, loans, inventory, assets],
     );
+    const directionVsStatus = useMemo(() => {
+        const risk = computeRiskScore(finance, loans, transactions, inventory);
+        const growthQuality = computeQualityOfGrowth(transactions, assets, loans);
+        return computeDirectionVsStatus(risk, growthQuality);
+    }, [finance, loans, transactions, inventory, assets]);
+    const decisionCentre = useMemo(() => computeDecisionCentre(diagnosis, directionVsStatus), [diagnosis, directionVsStatus]);
 
-    const actions = useMemo(() => deriveActions(swot, currency), [swot, currency]);
-
-    const urgentCount = actions.filter(a => a.urgency === 'urgent').length;
-    const importantCount = actions.filter(a => a.urgency === 'important').length;
-    const opportunityCount = actions.filter(a => a.urgency === 'opportunity').length;
+    const decisionItems: DecisionCentreItem[] = [...decisionCentre.actNow, ...decisionCentre.watch, ...decisionCentre.improving];
 
     const toggleAction = (i: number) => {
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -196,44 +110,45 @@ export default function InsightsScreen() {
                         </TouchableOpacity>
                     )}
 
-                    {/* ── SWOT Action Plan ─────────────────────────────────── */}
+                    {/* ── Decision Centre ──────────────────────────────────── */}
                     <TouchableOpacity
                         style={styles.swotHeader}
                         onPress={() => {
                             LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                            setSwotExpanded(e => !e);
+                            setDecisionCentreExpanded(e => !e);
                         }}
                         activeOpacity={0.8}
                     >
                         <View>
                             <View style={styles.swotHeaderTitleRow}>
-                                <Icon name="search" size={16} color={Colors.textPrimary} />
-                                <Text style={styles.swotHeaderTitle}>SWOT Action Plan</Text>
+                                <Icon name="zap" size={16} color={Colors.textPrimary} />
+                                <Text style={styles.swotHeaderTitle}>Decision Centre</Text>
                             </View>
                             <Text style={styles.swotHeaderSub}>
-                                Personalised actions derived from your live financial data
+                                What actually needs a decision right now, grouped by urgency
                             </Text>
                         </View>
-                        <Icon name={swotExpanded ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.textMuted} />
+                        <Icon name={decisionCentreExpanded ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.textMuted} />
                     </TouchableOpacity>
 
-                    {swotExpanded && (
+                    {decisionCentreExpanded && (
                         <View style={styles.swotBody}>
-                            {/* Action count summary */}
                             <View style={styles.actionSummaryRow}>
-                                <ActionBadge count={urgentCount} label="Urgent" color={Colors.expense} />
-                                <ActionBadge count={importantCount} label="Important" color={Colors.warning} />
-                                <ActionBadge count={opportunityCount} label="Opportunity" color={Colors.income} />
+                                <ActionBadge count={decisionCentre.actNow.length} label="Act Now" color={Colors.expense} />
+                                <ActionBadge count={decisionCentre.watch.length} label="Watch" color={Colors.warning} />
+                                <ActionBadge count={decisionCentre.improving.length} label="Improving" color={Colors.income} />
                             </View>
 
-                            <Text style={styles.actionListTitle}>Your Action List</Text>
-
-                            {actions.length === 0 && (
-                                <Text style={styles.empty}>Log more transactions to generate your personalised action plan.</Text>
+                            {decisionItems.length === 0 && (
+                                <Text style={styles.empty}>
+                                    {!decisionCentre.directionAvailable && decisionCentre.actNow.length === 0 && decisionCentre.watch.length === 0
+                                        ? 'Log more transactions to populate your Decision Centre.'
+                                        : 'Nothing urgent right now — check back as your numbers update.'}
+                                </Text>
                             )}
 
-                            {actions.map((action, i) => {
-                                const cfg = URGENCY_CONFIG[action.urgency];
+                            {decisionItems.map((item, i) => {
+                                const cfg = BUCKET_CONFIG[item.bucket];
                                 const isOpen = expandedAction === i;
                                 return (
                                     <TouchableOpacity
@@ -251,7 +166,7 @@ export default function InsightsScreen() {
                                                     <View style={[styles.urgencyPill, { backgroundColor: cfg.bg }]}>
                                                         <Text style={[styles.urgencyLabel, { color: cfg.color }]}>{cfg.label}</Text>
                                                     </View>
-                                                    <Text style={styles.actionTitle}>{action.title}</Text>
+                                                    <Text style={styles.actionTitle}>{item.title}</Text>
                                                 </View>
                                             </View>
                                             <Text style={[styles.expandIcon, { color: cfg.color }]}>{isOpen ? '−' : '+'}</Text>
@@ -259,35 +174,36 @@ export default function InsightsScreen() {
 
                                         {isOpen && (
                                             <View style={styles.actionExpanded}>
-                                                <Text style={styles.actionDetail}>{action.detail}</Text>
-                                                {action.metric && (
-                                                    <View style={[styles.metricPill, { backgroundColor: cfg.bg, borderColor: cfg.color + '44' }]}>
-                                                        <Text style={[styles.metricText, { color: cfg.color }]}>{action.metric}</Text>
-                                                    </View>
+                                                <Text style={styles.actionDetail}>{item.why}</Text>
+                                                <View style={[styles.metricPill, { backgroundColor: cfg.bg, borderColor: cfg.color + '44' }]}>
+                                                    <Text style={[styles.metricText, { color: cfg.color }]}>{item.evidence}</Text>
+                                                </View>
+                                                {item.trigger && (
+                                                    <Text style={styles.triggerText}>⚠️ {item.trigger}</Text>
                                                 )}
-                                                <View style={styles.sourceRow}>
-                                                    <View style={styles.sourceLabelRow}>
-                                                        <Icon name="bookmark" size={11} color={Colors.textMuted} />
-                                                        <Text style={styles.sourceLabel}>{SOURCE_LABELS[action.source]}</Text>
-                                                    </View>
-                                                    {action.source === 'opportunity' && (
+                                                {item.recommendedAction && (
+                                                    <View style={styles.sourceRow}>
+                                                        <Text style={styles.recommendedAction}>→ {item.recommendedAction}</Text>
                                                         <TouchableOpacity onPress={() => navigate('goals', { goalType: 'custom' })}>
                                                             <Text style={styles.goalLink}>Set a goal →</Text>
                                                         </TouchableOpacity>
-                                                    )}
-                                                </View>
+                                                    </View>
+                                                )}
                                             </View>
                                         )}
                                     </TouchableOpacity>
                                 );
                             })}
 
-                            {/* Link to full SWOT */}
+                            {!decisionCentre.directionAvailable && (
+                                <Text style={styles.note}>{decisionCentre.directionUnavailableReason} (Improving)</Text>
+                            )}
+
                             <TouchableOpacity
                                 style={styles.fullSwotBtn}
                                 onPress={() => setCurrentScreen('financial-assessment')}
                             >
-                                <Text style={styles.fullSwotText}>View full SWOT Analysis in Reports →</Text>
+                                <Text style={styles.fullSwotText}>See full Early Warning Signals & diagnosis →</Text>
                             </TouchableOpacity>
                         </View>
                     )}
@@ -456,6 +372,8 @@ const styles = StyleSheet.create({
     actionDetail: { fontSize: 13, color: Colors.textSecondary, lineHeight: 20, marginBottom: Spacing.sm },
     metricPill: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: Radius.sm, borderWidth: 1, marginBottom: Spacing.sm },
     metricText: { fontSize: 11, fontWeight: '600' },
+    triggerText: { fontSize: 11.5, color: Colors.warning, lineHeight: 16, marginBottom: Spacing.sm },
+    recommendedAction: { flex: 1, fontSize: 12.5, color: Colors.income, fontWeight: '600', lineHeight: 17 },
     sourceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     sourceLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     sourceLabel: { fontSize: 11, color: Colors.textMuted },
