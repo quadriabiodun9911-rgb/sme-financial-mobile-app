@@ -132,6 +132,13 @@ export default function DashboardScreen() {
     // sheets so they don't stretch full-bleed on desktop.
     const { width: windowWidth } = useWindowDimensions();
     const constrainSheetWidth = Platform.OS === 'web' && windowWidth >= 720;
+    // Desktop-optimized layout: Business Health and Vital Signs sit side by
+    // side on a wide viewport instead of stacking, actually using the
+    // app column's width (App.tsx's centeredAppColumn, 1040px) instead of
+    // just centering a single narrow column inside it. 1000, not the app
+    // column's own 720 breakpoint -- two ~490px cards need real room each;
+    // below this they'd cramp, so they keep stacking exactly as on mobile.
+    const isWideDashboard = Platform.OS === 'web' && windowWidth >= 1000;
 
     const [fabOpen, setFabOpen]           = useState(false);
     const [qaType, setQaType]             = useState<'income' | 'expense'>('income');
@@ -928,6 +935,13 @@ export default function DashboardScreen() {
                     </View>
                 )}
 
+                {/* Business Health and Vital Signs sit side by side on a wide
+                    desktop viewport (isWideDashboard) instead of stacking --
+                    the two most-glanced-at cards on this screen, similar
+                    height, a natural pairing. Below the 1000px breakpoint
+                    this row/col wrapping is unstyled (no flexDirection set),
+                    so mobile stacking is completely unchanged from before. */}
+                <View style={isWideDashboard && styles.dashboardRow}>
                 {/* BUSINESS HEALTH -- the single "how is my business doing"
                     answer, using the same canonical computeRiskScore the
                     Scoreboard screen shows, placed at the very top of the
@@ -935,7 +949,7 @@ export default function DashboardScreen() {
                     it's the first thing an owner wants on opening the app.
                     Tapping through goes to the full breakdown. */}
                 {canViewFinancials && (
-                    <View style={styles.operationsSection}>
+                    <View style={[styles.operationsSection, isWideDashboard && styles.dashboardCol]}>
                       <Text style={styles.operationsSectionTitle}>🩺 BUSINESS HEALTH</Text>
                       <TouchableOpacity
                         style={[styles.healthScoreCard, { borderColor: healthBandMeta.color }]}
@@ -997,7 +1011,7 @@ export default function DashboardScreen() {
                     performance a staff account shouldn't see — hidden for
                     'staff', unchanged for 'owner'/'accountant'. */}
                 {canViewFinancials && (
-                <View style={styles.operationsSection}>
+                <View style={[styles.operationsSection, isWideDashboard && styles.dashboardCol]}>
                   <View style={styles.sectionTitleRow}>
                     <Icon name="activity" size={13} color={Colors.textMuted} />
                     <Text style={styles.operationsSectionTitle}>Vital Signs</Text>
@@ -1044,6 +1058,7 @@ export default function DashboardScreen() {
                   </View>
                 </View>
                 )}
+                </View>
 
                 {/* MacroShield — most tools only show what already happened;
                     this is the forward-looking layer right below the Cash
@@ -2127,6 +2142,15 @@ const styles = StyleSheet.create({
     // ── Operations Command Centre Styles ──
     operationsSection: {
       marginBottom: 20,
+    },
+    dashboardRow: {
+      flexDirection: 'row',
+      gap: Spacing.md,
+      alignItems: 'flex-start',
+    },
+    dashboardCol: {
+      flex: 1,
+      minWidth: 0,
     },
     sectionTitleRow: {
       flexDirection: 'row',
