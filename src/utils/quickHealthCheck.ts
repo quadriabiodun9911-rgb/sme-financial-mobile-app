@@ -1,22 +1,58 @@
 /**
  * Quick Health Check — the landing page's 60-second, no-signup teaser.
- * Deliberately NOT the real Business Health Score or Financing Readiness
- * Score (both blend 8 weighted factors built from real transaction
- * history and DSCR — see finance.ts / metricIntelligence.ts). This
- * computes only what three raw numbers can honestly support: a simple
- * cash runway, an expense ratio, and a risk band — then hands off to the
- * real product (sign up / guest demo) for anything deeper. It never
- * invents a 0-100 score, and never phrases the financing preview as
- * anything resembling a lender's actual assessment.
  *
- * Pure and synchronous — this runs entirely client-side on the landing
- * page. Nothing here is sent anywhere, so "your data stays private" is
- * literally true for this widget, not just marketing copy.
+ * This computes a genuine PARTIAL Business Health Score: the same
+ * Profitability and Liquidity factor-scoring functions and the same
+ * weights computeRiskScore's real 8-factor score uses (scoreProfitabilityMargin,
+ * scoreLiquidityRunwayMonths, GENERAL_HEALTH_WEIGHTS — all finance.ts),
+ * renormalized over just these 2 factors (weight 35 of the real 100) --
+ * the same "renormalize over whichever factors are actually available"
+ * pattern budgetHealth.ts already uses for its own partial scores. It is
+ * never the real 8-factor score: Working Capital, Debt, Efficiency,
+ * Inventory, Concentration, and Operating Cash Flow all need real
+ * transaction history (and for Debt, real loan records) that three typed
+ * numbers can't honestly provide -- so the result is always labeled as a
+ * partial preview, and the widget that renders this always tells the
+ * visitor what closes the gap (uploading a bank statement / connecting
+ * real transaction history inside the product).
+ *
+ * Runs entirely client-side, synchronous and pure -- nothing here is sent
+ * anywhere, so "your data stays private" is literally true for this
+ * widget, not just marketing copy.
  */
 
-import { INDUSTRY_BENCHMARKS } from './financialDiagnosisEngine';
+import {
+    GENERAL_HEALTH_WEIGHTS,
+    scoreProfitabilityMargin,
+    scoreLiquidityRunwayMonths,
+    RISK_BAND_CUTOFFS,
+    RiskScore,
+} from './finance';
 
-export type QuickRiskStatus = 'green' | 'yellow' | 'red';
+export interface QuickHealthCheckResult {
+    // The partial score itself -- 0-100, using the real band scale
+    // (Excellent/Strong/Moderate/Weak/Critical) computeRiskScore's own
+    // score uses, via the same RISK_BAND_CUTOFFS.
+    partialScore: number;
+    partialBand: RiskScore['band'];
+    profitabilityScore: number; // 0-100, from the real scoreProfitabilityMargin
+    liquidityScore: number; // 0-100, from the real scoreLiquidityRunwayMonths
+    marginPct: number;
+
+    // Separate from the score inputs above -- an honest, uncapped runway
+    // for display (Infinity, not a sentinel, when there's no active burn),
+    // same convention computeCashRunway uses elsewhere. The Liquidity
+    // factor score above uses a different, capped-at-12-months figure
+    // internally, matching computeRiskScore's own real Liquidity factor
+    // exactly -- this field is for the headline number, not the score math.
+    runwayMonths: number;
+    isProfitable: boolean;
+    netMonthlyBurn: number;
+    expenseRatioPct: number | null; // null when revenue is 0 -- a ratio against zero revenue isn't a real number
+
+    diagnosis: string; // names which of the 2 real factors is the bigger concern, and why
+    financingPreview: string; // qualitative only, explicitly caveated -- never a fabricated approval/denial
+}
 
 export interface QuickHealthCheckInput {
     lastMonthRevenue: number;
@@ -24,65 +60,68 @@ export interface QuickHealthCheckInput {
     cashInBank: number;
 }
 
-export interface QuickHealthCheckResult {
-    runwayMonths: number; // Infinity when not currently burning cash (revenue >= expenses) -- same "Infinity, not a sentinel" convention computeCashRunway uses elsewhere
-    isProfitable: boolean; // revenue >= expenses last month
-    netMonthlyBurn: number; // max(expenses - revenue, 0)
-    expenseRatioPct: number | null; // null when revenue is 0 -- a ratio against zero revenue isn't a real number
-    riskStatus: QuickRiskStatus;
-    riskLabel: string;
-    diagnosis: string; // one sentence naming the single biggest driver, same "score -> diagnosis" shape the real product's Metric Intelligence panels use
-    financingPreview: string; // qualitative only, explicitly caveated -- never a fabricated score
+function partialBandFrom(score: number): RiskScore['band'] {
+    return RISK_BAND_CUTOFFS.find(b => score >= b.min)!.band;
 }
-
-// Reuses the exact same runway-day thresholds diagnoseLiquidity and every
-// real Cash Runway "Why?" trigger already key off (INDUSTRY_BENCHMARKS,
-// financialDiagnosisEngine.ts) -- converted to months since this widget
-// only has a single month's burn rate to work with, not the daily rate
-// computeCashRunway derives from real transaction history.
-const SAFE_MONTHS = INDUSTRY_BENCHMARKS.runwayDaysSafe / 30;
-const CRITICAL_MONTHS = INDUSTRY_BENCHMARKS.runwayDaysCritical / 30;
 
 export function computeQuickHealthCheck(input: QuickHealthCheckInput): QuickHealthCheckResult {
     const { lastMonthRevenue, monthlyExpenses, cashInBank } = input;
 
     const isProfitable = monthlyExpenses <= lastMonthRevenue;
     const netMonthlyBurn = Math.max(monthlyExpenses - lastMonthRevenue, 0);
-    const runwayMonths = netMonthlyBurn > 0 ? cashInBank / netMonthlyBurn : Infinity;
     const expenseRatioPct = lastMonthRevenue > 0 ? (monthlyExpenses / lastMonthRevenue) * 100 : null;
 
-    let riskStatus: QuickRiskStatus;
-    let riskLabel: string;
-    if (!Number.isFinite(runwayMonths) || runwayMonths >= SAFE_MONTHS) {
-        riskStatus = 'green';
-        riskLabel = 'Stable';
-    } else if (runwayMonths >= CRITICAL_MONTHS) {
-        riskStatus = 'yellow';
-        riskLabel = 'Watch';
-    } else {
-        riskStatus = 'red';
-        riskLabel = 'Action Required';
-    }
+    // Honest, uncapped display runway -- same INDUSTRY_BENCHMARKS/Infinity
+    // convention the real Cash Runway "Why?" trigger already uses.
+    const runwayMonths = netMonthlyBurn > 0 ? cashInBank / netMonthlyBurn : Infinity;
+
+    // Profitability factor -- identical formula to computeRiskScore's own
+    // margin calculation (profit / income * 100, 0 when there's no income
+    // to divide by).
+    const marginPct = lastMonthRevenue > 0 ? ((lastMonthRevenue - monthlyExpenses) / lastMonthRevenue) * 100 : 0;
+    const profitabilityScore = scoreProfitabilityMargin(marginPct);
+
+    // Liquidity factor -- identical formula to computeRiskScore's own
+    // runwayMonths: capped at 12 (not Infinity) when there's no burn and
+    // cash on hand, 0 when there's neither burn nor cash. This is the real
+    // formula's own convention, kept separate from the uncapped display
+    // runwayMonths above.
+    const scoringRunwayMonths = netMonthlyBurn > 0 ? cashInBank / netMonthlyBurn : (cashInBank > 0 ? 12 : 0);
+    const liquidityScore = scoreLiquidityRunwayMonths(scoringRunwayMonths);
+
+    const profitabilityWeight = GENERAL_HEALTH_WEIGHTS.Profitability;
+    const liquidityWeight = GENERAL_HEALTH_WEIGHTS.Liquidity;
+    const partialScore = Math.round(
+        (profitabilityScore * profitabilityWeight + liquidityScore * liquidityWeight) / (profitabilityWeight + liquidityWeight)
+    );
+    const partialBand = partialBandFrom(partialScore);
 
     let diagnosis: string;
-    if (isProfitable) {
+    if (profitabilityScore < liquidityScore) {
         diagnosis = expenseRatioPct !== null
-            ? `Revenue currently covers expenses, with ${expenseRatioPct.toFixed(0)}% of revenue going to costs — the priority now is protecting that margin, not survival.`
-            : 'Revenue currently covers expenses — the priority now is protecting that margin, not survival.';
-    } else if (expenseRatioPct !== null) {
-        diagnosis = `Monthly expenses are consuming ${expenseRatioPct.toFixed(0)}% of revenue, leaving limited operating flexibility — that gap is what's burning through cash.`;
+            ? `Profitability is the bigger concern here: expenses are consuming ${expenseRatioPct.toFixed(0)}% of revenue, leaving a ${marginPct.toFixed(0)}% margin.`
+            : `Profitability is the bigger concern here: expenses currently exceed revenue with none recorded yet.`;
+    } else if (liquidityScore < profitabilityScore) {
+        diagnosis = Number.isFinite(runwayMonths)
+            ? `Liquidity is the bigger concern here: at the current burn rate, cash on hand covers about ${runwayMonths.toFixed(1)} month${runwayMonths === 1 ? '' : 's'}.`
+            : `Liquidity is fine for now -- revenue currently covers expenses, so there's no active burn.`;
     } else {
-        diagnosis = 'Monthly expenses currently exceed revenue with no revenue recorded yet — that gap is what\'s burning through cash.';
+        diagnosis = 'Profitability and liquidity are roughly in balance at this level -- neither is the standout weak point yet.';
     }
 
     let financingPreview: string;
-    if (riskStatus === 'green') {
+    if (partialBand === 'Excellent' || partialBand === 'Strong') {
         financingPreview = 'Your basic numbers show the kind of cash discipline lenders respond well to.';
-    } else if (riskStatus === 'yellow') {
+    } else if (partialBand === 'Moderate') {
         financingPreview = 'You\'re showing some of what lenders look for, but tighter expense control and a larger cash cushion would strengthen your position.';
     } else {
         financingPreview = 'Lenders typically want healthy cash coverage and controlled expenses before extending credit — your numbers suggest more groundwork is needed first.';
     }
 
-    return { runwayMonths, isProfitable, netMonthlyBurn, expenseRatioPct, riskStatus, riskLabel, diagnosis, financingPreview };
+    return {
+        partialScore, partialBand, profitabilityScore, liquidityScore, marginPct,
+        runwayMonths, isProfitable, netMonthlyBurn, expenseRatioPct,
+        diagnosis, financingPreview,
+    };
 }
+

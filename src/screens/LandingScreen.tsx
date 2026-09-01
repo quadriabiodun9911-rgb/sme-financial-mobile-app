@@ -120,33 +120,6 @@ export default function LandingScreen() {
                     </View>
                 </View>
 
-                {/* Real product screenshot (demo data), not a mockup with
-                    invented numbers -- shows what Quad360 actually looks
-                    like within seconds instead of asking visitors to take
-                    the pitch on faith. Always its own full-width block below
-                    the hero, on every viewport -- a prior version placed it
-                    beside the hero text on wide screens, which read as less
-                    professional; the fix for the empty space beside the text
-                    is a wider hero column, not a beside-the-text image.
-
-                    Business Passport, not the raw cash/profit dashboard --
-                    a first-time visitor can't tell what a cash figure means
-                    without context, but "Business Identity / Financial
-                    Identity / Health / Risk" as labeled, structured cards
-                    directly shows what Quad360 actually does: turn activity
-                    into a legible profile of the business, which is the
-                    whole pitch this page is making above it. */}
-                <View style={[s.previewWrap, isWide && s.previewWrapWide]}>
-                    <View style={[s.previewFrame, s.previewFramePassport]}>
-                        <Image
-                            source={require('../../assets/landing-passport-preview.png')}
-                            style={s.previewImage}
-                            resizeMode="cover"
-                        />
-                    </View>
-                    <Text style={s.previewCaption}>A real Quad360 Business Passport, shown with sample data.</Text>
-                </View>
-
                 <View style={s.bridgeSection}>
                     <View style={[s.bridgeInner, isWide && s.bridgeInnerWide]}>
                         <Text style={s.bridgeProblem}>
@@ -299,21 +272,6 @@ const s = StyleSheet.create({
     trustRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     trustChip: { backgroundColor: Colors.surface, borderRadius: Radius.pill, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: Colors.border },
     trustChipText: { fontSize: 11.5, color: Colors.textSecondary, fontWeight: '600' },
-
-    previewWrap: { paddingHorizontal: Spacing.xl, marginBottom: Spacing.huge, alignItems: 'center' },
-    previewWrapWide: { paddingHorizontal: 64 },
-    previewFrame: {
-        width: '100%', maxWidth: 960, aspectRatio: 1280 / 460,
-        borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border,
-        overflow: 'hidden', backgroundColor: Colors.surface, ...Shadow.lg,
-    },
-    // Business Passport screenshot is a portrait card stack, not a wide
-    // landscape dashboard -- overrides previewFrame's width/aspect ratio to
-    // match its actual 430:800 crop instead of stretching it into the old
-    // wide-short frame.
-    previewFramePassport: { maxWidth: 420, aspectRatio: 430 / 800 },
-    previewImage: { width: '100%', height: '100%' },
-    previewCaption: { fontSize: 11.5, color: Colors.textMuted, marginTop: 10, textAlign: 'center' },
 
     bridgeSection: { paddingHorizontal: Spacing.xl, paddingBottom: Spacing.huge },
     bridgeInner: { alignItems: 'center' },

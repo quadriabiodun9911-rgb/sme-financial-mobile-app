@@ -1457,6 +1457,19 @@ function riskBandFromScore(score: number): RiskScore['band'] {
  * for the same business. financialDiagnosisEngine.ts now derives its
  * overall score from this function instead of reimplementing its own.
  */
+// Exported so a genuine partial preview elsewhere (e.g. the landing
+// page's Quick Health Check, which only has 3 raw numbers to work with,
+// not full transaction history) can score the same Profitability and
+// Liquidity factors the real 8-factor score below does -- from the exact
+// same real thresholds, not a second invented scale. GENERAL_HEALTH_WEIGHTS
+// (below computeRiskScore) supplies the matching weights.
+export function scoreProfitabilityMargin(marginPct: number): number {
+    return marginPct >= 20 ? 100 : marginPct >= 10 ? 70 : marginPct >= 0 ? 40 : 0;
+}
+export function scoreLiquidityRunwayMonths(runwayMonths: number): number {
+    return runwayMonths >= 6 ? 100 : runwayMonths >= 3 ? 70 : runwayMonths >= 1 ? 40 : 10;
+}
+
 export function computeRiskScore(
     finance: Pick<FinanceData, 'income' | 'profit' | 'cashBalance'>,
     loans: Loan[],
@@ -1469,8 +1482,8 @@ export function computeRiskScore(
     const margin = finance.income > 0 ? (finance.profit / finance.income) * 100 : 0;
     factors.push({
         name: 'Profitability',
-        score: margin >= 20 ? 100 : margin >= 10 ? 70 : margin >= 0 ? 40 : 0,
-        weight: 20,
+        score: scoreProfitabilityMargin(margin),
+        weight: GENERAL_HEALTH_WEIGHTS.Profitability,
         status: margin >= 20 ? 'good' : margin >= 0 ? 'warning' : 'danger',
         explanation: `Profit margin is ${margin.toFixed(1)}% -- ${
             margin >= 20 ? 'strong, well above the 20% benchmark.' :
@@ -1498,8 +1511,8 @@ export function computeRiskScore(
     const runwayMonths = monthlyBurn > 0 ? finance.cashBalance / monthlyBurn : (finance.cashBalance > 0 ? 12 : 0);
     factors.push({
         name: 'Liquidity',
-        score: runwayMonths >= 6 ? 100 : runwayMonths >= 3 ? 70 : runwayMonths >= 1 ? 40 : 10,
-        weight: 15,
+        score: scoreLiquidityRunwayMonths(runwayMonths),
+        weight: GENERAL_HEALTH_WEIGHTS.Liquidity,
         status: runwayMonths >= 6 ? 'good' : runwayMonths >= 3 ? 'warning' : 'danger',
         explanation: monthlyBurn <= 0 && finance.cashBalance <= 0
             ? 'No cash on hand and no spending history yet to estimate a runway from.'
@@ -1690,7 +1703,11 @@ export function computeRiskScore(
 // projection) can still be scored as general business health from the
 // exact same factor scores, without a second call to computeRiskScore
 // against a different data window.
-const GENERAL_HEALTH_WEIGHTS: Record<string, number> = {
+// Exported: also read directly by computeRiskScore above for its own
+// Profitability/Liquidity weights (not just by computeGeneralHealthScore's
+// reweighting below), and by the landing page's Quick Health Check partial
+// preview -- one set of real weights, never a second copy.
+export const GENERAL_HEALTH_WEIGHTS: Record<string, number> = {
     'Profitability': 20,
     'Liquidity': 15,
     'Working Capital': 5,

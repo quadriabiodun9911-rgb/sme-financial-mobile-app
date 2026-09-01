@@ -1,30 +1,36 @@
 /**
  * The landing page's 60-second, no-signup teaser -- three numbers a
  * business owner already knows by heart, in exchange for an instant,
- * honest preliminary read (see quickHealthCheck.ts for exactly what that
- * is and isn't). Entirely self-contained: no navigation, no network call,
- * nothing persisted -- the numbers never leave this component, so "your
- * data stays private" is literally true here, not just marketing copy.
+ * genuine PARTIAL Business Health Score (see quickHealthCheck.ts: the
+ * same Profitability/Liquidity scoring functions and weights the real
+ * 8-factor score uses, just renormalized over those 2 alone). Entirely
+ * self-contained: no navigation, no network call, nothing persisted --
+ * the numbers never leave this component, so "your data stays private"
+ * is literally true here, not just marketing copy.
  *
- * Deliberately doesn't show a 0-100 score of any kind -- the real
- * Business Health Score and Financing Readiness Score both need 8
- * weighted factors from real transaction history, which three numbers
- * typed into a landing page can't honestly support. What it shows instead
- * is exactly what those three numbers alone can prove: a cash runway, a
- * risk band, and a plainly-caveated financing preview -- then hands off
- * to the real product for anything deeper.
+ * Always labeled as partial -- 2 of 8 real factors -- and always tells the
+ * visitor what closes the gap: uploading a bank statement or connecting
+ * real transaction history inside the product, which is what the other 6
+ * factors (Working Capital, Debt, Efficiency, Inventory, Concentration,
+ * Operating Cash Flow) genuinely require.
  */
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
 import { Colors } from '../theme/colors';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import Icon from './ui/Icon';
-import { computeQuickHealthCheck, QuickHealthCheckResult, QuickRiskStatus } from '../utils/quickHealthCheck';
+import { RiskScore } from '../utils/finance';
+import { computeQuickHealthCheck, QuickHealthCheckResult } from '../utils/quickHealthCheck';
 
-const RISK_COLOR: Record<QuickRiskStatus, string> = {
-    green: Colors.income,
-    yellow: Colors.warning,
-    red: Colors.expense,
+// Same band->color convention every other score-band screen in the app
+// defines locally (Colors are theme-dependent, so this isn't shared from
+// finance.ts -- see RISK_BAND_STYLE's own doc comment there).
+const BAND_COLOR: Record<RiskScore['band'], string> = {
+    Excellent: Colors.income,
+    Strong: '#10b981',
+    Moderate: Colors.warning,
+    Weak: '#fb923c',
+    Critical: Colors.expense,
 };
 
 interface Props {
@@ -71,6 +77,24 @@ export default function QuickHealthCheckWidget({ onWantFullPicture, onTryDemo, i
                 <Text style={s.resultEyebrow}>YOUR 60-SECOND SNAPSHOT</Text>
 
                 <View style={s.resultRow}>
+                    <Text style={s.resultIcon}>📈</Text>
+                    <View style={[s.resultRowBody, isWide && s.wideTextCap]}>
+                        <Text style={s.resultLabel}>Partial Business Health Score</Text>
+                        <View style={s.scoreLine}>
+                            <Text style={[s.resultValue, { color: BAND_COLOR[result.partialBand] }]}>{result.partialScore}/100</Text>
+                            <View style={[s.riskPill, { borderColor: BAND_COLOR[result.partialBand] }]}>
+                                <Text style={[s.riskPillText, { color: BAND_COLOR[result.partialBand] }]}>{result.partialBand}</Text>
+                            </View>
+                        </View>
+                        <Text style={s.resultSub}>
+                            Built from 2 of the 8 real factors — Profitability and Liquidity. The other 6
+                            (Working Capital, Debt, Efficiency, Inventory, Concentration, Operating Cash Flow)
+                            need real transaction history to score.
+                        </Text>
+                    </View>
+                </View>
+
+                <View style={s.resultRow}>
                     <Text style={s.resultIcon}>💰</Text>
                     <View style={[s.resultRowBody, isWide && s.wideTextCap]}>
                         <Text style={s.resultLabel}>Your True Cash Runway</Text>
@@ -84,17 +108,6 @@ export default function QuickHealthCheckWidget({ onWantFullPicture, onTryDemo, i
                                 ? 'How long your business could operate if revenue stopped today.'
                                 : 'Revenue currently covers expenses, so there\'s no active burn to project against.'}
                         </Text>
-                    </View>
-                </View>
-
-                <View style={s.resultRow}>
-                    <Text style={s.resultIcon}>🚦</Text>
-                    <View style={[s.resultRowBody, isWide && s.wideTextCap]}>
-                        <Text style={s.resultLabel}>Cash Risk Status</Text>
-                        <View style={[s.riskPill, { borderColor: RISK_COLOR[result.riskStatus] }]}>
-                            <View style={[s.riskDot, { backgroundColor: RISK_COLOR[result.riskStatus] }]} />
-                            <Text style={[s.riskPillText, { color: RISK_COLOR[result.riskStatus] }]}>{result.riskLabel}</Text>
-                        </View>
                     </View>
                 </View>
 
@@ -116,11 +129,12 @@ export default function QuickHealthCheckWidget({ onWantFullPicture, onTryDemo, i
                 </View>
 
                 <View style={s.upsellBox}>
-                    <Text style={s.upsellTitle}>Want the full picture?</Text>
+                    <Text style={s.upsellTitle}>Get your full Business Health Score</Text>
                     <Text style={[s.upsellText, isWide && s.wideTextCap]}>
-                        This snapshot is built from three numbers. Quad360's real Business Health and Financing
-                        Readiness scores connect your actual transaction history for a full diagnosis — what's
-                        driving it, and exactly what to do next.
+                        This is a partial score from just two numbers. Upload your bank statement or connect your
+                        transactions inside Quad360 to score all 8 factors — including the ones that need real
+                        history, like debt coverage and inventory turnover — for a full diagnosis and exactly what
+                        to do next.
                     </Text>
                     <View style={s.upsellBtnRow}>
                         <TouchableOpacity onPress={onWantFullPicture} style={s.upsellPrimaryBtn}>
@@ -239,8 +253,8 @@ const s = StyleSheet.create({
     resultValue: { fontSize: 20, fontWeight: '800', color: Colors.textPrimary, marginBottom: 3 },
     resultSub: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
 
+    scoreLine: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 3 },
     riskPill: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1.5, borderRadius: Radius.pill, paddingHorizontal: 10, paddingVertical: 4, alignSelf: 'flex-start' },
-    riskDot: { width: 7, height: 7, borderRadius: 4 },
     riskPillText: { fontSize: 12.5, fontWeight: '800' },
 
     disclaimer: { fontSize: 10.5, color: Colors.textMuted, fontStyle: 'italic', marginTop: 5, lineHeight: 15 },
