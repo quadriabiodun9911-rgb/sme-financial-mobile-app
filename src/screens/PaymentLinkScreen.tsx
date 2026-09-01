@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View, Text, TextInput, TouchableOpacity, ScrollView,
     StyleSheet, Share, Alert, Linking, Platform,
@@ -9,6 +9,8 @@ import { supabase } from '../utils/supabase';
 import Icon from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { confirmAction } from '../utils/webAlert';
+import { getConnectedProviders } from '../utils/paymentSecrets';
+import { getWorkspaceOwnerId } from '../utils/storage';
 
 // Same shape as aiAdvisor.ts's askAdvisor -- the edge function always
 // replies with a JSON { error } body on failure, so surface that instead
@@ -45,13 +47,24 @@ export default function PaymentLinkScreen() {
     const currency     = settings.currency || '₦';
     const currencyCode = (settings as any).currencyCode || 'NGN';
     const businessName = user?.businessName || 'My Business';
-    const paystackKey     = settings.paystackPublicKey?.trim() || '';
-    const korapayKey      = settings.korapayPublicKey?.trim() || '';
-    const flutterwaveKey  = settings.flutterwavePublicKey?.trim() || '';
-    const hasPaystack     = !!paystackKey;
-    const hasKorapay      = !!korapayKey;
-    const hasFlutterwave  = !!flutterwaveKey;
     const amountNum    = parseFloat(amount) || 0;
+
+    // Which providers this business has actually connected its own account
+    // for -- see paymentSecrets.ts. Starts all-false and fills in once the
+    // has_payment_secret() checks land, rather than trusting anything
+    // stored client-side (the old paystackPublicKey/etc. fields never
+    // proved a working secret key existed server-side).
+    const [connected, setConnected]         = useState({ paystack: false, korapay: false, flutterwave: false });
+    const [connectedLoaded, setConnectedLoaded] = useState(false);
+    const { paystack: hasPaystack, korapay: hasKorapay, flutterwave: hasFlutterwave } = connected;
+
+    useEffect(() => {
+        let cancelled = false;
+        getConnectedProviders().then(result => {
+            if (!cancelled) { setConnected(result); setConnectedLoaded(true); }
+        });
+        return () => { cancelled = true; };
+    }, []);
 
     const validate = () => {
         if (!amount || amountNum <= 0) {
@@ -154,6 +167,7 @@ export default function PaymentLinkScreen() {
         try {
             const data = await invokePaymentInit({
                 provider: 'paystack',
+                ownerUserId: await getWorkspaceOwnerId(),
                 amount: amountNum,
                 email: customerEmail,
                 name: customerName,
@@ -209,6 +223,7 @@ export default function PaymentLinkScreen() {
             const ref  = `QD360-${Date.now()}`;
             const data = await invokePaymentInit({
                 provider: 'korapay',
+                ownerUserId: await getWorkspaceOwnerId(),
                 amount: amountNum, currency: currencyCode,
                 email: customerEmail, name: customerName,
                 reference: ref, narration: description || `Payment to ${businessName}`,
@@ -261,6 +276,7 @@ export default function PaymentLinkScreen() {
             const ref  = `QD360-${Date.now()}`;
             const data = await invokePaymentInit({
                 provider: 'flutterwave',
+                ownerUserId: await getWorkspaceOwnerId(),
                 amount: amountNum, currency: currencyCode,
                 email: customerEmail, name: customerName,
                 reference: ref, description: description || `Payment to ${businessName}`,
@@ -472,7 +488,7 @@ export default function PaymentLinkScreen() {
             </View>
 
             {/* Setup tip */}
-            {!hasPaystack && !hasKorapay && !hasFlutterwave && (
+            {connectedLoaded && !hasPaystack && !hasKorapay && !hasFlutterwave && (
                 <View style={styles.tipCard}>
                     <View style={[styles.titleRow, { marginBottom: 6 }]}>
                         <Icon name="zap" size={13} color={Colors.textPrimary} />

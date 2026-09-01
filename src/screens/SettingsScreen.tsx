@@ -23,6 +23,7 @@ import { PRIMARY_GOAL_OPTIONS } from '../utils/primaryGoals';
 import { auditDataIntegrity } from '../utils/dataIntegrity';
 import { canManageTeam, canManagePaymentSettings, canDeleteBusinessData } from '../utils/rolePermissions';
 import PinConfirmModal from '../components/PinConfirmModal';
+import { PaymentProvider, savePaymentSecret, deletePaymentSecret, getConnectedProviders } from '../utils/paymentSecrets';
 
 const ROLE_BADGE_COLOR: Record<string, string> = {
     admin: Colors.expense,
@@ -104,6 +105,9 @@ export default function SettingsScreen() {
     const [phone, setPhone]     = useState(user?.phone || '');
     const [colorTheme, setColorThemeState] = useState<ColorThemeMode>(getColorThemeMode());
     const [applyingTheme, setApplyingTheme] = useState(false);
+    // Tracked here (not just inside each ProviderKeyField) so "Create Payment
+    // Link →" below can gate on whether ANY provider is connected.
+    const [connectedProviders, setConnectedProviders] = useState({ paystack: false, korapay: false, flutterwave: false });
 
     // Re-sync the whole form once real settings arrive from storage/Supabase.
     // settings hydrates asynchronously (a network round-trip, then an
@@ -186,18 +190,6 @@ export default function SettingsScreen() {
             return;
         }
         doSave();
-    };
-
-    const handleSavePaymentKeys = () => {
-        if (!canManagePaymentSettings(userRole)) {
-            showAlert('Permission denied', 'Only the account owner can change payment settings.');
-            return;
-        }
-        const paystackPublicKey    = (form.paystackPublicKey ?? '').trim();
-        const korapayPublicKey     = (form.korapayPublicKey ?? '').trim();
-        const flutterwavePublicKey = (form.flutterwavePublicKey ?? '').trim();
-        updateSettings({ paystackPublicKey, korapayPublicKey, flutterwavePublicKey });
-        showAlert('✅ Saved', 'Payment keys saved. Tap "Create Payment Link →" to charge customers.');
     };
 
     const handleChangePin = async () => {
@@ -793,58 +785,27 @@ export default function SettingsScreen() {
                     {/* Payment Gateways */}
                     <CollapsibleSection title="Payment Gateways" defaultOpen={false}>
                         <Text style={styles.hint}>
-                            Add your public API keys below, then tap "Create Payment Link" to charge customers by card, bank transfer, or USSD.
+                            Connect your own Paystack, Korapay, or Flutterwave account below so customer payments land directly in YOUR account, under YOUR business name -- not a shared Quad360 account. Then tap "Create Payment Link" to charge customers by card, bank transfer, or USSD.
                         </Text>
 
-                        <Section title="Paystack">
-                            <Text style={styles.hint}>Get your public key from dashboard.paystack.com → Settings → API Keys</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={form.paystackPublicKey ?? ''}
-                                onChangeText={v => setForm((f: typeof form) => ({ ...f, paystackPublicKey: v.trim() }))}
-                                placeholder="pk_live_xxxxxxxxxxxxxxxxxx"
-                                placeholderTextColor={Colors.muted}
-                                autoCapitalize="none"
-                                autoCorrect={false}
-                            />
-                        </Section>
+                        <ProviderKeyField provider="paystack" label="Paystack" hintUrl="dashboard.paystack.com → Settings → API Keys"
+                            placeholder="sk_live_xxxxxxxxxxxxxxxxxx" canManage={canManagePaymentSettings(userRole)}
+                            onConnectionChange={connected => setConnectedProviders(p => ({ ...p, paystack: connected }))} />
 
-                        <Section title="Korapay">
-                            <Text style={styles.hint}>Get your public key from merchant.korapay.com → Settings → API Keys</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={form.korapayPublicKey ?? ''}
-                                onChangeText={v => setForm((f: typeof form) => ({ ...f, korapayPublicKey: v.trim() }))}
-                                placeholder="pk_live_xxxxxxxxxxxxxxxxxx"
-                                placeholderTextColor={Colors.muted}
-                                autoCapitalize="none"
-                                autoCorrect={false}
-                            />
-                        </Section>
+                        <ProviderKeyField provider="korapay" label="Korapay" hintUrl="merchant.korapay.com → Settings → API Keys"
+                            placeholder="sk_live_xxxxxxxxxxxxxxxxxx" canManage={canManagePaymentSettings(userRole)}
+                            onConnectionChange={connected => setConnectedProviders(p => ({ ...p, korapay: connected }))} />
 
-                        <Section title="Flutterwave">
-                            <Text style={styles.hint}>Get your public key from dashboard.flutterwave.com → Settings → API Keys</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={form.flutterwavePublicKey ?? ''}
-                                onChangeText={v => setForm((f: typeof form) => ({ ...f, flutterwavePublicKey: v.trim() }))}
-                                placeholder="FLWPUBK_TEST-xxxxxxxxxxxxxxxxxx-X"
-                                placeholderTextColor={Colors.muted}
-                                autoCapitalize="none"
-                                autoCorrect={false}
-                            />
-                        </Section>
-
-                        <TouchableOpacity style={styles.saveBtn} onPress={handleSavePaymentKeys}>
-                            <Text style={styles.saveBtnText}>Save Payment Keys</Text>
-                        </TouchableOpacity>
+                        <ProviderKeyField provider="flutterwave" label="Flutterwave" hintUrl="dashboard.flutterwave.com → Settings → API Keys"
+                            placeholder="FLWSECK_TEST-xxxxxxxxxxxxxxxxxx-X" canManage={canManagePaymentSettings(userRole)}
+                            onConnectionChange={connected => setConnectedProviders(p => ({ ...p, flutterwave: connected }))} />
 
                         <TouchableOpacity
                             style={[styles.dataBtn, { marginTop: 8 }]}
                             onPress={() => {
-                                const hasKey = (form.paystackPublicKey ?? '').trim() || (form.korapayPublicKey ?? '').trim() || (form.flutterwavePublicKey ?? '').trim();
-                                if (!hasKey) {
-                                    showAlert('No API Key', 'Add your Paystack, Korapay, or Flutterwave public key above and tap Save first.');
+                                const anyConnected = connectedProviders.paystack || connectedProviders.korapay || connectedProviders.flutterwave;
+                                if (!anyConnected) {
+                                    showAlert('No account connected', 'Connect your Paystack, Korapay, or Flutterwave account above first.');
                                     return;
                                 }
                                 setCurrentScreen('payment-link');
@@ -1196,6 +1157,103 @@ function CollapsibleSection({ title, children, defaultOpen = false }: { title: s
             </TouchableOpacity>
             {open && <View style={styles.sectionBody}>{children}</View>}
         </View>
+    );
+}
+
+// One provider's secret-key connect/disconnect card. Write-only by design
+// (see 025_payment_provider_secrets.sql): once saved, the key is never
+// fetched back -- this only ever knows "connected" (true/false), not the
+// key itself.
+function ProviderKeyField({ provider, label, hintUrl, placeholder, canManage, onConnectionChange }: {
+    provider: PaymentProvider; label: string; hintUrl: string; placeholder: string;
+    canManage: boolean; onConnectionChange: (connected: boolean) => void;
+}) {
+    const [value, setValue]         = useState('');
+    const [connected, setConnected] = useState<boolean | null>(null); // null = still checking
+    const [saving, setSaving]       = useState(false);
+
+    useEffect(() => {
+        let cancelled = false;
+        getConnectedProviders().then(result => {
+            if (cancelled) return;
+            setConnected(result[provider]);
+            onConnectionChange(result[provider]);
+        });
+        return () => { cancelled = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [provider]);
+
+    const handleSave = async () => {
+        if (!canManage) { showAlert('Permission denied', 'Only the account owner or an admin can change payment settings.'); return; }
+        if (!value.trim()) { showAlert('Secret key required', `Paste your ${label} secret key first.`); return; }
+        setSaving(true);
+        try {
+            await savePaymentSecret(provider, value.trim());
+            setValue('');
+            setConnected(true);
+            onConnectionChange(true);
+            showAlert('✅ Connected', `${label} is connected. Customer payments will go straight into your own ${label} account.`);
+        } catch (e: any) {
+            showAlert('Could not save', e.message || 'Please try again.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleDisconnect = () => {
+        if (!canManage) { showAlert('Permission denied', 'Only the account owner or an admin can change payment settings.'); return; }
+        confirmAction(
+            `Disconnect ${label}?`,
+            `Customers won't be able to pay via ${label} until you reconnect it.`,
+            'Disconnect',
+            async () => {
+                try {
+                    await deletePaymentSecret(provider);
+                    setConnected(false);
+                    onConnectionChange(false);
+                } catch (e: any) {
+                    showAlert('Could not disconnect', e.message || 'Please try again.');
+                }
+            },
+            true,
+        );
+    };
+
+    return (
+        <Section title={label}>
+            <Text style={styles.hint}>Get your secret key from {hintUrl}</Text>
+            {connected ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Icon name="check" size={13} color={Colors.success} />
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: Colors.success }}>Connected</Text>
+                    </View>
+                    <TouchableOpacity onPress={handleDisconnect}>
+                        <Text style={{ fontSize: 12, color: Colors.textMuted, fontWeight: '600' }}>Disconnect</Text>
+                    </TouchableOpacity>
+                </View>
+            ) : (
+                <>
+                    <TextInput
+                        style={styles.input}
+                        value={value}
+                        onChangeText={setValue}
+                        placeholder={placeholder}
+                        placeholderTextColor={Colors.muted}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        secureTextEntry
+                    />
+                    <TouchableOpacity
+                        style={[styles.saveBtn, { marginTop: 8 }, saving && { opacity: 0.6 }]}
+                        onPress={handleSave}
+                        disabled={saving}
+                    >
+                        <Text style={styles.saveBtnText}>{saving ? 'Connecting…' : `Connect ${label}`}</Text>
+                    </TouchableOpacity>
+                </>
+            )}
+        </Section>
     );
 }
 

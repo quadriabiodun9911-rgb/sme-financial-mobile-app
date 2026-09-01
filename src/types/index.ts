@@ -345,9 +345,10 @@ export interface BusinessSettings {
     openingLoans: string;
     openingOtherAssets: string;
     defaultTaxRate: string;
-    paystackPublicKey?: string;
-    korapayPublicKey?: string;
-    flutterwavePublicKey?: string;
+    // Provider secret keys used to actually collect payments live in the
+    // payment_provider_secrets table (write-only from the client, see
+    // supabase/migrations/025_payment_provider_secrets.sql and
+    // src/utils/paymentSecrets.ts) -- not here.
     payrollProviderId?: string; // 'manual' (default) | 'gusto' | 'deel' — see src/utils/payrollProvider.ts
     missionStatement?: string; // why the business exists, and what you do daily to get there — shown alongside priorities/strategy screens as a decision check, not just stored
     visionStatement?: string;  // the long-term destination

@@ -3,13 +3,26 @@
 // Replaces the /initialize endpoints in backend/routes/payments.js, which
 // ran on an Express server that was never actually deployed anywhere (see
 // supabase/functions/advisor/index.ts's header for the full story) --
-// PaymentLinkScreen.tsx's Paystack/Korapay buttons have been failing
-// against a dead https://quad360-backend.onrender.com URL. Same shape as
-// advisor/financial-health: verify the caller's JWT against the anon
-// client, then do the privileged work (calling the payment provider with a
-// secret key) with a secret only this function's environment has.
+// PaymentLinkScreen.tsx's Paystack/Korapay/Flutterwave buttons have been
+// failing against a dead https://quad360-backend.onrender.com URL. Same
+// shape as advisor/financial-health: verify the caller's JWT against the
+// anon client, then do the privileged work (calling the payment provider
+// with a secret key) with a secret only this function's environment has
+// direct access to.
 //
-// Scope: only the two /initialize calls PaymentLinkScreen.tsx actually
+// Per-business secret keys (see 025_payment_provider_secrets.sql): each
+// provider secret used to be one shared env var for the whole app, meaning
+// every business's customer paid into the SAME merchant account. Now every
+// business connects its own account (its secret key lives, write-only, in
+// payment_provider_secrets), and this function looks up the calling
+// workspace's own key via the service-role client -- the one client in the
+// system allowed to actually read that table (RLS on it has no SELECT
+// policy for anyone else). ownerUserId in the request body identifies
+// which business's key to use; it's independently verified below (owner or
+// active team member of that owner) so a caller can't borrow another
+// business's connected account by just passing a different id.
+//
+// Scope: only the three /initialize calls PaymentLinkScreen.tsx actually
 // makes. The old Express app also had /verify and a signed webhook
 // receiver for Paystack -- neither is called from the client today (the
 // app relies on the user tapping "Mark as Paid" after completing checkout,
@@ -18,12 +31,11 @@
 // DEPLOYMENT (not done from this environment -- no Supabase CLI
 // credentials here): from a machine with the project linked,
 //   supabase functions deploy payment-init
-//   supabase secrets set PAYSTACK_SECRET_KEY=...
-//   supabase secrets set KORAPAY_SECRET_KEY=...
-//   supabase secrets set FLUTTERWAVE_SECRET_KEY=...
-// (set whichever provider(s) you actually use -- each call 503s with a
-// clear message if its own key isn't set, the others still work)
-// SUPABASE_URL / SUPABASE_ANON_KEY are injected automatically.
+// No provider secrets are set as function env vars anymore -- each
+// business sets its own from Settings > Payment Gateways in the app, which
+// writes to payment_provider_secrets.
+// SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY are injected
+// automatically.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -41,10 +53,13 @@ function json(body: unknown, status: number) {
   });
 }
 
-async function initPaystack(amount: number, currency: string, email: string, name: string, description: string) {
-  const secretKey = Deno.env.get('PAYSTACK_SECRET_KEY');
-  if (!secretKey) return json({ error: 'Paystack is not configured yet.' }, 503);
+const PROVIDER_LABEL: Record<string, string> = {
+  paystack: 'Paystack',
+  korapay: 'Korapay',
+  flutterwave: 'Flutterwave',
+};
 
+async function initPaystack(secretKey: string, amount: number, currency: string, email: string, name: string, description: string) {
   // Paystack requires amount in subunit (kobo for NGN, pesewas for GHS, etc.)
   const amountInSubunit = Math.round(amount * 100);
 
@@ -70,10 +85,7 @@ async function initPaystack(amount: number, currency: string, email: string, nam
   }, 200);
 }
 
-async function initKorapay(amount: number, currency: string, email: string, name: string, reference: string, narration: string) {
-  const secretKey = Deno.env.get('KORAPAY_SECRET_KEY');
-  if (!secretKey) return json({ error: 'Korapay is not configured yet.' }, 503);
-
+async function initKorapay(secretKey: string, amount: number, currency: string, email: string, name: string, reference: string, narration: string) {
   const res = await fetch('https://api.korapay.com/merchant/api/v1/charges/initialize', {
     method: 'POST',
     headers: { Authorization: `Bearer ${secretKey}`, 'Content-Type': 'application/json' },
@@ -96,10 +108,7 @@ async function initKorapay(amount: number, currency: string, email: string, name
   return json({ checkoutUrl: data.data.checkout_url, reference: data.data.reference }, 200);
 }
 
-async function initFlutterwave(amount: number, currency: string, email: string, name: string, reference: string, description: string) {
-  const secretKey = Deno.env.get('FLUTTERWAVE_SECRET_KEY');
-  if (!secretKey) return json({ error: 'Flutterwave is not configured yet.' }, 503);
-
+async function initFlutterwave(secretKey: string, amount: number, currency: string, email: string, name: string, reference: string, description: string) {
   const res = await fetch('https://api.flutterwave.com/v3/payments', {
     method: 'POST',
     headers: { Authorization: `Bearer ${secretKey}`, 'Content-Type': 'application/json' },
@@ -146,6 +155,8 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'provider must be "paystack", "korapay", or "flutterwave".' }, 400);
     }
 
+    const ownerUserId = typeof body?.ownerUserId === 'string' && body.ownerUserId ? body.ownerUserId : user.id;
+
     const amount = parseFloat(body?.amount);
     if (!Number.isFinite(amount) || amount <= 0 || amount > MAX_AMOUNT) {
       return json({ error: `amount must be a positive number not exceeding ${MAX_AMOUNT.toLocaleString()}.` }, 400);
@@ -155,18 +166,47 @@ Deno.serve(async (req: Request) => {
     if (!email) return json({ error: 'email is required.' }, 400);
     const name = typeof body?.name === 'string' ? body.name : '';
 
+    // Service-role client: the only one allowed to read
+    // payment_provider_secrets (its RLS has no SELECT policy for anyone
+    // else). Used for both the membership check below and the secret
+    // lookup, since both need to bypass RLS.
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const adminClient = createClient(supabaseUrl, serviceRoleKey);
+
+    if (ownerUserId !== user.id) {
+      const { data: membership } = await adminClient
+        .from('team_members')
+        .select('status')
+        .eq('owner_user_id', ownerUserId)
+        .eq('member_user_id', user.id)
+        .eq('status', 'active')
+        .maybeSingle();
+      if (!membership) return json({ error: 'Not authorized for this business.' }, 403);
+    }
+
+    const { data: secretRow } = await adminClient
+      .from('payment_provider_secrets')
+      .select('secret_key')
+      .eq('user_id', ownerUserId)
+      .eq('provider', provider)
+      .maybeSingle();
+    const secretKey = secretRow?.secret_key;
+    if (!secretKey) {
+      return json({ error: `Connect your ${PROVIDER_LABEL[provider]} account in Settings > Payment Gateways first.` }, 503);
+    }
+
     if (provider === 'paystack') {
       const description = typeof body?.description === 'string' ? body.description : '';
-      return await initPaystack(amount, currency, email, name, description);
+      return await initPaystack(secretKey, amount, currency, email, name, description);
     }
     if (provider === 'flutterwave') {
       const reference = typeof body?.reference === 'string' ? body.reference : '';
       const description = typeof body?.description === 'string' ? body.description : '';
-      return await initFlutterwave(amount, currency, email, name, reference, description);
+      return await initFlutterwave(secretKey, amount, currency, email, name, reference, description);
     }
     const reference = typeof body?.reference === 'string' ? body.reference : '';
     const narration = typeof body?.narration === 'string' ? body.narration : '';
-    return await initKorapay(amount, currency, email, name, reference, narration);
+    return await initKorapay(secretKey, amount, currency, email, name, reference, narration);
   } catch (e) {
     console.error('[payment-init]', e);
     return json({ error: 'Could not start payment. Please try again shortly.' }, 502);
