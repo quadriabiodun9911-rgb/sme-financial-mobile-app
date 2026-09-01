@@ -21,6 +21,7 @@ import RetentionNudges from '../components/RetentionNudges';
 import FirstRunWizard from '../components/FirstRunWizard';
 import GlobalSearch from '../components/GlobalSearch';
 import DailyTargetCard from '../components/DailyTargetCard';
+import MacroShieldSimulator from '../components/MacroShieldSimulator';
 import MonthlyReview from '../components/MonthlyReview';
 import CashPocketsModal from '../components/CashPocketsModal';
 import DailyReportModal from '../components/DailyReportModal';
@@ -1008,6 +1009,22 @@ export default function DashboardScreen() {
                     </View>
                   </View>
                 </View>
+                )}
+
+                {/* MacroShield — most tools only show what already happened;
+                    this is the forward-looking layer right below the Cash
+                    in Hand / runway numbers above: drag an inflation or FX
+                    -devaluation shock and see exactly which month it would
+                    put cash below zero. See macroShield.ts. */}
+                {canViewFinancials && (
+                  <MacroShieldSimulator
+                    currency={currency}
+                    transactions={transactions}
+                    loans={loans}
+                    finance={finance}
+                    staff={staff}
+                    minReserve={parseFloat(settings?.minReserve || '') || DEFAULT_THRESHOLDS.lowCashThreshold}
+                  />
                 )}
 
                 {/* WHAT QUAD360 SEES — the plain-language "what does this

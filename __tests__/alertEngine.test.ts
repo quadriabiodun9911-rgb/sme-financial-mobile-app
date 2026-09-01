@@ -480,9 +480,20 @@ describe('alertEngine', () => {
         function makeBudget(overrides: Partial<Budget> = {}): Budget {
             return { id: 'b1', category: 'Marketing', monthlyAmount: 200000, period: currentPeriod(), ...overrides };
         }
+        // isoDaysAgo(5) can land in the PREVIOUS calendar month whenever
+        // the real test-run date is early in a month (e.g. run on the
+        // 1st-4th), while currentPeriod()/makeBudget() are always THIS
+        // month -- the transaction and the budget it's meant to compare
+        // against then silently stop matching. String-built directly off
+        // currentPeriod() instead, so this can never drift off the
+        // budget's own period regardless of which day of the month the
+        // suite happens to run on.
+        function dateInCurrentPeriod(day: number = 10): string {
+            return `${currentPeriod()}-${String(day).padStart(2, '0')}`;
+        }
 
         it('flags a category meaningfully over its budget for the current period', () => {
-            const tx = makeTx({ type: 'expense', category: 'Marketing', amount: 310000, date: isoDaysAgo(5) });
+            const tx = makeTx({ type: 'expense', category: 'Marketing', amount: 310000, date: dateInCurrentPeriod() });
             const alerts = detectAlerts(
                 1000000, [tx], [], undefined, undefined, undefined, '₦', [], [], [], undefined, [], [makeBudget()]
             );
@@ -493,7 +504,7 @@ describe('alertEngine', () => {
         });
 
         it('marks a severe overspend (50%+) as high priority', () => {
-            const tx = makeTx({ type: 'expense', category: 'Marketing', amount: 400000, date: isoDaysAgo(5) }); // +100%
+            const tx = makeTx({ type: 'expense', category: 'Marketing', amount: 400000, date: dateInCurrentPeriod() }); // +100%
             const alerts = detectAlerts(
                 1000000, [tx], [], undefined, undefined, undefined, '₦', [], [], [], undefined, [], [makeBudget()]
             );
@@ -502,7 +513,7 @@ describe('alertEngine', () => {
         });
 
         it('never flags a category tracking within its budget', () => {
-            const tx = makeTx({ type: 'expense', category: 'Marketing', amount: 205000, date: isoDaysAgo(5) }); // +2.5%, within the 5% band
+            const tx = makeTx({ type: 'expense', category: 'Marketing', amount: 205000, date: dateInCurrentPeriod() }); // +2.5%, within the 5% band
             const alerts = detectAlerts(
                 1000000, [tx], [], undefined, undefined, undefined, '₦', [], [], [], undefined, [], [makeBudget()]
             );
@@ -510,7 +521,7 @@ describe('alertEngine', () => {
         });
 
         it('never flags when there are no budgets at all', () => {
-            const tx = makeTx({ type: 'expense', category: 'Marketing', amount: 999999, date: isoDaysAgo(5) });
+            const tx = makeTx({ type: 'expense', category: 'Marketing', amount: 999999, date: dateInCurrentPeriod() });
             const alerts = detectAlerts(1000000, [tx], []);
             expect(alerts.some(a => a.type === 'budget_overspend')).toBe(false);
         });
