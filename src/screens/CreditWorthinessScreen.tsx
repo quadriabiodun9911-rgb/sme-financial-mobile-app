@@ -28,8 +28,24 @@ import { assessGoalRisk, GoalRiskAssessment } from '../utils/goalRiskLinkage';
 import { computeRiskRadar } from '../utils/riskRadar';
 import { computeForecastSummary } from '../utils/forecastSummary';
 import { computeForwardFinancingReadiness } from '../utils/forwardFinancingReadiness';
+import { computeQualityOfGrowth } from '../utils/qualityOfGrowth';
+import { computeDynamicFinancingReadiness, ReadinessDirection } from '../utils/dynamicFinancingReadiness';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
+
+const READINESS_DIRECTION_LABEL: Record<ReadinessDirection, string> = {
+    improving: 'Improving',
+    deteriorating: 'Deteriorating',
+    mixed: 'Mixed',
+    stable: 'Stable',
+    'not-yet-established': 'Not yet established',
+};
+const READINESS_DIRECTION_ARROW: Record<ReadinessDirection, string> = {
+    improving: '↗', deteriorating: '↘', mixed: '↔', stable: '→', 'not-yet-established': '·',
+};
+const READINESS_DIRECTION_COLOR: Record<ReadinessDirection, string> = {
+    improving: Colors.income, deteriorating: Colors.expense, mixed: Colors.warning, stable: Colors.textSecondary, 'not-yet-established': Colors.textMuted,
+};
 
 const FP_STATUS_LABEL: Record<string, string> = { good: 'Strong', warning: 'Watch', danger: 'High risk' };
 const FP_STATUS_COLOR: Record<string, string> = { good: Colors.income, warning: Colors.warning, danger: Colors.expense };
@@ -312,6 +328,21 @@ export default function CreditWorthinessScreen() {
     // downstream calculation (how much could this business realistically
     // borrow) where that distinction actually matters.
     const financingReadiness = useMemo(() => computeFinancingReadinessScore(risk.factors), [risk.factors]);
+    // Dynamic Financing Readiness -- the score above, plus which way it's
+    // moving and the real evidence behind that, instead of a flat number.
+    // growthQuality and topDiagnosis are each computed once here (not
+    // reused from goalRiskByGoalId above, which only runs when there's an
+    // active goal to assess) since this card should show regardless of
+    // whether the business has set any goals. See dynamicFinancingReadiness.ts.
+    const growthQuality = useMemo(() => computeQualityOfGrowth(transactions, assets, loans), [transactions, assets, loans]);
+    const topDiagnosis = useMemo(() => {
+        const d = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), currency, loans, inventory, assets);
+        return d.diagnoses[0] ?? null;
+    }, [transactions, invoices, finance, currency, loans, inventory, assets]);
+    const dynamicReadiness = useMemo(
+        () => computeDynamicFinancingReadiness(financingReadiness, growthQuality, forwardReadiness, topDiagnosis),
+        [financingReadiness, growthQuality, forwardReadiness, topDiagnosis],
+    );
     const lendingCapacity = useMemo(() => computeLendingCapacityEstimate({
         overallCreditScore: financingReadiness.score,
         avgMonthlyRevenue: user?.avgMonthlyRevenue || 0,
@@ -450,6 +481,73 @@ export default function CreditWorthinessScreen() {
                         now lives on Risk Management; this links there
                         instead of re-rendering the same list. */}
                     <NextStepLink text="See the full factor-by-factor breakdown → Risk Management" onPress={() => navigate('risk-management')} />
+                </View>
+
+                {/* Financing Readiness -- a distinct question from the Credit
+                    Score above ("how healthy is this business overall" vs
+                    "how ready is it specifically to service financing"),
+                    reweighted toward debt coverage and liquidity
+                    (financingReadiness = computeFinancingReadinessScore, was
+                    already computed for lendingCapacity below but never
+                    actually shown on its own). Direction, strengths, risks
+                    and evidence all come from computeDynamicFinancingReadiness
+                    -- see dynamicFinancingReadiness.ts for exactly what each
+                    one reuses. */}
+                <View style={s.section}>
+                    <Text style={s.sectionTitle}>🎯 Financing Readiness</Text>
+                    <View style={s.readinessHeaderRow}>
+                        <Text style={[s.readinessScore, { color: FP_BAND_COLOR[dynamicReadiness.band] }]}>{dynamicReadiness.score}</Text>
+                        <View style={[s.readinessBandBadge, { backgroundColor: FP_BAND_COLOR[dynamicReadiness.band] + '22' }]}>
+                            <Text style={[s.readinessBandText, { color: FP_BAND_COLOR[dynamicReadiness.band] }]}>{dynamicReadiness.band}</Text>
+                        </View>
+                        <Text style={[s.readinessDirection, { color: READINESS_DIRECTION_COLOR[dynamicReadiness.direction] }]}>
+                            {READINESS_DIRECTION_ARROW[dynamicReadiness.direction]} {READINESS_DIRECTION_LABEL[dynamicReadiness.direction]}
+                        </Text>
+                    </View>
+                    <Text style={s.readinessSummary}>{dynamicReadiness.directionSummary}</Text>
+
+                    {dynamicReadiness.strengths.length > 0 && (
+                        <View style={s.readinessBlock}>
+                            <Text style={s.readinessBlockLabel}>Strengths</Text>
+                            {dynamicReadiness.strengths.map((line, i) => (
+                                <Text key={i} style={[s.readinessBullet, { color: Colors.income }]}>✓ {line}</Text>
+                            ))}
+                        </View>
+                    )}
+
+                    {dynamicReadiness.risks.length > 0 && (
+                        <View style={s.readinessBlock}>
+                            <Text style={s.readinessBlockLabel}>Risks</Text>
+                            {dynamicReadiness.risks.map((line, i) => (
+                                <Text key={i} style={[s.readinessBullet, { color: Colors.warning }]}>! {line}</Text>
+                            ))}
+                        </View>
+                    )}
+
+                    {dynamicReadiness.evidenceOfImprovement.length > 0 && (
+                        <View style={s.readinessBlock}>
+                            <Text style={s.readinessBlockLabel}>Evidence of Improvement</Text>
+                            {dynamicReadiness.evidenceOfImprovement.map((line, i) => (
+                                <Text key={i} style={[s.readinessBullet, { color: Colors.income }]}>↗ {line}</Text>
+                            ))}
+                        </View>
+                    )}
+
+                    {dynamicReadiness.unresolvedIssues.length > 0 && (
+                        <View style={s.readinessBlock}>
+                            <Text style={s.readinessBlockLabel}>Unresolved</Text>
+                            {dynamicReadiness.unresolvedIssues.map((line, i) => (
+                                <Text key={i} style={[s.readinessBullet, { color: Colors.expense }]}>⚠ {line}</Text>
+                            ))}
+                        </View>
+                    )}
+
+                    {dynamicReadiness.nextMilestone && (
+                        <View style={s.readinessMilestoneBox}>
+                            <Text style={s.readinessBlockLabel}>Next Milestone</Text>
+                            <Text style={s.readinessMilestoneText}>{dynamicReadiness.nextMilestone}</Text>
+                        </View>
+                    )}
                 </View>
 
                 {/* The Five C's of Credit — the classic lender framework the
@@ -1008,6 +1106,18 @@ const s = StyleSheet.create({
     scoreRating: { fontSize: 16, fontWeight: '600', color: Colors.textPrimary, marginBottom: 20, paddingTop: 12, borderTopWidth: 1, borderTopColor: Colors.muted, width: '100%', textAlign: 'center' },
     section: { marginBottom: 24, backgroundColor: Colors.surface, borderRadius: 12, padding: 16, borderLeftWidth: 4, borderLeftColor: Colors.primary },
     sectionTitle: { fontSize: 16, fontWeight: '600', color: Colors.textPrimary, marginBottom: 12 },
+
+    readinessHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6 },
+    readinessScore: { fontSize: 28, fontWeight: '800' },
+    readinessBandBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
+    readinessBandText: { fontSize: 11.5, fontWeight: '700' },
+    readinessDirection: { fontSize: 13, fontWeight: '700', marginLeft: 'auto' },
+    readinessSummary: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18, marginBottom: 10 },
+    readinessBlock: { marginTop: 8 },
+    readinessBlockLabel: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 4 },
+    readinessBullet: { fontSize: 12.5, lineHeight: 18, marginBottom: 2 },
+    readinessMilestoneBox: { marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.border },
+    readinessMilestoneText: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, lineHeight: 18 },
 
     trendEmpty: { fontSize: 12.5, color: Colors.textMuted, lineHeight: 18, fontStyle: 'italic' },
     trendChartArea: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 84, marginBottom: 10 },
