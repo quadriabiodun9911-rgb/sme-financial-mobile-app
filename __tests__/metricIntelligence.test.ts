@@ -1,10 +1,11 @@
-import { computeBusinessHealthIntelligence, computeFinancingReadinessIntelligence, computeCashRunwayIntelligence, computeDSCRIntelligence, computeCashReserveIntelligence, computeQualityOfGrowthIntelligence, computeLendingCapacityIntelligence } from '../src/utils/metricIntelligence';
+import { computeBusinessHealthIntelligence, computeFinancingReadinessIntelligence, computeCashRunwayIntelligence, computeDSCRIntelligence, computeCashReserveIntelligence, computeQualityOfGrowthIntelligence, computeLendingCapacityIntelligence, computeBudgetHealthIntelligence } from '../src/utils/metricIntelligence';
 import { computeRiskScore, RiskScore, DSCRResult } from '../src/utils/finance';
 import { computeDataQuality, computeDataConfidenceBullets } from '../src/utils/dataQuality';
 import { CashRunway } from '../src/utils/cashRunway';
 import { FinancialResilience } from '../src/utils/cashReservePlanning';
 import { QualityOfGrowthResult } from '../src/utils/qualityOfGrowth';
 import { computeLendingCapacityEstimate } from '../src/utils/lendingCapacity';
+import { BudgetHealthResult } from '../src/utils/budgetHealth';
 import { Transaction } from '../src/types';
 
 // A minimal, directly-constructed RiskScore for the two band-boundary tests
@@ -263,6 +264,30 @@ describe('computeLendingCapacityIntelligence', () => {
         const txs = [makeTx({ type: 'income', amount: 40000, status: 'paid' })];
         const estimate = computeLendingCapacityEstimate({ overallCreditScore: 85, avgMonthlyRevenue: 100000, dscr: 2, hasReliableData: true });
         const result = computeLendingCapacityIntelligence({ estimate, overallCreditScore: 85, dscr: 2, hasReliableData: true }, txs);
+        expect(result.dataQuality).toEqual(computeDataQuality(txs));
+        expect(result.builtOn).toEqual(computeDataConfidenceBullets(computeDataQuality(txs)));
+    });
+});
+
+describe('computeBudgetHealthIntelligence', () => {
+    const makeBudgetHealth = (overrides: Partial<BudgetHealthResult>): BudgetHealthResult => ({
+        available: true, score: 60, factors: [], narrative: null, ...overrides,
+    });
+
+    it('states the real reason as the trigger when unavailable, never a fabricated one', () => {
+        const result = computeBudgetHealthIntelligence(makeBudgetHealth({ available: false, reason: 'No transaction history yet.' }), []);
+        expect(result.trigger).toBe('No transaction history yet.');
+    });
+
+    it('states the correct zone-transition trigger for all three zones, matching budgetHealth.ts\'s own real 70/45 cutoffs', () => {
+        expect(computeBudgetHealthIntelligence(makeBudgetHealth({ score: 30 }), []).trigger).toBe('Recovers out of the red zone once the score reaches 45.');
+        expect(computeBudgetHealthIntelligence(makeBudgetHealth({ score: 60 }), []).trigger).toBe('Falls into the red zone if the score drops below 45.');
+        expect(computeBudgetHealthIntelligence(makeBudgetHealth({ score: 85 }), []).trigger).toBe('Drops out of the green zone if the score falls below 70.');
+    });
+
+    it('reuses computeDataQuality verbatim, even for an unavailable result', () => {
+        const txs = [makeTx({ type: 'income', amount: 40000, status: 'paid' })];
+        const result = computeBudgetHealthIntelligence(makeBudgetHealth({ available: false, reason: 'x' }), txs);
         expect(result.dataQuality).toEqual(computeDataQuality(txs));
         expect(result.builtOn).toEqual(computeDataConfidenceBullets(computeDataQuality(txs)));
     });

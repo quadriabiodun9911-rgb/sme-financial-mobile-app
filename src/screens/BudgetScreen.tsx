@@ -16,7 +16,8 @@ import { isBudgetPeriodLapsed } from '../utils/budgetPeriod';
 import { computeGoalBudgetAlignment } from '../utils/goalAlignment';
 import { computeSmartBudgetRevenue } from '../utils/smartBudget';
 import { computeBudgetIntelligence } from '../utils/budgetIntelligence';
-import { computeBudgetHealth, BudgetHealthFactorKey } from '../utils/budgetHealth';
+import { computeBudgetHealth, BudgetHealthFactorKey, BUDGET_HEALTH_SCORE_CUTOFFS } from '../utils/budgetHealth';
+import { computeBudgetHealthIntelligence } from '../utils/metricIntelligence';
 import NextStepLink from '../components/NextStepLink';
 import Collapsible from '../components/Collapsible';
 import ProfitCashImpactCard from '../components/ProfitCashImpactCard';
@@ -36,7 +37,7 @@ const BUDGET_HEALTH_FACTOR_LABEL: Record<BudgetHealthFactorKey, string> = {
     scenarioResilience: 'Scenario Resilience',
 };
 function budgetHealthScoreColor(score: number): string {
-    return score >= 70 ? Colors.income : score >= 45 ? Colors.warning : Colors.expense;
+    return score >= BUDGET_HEALTH_SCORE_CUTOFFS.healthy ? Colors.income : score >= BUDGET_HEALTH_SCORE_CUTOFFS.warning ? Colors.warning : Colors.expense;
 }
 
 const FAVORABILITY_COLOR: Record<'favorable' | 'unfavorable' | 'on_track', string> = {
@@ -94,6 +95,17 @@ export default function BudgetScreen() {
         () => computeBudgetHealth(transactions, budgets, inventory, finance.cashBalance, forecastHistory, currency),
         [transactions, budgets, inventory, finance.cashBalance, forecastHistory, currency],
     );
+    // Metric Intelligence pilot -- same Definition/Data-confidence/Trigger
+    // treatment as the other seven metrics already covered. Distinct from
+    // the "See what makes up the score" factor breakdown below it -- this
+    // adds a plain-language definition plus the real 70/45 trigger
+    // thresholds the health pill's own color already keys off but never
+    // states. See metricIntelligence.ts.
+    const budgetHealthIntelligence = useMemo(
+        () => computeBudgetHealthIntelligence(budgetHealth, transactions),
+        [budgetHealth, transactions],
+    );
+    const [healthWhyOpen, setHealthWhyOpen] = useState(false);
 
     // budgets is never empty here and computeBudgetVsActual now filters to
     // the current period only (see finance.ts) -- when every category is
@@ -623,6 +635,30 @@ export default function BudgetScreen() {
                         )}
 
                         {budgetHealth.available && (
+                            <>
+                                <TouchableOpacity style={s.healthWhyBtn} onPress={() => setHealthWhyOpen(o => !o)}>
+                                    <Text style={s.healthWhyBtnText}>Why? What is this built on?</Text>
+                                    <Text style={s.healthWhyBtnText}>{healthWhyOpen ? '▲' : '▼'}</Text>
+                                </TouchableOpacity>
+                                {healthWhyOpen && (
+                                    <View style={s.healthWhyBox}>
+                                        <Text style={s.healthWhyLabel}>Definition</Text>
+                                        <Text style={s.healthWhyText}>{budgetHealthIntelligence.definition}</Text>
+
+                                        <Text style={s.healthWhyLabel}>Data confidence</Text>
+                                        <Text style={s.healthWhyText}>{budgetHealthIntelligence.dataQuality.summary}</Text>
+                                        {budgetHealthIntelligence.builtOn.map((line, i) => (
+                                            <Text key={i} style={s.healthWhyBullet}>• {line}</Text>
+                                        ))}
+
+                                        <Text style={s.healthWhyLabel}>Trigger</Text>
+                                        <Text style={[s.healthWhyText, { color: Colors.warning, fontWeight: '700' }]}>⚠️ {budgetHealthIntelligence.trigger}</Text>
+                                    </View>
+                                )}
+                            </>
+                        )}
+
+                        {budgetHealth.available && (
                             <Collapsible title={`See what makes up the ${budgetHealth.score}/100 Budget Health score`}>
                                 {budgetHealth.factors.map(f => (
                                     <View
@@ -1024,6 +1060,13 @@ const s = StyleSheet.create({
     intelFootnote:   { fontSize: 10.5, color: Colors.textMuted, fontStyle: 'italic', marginTop: 4 },
     budgetHealthPill: { borderWidth: 1.5, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
     budgetHealthPillText: { fontSize: 11, fontWeight: '800' },
+
+    healthWhyBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.border },
+    healthWhyBtnText: { fontSize: 11.5, fontWeight: '600', color: Colors.textMuted },
+    healthWhyBox: { backgroundColor: Colors.bg, borderRadius: Radius.md, padding: Spacing.md, marginTop: 8, marginBottom: Spacing.sm, gap: 2 },
+    healthWhyLabel: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 8 },
+    healthWhyText: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
+    healthWhyBullet: { fontSize: 11, color: Colors.textMuted, lineHeight: 16, marginTop: 2 },
 
     revenueScenarioBox:       { backgroundColor: Colors.bg, borderRadius: 10, padding: Spacing.md, marginBottom: Spacing.md },
     revenueScenarioTitle:     { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: Spacing.sm },

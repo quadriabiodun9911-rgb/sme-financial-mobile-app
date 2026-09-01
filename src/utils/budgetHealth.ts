@@ -47,6 +47,11 @@ import { computeRevenueStressTest } from './revenueStressTest';
 import { computeBudgetVarianceStreak } from './budgetIntelligence';
 import { computeForecastAccuracy } from './forecastHistory';
 
+// Exported so anything that needs the real "is this score good" cutoffs
+// (e.g. BudgetScreen's own pill color, metricIntelligence.ts's trigger)
+// reads them from here rather than hardcoding a second copy.
+export const BUDGET_HEALTH_SCORE_CUTOFFS = { healthy: 70, warning: 45 };
+
 export type BudgetHealthFactorKey =
     | 'forecastAccuracy' | 'revenuePredictability' | 'expensePredictability'
     | 'cashCoverage' | 'budgetVariance' | 'reserveAdequacy' | 'scenarioResilience';

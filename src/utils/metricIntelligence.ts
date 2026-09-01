@@ -3,12 +3,12 @@
  * was to give every important number a Definition / Owner / Assumption /
  * Trigger explanation. Retrofitting that onto every metric in this app at
  * once would touch dozens of screens on a guess at what's worth the effort
- * -- instead this applies the idea, in full, to seven of the app's most
+ * -- instead this applies the idea, in full, to eight of the app's most
  * prominent numbers (Business Health Score, Financing Readiness Score,
  * Cash Runway, DSCR, Cash Reserve Resilience, Quality of Growth,
- * Estimated Lending Capacity), as real, working examples rather than a
- * speculative abstraction built for metrics nobody has asked to
- * instrument yet.
+ * Estimated Lending Capacity, Budget Health), as real, working examples
+ * rather than a speculative abstraction built for metrics nobody has
+ * asked to instrument yet.
  *
  * Every piece here is reused, not invented:
  *  - Owner/data source and confidence come from computeDataQuality
@@ -40,6 +40,9 @@
  *    plus DSCR_THRESHOLDS.warning for the "current debt isn't covered yet"
  *    gate, since that gate is literally `dscr < 1`, the same 1.0x cutoff
  *    DSCR's own trigger already uses.
+ *  - The Budget Health trigger reads budgetHealth.ts's own exported
+ *    BUDGET_HEALTH_SCORE_CUTOFFS (70/45) -- the same two numbers
+ *    BudgetScreen's own health-pill color already keys off.
  *  - No threshold anywhere in this file is invented for this module alone.
  */
 
@@ -50,6 +53,7 @@ import { CashRunway } from './cashRunway';
 import { FinancialResilience } from './cashReservePlanning';
 import { QualityOfGrowthResult, QualityBand, MODEL as QUALITY_OF_GROWTH_MODEL } from './qualityOfGrowth';
 import { LendingCapacityEstimate, LENDING_CAPACITY_TIER_CUTOFFS } from './lendingCapacity';
+import { BudgetHealthResult, BUDGET_HEALTH_SCORE_CUTOFFS } from './budgetHealth';
 import { Transaction } from '../types';
 
 export interface RiskScoreIntelligence {
@@ -276,6 +280,48 @@ export function computeLendingCapacityIntelligence(
             : idx === 0
                 ? `Drops out of the ${LENDING_TIER_LABEL[estimate.tier]} tier if the credit score falls below ${LENDING_CAPACITY_TIER_CUTOFFS[idx].min}.`
                 : `Falls to ${LENDING_TIER_LABEL[LENDING_CAPACITY_TIER_CUTOFFS[idx + 1].tier]} if the credit score drops below ${LENDING_CAPACITY_TIER_CUTOFFS[idx].min}.`;
+    }
+
+    return {
+        definition,
+        dataQuality,
+        builtOn: computeDataConfidenceBullets(dataQuality),
+        trigger,
+    };
+}
+
+export interface BudgetHealthIntelligence {
+    definition: string;
+    dataQuality: DataQuality;
+    builtOn: string[];
+    trigger: string;
+}
+
+// Distinct from the "See what makes up the score" factor breakdown
+// BudgetScreen already shows (per-factor scores/explanations) -- this adds
+// the two things that breakdown doesn't: a single-sentence definition of
+// what the score is even for, and the real 70/45 trigger thresholds its
+// own color pill already uses but never states in words.
+export function computeBudgetHealthIntelligence(budgetHealth: BudgetHealthResult, transactions: Transaction[]): BudgetHealthIntelligence {
+    const dataQuality = computeDataQuality(transactions);
+    const definition = 'A weighted blend of up to 7 signals already computed elsewhere in the app -- Forecast Accuracy, Budget Variance, Cash Coverage, Reserve Adequacy, Scenario Resilience, and Revenue/Expense Predictability -- answering one specific question: how much should this budget and forecast actually be trusted right now. Weights are redistributed over whichever factors have enough data to compute, so a business just starting to budget isn\'t penalized for factors that simply don\'t apply yet.';
+
+    if (!budgetHealth.available) {
+        return {
+            definition,
+            dataQuality,
+            builtOn: computeDataConfidenceBullets(dataQuality),
+            trigger: budgetHealth.reason ?? 'Needs at least one budget and some transaction history before a real trigger applies.',
+        };
+    }
+
+    let trigger: string;
+    if (budgetHealth.score < BUDGET_HEALTH_SCORE_CUTOFFS.warning) {
+        trigger = `Recovers out of the red zone once the score reaches ${BUDGET_HEALTH_SCORE_CUTOFFS.warning}.`;
+    } else if (budgetHealth.score < BUDGET_HEALTH_SCORE_CUTOFFS.healthy) {
+        trigger = `Falls into the red zone if the score drops below ${BUDGET_HEALTH_SCORE_CUTOFFS.warning}.`;
+    } else {
+        trigger = `Drops out of the green zone if the score falls below ${BUDGET_HEALTH_SCORE_CUTOFFS.healthy}.`;
     }
 
     return {
