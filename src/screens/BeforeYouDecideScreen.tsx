@@ -11,6 +11,7 @@ import BuyVsFinanceCalculator from '../components/BuyVsFinanceCalculator';
 import BreakevenAnalysis from '../components/BreakevenAnalysis';
 import LoanAffordabilityChecker from '../components/LoanAffordabilityChecker';
 import DecisionSimulator from '../components/DecisionSimulator';
+import CapitalCommitmentTracker from '../components/CapitalCommitmentTracker';
 import { computeCashRunway } from '../utils/cashRunway';
 import { computeRiskScore, loanMonthlyPayment } from '../utils/finance';
 import { computeBreakeven } from '../utils/profitability';
@@ -181,6 +182,14 @@ export default function BeforeYouDecideScreen() {
                         monthlyOperatingBurn={monthlyBurn}
                         transactions={transactions}
                     />
+                </Collapsible>
+
+                <View style={styles.decisionCard}>
+                    <Text style={styles.decisionQuestion}>Already committed to something?</Text>
+                    <Text style={styles.decisionHelp}>Track whether a past hire, purchase, or investment is actually delivering what you expected — not just what it cost.</Text>
+                </View>
+                <Collapsible title="Investment Decision Tracker">
+                    <CapitalCommitmentTracker currency={currency} />
                 </Collapsible>
             </ScrollView>
             <FooterNav />

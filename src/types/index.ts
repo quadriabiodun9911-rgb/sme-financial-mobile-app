@@ -724,14 +724,33 @@ export interface CommitmentKPI {
 
 export type CommitmentStatus = 'on-track' | 'at-risk' | 'off-track' | 'not-started';
 
+// The owner's own recorded call on what to do next -- distinct from
+// capitalCommitmentMonitor.ts's computed `suggestedDecision`. A suggestion
+// is computed from KPI evidence; a decision is a deliberate act the owner
+// takes (or doesn't), same as CommitmentKPI's own "deliberate record, not
+// an inferred one" principle above. 'stop' is never auto-suggested by the
+// monitor (see capitalCommitmentMonitor.ts) but is a real option here,
+// since only the owner knows whether this investment is reversible.
+export type CommitmentDecision = 'continue' | 'adjust' | 'pause' | 'stop' | 'scale';
+
 export interface CapitalCommitment {
     id: string;
     name: string;
     amountApproved: number;
     purpose: string;
     approvedDate: string; // ISO date
+    // When results should be visible by -- lets capitalCommitmentMonitor.ts
+    // distinguish "too early to judge" from "genuinely underperforming"
+    // instead of reading day-2 zero progress as a red flag. Optional since
+    // not every commitment has a clean evidence horizon.
+    targetDate?: string;
+    // What must remain true for the KPIs below to hit target -- shown
+    // alongside the evidence, never inferred from transaction data.
+    assumptions?: string[];
     kpis: CommitmentKPI[];
     status: CommitmentStatus;
+    decision?: CommitmentDecision;
+    decidedAt?: string; // ISO date
     createdAt: string;
     updatedAt: string;
 }
