@@ -51,11 +51,16 @@ function parseAmount(text: string): number | null {
     return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
+function formatMonths(months: number): string {
+    return Number.isFinite(months) ? `${months.toFixed(1)} mo` : 'No burn';
+}
+
 export default function QuickHealthCheckWidget({ onWantFullPicture, onTryDemo, isWide }: Props) {
     const [revenueText, setRevenueText] = useState('');
     const [expensesText, setExpensesText] = useState('');
     const [cashText, setCashText] = useState('');
     const [result, setResult] = useState<QuickHealthCheckResult | null>(null);
+    const [stressOpen, setStressOpen] = useState(false);
 
     const revenue = parseAmount(revenueText);
     const expenses = parseAmount(expensesText);
@@ -69,6 +74,7 @@ export default function QuickHealthCheckWidget({ onWantFullPicture, onTryDemo, i
 
     const handleReset = () => {
         setResult(null);
+        setStressOpen(false);
     };
 
     if (result) {
@@ -108,6 +114,31 @@ export default function QuickHealthCheckWidget({ onWantFullPicture, onTryDemo, i
                                 ? 'How long your business could operate if revenue stopped today.'
                                 : 'Revenue currently covers expenses, so there\'s no active burn to project against.'}
                         </Text>
+
+                        <TouchableOpacity style={s.stressToggleBtn} onPress={() => setStressOpen(o => !o)}>
+                            <Text style={s.stressToggleText}>🧪 Stress-test this</Text>
+                            <Text style={s.stressToggleText}>{stressOpen ? '▲' : '▼'}</Text>
+                        </TouchableOpacity>
+                        {stressOpen && (
+                            <View style={s.stressBox}>
+                                <Text style={s.stressBoxTitle}>How long would your cash last under pressure?</Text>
+                                {result.stressScenarios.map(sc => (
+                                    <View key={sc.key} style={s.scenarioRow}>
+                                        <Text style={s.scenarioLabel}>{sc.label}</Text>
+                                        <Text style={s.scenarioValue}>{formatMonths(sc.runwayMonths)}</Text>
+                                    </View>
+                                ))}
+                                <Text style={[s.resultSub, { marginTop: 8 }]}>{result.stressNarrative}</Text>
+
+                                <Text style={[s.stressBoxTitle, { marginTop: 14 }]}>What would improve your runway?</Text>
+                                {result.runwayLevers.map((lever, i) => (
+                                    <View key={i} style={s.scenarioRow}>
+                                        <Text style={s.scenarioLabel}>{lever.label}</Text>
+                                        <Text style={[s.scenarioValue, { color: Colors.income }]}>→ {formatMonths(lever.runwayMonths)}</Text>
+                                    </View>
+                                ))}
+                            </View>
+                        )}
                     </View>
                 </View>
 
@@ -252,6 +283,14 @@ const s = StyleSheet.create({
     resultLabel: { fontSize: 11.5, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 4 },
     resultValue: { fontSize: 20, fontWeight: '800', color: Colors.textPrimary, marginBottom: 3 },
     resultSub: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
+
+    stressToggleBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: Colors.border },
+    stressToggleText: { fontSize: 11.5, fontWeight: '700', color: Colors.primary },
+    stressBox: { backgroundColor: Colors.bg, borderRadius: Radius.md, padding: Spacing.sm, marginTop: 8 },
+    stressBoxTitle: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 6 },
+    scenarioRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    scenarioLabel: { fontSize: 12, color: Colors.textSecondary },
+    scenarioValue: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary },
 
     scoreLine: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 3 },
     riskPill: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1.5, borderRadius: Radius.pill, paddingHorizontal: 10, paddingVertical: 4, alignSelf: 'flex-start' },

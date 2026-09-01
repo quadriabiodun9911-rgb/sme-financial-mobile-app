@@ -28,6 +28,18 @@ import {
     RISK_BAND_CUTOFFS,
     RiskScore,
 } from './finance';
+import { INDUSTRY_BENCHMARKS } from './financialDiagnosisEngine';
+
+export interface StressScenario {
+    key: 'current' | 'revenueDown25' | 'revenueDown50' | 'revenueStops' | 'expensesUp20';
+    label: string;
+    runwayMonths: number; // Infinity when this scenario still has no net burn
+}
+
+export interface RunwayLever {
+    label: string;
+    runwayMonths: number; // Infinity when this lever removes all burn
+}
 
 export interface QuickHealthCheckResult {
     // The partial score itself -- 0-100, using the real band scale
@@ -52,6 +64,14 @@ export interface QuickHealthCheckResult {
 
     diagnosis: string; // names which of the 2 real factors is the bigger concern, and why
     financingPreview: string; // qualitative only, explicitly caveated -- never a fabricated approval/denial
+
+    // Stress test -- same honest cash / net-burn formula as runwayMonths
+    // above, just re-run against four hypothetical revenue/expense shifts.
+    // Never blends revenue+expenses+profit into one figure; each scenario
+    // is still cash ÷ net burn, nothing more.
+    stressScenarios: StressScenario[];
+    stressNarrative: string; // reads the Revenue ↓25% scenario against the real INDUSTRY_BENCHMARKS runway thresholds, same ones the Cash Runway "Why?" trigger already uses
+    runwayLevers: RunwayLever[]; // "what would improve your runway" -- percentage-based, not a fixed dollar amount, so it scales honestly to any business size
 }
 
 export interface QuickHealthCheckInput {
@@ -63,6 +83,28 @@ export interface QuickHealthCheckInput {
 function partialBandFrom(score: number): RiskScore['band'] {
     return RISK_BAND_CUTOFFS.find(b => score >= b.min)!.band;
 }
+
+// The one runway formula everything in this file uses -- cash ÷ net burn,
+// Infinity when revenue already covers expenses. Every stress scenario and
+// improvement lever below just re-runs this against a hypothetical
+// revenue/expense pair; it never blends revenue, expenses and profit into
+// a single number the way a naive "cash ÷ expenses" shortcut would.
+function computeRunwayMonths(revenue: number, expenses: number, cash: number): number {
+    const burn = Math.max(expenses - revenue, 0);
+    return burn > 0 ? cash / burn : Infinity;
+}
+
+// Same real 60/30-day (2/1-month) safe/critical runway thresholds
+// INDUSTRY_BENCHMARKS already supplies to diagnoseLiquidity and every
+// real Cash Runway "Why?" trigger -- reused here for the stress
+// narrative, not a second invented cutoff.
+const STRESS_SAFE_MONTHS = INDUSTRY_BENCHMARKS.runwayDaysSafe / 30;
+const STRESS_CRITICAL_MONTHS = INDUSTRY_BENCHMARKS.runwayDaysCritical / 30;
+
+// A percentage, not a fixed dollar lever ("cut $5,000") -- a flat amount
+// would be trivial for a large business and impossible for a small one.
+// 10% is a clean, easily-explained round number for an illustrative lever.
+const LEVER_PCT = 0.10;
 
 export function computeQuickHealthCheck(input: QuickHealthCheckInput): QuickHealthCheckResult {
     const { lastMonthRevenue, monthlyExpenses, cashInBank } = input;
@@ -118,10 +160,34 @@ export function computeQuickHealthCheck(input: QuickHealthCheckInput): QuickHeal
         financingPreview = 'Lenders typically want healthy cash coverage and controlled expenses before extending credit — your numbers suggest more groundwork is needed first.';
     }
 
+    const stressScenarios: StressScenario[] = [
+        { key: 'current', label: 'Current position', runwayMonths },
+        { key: 'revenueDown25', label: 'Revenue ↓ 25%', runwayMonths: computeRunwayMonths(lastMonthRevenue * 0.75, monthlyExpenses, cashInBank) },
+        { key: 'revenueDown50', label: 'Revenue ↓ 50%', runwayMonths: computeRunwayMonths(lastMonthRevenue * 0.5, monthlyExpenses, cashInBank) },
+        { key: 'revenueStops', label: 'Revenue stops', runwayMonths: computeRunwayMonths(0, monthlyExpenses, cashInBank) },
+        { key: 'expensesUp20', label: 'Expenses ↑ 20%', runwayMonths: computeRunwayMonths(lastMonthRevenue, monthlyExpenses * 1.2, cashInBank) },
+    ];
+
+    const revenueDown25Months = stressScenarios[1].runwayMonths;
+    let stressNarrative: string;
+    if (!Number.isFinite(revenueDown25Months) || revenueDown25Months >= STRESS_SAFE_MONTHS) {
+        stressNarrative = 'Your business holds a comfortable cash buffer, even under a 25% revenue decline.';
+    } else if (revenueDown25Months >= STRESS_CRITICAL_MONTHS) {
+        stressNarrative = 'Your business currently has a moderate cash buffer, but a 25% decline in revenue would materially reduce your financial flexibility.';
+    } else {
+        stressNarrative = `Your cash buffer is thin — even a 25% decline in revenue would leave only about ${revenueDown25Months.toFixed(1)} month${revenueDown25Months === 1 ? '' : 's'} of runway.`;
+    }
+
+    const runwayLevers: RunwayLever[] = [
+        { label: `Cut monthly expenses by ${(LEVER_PCT * 100).toFixed(0)}%`, runwayMonths: computeRunwayMonths(lastMonthRevenue, monthlyExpenses * (1 - LEVER_PCT), cashInBank) },
+        { label: `Grow monthly revenue by ${(LEVER_PCT * 100).toFixed(0)}%`, runwayMonths: computeRunwayMonths(lastMonthRevenue * (1 + LEVER_PCT), monthlyExpenses, cashInBank) },
+    ];
+
     return {
         partialScore, partialBand, profitabilityScore, liquidityScore, marginPct,
         runwayMonths, isProfitable, netMonthlyBurn, expenseRatioPct,
         diagnosis, financingPreview,
+        stressScenarios, stressNarrative, runwayLevers,
     };
 }
 

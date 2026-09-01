@@ -69,4 +69,74 @@ describe('computeQuickHealthCheck', () => {
             expect(result.financingPreview).not.toMatch(/approved|denied|score of \d/i);
         }
     });
+
+    describe('stress test scenarios', () => {
+        it('re-runs the same cash / net-burn formula against each hypothetical, never blending revenue+expenses+profit into one figure', () => {
+            // burn = 45000-40000 = 5000/mo, cash 15000 -> current runway 3 months
+            const result = computeQuickHealthCheck({ lastMonthRevenue: 40000, monthlyExpenses: 45000, cashInBank: 15000 });
+            const byKey = Object.fromEntries(result.stressScenarios.map(s => [s.key, s.runwayMonths]));
+
+            expect(byKey.current).toBe(3);
+            // revenue*0.75=30000, burn=15000, runway=15000/15000=1
+            expect(byKey.revenueDown25).toBeCloseTo(1);
+            // revenue*0.5=20000, burn=25000, runway=15000/25000=0.6
+            expect(byKey.revenueDown50).toBeCloseTo(0.6);
+            // revenue=0, burn=45000, runway=15000/45000
+            expect(byKey.revenueStops).toBeCloseTo(15000 / 45000);
+            // expenses*1.2=54000, burn=14000, runway=15000/14000
+            expect(byKey.expensesUp20).toBeCloseTo(15000 / 14000);
+        });
+
+        it('shows a profitable business collapsing from Infinity into a real number once revenue is stressed hard enough -- the exact "opportunity to demonstrate intelligence" a flat cash/expenses shortcut would miss', () => {
+            const result = computeQuickHealthCheck({ lastMonthRevenue: 50000, monthlyExpenses: 30000, cashInBank: 100000 });
+            const byKey = Object.fromEntries(result.stressScenarios.map(s => [s.key, s.runwayMonths]));
+
+            // Still profitable at -25% (37500 > 30000) and after a 20% expense hike (30000*1.2=36000 < 50000)
+            expect(byKey.current).toBe(Infinity);
+            expect(byKey.revenueDown25).toBe(Infinity);
+            expect(byKey.expensesUp20).toBe(Infinity);
+            // -50% (25000) and revenue-stops both introduce real burn against expenses of 30000
+            expect(byKey.revenueDown50).toBeCloseTo(100000 / 5000);
+            expect(byKey.revenueStops).toBeCloseTo(100000 / 30000);
+        });
+
+        it('narrates the Revenue ↓25% scenario against the real INDUSTRY_BENCHMARKS runway thresholds -- comfortable/moderate/thin, matching the app\'s own 60/30-day cutoffs', () => {
+            // revenueDown25 runway = 25000/20000 = 1.25 months -> falls in the [1,2) "moderate" band
+            const moderate = computeQuickHealthCheck({ lastMonthRevenue: 40000, monthlyExpenses: 50000, cashInBank: 25000 });
+            expect(moderate.stressNarrative).toContain('moderate cash buffer');
+            expect(moderate.stressNarrative).toContain('25%');
+
+            // revenueDown25 runway = 50000/11000 ≈ 4.5 months -> >= 2, "comfortable"
+            const comfortable = computeQuickHealthCheck({ lastMonthRevenue: 40000, monthlyExpenses: 41000, cashInBank: 50000 });
+            expect(comfortable.stressNarrative).toContain('comfortable cash buffer');
+
+            // revenueDown25 runway = 2000/15000 ≈ 0.13 months -> < 1, "thin"
+            const thin = computeQuickHealthCheck({ lastMonthRevenue: 40000, monthlyExpenses: 45000, cashInBank: 2000 });
+            expect(thin.stressNarrative).toContain('thin');
+        });
+
+        it('computes percentage-based improvement levers (never a fixed dollar amount that wouldn\'t scale across business sizes)', () => {
+            // burn = 5000/mo, cash 15000 -> current runway 3 months
+            const result = computeQuickHealthCheck({ lastMonthRevenue: 40000, monthlyExpenses: 45000, cashInBank: 15000 });
+            expect(result.runwayLevers).toHaveLength(2);
+            for (const lever of result.runwayLevers) {
+                expect(lever.label).toContain('10%');
+            }
+
+            const cutExpenses = result.runwayLevers.find(l => /cut/i.test(l.label))!;
+            // expenses*0.9=40500, burn=500, runway=15000/500=30
+            expect(cutExpenses.runwayMonths).toBeCloseTo(30);
+
+            const growRevenue = result.runwayLevers.find(l => /grow/i.test(l.label))!;
+            // revenue*1.1=44000, burn=1000, runway=15000/1000=15
+            expect(growRevenue.runwayMonths).toBeCloseTo(15);
+        });
+
+        it('keeps levers honestly at Infinity when a modest 10% shift isn\'t enough to introduce any burn at all', () => {
+            const result = computeQuickHealthCheck({ lastMonthRevenue: 50000, monthlyExpenses: 30000, cashInBank: 100000 });
+            for (const lever of result.runwayLevers) {
+                expect(lever.runwayMonths).toBe(Infinity);
+            }
+        });
+    });
 });
