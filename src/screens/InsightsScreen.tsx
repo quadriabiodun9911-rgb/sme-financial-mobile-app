@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, StyleSheet,
-    TouchableOpacity, LayoutAnimation, Platform, UIManager,
+    TouchableOpacity, LayoutAnimation, Platform, UIManager, useWindowDimensions,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -34,6 +34,12 @@ export default function InsightsScreen() {
 
     const [decisionCentreExpanded, setDecisionCentreExpanded] = useState(true);
     const [expandedAction, setExpandedAction] = useState<number | null>(null);
+    // Desktop-optimized layout: the simple stat/list cards below (Performance
+    // Overview, Cash Reserve Check, Tax Position, Top Expense Categories,
+    // Income Sources) flow into a 2-column grid on a wide viewport instead
+    // of stacking -- same isWide/1000px pattern as Dashboard and Scoreboard.
+    const { width: insightsWidth } = useWindowDimensions();
+    const isWideInsights = Platform.OS === 'web' && insightsWidth >= 1000;
 
     useEffect(() => {
         if (!isDemoMode) trackInsightViewed('decision-centre');
@@ -208,8 +214,11 @@ export default function InsightsScreen() {
                         </View>
                     )}
 
+                    {/* These 3 cards flow into a 2-column grid on a wide
+                        viewport instead of stacking -- see isWideInsights. */}
+                    <View style={isWideInsights && styles.insightsGrid}>
                     {/* ── Performance ─────────────────────────────────────── */}
-                    <View style={styles.card}>
+                    <View style={[styles.card, isWideInsights && styles.insightsGridItem]}>
                         <Text style={styles.cardTitle}>Performance Overview</Text>
                         <Row label="Current Margin" value={`${(isNaN(finance.margin) ? 0 : finance.margin).toFixed(2)}%`} valueStyle={(isNaN(finance.margin) ? 0 : finance.margin) >= (parseFloat(targetMargin) || 0) ? styles.green : styles.red} />
                         <Row label="Target Margin" value={`${targetMargin}%`} valueStyle={styles.normal} />
@@ -221,7 +230,7 @@ export default function InsightsScreen() {
                         headline were an exact repeat of Dashboard's numbers.
                         What's actually unique here is the reserve threshold check
                         against your Settings target, so that's all that's left. */}
-                    <View style={styles.card}>
+                    <View style={[styles.card, isWideInsights && styles.insightsGridItem]}>
                         <Text style={styles.cardTitle}>Cash Reserve Check</Text>
                         <Row label="Min. Reserve Target" value={`${currency}${minReserve}`} valueStyle={styles.normal} />
                         <View style={[styles.badge, reserveOk ? styles.badgeGreen : styles.badgeRed]}>
@@ -230,7 +239,7 @@ export default function InsightsScreen() {
                     </View>
 
                     {/* ── Tax ──────────────────────────────────────────────── */}
-                    <View style={styles.card}>
+                    <View style={[styles.card, isWideInsights && styles.insightsGridItem]}>
                         <Text style={styles.cardTitle}>Tax Position</Text>
                         <Row label="Tax Collected" value={`${currency}${finance.totalTaxCollected.toLocaleString()}`} valueStyle={styles.yellow} />
                         <Row label="Tax Paid" value={`${currency}${finance.totalTaxPaid.toLocaleString()}`} valueStyle={styles.yellow} />
@@ -238,6 +247,7 @@ export default function InsightsScreen() {
                         <TouchableOpacity onPress={() => navigate('reports', { reportSection: 'tax', reportTab: 'tax' })}>
                             <Text style={styles.linkText}>View full Tax Summary →</Text>
                         </TouchableOpacity>
+                    </View>
                     </View>
 
                     {/* ── Balance Sheet ─────────────────────────────────────── — was a
@@ -251,8 +261,11 @@ export default function InsightsScreen() {
                         <Text style={styles.fullSwotText}>See full balance sheet (assets, liabilities, equity) →</Text>
                     </TouchableOpacity>
 
+                    {/* These 2 cards flow into a 2-column grid on a wide
+                        viewport instead of stacking -- see isWideInsights. */}
+                    <View style={isWideInsights && styles.insightsGrid}>
                     {/* ── Top Expenses ─────────────────────────────────────── */}
-                    <View style={styles.card}>
+                    <View style={[styles.card, isWideInsights && styles.insightsGridItem]}>
                         <Text style={styles.cardTitle}>Top Expense Categories</Text>
                         {topExpenses.length === 0 && <Text style={styles.empty}>No expense transactions yet.</Text>}
                         {topExpenses.map(({ category, amount }) => (
@@ -261,12 +274,13 @@ export default function InsightsScreen() {
                     </View>
 
                     {/* ── Income Sources ────────────────────────────────────── */}
-                    <View style={styles.card}>
+                    <View style={[styles.card, isWideInsights && styles.insightsGridItem]}>
                         <Text style={styles.cardTitle}>Income Sources</Text>
                         {topIncome.length === 0 && <Text style={styles.empty}>No income transactions yet.</Text>}
                         {topIncome.map(({ category, amount }) => (
                             <Row key={category} label={category} value={`${currency}${amount.toLocaleString()}`} valueStyle={styles.green} />
                         ))}
+                    </View>
                     </View>
                 </View>
             </ScrollView>
@@ -383,6 +397,10 @@ const styles = StyleSheet.create({
 
     // Shared
     card: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.lg, marginBottom: 14, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
+    insightsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.md },
+    // marginBottom: 0 overrides card's own marginBottom -- insightsGrid's
+    // own `gap` handles spacing in both directions once wrapped.
+    insightsGridItem: { width: '48%', minWidth: 280, marginBottom: 0 },
     cardTitle: { fontSize: 16, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: Spacing.md },
     green: { color: Colors.income },
     red: { color: Colors.expense },
