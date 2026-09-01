@@ -125,6 +125,7 @@ describe('computeGoalBudgetAlignment', () => {
 describe('computeGoalForecastAlignment', () => {
     const makeWeek = (cumulativeCash: number, week = 'W'): CashFlowForecastWeek => ({
         week, projectedInflow: 0, projectedOutflow: 0, netCash: 0, cumulativeCash, alert: false, usedBudget: false,
+        openingCash: 0, closingCash: cumulativeCash, runwayWeeks: 0,
     });
 
     it('is not applicable for non-cash_reserve goals', () => {

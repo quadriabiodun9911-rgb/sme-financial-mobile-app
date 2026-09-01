@@ -1759,15 +1759,35 @@ export function computeImprovementProjection(
     };
 }
 
-// 9. Cash flow forecast (90 days, week by week)
+// 9. Cash flow forecast (90 days, week by week) -- the 13-Week Cash
+// Forecast every CFO tool has, since the horizon this weekly cadence
+// naturally reaches is 13 weeks (90 days / 7).
 export interface CashFlowForecastWeek {
     week: string;
     projectedInflow: number;
     projectedOutflow: number;
     netCash: number;
+    // Running net delta from zero, NOT an absolute cash balance -- kept for
+    // existing callers (CashFlowScreen's bar chart, GoalsScreen,
+    // CFOScreen) that only ever compared weeks to each other. See
+    // openingCash/closingCash below for the absolute-balance figures a
+    // genuine 13-week cash forecast table needs.
     cumulativeCash: number;
     alert: boolean;
     usedBudget: boolean; // true if this week's outflow reflects a committed budget rather than just historical recurring spend
+    // Absolute cash balance at the start/end of this week -- seeded from
+    // currentCashBalance below (0 when a caller doesn't pass one, in which
+    // case these just equal cumulativeCash's own running total and add no
+    // new information for that caller).
+    openingCash: number;
+    closingCash: number;
+    // Weeks of runway this week's closing cash would cover at this week's
+    // OWN projected outflow rate (gross spend, not net of inflow -- same
+    // "burn" convention computeCashRunway uses elsewhere). Infinity when
+    // outflow is 0, matching computeCashRunway's own convention of
+    // Infinity for genuinely unlimited runway rather than a magnitude
+    // sentinel; 0 when closingCash has already gone negative.
+    runwayWeeks: number;
 }
 
 // budgets is optional and defaults to [] so existing callers are unaffected.
@@ -1777,11 +1797,17 @@ export interface CashFlowForecastWeek {
 // outflow just because spending hasn't caught up to the plan yet. This is
 // what ties the Budget and Cash Flow Forecast screens together: a decision
 // made on one immediately shows up in the other.
+//
+// currentCashBalance is likewise optional (default 0) so existing callers
+// that only ever read cumulativeCash/netCash/alert are unaffected -- pass
+// finance.cashBalance to also get real openingCash/closingCash/runwayWeeks
+// figures, which is what a genuine 13-week cash forecast needs.
 export function computeCashFlowForecast(
     transactions: Transaction[],
     loans: Loan[],
     invoices: Invoice[],
     budgets: Budget[] = [],
+    currentCashBalance: number = 0,
 ): CashFlowForecastWeek[] {
     const today = new Date();
     const result: CashFlowForecastWeek[] = [];
@@ -1828,6 +1854,7 @@ export function computeCashFlowForecast(
     }
 
     let cumulative = 0;
+    let runningCash = currentCashBalance;
     for (let w = 0; w < 13; w++) {
         const weekStart = new Date(today); weekStart.setDate(today.getDate() + w * 7);
         const weekEnd   = new Date(today); weekEnd.setDate(today.getDate() + (w + 1) * 7 - 1);
@@ -1845,6 +1872,12 @@ export function computeCashFlowForecast(
         const outflow = (usedBudget ? weeklyBudgetOutflow : weeklyExpenseBase) + weeklyLoanCost;
         const net = inflow - outflow;
         cumulative += net;
+
+        const openingCash = runningCash;
+        const closingCash = openingCash + net;
+        runningCash = closingCash;
+        const runwayWeeks = closingCash <= 0 ? 0 : outflow > 0 ? closingCash / outflow : Infinity;
+
         result.push({
             week: `${weekStart.toLocaleDateString('default', { month: 'short', day: 'numeric' })}`,
             projectedInflow: Math.round(inflow),
@@ -1853,6 +1886,9 @@ export function computeCashFlowForecast(
             cumulativeCash: Math.round(cumulative),
             alert: cumulative < 0,
             usedBudget,
+            openingCash: Math.round(openingCash),
+            closingCash: Math.round(closingCash),
+            runwayWeeks,
         });
     }
     return result;

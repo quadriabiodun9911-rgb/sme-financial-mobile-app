@@ -187,7 +187,7 @@ export default function GoalsScreen() {
 
     const planForecastAlignment = useMemo(() => {
         if (!planGoal || planGoal.type !== 'cash_reserve') return null;
-        const forecast = computeCashFlowForecast(transactions, loans, invoices, budgets);
+        const forecast = computeCashFlowForecast(transactions, loans, invoices, budgets, finance.cashBalance);
         return computeGoalForecastAlignment(planGoal, forecast, finance.cashBalance);
     }, [planGoal, transactions, loans, invoices, budgets, finance.cashBalance]);
 

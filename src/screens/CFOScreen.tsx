@@ -203,7 +203,7 @@ function ForecastTab() {
     // recent real data point, not silently start from a fake $0 baseline
     // whenever there's no activity in the literal current calendar month.
     const forecast  = useMemo(() => computeRevenueForecast(transactions, forecastMonths, latestTransactionDate(transactions) ?? undefined), [transactions, forecastMonths]);
-    const cashFlow  = useMemo(() => computeCashFlowForecast(transactions, loans, invoices, budgets), [transactions, loans, invoices, budgets]);
+    const cashFlow  = useMemo(() => computeCashFlowForecast(transactions, loans, invoices, budgets, finance.cashBalance), [transactions, loans, invoices, budgets, finance.cashBalance]);
     const maxVal    = Math.max(...forecast.map(f => f.bestCase), 1);
     const alertWeeks = cashFlow.filter(w => w.alert).length;
 

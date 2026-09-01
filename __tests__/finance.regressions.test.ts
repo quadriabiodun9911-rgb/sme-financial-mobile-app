@@ -152,6 +152,51 @@ describe('computeCashFlowForecast — budget awareness', () => {
     });
 });
 
+// 13-Week Cash Forecast: openingCash/closingCash/runwayWeeks turn the
+// existing week-by-week net-delta forecast into an absolute-balance table
+// -- currentCashBalance is optional (default 0) so every existing caller
+// that only ever read cumulativeCash/netCash/alert stays byte-for-byte
+// unaffected.
+describe('computeCashFlowForecast — openingCash/closingCash/runwayWeeks', () => {
+    it('defaults openingCash/closingCash to the same running total as cumulativeCash when no currentCashBalance is passed (backward compatible)', () => {
+        const txs: Transaction[] = [makeTx({ type: 'income', amount: 130000, status: 'paid', date: new Date().toISOString().slice(0, 10) })];
+        const weeks = computeCashFlowForecast(txs, [], []);
+        for (const w of weeks) {
+            expect(w.closingCash).toBe(w.cumulativeCash);
+        }
+    });
+
+    it('seeds openingCash from currentCashBalance and chains closingCash week to week', () => {
+        const weeks = computeCashFlowForecast([], [], [], [], 500000);
+        expect(weeks[0].openingCash).toBe(500000);
+        expect(weeks[0].closingCash).toBe(weeks[0].openingCash + weeks[0].netCash);
+        for (let i = 1; i < weeks.length; i++) {
+            expect(weeks[i].openingCash).toBe(weeks[i - 1].closingCash);
+        }
+    });
+
+    it('computes runwayWeeks as closingCash divided by that week\'s own outflow, matching computeCashRunway\'s Infinity (not a magnitude sentinel) convention when outflow is zero', () => {
+        const weeks = computeCashFlowForecast([], [], [], [], 100000);
+        for (const w of weeks) {
+            if (w.closingCash <= 0) {
+                expect(w.runwayWeeks).toBe(0);
+            } else if (w.projectedOutflow > 0) {
+                expect(w.runwayWeeks).toBeCloseTo(w.closingCash / w.projectedOutflow, 5);
+            } else {
+                expect(w.runwayWeeks).toBe(Infinity);
+            }
+        }
+    });
+
+    it('reports runwayWeeks of 0, not a negative number, once closingCash has gone negative', () => {
+        const txs: Transaction[] = [makeTx({ type: 'expense', amount: 999999, status: 'paid', isRecurring: true, date: new Date().toISOString().slice(0, 10) })];
+        const weeks = computeCashFlowForecast(txs, [], [], [], 1000);
+        const negativeWeek = weeks.find(w => w.closingCash < 0);
+        expect(negativeWeek).toBeDefined();
+        expect(negativeWeek?.runwayWeeks).toBe(0);
+    });
+});
+
 // A business that just logs day-to-day sales/expenses one at a time --
 // never tagging anything "recurring" -- used to get every week projected
 // at zero inflow (recurring/invoice/budget were its only inputs), no

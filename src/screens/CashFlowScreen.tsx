@@ -28,6 +28,11 @@ export default function CashFlowScreen() {
     const [tab, setTab] = useState<Tab>(
         (['forecast', 'runway', 'ar', 'breakeven'] as Tab[]).includes(navParams?.tab as Tab) ? (navParams!.tab as Tab) : 'forecast'
     );
+    // Chart is the original view (proportional inflow/outflow bars, good for
+    // scanning shape at a glance); Table is the classic CFO "13-Week Cash
+    // Forecast" ledger format (opening/inflow/outflow/closing/runway per
+    // week) -- added alongside, not in place of, the chart.
+    const [weeklyView, setWeeklyView] = useState<'chart' | 'table'>('chart');
     const sym = settings.currency || '₦';
 
     const fmt = (n: number) => {
@@ -40,7 +45,7 @@ export default function CashFlowScreen() {
     };
 
     // 90-day weekly cash flow forecast
-    const weeks = useMemo(() => computeCashFlowForecast(transactions, loans, invoices, budgets), [transactions, loans, invoices, budgets]);
+    const weeks = useMemo(() => computeCashFlowForecast(transactions, loans, invoices, budgets, finance.cashBalance), [transactions, loans, invoices, budgets, finance.cashBalance]);
     const usesBudget = weeks.some(w => w.usedBudget);
 
     // Cash runway
@@ -188,43 +193,85 @@ export default function CashFlowScreen() {
                             );
                         })()}
 
-                        <Text style={styles.sectionTitle}>Weekly Cash Flow — Next 13 Weeks</Text>
-                        {weeks.map((w, i) => {
-                            const inflowPct = w.projectedInflow / maxOut;
-                            const outflowPct = w.projectedOutflow / maxOut;
-                            return (
-                                <View key={i} style={[styles.weekRow, w.alert && styles.weekRowAlert]}>
-                                    <Text style={styles.weekLabel}>{w.week}</Text>
-                                    <View style={styles.barCol}>
-                                        <View style={styles.barTrack}>
-                                            <View style={[styles.barFill, { width: `${inflowPct * 100}%`, backgroundColor: Colors.income }]} />
-                                        </View>
-                                        <View style={styles.barTrack}>
-                                            <View style={[styles.barFill, { width: `${outflowPct * 100}%`, backgroundColor: Colors.expense }]} />
-                                        </View>
-                                    </View>
-                                    <View style={styles.weekNums}>
-                                        <Text style={[styles.weekNet, { color: w.netCash >= 0 ? Colors.income : Colors.expense }]}>
-                                            {fmt(w.netCash)}
-                                        </Text>
-                                        <Text style={styles.weekCumLabel}>
-                                            Cum: {fmt(w.cumulativeCash)}
-                                        </Text>
-                                    </View>
-                                </View>
-                            );
-                        })}
-
-                        <View style={styles.legend}>
-                            <View style={styles.legendItem}>
-                                <View style={[styles.legendDot, { backgroundColor: Colors.income }]} />
-                                <Text style={styles.legendLabel}>Projected Inflow</Text>
-                            </View>
-                            <View style={styles.legendItem}>
-                                <View style={[styles.legendDot, { backgroundColor: Colors.expense }]} />
-                                <Text style={styles.legendLabel}>Projected Outflow</Text>
+                        <View style={styles.weeklyHeaderRow}>
+                            <Text style={styles.sectionTitle}>Weekly Cash Flow — Next 13 Weeks</Text>
+                            <View style={styles.viewToggle}>
+                                {(['chart', 'table'] as const).map(v => (
+                                    <TouchableOpacity key={v} style={[styles.viewToggleBtn, weeklyView === v && styles.viewToggleBtnActive]} onPress={() => setWeeklyView(v)}>
+                                        <Text style={[styles.viewToggleText, weeklyView === v && styles.viewToggleTextActive]}>{v === 'chart' ? 'Chart' : 'Table'}</Text>
+                                    </TouchableOpacity>
+                                ))}
                             </View>
                         </View>
+
+                        {weeklyView === 'chart' ? (
+                            <>
+                                {weeks.map((w, i) => {
+                                    const inflowPct = w.projectedInflow / maxOut;
+                                    const outflowPct = w.projectedOutflow / maxOut;
+                                    return (
+                                        <View key={i} style={[styles.weekRow, w.alert && styles.weekRowAlert]}>
+                                            <Text style={styles.weekLabel}>{w.week}</Text>
+                                            <View style={styles.barCol}>
+                                                <View style={styles.barTrack}>
+                                                    <View style={[styles.barFill, { width: `${inflowPct * 100}%`, backgroundColor: Colors.income }]} />
+                                                </View>
+                                                <View style={styles.barTrack}>
+                                                    <View style={[styles.barFill, { width: `${outflowPct * 100}%`, backgroundColor: Colors.expense }]} />
+                                                </View>
+                                            </View>
+                                            <View style={styles.weekNums}>
+                                                <Text style={[styles.weekNet, { color: w.netCash >= 0 ? Colors.income : Colors.expense }]}>
+                                                    {fmt(w.netCash)}
+                                                </Text>
+                                                <Text style={styles.weekCumLabel}>
+                                                    Cum: {fmt(w.cumulativeCash)}
+                                                </Text>
+                                            </View>
+                                        </View>
+                                    );
+                                })}
+
+                                <View style={styles.legend}>
+                                    <View style={styles.legendItem}>
+                                        <View style={[styles.legendDot, { backgroundColor: Colors.income }]} />
+                                        <Text style={styles.legendLabel}>Projected Inflow</Text>
+                                    </View>
+                                    <View style={styles.legendItem}>
+                                        <View style={[styles.legendDot, { backgroundColor: Colors.expense }]} />
+                                        <Text style={styles.legendLabel}>Projected Outflow</Text>
+                                    </View>
+                                </View>
+                            </>
+                        ) : (
+                            <>
+                                <View style={styles.table}>
+                                    <View style={styles.tableHeaderRow}>
+                                        <Text style={[styles.tableHeaderCell, styles.tableColWeek]}>Week</Text>
+                                        <Text style={[styles.tableHeaderCell, styles.tableColMoney]}>Opening</Text>
+                                        <Text style={[styles.tableHeaderCell, styles.tableColMoney]}>In</Text>
+                                        <Text style={[styles.tableHeaderCell, styles.tableColMoney]}>Out</Text>
+                                        <Text style={[styles.tableHeaderCell, styles.tableColMoney]}>Closing</Text>
+                                        <Text style={[styles.tableHeaderCell, styles.tableColRunway]}>Runway</Text>
+                                    </View>
+                                    {weeks.map((w, i) => (
+                                        <View key={i} style={[styles.tableRow, w.closingCash < 0 && styles.tableRowAlert]}>
+                                            <Text style={[styles.tableCell, styles.tableColWeek]}>{w.week}</Text>
+                                            <Text style={[styles.tableCell, styles.tableColMoney]}>{fmt(w.openingCash)}</Text>
+                                            <Text style={[styles.tableCell, styles.tableColMoney, { color: Colors.income }]}>{fmt(w.projectedInflow)}</Text>
+                                            <Text style={[styles.tableCell, styles.tableColMoney, { color: Colors.expense }]}>{fmt(w.projectedOutflow)}</Text>
+                                            <Text style={[styles.tableCell, styles.tableColMoney, { fontWeight: '800', color: w.closingCash < 0 ? Colors.expense : Colors.text }]}>{fmt(w.closingCash)}</Text>
+                                            <Text style={[styles.tableCell, styles.tableColRunway]}>
+                                                {w.closingCash <= 0 ? '—' : Number.isFinite(w.runwayWeeks) ? `${w.runwayWeeks.toFixed(1)}w` : '∞'}
+                                            </Text>
+                                        </View>
+                                    ))}
+                                </View>
+                                <Text style={styles.tableAssumptions}>
+                                    Built from: invoices due each week, your trailing 90-day pattern of ordinary (non-recurring) and recurring transactions, active loan payments, and this month's committed budget where it's higher than recent spend. Runway is that week's closing cash divided by that week's own projected outflow — how long it alone would last with no further income.
+                                </Text>
+                            </>
+                        )}
 
                         <View style={styles.noteBoxRow}>
                             <Icon name="zap" size={14} color={Colors.primary} />
@@ -504,6 +551,24 @@ const styles = StyleSheet.create({
     solutionDetail: { fontSize: 12, color: Colors.muted, lineHeight: 17 },
 
     sectionTitle: { fontSize: 14, fontWeight: '700', color: Colors.text, marginBottom: 10, marginTop: Spacing.sm },
+
+    weeklyHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    viewToggle: { flexDirection: 'row', backgroundColor: Colors.card, borderRadius: Radius.pill, borderWidth: 1, borderColor: Colors.border, padding: 2 },
+    viewToggleBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.pill },
+    viewToggleBtnActive: { backgroundColor: Colors.primary },
+    viewToggleText: { fontSize: 11, fontWeight: '700', color: Colors.muted },
+    viewToggleTextActive: { color: '#fff' },
+
+    table: { borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, overflow: 'hidden', marginTop: Spacing.xs },
+    tableHeaderRow: { flexDirection: 'row', backgroundColor: Colors.card, paddingVertical: 8, paddingHorizontal: 6, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    tableHeaderCell: { fontSize: 10, fontWeight: '700', color: Colors.muted, textTransform: 'uppercase' },
+    tableRow: { flexDirection: 'row', paddingVertical: 8, paddingHorizontal: 6, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    tableRowAlert: { backgroundColor: 'rgba(239,68,68,0.06)' },
+    tableCell: { fontSize: 11, color: Colors.text },
+    tableColWeek: { width: 46 },
+    tableColMoney: { flex: 1, textAlign: 'right' },
+    tableColRunway: { width: 48, textAlign: 'right' },
+    tableAssumptions: { fontSize: 10.5, color: Colors.muted, lineHeight: 15, marginTop: Spacing.sm, fontStyle: 'italic' },
 
     weekRow:      { flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: Spacing.sm },
     weekRowAlert: { backgroundColor: 'rgba(239,68,68,0.05)', borderRadius: Radius.sm, padding: Spacing.xs },
