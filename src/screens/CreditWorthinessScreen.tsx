@@ -31,7 +31,7 @@ import { computeForwardFinancingReadiness } from '../utils/forwardFinancingReadi
 import { computeQualityOfGrowth } from '../utils/qualityOfGrowth';
 import { computeDynamicFinancingReadiness, ReadinessDirection } from '../utils/dynamicFinancingReadiness';
 import { computeFinancialChangeExplanation } from '../utils/financialChangeExplanation';
-import { computeFinancingReadinessIntelligence } from '../utils/metricIntelligence';
+import { computeFinancingReadinessIntelligence, computeLendingCapacityIntelligence } from '../utils/metricIntelligence';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 
@@ -359,13 +359,27 @@ export default function CreditWorthinessScreen() {
         [financingReadiness, transactions],
     );
     const [readinessWhyOpen, setReadinessWhyOpen] = useState(false);
+    const lendingCapacityHasReliableData = dataQuality.confidence !== 'none' && dataQuality.confidence !== 'limited';
     const lendingCapacity = useMemo(() => computeLendingCapacityEstimate({
         overallCreditScore: financingReadiness.score,
         avgMonthlyRevenue: user?.avgMonthlyRevenue || 0,
         dscr: dscrResult.dscr,
-        hasReliableData: dataQuality.confidence !== 'none' && dataQuality.confidence !== 'limited',
+        hasReliableData: lendingCapacityHasReliableData,
         inventoryValue,
-    }), [financingReadiness.score, user?.avgMonthlyRevenue, dscrResult.dscr, dataQuality.confidence, inventoryValue]);
+    }), [financingReadiness.score, user?.avgMonthlyRevenue, dscrResult.dscr, lendingCapacityHasReliableData, inventoryValue]);
+    // Metric Intelligence pilot -- same Definition/Data-confidence/Trigger
+    // treatment as Financing Readiness above. Mirrors
+    // computeLendingCapacityEstimate's own gate order (data reliability,
+    // then DSCR, then credit-score tier) so it can never explain a
+    // different reason than the estimate itself actually used.
+    const lendingCapacityIntelligence = useMemo(
+        () => computeLendingCapacityIntelligence(
+            { estimate: lendingCapacity, overallCreditScore: financingReadiness.score, dscr: dscrResult.dscr, hasReliableData: lendingCapacityHasReliableData },
+            transactions,
+        ),
+        [lendingCapacity, financingReadiness.score, dscrResult.dscr, lendingCapacityHasReliableData, transactions],
+    );
+    const [capacityWhyOpen, setCapacityWhyOpen] = useState(false);
 
     // Readiness trend -- null until there's a second snapshot to compare
     // against (roughly a week after the first one is recorded).
@@ -704,6 +718,26 @@ export default function CreditWorthinessScreen() {
                             <Text style={s.inventoryBackedNote}>
                                 Based on {currency}{inventoryValue.toLocaleString()} of stock on hand, at a conservative {lendingCapacity.inventoryBacked.advanceRatePctRange[0]}–{lendingCapacity.inventoryBacked.advanceRatePctRange[1]}% advance rate. {lendingCapacity.inventoryBacked.reason}
                             </Text>
+                        </View>
+                    )}
+
+                    <TouchableOpacity style={s.readinessWhyBtn} onPress={() => setCapacityWhyOpen(o => !o)}>
+                        <Text style={s.readinessWhyBtnText}>Why? What is this built on?</Text>
+                        <Text style={s.readinessWhyBtnText}>{capacityWhyOpen ? '▲' : '▼'}</Text>
+                    </TouchableOpacity>
+                    {capacityWhyOpen && (
+                        <View style={s.readinessWhyBox}>
+                            <Text style={s.readinessBlockLabel}>Definition</Text>
+                            <Text style={s.readinessWhyText}>{lendingCapacityIntelligence.definition}</Text>
+
+                            <Text style={s.readinessBlockLabel}>Data confidence</Text>
+                            <Text style={s.readinessWhyText}>{lendingCapacityIntelligence.dataQuality.summary}</Text>
+                            {lendingCapacityIntelligence.builtOn.map((line, i) => (
+                                <Text key={i} style={s.readinessWhyBullet}>• {line}</Text>
+                            ))}
+
+                            <Text style={s.readinessBlockLabel}>Trigger</Text>
+                            <Text style={[s.readinessWhyText, { color: Colors.warning, fontWeight: '700' }]}>⚠️ {lendingCapacityIntelligence.trigger}</Text>
                         </View>
                     )}
 

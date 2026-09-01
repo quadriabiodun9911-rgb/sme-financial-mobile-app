@@ -3,11 +3,12 @@
  * was to give every important number a Definition / Owner / Assumption /
  * Trigger explanation. Retrofitting that onto every metric in this app at
  * once would touch dozens of screens on a guess at what's worth the effort
- * -- instead this applies the idea, in full, to six of the app's most
+ * -- instead this applies the idea, in full, to seven of the app's most
  * prominent numbers (Business Health Score, Financing Readiness Score,
- * Cash Runway, DSCR, Cash Reserve Resilience, Quality of Growth), as
- * real, working examples rather than a speculative abstraction built for
- * metrics nobody has asked to instrument yet.
+ * Cash Runway, DSCR, Cash Reserve Resilience, Quality of Growth,
+ * Estimated Lending Capacity), as real, working examples rather than a
+ * speculative abstraction built for metrics nobody has asked to
+ * instrument yet.
  *
  * Every piece here is reused, not invented:
  *  - Owner/data source and confidence come from computeDataQuality
@@ -33,6 +34,12 @@
  *  - The Quality of Growth trigger reads qualityOfGrowth.ts's own exported
  *    MODEL.bandCutoffs -- the same four numbers that already decide
  *    Excellent/Strong/Moderate/Weak/Critical there.
+ *  - The Estimated Lending Capacity trigger reads lendingCapacity.ts's own
+ *    exported LENDING_CAPACITY_TIER_CUTOFFS (80/70/60) -- the same numbers
+ *    computeLendingCapacityEstimate itself now derives its tier from --
+ *    plus DSCR_THRESHOLDS.warning for the "current debt isn't covered yet"
+ *    gate, since that gate is literally `dscr < 1`, the same 1.0x cutoff
+ *    DSCR's own trigger already uses.
  *  - No threshold anywhere in this file is invented for this module alone.
  */
 
@@ -42,6 +49,7 @@ import { INDUSTRY_BENCHMARKS } from './financialDiagnosisEngine';
 import { CashRunway } from './cashRunway';
 import { FinancialResilience } from './cashReservePlanning';
 import { QualityOfGrowthResult, QualityBand, MODEL as QUALITY_OF_GROWTH_MODEL } from './qualityOfGrowth';
+import { LendingCapacityEstimate, LENDING_CAPACITY_TIER_CUTOFFS } from './lendingCapacity';
 import { Transaction } from '../types';
 
 export interface RiskScoreIntelligence {
@@ -222,6 +230,53 @@ export function computeQualityOfGrowthIntelligence(growthQuality: QualityOfGrowt
     const trigger = growthQuality.band === 'Critical'
         ? `Recovers to ${QUALITY_BAND_ORDER[idx - 1].band} once the score reaches ${QUALITY_BAND_ORDER[idx - 1].min}.`
         : `Falls to ${QUALITY_BAND_ORDER[idx + 1].band} if the score drops below ${QUALITY_BAND_ORDER[idx].min}.`;
+
+    return {
+        definition,
+        dataQuality,
+        builtOn: computeDataConfidenceBullets(dataQuality),
+        trigger,
+    };
+}
+
+export interface LendingCapacityIntelligence {
+    definition: string;
+    dataQuality: DataQuality;
+    builtOn: string[];
+    trigger: string;
+}
+
+const LENDING_TIER_LABEL: Record<LendingCapacityEstimate['tier'], string> = {
+    strong: 'Strong',
+    standard: 'Standard',
+    emerging: 'Emerging',
+    'not-yet-bankable': 'Not Yet Bankable',
+};
+
+// Mirrors computeLendingCapacityEstimate's own gating order exactly (data
+// reliability, then DSCR, then credit-score tier) so this can never explain
+// a different reason than the one the estimate itself actually used.
+export function computeLendingCapacityIntelligence(
+    input: { estimate: LendingCapacityEstimate; overallCreditScore: number; dscr: number; hasReliableData: boolean },
+    transactions: Transaction[],
+): LendingCapacityIntelligence {
+    const { estimate, overallCreditScore, dscr, hasReliableData } = input;
+    const dataQuality = computeDataQuality(transactions);
+    const definition = 'How much you could realistically borrow, estimated as a multiple of your average monthly revenue (0.5x-4x, based on your credit-worthiness tier) -- plus, separately, what your inventory alone could support if pledged as collateral (30-50% of its cost value). An illustrative range built from your own numbers, never a specific lender\'s real offer.';
+
+    let trigger: string;
+    if (!hasReliableData) {
+        trigger = 'Unlocks once transaction history is reliable enough to trust — see Data confidence below.';
+    } else if (dscr < DSCR_THRESHOLDS.warning) {
+        trigger = `Resolves once DSCR recovers above ${DSCR_THRESHOLDS.warning.toFixed(2)}x — current income has to cover existing debt before more debt makes sense.`;
+    } else {
+        const idx = LENDING_CAPACITY_TIER_CUTOFFS.findIndex(t => t.tier === estimate.tier);
+        trigger = estimate.tier === 'not-yet-bankable'
+            ? `Recovers to ${LENDING_TIER_LABEL[LENDING_CAPACITY_TIER_CUTOFFS[idx - 1].tier]} once the credit score reaches ${LENDING_CAPACITY_TIER_CUTOFFS[idx - 1].min}.`
+            : idx === 0
+                ? `Drops out of the ${LENDING_TIER_LABEL[estimate.tier]} tier if the credit score falls below ${LENDING_CAPACITY_TIER_CUTOFFS[idx].min}.`
+                : `Falls to ${LENDING_TIER_LABEL[LENDING_CAPACITY_TIER_CUTOFFS[idx + 1].tier]} if the credit score drops below ${LENDING_CAPACITY_TIER_CUTOFFS[idx].min}.`;
+    }
 
     return {
         definition,

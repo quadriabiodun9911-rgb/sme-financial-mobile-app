@@ -1,5 +1,16 @@
 export type LendingTier = 'not-yet-bankable' | 'emerging' | 'standard' | 'strong';
 
+// Ordered highest tier first. Exported so anything that needs the real
+// credit-score cutoffs (e.g. metricIntelligence.ts's trigger) reads them
+// from here rather than hardcoding a second copy — computeLendingCapacityEstimate
+// itself now derives its own tier from this table below.
+export const LENDING_CAPACITY_TIER_CUTOFFS: { tier: LendingTier; min: number }[] = [
+    { tier: 'strong', min: 80 },
+    { tier: 'standard', min: 70 },
+    { tier: 'emerging', min: 60 },
+    { tier: 'not-yet-bankable', min: 0 },
+];
+
 export interface LendingCapacityInput {
     overallCreditScore: number; // 0-100, from computeCreditWorthiness-style scoring
     avgMonthlyRevenue: number;
@@ -98,21 +109,23 @@ export function computeLendingCapacityEstimate(input: LendingCapacityInput): Len
     let rateTierLabel: string;
     let reason: string;
 
-    if (overallCreditScore >= 80) {
+    const [strongCutoff, standardCutoff, emergingCutoff] = LENDING_CAPACITY_TIER_CUTOFFS.map(c => c.min);
+
+    if (overallCreditScore >= strongCutoff) {
         tier = 'strong';
         tierLabel = 'Strong';
         revenueMultiplierRange = [2.5, 4];
         maxTenureMonths = 12;
         rateTierLabel = 'Likely a lower-rate tier — strong, consistent repayment capacity';
         reason = 'High credit-worthiness score, healthy cash flow, and current debt is well covered.';
-    } else if (overallCreditScore >= 70) {
+    } else if (overallCreditScore >= standardCutoff) {
         tier = 'standard';
         tierLabel = 'Standard';
         revenueMultiplierRange = [1.5, 2.5];
         maxTenureMonths = 9;
         rateTierLabel = 'Likely a standard-rate tier';
         reason = 'Good credit-worthiness score with a reasonable track record.';
-    } else if (overallCreditScore >= 60) {
+    } else if (overallCreditScore >= emergingCutoff) {
         tier = 'emerging';
         tierLabel = 'Emerging';
         revenueMultiplierRange = [0.5, 1.5];

@@ -1,9 +1,10 @@
-import { computeBusinessHealthIntelligence, computeFinancingReadinessIntelligence, computeCashRunwayIntelligence, computeDSCRIntelligence, computeCashReserveIntelligence, computeQualityOfGrowthIntelligence } from '../src/utils/metricIntelligence';
+import { computeBusinessHealthIntelligence, computeFinancingReadinessIntelligence, computeCashRunwayIntelligence, computeDSCRIntelligence, computeCashReserveIntelligence, computeQualityOfGrowthIntelligence, computeLendingCapacityIntelligence } from '../src/utils/metricIntelligence';
 import { computeRiskScore, RiskScore, DSCRResult } from '../src/utils/finance';
 import { computeDataQuality, computeDataConfidenceBullets } from '../src/utils/dataQuality';
 import { CashRunway } from '../src/utils/cashRunway';
 import { FinancialResilience } from '../src/utils/cashReservePlanning';
 import { QualityOfGrowthResult } from '../src/utils/qualityOfGrowth';
+import { computeLendingCapacityEstimate } from '../src/utils/lendingCapacity';
 import { Transaction } from '../src/types';
 
 // A minimal, directly-constructed RiskScore for the two band-boundary tests
@@ -230,6 +231,38 @@ describe('computeQualityOfGrowthIntelligence', () => {
     it('reuses computeDataQuality verbatim, even for an unavailable result -- transaction data quality is independent of the two-year gate', () => {
         const txs = [makeTx({ type: 'income', amount: 40000, status: 'paid' })];
         const result = computeQualityOfGrowthIntelligence(makeGrowth({ available: false, reason: 'x' }), txs);
+        expect(result.dataQuality).toEqual(computeDataQuality(txs));
+        expect(result.builtOn).toEqual(computeDataConfidenceBullets(computeDataQuality(txs)));
+    });
+});
+
+describe('computeLendingCapacityIntelligence', () => {
+    const buildIntel = (overallCreditScore: number, dscr: number, hasReliableData: boolean) => {
+        const estimate = computeLendingCapacityEstimate({ overallCreditScore, avgMonthlyRevenue: 100000, dscr, hasReliableData });
+        return computeLendingCapacityIntelligence({ estimate, overallCreditScore, dscr, hasReliableData }, []);
+    };
+
+    it('explains the data-reliability gate first, never a tier/DSCR reason, when history is too thin -- matches computeLendingCapacityEstimate\'s own gate order', () => {
+        const result = buildIntel(90, 5, false);
+        expect(result.trigger).toBe('Unlocks once transaction history is reliable enough to trust — see Data confidence below.');
+    });
+
+    it('explains the DSCR gate, not a tier reason, when DSCR is below 1x even with a high credit score', () => {
+        const result = buildIntel(90, 0.5, true);
+        expect(result.trigger).toBe('Resolves once DSCR recovers above 1.00x — current income has to cover existing debt before more debt makes sense.');
+    });
+
+    it('states the correct adjacent-tier trigger for every credit-score tier, matching lendingCapacity.ts\'s own real cutoffs', () => {
+        expect(buildIntel(85, 2, true).trigger).toBe('Drops out of the Strong tier if the credit score falls below 80.');
+        expect(buildIntel(75, 2, true).trigger).toBe('Falls to Emerging if the credit score drops below 70.');
+        expect(buildIntel(65, 2, true).trigger).toBe('Falls to Not Yet Bankable if the credit score drops below 60.');
+        expect(buildIntel(50, 2, true).trigger).toBe('Recovers to Emerging once the credit score reaches 60.');
+    });
+
+    it('reuses computeDataQuality verbatim, same as every other panel', () => {
+        const txs = [makeTx({ type: 'income', amount: 40000, status: 'paid' })];
+        const estimate = computeLendingCapacityEstimate({ overallCreditScore: 85, avgMonthlyRevenue: 100000, dscr: 2, hasReliableData: true });
+        const result = computeLendingCapacityIntelligence({ estimate, overallCreditScore: 85, dscr: 2, hasReliableData: true }, txs);
         expect(result.dataQuality).toEqual(computeDataQuality(txs));
         expect(result.builtOn).toEqual(computeDataConfidenceBullets(computeDataQuality(txs)));
     });
