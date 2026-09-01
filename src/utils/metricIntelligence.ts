@@ -3,10 +3,11 @@
  * was to give every important number a Definition / Owner / Assumption /
  * Trigger explanation. Retrofitting that onto every metric in this app at
  * once would touch dozens of screens on a guess at what's worth the effort
- * -- instead this applies the idea, in full, to four of the app's most
+ * -- instead this applies the idea, in full, to five of the app's most
  * prominent numbers (Business Health Score, Financing Readiness Score,
- * Cash Runway, DSCR), as real, working examples rather than a speculative
- * abstraction built for metrics nobody has asked to instrument yet.
+ * Cash Runway, DSCR, Cash Reserve Resilience), as real, working examples
+ * rather than a speculative abstraction built for metrics nobody has
+ * asked to instrument yet.
  *
  * Every piece here is reused, not invented:
  *  - Owner/data source and confidence come from computeDataQuality
@@ -25,6 +26,10 @@
  *    1.0x/1.25x cutoffs computeDSCR's own status field, computeRiskScore's
  *    Debt factor, and diagnoseDebt's own Early Warning Signal all already
  *    use, not a fourth independently-typed copy of the same two numbers.
+ *  - The Cash Reserve Resilience trigger reads recommendedMonths straight
+ *    off computeFinancialResilience's own result (cashReservePlanning.ts)
+ *    -- a target specific to that business's own revenue volatility, not
+ *    a flat rule invented here.
  *  - No threshold anywhere in this file is invented for this module alone.
  */
 
@@ -32,6 +37,7 @@ import { RiskScore, RISK_BAND_CUTOFFS, DSCRResult, DSCR_THRESHOLDS } from './fin
 import { computeDataQuality, computeDataConfidenceBullets, DataQuality } from './dataQuality';
 import { INDUSTRY_BENCHMARKS } from './financialDiagnosisEngine';
 import { CashRunway } from './cashRunway';
+import { FinancialResilience } from './cashReservePlanning';
 import { Transaction } from '../types';
 
 export interface RiskScoreIntelligence {
@@ -125,6 +131,52 @@ export function computeDSCRIntelligence(dscr: DSCRResult, transactions: Transact
 
     return {
         definition: 'Debt Service Coverage Ratio = net operating income (trailing 12 months, annualized) ÷ total scheduled debt service across every active loan. How many times over your income could cover what you owe lenders this year.',
+        dataQuality,
+        builtOn: computeDataConfidenceBullets(dataQuality),
+        trigger,
+    };
+}
+
+export interface CashReserveIntelligence {
+    definition: string;
+    dataQuality: DataQuality;
+    builtOn: string[];
+    trigger: string;
+}
+
+// Unlike the other three metrics here, Cash Reserve Resilience's own
+// assessment text (cashReservePlanning.ts) already states its current
+// coverage and its target in plain language -- this doesn't restate that.
+// What it adds: the exact danger-threshold number (half of this
+// business's own target), which the existing assessment never spells
+// out, and the same generic data-confidence bullets every other panel
+// here shows, which cashReservePlanning.ts's own bespoke "not enough
+// history" logic doesn't surface.
+export function computeCashReserveIntelligence(resilience: FinancialResilience, transactions: Transaction[]): CashReserveIntelligence {
+    const dataQuality = computeDataQuality(transactions);
+    const definition = 'Current cash reserve ÷ essential monthly expenses (the same operating burn Cash Runway uses) — how many months of essential costs your reserve alone would cover. The target itself is this business\'s own, not a flat rule: 2 months for steady revenue, 3.5 for variable, 5 for volatile, based on how much your revenue actually swings month to month.';
+
+    if (!resilience.available) {
+        return {
+            definition,
+            dataQuality,
+            builtOn: computeDataConfidenceBullets(dataQuality),
+            trigger: 'Not enough expense history yet to set a real trigger — this becomes measurable once a few months of expenses are logged.',
+        };
+    }
+
+    const dangerThreshold = resilience.recommendedMonths * 0.5;
+    let trigger: string;
+    if (resilience.status === 'danger') {
+        trigger = `Recovers out of the danger zone once reserve coverage reaches ${dangerThreshold.toFixed(1)} months; back at target for this business at ${resilience.recommendedMonths.toFixed(1)} months.`;
+    } else if (resilience.status === 'warning') {
+        trigger = `Becomes critical if reserve coverage falls below ${dangerThreshold.toFixed(1)} months — half of this business's own ${resilience.recommendedMonths.toFixed(1)}-month target.`;
+    } else {
+        trigger = `Drops below target if reserve coverage falls under ${resilience.recommendedMonths.toFixed(1)} months.`;
+    }
+
+    return {
+        definition,
         dataQuality,
         builtOn: computeDataConfidenceBullets(dataQuality),
         trigger,

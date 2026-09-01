@@ -1,7 +1,8 @@
-import { computeBusinessHealthIntelligence, computeFinancingReadinessIntelligence, computeCashRunwayIntelligence, computeDSCRIntelligence } from '../src/utils/metricIntelligence';
+import { computeBusinessHealthIntelligence, computeFinancingReadinessIntelligence, computeCashRunwayIntelligence, computeDSCRIntelligence, computeCashReserveIntelligence } from '../src/utils/metricIntelligence';
 import { computeRiskScore, RiskScore, DSCRResult } from '../src/utils/finance';
 import { computeDataQuality, computeDataConfidenceBullets } from '../src/utils/dataQuality';
 import { CashRunway } from '../src/utils/cashRunway';
+import { FinancialResilience } from '../src/utils/cashReservePlanning';
 import { Transaction } from '../src/types';
 
 // A minimal, directly-constructed RiskScore for the two band-boundary tests
@@ -145,6 +146,56 @@ describe('computeDSCRIntelligence', () => {
     it('reuses computeDataQuality verbatim', () => {
         const txs = [makeTx({ type: 'expense', amount: 20000, status: 'paid' })];
         const result = computeDSCRIntelligence(makeDSCR(1.5, 'healthy'), txs);
+        expect(result.dataQuality).toEqual(computeDataQuality(txs));
+        expect(result.builtOn).toEqual(computeDataConfidenceBullets(computeDataQuality(txs)));
+    });
+});
+
+describe('computeCashReserveIntelligence', () => {
+    const makeResilience = (overrides: Partial<FinancialResilience>): FinancialResilience => ({
+        available: true,
+        essentialMonthlyExpenses: 100000,
+        currentReserve: 100000,
+        reserveCoverageMonths: 1,
+        recommendedMonths: 3.5,
+        volatility: 'variable',
+        status: 'warning',
+        headline: '',
+        assessment: '',
+        ...overrides,
+    });
+
+    it('reports no real trigger yet when there is not enough expense history to be available at all', () => {
+        const result = computeCashReserveIntelligence(makeResilience({ available: false }), []);
+        expect(result.trigger).toMatch(/not enough expense history/i);
+    });
+
+    it('states a danger-threshold trigger (half this business\'s own target) for warning status', () => {
+        const result = computeCashReserveIntelligence(makeResilience({ status: 'warning', reserveCoverageMonths: 2, recommendedMonths: 3.5 }), []);
+        expect(result.trigger).toBe('Becomes critical if reserve coverage falls below 1.8 months — half of this business\'s own 3.5-month target.');
+    });
+
+    it('states a recovery trigger for danger status, naming both the danger threshold and the full target', () => {
+        const result = computeCashReserveIntelligence(makeResilience({ status: 'danger', reserveCoverageMonths: 1, recommendedMonths: 3.5 }), []);
+        expect(result.trigger).toBe('Recovers out of the danger zone once reserve coverage reaches 1.8 months; back at target for this business at 3.5 months.');
+    });
+
+    it('states a drops-below-target trigger for good status', () => {
+        const result = computeCashReserveIntelligence(makeResilience({ status: 'good', reserveCoverageMonths: 4, recommendedMonths: 3.5 }), []);
+        expect(result.trigger).toBe('Drops below target if reserve coverage falls under 3.5 months.');
+    });
+
+    it('uses each business\'s own recommendedMonths, not a flat rule -- a stable business gets a different trigger than a volatile one', () => {
+        const stable = computeCashReserveIntelligence(makeResilience({ status: 'warning', recommendedMonths: 2 }), []);
+        const volatile = computeCashReserveIntelligence(makeResilience({ status: 'warning', recommendedMonths: 5 }), []);
+        expect(stable.trigger).not.toBe(volatile.trigger);
+        expect(stable.trigger).toMatch(/1\.0 months/);
+        expect(volatile.trigger).toMatch(/2\.5 months/);
+    });
+
+    it('reuses computeDataQuality verbatim', () => {
+        const txs = [makeTx({ type: 'expense', amount: 30000, status: 'paid' })];
+        const result = computeCashReserveIntelligence(makeResilience({}), txs);
         expect(result.dataQuality).toEqual(computeDataQuality(txs));
         expect(result.builtOn).toEqual(computeDataConfidenceBullets(computeDataQuality(txs)));
     });

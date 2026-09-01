@@ -14,6 +14,7 @@ import { computeBusinessExposure, computeBusinessResilience, describeHealthResil
 import { performFinancialDiagnosis, computeRevenueRecurringPct } from '../utils/financialDiagnosisEngine';
 import { computeFinancialHealthPillars, diagnoseFinancialHealth, PillarStatus } from '../utils/financialHealthPillars';
 import { computeFinancialResilience, ResilienceStatus } from '../utils/cashReservePlanning';
+import { computeCashReserveIntelligence } from '../utils/metricIntelligence';
 import { computeQualityOfGrowth } from '../utils/qualityOfGrowth';
 import DirectionVsStatusCard from '../components/DirectionVsStatusCard';
 import { computeFinancialChangeExplanation } from '../utils/financialChangeExplanation';
@@ -152,6 +153,14 @@ export default function ScoreboardScreen() {
         () => computeFinancialResilience(transactions, finance.cashBalance),
         [transactions, finance.cashBalance],
     );
+    // Metric Intelligence pilot -- same Definition/Owner-confidence/Trigger
+    // treatment as Business Health/Financing Readiness/Cash Runway/DSCR.
+    // See metricIntelligence.ts for exactly what's reused vs new.
+    const reserveIntelligence = useMemo(
+        () => computeCashReserveIntelligence(financialResilience, transactions),
+        [financialResilience, transactions],
+    );
+    const [reserveWhyOpen, setReserveWhyOpen] = useState(false);
     // Gated the same way the Quality of Growth tab already gates itself
     // (needs 2 full years of history) -- only used here to pull its own
     // already-vetted receivables/cash-conversion flags into the pillar
@@ -364,6 +373,26 @@ export default function ScoreboardScreen() {
                         </>
                     ) : (
                         <Text style={s.cardBodyText}>{financialResilience.assessment}</Text>
+                    )}
+
+                    <TouchableOpacity style={s.resilienceWhyBtn} onPress={() => setReserveWhyOpen(o => !o)}>
+                        <Text style={s.resilienceWhyBtnText}>Why? What is this built on?</Text>
+                        <Text style={s.resilienceWhyBtnText}>{reserveWhyOpen ? '▲' : '▼'}</Text>
+                    </TouchableOpacity>
+                    {reserveWhyOpen && (
+                        <View style={s.resilienceWhyBox}>
+                            <Text style={s.resilienceWhyLabel}>Definition</Text>
+                            <Text style={s.resilienceWhyText}>{reserveIntelligence.definition}</Text>
+
+                            <Text style={s.resilienceWhyLabel}>Data confidence</Text>
+                            <Text style={s.resilienceWhyText}>{reserveIntelligence.dataQuality.summary}</Text>
+                            {reserveIntelligence.builtOn.map((line, i) => (
+                                <Text key={i} style={s.resilienceWhyBullet}>• {line}</Text>
+                            ))}
+
+                            <Text style={s.resilienceWhyLabel}>Trigger</Text>
+                            <Text style={[s.resilienceWhyText, { color: Colors.warning, fontWeight: '700' }]}>⚠️ {reserveIntelligence.trigger}</Text>
+                        </View>
                     )}
                 </View>
 
@@ -600,6 +629,12 @@ const s = StyleSheet.create({
     resilienceValue: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
     resilienceBadge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: Radius.pill, marginTop: Spacing.sm, marginBottom: Spacing.sm },
     resilienceBadgeText: { fontSize: 12, fontWeight: '700' },
+    resilienceWhyBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.border },
+    resilienceWhyBtnText: { fontSize: 11.5, fontWeight: '600', color: Colors.textMuted },
+    resilienceWhyBox: { backgroundColor: Colors.bg, borderRadius: Radius.md, padding: Spacing.md, marginTop: 8, gap: 2 },
+    resilienceWhyLabel: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 8 },
+    resilienceWhyText: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
+    resilienceWhyBullet: { fontSize: 11, color: Colors.textMuted, lineHeight: 16, marginTop: 2 },
 
     leakRow: { borderLeftWidth: 3, borderRadius: Radius.sm, backgroundColor: Colors.bg, padding: Spacing.sm, marginTop: Spacing.sm },
     leakLabel: { fontSize: 10, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 2 },
