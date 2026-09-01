@@ -40,6 +40,24 @@ export default function MacroShieldSimulator({ currency, transactions, loans, fi
 
     const hasShock = inflationPct > 0 || fxDevaluationPct > 0;
 
+    // Whenever the shock isn't severe enough to actually push cash negative
+    // within the 12-month horizon, both rows above read identically ("Cash
+    // lasts the full 12 months") -- which reads as "nothing happened," even
+    // though the shock IS real (higher modeled costs, lower ending cash).
+    // This surfaces that already-computed difference instead of silently
+    // dropping it -- both endingCash figures come straight from
+    // cashFlowMonths, the same 12-month projection the two rows above
+    // already read from, not a new calculation.
+    const baselineMonths = result.available ? result.baseline.cashFlowMonths : [];
+    const shockedMonths = result.available ? result.shocked.cashFlowMonths : [];
+    const horizonMonth = baselineMonths[baselineMonths.length - 1];
+    const baselineEndingCash = horizonMonth?.endingCash ?? 0;
+    const shockedEndingCash = shockedMonths[shockedMonths.length - 1]?.endingCash ?? 0;
+    const cashGapAtHorizon = baselineEndingCash - shockedEndingCash;
+    const showCashGap = hasShock && result.available
+        && !result.baseline.runOutMonthLabel && !result.shocked.runOutMonthLabel
+        && !!horizonMonth;
+
     return (
         <View style={s.card}>
             <View style={s.headerRow}>
@@ -103,6 +121,20 @@ export default function MacroShieldSimulator({ currency, transactions, loans, fi
                         </Text>
                     </View>
 
+                    {showCashGap && (
+                        <View style={s.warningBox}>
+                            <View style={s.resultRow}>
+                                <Text style={s.resultLabel}>Cash on hand by {horizonMonth!.monthLabel}</Text>
+                                <Text style={s.resultValue}>{fmt(currency, shockedEndingCash)}</Text>
+                            </View>
+                            <Text style={s.cashGapNote}>
+                                {cashGapAtHorizon > 0
+                                    ? `That's ${fmt(currency, cashGapAtHorizon)} less than the ${fmt(currency, baselineEndingCash)} you'd otherwise have by then — cash doesn't run out at this shock level, but it is a real, growing cost.`
+                                    : 'No meaningful difference from this shock at your current numbers.'}
+                            </Text>
+                        </View>
+                    )}
+
                     {result.shocked.runOutMonthLabel && (
                         <View style={s.warningBox}>
                             <Text style={s.warningText}>
@@ -151,6 +183,7 @@ const s = StyleSheet.create({
 
     warningBox: { marginTop: Spacing.sm, paddingTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.border },
     warningText: { fontSize: 12.5, color: Colors.expense, fontWeight: '700', lineHeight: 18 },
+    cashGapNote: { fontSize: 11.5, color: Colors.textSecondary, lineHeight: 16, marginTop: 4 },
 
     reserveNote: { fontSize: 11.5, color: Colors.warning, marginTop: 6, lineHeight: 16 },
 
