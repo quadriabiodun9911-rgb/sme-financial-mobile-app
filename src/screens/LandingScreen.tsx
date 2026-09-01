@@ -17,6 +17,7 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import Icon, { IconName } from '../components/ui/Icon';
+import QuickHealthCheckWidget from '../components/QuickHealthCheckWidget';
 
 // Feather icons (via Icon.tsx), not emoji -- emoji renders inconsistently
 // across OS/browser combinations and reads as an unpolished, hobbyist
@@ -87,13 +88,19 @@ export default function LandingScreen() {
                 </View>
 
                 <View style={[s.hero, isWide && s.heroWide]}>
-                    <Text style={s.eyebrow}>THE FINANCIAL INTELLIGENCE LAYER BETWEEN AFRICAN BUSINESSES AND CAPITAL</Text>
+                    <Text style={s.eyebrow}>NO COMPLEX CONNECTIONS. NO ACCOUNTING JARGON.</Text>
                     <Text style={[s.headline, isWide && s.headlineWide]}>
-                        From business data to better decisions to better capital.
+                        Stop guessing. Start understanding your business.
                     </Text>
                     <Text style={[s.subhead, isWide && s.subheadWide]}>
-                        Understand your business. Improve your financial health. Become financing-ready. Find the right capital.
+                        Know your cash runway, identify financial risks, and discover what you can improve — in 60 seconds.
+                        Enter three numbers you already know and get an instant snapshot.
                     </Text>
+
+                    <View style={s.widgetWrap}>
+                        <QuickHealthCheckWidget onWantFullPicture={goSignup} onTryDemo={goDemo} />
+                    </View>
+
                     <Text style={[s.northStar, isWide && s.northStarWide]}>
                         Quad360 helps businesses save time, save money, gain clarity, and turn that recovered capacity into profitable growth.
                     </Text>
@@ -279,6 +286,7 @@ const s = StyleSheet.create({
     // these two lines stayed narrow even after the headline above them grew,
     // so the block still read as lopsided rather than filling the column.
     subheadWide: { maxWidth: 760 },
+    widgetWrap: { width: '100%', alignItems: 'flex-start', marginBottom: Spacing.xxl },
     northStar: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, lineHeight: 22, marginBottom: 28, maxWidth: 560 },
     northStarWide: { fontSize: 16.5, lineHeight: 24, maxWidth: 760 },
 
