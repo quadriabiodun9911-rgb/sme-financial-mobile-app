@@ -93,6 +93,44 @@ describe('computeDynamicFinancingReadiness', () => {
         expect(result.unresolvedIssues.some(u => /leverage is increasing/i.test(u))).toBe(true);
     });
 
+    it('appends the Financial Change Explanation\'s notes only for the specific Cash-improving/Debt-deteriorating tension, never for other mixed cases', () => {
+        const txs = [
+            makeTx({ id: 'prior-inc', date: PRIOR_DATE, type: 'income', amount: 100000, status: 'paid' }),
+            makeTx({ id: 'prior-exp', date: PRIOR_DATE, type: 'expense', amount: 60000, status: 'paid' }),
+            makeTx({ id: 'current-inc', date: CURRENT_DATE, type: 'income', amount: 110000, status: 'paid' }),
+            makeTx({ id: 'current-exp', date: CURRENT_DATE, type: 'expense', amount: 65000, status: 'paid' }),
+        ];
+        const loans: Loan[] = [
+            { id: 'old', lenderName: 'Bank', purpose: 'wc', principal: 5000, interestRate: 5, termMonths: 24, startDate: `${PRIOR_YEAR}-01-01`, status: 'active', payments: [], createdAt: `${PRIOR_YEAR}-01-01` },
+            { id: 'new', lenderName: 'Bank', purpose: 'wc', principal: 30000, interestRate: 5, termMonths: 60, startDate: `${CURRENT_YEAR}-02-01`, status: 'active', payments: [], createdAt: `${CURRENT_YEAR}-02-01` },
+        ];
+        const finance: FinanceData = { income: 110000, expense: 65000, profit: 45000, cashBalance: 150000 } as FinanceData;
+        const risk = computeRiskScore(finance, loans, txs, []);
+        const financingReadiness = computeFinancingReadinessScore(risk.factors);
+        const growthQuality = computeQualityOfGrowth(txs, NO_ASSETS, loans);
+
+        const changeExplanation = {
+            available: true,
+            periodLabel: `${CURRENT_YEAR} vs ${PRIOR_YEAR}`,
+            supplierDeferralNote: 'Amounts owed to suppliers grew 120% year over year — delayed supplier payments.',
+            newBorrowingNote: 'A new loan started this year — any debt growth this year is at least partly new borrowing.',
+        };
+
+        // This fixture's own numbers (asserted above: 'mixed', Debt
+        // deteriorating) put Cash's own OCF growth (12.5%) just ahead of
+        // revenue growth (10%) -- 'improving' -- so this is a genuine
+        // Cash-improving/Debt-deteriorating tension, the one case the notes
+        // are meant to fire for.
+        const withCash = computeDynamicFinancingReadiness(financingReadiness, growthQuality, NO_FORWARD, null, changeExplanation);
+        expect(withCash.directionSummary).toMatch(/Cash/);
+        expect(withCash.directionSummary).toMatch(/delayed supplier payments/);
+        expect(withCash.directionSummary).toMatch(/new borrowing/);
+
+        // Without changeExplanation supplied at all, never appends anything -- no crash, no fabricated note.
+        const withoutExplanation = computeDynamicFinancingReadiness(financingReadiness, growthQuality, NO_FORWARD, null);
+        expect(withoutExplanation.directionSummary).not.toMatch(/delayed supplier payments/);
+    });
+
     it('adds forward-looking downside evidence only when the forecast genuinely stays positive under stress', () => {
         const finance: FinanceData = { income: 0, expense: 0, profit: 0, cashBalance: 0 } as FinanceData;
         const risk = computeRiskScore(finance, [], [], []);

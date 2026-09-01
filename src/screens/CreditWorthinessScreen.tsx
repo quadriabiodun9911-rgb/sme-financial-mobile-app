@@ -30,6 +30,7 @@ import { computeForecastSummary } from '../utils/forecastSummary';
 import { computeForwardFinancingReadiness } from '../utils/forwardFinancingReadiness';
 import { computeQualityOfGrowth } from '../utils/qualityOfGrowth';
 import { computeDynamicFinancingReadiness, ReadinessDirection } from '../utils/dynamicFinancingReadiness';
+import { computeFinancialChangeExplanation } from '../utils/financialChangeExplanation';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 
@@ -339,9 +340,15 @@ export default function CreditWorthinessScreen() {
         const d = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), currency, loans, inventory, assets);
         return d.diagnoses[0] ?? null;
     }, [transactions, invoices, finance, currency, loans, inventory, assets]);
+    // Temporary vs Structural -- when Cash is improving while Debt is
+    // deteriorating below, names the real, provable reason if one exists
+    // (supplier-payment deferral, a fresh loan draw) instead of leaving
+    // "Cash improving" to read as unqualified good news. See
+    // financialChangeExplanation.ts for exactly what it can and can't prove.
+    const changeExplanation = useMemo(() => computeFinancialChangeExplanation(transactions, assets, loans), [transactions, assets, loans]);
     const dynamicReadiness = useMemo(
-        () => computeDynamicFinancingReadiness(financingReadiness, growthQuality, forwardReadiness, topDiagnosis),
-        [financingReadiness, growthQuality, forwardReadiness, topDiagnosis],
+        () => computeDynamicFinancingReadiness(financingReadiness, growthQuality, forwardReadiness, topDiagnosis, changeExplanation),
+        [financingReadiness, growthQuality, forwardReadiness, topDiagnosis, changeExplanation],
     );
     const lendingCapacity = useMemo(() => computeLendingCapacityEstimate({
         overallCreditScore: financingReadiness.score,

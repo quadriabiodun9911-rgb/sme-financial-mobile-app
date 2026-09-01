@@ -16,6 +16,7 @@ import { computeFinancialHealthPillars, diagnoseFinancialHealth, PillarStatus } 
 import { computeFinancialResilience, ResilienceStatus } from '../utils/cashReservePlanning';
 import { computeQualityOfGrowth } from '../utils/qualityOfGrowth';
 import DirectionVsStatusCard from '../components/DirectionVsStatusCard';
+import { computeFinancialChangeExplanation } from '../utils/financialChangeExplanation';
 import { analyzeTrend } from '../utils/trendAnalysis';
 import { buildFinancialBehaviour } from '../utils/businessFinancialDNA';
 import { computeExpenseLeaks } from '../utils/expenseLeakDetection';
@@ -156,6 +157,7 @@ export default function ScoreboardScreen() {
     // already-vetted receivables/cash-conversion flags into the pillar
     // diagnosis below, never recomputed.
     const growthQuality = useMemo(() => computeQualityOfGrowth(transactions, assets, loans), [transactions, assets, loans]);
+    const changeExplanation = useMemo(() => computeFinancialChangeExplanation(transactions, assets, loans), [transactions, assets, loans]);
     // Budgeting connects directly to the Financial Health Score: strongest/
     // weakest pillar plus the concrete facts behind them, instead of the
     // score and the budgeting-adjacent signals living as separate features.
@@ -325,7 +327,7 @@ export default function ScoreboardScreen() {
                     </View>
                 </View>
 
-                <DirectionVsStatusCard risk={risk} growthQuality={growthQuality} />
+                <DirectionVsStatusCard risk={risk} growthQuality={growthQuality} changeExplanation={changeExplanation} />
 
                 {/* Cash Reserve Planning -- "how many months of essential
                     expenses would our current cash reserve actually cover,

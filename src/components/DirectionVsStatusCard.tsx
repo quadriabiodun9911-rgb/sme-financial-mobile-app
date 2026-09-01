@@ -7,10 +7,16 @@ import { RiskScore } from '../utils/finance';
 import { QualityOfGrowthResult } from '../utils/qualityOfGrowth';
 import { computeDirectionVsStatus, StatusLevel } from '../utils/directionVsStatus';
 import { GrowthDirection } from '../utils/qualityOfGrowth';
+import { FinancialChangeExplanation } from '../utils/financialChangeExplanation';
 
 interface Props {
     risk: RiskScore;
     growthQuality: QualityOfGrowthResult;
+    // Optional -- when Cash is improving while Debt is deteriorating below,
+    // names the real, provable reason if one exists (supplier-payment
+    // deferral, a fresh loan draw) rather than leaving "Cash improving" to
+    // read as unqualified good news. See financialChangeExplanation.ts.
+    changeExplanation?: FinancialChangeExplanation | null;
 }
 
 const STATUS_COLOR: Record<StatusLevel, string> = { good: Colors.income, warning: Colors.warning, danger: Colors.expense };
@@ -28,9 +34,15 @@ const DIRECTION_META: Record<GrowthDirection, { icon: IconName; color: string; l
 // is itself a pure combinator of computeRiskScore and computeQualityOfGrowth
 // — nothing here is scored independently, so this can never quietly
 // disagree with the Financial Health card or the Quality of Growth tab.
-export default function DirectionVsStatusCard({ risk, growthQuality }: Props) {
+export default function DirectionVsStatusCard({ risk, growthQuality, changeExplanation }: Props) {
     const [expandedKey, setExpandedKey] = useState<string | null>(null);
     const result = computeDirectionVsStatus(risk, growthQuality);
+
+    const cashImproving = result.rows.some(r => r.key === 'liquidity' && r.direction === 'improving');
+    const debtDeteriorating = result.rows.some(r => r.key === 'debt' && r.direction === 'deteriorating');
+    const changeNotes = (cashImproving && debtDeteriorating && changeExplanation?.available)
+        ? [changeExplanation.supplierDeferralNote, changeExplanation.newBorrowingNote].filter((n): n is string => !!n)
+        : [];
 
     return (
         <View style={s.card}>
@@ -87,6 +99,12 @@ export default function DirectionVsStatusCard({ risk, growthQuality }: Props) {
             {!result.directionAvailable && (
                 <Text style={s.emptyHint}>{result.directionUnavailableReason}</Text>
             )}
+            {changeNotes.length > 0 && (
+                <View style={s.changeNoteBox}>
+                    <Text style={s.changeNoteLabel}>Worth a closer look</Text>
+                    {changeNotes.map((note, i) => <Text key={i} style={s.changeNoteText}>{note}</Text>)}
+                </View>
+            )}
             {result.directionAvailable && result.periodLabel && (
                 <Text style={s.footnote}>Direction compares {result.periodLabel}. Tap a row to see why.</Text>
             )}
@@ -118,4 +136,8 @@ const s = StyleSheet.create({
 
     emptyHint: { fontSize: 11.5, color: Colors.textMuted, fontStyle: 'italic', marginTop: Spacing.sm, lineHeight: 16 },
     footnote: { fontSize: 10.5, color: Colors.textMuted, marginTop: Spacing.sm, fontStyle: 'italic' },
+
+    changeNoteBox: { backgroundColor: Colors.bg, borderRadius: Radius.md, padding: Spacing.sm, marginTop: Spacing.sm, gap: 4 },
+    changeNoteLabel: { fontSize: 10.5, fontWeight: '700', color: Colors.warning, textTransform: 'uppercase', letterSpacing: 0.3 },
+    changeNoteText: { fontSize: 11.5, color: Colors.textSecondary, lineHeight: 16 },
 });

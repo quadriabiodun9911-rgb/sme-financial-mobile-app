@@ -27,6 +27,7 @@ import { computeDirectionVsStatus, DirectionVsStatusRow } from './directionVsSta
 import { QualityOfGrowthResult } from './qualityOfGrowth';
 import { ForwardFinancingReadiness } from './forwardFinancingReadiness';
 import { RootCauseAnalysis } from './financialDiagnosisEngine';
+import { FinancialChangeExplanation } from './financialChangeExplanation';
 
 export type ReadinessDirection = 'improving' | 'deteriorating' | 'mixed' | 'stable' | 'not-yet-established';
 
@@ -57,6 +58,13 @@ export function computeDynamicFinancingReadiness(
     growthQuality: QualityOfGrowthResult,
     forwardReadiness: ForwardFinancingReadiness,
     topDiagnosis: RootCauseAnalysis | null,
+    // Optional -- when supplied and Cash is improving while Debt is
+    // deteriorating (the exact "liquidity got better, leverage got worse"
+    // tension a single direction verdict would otherwise flatten into one
+    // misleadingly simple "mixed"), its notes are appended to explain what
+    // might actually be driving that specific tension. See
+    // financialChangeExplanation.ts for exactly what it can and can't prove.
+    changeExplanation: FinancialChangeExplanation | null = null,
 ): DynamicFinancingReadiness {
     const dvs = computeDirectionVsStatus(financingReadiness, growthQuality);
 
@@ -79,6 +87,18 @@ export function computeDynamicFinancingReadiness(
     } else if (improving.length > 0 && deteriorating.length > 0) {
         direction = 'mixed';
         directionSummary = `Mixed: ${improving.map(r => r.label).join(', ')} improving while ${deteriorating.map(r => r.label).join(', ')} deteriorating — sustainable improvement hasn't been fully demonstrated yet.`;
+
+        // The specific "liquidity got better, leverage got worse" case --
+        // cash looking healthier isn't necessarily the same thing as the
+        // business getting healthier if it's coming from delayed supplier
+        // payments or a fresh loan draw rather than the business itself
+        // generating more of it.
+        const cashImproving = improving.some(r => r.key === 'liquidity');
+        const debtDeteriorating = deteriorating.some(r => r.key === 'debt');
+        if (cashImproving && debtDeteriorating && changeExplanation?.available) {
+            const notes = [changeExplanation.supplierDeferralNote, changeExplanation.newBorrowingNote].filter((n): n is string => !!n);
+            if (notes.length > 0) directionSummary += ' ' + notes.join(' ');
+        }
     } else if (improving.length > 0) {
         direction = 'improving';
         directionSummary = `Improving: ${improving.map(r => r.label).join(', ')} trending in the right direction, ${dvs.periodLabel}.`;
