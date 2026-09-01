@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity, useWindowDimensions, Platform } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
@@ -102,6 +102,14 @@ export default function ScoreboardScreen() {
     // only one explanation is open across the whole screen at a time.
     const [expandedChip, setExpandedChip] = useState<string | null>(null);
     const toggleChip = (key: string) => setExpandedChip(prev => (prev === key ? null : key));
+
+    // Desktop-optimized layout: the 7 supporting cards below the Health
+    // Score hero flow into a 2-column grid on a wide viewport instead of
+    // stacking single-file, using the app column's width (1040px) the same
+    // way DashboardScreen's isWideDashboard does. Same 1000px breakpoint --
+    // two ~490px cards need real room each.
+    const { width: scoreboardWidth } = useWindowDimensions();
+    const isWideScoreboard = Platform.OS === 'web' && scoreboardWidth >= 1000;
 
     const risk = useMemo(() => computeRiskScore(finance, loans, transactions, inventory), [finance, loans, transactions, inventory]);
     const bandMeta = useMemo(() => ({ ...RISK_BAND_STYLE[risk.band], color: BAND_COLOR[risk.band] }), [risk.band]);
@@ -290,13 +298,20 @@ export default function ScoreboardScreen() {
                     </TouchableOpacity>
                 </View>
 
+                {/* The 7 supporting cards below flow into a 2-column grid on
+                    a wide viewport (isWideScoreboard) instead of stacking --
+                    the Health Score hero above stays full-width as the
+                    screen's lead element, same pattern as Dashboard keeping
+                    its own hero prominent above its 2-column row. */}
+                <View style={isWideScoreboard && s.scoreboardGrid}>
+
                 {/* Financial Health Score, by pillar -- the exact same score
                     above, broken down a second way (Cash Health, Working
                     Capital folding in Inventory, Revenue Health isolating
                     customer concentration specifically, etc.) instead of
                     computeRiskScore's own factor names. Same tap-to-expand
                     pattern as the chips above. */}
-                <View style={s.card}>
+                <View style={[s.card, isWideScoreboard && s.scoreboardGridItem]}>
                     <View style={s.cardHeaderRow}>
                         <Icon name="grid" size={14} color={Colors.textMuted} />
                         <Text style={s.cardTitle}>Financial Health — By Pillar</Text>
@@ -336,14 +351,16 @@ export default function ScoreboardScreen() {
                     </View>
                 </View>
 
-                <DirectionVsStatusCard risk={risk} growthQuality={growthQuality} changeExplanation={changeExplanation} />
+                <View style={isWideScoreboard && s.scoreboardGridItem}>
+                    <DirectionVsStatusCard risk={risk} growthQuality={growthQuality} changeExplanation={changeExplanation} />
+                </View>
 
                 {/* Cash Reserve Planning -- "how many months of essential
                     expenses would our current cash reserve actually cover,
                     and what SHOULD this specific business be holding" --
                     instead of generic "keep 3 months of cash" advice. See
                     cashReservePlanning.ts. */}
-                <View style={s.card}>
+                <View style={[s.card, isWideScoreboard && s.scoreboardGridItem]}>
                     <View style={s.cardHeaderRow}>
                         <Icon name="shield" size={14} color={Colors.textMuted} />
                         <Text style={s.cardTitle}>Cash Reserve Resilience</Text>
@@ -404,7 +421,7 @@ export default function ScoreboardScreen() {
                     found -- a clean business shouldn't see an empty
                     "leaks" card. */}
                 {financialLeaks.available && financialLeaks.leaks.length > 0 && (
-                    <View style={s.card}>
+                    <View style={[s.card, isWideScoreboard && s.scoreboardGridItem]}>
                         <View style={s.cardHeaderRow}>
                             <Icon name="alert-triangle" size={14} color={Colors.textMuted} />
                             <Text style={s.cardTitle}>Financial Leaks</Text>
@@ -424,7 +441,7 @@ export default function ScoreboardScreen() {
                 {/* Business Exposure & Resilience -- complements Health:
                     Health asks "is the business doing well", this asks
                     "how much would one bad event hurt it". */}
-                <TouchableOpacity style={s.card} onPress={() => setCurrentScreen('risk-management')} activeOpacity={0.85}>
+                <TouchableOpacity style={[s.card, isWideScoreboard && s.scoreboardGridItem]} onPress={() => setCurrentScreen('risk-management')} activeOpacity={0.85}>
                     <View style={s.cardHeaderRow}>
                         <Icon name="shield" size={14} color={Colors.textMuted} />
                         <Text style={s.cardTitle}>Shock Resilience</Text>
@@ -464,7 +481,7 @@ export default function ScoreboardScreen() {
                 </TouchableOpacity>
 
                 {/* Risk Radar */}
-                <TouchableOpacity style={s.card} onPress={() => setCurrentScreen('risk-management')} activeOpacity={0.85}>
+                <TouchableOpacity style={[s.card, isWideScoreboard && s.scoreboardGridItem]} onPress={() => setCurrentScreen('risk-management')} activeOpacity={0.85}>
                     <View style={s.cardHeaderRow}>
                         <Icon name="radio" size={14} color={Colors.textMuted} />
                         <Text style={s.cardTitle}>Risk Radar</Text>
@@ -508,7 +525,7 @@ export default function ScoreboardScreen() {
                     per-goal risk note (tap -> that goal's Risks tab) are
                     separate tap targets, not nested, so a tap on one never
                     also fires the other. */}
-                <View style={s.card}>
+                <View style={[s.card, isWideScoreboard && s.scoreboardGridItem]}>
                     <TouchableOpacity onPress={() => setCurrentScreen('goals')} activeOpacity={0.85}>
                         <View style={s.cardHeaderRow}>
                             <Icon name="target" size={14} color={Colors.textMuted} />
@@ -566,6 +583,8 @@ export default function ScoreboardScreen() {
                     )}
                 </View>
 
+                </View>
+
                 <TouchableOpacity style={s.linkRow} onPress={() => setCurrentScreen('business-timeline')}>
                     <Text style={s.linkText}>See the story of your business's finances so far →</Text>
                 </TouchableOpacity>
@@ -596,6 +615,15 @@ const s = StyleSheet.create({
     trendNote: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17, marginTop: Spacing.sm },
 
     card: { backgroundColor: Colors.card, borderRadius: Radius.lg, padding: Spacing.lg, marginBottom: Spacing.lg, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
+    // flexWrap, not a manually-paired row -- cards vary in height (Financial
+    // Leaks only renders with real leaks, Goals grows with the goal count),
+    // so a wrap-based grid lets each card just flow into the next available
+    // slot instead of me having to hand-pair every card into fixed rows.
+    scoreboardGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.md },
+    // marginBottom: 0 overrides card's own marginBottom -- the grid's own
+    // `gap` handles spacing in both directions once wrapped, so the two
+    // shouldn't stack.
+    scoreboardGridItem: { width: '48%', minWidth: 320, marginBottom: 0 },
     cardHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: Spacing.sm },
     cardTitle: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary },
     cardBodyText: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
