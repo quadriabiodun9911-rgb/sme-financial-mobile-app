@@ -51,6 +51,7 @@ import { getTaxDeadlineStatus } from '../utils/taxDeadline';
 import { isRecurringTransactionOverdue, daysUntilRecurringDue, hasRecurringSchedule } from '../utils/recurringTransactions';
 import { isBudgetActiveForPeriod, isBudgetPeriodLapsed, currentPeriodString } from '../utils/budgetPeriod';
 import { computeAssetsNearingReplacement, computeAssetCurrentValue, getMonthlyExpenseAverage, computeOneThingInsight, computeRiskScore, computeDSCR, computeFinancingReadinessScore, RISK_BAND_STYLE } from '../utils/finance';
+import { computeBusinessHealthIntelligence } from '../utils/metricIntelligence';
 import { computeStockVelocity, computeInventoryValue } from '../utils/stockVelocity';
 import { computeDataQuality } from '../utils/dataQuality';
 import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
@@ -328,6 +329,14 @@ export default function DashboardScreen() {
         () => computeRiskScore(finance, loans, transactions, inventory),
         [finance, loans, transactions, inventory]
     );
+    // Metric Intelligence pilot -- Definition/Owner-confidence/Trigger for
+    // the single most prominent number on this screen. See
+    // metricIntelligence.ts for exactly what's reused vs new.
+    const healthIntelligence = useMemo(
+        () => computeBusinessHealthIntelligence(businessHealth, transactions),
+        [businessHealth, transactions]
+    );
+    const [healthWhyOpen, setHealthWhyOpen] = useState(false);
     const healthBandMeta = useMemo(
         () => ({ ...RISK_BAND_STYLE[businessHealth.band], color: HEALTH_BAND_COLOR[businessHealth.band] }),
         [businessHealth.band]
@@ -949,6 +958,31 @@ export default function DashboardScreen() {
                                 </View>
                             ))}
                         </View>
+                        <TouchableOpacity
+                            style={styles.healthWhyBtn}
+                            onPress={(e) => { e.stopPropagation(); setHealthWhyOpen(o => !o); }}
+                        >
+                            <Icon name="help-circle" size={12} color={Colors.textMuted} />
+                            <Text style={styles.healthWhyBtnText}>Why? What is this built on?</Text>
+                            <Icon name={healthWhyOpen ? 'chevron-up' : 'chevron-down'} size={12} color={Colors.textMuted} />
+                        </TouchableOpacity>
+
+                        {healthWhyOpen && (
+                            <TouchableOpacity style={styles.healthWhyBox} activeOpacity={1} onPress={(e) => e.stopPropagation()}>
+                                <Text style={styles.healthWhyLabel}>Definition</Text>
+                                <Text style={styles.healthWhyText}>{healthIntelligence.definition}</Text>
+
+                                <Text style={styles.healthWhyLabel}>Data confidence</Text>
+                                <Text style={styles.healthWhyText}>{healthIntelligence.dataQuality.summary}</Text>
+                                {healthIntelligence.builtOn.map((line, i) => (
+                                    <Text key={i} style={styles.healthWhyBullet}>• {line}</Text>
+                                ))}
+
+                                <Text style={styles.healthWhyLabel}>Trigger</Text>
+                                <Text style={[styles.healthWhyText, { color: Colors.warning, fontWeight: '700' }]}>⚠️ {healthIntelligence.trigger}</Text>
+                            </TouchableOpacity>
+                        )}
+
                         <Text style={styles.healthLinkText}>See full breakdown & trend →</Text>
                       </TouchableOpacity>
                     </View>
@@ -2164,6 +2198,21 @@ const styles = StyleSheet.create({
       color: Colors.primary,
       fontWeight: '700',
     },
+    healthWhyBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: 5,
+      alignSelf: 'flex-start', marginTop: 8, marginBottom: 4,
+    },
+    healthWhyBtnText: { fontSize: 11.5, fontWeight: '600', color: Colors.textMuted },
+    healthWhyBox: {
+      backgroundColor: Colors.bg, borderRadius: Radius.md, padding: Spacing.md,
+      marginBottom: Spacing.sm, gap: 2,
+    },
+    healthWhyLabel: {
+      fontSize: 10, fontWeight: '700', color: Colors.textMuted,
+      textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 8,
+    },
+    healthWhyText: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
+    healthWhyBullet: { fontSize: 11, color: Colors.textMuted, lineHeight: 16, marginTop: 2 },
     vitalCard: {
       backgroundColor: Colors.surface,
       borderRadius: Radius.lg,

@@ -1424,8 +1424,21 @@ export const RISK_BAND_STYLE: Record<RiskScore['band'], { label: string; emoji: 
 function riskGradeFromScore(score: number): RiskScore['grade'] {
     return score >= 85 ? 'A' : score >= 70 ? 'B' : score >= 55 ? 'C' : score >= 40 ? 'D' : 'F';
 }
+
+// Exported so anything that needs to state the real "what score would move
+// this to the next band" threshold (e.g. metricIntelligence.ts's Business
+// Health trigger) reads it from here rather than hardcoding a second copy
+// of these cutoffs that could drift from what riskBandFromScore actually
+// does. Ordered highest band first.
+export const RISK_BAND_CUTOFFS: { band: RiskScore['band']; min: number }[] = [
+    { band: 'Excellent', min: 90 },
+    { band: 'Strong', min: 75 },
+    { band: 'Moderate', min: 55 },
+    { band: 'Weak', min: 35 },
+    { band: 'Critical', min: 0 },
+];
 function riskBandFromScore(score: number): RiskScore['band'] {
-    return score >= 90 ? 'Excellent' : score >= 75 ? 'Strong' : score >= 55 ? 'Moderate' : score >= 35 ? 'Weak' : 'Critical';
+    return RISK_BAND_CUTOFFS.find(b => score >= b.min)!.band;
 }
 
 /**
