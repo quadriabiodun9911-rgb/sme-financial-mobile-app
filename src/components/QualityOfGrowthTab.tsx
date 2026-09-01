@@ -1,8 +1,10 @@
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Colors } from '../theme/colors';
+import { Radius, Spacing } from '../theme/tokens';
 import { Transaction, Asset, Loan } from '../types';
 import { computeQualityOfGrowth, GrowthSignal, QualityBand } from '../utils/qualityOfGrowth';
+import { computeQualityOfGrowthIntelligence } from '../utils/metricIntelligence';
 import RadialGauge from './RadialGauge';
 
 interface Props {
@@ -34,6 +36,12 @@ function fmtPct(n: number | null): string {
 
 export default function QualityOfGrowthTab({ transactions, assets, loans, currency }: Props) {
     const result = useMemo(() => computeQualityOfGrowth(transactions, assets, loans), [transactions, assets, loans]);
+    // Metric Intelligence pilot -- same Definition/Owner-confidence/Trigger
+    // treatment as Business Health/Financing Readiness/Cash Runway/DSCR/
+    // Cash Reserve Resilience. See metricIntelligence.ts for exactly what's
+    // reused vs new.
+    const intelligence = useMemo(() => computeQualityOfGrowthIntelligence(result, transactions), [result, transactions]);
+    const [whyOpen, setWhyOpen] = useState(false);
 
     if (!result.available) {
         return (
@@ -59,6 +67,26 @@ export default function QualityOfGrowthTab({ transactions, assets, loans, curren
                 <Text style={s.scoreLabel}>Quality of Growth</Text>
                 <RadialGauge displayValue={String(result.score)} label={result.band} progress={result.score / 100} color={bandColor} size={104} strokeWidth={9} />
                 <Text style={s.verdict}>{result.verdict}</Text>
+
+                <TouchableOpacity style={s.whyBtn} onPress={() => setWhyOpen(o => !o)}>
+                    <Text style={s.whyBtnText}>Why? What is this built on?</Text>
+                    <Text style={s.whyBtnText}>{whyOpen ? '▲' : '▼'}</Text>
+                </TouchableOpacity>
+                {whyOpen && (
+                    <View style={s.whyBox}>
+                        <Text style={s.whyLabel}>Definition</Text>
+                        <Text style={s.whyText}>{intelligence.definition}</Text>
+
+                        <Text style={s.whyLabel}>Data confidence</Text>
+                        <Text style={s.whyText}>{intelligence.dataQuality.summary}</Text>
+                        {intelligence.builtOn.map((line, i) => (
+                            <Text key={i} style={s.whyBullet}>• {line}</Text>
+                        ))}
+
+                        <Text style={s.whyLabel}>Trigger</Text>
+                        <Text style={[s.whyText, { color: Colors.warning, fontWeight: '700' }]}>⚠️ {intelligence.trigger}</Text>
+                    </View>
+                )}
             </View>
 
             {/* Flags */}
@@ -116,6 +144,13 @@ const s = StyleSheet.create({
     scoreCard: { backgroundColor: Colors.surface, borderRadius: 14, borderTopWidth: 4, padding: 20, marginBottom: 14, alignItems: 'center' },
     scoreLabel: { fontSize: 13, color: Colors.textSecondary, marginBottom: 10 },
     verdict: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center', lineHeight: 19, marginTop: 12 },
+
+    whyBtn: { alignSelf: 'stretch', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.border },
+    whyBtnText: { fontSize: 11.5, fontWeight: '600', color: Colors.textMuted },
+    whyBox: { alignSelf: 'stretch', backgroundColor: Colors.bg, borderRadius: Radius.md, padding: Spacing.md, marginTop: 8, gap: 2 },
+    whyLabel: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 8 },
+    whyText: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17, textAlign: 'left' },
+    whyBullet: { fontSize: 11, color: Colors.textMuted, lineHeight: 16, marginTop: 2, textAlign: 'left' },
 
     flagsCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14, borderLeftWidth: 4, borderLeftColor: Colors.expense },
     flagRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },

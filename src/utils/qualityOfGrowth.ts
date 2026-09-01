@@ -56,8 +56,10 @@ function pctChange(current: number, prior: number): number | null {
 
 // The scoring model — weights, thresholds and band cutoffs — collected
 // here so the rubric can be read (and tuned) as a single policy rather
-// than as numbers scattered through the scoring logic below.
-const MODEL = {
+// than as numbers scattered through the scoring logic below. Exported so
+// anything that needs the real band cutoffs (e.g. metricIntelligence.ts's
+// trigger) reads them from here rather than hardcoding a second copy.
+export const MODEL = {
     weights: { profit: 0.35, cash: 0.25, receivables: 0.20, debt: 0.20 },
     bandCutoffs: { excellent: 85, strong: 70, moderate: 50, weak: 30 },
     profit: { fullCredit: 1, partialCredit: 0.7, flatRevenueMildDeclineFloor: -10 },

@@ -1,8 +1,9 @@
-import { computeBusinessHealthIntelligence, computeFinancingReadinessIntelligence, computeCashRunwayIntelligence, computeDSCRIntelligence, computeCashReserveIntelligence } from '../src/utils/metricIntelligence';
+import { computeBusinessHealthIntelligence, computeFinancingReadinessIntelligence, computeCashRunwayIntelligence, computeDSCRIntelligence, computeCashReserveIntelligence, computeQualityOfGrowthIntelligence } from '../src/utils/metricIntelligence';
 import { computeRiskScore, RiskScore, DSCRResult } from '../src/utils/finance';
 import { computeDataQuality, computeDataConfidenceBullets } from '../src/utils/dataQuality';
 import { CashRunway } from '../src/utils/cashRunway';
 import { FinancialResilience } from '../src/utils/cashReservePlanning';
+import { QualityOfGrowthResult } from '../src/utils/qualityOfGrowth';
 import { Transaction } from '../src/types';
 
 // A minimal, directly-constructed RiskScore for the two band-boundary tests
@@ -196,6 +197,39 @@ describe('computeCashReserveIntelligence', () => {
     it('reuses computeDataQuality verbatim', () => {
         const txs = [makeTx({ type: 'expense', amount: 30000, status: 'paid' })];
         const result = computeCashReserveIntelligence(makeResilience({}), txs);
+        expect(result.dataQuality).toEqual(computeDataQuality(txs));
+        expect(result.builtOn).toEqual(computeDataConfidenceBullets(computeDataQuality(txs)));
+    });
+});
+
+describe('computeQualityOfGrowthIntelligence', () => {
+    const makeGrowth = (overrides: Partial<QualityOfGrowthResult>): QualityOfGrowthResult => ({
+        available: true,
+        periodLabel: '2026 vs 2025',
+        score: 60,
+        band: 'Moderate',
+        signals: [],
+        flags: [],
+        verdict: '',
+        ...overrides,
+    });
+
+    it('states the real reason as the trigger when unavailable, never a fabricated one', () => {
+        const result = computeQualityOfGrowthIntelligence(makeGrowth({ available: false, reason: 'Needs at least two full years of data to compare growth quality year over year.' }), []);
+        expect(result.trigger).toBe('Needs at least two full years of data to compare growth quality year over year.');
+    });
+
+    it('states the correct adjacent-band trigger for every band, matching qualityOfGrowth.ts\'s own real cutoffs', () => {
+        expect(computeQualityOfGrowthIntelligence(makeGrowth({ band: 'Excellent', score: 90 }), []).trigger).toBe('Falls to Strong if the score drops below 85.');
+        expect(computeQualityOfGrowthIntelligence(makeGrowth({ band: 'Strong', score: 75 }), []).trigger).toBe('Falls to Moderate if the score drops below 70.');
+        expect(computeQualityOfGrowthIntelligence(makeGrowth({ band: 'Moderate', score: 60 }), []).trigger).toBe('Falls to Weak if the score drops below 50.');
+        expect(computeQualityOfGrowthIntelligence(makeGrowth({ band: 'Weak', score: 35 }), []).trigger).toBe('Falls to Critical if the score drops below 30.');
+        expect(computeQualityOfGrowthIntelligence(makeGrowth({ band: 'Critical', score: 10 }), []).trigger).toBe('Recovers to Weak once the score reaches 30.');
+    });
+
+    it('reuses computeDataQuality verbatim, even for an unavailable result -- transaction data quality is independent of the two-year gate', () => {
+        const txs = [makeTx({ type: 'income', amount: 40000, status: 'paid' })];
+        const result = computeQualityOfGrowthIntelligence(makeGrowth({ available: false, reason: 'x' }), txs);
         expect(result.dataQuality).toEqual(computeDataQuality(txs));
         expect(result.builtOn).toEqual(computeDataConfidenceBullets(computeDataQuality(txs)));
     });

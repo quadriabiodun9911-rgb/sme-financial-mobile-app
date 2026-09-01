@@ -3,11 +3,11 @@
  * was to give every important number a Definition / Owner / Assumption /
  * Trigger explanation. Retrofitting that onto every metric in this app at
  * once would touch dozens of screens on a guess at what's worth the effort
- * -- instead this applies the idea, in full, to five of the app's most
+ * -- instead this applies the idea, in full, to six of the app's most
  * prominent numbers (Business Health Score, Financing Readiness Score,
- * Cash Runway, DSCR, Cash Reserve Resilience), as real, working examples
- * rather than a speculative abstraction built for metrics nobody has
- * asked to instrument yet.
+ * Cash Runway, DSCR, Cash Reserve Resilience, Quality of Growth), as
+ * real, working examples rather than a speculative abstraction built for
+ * metrics nobody has asked to instrument yet.
  *
  * Every piece here is reused, not invented:
  *  - Owner/data source and confidence come from computeDataQuality
@@ -30,6 +30,9 @@
  *    off computeFinancialResilience's own result (cashReservePlanning.ts)
  *    -- a target specific to that business's own revenue volatility, not
  *    a flat rule invented here.
+ *  - The Quality of Growth trigger reads qualityOfGrowth.ts's own exported
+ *    MODEL.bandCutoffs -- the same four numbers that already decide
+ *    Excellent/Strong/Moderate/Weak/Critical there.
  *  - No threshold anywhere in this file is invented for this module alone.
  */
 
@@ -38,6 +41,7 @@ import { computeDataQuality, computeDataConfidenceBullets, DataQuality } from '.
 import { INDUSTRY_BENCHMARKS } from './financialDiagnosisEngine';
 import { CashRunway } from './cashRunway';
 import { FinancialResilience } from './cashReservePlanning';
+import { QualityOfGrowthResult, QualityBand, MODEL as QUALITY_OF_GROWTH_MODEL } from './qualityOfGrowth';
 import { Transaction } from '../types';
 
 export interface RiskScoreIntelligence {
@@ -174,6 +178,50 @@ export function computeCashReserveIntelligence(resilience: FinancialResilience, 
     } else {
         trigger = `Drops below target if reserve coverage falls under ${resilience.recommendedMonths.toFixed(1)} months.`;
     }
+
+    return {
+        definition,
+        dataQuality,
+        builtOn: computeDataConfidenceBullets(dataQuality),
+        trigger,
+    };
+}
+
+export interface QualityOfGrowthIntelligence {
+    definition: string;
+    dataQuality: DataQuality;
+    builtOn: string[];
+    trigger: string;
+}
+
+// Ordered highest band first, built from qualityOfGrowth.ts's own exported
+// MODEL.bandCutoffs -- never a second, independently-typed copy of the
+// same four numbers.
+const QUALITY_BAND_ORDER: { band: QualityBand; min: number }[] = [
+    { band: 'Excellent', min: QUALITY_OF_GROWTH_MODEL.bandCutoffs.excellent },
+    { band: 'Strong', min: QUALITY_OF_GROWTH_MODEL.bandCutoffs.strong },
+    { band: 'Moderate', min: QUALITY_OF_GROWTH_MODEL.bandCutoffs.moderate },
+    { band: 'Weak', min: QUALITY_OF_GROWTH_MODEL.bandCutoffs.weak },
+    { band: 'Critical', min: 0 },
+];
+
+export function computeQualityOfGrowthIntelligence(growthQuality: QualityOfGrowthResult, transactions: Transaction[]): QualityOfGrowthIntelligence {
+    const dataQuality = computeDataQuality(transactions);
+    const definition = 'A weighted blend of how profit (35%), operating cash flow (25%), receivables (20%) and debt (20%) each grew relative to revenue over the same year -- rewards growth that pays for itself, marks down growth that\'s funded by shrinking margins, uncollected cash, or rising debt instead.';
+
+    if (!growthQuality.available) {
+        return {
+            definition,
+            dataQuality,
+            builtOn: computeDataConfidenceBullets(dataQuality),
+            trigger: growthQuality.reason ?? 'Needs at least two full years of data before a real trigger applies.',
+        };
+    }
+
+    const idx = QUALITY_BAND_ORDER.findIndex(b => b.band === growthQuality.band);
+    const trigger = growthQuality.band === 'Critical'
+        ? `Recovers to ${QUALITY_BAND_ORDER[idx - 1].band} once the score reaches ${QUALITY_BAND_ORDER[idx - 1].min}.`
+        : `Falls to ${QUALITY_BAND_ORDER[idx + 1].band} if the score drops below ${QUALITY_BAND_ORDER[idx].min}.`;
 
     return {
         definition,
