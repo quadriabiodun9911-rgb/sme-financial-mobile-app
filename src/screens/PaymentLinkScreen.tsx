@@ -45,10 +45,12 @@ export default function PaymentLinkScreen() {
     const currency     = settings.currency || '₦';
     const currencyCode = (settings as any).currencyCode || 'NGN';
     const businessName = user?.businessName || 'My Business';
-    const paystackKey  = settings.paystackPublicKey?.trim() || '';
-    const korapayKey   = settings.korapayPublicKey?.trim() || '';
-    const hasPaystack  = !!paystackKey;
-    const hasKorapay   = !!korapayKey;
+    const paystackKey     = settings.paystackPublicKey?.trim() || '';
+    const korapayKey      = settings.korapayPublicKey?.trim() || '';
+    const flutterwaveKey  = settings.flutterwavePublicKey?.trim() || '';
+    const hasPaystack     = !!paystackKey;
+    const hasKorapay      = !!korapayKey;
+    const hasFlutterwave  = !!flutterwaveKey;
     const amountNum    = parseFloat(amount) || 0;
 
     const validate = () => {
@@ -69,7 +71,7 @@ export default function PaymentLinkScreen() {
             description  ? `📝 For: ${description}` : '',
             customerName ? `👤 Customer: ${customerName}` : '',
             '',
-            (hasPaystack || hasKorapay)
+            (hasPaystack || hasKorapay || hasFlutterwave)
                 ? '✅ We accept secure online payments (cards, bank transfer, USSD, mobile money).'
                 : '💳 Please contact us to arrange payment.',
             '',
@@ -243,6 +245,58 @@ export default function PaymentLinkScreen() {
         }
     };
 
+    // ── Flutterwave ── initialize via backend, open checkout link in browser
+    const handleFlutterwave = async () => {
+        if (!validate()) return;
+        if (!customerEmail) {
+            if (Platform.OS === 'web') window.alert('Email required. Please enter the customer email to use Flutterwave.');
+            else Alert.alert('Email required', 'Please enter the customer email to use Flutterwave.');
+            return;
+        }
+        const payWin = Platform.OS === 'web' ? window.open('', '_blank') : null;
+        setLoading(true);
+        setLoadingMsg('Opening Flutterwave… please wait');
+        const wakeTimer = setTimeout(() => setLoadingMsg('Server starting up, please wait ~30s…'), 5000);
+        try {
+            const ref  = `QD360-${Date.now()}`;
+            const data = await invokePaymentInit({
+                provider: 'flutterwave',
+                amount: amountNum, currency: currencyCode,
+                email: customerEmail, name: customerName,
+                reference: ref, description: description || `Payment to ${businessName}`,
+            });
+            if (!data.checkoutUrl) throw new Error(data.error || 'No checkout URL returned');
+            if (payWin && !payWin.closed) {
+                payWin.location.href = data.checkoutUrl;
+            } else {
+                openWebUrl(data.checkoutUrl);
+            }
+            confirmAction(
+                'Payment Page Opened',
+                'Complete the payment in your browser. Come back here once done, then confirm to mark this as paid (or cancel to do it later).',
+                'Mark as Paid',
+                () => recordManualPayment('Flutterwave'),
+                false,
+            );
+        } catch (e: any) {
+            if (payWin && !payWin.closed) payWin.close();
+            const networkDown = e.message?.includes('fetch') || e.message?.includes('Network');
+            const title = networkDown ? '🔌 Server unavailable' : 'Flutterwave error';
+            const body = networkDown
+                ? 'The payment server is offline or starting up. Please try again in 30 seconds.'
+                : (e.message || 'Could not initialise payment.');
+            if (Platform.OS === 'web') {
+                window.alert(`${title}\n\n${body}`);
+            } else {
+                Alert.alert(title, body);
+            }
+        } finally {
+            clearTimeout(wakeTimer);
+            setLoading(false);
+            setLoadingMsg('');
+        }
+    };
+
     const recordManualPayment = (method: string) => {
         if (!addTransaction) return;
         addTransaction({
@@ -303,6 +357,12 @@ export default function PaymentLinkScreen() {
                                 <Text style={[styles.badgeText, { color: '#a78bfa' }]}>Korapay</Text>
                             </View>
                         )}
+                        {hasFlutterwave && (
+                            <View style={[styles.badge, { backgroundColor: '#FF9500' + '22' }]}>
+                                <Icon name="check" size={11} color="#FF9500" />
+                                <Text style={[styles.badgeText, { color: '#FF9500' }]}>Flutterwave</Text>
+                            </View>
+                        )}
                     </View>
                 </View>
             )}
@@ -323,14 +383,14 @@ export default function PaymentLinkScreen() {
                 <Text style={styles.label}>Customer Name</Text>
                 <TextInput style={styles.input} value={customerName} onChangeText={setCustomerName}
                     placeholder="e.g. Amara Enterprises" placeholderTextColor={Colors.muted} />
-                <Text style={styles.label}>Customer Email {(hasPaystack || hasKorapay) ? '*' : '(optional)'}</Text>
+                <Text style={styles.label}>Customer Email {(hasPaystack || hasKorapay || hasFlutterwave) ? '*' : '(optional)'}</Text>
                 <TextInput style={styles.input} value={customerEmail} onChangeText={setCustomerEmail}
                     placeholder="customer@email.com" placeholderTextColor={Colors.muted}
                     keyboardType="email-address" autoCapitalize="none" />
             </View>
 
             {/* Online payment gateways */}
-            {(hasPaystack || hasKorapay) && (
+            {(hasPaystack || hasKorapay || hasFlutterwave) && (
                 <View style={styles.gatewayCard}>
                     <Text style={styles.sectionTitle}>Collect Online Payment</Text>
                     <Text style={styles.gatewayHint}>
@@ -371,6 +431,21 @@ export default function PaymentLinkScreen() {
                             <Text style={styles.gatewaySubtitle}>KYC verification in progress</Text>
                         </View>
                     )}
+                    {hasFlutterwave && (
+                        <TouchableOpacity
+                            style={[styles.flutterwaveBtn, (hasPaystack || hasKorapay) && { marginTop: 10 }, loading && { opacity: 0.6 }]}
+                            onPress={handleFlutterwave}
+                            disabled={loading}
+                        >
+                            <View style={styles.btnIconRow}>
+                                <Icon name={loading ? 'clock' : 'credit-card'} size={15} color="#fff" />
+                                <Text style={styles.flutterwaveBtnText}>
+                                    {loading ? 'Please wait…' : 'Pay with Flutterwave'}
+                                </Text>
+                            </View>
+                            <Text style={styles.gatewaySubtitle}>Cards · Bank Transfer · USSD · MoMo</Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
             )}
 
@@ -397,14 +472,14 @@ export default function PaymentLinkScreen() {
             </View>
 
             {/* Setup tip */}
-            {!hasPaystack && !hasKorapay && (
+            {!hasPaystack && !hasKorapay && !hasFlutterwave && (
                 <View style={styles.tipCard}>
                     <View style={[styles.titleRow, { marginBottom: 6 }]}>
                         <Icon name="zap" size={13} color={Colors.textPrimary} />
                         <Text style={styles.tipTitle}>Enable online payments</Text>
                     </View>
                     <Text style={styles.tipBody}>
-                        Add your Paystack or Korapay public key in Settings → Payment Gateways to let customers pay online with cards, bank transfer, USSD, or mobile money.
+                        Add your Paystack, Korapay, or Flutterwave public key in Settings → Payment Gateways to let customers pay online with cards, bank transfer, USSD, or mobile money.
                     </Text>
                     <TouchableOpacity onPress={() => navigate('settings')}>
                         <Text style={styles.tipLink}>Go to Settings →</Text>
@@ -460,6 +535,9 @@ const styles = StyleSheet.create({
     korapayBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
     comingSoonBadge: { backgroundColor: '#ffffff33', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 },
     comingSoonText:  { color: '#fff', fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+
+    flutterwaveBtn:     { backgroundColor: '#FF9500', paddingVertical: 14, borderRadius: Radius.md, alignItems: 'center' },
+    flutterwaveBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
 
     actions:         { gap: 10, marginBottom: Spacing.lg },
     primaryBtn:      { backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: Radius.md, alignItems: 'center' },

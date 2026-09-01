@@ -20,8 +20,9 @@
 //   supabase functions deploy payment-init
 //   supabase secrets set PAYSTACK_SECRET_KEY=...
 //   supabase secrets set KORAPAY_SECRET_KEY=...
+//   supabase secrets set FLUTTERWAVE_SECRET_KEY=...
 // (set whichever provider(s) you actually use -- each call 503s with a
-// clear message if its own key isn't set, the other still works)
+// clear message if its own key isn't set, the others still work)
 // SUPABASE_URL / SUPABASE_ANON_KEY are injected automatically.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -95,6 +96,30 @@ async function initKorapay(amount: number, currency: string, email: string, name
   return json({ checkoutUrl: data.data.checkout_url, reference: data.data.reference }, 200);
 }
 
+async function initFlutterwave(amount: number, currency: string, email: string, name: string, reference: string, description: string) {
+  const secretKey = Deno.env.get('FLUTTERWAVE_SECRET_KEY');
+  if (!secretKey) return json({ error: 'Flutterwave is not configured yet.' }, 503);
+
+  const res = await fetch('https://api.flutterwave.com/v3/payments', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${secretKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      tx_ref: reference || `QD360-${Date.now()}`,
+      amount,
+      currency: currency.toUpperCase(),
+      redirect_url: 'https://quad360.com/payment-complete',
+      customer: { email, name },
+      customizations: { title: name || 'Payment', description: description || 'Payment to business' },
+    }),
+  });
+  const data = await res.json();
+  if (data.status !== 'success' || !data.data?.link) {
+    console.error('[payment-init] Flutterwave', data.message);
+    return json({ error: data.message || 'Flutterwave initialization failed' }, 400);
+  }
+  return json({ checkoutUrl: data.data.link, reference: reference || undefined }, 200);
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -117,8 +142,8 @@ Deno.serve(async (req: Request) => {
 
     const body = await req.json().catch(() => null);
     const provider = body?.provider;
-    if (provider !== 'paystack' && provider !== 'korapay') {
-      return json({ error: 'provider must be "paystack" or "korapay".' }, 400);
+    if (provider !== 'paystack' && provider !== 'korapay' && provider !== 'flutterwave') {
+      return json({ error: 'provider must be "paystack", "korapay", or "flutterwave".' }, 400);
     }
 
     const amount = parseFloat(body?.amount);
@@ -133,6 +158,11 @@ Deno.serve(async (req: Request) => {
     if (provider === 'paystack') {
       const description = typeof body?.description === 'string' ? body.description : '';
       return await initPaystack(amount, currency, email, name, description);
+    }
+    if (provider === 'flutterwave') {
+      const reference = typeof body?.reference === 'string' ? body.reference : '';
+      const description = typeof body?.description === 'string' ? body.description : '';
+      return await initFlutterwave(amount, currency, email, name, reference, description);
     }
     const reference = typeof body?.reference === 'string' ? body.reference : '';
     const narration = typeof body?.narration === 'string' ? body.narration : '';

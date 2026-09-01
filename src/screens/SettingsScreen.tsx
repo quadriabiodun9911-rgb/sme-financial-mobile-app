@@ -193,9 +193,10 @@ export default function SettingsScreen() {
             showAlert('Permission denied', 'Only the account owner can change payment settings.');
             return;
         }
-        const paystackPublicKey = (form.paystackPublicKey ?? '').trim();
-        const korapayPublicKey  = (form.korapayPublicKey ?? '').trim();
-        updateSettings({ paystackPublicKey, korapayPublicKey });
+        const paystackPublicKey    = (form.paystackPublicKey ?? '').trim();
+        const korapayPublicKey     = (form.korapayPublicKey ?? '').trim();
+        const flutterwavePublicKey = (form.flutterwavePublicKey ?? '').trim();
+        updateSettings({ paystackPublicKey, korapayPublicKey, flutterwavePublicKey });
         showAlert('✅ Saved', 'Payment keys saved. Tap "Create Payment Link →" to charge customers.');
     };
 
@@ -821,6 +822,19 @@ export default function SettingsScreen() {
                             />
                         </Section>
 
+                        <Section title="Flutterwave">
+                            <Text style={styles.hint}>Get your public key from dashboard.flutterwave.com → Settings → API Keys</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={form.flutterwavePublicKey ?? ''}
+                                onChangeText={v => setForm((f: typeof form) => ({ ...f, flutterwavePublicKey: v.trim() }))}
+                                placeholder="FLWPUBK_TEST-xxxxxxxxxxxxxxxxxx-X"
+                                placeholderTextColor={Colors.muted}
+                                autoCapitalize="none"
+                                autoCorrect={false}
+                            />
+                        </Section>
+
                         <TouchableOpacity style={styles.saveBtn} onPress={handleSavePaymentKeys}>
                             <Text style={styles.saveBtnText}>Save Payment Keys</Text>
                         </TouchableOpacity>
@@ -828,9 +842,9 @@ export default function SettingsScreen() {
                         <TouchableOpacity
                             style={[styles.dataBtn, { marginTop: 8 }]}
                             onPress={() => {
-                                const hasKey = (form.paystackPublicKey ?? '').trim() || (form.korapayPublicKey ?? '').trim();
+                                const hasKey = (form.paystackPublicKey ?? '').trim() || (form.korapayPublicKey ?? '').trim() || (form.flutterwavePublicKey ?? '').trim();
                                 if (!hasKey) {
-                                    showAlert('No API Key', 'Add your Paystack or Korapay public key above and tap Save first.');
+                                    showAlert('No API Key', 'Add your Paystack, Korapay, or Flutterwave public key above and tap Save first.');
                                     return;
                                 }
                                 setCurrentScreen('payment-link');
