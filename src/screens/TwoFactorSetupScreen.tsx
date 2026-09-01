@@ -563,7 +563,8 @@ const styles = StyleSheet.create({
     primaryBtn: { backgroundColor: Colors.primary },
 
     modalSafe: { flex: 1, backgroundColor: Colors.bg },
-    modalConstrainedColumn: { maxWidth: 720, alignSelf: 'center' },
+    // Matches App.tsx's centeredAppColumn width.
+    modalConstrainedColumn: { maxWidth: 1040, alignSelf: 'center' },
     modalHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',

@@ -234,7 +234,8 @@ export default function FirstRunWizard({ visible, onDone }: Props) {
 
 const styles = StyleSheet.create({
     root:   { flex: 1, backgroundColor: Colors.bg },
-    constrainedColumn: { maxWidth: 720, alignSelf: 'center' },
+    // Matches App.tsx's centeredAppColumn width.
+    constrainedColumn: { maxWidth: 1040, alignSelf: 'center' },
     scroll: { flexGrow: 1, padding: 24, paddingTop: 60, justifyContent: 'center' },
 
     dots:      { flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 32 },

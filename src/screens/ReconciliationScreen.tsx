@@ -524,7 +524,8 @@ const styles = StyleSheet.create({
     importBtnText: { color: Colors.primary, fontWeight: '700', fontSize: 12 },
 
     modalSafe:    { flex: 1, backgroundColor: Colors.bg },
-    modalConstrainedColumn: { maxWidth: 720, alignSelf: 'center' },
+    // Matches App.tsx's centeredAppColumn width.
+    modalConstrainedColumn: { maxWidth: 1040, alignSelf: 'center' },
     modalHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: Spacing.lg, borderBottomWidth: 1, borderBottomColor: Colors.border },
     modalTitle:   { fontSize: 18, fontWeight: '800', color: Colors.textPrimary },
     fieldLabel:   { fontSize: 13, fontWeight: '600', color: Colors.textSecondary, marginBottom: 6 },

@@ -1068,7 +1068,8 @@ const styles = StyleSheet.create({
     reminderOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', padding: Spacing.xl },
     reminderCard:    { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.xl, ...Shadow.md },
     reminderCardWide: { maxWidth: 440, width: '100%', alignSelf: 'center' },
-    modalConstrainedColumn: { maxWidth: 720, alignSelf: 'center', width: '100%' },
+    // Matches App.tsx's centeredAppColumn width.
+    modalConstrainedColumn: { maxWidth: 1040, alignSelf: 'center', width: '100%' },
     reminderHeadRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.sm },
     reminderTitle:   { fontSize: 15, fontWeight: 'bold', color: Colors.textPrimary },
     reminderCloseText: { fontSize: 13, color: Colors.textMuted },

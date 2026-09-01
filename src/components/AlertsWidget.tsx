@@ -466,7 +466,8 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingTop: 16,
   },
-  detailContentWide: { maxWidth: 720, width: '100%', alignSelf: 'center' },
+  // Matches App.tsx's centeredAppColumn width.
+  detailContentWide: { maxWidth: 1040, width: '100%', alignSelf: 'center' },
   detailCloseBtn: {
     paddingHorizontal: 16,
     paddingVertical: 8,

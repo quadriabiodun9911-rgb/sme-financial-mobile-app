@@ -451,9 +451,9 @@ const styles = StyleSheet.create({
 
     // ── Me page ─────────────────────────────────────────────────────────────
     page:   { flex: 1, backgroundColor: Colors.bg },
-    // Matches App.tsx's centeredAppColumn -- see the comment where this is
-    // applied for why it's needed here too.
-    moreConstrainedColumn: { maxWidth: 720, alignSelf: 'center' },
+    // Matches App.tsx's centeredAppColumn (1040, not the original 720) --
+    // see the comment where this is applied for why it's needed here too.
+    moreConstrainedColumn: { maxWidth: 1040, alignSelf: 'center' },
     scroll: { paddingBottom: 40 },
 
     // Header

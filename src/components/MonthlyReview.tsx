@@ -243,7 +243,8 @@ export default function MonthlyReview({ visible, onClose }: Props) {
 
 const styles = StyleSheet.create({
     root:   { flex: 1, backgroundColor: Colors.bg },
-    constrainedColumn: { maxWidth: 720, alignSelf: 'center' },
+    // Matches App.tsx's centeredAppColumn width.
+    constrainedColumn: { maxWidth: 1040, alignSelf: 'center' },
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border },
     headerTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary },
     headerSub:   { fontSize: 12, color: Colors.textMuted },

@@ -220,16 +220,24 @@ const styles = StyleSheet.create({
     // edge-to-edge. backgroundColor matches Colors.bg so the flanking space
     // reads as intentional letterboxing, not an unstyled void, and stays
     // correct across both the dark and warm-paper themes.
+    //
+    // 1040, not the original 720 -- 720 read as wasted space on a real
+    // 1440px+ laptop/desktop window (reported directly: "the app width for
+    // desktop and laptop is not full"). This is the quick, low-risk half of
+    // that fix -- shrinks the empty margins noticeably without touching any
+    // individual screen's layout. A genuine desktop-optimized (e.g.
+    // multi-column) layout for the densest screens is a separate, bigger
+    // follow-up, not this change.
     centeredAppColumn: {
         width: '100%',
-        maxWidth: 720,
+        maxWidth: 1040,
         alignSelf: 'center',
         backgroundColor: Colors.bg,
         // Screens have their own position:'absolute' FABs/pills anchored
         // with `right`/`bottom` offsets (e.g. Dashboard's quick-add button).
         // Without this, absolute descendants skip past this narrower column
         // and anchor to the full browser viewport instead, poking out past
-        // the column's actual right edge on any viewport wider than 720px.
+        // the column's actual right edge on any viewport wider than 1040px.
         position: 'relative',
     },
 });

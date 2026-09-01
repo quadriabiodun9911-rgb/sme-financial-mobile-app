@@ -552,7 +552,8 @@ const styles = StyleSheet.create({
 
     // Modal
     modalSafe: { flex: 1, backgroundColor: Colors.bg },
-    modalConstrainedColumn: { maxWidth: 720, alignSelf: 'center' },
+    // Matches App.tsx's centeredAppColumn width.
+    modalConstrainedColumn: { maxWidth: 1040, alignSelf: 'center' },
     modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: Colors.border },
     modalTitle: { fontSize: 18, fontWeight: '800', color: Colors.textPrimary },
     modalClose: { fontSize: 18, color: Colors.textMuted, fontWeight: '700' },

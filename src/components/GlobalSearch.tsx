@@ -178,7 +178,8 @@ export default function GlobalSearch({ visible, onClose }: Props) {
 
 const styles = StyleSheet.create({
     root:        { flex: 1, backgroundColor: Colors.bg },
-    constrainedColumn: { maxWidth: 720, alignSelf: 'center' },
+    // Matches App.tsx's centeredAppColumn width.
+    constrainedColumn: { maxWidth: 1040, alignSelf: 'center' },
     searchBar:   { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 8, borderBottomWidth: 1, borderBottomColor: Colors.border, backgroundColor: Colors.surface },
     searchIcon:  { fontSize: 16 },
     input:       { flex: 1, fontSize: 16, color: Colors.textPrimary, paddingVertical: 8 },
