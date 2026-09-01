@@ -98,7 +98,7 @@ export default function LandingScreen() {
                     </Text>
 
                     <View style={s.widgetWrap}>
-                        <QuickHealthCheckWidget onWantFullPicture={goSignup} onTryDemo={goDemo} />
+                        <QuickHealthCheckWidget onWantFullPicture={goSignup} onTryDemo={goDemo} isWide={isWide} />
                     </View>
 
                     <Text style={[s.northStar, isWide && s.northStarWide]}>
