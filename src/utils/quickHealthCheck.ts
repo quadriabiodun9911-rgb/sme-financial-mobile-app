@@ -64,6 +64,7 @@ export interface QuickHealthCheckResult {
 
     diagnosis: string; // names which of the 2 real factors is the bigger concern, and why
     financingPreview: string; // qualitative only, explicitly caveated -- never a fabricated approval/denial
+    fullDetail: string; // spells out revenue, expenses, the resulting monthly profit/loss and margin, and cash on hand, ending in "X months without borrowing" (or the no-burn case) -- the full narrative behind the headline runway number, not just the number itself
 
     // Stress test -- same honest cash / net-burn formula as runwayMonths
     // above, just re-run against four hypothetical revenue/expense shifts.
@@ -105,6 +106,14 @@ const STRESS_CRITICAL_MONTHS = INDUSTRY_BENCHMARKS.runwayDaysCritical / 30;
 // would be trivial for a large business and impossible for a small one.
 // 10% is a clean, easily-explained round number for an illustrative lever.
 const LEVER_PCT = 0.10;
+
+// No currency symbol -- this widget never asks a visitor which currency
+// they use (there's no signed-in business with a saved currency yet), so
+// prefixing a symbol would just be guessing. Comma-grouped only, matching
+// the input fields' own "e.g. 45,000" placeholders.
+function formatAmount(n: number): string {
+    return Math.round(n).toLocaleString();
+}
 
 export function computeQuickHealthCheck(input: QuickHealthCheckInput): QuickHealthCheckResult {
     const { lastMonthRevenue, monthlyExpenses, cashInBank } = input;
@@ -151,6 +160,25 @@ export function computeQuickHealthCheck(input: QuickHealthCheckInput): QuickHeal
         diagnosis = 'Profitability and liquidity are roughly in balance at this level -- neither is the standout weak point yet.';
     }
 
+    // The full narrative behind the headline runway number -- names
+    // revenue, expenses, the monthly profit or loss that leaves, the
+    // margin, and cash on hand, ending in the same "X months without
+    // borrowing" framing the headline number already represents (cash ÷
+    // net burn assumes no new revenue growth and no new borrowing --
+    // that's what "if things stay as they are" already means here, just
+    // spelled out in full instead of left implicit in a bare number).
+    let fullDetail: string;
+    if (lastMonthRevenue <= 0 && monthlyExpenses <= 0) {
+        fullDetail = 'Not enough entered yet to spell out a full picture -- add a revenue and an expense figure above.';
+    } else if (lastMonthRevenue <= 0) {
+        fullDetail = `With no revenue recorded and expenses of ${formatAmount(monthlyExpenses)} a month, the business is losing ${formatAmount(netMonthlyBurn)} a month. If expenses and cash stay where they are — no new revenue, no new borrowing — the ${formatAmount(cashInBank)} on hand would cover about ${runwayMonths.toFixed(1)} month${runwayMonths === 1 ? '' : 's'} before the business needs more cash just to keep running.`;
+    } else if (netMonthlyBurn > 0) {
+        fullDetail = `Revenue of ${formatAmount(lastMonthRevenue)} and expenses of ${formatAmount(monthlyExpenses)} a month leave a monthly loss of ${formatAmount(netMonthlyBurn)} (a ${marginPct.toFixed(1)}% margin). If revenue, expenses and cash all stay where they are — no revenue growth, no new borrowing — the ${formatAmount(cashInBank)} you have in the bank would cover about ${runwayMonths.toFixed(1)} month${runwayMonths === 1 ? '' : 's'} before the business needs more cash just to keep running.`;
+    } else {
+        const monthlyProfit = lastMonthRevenue - monthlyExpenses;
+        fullDetail = `Revenue of ${formatAmount(lastMonthRevenue)} comfortably covers expenses of ${formatAmount(monthlyExpenses)} each month, leaving a monthly profit of ${formatAmount(monthlyProfit)} (a ${marginPct.toFixed(1)}% margin). At this rate the business isn't drawing down its ${formatAmount(cashInBank)} cash balance at all — there's no fixed number of months until you'd need to borrow, as long as that holds.`;
+    }
+
     let financingPreview: string;
     if (partialBand === 'Excellent' || partialBand === 'Strong') {
         financingPreview = 'Your basic numbers show the kind of cash discipline lenders respond well to.';
@@ -186,7 +214,7 @@ export function computeQuickHealthCheck(input: QuickHealthCheckInput): QuickHeal
     return {
         partialScore, partialBand, profitabilityScore, liquidityScore, marginPct,
         runwayMonths, isProfitable, netMonthlyBurn, expenseRatioPct,
-        diagnosis, financingPreview,
+        diagnosis, financingPreview, fullDetail,
         stressScenarios, stressNarrative, runwayLevers,
     };
 }

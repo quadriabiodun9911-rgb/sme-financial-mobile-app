@@ -70,6 +70,44 @@ describe('computeQuickHealthCheck', () => {
         }
     });
 
+    describe('fullDetail narrative', () => {
+        it('names revenue, expenses, the monthly loss and margin, and cash on hand, ending in the "months without borrowing" figure, when the business is burning cash', () => {
+            // burn = 45000-40000 = 5000/mo, cash 15000 -> runway 3 months, margin = (40000-45000)/40000*100 = -12.5%
+            const result = computeQuickHealthCheck({ lastMonthRevenue: 40000, monthlyExpenses: 45000, cashInBank: 15000 });
+            expect(result.fullDetail).toContain('40,000');
+            expect(result.fullDetail).toContain('45,000');
+            expect(result.fullDetail).toContain('5,000'); // the monthly loss
+            expect(result.fullDetail).toContain('15,000'); // cash on hand
+            expect(result.fullDetail).toContain('-12.5%');
+            expect(result.fullDetail).toContain('3.0 month');
+            expect(result.fullDetail).toMatch(/no new borrowing/i);
+        });
+
+        it('states the business is not drawing down cash, with no fixed number of months, when revenue covers expenses', () => {
+            const result = computeQuickHealthCheck({ lastMonthRevenue: 50000, monthlyExpenses: 30000, cashInBank: 100000 });
+            expect(result.fullDetail).toContain('50,000');
+            expect(result.fullDetail).toContain('30,000');
+            expect(result.fullDetail).toContain('20,000'); // the monthly profit
+            expect(result.fullDetail).toContain('100,000');
+            expect(result.fullDetail).toMatch(/isn't drawing down/i);
+            expect(result.fullDetail).not.toMatch(/\d+(\.\d+)? months? before/i);
+        });
+
+        it('handles zero revenue honestly, without dividing by zero into NaN/Infinity text', () => {
+            const result = computeQuickHealthCheck({ lastMonthRevenue: 0, monthlyExpenses: 10000, cashInBank: 5000 });
+            expect(result.fullDetail).toContain('no revenue');
+            expect(result.fullDetail).toContain('10,000');
+            expect(result.fullDetail).toContain('5,000');
+            expect(result.fullDetail).not.toContain('NaN');
+            expect(result.fullDetail).not.toContain('Infinity');
+        });
+
+        it('asks for more input rather than fabricating a narrative when both revenue and expenses are zero', () => {
+            const result = computeQuickHealthCheck({ lastMonthRevenue: 0, monthlyExpenses: 0, cashInBank: 5000 });
+            expect(result.fullDetail).toMatch(/not enough entered yet/i);
+        });
+    });
+
     describe('stress test scenarios', () => {
         it('re-runs the same cash / net-burn formula against each hypothetical, never blending revenue+expenses+profit into one figure', () => {
             // burn = 45000-40000 = 5000/mo, cash 15000 -> current runway 3 months

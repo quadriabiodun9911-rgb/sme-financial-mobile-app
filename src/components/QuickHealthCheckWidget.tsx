@@ -115,6 +115,9 @@ export default function QuickHealthCheckWidget({ onWantFullPicture, onTryDemo, i
                                 : 'Revenue currently covers expenses, so there\'s no active burn to project against.'}
                         </Text>
 
+                        <Text style={s.detailLabel}>Full details</Text>
+                        <Text style={[s.resultSub, isWide && s.wideTextCap]}>{result.fullDetail}</Text>
+
                         <TouchableOpacity style={s.stressToggleBtn} onPress={() => setStressOpen(o => !o)}>
                             <Text style={s.stressToggleText}>🧪 Stress-test this</Text>
                             <Text style={s.stressToggleText}>{stressOpen ? '▲' : '▼'}</Text>
@@ -284,6 +287,7 @@ const s = StyleSheet.create({
     resultValue: { fontSize: 20, fontWeight: '800', color: Colors.textPrimary, marginBottom: 3 },
     resultSub: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
 
+    detailLabel: { fontSize: 10.5, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 8, marginBottom: 3 },
     stressToggleBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: Colors.border },
     stressToggleText: { fontSize: 11.5, fontWeight: '700', color: Colors.primary },
     stressBox: { backgroundColor: Colors.bg, borderRadius: Radius.md, padding: Spacing.sm, marginTop: 8 },
