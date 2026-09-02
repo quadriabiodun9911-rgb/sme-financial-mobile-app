@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View, Text, TextInput, TouchableOpacity, ScrollView,
     StyleSheet, Share, Alert, Linking, Platform,
@@ -8,11 +8,10 @@ import { Colors } from '../theme/colors';
 import { supabase } from '../utils/supabase';
 import Icon from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
-import { confirmAction, showAlert } from '../utils/webAlert';
-import { dismissWebAlert } from '../components/AlertHost';
 import { getConnectedProviders } from '../utils/paymentSecrets';
 import { getWorkspaceOwnerId } from '../utils/storage';
 import { claimIncomingPayments } from '../utils/incomingPayments';
+import { savePendingPayment, PendingPayment } from '../utils/pendingPayment';
 
 // Same shape as aiAdvisor.ts's askAdvisor -- the edge function always
 // replies with a JSON { error } body on failure, so surface that instead
@@ -70,9 +69,13 @@ export default function PaymentLinkScreen() {
     }, []);
 
     // Picks up any payment payment-webhook already confirmed as successful
-    // while this screen was open (e.g. the merchant paid in the checkout
-    // tab and switched back here without needing to tap "Mark as Paid") --
-    // see incomingPayments.ts.
+    // while this screen was open -- e.g. the merchant came back here (Back
+    // button) after a checkout that already got recorded automatically by
+    // PaymentCompleteScreen on the way back from the provider. Checkout
+    // itself is now a full-page redirect to the provider and back (see the
+    // Pay-with-X handlers below), not a second tab, so there's no longer a
+    // race to poll against here -- PaymentCompleteScreen is the one place
+    // that actually waits for the automatic result; see its own polling.
     useEffect(() => {
         let cancelled = false;
         (async () => {
@@ -83,58 +86,6 @@ export default function PaymentLinkScreen() {
         })();
         return () => { cancelled = true; };
     }, []);
-
-    // transactions as a ref, not just the state closure above -- the
-    // background poll below (started once, ticking every few seconds) needs
-    // the CURRENT list on every tick to dedupe correctly, not whatever it
-    // was the instant the poll started.
-    const transactionsRef = useRef(transactions);
-    useEffect(() => { transactionsRef.current = transactions; }, [transactions]);
-
-    // The single-shot claim above only runs once, when this screen first
-    // mounts -- it can't see a payment that the checkout tab's own
-    // PaymentCompleteScreen claims a few seconds LATER, while this tab is
-    // just sitting on the "Payment Page Opened" dialog waiting for the
-    // user. Without this, tapping "Mark as Paid" here would check only
-    // this tab's now-stale transaction list, miss the one the other tab
-    // already recorded, and create a duplicate instead of recognizing it
-    // was already done. Polling here (not just once) keeps this tab's own
-    // list current so that dedupe check in recordManualPayment actually
-    // works by the time the user acts on the dialog.
-    const claimPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-    const startClaimPolling = () => {
-        if (claimPollRef.current) return;
-        claimPollRef.current = setInterval(async () => {
-            const ownerUserId = await getWorkspaceOwnerId();
-            if (!ownerUserId) return;
-            const existingRefs = new Set<string>((transactionsRef.current || []).map((t: any) => t.reference).filter(Boolean));
-            const claimed = await claimIncomingPayments(ownerUserId, existingRefs, addTransaction, markInvoiceStatus);
-            // Recording it silently in the background reads as "the app is
-            // doing something to my data without telling me" -- close the
-            // now-stale "Payment Page Opened" prompt (still showing the old
-            // "come back and confirm" copy, which no longer applies) and
-            // say plainly that it happened, instead of leaving the user to
-            // discover it on their own by opening Transactions.
-            if (claimed > 0) {
-                stopClaimPolling();
-                if (Platform.OS === 'web') dismissWebAlert();
-                showAlert(
-                    '✅ Payment received',
-                    'It was verified and recorded automatically — no action needed.',
-                    () => navigate('transactions'),
-                );
-            }
-        }, 5000);
-        // Stop after a few minutes regardless -- if the webhook genuinely
-        // never arrives, the merchant can still fall back to "Mark as
-        // Paid" and there's no reason to keep polling forever in the
-        // background.
-        setTimeout(stopClaimPolling, 5 * 60 * 1000);
-    };
-    const stopClaimPolling = () => {
-        if (claimPollRef.current) { clearInterval(claimPollRef.current); claimPollRef.current = null; }
-    };
-    useEffect(() => stopClaimPolling, []);
 
     const validate = () => {
         if (!amount || amountNum <= 0) {
@@ -308,7 +259,25 @@ export default function PaymentLinkScreen() {
         }
     };
 
-    // ── Paystack ── initialize via backend, open authorization_url in browser
+    // Persists just enough of this checkout (see pendingPayment.ts) for
+    // PaymentCompleteScreen to record it itself if payment-webhook doesn't
+    // beat it to it, then navigates the whole tab to the provider's own
+    // checkout page -- a real page redirect, not a second tab, so there's
+    // only ever one copy of this workspace's transaction list in play at a
+    // time. Native keeps opening the provider's page externally via
+    // Linking, same as before.
+    const goToCheckout = async (provider: PendingPayment['provider'], url: string, reference: string) => {
+        await savePendingPayment({
+            reference, provider, amount: amountNum,
+            description: description || `Payment to ${businessName}`,
+            customerName: customerName || undefined,
+            invoiceId: params.invoiceId,
+        });
+        if (Platform.OS === 'web') window.location.href = url;
+        else Linking.openURL(url);
+    };
+
+    // ── Paystack ── initialize via backend, redirect to authorization_url
     const handlePaystack = async () => {
         if (!validate()) return;
         if (!customerEmail) {
@@ -316,9 +285,6 @@ export default function PaymentLinkScreen() {
             else Alert.alert('Email required', 'Please enter the customer email to use Paystack.');
             return;
         }
-        // Open a blank window NOW (synchronous, in the tap handler) so iOS Safari
-        // won't block it as a popup when we set its URL after the async fetch.
-        const payWin = Platform.OS === 'web' ? window.open('', '_blank') : null;
         setLoading(true);
         setLoadingMsg('Opening Paystack… please wait');
         const wakeTimer = setTimeout(() => setLoadingMsg('Server starting up, please wait ~30s…'), 5000);
@@ -334,21 +300,8 @@ export default function PaymentLinkScreen() {
             });
             const authUrl = data.authorization_url || data.data?.authorization_url;
             if (!authUrl) throw new Error('No payment URL returned from server');
-            if (payWin && !payWin.closed) {
-                payWin.location.href = authUrl;
-            } else {
-                openWebUrl(authUrl);
-            }
-            startClaimPolling();
-            confirmAction(
-                'Payment Page Opened',
-                'Complete the payment in your browser — it will be recorded here automatically once it goes through. If it hasn’t appeared within a minute or two, tap below to record it yourself.',
-                'Mark as Paid',
-                () => recordManualPayment('Paystack', data.reference),
-                false,
-            );
+            await goToCheckout('paystack', authUrl, data.reference);
         } catch (e: any) {
-            if (payWin && !payWin.closed) payWin.close();
             const serverDown = e.message?.includes('Server error') || e.message?.includes('fetch') || e.message?.includes('Network');
             const title = serverDown ? '🔌 Server unavailable' : 'Paystack error';
             const body = serverDown
@@ -366,7 +319,7 @@ export default function PaymentLinkScreen() {
         }
     };
 
-    // ── Korapay ── initialize via backend, open checkout URL in browser
+    // ── Korapay ── initialize via backend, redirect to checkout URL
     const handleKorapay = async () => {
         if (!validate()) return;
         if (!customerEmail) {
@@ -374,7 +327,6 @@ export default function PaymentLinkScreen() {
             else Alert.alert('Email required', 'Please enter the customer email to use Korapay.');
             return;
         }
-        const payWin = Platform.OS === 'web' ? window.open('', '_blank') : null;
         setLoading(true);
         setLoadingMsg('Opening Korapay… please wait');
         const wakeTimer = setTimeout(() => setLoadingMsg('Server starting up, please wait ~30s…'), 5000);
@@ -388,21 +340,8 @@ export default function PaymentLinkScreen() {
                 reference: ref, narration: description || `Payment to ${businessName}`,
             });
             if (!data.checkoutUrl) throw new Error(data.error || 'No checkout URL returned');
-            if (payWin && !payWin.closed) {
-                payWin.location.href = data.checkoutUrl;
-            } else {
-                openWebUrl(data.checkoutUrl);
-            }
-            startClaimPolling();
-            confirmAction(
-                'Payment Page Opened',
-                'Complete the payment in your browser — it will be recorded here automatically once it goes through. If it hasn’t appeared within a minute or two, tap below to record it yourself.',
-                'Mark as Paid',
-                () => recordManualPayment('Korapay', data.reference || ref),
-                false,
-            );
+            await goToCheckout('korapay', data.checkoutUrl, data.reference || ref);
         } catch (e: any) {
-            if (payWin && !payWin.closed) payWin.close();
             const networkDown = e.message?.includes('fetch') || e.message?.includes('Network');
             const title = networkDown ? '🔌 Server unavailable' : 'Korapay error';
             const body = networkDown
@@ -420,7 +359,7 @@ export default function PaymentLinkScreen() {
         }
     };
 
-    // ── Flutterwave ── initialize via backend, open checkout link in browser
+    // ── Flutterwave ── initialize via backend, redirect to checkout link
     const handleFlutterwave = async () => {
         if (!validate()) return;
         if (!customerEmail) {
@@ -428,7 +367,6 @@ export default function PaymentLinkScreen() {
             else Alert.alert('Email required', 'Please enter the customer email to use Flutterwave.');
             return;
         }
-        const payWin = Platform.OS === 'web' ? window.open('', '_blank') : null;
         setLoading(true);
         setLoadingMsg('Opening Flutterwave… please wait');
         const wakeTimer = setTimeout(() => setLoadingMsg('Server starting up, please wait ~30s…'), 5000);
@@ -442,21 +380,8 @@ export default function PaymentLinkScreen() {
                 reference: ref, description: description || `Payment to ${businessName}`,
             });
             if (!data.checkoutUrl) throw new Error(data.error || 'No checkout URL returned');
-            if (payWin && !payWin.closed) {
-                payWin.location.href = data.checkoutUrl;
-            } else {
-                openWebUrl(data.checkoutUrl);
-            }
-            startClaimPolling();
-            confirmAction(
-                'Payment Page Opened',
-                'Complete the payment in your browser — it will be recorded here automatically once it goes through. If it hasn’t appeared within a minute or two, tap below to record it yourself.',
-                'Mark as Paid',
-                () => recordManualPayment('Flutterwave', data.reference || ref),
-                false,
-            );
+            await goToCheckout('flutterwave', data.checkoutUrl, ref);
         } catch (e: any) {
-            if (payWin && !payWin.closed) payWin.close();
             const networkDown = e.message?.includes('fetch') || e.message?.includes('Network');
             const title = networkDown ? '🔌 Server unavailable' : 'Flutterwave error';
             const body = networkDown
@@ -472,38 +397,6 @@ export default function PaymentLinkScreen() {
             setLoading(false);
             setLoadingMsg('');
         }
-    };
-
-    const recordManualPayment = (method: string, ref?: string) => {
-        stopClaimPolling();
-        if (!addTransaction) return;
-        // If payment-webhook already recorded this exact checkout
-        // automatically (see incomingPayments.ts's claim effect above) while
-        // this dialog was still sitting open, don't record it a second time.
-        if (ref && (transactions || []).some((t: any) => t.reference === ref)) {
-            const msg = '✅ Already recorded — this payment was picked up automatically.';
-            if (Platform.OS === 'web') window.alert(msg);
-            else Alert.alert('✅ Already recorded', 'This payment was picked up automatically.');
-            navigate('transactions');
-            return;
-        }
-        addTransaction({
-            type: 'income', amount: amountNum,
-            description: description || `Payment via ${method}`,
-            category: 'Sales', date: new Date().toISOString().split('T')[0],
-            vendorCustomer: customerName,
-            status: 'paid',
-            reference: ref,
-            paidAt: new Date().toISOString(),
-        });
-        // If this payment came from an invoice, mark that invoice as paid too
-        if (params.invoiceId && markInvoiceStatus) {
-            markInvoiceStatus(params.invoiceId, 'paid');
-        }
-        const msg = '✅ Recorded. Payment saved to your transactions.' + (params.invoiceId ? ' Invoice marked as paid.' : '');
-        if (Platform.OS === 'web') window.alert(msg);
-        else Alert.alert('✅ Recorded', 'Payment saved to your transactions.' + (params.invoiceId ? ' Invoice marked as paid.' : ''));
-        navigate('transactions');
     };
 
     return (
