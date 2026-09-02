@@ -681,7 +681,15 @@ export default function LoginScreen() {
         } finally {
             setRecoveryTokens(null);
             setResetSubmitting(false);
-            await ephemeral.auth.signOut().catch(() => {});
+            // scope: 'local' matters here -- the default ('global') revokes
+            // the refresh token for EVERY session this account has, on
+            // every device, not just this throwaway client (see
+            // createEphemeralAuthClient's comment: it "holds no state worth
+            // keeping around," which was never meant to imply logging the
+            // account out everywhere). This client's own session was never
+            // persisted, so there's nothing server-side that needs revoking
+            // -- just drop it locally.
+            await ephemeral.auth.signOut({ scope: 'local' }).catch(() => {});
         }
     };
 
@@ -824,7 +832,18 @@ export default function LoginScreen() {
         } finally {
             setRecoveryTokens(null);
             setResetSubmitting(false);
-            await ephemeral.auth.signOut().catch(() => {});
+            // scope: 'local' is the actual fix here, not just tidiness --
+            // the "same account" branch above hands the MAIN persisted
+            // client the exact same access/refresh token pair this
+            // ephemeral client is holding (supabase.auth.setSession(...)
+            // with recoveryTokens). Signing out here with the default
+            // 'global' scope revokes that shared refresh token server-side,
+            // so the session the app just adopted stops being able to
+            // refresh -- it looks fine locally (device-trust/PIN already
+            // saved) until the next refresh or reload, when every
+            // authenticated call starts failing with "Not authenticated"
+            // even though the account's data was never actually at risk.
+            await ephemeral.auth.signOut({ scope: 'local' }).catch(() => {});
         }
     };
 
