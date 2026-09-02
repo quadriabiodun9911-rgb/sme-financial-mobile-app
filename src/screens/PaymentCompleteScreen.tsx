@@ -103,6 +103,18 @@ export default function PaymentCompleteScreen() {
         return () => { cancelled = true; if (pollTimer) clearTimeout(pollTimer); };
     }, []);
 
+    // Once the payment is confirmed recorded, go straight to Transactions
+    // instead of waiting for a tap -- having to tap "Go to Dashboard" and
+    // then tap into Transactions again just to see the payment that's
+    // already sitting there is the exact two-clicks-for-one-answer
+    // friction this replaces. Reading it as the intended, expected
+    // destination rather than an accident.
+    useEffect(() => {
+        if (phase !== 'recorded') return;
+        const t = setTimeout(() => navigate('transactions'), 1400);
+        return () => clearTimeout(t);
+    }, [phase]);
+
     // Only reachable once polling has given up (see POLL_MAX_ATTEMPTS) --
     // recreates exactly what the old "Mark as Paid" fallback did, using
     // what PaymentLinkScreen persisted before redirecting here (see
@@ -149,7 +161,7 @@ export default function PaymentCompleteScreen() {
                     <>
                         <Text style={styles.icon}>✓</Text>
                         <Text style={styles.title}>Payment successful</Text>
-                        <Text style={styles.subtitle}>It’s been recorded in your transactions.</Text>
+                        <Text style={styles.subtitle}>It’s been recorded — taking you to Transactions…</Text>
                     </>
                 )}
                 {phase === 'manual' && (
@@ -170,10 +182,10 @@ export default function PaymentCompleteScreen() {
                 )}
                 <TouchableOpacity
                     style={[styles.button, phase === 'manual' && pending ? styles.buttonSecondary : null]}
-                    onPress={() => navigate('dashboard')}
+                    onPress={() => navigate(phase === 'recorded' ? 'transactions' : 'dashboard')}
                 >
                     <Text style={[styles.buttonText, phase === 'manual' && pending ? styles.buttonTextSecondary : null]}>
-                        Go to Dashboard
+                        {phase === 'recorded' ? 'View Transactions Now' : 'Go to Dashboard'}
                     </Text>
                 </TouchableOpacity>
             </View>
