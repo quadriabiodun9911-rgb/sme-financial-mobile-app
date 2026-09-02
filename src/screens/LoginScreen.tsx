@@ -774,6 +774,11 @@ export default function LoginScreen() {
                 setResetSubmitting(false);
                 return;
             }
+            // Same "Auth session missing!" trap as handleDeviceVerifyComplete
+            // -- updateUser() keeps re-saving the same (now server-side
+            // invalidated) access token instead of handing back a fresh
+            // one. See that function's comment for the full explanation.
+            await supabase.auth.refreshSession().catch(() => {});
             // See the matching comment in handleWebResetComplete -- must run
             // before the local secret is overwritten below.
             await syncFieldEncryptionKey().catch(() => {});
@@ -897,6 +902,19 @@ export default function LoginScreen() {
             const newAuthSecret = generateAuthSecret();
             const { error: rotateError } = await supabase.auth.updateUser({ password: newAuthSecret });
             if (!rotateError) await saveAuthSecret(newAuthSecret).catch(() => {});
+            // updateUser() re-saves the session it started with, access
+            // token unchanged -- it does NOT hand back a fresh one. That
+            // stale token stays cryptographically valid (right signature,
+            // not yet expired) so ordinary RLS-protected queries keep
+            // working with it, but rotating the password invalidates the
+            // underlying session Supabase Auth itself tracks server-side --
+            // so anything that actually calls the real /user endpoint
+            // (getUser(), used by every edge function's own auth check)
+            // starts rejecting it immediately with "Auth session missing!",
+            // even though nothing about the account's data was ever at
+            // risk. Forcing a refresh here is what actually produces a
+            // token the auth service still recognizes as current.
+            await supabase.auth.refreshSession().catch(() => {});
             try { await recoverAccount(email, resetNewPin); } catch {}
             setResetStep('request'); setResetNewPin('');
         } catch (e: any) {
