@@ -18,6 +18,16 @@ export function pushWebAlert(req: WebAlertRequest): void {
     setRequest?.(req);
 }
 
+// Closes whatever web alert/confirm dialog is currently showing, with no
+// button press and no onPress fired -- for the one case where the dialog
+// itself has gone stale out from under the user (see PaymentLinkScreen's
+// background claim poll: a "Payment Page Opened" prompt left open while a
+// webhook auto-records the same payment underneath it) rather than being
+// resolved by an actual tap.
+export function dismissWebAlert(): void {
+    setRequest?.(null);
+}
+
 export default function AlertHost() {
     const [request, setRequestState] = useState<WebAlertRequest | null>(null);
 

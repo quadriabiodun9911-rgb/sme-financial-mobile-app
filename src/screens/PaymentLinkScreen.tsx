@@ -8,7 +8,8 @@ import { Colors } from '../theme/colors';
 import { supabase } from '../utils/supabase';
 import Icon from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
-import { confirmAction } from '../utils/webAlert';
+import { confirmAction, showAlert } from '../utils/webAlert';
+import { dismissWebAlert } from '../components/AlertHost';
 import { getConnectedProviders } from '../utils/paymentSecrets';
 import { getWorkspaceOwnerId } from '../utils/storage';
 import { claimIncomingPayments } from '../utils/incomingPayments';
@@ -107,7 +108,22 @@ export default function PaymentLinkScreen() {
             const ownerUserId = await getWorkspaceOwnerId();
             if (!ownerUserId) return;
             const existingRefs = new Set<string>((transactionsRef.current || []).map((t: any) => t.reference).filter(Boolean));
-            await claimIncomingPayments(ownerUserId, existingRefs, addTransaction, markInvoiceStatus);
+            const claimed = await claimIncomingPayments(ownerUserId, existingRefs, addTransaction, markInvoiceStatus);
+            // Recording it silently in the background reads as "the app is
+            // doing something to my data without telling me" -- close the
+            // now-stale "Payment Page Opened" prompt (still showing the old
+            // "come back and confirm" copy, which no longer applies) and
+            // say plainly that it happened, instead of leaving the user to
+            // discover it on their own by opening Transactions.
+            if (claimed > 0) {
+                stopClaimPolling();
+                if (Platform.OS === 'web') dismissWebAlert();
+                showAlert(
+                    '✅ Payment received',
+                    'It was verified and recorded automatically — no action needed.',
+                    () => navigate('transactions'),
+                );
+            }
         }, 5000);
         // Stop after a few minutes regardless -- if the webhook genuinely
         // never arrives, the merchant can still fall back to "Mark as
