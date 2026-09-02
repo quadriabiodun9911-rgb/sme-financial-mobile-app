@@ -5,6 +5,7 @@ import { PayrollReminderStatus } from './payrollReminders';
 import { TaxDeadlineStatus } from './taxDeadline';
 import { DailyBriefingResult } from './dailyBriefing';
 import { DailyRecapResult } from './dailyRecap';
+import { MonthlyBriefResult } from './monthlyBrief';
 
 Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -33,6 +34,7 @@ const KEYS = {
     slowMovingStockId: '@quad360/notif_slow_moving_stock_id',
     morningBriefingId: '@quad360/notif_morning_briefing_id',
     eveningRecapId: '@quad360/notif_evening_recap_id',
+    monthlyBriefId: '@quad360/notif_monthly_brief_id',
 };
 
 export async function requestNotificationPermission(): Promise<boolean> {
@@ -575,6 +577,41 @@ export async function scheduleEveningRecap(recap: DailyRecapResult, now: Date = 
             trigger: { date: nextOccurrenceOf(18, 0, now) } as any,
         });
         await AsyncStorage.setItem(KEYS.eveningRecapId, id);
+    } catch {
+        // Fail silently -- notifications not available
+    }
+}
+
+// The next real occurrence of day-of-month at hour:minute -- this month's
+// occurrence if it hasn't passed yet, next month's otherwise. Mirrors
+// nextOccurrenceOf above but for a monthly cadence.
+function nextMonthlyOccurrenceOf(day: number, hour: number, minute: number, now: Date = new Date()): Date {
+    const d = new Date(now.getFullYear(), now.getMonth(), day, hour, minute, 0, 0);
+    if (d.getTime() <= now.getTime()) d.setMonth(d.getMonth() + 1);
+    return d;
+}
+
+// Fires once, at the next 1st-of-month 8:00 AM, with real content built
+// from whatever the app already knows at scheduling time (see
+// buildMonthlyBrief). Reschedules every time this is called -- same
+// reasoning as scheduleMorningBriefing/scheduleEveningRecap above: a
+// business that reopens the app anytime during the new month gets the
+// freshest possible recap of the month that just closed, and one that
+// never reopens it gets whatever was last built, never fabricated. Skipped
+// entirely when last month had nothing logged -- same as
+// scheduleEveningRecap, there's nothing honest to recap yet.
+export async function scheduleMonthlyBrief(brief: MonthlyBriefResult, now: Date = new Date()): Promise<void> {
+    try {
+        if (Platform.OS === 'web' || !brief.available) return;
+
+        const prevId = await AsyncStorage.getItem(KEYS.monthlyBriefId);
+        if (prevId) await Notifications.cancelScheduledNotificationAsync(prevId).catch(() => {});
+
+        const id = await Notifications.scheduleNotificationAsync({
+            content: { title: brief.title, body: brief.body },
+            trigger: { date: nextMonthlyOccurrenceOf(1, 8, 0, now) } as any,
+        });
+        await AsyncStorage.setItem(KEYS.monthlyBriefId, id);
     } catch {
         // Fail silently -- notifications not available
     }

@@ -41,10 +41,13 @@ import NextStepLink from '../components/NextStepLink';
 import { buildFinancingFitInput } from '../utils/financingFit';
 import { recommendFinancingTypes } from '../utils/financingRecommendation';
 import { computeReadinessDelta } from '../utils/readinessHistory';
-import { notifyFinancingOpportunity, notifyFinancingQualificationProgress, notifyOverdueRemindersDue, notifyLoanPaymentDueSoon, notifyPayrollDue, notifyOverdueTransactionsFound, notifyTaxDeadline, notifyGoalAlerts, notifyRecurringTransactionAlerts, notifyBudgetPeriodLapsed, notifyAssetsNearingReplacement, notifyStockoutRisk, notifyTaxAbilityToPayShortfall, notifySlowMovingStock, requestNotificationPermission, scheduleWeeklySummaryReminder, scheduleDailyReminder, scheduleMorningBriefing, scheduleEveningRecap } from '../utils/notifications';
+import { notifyFinancingOpportunity, notifyFinancingQualificationProgress, notifyOverdueRemindersDue, notifyLoanPaymentDueSoon, notifyPayrollDue, notifyOverdueTransactionsFound, notifyTaxDeadline, notifyGoalAlerts, notifyRecurringTransactionAlerts, notifyBudgetPeriodLapsed, notifyAssetsNearingReplacement, notifyStockoutRisk, notifyTaxAbilityToPayShortfall, notifySlowMovingStock, requestNotificationPermission, scheduleWeeklySummaryReminder, scheduleDailyReminder, scheduleMorningBriefing, scheduleEveningRecap, scheduleMonthlyBrief } from '../utils/notifications';
 import { computeWeekdayPattern } from '../utils/weekdayPattern';
 import { buildDailyBriefing } from '../utils/dailyBriefing';
 import { buildDailyRecap } from '../utils/dailyRecap';
+import { buildMonthlyBrief } from '../utils/monthlyBrief';
+import { computeCelebration } from '../utils/celebrationEngine';
+import CelebrationBanner from '../components/CelebrationBanner';
 import { getInvoicesDueForReminder, loadReminderState, InvoiceReminderState } from '../utils/invoiceReminders';
 import { isLoanPaymentOverdue, daysUntilLoanPaymentDue } from '../utils/loanMath';
 import { getPayrollReminderStatus } from '../utils/payrollReminders';
@@ -658,6 +661,28 @@ export default function DashboardScreen() {
         scheduleEveningRecap(dailyRecap).catch(() => {});
     }, [isDemoMode, dailyRecap]);
 
+    // Monthly CEO/CFO brief -- the automatically-delivered counterpart to
+    // MonthlyReview.tsx's own on-demand modal (same underlying monthly
+    // buckets, see monthlyBrief.ts). Same one-off-notification-rebuilt-on-
+    // every-render pattern as the morning briefing/evening recap above, just
+    // on a monthly cadence (see scheduleMonthlyBrief).
+    const monthlyBrief = useMemo(
+        () => buildMonthlyBrief(transactions, invoices, settings?.currency ?? '₦'),
+        [transactions, invoices, settings?.currency]
+    );
+    useEffect(() => {
+        if (isDemoMode) return;
+        scheduleMonthlyBrief(monthlyBrief).catch(() => {});
+    }, [isDemoMode, monthlyBrief]);
+
+    // Celebrating improvement -- see celebrationEngine.ts for why this is a
+    // separate, positive-reinforcement moment rather than a duplicate of the
+    // readiness-trend line already on this screen.
+    const celebration = useMemo(
+        () => computeCelebration(readinessHistory, transactions, settings?.currency ?? '₦'),
+        [readinessHistory, transactions, settings?.currency]
+    );
+
     // This month's one focused target -- the highest-impact "reduce this to
     // zero" item already on the priority list above, tracked against a
     // baseline snapshotted once (see monthlyMission.ts). Held back until
@@ -972,6 +997,8 @@ export default function DashboardScreen() {
                     height, a natural pairing. Below the 1000px breakpoint
                     this row/col wrapping is unstyled (no flexDirection set),
                     so mobile stacking is completely unchanged from before. */}
+                {canViewFinancials && <CelebrationBanner celebration={celebration} />}
+
                 <View style={isWideDashboard && styles.dashboardRow}>
                 {/* BUSINESS HEALTH -- the single "how is my business doing"
                     answer, using the same canonical computeRiskScore the
