@@ -8,7 +8,7 @@
 // the secret value itself is never readable from the client once saved.
 
 import { supabase } from './supabase';
-import { getWorkspaceOwnerId } from './storage';
+import { getWorkspaceOwnerId, getAuthUserId } from './storage';
 
 export type PaymentProvider = 'paystack' | 'korapay' | 'flutterwave';
 
@@ -21,7 +21,20 @@ export async function savePaymentSecret(provider: PaymentProvider, secretKey: st
             { user_id: ownerUserId, provider, secret_key: secretKey, updated_at: new Date().toISOString() },
             { onConflict: 'user_id,provider' }
         );
-    if (error) throw new Error(error.message);
+    if (error) {
+        // RLS denials here are opaque to the end user (and to us, without
+        // devtools access) -- surface the two IDs the policy actually
+        // compares (workspace owner vs. the live Supabase session) right in
+        // the error message so a mismatch is visible without console/SQL
+        // access. Best-effort: never let this lookup itself mask the real
+        // error if it fails.
+        let detail = '';
+        try {
+            const authUserId = await getAuthUserId();
+            detail = ` (owner id: ${ownerUserId} | your session id: ${authUserId ?? 'none -- not signed in to Supabase'})`;
+        } catch { /* ignore -- best-effort diagnostic only */ }
+        throw new Error(error.message + detail);
+    }
 }
 
 export async function deletePaymentSecret(provider: PaymentProvider): Promise<void> {
