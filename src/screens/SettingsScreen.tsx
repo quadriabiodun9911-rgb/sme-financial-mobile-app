@@ -1317,13 +1317,13 @@ function ProviderKeyField({ provider, label, hintUrl, placeholder, canManage, on
 }
 
 // A real, memorable password the owner can use to sign in directly on a
-// device that's never seen this account before -- password first, then one
-// email click to confirm (no waiting for a "forgot PIN" reset, but this
-// project's email template sends a link rather than a typed code, so that
-// one click still happens). Separate from the per-device secret the PIN
-// normally unlocks
-// (see backupPassword.ts and the password-login edge function for why the
-// two must stay independent); this is purely optional, and off by default.
+// device that's never seen this account before -- password first, then a
+// 6-digit code emailed on the spot and typed right back in, all in the same
+// tab (no clicking away to a link, which only works once and can land in
+// the wrong browser if mail happens to open somewhere else). Separate from
+// the per-device secret the PIN normally unlocks (see backupPassword.ts and
+// the password-login edge function for why the two must stay independent);
+// this is purely optional, and off by default.
 function BackupPasswordSection() {
     const [isSet, setIsSet]           = useState<boolean | null>(null); // null = still checking
     const [password, setPassword]     = useState('');
@@ -1344,7 +1344,7 @@ function BackupPasswordSection() {
             await setBackupPassword(password);
             setPassword(''); setConfirm('');
             setIsSet(true);
-            showAlert('✅ Backup password set', 'You can now sign in on any new device with your email and this password, then confirm one link we\'ll email you — much faster than a full reset.');
+            showAlert('✅ Backup password set', 'You can now sign in on any new device with your email and this password, then a code we\'ll email you — no waiting on a link, just type it in.');
         } catch (e: any) {
             showAlert('Could not save', e.message || 'Please try again.');
         } finally {
