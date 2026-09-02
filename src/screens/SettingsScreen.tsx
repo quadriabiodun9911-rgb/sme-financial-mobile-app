@@ -23,6 +23,7 @@ import { auditDataIntegrity } from '../utils/dataIntegrity';
 import { canManageTeam, canManagePaymentSettings, canDeleteBusinessData } from '../utils/rolePermissions';
 import PinConfirmModal from '../components/PinConfirmModal';
 import { PaymentProvider, savePaymentSecret, deletePaymentSecret, getConnectedProviders } from '../utils/paymentSecrets';
+import { setBackupPassword, deleteBackupPassword, getBackupPasswordStatus } from '../utils/backupPassword';
 
 const ROLE_BADGE_COLOR: Record<string, string> = {
     admin: Colors.expense,
@@ -636,6 +637,8 @@ export default function SettingsScreen() {
                                 <Text style={styles.saveBtnText}>Update PIN</Text>
                             </TouchableOpacity>
                         </Section>
+
+                        <BackupPasswordSection />
 
                         <Section title="Extra Security Lock">
                             <Text style={styles.hint}>
@@ -1306,6 +1309,94 @@ function ProviderKeyField({ provider, label, hintUrl, placeholder, canManage, on
                         disabled={saving}
                     >
                         <Text style={styles.saveBtnText}>{saving ? 'Connecting…' : `Connect ${label}`}</Text>
+                    </TouchableOpacity>
+                </>
+            )}
+        </Section>
+    );
+}
+
+// A real, memorable password the owner can use to sign in directly on a
+// device that's never seen this account before -- no email link, no
+// waiting. Separate from the per-device secret the PIN normally unlocks
+// (see backupPassword.ts and the password-login edge function for why the
+// two must stay independent); this is purely optional, and off by default.
+function BackupPasswordSection() {
+    const [isSet, setIsSet]           = useState<boolean | null>(null); // null = still checking
+    const [password, setPassword]     = useState('');
+    const [confirm, setConfirm]       = useState('');
+    const [saving, setSaving]         = useState(false);
+
+    useEffect(() => {
+        let cancelled = false;
+        getBackupPasswordStatus().then(result => { if (!cancelled) setIsSet(result); });
+        return () => { cancelled = true; };
+    }, []);
+
+    const handleSave = async () => {
+        if (password.length < 8) { showAlert('Too short', 'Password must be at least 8 characters.'); return; }
+        if (password !== confirm) { showAlert('Password mismatch', 'The two passwords do not match.'); return; }
+        setSaving(true);
+        try {
+            await setBackupPassword(password);
+            setPassword(''); setConfirm('');
+            setIsSet(true);
+            showAlert('✅ Backup password set', 'You can now sign in on any new device with your email and this password — no email link needed.');
+        } catch (e: any) {
+            showAlert('Could not save', e.message || 'Please try again.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleRemove = () => {
+        confirmAction(
+            'Remove backup password?',
+            'You\'ll only be able to sign in on new devices by verifying your email again.',
+            'Remove',
+            async () => {
+                try {
+                    await deleteBackupPassword();
+                    setIsSet(false);
+                } catch (e: any) {
+                    showAlert('Could not remove', e.message || 'Please try again.');
+                }
+            },
+            true,
+        );
+    };
+
+    return (
+        <Section title="Backup Password">
+            <Text style={styles.hint}>
+                Optional. Your PIN only unlocks devices you've already set up — a new phone or browser still needs to verify your email first. Set a real password here once, and you can sign straight in on any new device instead.
+            </Text>
+            {isSet ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Icon name="check" size={13} color={Colors.success} />
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: Colors.success }}>Backup password is set</Text>
+                    </View>
+                    <TouchableOpacity onPress={handleRemove}>
+                        <Text style={{ fontSize: 12, color: Colors.textMuted, fontWeight: '600' }}>Remove</Text>
+                    </TouchableOpacity>
+                </View>
+            ) : (
+                <>
+                    <FieldLabel>New Password (8+ characters)</FieldLabel>
+                    <TextInput style={styles.input} value={password} onChangeText={setPassword}
+                        secureTextEntry autoCapitalize="none" autoCorrect={false}
+                        placeholder="••••••••" placeholderTextColor={Colors.muted} />
+                    <FieldLabel>Confirm Password</FieldLabel>
+                    <TextInput style={styles.input} value={confirm} onChangeText={setConfirm}
+                        secureTextEntry autoCapitalize="none" autoCorrect={false}
+                        placeholder="••••••••" placeholderTextColor={Colors.muted} />
+                    <TouchableOpacity
+                        style={[styles.saveBtn, { marginTop: 8 }, saving && { opacity: 0.6 }]}
+                        onPress={handleSave}
+                        disabled={saving}
+                    >
+                        <Text style={styles.saveBtnText}>{saving ? 'Saving…' : 'Set Backup Password'}</Text>
                     </TouchableOpacity>
                 </>
             )}

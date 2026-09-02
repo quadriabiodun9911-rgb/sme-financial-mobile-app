@@ -12,6 +12,7 @@ import { DEMO_BUSINESSES } from '../utils/demoData';
 import { trackUserLoggedIn, identifyUser } from '../utils/analytics';
 import { supabase, createEphemeralAuthClient } from '../utils/supabase';
 import { savePin, saveProfile, generateAuthSecret, saveAuthSecret, loadAuthSecret, loadProfile, localProfileMatchesEmail, syncFieldEncryptionKey, registerLocalAccount } from '../utils/storage';
+import { verifyBackupPassword } from '../utils/backupPassword';
 import { Industry } from '../types';
 
 const CURRENCIES = [
@@ -73,7 +74,7 @@ function detectLocaleCurrencyCode(): string {
     return 'USD';
 }
 
-type Mode = 'owner-setup' | 'owner-login' | 'join-team' | 'join-lender' | 'reset-pin' | 'demo-pick' | 'recover';
+type Mode = 'owner-setup' | 'owner-login' | 'join-team' | 'join-lender' | 'reset-pin' | 'demo-pick' | 'recover' | 'password-login';
 type LoginMethod = 'pin' | 'email';
 
 export default function LoginScreen() {
@@ -279,6 +280,22 @@ export default function LoginScreen() {
     // themselves. These are exchanged for a session on a throwaway client
     // (see createEphemeralAuthClient's comment) rather than the shared one.
     const [recoveryTokens, setRecoveryTokens] = useState<{ accessToken: string; refreshToken: string } | null>(null);
+
+    // Backup-password sign-in (Settings > Backup Password) -- an
+    // alternative to the email-link "Verify This Device" flow for a device
+    // that's never seen this account before. Password alone isn't enough
+    // here (this is the one login path reachable with no session and no
+    // device of its own vouching for it), so a correct password unlocks an
+    // email code step -- the same native signInWithOtp/verifyOtp this app
+    // already uses for join-recovery -- and only THAT populates
+    // recoveryTokens, exactly as a clicked email link would, feeding
+    // straight into the existing confirm-device (set a PIN for this
+    // device) step and handleDeviceVerifyComplete.
+    const [pwLoginStep, setPwLoginStep]           = useState<'password' | 'otp'>('password');
+    const [pwLoginEmail, setPwLoginEmail]         = useState('');
+    const [pwLoginPassword, setPwLoginPassword]   = useState('');
+    const [pwLoginOtp, setPwLoginOtp]             = useState('');
+    const [pwLoginSubmitting, setPwLoginSubmitting] = useState(false);
 
     // Alert.alert doesn't render on Expo web — every call site in this screen
     // used it unguarded, so PIN/email validation errors and reset/join-team
@@ -866,6 +883,55 @@ export default function LoginScreen() {
         }
     };
 
+    // Step 1 of backup-password sign-in: just checks the password is
+    // right. Deliberately doesn't sign anyone in by itself -- see the
+    // pwLoginStep state comment above for why a second factor is required
+    // on this specific path.
+    const handlePasswordLoginSubmit = async () => {
+        const email = pwLoginEmail.trim();
+        if (!email) { showAlert('Error', 'Please enter your email address.'); return; }
+        if (!pwLoginPassword) { showAlert('Error', 'Please enter your password.'); return; }
+        setPwLoginSubmitting(true);
+        try {
+            await verifyBackupPassword(email, pwLoginPassword);
+            const { error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
+            if (error) { showAlert('Error', error.message); return; }
+            setPwLoginOtp('');
+            setPwLoginStep('otp');
+        } catch (e: any) {
+            showAlert('Sign In Failed', e?.message ?? 'Incorrect email or password.');
+        } finally {
+            setPwLoginSubmitting(false);
+        }
+    };
+
+    // Step 2: the emailed code is what actually proves this device/browser
+    // can be trusted -- verifying it on a throwaway client (same reasoning
+    // as createEphemeralAuthClient's own comment) hands off into the exact
+    // same confirm-device / handleDeviceVerifyComplete pipeline a clicked
+    // magic link already uses, so this device still ends up with its own
+    // saved secret and a PIN, same as every other path in.
+    const handlePasswordLoginOtpSubmit = async () => {
+        if (!/^\d{4,8}$/.test(pwLoginOtp.trim())) { showAlert('Error', 'Enter the code we emailed you.'); return; }
+        setPwLoginSubmitting(true);
+        try {
+            const email = pwLoginEmail.trim();
+            const ephemeral = createEphemeralAuthClient();
+            const { data, error } = await ephemeral.auth.verifyOtp({ email, token: pwLoginOtp.trim(), type: 'email' });
+            if (error || !data.session) {
+                showAlert('Error', error?.message ?? 'That code didn\'t work. Please try again.');
+                return;
+            }
+            setRecoveryTokens({ accessToken: data.session.access_token, refreshToken: data.session.refresh_token });
+            setResetEmail(email); setResetIntent('verify-device'); setResetNewPin('');
+            setResetStep('confirm-device'); setMode('reset-pin');
+        } catch (e: any) {
+            showAlert('Error', e?.message ?? 'That code didn\'t work. Please try again.');
+        } finally {
+            setPwLoginSubmitting(false);
+        }
+    };
+
     // A visitor who lands on any of this screen's modes (Sign In, Sign Up,
     // Join Team, Reset PIN, ...) previously had no way back to the marketing
     // page short of the browser's own back button -- this screen never had
@@ -929,8 +995,92 @@ export default function LoginScreen() {
                             <Text style={styles.resetText}>Forgot your PIN? Reset it →</Text>
                         </TouchableOpacity>
 
+                        <TouchableOpacity style={styles.switchBtn} onPress={() => {
+                            setPwLoginEmail(emailLoginEmail); setPwLoginPassword(''); setPwLoginStep('password');
+                            setMode('password-login');
+                        }}>
+                            <Text style={styles.resetText}>Have a backup password? Sign in with it →</Text>
+                        </TouchableOpacity>
+
                         <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('owner-setup')}>
                             <Text style={styles.switchText}>← Create a new account instead</Text>
+                        </TouchableOpacity>
+                    </View>
+                </ScrollView>
+            </SafeAreaView>
+        );
+    }
+
+    // ── Backup-password sign-in (Settings > Backup Password) ───────────────────
+    if (mode === 'password-login') {
+        return (
+            <SafeAreaView style={styles.safe}>
+                <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+                    {backToHomeLink}
+                    <View style={styles.card}>
+                        <Image source={require('../../assets/icon.png')} style={styles.logo} />
+                        <Text style={styles.title}>Sign In With Password</Text>
+                        <Text style={styles.subtitle}>
+                            {pwLoginStep === 'password'
+                                ? 'Works on any device — no email link needed.'
+                                : 'One more step: enter the code we just emailed you.'}
+                        </Text>
+
+                        {pwLoginStep === 'password' ? (
+                            <>
+                                <Field label="Email Address">
+                                    <TextInput style={styles.input} value={pwLoginEmail} onChangeText={setPwLoginEmail}
+                                        placeholder="your@email.com" placeholderTextColor={Colors.muted}
+                                        autoCapitalize="none" keyboardType="email-address" autoFocus />
+                                </Field>
+                                <Field label="Password">
+                                    <TextInput style={styles.input} value={pwLoginPassword} onChangeText={setPwLoginPassword}
+                                        placeholder="••••••••" placeholderTextColor={Colors.muted}
+                                        secureTextEntry autoCapitalize="none" autoCorrect={false}
+                                        onSubmitEditing={handlePasswordLoginSubmit} />
+                                </Field>
+                                <TouchableOpacity
+                                    style={[styles.btn, pwLoginSubmitting && styles.btnDisabled]}
+                                    onPress={handlePasswordLoginSubmit}
+                                    disabled={pwLoginSubmitting}
+                                >
+                                    {pwLoginSubmitting
+                                        ? <ActivityIndicator color="#fff" />
+                                        : <Text style={styles.btnText}>Continue →</Text>}
+                                </TouchableOpacity>
+                            </>
+                        ) : (
+                            <>
+                                <View style={styles.infoBox}>
+                                    <Text style={styles.infoBoxTitle}>Check your email</Text>
+                                    <Text style={styles.infoText}>
+                                        We sent a code to:{'\n'}
+                                        <Text style={{ fontWeight: 'bold', color: Colors.textPrimary }}>{pwLoginEmail.trim()}</Text>
+                                    </Text>
+                                </View>
+                                <Field label="6-Digit Code">
+                                    <TextInput style={styles.input} value={pwLoginOtp} onChangeText={setPwLoginOtp}
+                                        placeholder="123456" placeholderTextColor={Colors.muted}
+                                        keyboardType="number-pad" maxLength={8}
+                                        onSubmitEditing={handlePasswordLoginOtpSubmit} />
+                                </Field>
+                                <TouchableOpacity
+                                    style={[styles.btn, pwLoginSubmitting && styles.btnDisabled]}
+                                    onPress={handlePasswordLoginOtpSubmit}
+                                    disabled={pwLoginSubmitting}
+                                >
+                                    {pwLoginSubmitting
+                                        ? <ActivityIndicator color="#fff" />
+                                        : <Text style={styles.btnText}>Verify & Continue →</Text>}
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.switchBtn} onPress={() => setPwLoginStep('password')}>
+                                    <Text style={styles.switchText}>← Back</Text>
+                                </TouchableOpacity>
+                            </>
+                        )}
+
+                        <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('recover')}>
+                            <Text style={styles.switchText}>← Sign in with PIN instead</Text>
                         </TouchableOpacity>
                     </View>
                 </ScrollView>
