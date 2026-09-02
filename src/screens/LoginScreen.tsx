@@ -745,14 +745,23 @@ export default function LoginScreen() {
     // Supabase credential (see the resetIntent comment). The click already
     // proved this device can read the account's email; this step just
     // confirms the user knows the existing PIN and saves it as this
-    // device's own local unlock. login()'s cloud reconnection is
-    // best-effort and never gates its return value (see its comment in
-    // OptimizedContexts.tsx), so leaving this device without its own auth
-    // secret is fine in that case — the session this magic link just
-    // established is what keeps it synced going forward. As with PIN reset,
-    // the token is exchanged for a session on a throwaway client first so
-    // simply opening the link can never silently swap which account a
-    // DIFFERENT already-active tab on this browser is signed in as.
+    // device's own local unlock. The token is exchanged for a session on a
+    // throwaway client first so simply opening the link can never silently
+    // swap which account a DIFFERENT already-active tab on this browser is
+    // signed in as.
+    //
+    // This device still needs its OWN auth secret minted and saved before
+    // this returns, same as the cross-account branch below -- a previous
+    // version of this comment assumed the magic-link session alone was
+    // "fine" to keep this device synced going forward, since login()'s
+    // cloud reconnection is best-effort and never gates its return value.
+    // That's true for THAT one login, but every login after it calls
+    // login(pin), which needs a real, saved authSecret to sign back in --
+    // without one it falls into the "legacy account" branch and tries a
+    // PIN-derived password this account was never actually given, fails
+    // silently, and leaves the device looking locally signed in with no
+    // working cloud session at all, permanently, the moment this one
+    // magic-link session ends (sign out, expiry, another verification).
     const handleDeviceVerifyComplete = async () => {
         if (!/^\d{6}$/.test(resetNewPin)) { showAlert('Error', 'Enter your 6-digit PIN.'); return; }
         if (!recoveryTokens) {
@@ -825,6 +834,16 @@ export default function LoginScreen() {
                 access_token: recoveryTokens.accessToken,
                 refresh_token: recoveryTokens.refreshToken,
             });
+            // Mint and save this device's own auth secret now, on the main
+            // client (which the setSession above just made live) -- see the
+            // comment above this function for why skipping this leaves the
+            // device unable to sign back in the moment this magic-link
+            // session ends. recoverAccount() below reads this back via
+            // loadAuthSecret() to register the device locally, so it must
+            // be saved before that call, not after.
+            const newAuthSecret = generateAuthSecret();
+            const { error: rotateError } = await supabase.auth.updateUser({ password: newAuthSecret });
+            if (!rotateError) await saveAuthSecret(newAuthSecret).catch(() => {});
             try { await recoverAccount(email, resetNewPin); } catch {}
             setResetStep('request'); setResetNewPin('');
         } catch (e: any) {
