@@ -58,6 +58,7 @@ import DataPermissionCentreScreen from './src/screens/DataPermissionCentreScreen
 import LenderPipelineScreen from './src/screens/LenderPipelineScreen';
 import RestrictedAccessScreen from './src/screens/RestrictedAccessScreen';
 import { isScreenAllowedForRole } from './src/utils/rolePermissions';
+import { isFinancingAdmin } from './src/utils/financingAdmin';
 import { UserRole, Screen } from './src/types';
 
 function NavigatorContent() {
@@ -202,7 +203,12 @@ function NavigatorContent() {
             {currentScreen === 'financial-assessment' && <FinancialAssessmentScreen />}
             {currentScreen === 'action-tracker' && <ActionTrackerScreen />}
             {currentScreen === 'financing-marketplace' && <FinancingMarketplaceScreen />}
-            {currentScreen === 'financing-admin' && <FinancingAdminScreen />}
+            {/* No entry point anywhere in the UI -- reached only by typing
+                /admin/financing directly (see getInitialScreenFromUrl in
+                OptimizedContexts.tsx). isFinancingAdmin() is checked here,
+                not just as a "show the button" gate in Settings, since a
+                URL-reached screen has no button to hide in the first place. */}
+            {currentScreen === 'financing-admin' && isFinancingAdmin(user?.email) && <FinancingAdminScreen />}
             {currentScreen === 'onboarding-choice' && <OnboardingChoiceScreen />}
             {currentScreen === 'data-integrity' && <DataIntegrityScreen />}
             {currentScreen === 'audit-log' && <AuditLogScreen />}

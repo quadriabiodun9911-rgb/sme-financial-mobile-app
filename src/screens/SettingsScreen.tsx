@@ -18,7 +18,6 @@ import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { trackDataExported } from '../utils/analytics';
 import { auditEvents } from '../utils/auditLog';
-import { isFinancingAdmin } from '../utils/financingAdmin';
 import { PRIMARY_GOAL_OPTIONS } from '../utils/primaryGoals';
 import { auditDataIntegrity } from '../utils/dataIntegrity';
 import { canManageTeam, canManagePaymentSettings, canDeleteBusinessData } from '../utils/rolePermissions';
@@ -353,14 +352,99 @@ export default function SettingsScreen() {
             <ScrollView style={styles.scroll}>
                 <View style={styles.pad}>
                     <Text style={styles.title}>Settings</Text>
+                    <Text style={styles.titleSubtitle}>
+                        {settings.businessName || 'Your business'} · {userRole.replace('_', ' ')}
+                    </Text>
 
-                    {/* Appearance — switching palette requires every screen's
-                        stylesheet to rebuild against the new colors, which
-                        only happens on a fresh module evaluation, so this
-                        reloads the app the same way other global settings
-                        changes (reset/clear data) already do. */}
-                    <SectionHeader icon="sliders" title="APPEARANCE" />
-                    <CollapsibleSection title="Color Theme" defaultOpen={true}>
+                    {/* Role info for non-owners -- shown right up top since it's
+                        the first thing a non-owner needs to know about this
+                        screen: what they can and can't touch here. */}
+                    {userRole !== 'owner' && (
+                        <View style={styles.accessCard}>
+                            <View style={styles.btnIconRow}>
+                                <Icon name="info" size={13} color={Colors.textSecondary} />
+                                <Text style={styles.accessCardTitle}>Your Access</Text>
+                            </View>
+                            <Text style={styles.accessCardBody}>
+                                {userRole === 'accountant'
+                                    ? 'You have Accountant access — you can view all data, record transactions, and export reports. Team management, payment settings, and business-data deletion stay with the owner.'
+                                    : userRole === 'manager'
+                                    ? 'You have Manager access — you can view all data and record transactions, invoices, and inventory. Team management, payment settings, and business-data deletion stay with the owner.'
+                                    : 'You have Staff access — you can add transactions. Contact your business owner for full access.'}
+                            </Text>
+                        </View>
+                    )}
+
+                    {/* Business Profile — identity fields only (name, type,
+                        industry, contact number). Strategy content and
+                        locale prefs used to live in here too, cluttering
+                        one giant "Business Setup" card; split out below so
+                        this stays a short, scannable identity card. */}
+                    <SectionHeader icon="briefcase" title="BUSINESS PROFILE" />
+                    <CollapsibleSection title="Business Profile" icon="briefcase" defaultOpen={true}>
+                        <Section title="Business Name">
+                            <Text style={styles.hint}>Shown on invoices, payment links, and team invites.</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={form.businessName ?? ''}
+                                onChangeText={v => setForm((f: typeof form) => ({ ...f, businessName: v }))}
+                                placeholder="e.g. Amara Enterprises"
+                                placeholderTextColor={Colors.muted}
+                            />
+                        </Section>
+
+                        <Section title="Business Type">
+                            <View style={styles.optRow}>
+                                {BUSINESS_TYPES.map(bt => (
+                                    <Opt key={bt.value} label={bt.label} active={form.businessType === bt.value}
+                                        onPress={() => setForm((f: typeof form) => ({ ...f, businessType: bt.value }))} />
+                                ))}
+                            </View>
+                        </Section>
+
+                        {/* Drives which industry-specific tools show up (e.g. Recipe/Menu
+                            Item Costing is Food Service only) — doesn't clutter a
+                            retailer's or consultant's app with tools that don't apply. */}
+                        <Section title="Industry">
+                            <Text style={styles.hint}>
+                                Unlocks tools built for how your industry actually works — e.g. food cost costing for Food Service.
+                            </Text>
+                            <View style={styles.optRow}>
+                                {INDUSTRIES.map(ind => (
+                                    <Opt key={ind.value} label={ind.label} active={(form.industry ?? 'general') === ind.value}
+                                        onPress={() => setForm((f: typeof form) => ({ ...f, industry: ind.value }))} />
+                                ))}
+                            </View>
+                        </Section>
+
+                        <Section title="Phone Number">
+                            <Text style={styles.hint}>Include your country code — e.g. +1 (USA/Canada), +44 (UK), +234 (Nigeria), +27 (South Africa), +254 (Kenya), +233 (Ghana)</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={phone}
+                                onChangeText={setPhone}
+                                placeholder="+1 555 000 1234"
+                                placeholderTextColor="#888"
+                                keyboardType="phone-pad"
+                            />
+                        </Section>
+
+                        <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
+                            <Text style={styles.saveBtnText}>Save Settings</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.cancelBtn} onPress={() => setCurrentScreen('dashboard')}>
+                            <Text style={styles.cancelBtnText}>Cancel</Text>
+                        </TouchableOpacity>
+                    </CollapsibleSection>
+
+                    {/* Preferences — theme, language, currency. Theme
+                        switching requires every screen's stylesheet to
+                        rebuild against the new colors, which only happens on
+                        a fresh module evaluation, so this reloads the app
+                        the same way other global settings changes
+                        (reset/clear data) already do. */}
+                    <SectionHeader icon="sliders" title="PREFERENCES" />
+                    <CollapsibleSection title="Preferences" icon="sliders" defaultOpen={false}>
                         <Section title="Theme">
                             <View style={styles.optRow}>
                                 <Opt
@@ -390,22 +474,38 @@ export default function SettingsScreen() {
                                 </Text>
                             )}
                         </Section>
-                    </CollapsibleSection>
 
-                    {/* OPERATIONS */}
-                    <SectionHeader icon="settings" title="ACCOUNT & BUSINESS" />
-
-                    {/* Business Setup */}
-                    <CollapsibleSection title="Business Setup" defaultOpen={true}>
-                        <Section title="Business Type">
+                        <Section title={t(language, 'language')}>
                             <View style={styles.optRow}>
-                                {BUSINESS_TYPES.map(bt => (
-                                    <Opt key={bt.value} label={bt.label} active={form.businessType === bt.value}
-                                        onPress={() => setForm((f: typeof form) => ({ ...f, businessType: bt.value }))} />
+                                {LANGUAGES.map(l => (
+                                    <Opt key={l.code} label={l.nativeLabel} active={language === l.code}
+                                        onPress={() => setLanguage(l.code)} />
                                 ))}
                             </View>
                         </Section>
 
+                        <Section title={t(language, 'currency')}>
+                            <View style={styles.optRow}>
+                                {CURRENCIES.map(c => (
+                                    <Opt key={c.value} label={c.label} active={form.currency === c.value}
+                                        onPress={() => setForm((f: typeof form) => ({ ...f, currency: c.value, currencyCode: c.code }))} />
+                                ))}
+                            </View>
+                        </Section>
+
+                        <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
+                            <Text style={styles.saveBtnText}>Save Settings</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.cancelBtn} onPress={() => setCurrentScreen('dashboard')}>
+                            <Text style={styles.cancelBtnText}>Cancel</Text>
+                        </TouchableOpacity>
+                    </CollapsibleSection>
+
+                    {/* Strategy & Planning — content an owner sets occasionally,
+                        not every visit: priority ranking, mission/vision/values,
+                        and the two forward-looking inputs the forecast reads. */}
+                    <SectionHeader icon="compass" title="STRATEGY & PLANNING" />
+                    <CollapsibleSection title="Strategy & Planning" icon="compass" defaultOpen={false}>
                         {/* Set once at onboarding, changeable any time here.
                             Reranks Dashboard's priority list and the action
                             plan toward this -- see dashboardPriorities.ts and
@@ -419,21 +519,6 @@ export default function SettingsScreen() {
                                 {PRIMARY_GOAL_OPTIONS.map(opt => (
                                     <Opt key={opt.label} label={opt.label} active={(form.primaryGoal ?? null) === opt.value}
                                         onPress={() => setForm((f: typeof form) => ({ ...f, primaryGoal: opt.value ?? undefined }))} />
-                                ))}
-                            </View>
-                        </Section>
-
-                        {/* Drives which industry-specific tools show up (e.g. Recipe/Menu
-                            Item Costing is Food Service only) — doesn't clutter a
-                            retailer's or consultant's app with tools that don't apply. */}
-                        <Section title="Industry">
-                            <Text style={styles.hint}>
-                                Unlocks tools built for how your industry actually works — e.g. food cost costing for Food Service.
-                            </Text>
-                            <View style={styles.optRow}>
-                                {INDUSTRIES.map(ind => (
-                                    <Opt key={ind.value} label={ind.label} active={(form.industry ?? 'general') === ind.value}
-                                        onPress={() => setForm((f: typeof form) => ({ ...f, industry: ind.value }))} />
                                 ))}
                             </View>
                         </Section>
@@ -502,36 +587,6 @@ export default function SettingsScreen() {
                             </TouchableOpacity>
                         </Section>
 
-                        <Section title={t(language, 'language')}>
-                            <View style={styles.optRow}>
-                                {LANGUAGES.map(l => (
-                                    <Opt key={l.code} label={l.nativeLabel} active={language === l.code}
-                                        onPress={() => setLanguage(l.code)} />
-                                ))}
-                            </View>
-                        </Section>
-
-                        <Section title={t(language, 'currency')}>
-                            <View style={styles.optRow}>
-                                {CURRENCIES.map(c => (
-                                    <Opt key={c.value} label={c.label} active={form.currency === c.value}
-                                        onPress={() => setForm((f: typeof form) => ({ ...f, currency: c.value, currencyCode: c.code }))} />
-                                ))}
-                            </View>
-                        </Section>
-
-                        <Section title="Phone Number">
-                            <Text style={styles.hint}>Include your country code — e.g. +1 (USA/Canada), +44 (UK), +234 (Nigeria), +27 (South Africa), +254 (Kenya), +233 (Ghana)</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={phone}
-                                onChangeText={setPhone}
-                                placeholder="+1 555 000 1234"
-                                placeholderTextColor="#888"
-                                keyboardType="phone-pad"
-                            />
-                        </Section>
-
                         <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
                             <Text style={styles.saveBtnText}>Save Settings</Text>
                         </TouchableOpacity>
@@ -541,7 +596,8 @@ export default function SettingsScreen() {
                     </CollapsibleSection>
 
                     {/* Security */}
-                    <CollapsibleSection title="Security" defaultOpen={false}>
+                    <SectionHeader icon="shield" title="SECURITY" />
+                    <CollapsibleSection title="Security" icon="shield" defaultOpen={false}>
                         <Section title="Your Financial Data">
                             <Text style={styles.hint}>
                                 See what's actually protecting your data — encryption, data isolation, two-factor authentication and lender data sharing, all in one place.
@@ -609,9 +665,11 @@ export default function SettingsScreen() {
                         </Section>
                     </CollapsibleSection>
 
-                    {/* Team (Operations category) */}
+                    {/* Team */}
                     {enableTeam && canManageTeam(userRole) && (
-                        <CollapsibleSection title="Team" defaultOpen={false}>
+                        <>
+                        <SectionHeader icon="users" title="TEAM" />
+                        <CollapsibleSection title="Team" icon="users" defaultOpen={false}>
                             <Section title="Team Management">
                                 <Text style={styles.hint}>
                                     Invite team members to access your business data. Admins can do everything you can except delete business data. Accountants and Managers see full financial reports, record transactions and export. External Accountants get the same financial visibility for reporting and reconciliation, without team, payment, or operational access. Staff can log sales/expenses, send invoices, and manage inventory — full P&L, cash balance, and bank/loan details stay hidden from them. Viewers see the same reports as an External Accountant but can never add, edit or delete anything.
@@ -648,73 +706,14 @@ export default function SettingsScreen() {
                                 )}
                             </Section>
                         </CollapsibleSection>
+                        </>
                     )}
-
-                    {/* Help & Support */}
-                    <CollapsibleSection title="Help & Support" defaultOpen={false}>
-                        <Section title="Talk to a Human">
-                            <Text style={styles.hint}>
-                                {Config.SUPPORT_WHATSAPP_NUMBER
-                                    ? "Have a question or stuck on something? Chat with the Quad360 team directly on WhatsApp."
-                                    : "WhatsApp support isn't set up on this deployment yet — a support number needs to be configured before this can go live."}
-                            </Text>
-                            <TouchableOpacity
-                                style={[styles.dataBtn, !Config.SUPPORT_WHATSAPP_NUMBER && { opacity: 0.5 }]}
-                                disabled={!Config.SUPPORT_WHATSAPP_NUMBER}
-                                onPress={() => openSupportChat(Config.SUPPORT_WHATSAPP_NUMBER)}
-                            >
-                                <View style={styles.btnIconRow}>
-                                    <Icon name="message-circle" size={14} color={Colors.primary} />
-                                    <Text style={styles.dataBtnText}>Chat on WhatsApp</Text>
-                                </View>
-                            </TouchableOpacity>
-                        </Section>
-                    </CollapsibleSection>
-
-                    {/* Danger Zone */}
-                    <CollapsibleSection title="Danger Zone" defaultOpen={false}>
-                        {/* Owner-only: an invited accountant is meant to be
-                            read+export only, but resetBusinessData's real
-                            deletion is scoped to the account's own auth id
-                            matching the workspace owner's id (see
-                            deleteAllBusinessRecords in storage.ts) -- hiding
-                            the button for anyone else keeps that consistent
-                            at the UI layer too, not just silently no-op. */}
-                        {canDeleteBusinessData(userRole) && (
-                        <Section title="Reset Business Data">
-                            <Text style={styles.hint}>
-                                Permanently deletes all transactions, invoices, goals, assets, loans, and inventory. Your account and settings are kept — use this to start fresh without creating a new account.
-                            </Text>
-                            <TouchableOpacity style={styles.dangerBtn} onPress={handleResetBusinessData}>
-                                <Text style={styles.dangerBtnText}>Reset Business Data</Text>
-                            </TouchableOpacity>
-                        </Section>
-                        )}
-
-                        <Section title="Sign Out">
-                            <Text style={styles.hint}>
-                                Signs you out and clears the local cache. Your data is safely stored in the cloud and will be restored when you sign back in.
-                            </Text>
-                            <TouchableOpacity style={styles.dangerBtn} onPress={handleClearData}>
-                                <Text style={styles.dangerBtnText}>Sign Out & Clear Cache</Text>
-                            </TouchableOpacity>
-                        </Section>
-
-                        <Section title="Delete Account">
-                            <Text style={styles.hint}>
-                                Permanently removes all your business data from the cloud. This cannot be undone.
-                            </Text>
-                            <TouchableOpacity style={[styles.dangerBtn, { borderColor: '#7f1d1d', backgroundColor: 'rgba(127,29,29,0.12)' }]} onPress={handleDeleteAccount}>
-                                <Text style={[styles.dangerBtnText, { color: '#ef4444' }]}>Delete Account</Text>
-                            </TouchableOpacity>
-                        </Section>
-                    </CollapsibleSection>
 
                     {/* FINANCE */}
                     <SectionHeader icon="dollar-sign" title="FINANCIAL SETUP" />
 
                     {/* Profit Goals & Tax */}
-                    <CollapsibleSection title="Profit Goals & Tax" defaultOpen={false}>
+                    <CollapsibleSection title="Profit Goals & Tax" icon="target" defaultOpen={false}>
                         <Section title="Your Targets">
                             <FieldLabel>Minimum savings to keep at all times ({form.currency})</FieldLabel>
                             <Text style={styles.hint}>The app will warn you if your account drops below this amount.</Text>
@@ -782,8 +781,10 @@ export default function SettingsScreen() {
                         </TouchableOpacity>
                     </CollapsibleSection>
 
+                    <SectionHeader icon="credit-card" title="PAYMENTS & BANKING" />
+
                     {/* Payment Gateways */}
-                    <CollapsibleSection title="Payment Gateways" defaultOpen={false}>
+                    <CollapsibleSection title="Payment Gateways" icon="credit-card" defaultOpen={false}>
                         <Text style={styles.hint}>
                             Connect your own Paystack, Korapay, or Flutterwave account below so customer payments land directly in YOUR account, under YOUR business name -- not a shared Quad360 account. Then tap "Create Payment Link" to charge customers by card, bank transfer, or USSD.
                         </Text>
@@ -819,7 +820,7 @@ export default function SettingsScreen() {
                     </CollapsibleSection>
 
                     {/* Bank & Mobile Money */}
-                    <CollapsibleSection title="Bank & Mobile Money" defaultOpen={false}>
+                    <CollapsibleSection title="Bank & Mobile Money" icon="folder" defaultOpen={false}>
                         <Text style={styles.hint}>
                             Upload a bank statement file, or scan a photo of a statement/receipt, to import your transactions.
                         </Text>
@@ -840,7 +841,38 @@ export default function SettingsScreen() {
                     <SectionHeader icon="upload" title="DATA & EXPORT" />
 
                     {/* Data & Backup */}
-                    <CollapsibleSection title="Data & Backup" defaultOpen={false}>
+                    <CollapsibleSection title="Data & Backup" icon="package" defaultOpen={false}>
+                        {/* Must never claim everything is fine while
+                            integrityIssueCount says otherwise -- that exact
+                            contradiction (a green "synced to cloud" checkmark
+                            next to a screen listing unreadable records) is
+                            what broke a real user's trust in the app. Shown
+                            only once there's actually something to back up. */}
+                        {transactions.length > 0 && (
+                            integrityIssueCount === 0 ? (
+                                <View style={styles.dataSafetyCard}>
+                                    <View style={styles.btnIconRow}>
+                                        <Icon name="lock" size={14} color={Colors.textPrimary} />
+                                        <Text style={styles.dataSafetyTitle}>Your Data is Safe</Text>
+                                    </View>
+                                    <Text style={styles.dataSafetyBody}>
+                                        All your data is backed up to the cloud automatically. Even if you lose your phone, log in from any device to restore it.
+                                    </Text>
+                                    <Text style={styles.dataSafetyStatus}>Last backup: synced to cloud ✓</Text>
+                                </View>
+                            ) : (
+                                <TouchableOpacity style={styles.dataWarningCard} onPress={() => setCurrentScreen('data-integrity')}>
+                                    <View style={styles.btnIconRow}>
+                                        <Icon name="alert-triangle" size={14} color={Colors.expense} />
+                                        <Text style={styles.dataWarningTitle}>{integrityIssueCount} Record{integrityIssueCount === 1 ? '' : 's'} Need Attention</Text>
+                                    </View>
+                                    <Text style={styles.dataWarningBody}>
+                                        Everything else is backed up to the cloud normally, but {integrityIssueCount === 1 ? 'this record' : 'these records'} were encrypted before a past PIN reset and can't be decrypted on this device. Tap to review and clean them up.
+                                    </Text>
+                                </TouchableOpacity>
+                            )
+                        )}
+
                         <Section title="Export & Import">
                             <Text style={styles.hint}>
                                 Export a full JSON backup of your account — transactions, invoices, assets, loans, budgets, inventory, staff, payroll, goals, settings, and activity history. Import to restore on a new device.
@@ -866,60 +898,78 @@ export default function SettingsScreen() {
                         </Section>
                     </CollapsibleSection>
 
-                    {/* Data Safety notice — shown only when user has transactions.
-                        Must never claim everything is fine while integrityIssueCount
-                        says otherwise sitting right below it in Security -- that
-                        exact contradiction (a green "synced to cloud" checkmark next
-                        to a screen listing unreadable records) is what broke a real
-                        user's trust in the app. */}
-                    {transactions.length > 0 && (
-                        integrityIssueCount === 0 ? (
-                            <View style={styles.dataSafetyCard}>
-                                <View style={styles.btnIconRow}>
-                                    <Icon name="lock" size={14} color={Colors.textPrimary} />
-                                    <Text style={styles.dataSafetyTitle}>Your Data is Safe</Text>
-                                </View>
-                                <Text style={styles.dataSafetyBody}>
-                                    All your data is backed up to the cloud automatically. Even if you lose your phone, log in from any device to restore it.
-                                </Text>
-                                <Text style={styles.dataSafetyStatus}>Last backup: synced to cloud ✓</Text>
-                            </View>
-                        ) : (
-                            <TouchableOpacity style={styles.dataWarningCard} onPress={() => setCurrentScreen('data-integrity')}>
-                                <View style={styles.btnIconRow}>
-                                    <Icon name="alert-triangle" size={14} color={Colors.expense} />
-                                    <Text style={styles.dataWarningTitle}>{integrityIssueCount} Record{integrityIssueCount === 1 ? '' : 's'} Need Attention</Text>
-                                </View>
-                                <Text style={styles.dataWarningBody}>
-                                    Everything else is backed up to the cloud normally, but {integrityIssueCount === 1 ? 'this record' : 'these records'} were encrypted before a past PIN reset and can't be decrypted on this device. Tap to review and clean them up.
-                                </Text>
-                            </TouchableOpacity>
-                        )
-                    )}
-
-                    {/* Role info for non-owners */}
-                    {userRole !== 'owner' && (
-                        <Section title="Your Access">
+                    {/* Help & Support */}
+                    <SectionHeader icon="help-circle" title="SUPPORT" />
+                    <CollapsibleSection title="Help & Support" icon="help-circle" defaultOpen={false}>
+                        <Section title="Talk to a Human">
                             <Text style={styles.hint}>
-                                {userRole === 'accountant'
-                                    ? 'You have Accountant access — you can view all data, record transactions, and export reports. Team management, payment settings, and business-data deletion stay with the owner.'
-                                    : userRole === 'manager'
-                                    ? 'You have Manager access — you can view all data and record transactions, invoices, and inventory. Team management, payment settings, and business-data deletion stay with the owner.'
-                                    : 'You have Staff access — you can add transactions. Contact your business owner for full access.'}
+                                {Config.SUPPORT_WHATSAPP_NUMBER
+                                    ? "Have a question or stuck on something? Chat with the Quad360 team directly on WhatsApp."
+                                    : "WhatsApp support isn't set up on this deployment yet — a support number needs to be configured before this can go live."}
                             </Text>
-                        </Section>
-                    )}
-
-                    {/* Only ever visible to Quad360 admins (isFinancingAdmin) --
-                        manages the real financing_products Supabase table that
-                        FinancingMarketplaceScreen shows once it has listings. */}
-                    {isFinancingAdmin(user?.email) && (
-                        <Section title="Platform Admin">
-                            <TouchableOpacity onPress={() => setCurrentScreen('financing-admin')} style={styles.saveBtn}>
-                                <Text style={styles.saveBtnText}>Manage Financing Listings</Text>
+                            <TouchableOpacity
+                                style={[styles.dataBtn, !Config.SUPPORT_WHATSAPP_NUMBER && { opacity: 0.5 }]}
+                                disabled={!Config.SUPPORT_WHATSAPP_NUMBER}
+                                onPress={() => openSupportChat(Config.SUPPORT_WHATSAPP_NUMBER)}
+                            >
+                                <View style={styles.btnIconRow}>
+                                    <Icon name="message-circle" size={14} color={Colors.primary} />
+                                    <Text style={styles.dataBtnText}>Chat on WhatsApp</Text>
+                                </View>
                             </TouchableOpacity>
                         </Section>
-                    )}
+                    </CollapsibleSection>
+
+                    {/* Sign Out is not destructive -- data stays safe in the
+                        cloud -- so it gets a plain, neutral treatment instead
+                        of living inside the red-flagged Danger Zone below,
+                        which is reserved for the two genuinely irreversible
+                        actions. */}
+                    <Section title="Sign Out">
+                        <Text style={styles.hint}>
+                            Signs you out and clears the local cache. Your data is safely stored in the cloud and will be restored when you sign back in.
+                        </Text>
+                        <TouchableOpacity style={styles.dataBtn} onPress={handleClearData}>
+                            <View style={styles.btnIconRow}>
+                                <Icon name="log-out" size={14} color={Colors.primary} />
+                                <Text style={styles.dataBtnText}>Sign Out & Clear Cache</Text>
+                            </View>
+                        </TouchableOpacity>
+                    </Section>
+
+                    {/* Danger Zone -- only the two genuinely irreversible
+                        actions live here now. The red-tinted card border
+                        (tone="danger") signals "handle carefully" even
+                        while collapsed, not just once opened. */}
+                    <SectionHeader icon="alert-triangle" title="DANGER ZONE" />
+                    <CollapsibleSection title="Danger Zone" icon="alert-triangle" tone="danger" defaultOpen={false}>
+                        {/* Owner-only: an invited accountant is meant to be
+                            read+export only, but resetBusinessData's real
+                            deletion is scoped to the account's own auth id
+                            matching the workspace owner's id (see
+                            deleteAllBusinessRecords in storage.ts) -- hiding
+                            the button for anyone else keeps that consistent
+                            at the UI layer too, not just silently no-op. */}
+                        {canDeleteBusinessData(userRole) && (
+                        <Section title="Reset Business Data">
+                            <Text style={styles.hint}>
+                                Permanently deletes all transactions, invoices, goals, assets, loans, and inventory. Your account and settings are kept — use this to start fresh without creating a new account.
+                            </Text>
+                            <TouchableOpacity style={styles.dangerBtn} onPress={handleResetBusinessData}>
+                                <Text style={styles.dangerBtnText}>Reset Business Data</Text>
+                            </TouchableOpacity>
+                        </Section>
+                        )}
+
+                        <Section title="Delete Account">
+                            <Text style={styles.hint}>
+                                Permanently removes all your business data from the cloud. This cannot be undone.
+                            </Text>
+                            <TouchableOpacity style={[styles.dangerBtn, { borderColor: '#7f1d1d', backgroundColor: 'rgba(127,29,29,0.12)' }]} onPress={handleDeleteAccount}>
+                                <Text style={[styles.dangerBtnText, { color: '#ef4444' }]}>Delete Account</Text>
+                            </TouchableOpacity>
+                        </Section>
+                    </CollapsibleSection>
                 </View>
             </ScrollView>
             <FooterNav />
@@ -1147,12 +1197,18 @@ function SectionHeader({ icon, title }: { icon: IconName; title: string }) {
     );
 }
 
-function CollapsibleSection({ title, children, defaultOpen = false }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
+function CollapsibleSection({ title, children, defaultOpen = false, icon, tone = 'default' }: {
+    title: string; children: React.ReactNode; defaultOpen?: boolean; icon?: IconName; tone?: 'default' | 'danger';
+}) {
     const [open, setOpen] = useState(defaultOpen);
+    const isDanger = tone === 'danger';
     return (
-        <View style={styles.section}>
+        <View style={[styles.section, isDanger && styles.sectionDanger]}>
             <TouchableOpacity style={styles.sectionHeader} onPress={() => setOpen(v => !v)}>
-                <Text style={styles.sectionTitle}>{title}</Text>
+                <View style={styles.sectionHeaderLeft}>
+                    {icon && <Icon name={icon} size={15} color={isDanger ? Colors.expense : Colors.textSecondary} />}
+                    <Text style={[styles.sectionTitle, isDanger && { color: Colors.expense }]}>{title}</Text>
+                </View>
                 <Icon name={open ? 'chevron-down' : 'chevron-right'} size={16} color={Colors.textMuted} />
             </TouchableOpacity>
             {open && <View style={styles.sectionBody}>{children}</View>}
@@ -1280,21 +1336,28 @@ const styles = StyleSheet.create({
     safe:   { flex: 1, backgroundColor: Colors.bg },
     scroll: { flex: 1 },
     pad:    { padding: Spacing.lg },
-    title:  { fontSize: 20, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: Spacing.xl },
+    title:  { fontSize: 20, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 2 },
+    titleSubtitle: { fontSize: 13, color: Colors.textMuted, marginBottom: Spacing.xl, textTransform: 'capitalize' },
 
     // Shared icon + label row used for section headers and icon-prefixed
     // buttons throughout this screen.
     btnIconRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
     sectionHeaderMainRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, marginBottom: Spacing.sm, marginTop: Spacing.lg },
-    sectionHeaderMain: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, letterSpacing: 0.3 },
+    sectionHeaderMain: { fontSize: 12, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.8 },
 
     section:        {
         backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.lg, marginBottom: Spacing.lg,
         borderWidth: 1, borderColor: Colors.border, ...Shadow.sm,
     },
+    sectionDanger:  { borderColor: Colors.expense, backgroundColor: 'rgba(239,68,68,0.05)' },
     sectionHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    sectionHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
     sectionTitle:   { fontSize: 15, fontWeight: 'bold', color: Colors.textPrimary },
     sectionBody:    { marginTop: Spacing.md },
+
+    accessCard:      { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.lg, marginBottom: Spacing.lg, borderWidth: 1, borderColor: Colors.border },
+    accessCardTitle: { fontSize: 13, fontWeight: '700', color: Colors.textSecondary },
+    accessCardBody:  { fontSize: 12, color: Colors.textMuted, lineHeight: 18, marginTop: Spacing.xs },
 
     subsection:      { marginBottom: Spacing.lg },
     subsectionTitle: { fontSize: 13, fontWeight: 'bold', color: Colors.textSecondary, marginBottom: Spacing.sm, textTransform: 'uppercase', letterSpacing: 0.5 },

@@ -1161,6 +1161,11 @@ function getInitialScreenFromUrl(): string {
   const path = window.location.pathname;
   if (path === '/blog' || path === '/blog/') return 'blog';
   if (path.startsWith('/blog/')) return 'blog-post';
+  // No link anywhere in the UI points here -- reached only by a Quad360
+  // admin typing this path directly. isFinancingAdmin() (checked in App.tsx
+  // before FinancingAdminScreen renders) is what actually gates it; this
+  // just lets the URL resolve to the right screen at all.
+  if (path === '/admin/financing') return 'financing-admin';
   return 'landing';
 }
 
@@ -1430,13 +1435,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               // whatever role happened to be in memory before the reload.
               const role = await resolveWorkspaceRole();
               setUser({ email: profile.email, businessName: profile.businessName, phone: profile.phone, role, createdAt: profile.createdAt });
-              // A signed-in user who lands directly on a shared /blog link
-              // should see the article, not get bounced to their dashboard.
-              const isPublicBlogRoute = getInitialScreenFromUrl() === 'blog' || getInitialScreenFromUrl() === 'blog-post';
+              // A signed-in user who lands directly on a shared /blog link,
+              // or an admin who typed /admin/financing, should see that
+              // page, not get bounced to their dashboard.
+              const initialUrlScreen = getInitialScreenFromUrl();
+              const isDirectUrlRoute = initialUrlScreen === 'blog' || initialUrlScreen === 'blog-post' || initialUrlScreen === 'financing-admin';
               // Same reasoning: don't stomp the reset-pin screen the recovery
               // effect above just switched to for a device that also happens
               // to have a saved profile -- see that effect's comment.
-              if (!isPublicBlogRoute && !recoveryDetectedRef.current) await routeAfterAuth();
+              if (!isDirectUrlRoute && !recoveryDetectedRef.current) await routeAfterAuth();
             } else if (!recoveryDetectedRef.current) {
               setIsFirstLaunch(false);
               setCurrentScreenState('login');
