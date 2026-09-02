@@ -12,6 +12,7 @@ import BreakevenAnalysis from '../components/BreakevenAnalysis';
 import LoanAffordabilityChecker from '../components/LoanAffordabilityChecker';
 import DecisionSimulator from '../components/DecisionSimulator';
 import CapitalCommitmentTracker from '../components/CapitalCommitmentTracker';
+import DecisionComparisonTable from '../components/DecisionComparisonTable';
 import { computeCashRunway } from '../utils/cashRunway';
 import { computeRiskScore, loanMonthlyPayment } from '../utils/finance';
 import { computeBreakeven } from '../utils/profitability';
@@ -94,6 +95,14 @@ export default function BeforeYouDecideScreen() {
                     forecast of what will happen, but what your current cash flow can actually
                     absorb.
                 </Text>
+
+                <View style={styles.decisionCard}>
+                    <Text style={styles.decisionQuestion}>Weighing more than one option?</Text>
+                    <Text style={styles.decisionHelp}>Put a hire, a price change, and a loan side by side instead of checking them one at a time.</Text>
+                </View>
+                <Collapsible title="Compare Decisions">
+                    <DecisionComparisonTable currency={currency} transactions={transactions} currentCashBalance={finance.cashBalance} />
+                </Collapsible>
 
                 <View style={styles.decisionCard}>
                     <Text style={styles.decisionQuestion}>Planning to hire or expand?</Text>
