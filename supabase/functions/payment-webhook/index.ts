@@ -54,7 +54,10 @@ async function verifyPaystack(secretKey: string, reference: string) {
     headers: { Authorization: `Bearer ${secretKey}` },
   });
   const data = await res.json().catch(() => null);
-  if (data?.data?.status !== 'success') return null;
+  if (data?.data?.status !== 'success') {
+    console.log('[payment-webhook] paystack verify did not pass', { httpStatus: res.status, apiStatus: data?.status, message: data?.message, dataStatus: data?.data?.status });
+    return null;
+  }
   return { amount: data.data.amount / 100, currency: data.data.currency as string };
 }
 
@@ -63,7 +66,10 @@ async function verifyKorapay(secretKey: string, reference: string) {
     headers: { Authorization: `Bearer ${secretKey}` },
   });
   const data = await res.json().catch(() => null);
-  if (data?.data?.status !== 'success') return null;
+  if (data?.data?.status !== 'success') {
+    console.log('[payment-webhook] korapay verify did not pass', { httpStatus: res.status, apiStatus: data?.status, message: data?.message, dataStatus: data?.data?.status });
+    return null;
+  }
   return { amount: Number(data.data.amount), currency: data.data.currency as string };
 }
 
@@ -72,7 +78,13 @@ async function verifyFlutterwave(secretKey: string, transactionId: string, expec
     headers: { Authorization: `Bearer ${secretKey}` },
   });
   const data = await res.json().catch(() => null);
-  if (data?.data?.status !== 'successful' || data?.data?.tx_ref !== expectedTxRef) return null;
+  if (data?.data?.status !== 'successful' || data?.data?.tx_ref !== expectedTxRef) {
+    console.log('[payment-webhook] flutterwave verify did not pass', {
+      httpStatus: res.status, apiStatus: data?.status, message: data?.message,
+      dataStatus: data?.data?.status, gotTxRef: data?.data?.tx_ref, expectedTxRef,
+    });
+    return null;
+  }
   return { amount: Number(data.data.amount), currency: data.data.currency as string };
 }
 
@@ -108,7 +120,10 @@ Deno.serve(async (req: Request) => {
   }
 
   const ownerUserId = typeof meta?.ownerUserId === 'string' ? meta.ownerUserId : null;
-  if (!reference || !ownerUserId) return json(ACK, 200);
+  if (!reference || !ownerUserId) {
+    console.log('[payment-webhook] missing reference or ownerUserId in payload', { provider, hasReference: !!reference, hasOwnerUserId: !!ownerUserId, metaKeys: Object.keys(meta || {}) });
+    return json(ACK, 200);
+  }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -121,15 +136,20 @@ Deno.serve(async (req: Request) => {
     .eq('provider', provider)
     .maybeSingle();
   const secretKey = secretRow?.secret_key;
-  if (!secretKey) return json(ACK, 200);
+  if (!secretKey) {
+    console.log('[payment-webhook] no stored secret key for this owner/provider', { provider, ownerUserId, reference });
+    return json(ACK, 200);
+  }
 
   try {
     let verified: { amount: number; currency: string } | null = null;
     if (provider === 'paystack') verified = await verifyPaystack(secretKey, reference);
     else if (provider === 'korapay') verified = await verifyKorapay(secretKey, reference);
     else if (flwTransactionId) verified = await verifyFlutterwave(secretKey, flwTransactionId, reference);
+    else console.log('[payment-webhook] flutterwave payload had no transaction id', { reference });
 
     if (!verified) return json(ACK, 200);
+    console.log('[payment-webhook] verified, upserting incoming_payments', { provider, ownerUserId, reference, amount: verified.amount });
 
     const { error } = await adminClient.from('incoming_payments').upsert({
       owner_user_id: ownerUserId,
