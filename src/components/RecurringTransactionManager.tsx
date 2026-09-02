@@ -66,9 +66,11 @@ export default function RecurringTransactionManager({
                 <TouchableOpacity onPress={() => onEdit?.(item)}>
                   <Text style={styles.editBtn}>✏️</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => handleDelete(item.id)}>
-                  <Text style={styles.deleteBtn}>🗑️</Text>
-                </TouchableOpacity>
+                {onDelete && (
+                    <TouchableOpacity onPress={() => handleDelete(item.id)}>
+                      <Text style={styles.deleteBtn}>🗑️</Text>
+                    </TouchableOpacity>
+                )}
               </View>
             </View>
 

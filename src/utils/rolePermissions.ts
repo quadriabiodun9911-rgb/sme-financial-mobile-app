@@ -77,6 +77,19 @@ export function canDeleteBusinessData(role: UserRole): boolean {
     return role === 'owner';
 }
 
+// Deleting a single transaction used to have no role check at all -- the
+// Delete button rendered unconditionally in TransactionsScreen.tsx for
+// every role that could reach the screen, including 'viewer' (documented
+// above as "cannot add, edit or delete anything, anywhere") and
+// 'external_accountant' (documented as reporting/reconciliation only, no
+// operational access). Same four roles as canViewFinancials's "full
+// day-to-day trust" tier -- owner/admin/accountant/manager can correct a
+// miskeyed entry; staff, external_accountant and viewer cannot destroy a
+// financial record.
+export function canDeleteTransactions(role: UserRole): boolean {
+    return role === 'owner' || role === 'admin' || role === 'accountant' || role === 'manager';
+}
+
 export function canPublishToLenders(role: UserRole): boolean {
     return role === 'owner' || role === 'admin';
 }

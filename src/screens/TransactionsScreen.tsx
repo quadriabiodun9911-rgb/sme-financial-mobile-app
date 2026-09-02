@@ -24,6 +24,7 @@ import { classifyTransactions } from '../utils/dataQuality';
 import { detectPersonalSpending, DISMISSED_PERSONAL_KEY } from '../utils/personalSpendingDetector';
 import CostExposureTab from '../components/CostExposureTab';
 import RevenueExposureTab from '../components/RevenueExposureTab';
+import { canDeleteTransactions } from '../utils/rolePermissions';
 
 type FilterType   = 'all' | 'income' | 'expense' | 'collect';
 type StatusFilter = 'all' | 'paid' | 'pending' | 'overdue';
@@ -130,7 +131,8 @@ function formatDateHeader(iso: string): string {
 }
 
 export default function TransactionsScreen() {
-    const { transactions, addTransaction, deleteTransaction, updateTransaction, settings, setCurrentScreen, navParams, invoices, markInvoiceStatus, navigate, language, isDemoMode } = useApp();
+    const { transactions, addTransaction, deleteTransaction, updateTransaction, settings, setCurrentScreen, navParams, invoices, markInvoiceStatus, navigate, language, isDemoMode, userRole } = useApp();
+    const canDelete = canDeleteTransactions(userRole);
 
     // Cost Exposure moved here from Inventory & Stock: it's fundamentally
     // about sales/revenue erosion (a category eating a bigger share of
@@ -317,7 +319,10 @@ export default function TransactionsScreen() {
     };
 
     const handleDelete = (id: string, desc: string) => {
-        confirmAction('Delete Transaction', `Remove "${desc}"?`, 'Delete', () => deleteTransaction(id));
+        confirmAction('Delete Transaction', `Remove "${desc}"?`, 'Delete', () => {
+            deleteTransaction(id);
+            if (!isDemoMode) auditEvents.transactionDelete(id);
+        });
     };
 
     // If this transaction is linked to an invoice (reference = invoiceNumber),
@@ -556,7 +561,7 @@ export default function TransactionsScreen() {
                         recurringTransactions={transactions.filter(t => t.isRecurring) as any[]}
                         currency={currency}
                         onEdit={openEdit}
-                        onDelete={id => deleteTransaction(id)}
+                        onDelete={canDelete ? (id => { deleteTransaction(id); if (!isDemoMode) auditEvents.transactionDelete(id); }) : undefined}
                     />
                 </View>
             )}
@@ -680,6 +685,7 @@ export default function TransactionsScreen() {
                                                 <Text style={styles.notPersonalText}>Not personal</Text>
                                             </TouchableOpacity>
                                         )}
+                                        {canDelete && (
                                         <TouchableOpacity
                                             style={styles.deleteBtn}
                                             onPress={() => handleDelete(tx.id, tx.description || 'this transaction')}
@@ -688,6 +694,7 @@ export default function TransactionsScreen() {
                                             <Icon name="trash-2" size={11} color={Colors.expense} />
                                             <Text style={styles.deleteText}>{t(language, 'delete')}</Text>
                                         </TouchableOpacity>
+                                        )}
                                     </View>
                                 </View>
                             </TouchableOpacity>
