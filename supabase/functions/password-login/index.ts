@@ -120,7 +120,12 @@ Deno.serve(async (req: Request) => {
     const callerClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
-    const { data: { user }, error: authError } = await callerClient.auth.getUser();
+    // getUser() with NO argument relies on the client's own internal
+    // session state, which a freshly-created client here never has -- it
+    // silently fails with "Auth session missing!" even though a perfectly
+    // valid token is sitting right there in the Authorization header.
+    // Passing the token explicitly is what actually verifies it.
+    const { data: { user }, error: authError } = await callerClient.auth.getUser(authHeader.replace(/^Bearer\s+/i, ''));
     if (authError || !user || !user.email) return json({ error: 'Not authenticated' }, 401);
     const email = user.email.trim().toLowerCase();
 

@@ -53,7 +53,20 @@ Deno.serve(async (req: Request) => {
     const callerClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
-    const { data: { user }, error: authError } = await callerClient.auth.getUser();
+    // This is the actual bug the diagnostic below caught in production:
+    // getUser() called with NO argument doesn't use the Authorization
+    // header set on the client above at all -- it reads from the client's
+    // own internal session state, which a fresh client created per-request
+    // here never has. It fails with "Auth session missing!", every time,
+    // regardless of whether the token itself is perfectly valid. It only
+    // ever "worked" by coincidence when this function happened to run
+    // moments after a call that used a completely different, correct code
+    // path (ordinary RLS-protected table reads verify the JWT's signature
+    // directly, no session lookup involved) -- which is exactly why a
+    // business owner could see their real dashboard data load successfully
+    // and then have "Connect Flutterwave" fail immediately after with the
+    // same session. Passing the token explicitly is the fix.
+    const { data: { user }, error: authError } = await callerClient.auth.getUser(authHeader.replace(/^Bearer\s+/i, ''));
     if (authError || !user) {
       // Diagnostic only -- never logs the token itself, just enough to
       // tell "no token reached us" apart from "a token reached us but
