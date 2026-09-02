@@ -12,7 +12,7 @@ import { DEMO_BUSINESSES } from '../utils/demoData';
 import { trackUserLoggedIn, identifyUser } from '../utils/analytics';
 import { supabase, createEphemeralAuthClient } from '../utils/supabase';
 import { savePin, saveProfile, generateAuthSecret, saveAuthSecret, loadAuthSecret, loadProfile, localProfileMatchesEmail, syncFieldEncryptionKey, registerLocalAccount } from '../utils/storage';
-import { verifyBackupPassword } from '../utils/backupPassword';
+import { verifyBackupPassword, setBackupPassword } from '../utils/backupPassword';
 import { Industry } from '../types';
 
 const CURRENCIES = [
@@ -185,6 +185,14 @@ export default function LoginScreen() {
     const [setupLang, setSetupLang] = useState<Language>(language);
     const [submitting, setSubmitting] = useState(false);
     const [agreedToTerms, setAgreedToTerms] = useState(false);
+    // Optional -- asked here, at signup, rather than only in Settings,
+    // since that's the one moment every user sees regardless of whether
+    // they'd ever think to go looking for it later. Skippable: forcing a
+    // second password to invent on every signup is its own cost, and this
+    // fixes "stuck on a new device with no way in" either way once set,
+    // whenever the user gets around to it.
+    const [setupBackupPassword, setSetupBackupPassword] = useState('');
+    const [setupBackupPasswordConfirm, setSetupBackupPasswordConfirm] = useState('');
 
     // Owner return
     const [returnPin, setReturnPin] = useState('');
@@ -327,6 +335,12 @@ export default function LoginScreen() {
         if (!/^\d{6}$/.test(pin)) { showAlert(t(setupLang, 'error'), t(setupLang, 'invalidPin')); return; }
         if (pin !== confirmPin)   { showAlert(t(setupLang, 'error'), t(setupLang, 'pinMismatch')); return; }
         if (!agreedToTerms) { showAlert(t(setupLang, 'error'), 'Please agree to the Privacy Policy to continue.'); return; }
+        // Only validated if they actually typed one -- this field is
+        // optional, an empty box must never block signup.
+        if (setupBackupPassword) {
+            if (setupBackupPassword.length < 8) { showAlert(t(setupLang, 'error'), 'Backup password must be at least 8 characters (or leave both boxes empty to skip it).'); return; }
+            if (setupBackupPassword !== setupBackupPasswordConfirm) { showAlert(t(setupLang, 'error'), 'Backup passwords do not match.'); return; }
+        }
         setSubmitting(true);
         try {
             setLanguage(setupLang);
@@ -355,6 +369,13 @@ export default function LoginScreen() {
             // signup that already succeeded — see recordConsent's own
             // no-op-on-failure contract in storage.ts.
             recordConsent('privacy_policy', 'draft-v1');
+            // Also fire-and-forget -- setupAccount above already
+            // established the real session this needs (it signs in right
+            // after signUp), so this can run now instead of sending the
+            // user to Settings afterward. A failure here must not undo an
+            // account creation that already succeeded; it's still there to
+            // set from Settings any time.
+            if (setupBackupPassword) setBackupPassword(setupBackupPassword).catch(() => {});
         } catch (e: any) {
             const msg: string = e?.message ?? '';
             if (msg.toLowerCase().includes('already registered') || msg.toLowerCase().includes('already been registered') || msg.toLowerCase().includes('user already exists') || msg.toLowerCase().includes('email address is already')) {
@@ -1487,6 +1508,23 @@ export default function LoginScreen() {
                         secureTextEntry keyboardType="number-pad" maxLength={6} />
                 </Field>
 
+                {/* Optional -- the PIN above only ever unlocks THIS device;
+                    a password set here works on any device, no email link
+                    needed. Asked now, not just left for Settings, since
+                    this is the one moment every signup passes through. */}
+                <Field label="Backup Password (optional — works on any device)">
+                    <TextInput style={styles.input} value={setupBackupPassword} onChangeText={setSetupBackupPassword}
+                        placeholder="Leave blank to skip" placeholderTextColor={Colors.muted}
+                        secureTextEntry autoCapitalize="none" autoCorrect={false} />
+                </Field>
+                {!!setupBackupPassword && (
+                    <Field label="Confirm Backup Password">
+                        <TextInput style={styles.input} value={setupBackupPasswordConfirm} onChangeText={setSetupBackupPasswordConfirm}
+                            placeholder="••••••••" placeholderTextColor={Colors.muted}
+                            secureTextEntry autoCapitalize="none" autoCorrect={false} />
+                    </Field>
+                )}
+
                 {/* Currency picker — compact single row */}
                 <Field label={t(setupLang, 'preferredCurrency')}>
                     <TouchableOpacity style={styles.currencyRow} onPress={() => setCurrencyModalOpen(true)}>
@@ -1793,6 +1831,12 @@ export default function LoginScreen() {
                 setResetIntent('forgot-pin'); setMode('reset-pin');
             }}>
                 <Text style={styles.resetText}>Forgot your PIN? Reset it in 2 minutes →</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.switchBtn} onPress={() => {
+                setPwLoginEmail(emailLoginEmail); setPwLoginPassword(''); setPwLoginStep('password');
+                setMode('password-login');
+            }}>
+                <Text style={styles.switchText}>New device? Have a backup password? Sign in with it →</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.demoBtn} onPress={() => setMode('demo-pick')}>
                 <Icon name="eye" size={13} color={Colors.primary} />
