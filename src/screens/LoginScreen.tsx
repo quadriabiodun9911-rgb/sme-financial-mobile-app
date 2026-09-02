@@ -463,6 +463,14 @@ export default function LoginScreen() {
             // other case falls through to the local PIN check, which itself
             // handles migrating a legacy pre-secret account.
             const authSecret = await loadAuthSecret();
+            // 'AuthApiError' means Supabase itself was reached and actively
+            // rejected this secret (a real, confirmed mismatch between what
+            // this device has cached and the account's actual current
+            // password -- e.g. after a password rotation elsewhere that
+            // this device's cache missed). A network/offline failure has a
+            // different error name and must NOT trip this -- that case is
+            // supposed to fall back to the local-only PIN check below.
+            let remoteSecretRejected = false;
             if (authSecret) {
                 const { error } = await supabase.auth.signInWithPassword({ email, password: authSecret });
                 if (!error) {
@@ -474,14 +482,41 @@ export default function LoginScreen() {
                 }
                 // Secret didn't match this email (e.g. a different account was
                 // set up on this device most recently) — fall through below.
+                remoteSecretRejected = (error as any)?.name === 'AuthApiError';
             }
             // login(pin) is a PURELY LOCAL check -- see
             // localProfileMatchesEmail's comment (storage.ts) for why it
             // must not run here unless the locally cached profile actually
             // belongs to the email that was typed.
             const localProfile = await loadProfile();
-            const ok = localProfileMatchesEmail(localProfile, email) && await login(emailLoginPin);
-            if (ok) { navigating = true; identifyUser(email); trackUserLoggedIn('email'); return; }
+            const sameAccount = localProfileMatchesEmail(localProfile, email);
+            const ok = sameAccount && await login(emailLoginPin);
+            if (ok) {
+                navigating = true; identifyUser(email); trackUserLoggedIn('email');
+                // The PIN and account both check out locally, but Supabase
+                // itself just confirmed this device's cached secret no
+                // longer works -- silently continuing would leave the owner
+                // looking "signed in" (their cached data still loads) while
+                // every real server call (payment provider setup, statement
+                // scan, etc.) quietly fails with a confusing "not
+                // authenticated" error and no visible cause. Surfacing it
+                // here, once, with a direct path to fix it, beats them
+                // discovering it later from an unrelated broken feature.
+                if (remoteSecretRejected) {
+                    showAlert(
+                        'Reconnect This Device',
+                        'You\'re in, but this device\'s saved sign-in has gone stale, so anything that needs to reach our servers (like connecting a payment provider) won\'t work yet. Verify your email to reconnect it.',
+                        [
+                            { text: 'Verify Email', onPress: () => {
+                                setResetEmail(email); setResetNewPin(''); setResetConfirmPin(''); setResetOtp('');
+                                setResetIntent('verify-device'); setResetStep('request'); setMode('reset-pin');
+                            } },
+                            { text: 'Later', style: 'cancel' },
+                        ],
+                    );
+                }
+                return;
+            }
             // Neither the active session nor the active local profile is
             // this email -- but this device may still know it as a SECOND
             // registered account (e.g. just reset or verified while a
