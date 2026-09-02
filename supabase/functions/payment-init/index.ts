@@ -59,7 +59,12 @@ const PROVIDER_LABEL: Record<string, string> = {
   flutterwave: 'Flutterwave',
 };
 
-async function initPaystack(secretKey: string, amount: number, currency: string, email: string, name: string, description: string) {
+// ownerUserId/invoiceId ride along as provider metadata purely so
+// payment-webhook can read them back out of the webhook payload later --
+// it's the only way that function (which never sees this request) knows
+// which business's account to verify the payment against, or which invoice
+// to mark paid. See payment-webhook/index.ts.
+async function initPaystack(secretKey: string, amount: number, currency: string, email: string, name: string, description: string, reference: string, ownerUserId: string, invoiceId: string) {
   // Paystack requires amount in subunit (kobo for NGN, pesewas for GHS, etc.)
   const amountInSubunit = Math.round(amount * 100);
 
@@ -70,7 +75,8 @@ async function initPaystack(secretKey: string, amount: number, currency: string,
       amount: amountInSubunit,
       currency: currency.toUpperCase(),
       email,
-      metadata: { name, description },
+      reference,
+      metadata: { name, description, ownerUserId, invoiceId, customerName: name },
     }),
   });
   const data = await res.json();
@@ -85,16 +91,17 @@ async function initPaystack(secretKey: string, amount: number, currency: string,
   }, 200);
 }
 
-async function initKorapay(secretKey: string, amount: number, currency: string, email: string, name: string, reference: string, narration: string) {
+async function initKorapay(secretKey: string, amount: number, currency: string, email: string, name: string, reference: string, narration: string, ownerUserId: string, invoiceId: string) {
   const res = await fetch('https://api.korapay.com/merchant/api/v1/charges/initialize', {
     method: 'POST',
     headers: { Authorization: `Bearer ${secretKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       amount,
       currency,
-      reference: reference || `QD360-${Date.now()}`,
+      reference,
       narration: narration || 'Payment to business',
       customer: { email, name },
+      metadata: { ownerUserId, invoiceId, customerName: name, description: narration },
     }),
   });
   const data = await res.json();
@@ -105,20 +112,21 @@ async function initKorapay(secretKey: string, amount: number, currency: string, 
   if (!data.data?.checkout_url) {
     return json({ error: 'Korapay did not return a checkout URL. Make sure your Korapay account is active and the secret key is correct.' }, 502);
   }
-  return json({ checkoutUrl: data.data.checkout_url, reference: data.data.reference }, 200);
+  return json({ checkoutUrl: data.data.checkout_url, reference: data.data.reference || reference }, 200);
 }
 
-async function initFlutterwave(secretKey: string, amount: number, currency: string, email: string, name: string, reference: string, description: string) {
+async function initFlutterwave(secretKey: string, amount: number, currency: string, email: string, name: string, reference: string, description: string, ownerUserId: string, invoiceId: string) {
   const res = await fetch('https://api.flutterwave.com/v3/payments', {
     method: 'POST',
     headers: { Authorization: `Bearer ${secretKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      tx_ref: reference || `QD360-${Date.now()}`,
+      tx_ref: reference,
       amount,
       currency: currency.toUpperCase(),
       redirect_url: 'https://quad360financial.com/payment-complete',
       customer: { email, name },
       customizations: { title: name || 'Payment', description: description || 'Payment to business' },
+      meta: { ownerUserId, invoiceId, customerName: name, description },
     }),
   });
   const data = await res.json();
@@ -126,7 +134,7 @@ async function initFlutterwave(secretKey: string, amount: number, currency: stri
     console.error('[payment-init] Flutterwave', data.message);
     return json({ error: data.message || 'Flutterwave initialization failed' }, 400);
   }
-  return json({ checkoutUrl: data.data.link, reference: reference || undefined }, 200);
+  return json({ checkoutUrl: data.data.link, reference }, 200);
 }
 
 Deno.serve(async (req: Request) => {
@@ -165,6 +173,15 @@ Deno.serve(async (req: Request) => {
     const email = typeof body?.email === 'string' && body.email ? body.email : user.email;
     if (!email) return json({ error: 'email is required.' }, 400);
     const name = typeof body?.name === 'string' ? body.name : '';
+    const invoiceId = typeof body?.invoiceId === 'string' ? body.invoiceId : '';
+    // One reference generated here regardless of provider (previously only
+    // Korapay/Flutterwave accepted a client-supplied one, and Paystack got
+    // none at all) -- payment-webhook needs a single tx_ref shape it can
+    // rely on across all three, and the client stores this same value on
+    // the eventual transaction's `reference` field so a webhook-recorded
+    // payment and a manually-recorded one can never both get created for
+    // the same checkout.
+    const reference = typeof body?.reference === 'string' && body.reference ? body.reference : `QD360-${Date.now()}`;
 
     // Service-role client: the only one allowed to read
     // payment_provider_secrets (its RLS has no SELECT policy for anyone
@@ -197,16 +214,14 @@ Deno.serve(async (req: Request) => {
 
     if (provider === 'paystack') {
       const description = typeof body?.description === 'string' ? body.description : '';
-      return await initPaystack(secretKey, amount, currency, email, name, description);
+      return await initPaystack(secretKey, amount, currency, email, name, description, reference, ownerUserId, invoiceId);
     }
     if (provider === 'flutterwave') {
-      const reference = typeof body?.reference === 'string' ? body.reference : '';
       const description = typeof body?.description === 'string' ? body.description : '';
-      return await initFlutterwave(secretKey, amount, currency, email, name, reference, description);
+      return await initFlutterwave(secretKey, amount, currency, email, name, reference, description, ownerUserId, invoiceId);
     }
-    const reference = typeof body?.reference === 'string' ? body.reference : '';
     const narration = typeof body?.narration === 'string' ? body.narration : '';
-    return await initKorapay(secretKey, amount, currency, email, name, reference, narration);
+    return await initKorapay(secretKey, amount, currency, email, name, reference, narration, ownerUserId, invoiceId);
   } catch (e) {
     console.error('[payment-init]', e);
     return json({ error: 'Could not start payment. Please try again shortly.' }, 502);

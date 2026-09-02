@@ -11,6 +11,8 @@ import { Colors } from '../theme/colors';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import Header from '../components/Header';
 import { trackDemoConvertTapped, trackScreenViewed } from '../utils/analytics';
+import { getWorkspaceOwnerId } from '../utils/storage';
+import { claimIncomingPayments } from '../utils/incomingPayments';
 import FooterNav from '../components/FooterNav';
 import { t } from '../utils/i18n';
 import { validateAmount, validateDescription } from '../utils/validation';
@@ -124,8 +126,24 @@ const PRIORITY_KIND_META: Record<PriorityKind, { icon: IconName; screen: Screen 
 };
 
 export default function DashboardScreen() {
-    const { finance, settings, goals, transactions, invoices, assets, loans, staff, payrollRuns, navigate, setCurrentScreen, navParams, language: rawLanguage, isLoading, addTransaction, isDemoMode, demoBusinessId, cashPockets, addGoal, deleteGoal, updateGoal, budgets, inventory, user, financing, canViewFinancials, readinessHistory } = useApp();
+    const { finance, settings, goals, transactions, invoices, assets, loans, staff, payrollRuns, navigate, setCurrentScreen, navParams, language: rawLanguage, isLoading, addTransaction, isDemoMode, demoBusinessId, cashPockets, addGoal, deleteGoal, updateGoal, budgets, inventory, user, financing, canViewFinancials, readinessHistory, markInvoiceStatus } = useApp();
     const language = rawLanguage as Language;
+
+    // Fallback pickup for payments payment-webhook confirmed while the
+    // customer's checkout tab (or this device) wasn't the one that opened
+    // PaymentLinkScreen/PaymentCompleteScreen -- e.g. a teammate collected
+    // the payment from a different device. See incomingPayments.ts.
+    useEffect(() => {
+        if (isDemoMode) return;
+        let cancelled = false;
+        (async () => {
+            const ownerUserId = await getWorkspaceOwnerId();
+            if (!ownerUserId || cancelled) return;
+            const existingRefs = new Set<string>((transactions || []).map((t: any) => t.reference).filter(Boolean));
+            await claimIncomingPayments(ownerUserId, existingRefs, addTransaction, markInvoiceStatus);
+        })();
+        return () => { cancelled = true; };
+    }, [isDemoMode]);
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
     // see FooterNav.tsx for the reference fix. Applied here to the bottom

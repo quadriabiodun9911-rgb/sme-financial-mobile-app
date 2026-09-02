@@ -1166,6 +1166,12 @@ function getInitialScreenFromUrl(): string {
   // before FinancingAdminScreen renders) is what actually gates it; this
   // just lets the URL resolve to the right screen at all.
   if (path === '/admin/financing') return 'financing-admin';
+  // Where Paystack/Korapay/Flutterwave redirect the checkout tab back to
+  // once a payment finishes (see payment-init's redirect_url/tx_ref) --
+  // without this, that tab just fell through to 'landing' (then 'dashboard'
+  // once the boot effect saw an existing session), with no confirmation
+  // that anything had happened at all.
+  if (path === '/payment-complete') return 'payment-complete';
   return 'landing';
 }
 
@@ -1175,6 +1181,10 @@ function getInitialNavParamsFromUrl(): any {
   if (path.startsWith('/blog/')) {
     const slug = path.slice('/blog/'.length).replace(/\/$/, '');
     if (slug) return { slug };
+  }
+  if (path === '/payment-complete') {
+    const q = new URLSearchParams(window.location.search);
+    return { status: q.get('status'), txRef: q.get('tx_ref') || q.get('reference') };
   }
   return null;
 }
@@ -1439,7 +1449,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               // or an admin who typed /admin/financing, should see that
               // page, not get bounced to their dashboard.
               const initialUrlScreen = getInitialScreenFromUrl();
-              const isDirectUrlRoute = initialUrlScreen === 'blog' || initialUrlScreen === 'blog-post' || initialUrlScreen === 'financing-admin';
+              const isDirectUrlRoute = initialUrlScreen === 'blog' || initialUrlScreen === 'blog-post' || initialUrlScreen === 'financing-admin' || initialUrlScreen === 'payment-complete';
               // Same reasoning: don't stomp the reset-pin screen the recovery
               // effect above just switched to for a device that also happens
               // to have a saved profile -- see that effect's comment.

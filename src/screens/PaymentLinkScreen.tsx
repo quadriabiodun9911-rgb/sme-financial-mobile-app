@@ -11,6 +11,7 @@ import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { confirmAction } from '../utils/webAlert';
 import { getConnectedProviders } from '../utils/paymentSecrets';
 import { getWorkspaceOwnerId } from '../utils/storage';
+import { claimIncomingPayments } from '../utils/incomingPayments';
 
 // Same shape as aiAdvisor.ts's askAdvisor -- the edge function always
 // replies with a JSON { error } body on failure, so surface that instead
@@ -28,7 +29,7 @@ async function invokePaymentInit(body: Record<string, unknown>): Promise<any> {
 }
 
 export default function PaymentLinkScreen() {
-    const { settings, user, navigate, goBack, navParams, addTransaction, markInvoiceStatus } = useApp() as any;
+    const { settings, user, navigate, goBack, navParams, addTransaction, markInvoiceStatus, transactions } = useApp() as any;
     const params = (navParams ?? {}) as {
         amount?: number; description?: string;
         customerName?: string; customerEmail?: string;
@@ -64,6 +65,21 @@ export default function PaymentLinkScreen() {
         getConnectedProviders().then(result => {
             if (!cancelled) { setConnected(result); setConnectedLoaded(true); }
         });
+        return () => { cancelled = true; };
+    }, []);
+
+    // Picks up any payment payment-webhook already confirmed as successful
+    // while this screen was open (e.g. the merchant paid in the checkout
+    // tab and switched back here without needing to tap "Mark as Paid") --
+    // see incomingPayments.ts.
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            const ownerUserId = await getWorkspaceOwnerId();
+            if (!ownerUserId || cancelled) return;
+            const existingRefs = new Set<string>((transactions || []).map((t: any) => t.reference).filter(Boolean));
+            await claimIncomingPayments(ownerUserId, existingRefs, addTransaction, markInvoiceStatus);
+        })();
         return () => { cancelled = true; };
     }, []);
 
@@ -272,9 +288,9 @@ export default function PaymentLinkScreen() {
             }
             confirmAction(
                 'Payment Page Opened',
-                'Complete the payment in your browser. Come back here once done, then confirm to mark this as paid (or cancel to do it later).',
+                'Complete the payment in your browser — it will be recorded here automatically once it goes through. If it hasn’t appeared within a minute or two, tap below to record it yourself.',
                 'Mark as Paid',
-                () => recordManualPayment('Paystack'),
+                () => recordManualPayment('Paystack', data.reference),
                 false,
             );
         } catch (e: any) {
@@ -325,9 +341,9 @@ export default function PaymentLinkScreen() {
             }
             confirmAction(
                 'Payment Page Opened',
-                'Complete the payment in your browser. Come back here once done, then confirm to mark this as paid (or cancel to do it later).',
+                'Complete the payment in your browser — it will be recorded here automatically once it goes through. If it hasn’t appeared within a minute or two, tap below to record it yourself.',
                 'Mark as Paid',
-                () => recordManualPayment('Korapay'),
+                () => recordManualPayment('Korapay', data.reference || ref),
                 false,
             );
         } catch (e: any) {
@@ -378,9 +394,9 @@ export default function PaymentLinkScreen() {
             }
             confirmAction(
                 'Payment Page Opened',
-                'Complete the payment in your browser. Come back here once done, then confirm to mark this as paid (or cancel to do it later).',
+                'Complete the payment in your browser — it will be recorded here automatically once it goes through. If it hasn’t appeared within a minute or two, tap below to record it yourself.',
                 'Mark as Paid',
-                () => recordManualPayment('Flutterwave'),
+                () => recordManualPayment('Flutterwave', data.reference || ref),
                 false,
             );
         } catch (e: any) {
@@ -402,14 +418,25 @@ export default function PaymentLinkScreen() {
         }
     };
 
-    const recordManualPayment = (method: string) => {
+    const recordManualPayment = (method: string, ref?: string) => {
         if (!addTransaction) return;
+        // If payment-webhook already recorded this exact checkout
+        // automatically (see incomingPayments.ts's claim effect above) while
+        // this dialog was still sitting open, don't record it a second time.
+        if (ref && (transactions || []).some((t: any) => t.reference === ref)) {
+            const msg = '✅ Already recorded — this payment was picked up automatically.';
+            if (Platform.OS === 'web') window.alert(msg);
+            else Alert.alert('✅ Already recorded', 'This payment was picked up automatically.');
+            navigate('transactions');
+            return;
+        }
         addTransaction({
             type: 'income', amount: amountNum,
             description: description || `Payment via ${method}`,
             category: 'Sales', date: new Date().toISOString().split('T')[0],
             vendorCustomer: customerName,
             status: 'paid',
+            reference: ref,
         });
         // If this payment came from an invoice, mark that invoice as paid too
         if (params.invoiceId && markInvoiceStatus) {

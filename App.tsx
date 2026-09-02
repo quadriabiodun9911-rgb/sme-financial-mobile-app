@@ -33,6 +33,7 @@ import FutureFinancialStatementsScreen from './src/screens/FutureFinancialStatem
 import TwoFactorSetupScreen from './src/screens/TwoFactorSetupScreen';
 import TwoFactorVerifyScreen from './src/screens/TwoFactorVerifyScreen';
 import PaymentLinkScreen from './src/screens/PaymentLinkScreen';
+import PaymentCompleteScreen from './src/screens/PaymentCompleteScreen';
 import ImportTransactionsScreen from './src/screens/ImportTransactionsScreen';
 import CashFlowScreen from './src/screens/CashFlowScreen';
 import PayrollScreen from './src/screens/PayrollScreen';
@@ -189,6 +190,7 @@ function NavigatorContent() {
             {currentScreen === '2fa'          && <TwoFactorSetupScreen />}
             {currentScreen === 'two-factor-verify' && <TwoFactorVerifyScreen />}
             {currentScreen === 'payment-link' && <PaymentLinkScreen />}
+            {currentScreen === 'payment-complete' && <PaymentCompleteScreen />}
             {currentScreen === 'import-transactions'  && <ImportTransactionsScreen />}
             {currentScreen === 'cashflow'       && <CashFlowScreen />}
             {currentScreen === 'payroll'        && <PayrollScreen />}
