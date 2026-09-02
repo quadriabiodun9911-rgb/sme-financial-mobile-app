@@ -478,6 +478,7 @@ export default function PaymentLinkScreen() {
             vendorCustomer: customerName,
             status: 'paid',
             reference: ref,
+            paidAt: new Date().toISOString(),
         });
         // If this payment came from an invoice, mark that invoice as paid too
         if (params.invoiceId && markInvoiceStatus) {

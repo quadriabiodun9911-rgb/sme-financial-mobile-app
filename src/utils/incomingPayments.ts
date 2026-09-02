@@ -62,6 +62,7 @@ export async function claimIncomingPayments(
             vendorCustomer: p.customer_name || undefined,
             status: 'paid',
             reference: p.tx_ref,
+            paidAt: new Date().toISOString(),
         });
         if (p.invoice_id && markInvoiceStatus) markInvoiceStatus(p.invoice_id, 'paid');
         existingReferences.add(p.tx_ref);

@@ -224,6 +224,15 @@ export interface Transaction {
     // change must not alter what a completed sale is recorded as having
     // earned.
     discountAmount?: number;
+    // Set only on transactions created from a "Collect Payment" checkout
+    // (see recordManualPayment and claimIncomingPayments) -- the exact
+    // moment the payment was captured, down to the second. `date` is
+    // deliberately just the ledger day (YYYY-MM-DD) and stays that way for
+    // every other transaction type; this exists purely so several payments
+    // collected on the same day can be told apart by when they actually
+    // happened, which matters most right when reconciling a batch of same-
+    // day online payments against what a customer says they paid.
+    paidAt?: string;
 }
 
 export interface FinanceData {

@@ -618,6 +618,11 @@ export default function TransactionsScreen() {
                                     {tx.reference ? (
                                         <Text style={styles.metaText}>#{tx.reference}</Text>
                                     ) : null}
+                                    {tx.paidAt ? (
+                                        <Text style={styles.metaText}>
+                                            {new Date(tx.paidAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                                        </Text>
+                                    ) : null}
                                 </View>
 
                                 {/* Third row: badges */}
