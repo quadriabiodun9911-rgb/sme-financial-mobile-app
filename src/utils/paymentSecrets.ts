@@ -1,74 +1,56 @@
 // Per-business payment provider secret keys -- see
-// supabase/migrations/025_payment_provider_secrets.sql for the full story.
-// These functions are the only way the app ever touches
-// payment_provider_secrets: saving/deleting write straight to the table
-// (RLS lets the workspace owner or an active admin team member do that),
-// and checking connection status goes through the has_payment_secret() RPC
-// instead of a SELECT, since the table has no SELECT policy for anyone --
-// the secret value itself is never readable from the client once saved.
+// supabase/migrations/025_payment_provider_secrets.sql for the schema, and
+// supabase/functions/payment-secrets for why this goes through an edge
+// function rather than writing to the table directly (that direct-RLS path
+// was verified correct end-to-end -- exact ID match, correct policies, no
+// stale rows -- yet still failed for real users with no further way to
+// diagnose it from here; the edge function sidesteps whatever that was by
+// doing its own auth check and writing with the service-role client,
+// bypassing RLS entirely).
 
 import { supabase } from './supabase';
-import { getWorkspaceOwnerId, getAuthUserId } from './storage';
+import { getWorkspaceOwnerId } from './storage';
 
 export type PaymentProvider = 'paystack' | 'korapay' | 'flutterwave';
+
+// Same shape as aiAdvisor.ts / PaymentLinkScreen.tsx's invokePaymentInit --
+// the edge function always replies with a JSON { error } body on failure,
+// so surface that instead of a generic "Edge Function returned a non-2xx
+// status code".
+async function invokePaymentSecrets(body: Record<string, unknown>): Promise<any> {
+    const { data, error } = await supabase.functions.invoke('payment-secrets', { body });
+    if (error) {
+        const errResponse = (error as { context?: Response }).context;
+        const errBody = errResponse && typeof errResponse.json === 'function'
+            ? await errResponse.json().catch(() => null)
+            : null;
+        throw new Error(errBody?.error || error.message || 'Could not save.');
+    }
+    return data;
+}
 
 export async function savePaymentSecret(provider: PaymentProvider, secretKey: string): Promise<void> {
     const ownerUserId = await getWorkspaceOwnerId();
     if (!ownerUserId) throw new Error('Not signed in.');
-    const { error } = await supabase
-        .from('payment_provider_secrets')
-        .upsert(
-            { user_id: ownerUserId, provider, secret_key: secretKey, updated_at: new Date().toISOString() },
-            { onConflict: 'user_id,provider' }
-        );
-    if (error) {
-        // RLS denials here are opaque to the end user (and to us, without
-        // devtools access) -- surface the two IDs the policy actually
-        // compares (workspace owner vs. the live Supabase session) right in
-        // the error message so a mismatch is visible without console/SQL
-        // access. Best-effort: never let this lookup itself mask the real
-        // error if it fails.
-        let detail = '';
-        try {
-            const authUserId = await getAuthUserId();
-            detail = ` (owner id: ${ownerUserId} | your session id: ${authUserId ?? 'none -- not signed in to Supabase'})`;
-        } catch { /* ignore -- best-effort diagnostic only */ }
-        throw new Error(error.message + detail);
-    }
+    await invokePaymentSecrets({ action: 'save', ownerUserId, provider, secretKey });
 }
 
 export async function deletePaymentSecret(provider: PaymentProvider): Promise<void> {
     const ownerUserId = await getWorkspaceOwnerId();
     if (!ownerUserId) throw new Error('Not signed in.');
-    const { error } = await supabase
-        .from('payment_provider_secrets')
-        .delete()
-        .eq('user_id', ownerUserId)
-        .eq('provider', provider);
-    if (error) throw new Error(error.message);
+    await invokePaymentSecrets({ action: 'delete', ownerUserId, provider });
 }
 
 export async function getConnectedProviders(): Promise<Record<PaymentProvider, boolean>> {
-    const ownerUserId = await getWorkspaceOwnerId();
     const empty: Record<PaymentProvider, boolean> = { paystack: false, korapay: false, flutterwave: false };
+    const ownerUserId = await getWorkspaceOwnerId();
     if (!ownerUserId) return empty;
 
-    const providers: PaymentProvider[] = ['paystack', 'korapay', 'flutterwave'];
-    const results = await Promise.all(providers.map(async provider => {
-        const { data, error } = await supabase.rpc('has_payment_secret', {
-            p_owner_user_id: ownerUserId,
-            p_provider: provider,
-        });
-        if (error) {
-            console.error('[paymentSecrets] has_payment_secret', provider, error.message);
-            return false;
-        }
-        return !!data;
-    }));
-
-    return {
-        paystack: results[0],
-        korapay: results[1],
-        flutterwave: results[2],
-    };
+    try {
+        const data = await invokePaymentSecrets({ action: 'status', ownerUserId });
+        return data?.connected ?? empty;
+    } catch (e: any) {
+        console.error('[paymentSecrets] status check failed', e.message);
+        return empty;
+    }
 }
