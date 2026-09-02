@@ -94,7 +94,9 @@ function readInitialMode(): ColorThemeMode {
             if (stored === 'warm-paper' || stored === 'dark') return stored;
         } catch { /* ignore (privacy mode, disabled storage, etc.) */ }
     }
-    return 'dark';
+    // Warm Paper is the default look for anyone who hasn't explicitly
+    // chosen a theme yet -- an explicit 'dark' choice above still wins.
+    return 'warm-paper';
 }
 
 export const Colors: typeof DARK_PALETTE = {
