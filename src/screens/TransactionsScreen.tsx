@@ -109,6 +109,23 @@ function formFromTx(tx: Transaction): FormState {
 }
 
 // ─── Group transactions by date ───────────────────────────────────────────────
+// Within a single day, transactions with a known paidAt (see Transaction's
+// own comment on that field -- set only on payments collected through
+// "Collect Payment") sort newest-first by that exact moment; everything
+// else keeps its original relative order (Array.prototype.sort is stable),
+// same as before this existed. Without this, a payment collected just now
+// landed wherever it happened to sit in the underlying array -- often well
+// below older same-day entries -- reading as "did this actually get
+// recorded?" even though it had.
+function sortSameDayGroup(items: Transaction[]): Transaction[] {
+    return [...items].sort((a, b) => {
+        if (a.paidAt && b.paidAt) return b.paidAt.localeCompare(a.paidAt);
+        if (a.paidAt && !b.paidAt) return -1;
+        if (!a.paidAt && b.paidAt) return 1;
+        return 0;
+    });
+}
+
 function groupByDate(txs: Transaction[]): Array<{ date: string; items: Transaction[] }> {
     const map = new Map<string, Transaction[]>();
     for (const tx of txs) {
@@ -118,7 +135,7 @@ function groupByDate(txs: Transaction[]): Array<{ date: string; items: Transacti
     }
     return Array.from(map.entries())
         .sort((a, b) => b[0].localeCompare(a[0]))
-        .map(([date, items]) => ({ date, items }));
+        .map(([date, items]) => ({ date, items: sortSameDayGroup(items) }));
 }
 
 function formatDateHeader(iso: string): string {

@@ -20,6 +20,7 @@ const POLL_MAX_ATTEMPTS = 18; // ~90s total before offering the manual fallback
 export default function PaymentCompleteScreen() {
     const { navParams, navigate, addTransaction, markInvoiceStatus, transactions } = useApp() as any;
     const status = (navParams?.status || '').toLowerCase();
+    const txRef = navParams?.txRef as string | undefined;
     const failed = status === 'cancelled' || status === 'failed';
 
     const [phase, setPhase] = useState<'checking' | 'waiting' | 'recorded' | 'failed' | 'manual'>('checking');
@@ -59,6 +60,19 @@ export default function PaymentCompleteScreen() {
             if (failed) {
                 await clearPendingPayment();
                 if (!cancelled) setPhase('failed');
+                return;
+            }
+            // Reloading (or re-visiting) this exact URL re-mounts this
+            // screen from scratch, and by then the payment may already
+            // have been claimed and removed from the incoming_payments
+            // staging table on a prior mount -- with nothing left there to
+            // claim, tryClaim() below would return false forever and this
+            // would poll for the full ~90s despite the payment already
+            // sitting in Transactions. Checking the actual transaction
+            // list directly first catches that case immediately instead.
+            if (txRef && (transactions || []).some((t: any) => t.reference === txRef)) {
+                await clearPendingPayment();
+                if (!cancelled) setPhase('recorded');
                 return;
             }
             setPending(await loadPendingPayment());
