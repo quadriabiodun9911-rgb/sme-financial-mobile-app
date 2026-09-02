@@ -38,6 +38,7 @@ export default function PaymentLinkScreen() {
     const [amount, setAmount]               = useState(params.amount ? String(params.amount) : '');
     const [customerName, setCustomerName]   = useState(params.customerName ?? '');
     const [customerEmail, setCustomerEmail] = useState(params.customerEmail ?? '');
+    const [customerPhone, setCustomerPhone] = useState('');
     const [description, setDescription]     = useState(params.description ?? '');
     const [copied, setCopied]               = useState(false);
     const [loading, setLoading]             = useState(false);
@@ -75,7 +76,7 @@ export default function PaymentLinkScreen() {
         return true;
     };
 
-    const buildMessage = () => {
+    const buildMessage = (link?: string | null) => {
         const amt = amountNum.toLocaleString();
         return [
             `💼 *Payment Request from ${businessName}*`,
@@ -84,17 +85,66 @@ export default function PaymentLinkScreen() {
             description  ? `📝 For: ${description}` : '',
             customerName ? `👤 Customer: ${customerName}` : '',
             '',
-            (hasPaystack || hasKorapay || hasFlutterwave)
-                ? '✅ We accept secure online payments (cards, bank transfer, USSD, mobile money).'
-                : '💳 Please contact us to arrange payment.',
+            link
+                ? `👉 Pay securely here: ${link}`
+                : (hasPaystack || hasKorapay || hasFlutterwave)
+                    ? '✅ We accept secure online payments (cards, bank transfer, USSD, mobile money).'
+                    : '💳 Please contact us to arrange payment.',
             '',
             'Thank you for your business! 🙏',
         ].filter(Boolean).join('\n');
     };
 
+    // Best-effort: generates a real, ready-to-pay checkout link the same way
+    // the "Pay with X" buttons do, but for embedding in a shared message
+    // instead of opening it here. Needs a customer email (Paystack/
+    // Flutterwave both require one) and a connected provider -- silently
+    // returns null otherwise so callers fall back to buildMessage's
+    // no-link copy rather than blocking the share entirely. Korapay is
+    // skipped (still "Coming Soon" -- see the gateway card above).
+    const getCheckoutLink = async (): Promise<string | null> => {
+        if (!customerEmail || (!hasPaystack && !hasFlutterwave)) return null;
+        try {
+            const ownerUserId = await getWorkspaceOwnerId();
+            if (hasPaystack) {
+                const data = await invokePaymentInit({
+                    provider: 'paystack', ownerUserId,
+                    amount: amountNum, email: customerEmail, name: customerName,
+                    description: description || `Payment to ${businessName}`,
+                    currency: currencyCode,
+                });
+                return data.authorization_url || data.data?.authorization_url || null;
+            }
+            const data = await invokePaymentInit({
+                provider: 'flutterwave', ownerUserId,
+                amount: amountNum, currency: currencyCode,
+                email: customerEmail, name: customerName,
+                reference: `QD360-${Date.now()}`, description: description || `Payment to ${businessName}`,
+            });
+            return data.checkoutUrl || null;
+        } catch {
+            return null;
+        }
+    };
+
+    // Shared by every "send this to the customer" action below -- fetches a
+    // real payment link (with a loading indicator, since it's a network
+    // call) and folds it into the message before handing off to whichever
+    // channel the user picked.
+    const buildShareableMessage = async (): Promise<string> => {
+        setLoading(true);
+        setLoadingMsg('Preparing payment request…');
+        try {
+            return buildMessage(await getCheckoutLink());
+        } finally {
+            setLoading(false);
+            setLoadingMsg('');
+        }
+    };
+
     const handleShare = async () => {
         if (!validate()) return;
-        const msg = buildMessage();
+        const msg = await buildShareableMessage();
         if (Platform.OS === 'web') {
             try {
                 if (navigator.share) {
@@ -110,9 +160,9 @@ export default function PaymentLinkScreen() {
         }
     };
 
-    const handleWhatsApp = () => {
+    const handleWhatsApp = async () => {
         if (!validate()) return;
-        const text = encodeURIComponent(buildMessage());
+        const text = encodeURIComponent(await buildShareableMessage());
         const url  = `https://wa.me/?text=${text}`;
         if (Platform.OS === 'web') {
             openWebUrl(url);
@@ -123,9 +173,48 @@ export default function PaymentLinkScreen() {
         }
     };
 
+    // ── Email ── mailto: to the customer's own address, same pattern as
+    // Settings' team-invite email share -- opens whatever mail app/client
+    // is configured on this device, prefilled and ready to send.
+    const handleEmailCustomer = async () => {
+        if (!validate()) return;
+        if (!customerEmail) {
+            if (Platform.OS === 'web') window.alert('Customer email required. Enter the customer\'s email to send by email.');
+            else Alert.alert('Email required', 'Enter the customer\'s email to send by email.');
+            return;
+        }
+        const msg = await buildShareableMessage();
+        const subject = encodeURIComponent(`Payment Request from ${businessName}`);
+        const body    = encodeURIComponent(msg);
+        const to      = encodeURIComponent(customerEmail);
+        Linking.openURL(`mailto:${to}?subject=${subject}&body=${body}`).catch(() => {
+            const errMsg = 'No email app is configured on this device.';
+            if (Platform.OS === 'web') window.alert(errMsg);
+            else Alert.alert('Could not open email', errMsg);
+        });
+    };
+
+    // ── Text (SMS) ── to the customer's phone number.
+    const handleTextCustomer = async () => {
+        if (!validate()) return;
+        if (!customerPhone) {
+            if (Platform.OS === 'web') window.alert('Customer phone number required. Enter it above to send by text.');
+            else Alert.alert('Phone number required', 'Enter the customer\'s phone number to send by text.');
+            return;
+        }
+        const msg = await buildShareableMessage();
+        const body      = encodeURIComponent(msg);
+        const separator = Platform.OS === 'ios' ? '&' : '?';
+        Linking.openURL(`sms:${customerPhone}${separator}body=${body}`).catch(() => {
+            const errMsg = 'No messaging app is configured on this device.';
+            if (Platform.OS === 'web') window.alert(errMsg);
+            else Alert.alert('Could not open messages', errMsg);
+        });
+    };
+
     const handleCopy = async () => {
         if (!validate()) return;
-        const msg = buildMessage();
+        const msg = await buildShareableMessage();
         try {
             if (Platform.OS === 'web') {
                 await navigator.clipboard.writeText(msg);
@@ -403,6 +492,10 @@ export default function PaymentLinkScreen() {
                 <TextInput style={styles.input} value={customerEmail} onChangeText={setCustomerEmail}
                     placeholder="customer@email.com" placeholderTextColor={Colors.muted}
                     keyboardType="email-address" autoCapitalize="none" />
+                <Text style={styles.label}>Customer Phone (optional)</Text>
+                <TextInput style={styles.input} value={customerPhone} onChangeText={setCustomerPhone}
+                    placeholder="+234 801 234 5678" placeholderTextColor={Colors.muted}
+                    keyboardType="phone-pad" />
             </View>
 
             {/* Online payment gateways */}
@@ -479,6 +572,18 @@ export default function PaymentLinkScreen() {
                         <Text style={styles.whatsappBtnText}>Share via WhatsApp</Text>
                     </View>
                 </TouchableOpacity>
+                <TouchableOpacity style={[styles.emailBtn, !customerEmail && { opacity: 0.5 }]} onPress={handleEmailCustomer}>
+                    <View style={styles.btnIconRow}>
+                        <Icon name="mail" size={15} color="#fff" />
+                        <Text style={styles.emailBtnText}>Email Customer</Text>
+                    </View>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.smsBtn, !customerPhone && { opacity: 0.5 }]} onPress={handleTextCustomer}>
+                    <View style={styles.btnIconRow}>
+                        <Icon name="message-square" size={15} color="#fff" />
+                        <Text style={styles.smsBtnText}>Text Customer</Text>
+                    </View>
+                </TouchableOpacity>
                 <TouchableOpacity style={styles.copyBtn} onPress={handleCopy}>
                     <View style={styles.btnIconRow}>
                         <Icon name={copied ? 'check' : 'clipboard'} size={15} color={Colors.textSecondary} />
@@ -495,7 +600,7 @@ export default function PaymentLinkScreen() {
                         <Text style={styles.tipTitle}>Enable online payments</Text>
                     </View>
                     <Text style={styles.tipBody}>
-                        Add your Paystack, Korapay, or Flutterwave public key in Settings → Payment Gateways to let customers pay online with cards, bank transfer, USSD, or mobile money.
+                        Connect your Paystack, Korapay, or Flutterwave account in Settings → Payment Gateways to let customers pay online with cards, bank transfer, USSD, or mobile money.
                     </Text>
                     <TouchableOpacity onPress={() => navigate('settings')}>
                         <Text style={styles.tipLink}>Go to Settings →</Text>
@@ -560,6 +665,10 @@ const styles = StyleSheet.create({
     primaryBtnText:  { color: '#fff', fontWeight: '800', fontSize: 15 },
     whatsappBtn:     { backgroundColor: '#25D366', paddingVertical: 14, borderRadius: Radius.md, alignItems: 'center' },
     whatsappBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
+    emailBtn:        { backgroundColor: '#4F46E5', paddingVertical: 14, borderRadius: Radius.md, alignItems: 'center' },
+    emailBtnText:    { color: '#fff', fontWeight: '800', fontSize: 15 },
+    smsBtn:          { backgroundColor: '#0891B2', paddingVertical: 14, borderRadius: Radius.md, alignItems: 'center' },
+    smsBtnText:      { color: '#fff', fontWeight: '800', fontSize: 15 },
     copyBtn:         { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, paddingVertical: 14, borderRadius: Radius.md, alignItems: 'center' },
     copyBtnText:     { color: Colors.textSecondary, fontWeight: '600', fontSize: 15 },
 
