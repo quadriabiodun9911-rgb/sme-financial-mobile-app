@@ -54,7 +54,19 @@ Deno.serve(async (req: Request) => {
       global: { headers: { Authorization: authHeader } },
     });
     const { data: { user }, error: authError } = await callerClient.auth.getUser();
-    if (authError || !user) return json({ error: 'Not authenticated' }, 401);
+    if (authError || !user) {
+      // Diagnostic only -- never logs the token itself, just enough to
+      // tell "no token reached us" apart from "a token reached us but
+      // Supabase rejected it," and why, without needing to guess again.
+      console.error('[payment-secrets] auth check failed', {
+        hasAuthHeader: !!authHeader,
+        authHeaderPrefix: authHeader?.slice(0, 12),
+        authErrorMessage: authError?.message,
+        authErrorStatus: (authError as any)?.status,
+        authErrorCode: (authError as any)?.code,
+      });
+      return json({ error: 'Not authenticated' }, 401);
+    }
 
     const body = await req.json().catch(() => null);
     const action = body?.action;
