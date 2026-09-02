@@ -24,7 +24,7 @@ import { sanitizeStoredGoals, refreshGoal } from '../utils/goals';
 import { DEMO_BUSINESSES } from '../utils/demoData';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  loadTransactions, saveTransactions,
+  loadTransactions, saveTransactions, deleteTransactionRemote,
   loadAssets, saveAssets,
   loadLoans, saveLoans,
   loadBudgets, saveBudgets,
@@ -444,9 +444,13 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       updateTransaction: (id, tx) => setTransactions((prev) =>
         prev.map((t) => (t.id === id ? { ...t, ...tx } : t))
       ),
-      deleteTransaction: (id) => setTransactions((prev) =>
-        prev.filter((t) => t.id !== id)
-      ),
+      deleteTransaction: (id) => {
+        setTransactions((prev) => prev.filter((t) => t.id !== id));
+        // Explicit, by-id remote delete -- saveTransactions' own sync no
+        // longer infers deletions from a diff (see its header), so this is
+        // now the only thing that actually removes the row server-side.
+        if (!isDemoMode) deleteTransactionRemote(id).catch(() => {});
+      },
       addAsset: (asset) => {
         if (!isDemoMode) trackAssetAdded(asset.category, asset.purchaseCost, settingsForFinance?.settings?.currency ?? '₦');
         setAssets((prev) => [...prev, { ...asset, id: asset.id || genId(), createdAt: asset.createdAt || new Date().toISOString() }]);
@@ -639,6 +643,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           const linkedTx = transactions.find((t) => t.id === run.transactionId);
           if (linkedTx?.category === 'Salaries') {
             setTransactions((txs) => txs.filter((t) => t.id !== run.transactionId));
+            if (!isDemoMode) deleteTransactionRemote(run.transactionId).catch(() => {});
           }
         }
         setPayrollRuns((prev) => prev.filter((r) => r.id !== id));

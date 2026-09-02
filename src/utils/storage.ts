@@ -109,6 +109,19 @@ export async function clearWorkspaceOwner(): Promise<void> {
 }
 
 // ─── Transactions ─────────────────────────────────────────────────────────────
+// Deliberately upsert-only -- no longer diffs the local array against every
+// remote row for this workspace to infer and delete "orphans". That diff is
+// unsafe the moment more than one browser tab or device has this workspace
+// open at once: each one boots with its own independent copy of
+// `transactions`, and this function runs on every local state change (see
+// the useEffect in OptimizedContexts.tsx). A payment recorded by, say, the
+// checkout tab PaymentLinkScreen/PaymentCompleteScreen opens (or just a
+// second device) would exist on the server but not yet in some OTHER
+// already-open tab's stale local array -- and the very next ordinary save
+// from that other tab would delete it, mistaking a row it simply hadn't
+// loaded yet for one the user had deleted. See deleteTransactionRemote()
+// below for how an actual deletion is now synced instead: explicitly, by
+// id, at the moment it happens -- never inferred from a diff.
 export async function saveTransactions(t: Transaction[]): Promise<void> {
     // Always save locally first — works offline instantly
     await AsyncStorage.setItem(KEYS.transactions, JSON.stringify(t));
@@ -117,22 +130,19 @@ export async function saveTransactions(t: Transaction[]): Promise<void> {
     // Only records that changed since the last successful sync get
     // encrypted and sent — see the "Delta-sync cache" note above.
     const changed = diffChangedRows('transactions', t);
+    if (changed.length === 0) return;
     try {
         const encKey = await getFieldEncryptionKey(await loadAuthSecret());
-        const rows = changed.length > 0 ? changed.map(tx => ({
+        const rows = changed.map(tx => ({
             id: tx.id, user_id: ownerId,
             data: encKey ? encryptTransaction(tx as unknown as Record<string, any>, encKey) : tx,
             updated_at: new Date().toISOString(),
-        })) : [];
+        }));
 
-        // Fetch remote IDs in parallel with upsert for optimal performance
-        const [upsertResult, { data: remote, error: fetchErr }] = await Promise.all([
-            rows.length > 0 ? supabase.from('transactions').upsert(rows, { onConflict: 'id' }) : Promise.resolve({ error: null }),
-            supabase.from('transactions').select('id').eq('user_id', ownerId),
-        ]);
+        const { error } = await supabase.from('transactions').upsert(rows, { onConflict: 'id' });
 
-        if (upsertResult.error) {
-            logSyncError('transactions', 'upsert', upsertResult.error);
+        if (error) {
+            logSyncError('transactions', 'upsert', error);
             // Queue the FULL current array, not just the diffed subset that
             // just failed to upload — the offline queue's enqueue() replaces
             // (rather than merges) a table's previously-queued rows, so a
@@ -155,19 +165,6 @@ export async function saveTransactions(t: Transaction[]): Promise<void> {
         // a genuinely-unsynced record could get recorded as synced and
         // then silently never retried.
         recordSyncedRows('transactions', t);
-
-        if (fetchErr) { logSyncError('transactions', 'select', fetchErr); return; }
-
-        if (remote && remote.length > 0) {
-            const localIds = new Set(t.map(tx => tx.id));
-            const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
-            if (toDelete.length > 0) {
-                const { error: delErr } = await supabase.from('transactions').delete().in('id', toDelete);
-                if (delErr) {
-                    await enqueue({ table: 'transactions', op: 'delete', rows: toDelete, userId: ownerId });
-                }
-            }
-        }
     } catch (e) {
         // Network error — queue for when internet returns
         logSyncError('transactions', 'sync', e);
@@ -175,6 +172,22 @@ export async function saveTransactions(t: Transaction[]): Promise<void> {
             const rows = t.map(tx => ({ id: tx.id, user_id: ownerId, data: tx, updated_at: new Date().toISOString() }));
             await enqueue({ table: 'transactions', op: 'upsert', rows, userId: ownerId });
         }
+    }
+}
+
+// Deletes exactly one transaction remotely, by id -- see saveTransactions's
+// header for why this replaced diffing the local array against every
+// remote row. Called directly from deleteTransaction() in
+// OptimizedContexts.tsx, alongside (not instead of) the local state update.
+export async function deleteTransactionRemote(id: string): Promise<void> {
+    const ownerId = await getWorkspaceOwnerId();
+    if (!ownerId) return;
+    try {
+        const { error } = await supabase.from('transactions').delete().eq('id', id);
+        if (error) throw error;
+    } catch (e) {
+        logSyncError('transactions', 'delete', e);
+        await enqueue({ table: 'transactions', op: 'delete', rows: [id], userId: ownerId });
     }
 }
 
