@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     View, Text, TextInput, TouchableOpacity, ScrollView,
     StyleSheet, Share, Alert, Linking, Platform,
@@ -82,6 +82,43 @@ export default function PaymentLinkScreen() {
         })();
         return () => { cancelled = true; };
     }, []);
+
+    // transactions as a ref, not just the state closure above -- the
+    // background poll below (started once, ticking every few seconds) needs
+    // the CURRENT list on every tick to dedupe correctly, not whatever it
+    // was the instant the poll started.
+    const transactionsRef = useRef(transactions);
+    useEffect(() => { transactionsRef.current = transactions; }, [transactions]);
+
+    // The single-shot claim above only runs once, when this screen first
+    // mounts -- it can't see a payment that the checkout tab's own
+    // PaymentCompleteScreen claims a few seconds LATER, while this tab is
+    // just sitting on the "Payment Page Opened" dialog waiting for the
+    // user. Without this, tapping "Mark as Paid" here would check only
+    // this tab's now-stale transaction list, miss the one the other tab
+    // already recorded, and create a duplicate instead of recognizing it
+    // was already done. Polling here (not just once) keeps this tab's own
+    // list current so that dedupe check in recordManualPayment actually
+    // works by the time the user acts on the dialog.
+    const claimPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const startClaimPolling = () => {
+        if (claimPollRef.current) return;
+        claimPollRef.current = setInterval(async () => {
+            const ownerUserId = await getWorkspaceOwnerId();
+            if (!ownerUserId) return;
+            const existingRefs = new Set<string>((transactionsRef.current || []).map((t: any) => t.reference).filter(Boolean));
+            await claimIncomingPayments(ownerUserId, existingRefs, addTransaction, markInvoiceStatus);
+        }, 5000);
+        // Stop after a few minutes regardless -- if the webhook genuinely
+        // never arrives, the merchant can still fall back to "Mark as
+        // Paid" and there's no reason to keep polling forever in the
+        // background.
+        setTimeout(stopClaimPolling, 5 * 60 * 1000);
+    };
+    const stopClaimPolling = () => {
+        if (claimPollRef.current) { clearInterval(claimPollRef.current); claimPollRef.current = null; }
+    };
+    useEffect(() => stopClaimPolling, []);
 
     const validate = () => {
         if (!amount || amountNum <= 0) {
@@ -286,6 +323,7 @@ export default function PaymentLinkScreen() {
             } else {
                 openWebUrl(authUrl);
             }
+            startClaimPolling();
             confirmAction(
                 'Payment Page Opened',
                 'Complete the payment in your browser — it will be recorded here automatically once it goes through. If it hasn’t appeared within a minute or two, tap below to record it yourself.',
@@ -339,6 +377,7 @@ export default function PaymentLinkScreen() {
             } else {
                 openWebUrl(data.checkoutUrl);
             }
+            startClaimPolling();
             confirmAction(
                 'Payment Page Opened',
                 'Complete the payment in your browser — it will be recorded here automatically once it goes through. If it hasn’t appeared within a minute or two, tap below to record it yourself.',
@@ -392,6 +431,7 @@ export default function PaymentLinkScreen() {
             } else {
                 openWebUrl(data.checkoutUrl);
             }
+            startClaimPolling();
             confirmAction(
                 'Payment Page Opened',
                 'Complete the payment in your browser — it will be recorded here automatically once it goes through. If it hasn’t appeared within a minute or two, tap below to record it yourself.',
@@ -419,6 +459,7 @@ export default function PaymentLinkScreen() {
     };
 
     const recordManualPayment = (method: string, ref?: string) => {
+        stopClaimPolling();
         if (!addTransaction) return;
         // If payment-webhook already recorded this exact checkout
         // automatically (see incomingPayments.ts's claim effect above) while
