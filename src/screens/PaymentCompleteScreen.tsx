@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'rea
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
-import { getWorkspaceOwnerId } from '../utils/storage';
+import { getWorkspaceOwnerId, loadTransactions } from '../utils/storage';
 import { claimIncomingPayments } from '../utils/incomingPayments';
 import { loadPendingPayment, clearPendingPayment, PendingPayment } from '../utils/pendingPayment';
 
@@ -70,10 +70,23 @@ export default function PaymentCompleteScreen() {
             // would poll for the full ~90s despite the payment already
             // sitting in Transactions. Checking the actual transaction
             // list directly first catches that case immediately instead.
-            if (txRef && (transactions || []).some((t: any) => t.reference === txRef)) {
-                await clearPendingPayment();
-                if (!cancelled) setPhase('recorded');
-                return;
+            //
+            // Deliberately calls storage.ts's loadTransactions() (a real,
+            // awaited fetch) rather than trusting the `transactions` app-
+            // context value: on a fresh page load, this effect's very
+            // first run captures whatever that context held at mount --
+            // almost always still the empty array, since the app's own
+            // boot sequence hasn't finished loading it yet. Checking that
+            // stale empty snapshot always says "not found" and defeats the
+            // whole point of this check, exactly reproducing the bug it
+            // exists to fix.
+            if (txRef) {
+                const currentTxs = await loadTransactions();
+                if (!cancelled && (currentTxs || []).some((t: any) => t.reference === txRef)) {
+                    await clearPendingPayment();
+                    setPhase('recorded');
+                    return;
+                }
             }
             setPending(await loadPendingPayment());
             const claimed = await tryClaim();
