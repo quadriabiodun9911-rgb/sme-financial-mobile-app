@@ -39,6 +39,17 @@ const INDUSTRIES: { label: string; value: Industry; hint: string }[] = [
     { label: '🏢 General / Other', value: 'general', hint: 'Anything else' },
 ];
 
+// A device's PIN is purely local -- it only ever unlocks the app on that
+// one device, never sent anywhere as a real credential (see login()'s own
+// comment in OptimizedContexts.tsx) -- so there's nothing to gain from
+// making the user invent one from scratch every time a new device gets set
+// up. Pre-filling this suggestion removes that one extra "what do I want my
+// PIN to be" decision; the field stays editable for anyone who'd rather
+// pick something memorable.
+function generateRandomPin(): string {
+    return String(Math.floor(100000 + Math.random() * 900000));
+}
+
 function detectLocaleCurrency(): string {
     try {
         if (typeof Intl !== 'undefined') {
@@ -146,6 +157,7 @@ export default function LoginScreen() {
             setRecoveryTokens({ accessToken, refreshToken });
             setResetIntent('verify-device');
             setMode('reset-pin');
+            setResetNewPin(generateRandomPin());
             setResetStep('confirm-device');
             window.history.replaceState(null, '', window.location.pathname);
         }
@@ -1243,10 +1255,10 @@ export default function LoginScreen() {
                                 <Field label="PIN for This Device (6 digits)">
                                     <TextInput style={styles.input} value={resetNewPin} onChangeText={setResetNewPin}
                                         placeholder="••••••" placeholderTextColor={Colors.muted}
-                                        secureTextEntry keyboardType="number-pad" maxLength={6} />
+                                        keyboardType="number-pad" maxLength={6} />
                                 </Field>
                                 <Text style={{ fontSize: 12, color: Colors.textMuted, marginBottom: 16, marginTop: -8 }}>
-                                    This just unlocks the app on this device — it doesn't need to match the PIN on your other devices.
+                                    We've suggested a PIN above so you don't have to think one up — keep it, or type your own. Either way it just unlocks the app on this device; it doesn't need to match the PIN on your other devices.
                                 </Text>
                                 <TouchableOpacity style={[styles.btn, resetSubmitting && styles.btnDisabled]}
                                     onPress={handleDeviceVerifyComplete} disabled={resetSubmitting}>
