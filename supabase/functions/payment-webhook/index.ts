@@ -100,6 +100,28 @@ Deno.serve(async (req: Request) => {
   const body = await req.json().catch(() => null);
   if (!body) return json(ACK, 200);
 
+  // Flutterwave has historically sent custom metadata back in more than one
+  // shape depending on API version/event type: sometimes a flat object
+  // (`meta: { ownerUserId: "..." }`, what we send it as in payment-init),
+  // sometimes an array of key/value pairs (`meta_data: [{ metaname:
+  // "ownerUserId", metavalue: "..." }]` or `[{ key, value }]`). Normalizing
+  // every shape into a flat object here means the rest of this function
+  // doesn't need to know which one arrived.
+  function flattenMeta(raw: unknown): Record<string, unknown> {
+    if (!raw) return {};
+    if (Array.isArray(raw)) {
+      const out: Record<string, unknown> = {};
+      for (const entry of raw) {
+        const key = entry?.metaname ?? entry?.key ?? entry?.name;
+        const value = entry?.metavalue ?? entry?.value;
+        if (typeof key === 'string') out[key] = value;
+      }
+      return out;
+    }
+    if (typeof raw === 'object') return raw as Record<string, unknown>;
+    return {};
+  }
+
   // Pull out (reference, transactionId, metadata) in whichever shape this
   // provider's webhook payload uses. Metadata is NOT trusted for the
   // payment's actual outcome -- only for routing (which business's secret
@@ -109,19 +131,27 @@ Deno.serve(async (req: Request) => {
   let meta: Record<string, unknown> = {};
   if (provider === 'paystack') {
     reference = body?.data?.reference ?? null;
-    meta = body?.data?.metadata ?? {};
+    meta = flattenMeta(body?.data?.metadata);
   } else if (provider === 'korapay') {
     reference = body?.data?.reference ?? null;
-    meta = body?.data?.metadata ?? {};
+    meta = flattenMeta(body?.data?.metadata);
   } else {
     reference = body?.data?.tx_ref ?? null;
     flwTransactionId = body?.data?.id != null ? String(body.data.id) : null;
-    meta = body?.data?.meta ?? {};
+    meta = flattenMeta(body?.data?.meta ?? body?.data?.meta_data ?? body?.meta_data);
   }
 
   const ownerUserId = typeof meta?.ownerUserId === 'string' ? meta.ownerUserId : null;
   if (!reference || !ownerUserId) {
-    console.log('[payment-webhook] missing reference or ownerUserId in payload', { provider, hasReference: !!reference, hasOwnerUserId: !!ownerUserId, metaKeys: Object.keys(meta || {}) });
+    // Dumps the raw shape of whatever Flutterwave/Paystack/Korapay actually
+    // sent for the meta-ish fields -- if flattenMeta's shapes above are
+    // still wrong, this shows exactly what to match instead of guessing
+    // again next time.
+    console.log('[payment-webhook] missing reference or ownerUserId in payload', {
+      provider, hasReference: !!reference, hasOwnerUserId: !!ownerUserId, metaKeys: Object.keys(meta || {}),
+      rawMeta: body?.data?.meta, rawMetaData: body?.data?.meta_data ?? body?.meta_data,
+      rawMetadata: body?.data?.metadata, dataKeys: Object.keys(body?.data || {}),
+    });
     return json(ACK, 200);
   }
 
