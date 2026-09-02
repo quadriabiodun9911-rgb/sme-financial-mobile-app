@@ -897,6 +897,19 @@ export default function DashboardScreen() {
                 </TouchableOpacity>
                 <Text style={styles.title}>{t(language, 'dashboard')}</Text>
 
+                {/* One-tap entry to Collect Payment for a payment that isn't
+                    tied to any invoice -- invoice-linked payments already
+                    have their own "Collect Payment" button on each invoice
+                    row (InvoicesScreen), this is the ad-hoc path. */}
+                {canViewFinancials && (
+                    <View style={styles.quickActionsRow}>
+                        <TouchableOpacity style={styles.quickAction} onPress={() => navigate('payment-link')}>
+                            <Icon name="credit-card" size={18} color={Colors.primary} />
+                            <Text style={[styles.quickActionText, { color: Colors.textPrimary }]}>Collect Payment</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
+
                 {/* ── Guest/Demo Mode banner ───────────────────────────────────
                     "Guest Mode" only applies to the blank entry (real numbers
                     the visitor typed/imported themselves, demoBusinessId ===
