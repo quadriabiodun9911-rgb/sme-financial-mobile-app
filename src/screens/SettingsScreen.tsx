@@ -1317,8 +1317,11 @@ function ProviderKeyField({ provider, label, hintUrl, placeholder, canManage, on
 }
 
 // A real, memorable password the owner can use to sign in directly on a
-// device that's never seen this account before -- no email link, no
-// waiting. Separate from the per-device secret the PIN normally unlocks
+// device that's never seen this account before -- password first, then one
+// email click to confirm (no waiting for a "forgot PIN" reset, but this
+// project's email template sends a link rather than a typed code, so that
+// one click still happens). Separate from the per-device secret the PIN
+// normally unlocks
 // (see backupPassword.ts and the password-login edge function for why the
 // two must stay independent); this is purely optional, and off by default.
 function BackupPasswordSection() {
@@ -1341,7 +1344,7 @@ function BackupPasswordSection() {
             await setBackupPassword(password);
             setPassword(''); setConfirm('');
             setIsSet(true);
-            showAlert('✅ Backup password set', 'You can now sign in on any new device with your email and this password — no email link needed.');
+            showAlert('✅ Backup password set', 'You can now sign in on any new device with your email and this password, then confirm one link we\'ll email you — much faster than a full reset.');
         } catch (e: any) {
             showAlert('Could not save', e.message || 'Please try again.');
         } finally {

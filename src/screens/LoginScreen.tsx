@@ -293,16 +293,18 @@ export default function LoginScreen() {
     // alternative to the email-link "Verify This Device" flow for a device
     // that's never seen this account before. Password alone isn't enough
     // here (this is the one login path reachable with no session and no
-    // device of its own vouching for it), so a correct password unlocks an
-    // email code step -- the same native signInWithOtp/verifyOtp this app
-    // already uses for join-recovery -- and only THAT populates
-    // recoveryTokens, exactly as a clicked email link would, feeding
-    // straight into the existing confirm-device (set a PIN for this
-    // device) step and handleDeviceVerifyComplete.
-    const [pwLoginStep, setPwLoginStep]           = useState<'password' | 'otp'>('password');
+    // device of its own vouching for it), so a correct password unlocks a
+    // second factor -- and that second factor deliberately reuses
+    // handleResetRequest's own signInWithOtp('verify-device') call and the
+    // 'verify'/'confirm-device' screens below rather than a separate typed-
+    // code step: this project's email template turned out to only render a
+    // clickable link (confirmed live -- a user requesting the code got a
+    // "sign in link" email, nothing to type), so a typed-code UI would have
+    // had no code to enter. Reusing the exact flow already proven to work
+    // end-to-end today means this rides the same rails instead of a second,
+    // untested guess at what the email actually contains.
     const [pwLoginEmail, setPwLoginEmail]         = useState('');
     const [pwLoginPassword, setPwLoginPassword]   = useState('');
-    const [pwLoginOtp, setPwLoginOtp]             = useState('');
     const [pwLoginSubmitting, setPwLoginSubmitting] = useState(false);
 
     // Alert.alert doesn't render on Expo web — every call site in this screen
@@ -904,10 +906,11 @@ export default function LoginScreen() {
         }
     };
 
-    // Step 1 of backup-password sign-in: just checks the password is
-    // right. Deliberately doesn't sign anyone in by itself -- see the
-    // pwLoginStep state comment above for why a second factor is required
-    // on this specific path.
+    // Checks the password, then -- on success -- hands straight off into
+    // the existing "Verify This Device" link flow (handleResetRequest's own
+    // signInWithOtp call, below) rather than a separate typed-code screen.
+    // The password is still real extra protection: it's checked first, and
+    // nothing here changes what the emailed link itself requires.
     const handlePasswordLoginSubmit = async () => {
         const email = pwLoginEmail.trim();
         if (!email) { showAlert('Error', 'Please enter your email address.'); return; }
@@ -915,39 +918,15 @@ export default function LoginScreen() {
         setPwLoginSubmitting(true);
         try {
             await verifyBackupPassword(email, pwLoginPassword);
-            const { error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
+            const redirectTo = Platform.OS === 'web' && typeof window !== 'undefined'
+                ? window.location.origin + '/'
+                : undefined;
+            const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo, shouldCreateUser: false } });
             if (error) { showAlert('Error', error.message); return; }
-            setPwLoginOtp('');
-            setPwLoginStep('otp');
+            setResetEmail(email); setResetIntent('verify-device'); setResetNewPin(''); setResetConfirmPin(''); setResetOtp('');
+            setResetStep('verify'); setMode('reset-pin');
         } catch (e: any) {
             showAlert('Sign In Failed', e?.message ?? 'Incorrect email or password.');
-        } finally {
-            setPwLoginSubmitting(false);
-        }
-    };
-
-    // Step 2: the emailed code is what actually proves this device/browser
-    // can be trusted -- verifying it on a throwaway client (same reasoning
-    // as createEphemeralAuthClient's own comment) hands off into the exact
-    // same confirm-device / handleDeviceVerifyComplete pipeline a clicked
-    // magic link already uses, so this device still ends up with its own
-    // saved secret and a PIN, same as every other path in.
-    const handlePasswordLoginOtpSubmit = async () => {
-        if (!/^\d{4,8}$/.test(pwLoginOtp.trim())) { showAlert('Error', 'Enter the code we emailed you.'); return; }
-        setPwLoginSubmitting(true);
-        try {
-            const email = pwLoginEmail.trim();
-            const ephemeral = createEphemeralAuthClient();
-            const { data, error } = await ephemeral.auth.verifyOtp({ email, token: pwLoginOtp.trim(), type: 'email' });
-            if (error || !data.session) {
-                showAlert('Error', error?.message ?? 'That code didn\'t work. Please try again.');
-                return;
-            }
-            setRecoveryTokens({ accessToken: data.session.access_token, refreshToken: data.session.refresh_token });
-            setResetEmail(email); setResetIntent('verify-device'); setResetNewPin('');
-            setResetStep('confirm-device'); setMode('reset-pin');
-        } catch (e: any) {
-            showAlert('Error', e?.message ?? 'That code didn\'t work. Please try again.');
         } finally {
             setPwLoginSubmitting(false);
         }
@@ -1017,7 +996,7 @@ export default function LoginScreen() {
                         </TouchableOpacity>
 
                         <TouchableOpacity style={styles.switchBtn} onPress={() => {
-                            setPwLoginEmail(emailLoginEmail); setPwLoginPassword(''); setPwLoginStep('password');
+                            setPwLoginEmail(emailLoginEmail); setPwLoginPassword('');
                             setMode('password-login');
                         }}>
                             <Text style={styles.resetText}>Have a backup password? Sign in with it →</Text>
@@ -1042,63 +1021,29 @@ export default function LoginScreen() {
                         <Image source={require('../../assets/icon.png')} style={styles.logo} />
                         <Text style={styles.title}>Sign In With Password</Text>
                         <Text style={styles.subtitle}>
-                            {pwLoginStep === 'password'
-                                ? 'Works on any device — no email link needed.'
-                                : 'One more step: enter the code we just emailed you.'}
+                            Faster than a full reset — we'll just need you to confirm one email click after this.
                         </Text>
 
-                        {pwLoginStep === 'password' ? (
-                            <>
-                                <Field label="Email Address">
-                                    <TextInput style={styles.input} value={pwLoginEmail} onChangeText={setPwLoginEmail}
-                                        placeholder="your@email.com" placeholderTextColor={Colors.muted}
-                                        autoCapitalize="none" keyboardType="email-address" autoFocus />
-                                </Field>
-                                <Field label="Password">
-                                    <TextInput style={styles.input} value={pwLoginPassword} onChangeText={setPwLoginPassword}
-                                        placeholder="••••••••" placeholderTextColor={Colors.muted}
-                                        secureTextEntry autoCapitalize="none" autoCorrect={false}
-                                        onSubmitEditing={handlePasswordLoginSubmit} />
-                                </Field>
-                                <TouchableOpacity
-                                    style={[styles.btn, pwLoginSubmitting && styles.btnDisabled]}
-                                    onPress={handlePasswordLoginSubmit}
-                                    disabled={pwLoginSubmitting}
-                                >
-                                    {pwLoginSubmitting
-                                        ? <ActivityIndicator color="#fff" />
-                                        : <Text style={styles.btnText}>Continue →</Text>}
-                                </TouchableOpacity>
-                            </>
-                        ) : (
-                            <>
-                                <View style={styles.infoBox}>
-                                    <Text style={styles.infoBoxTitle}>Check your email</Text>
-                                    <Text style={styles.infoText}>
-                                        We sent a code to:{'\n'}
-                                        <Text style={{ fontWeight: 'bold', color: Colors.textPrimary }}>{pwLoginEmail.trim()}</Text>
-                                    </Text>
-                                </View>
-                                <Field label="6-Digit Code">
-                                    <TextInput style={styles.input} value={pwLoginOtp} onChangeText={setPwLoginOtp}
-                                        placeholder="123456" placeholderTextColor={Colors.muted}
-                                        keyboardType="number-pad" maxLength={8}
-                                        onSubmitEditing={handlePasswordLoginOtpSubmit} />
-                                </Field>
-                                <TouchableOpacity
-                                    style={[styles.btn, pwLoginSubmitting && styles.btnDisabled]}
-                                    onPress={handlePasswordLoginOtpSubmit}
-                                    disabled={pwLoginSubmitting}
-                                >
-                                    {pwLoginSubmitting
-                                        ? <ActivityIndicator color="#fff" />
-                                        : <Text style={styles.btnText}>Verify & Continue →</Text>}
-                                </TouchableOpacity>
-                                <TouchableOpacity style={styles.switchBtn} onPress={() => setPwLoginStep('password')}>
-                                    <Text style={styles.switchText}>← Back</Text>
-                                </TouchableOpacity>
-                            </>
-                        )}
+                        <Field label="Email Address">
+                            <TextInput style={styles.input} value={pwLoginEmail} onChangeText={setPwLoginEmail}
+                                placeholder="your@email.com" placeholderTextColor={Colors.muted}
+                                autoCapitalize="none" keyboardType="email-address" autoFocus />
+                        </Field>
+                        <Field label="Password">
+                            <TextInput style={styles.input} value={pwLoginPassword} onChangeText={setPwLoginPassword}
+                                placeholder="••••••••" placeholderTextColor={Colors.muted}
+                                secureTextEntry autoCapitalize="none" autoCorrect={false}
+                                onSubmitEditing={handlePasswordLoginSubmit} />
+                        </Field>
+                        <TouchableOpacity
+                            style={[styles.btn, pwLoginSubmitting && styles.btnDisabled]}
+                            onPress={handlePasswordLoginSubmit}
+                            disabled={pwLoginSubmitting}
+                        >
+                            {pwLoginSubmitting
+                                ? <ActivityIndicator color="#fff" />
+                                : <Text style={styles.btnText}>Continue →</Text>}
+                        </TouchableOpacity>
 
                         <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('recover')}>
                             <Text style={styles.switchText}>← Sign in with PIN instead</Text>
@@ -1509,9 +1454,10 @@ export default function LoginScreen() {
                 </Field>
 
                 {/* Optional -- the PIN above only ever unlocks THIS device;
-                    a password set here works on any device, no email link
-                    needed. Asked now, not just left for Settings, since
-                    this is the one moment every signup passes through. */}
+                    a password set here works on any device (password
+                    first, then one email link click, not a full reset).
+                    Asked now, not just left for Settings, since this is
+                    the one moment every signup passes through. */}
                 <Field label="Backup Password (optional — works on any device)">
                     <TextInput style={styles.input} value={setupBackupPassword} onChangeText={setSetupBackupPassword}
                         placeholder="Leave blank to skip" placeholderTextColor={Colors.muted}
@@ -1833,7 +1779,7 @@ export default function LoginScreen() {
                 <Text style={styles.resetText}>Forgot your PIN? Reset it in 2 minutes →</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.switchBtn} onPress={() => {
-                setPwLoginEmail(emailLoginEmail); setPwLoginPassword(''); setPwLoginStep('password');
+                setPwLoginEmail(emailLoginEmail); setPwLoginPassword('');
                 setMode('password-login');
             }}>
                 <Text style={styles.switchText}>New device? Have a backup password? Sign in with it →</Text>

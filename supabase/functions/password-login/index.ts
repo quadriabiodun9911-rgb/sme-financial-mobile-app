@@ -15,15 +15,15 @@
 //                    one): verifies email + password against the stored
 //                    hash and, on success, just says so -- it deliberately
 //                    does NOT establish a session itself. The client
-//                    follows up with Supabase's own signInWithOtp/
-//                    verifyOtp (the same native email-code flow this app
-//                    already uses for join-recovery) as a second factor,
-//                    since this is the one login path reachable with no
-//                    session and no device of its own to vouch for it.
-//                    That second step is what actually produces the
-//                    session, which the client then feeds into the
-//                    existing device-verify flow (set a PIN for this
-//                    device, save a fresh device secret).
+//                    follows up with the app's existing "Verify This
+//                    Device" email link (handleResetRequest's own
+//                    signInWithOtp call) as a second factor, since this is
+//                    the one login path reachable with no session and no
+//                    device of its own to vouch for it. That link, once
+//                    clicked, is what actually produces the session, which
+//                    the client then feeds into the existing device-verify
+//                    flow (set a PIN for this device, save a fresh device
+//                    secret).
 //
 // DEPLOYMENT: supabase functions deploy password-login
 // Enforce JWT verification: OFF -- the 'login' action is called by a
