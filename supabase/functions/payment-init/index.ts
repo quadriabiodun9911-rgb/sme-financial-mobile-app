@@ -116,7 +116,7 @@ async function initFlutterwave(secretKey: string, amount: number, currency: stri
       tx_ref: reference || `QD360-${Date.now()}`,
       amount,
       currency: currency.toUpperCase(),
-      redirect_url: 'https://quad360.com/payment-complete',
+      redirect_url: 'https://quad360financial.com/payment-complete',
       customer: { email, name },
       customizations: { title: name || 'Payment', description: description || 'Payment to business' },
     }),
