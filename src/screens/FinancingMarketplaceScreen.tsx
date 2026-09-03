@@ -247,7 +247,7 @@ export default function FinancingMarketplaceScreen() {
     // requested amount is checked against actual repayment capacity -- not
     // just whether some lender's range happens to cover it. A marketplace
     // has no incentive to volunteer this; Quad360 does.
-    const dataQuality = useMemo(() => computeDataQuality(transactions), [transactions]);
+    const dataQuality = useMemo(() => computeDataQuality(transactions, settings.industry), [transactions, settings.industry]);
     const inventoryValue = useMemo(() => computeInventoryValue(inventory), [inventory]);
     // Reweighted toward debt-service coverage and liquidity -- what actually
     // predicts repayment ability -- rather than the general risk score,

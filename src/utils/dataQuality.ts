@@ -68,7 +68,7 @@ function computeAmbiguousThreshold(transactions: Transaction[]): number {
     return median * 3;
 }
 
-function classifyTransactionConfidence(t: Transaction, ambiguousThreshold: number): TransactionConfidence {
+function classifyTransactionConfidence(t: Transaction, ambiguousThreshold: number, industry?: string): TransactionConfidence {
     // Anything Inventory itself created (a Sell, or carrying a cost-of-goods/
     // units-sold figure) is confirmed by a real recorded stock movement, not
     // a keyword guess -- always confident regardless of free-text wording.
@@ -76,7 +76,7 @@ function classifyTransactionConfidence(t: Transaction, ambiguousThreshold: numbe
         return { transactionId: t.id, confidence: 'confident', reason: 'Linked to a recorded inventory sale' };
     }
 
-    const result = classifyByDescription(t.description, t.type);
+    const result = classifyByDescription(t.description, t.type, industry);
     if (!result.flagged || !GENERIC_SUBCATEGORIES.has(result.subCategory)) {
         return { transactionId: t.id, confidence: 'confident', reason: `Matched "${result.subCategory}"` };
     }
@@ -97,13 +97,19 @@ function classifyTransactionConfidence(t: Transaction, ambiguousThreshold: numbe
  * exported so any screen needing the individual verdicts (e.g. a "Needs
  * Review" filter) can get them without recomputing the ambiguous-amount
  * threshold itself.
+ *
+ * @param industry settings.industry -- optional, passed through to
+ * classifyByDescription so a rule excluded for this business's industry
+ * (see transactionCategorization.ts's CATEGORY_RULES, e.g. Asset Purchase
+ * excluded for Retail) is scored the same way here as it was categorized.
+ * Omitting it keeps the pre-industry-awareness behavior, unchanged.
  */
-export function classifyTransactions(transactions: Transaction[]): TransactionConfidence[] {
+export function classifyTransactions(transactions: Transaction[], industry?: string): TransactionConfidence[] {
     const threshold = computeAmbiguousThreshold(transactions);
-    return transactions.map(t => classifyTransactionConfidence(t, threshold));
+    return transactions.map(t => classifyTransactionConfidence(t, threshold, industry));
 }
 
-function classificationStats(transactions: Transaction[]) {
+function classificationStats(transactions: Transaction[], industry?: string) {
     const total = transactions.length;
     if (total === 0) {
         return {
@@ -113,7 +119,7 @@ function classificationStats(transactions: Transaction[]) {
         };
     }
 
-    const verdicts = classifyTransactions(transactions);
+    const verdicts = classifyTransactions(transactions, industry);
     const confidentCount = verdicts.filter(v => v.confidence === 'confident').length;
     const needsReviewCount = verdicts.filter(v => v.confidence === 'needs_review').length;
     const ambiguousCount = verdicts.filter(v => v.confidence === 'ambiguous').length;
@@ -178,14 +184,14 @@ export function computeDataConfidenceBullets(quality: DataQuality): string[] {
  * than the same figure built on 18 months of clean history, and the UI
  * should let a user tell the difference before they act on it.
  */
-export function computeDataQuality(transactions: Transaction[]): DataQuality {
+export function computeDataQuality(transactions: Transaction[], industry?: string): DataQuality {
     const totalTransactions = transactions.length;
     if (totalTransactions === 0) {
         return {
             totalTransactions: 0, undatedCount: 0, monthsWithData: 0, monthsSpanned: 0,
             coveragePct: 0, oldestDate: null, newestDate: null,
             confidence: 'none', summary: 'No transactions recorded yet',
-            ...classificationStats(transactions),
+            ...classificationStats(transactions, industry),
         };
     }
 
@@ -197,7 +203,7 @@ export function computeDataQuality(transactions: Transaction[]): DataQuality {
             totalTransactions, undatedCount, monthsWithData: 0, monthsSpanned: 0,
             coveragePct: 0, oldestDate: null, newestDate: null,
             confidence: 'limited', summary: `${undatedCount} transaction${undatedCount === 1 ? '' : 's'}, none with a usable date`,
-            ...classificationStats(transactions),
+            ...classificationStats(transactions, industry),
         };
     }
 
@@ -226,6 +232,6 @@ export function computeDataQuality(transactions: Transaction[]): DataQuality {
         totalTransactions, undatedCount, monthsWithData, monthsSpanned, coveragePct,
         oldestDate, newestDate, confidence,
         summary: parts.join(' · '),
-        ...classificationStats(transactions),
+        ...classificationStats(transactions, industry),
     };
 }

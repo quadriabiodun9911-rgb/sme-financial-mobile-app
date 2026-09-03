@@ -393,7 +393,7 @@ export default function DashboardScreen() {
         // and the Financing Marketplace's own lending-capacity estimate.
         const financingReadiness = computeFinancingReadinessScore(businessHealth.factors);
         const dscr = computeDSCR(transactions, loans);
-        const dataQuality = computeDataQuality(transactions);
+        const dataQuality = computeDataQuality(transactions, settings.industry);
         const inventoryValue = computeInventoryValue(inventory);
         return computeLendingCapacityEstimate({
             overallCreditScore: financingReadiness.score,

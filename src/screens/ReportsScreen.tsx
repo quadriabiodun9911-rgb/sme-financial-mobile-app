@@ -759,7 +759,7 @@ export default function ReportsScreen() {
                         const risk = computeRiskScore(allFinance, loansList, transactions, inventory);
                         const dscr = computeDSCR(transactions, loansList);
                         const financingReadiness = computeFinancingReadinessScore(risk.factors);
-                        const dataQuality = computeDataQuality(transactions);
+                        const dataQuality = computeDataQuality(transactions, settings.industry);
                         const fitInput = buildFinancingFitInput(transactions, loansList, settings, user, undefined);
                         const lendingCapacity = computeLendingCapacityEstimate({
                             overallCreditScore: financingReadiness.score,

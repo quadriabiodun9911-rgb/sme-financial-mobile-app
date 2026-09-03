@@ -248,8 +248,8 @@ export default function TransactionsScreen() {
     // recomputed only when the transaction list itself changes, not on
     // every filter/search keystroke.
     const reviewIds = useMemo(
-        () => new Set(classifyTransactions(transactions).filter(v => v.confidence !== 'confident').map(v => v.transactionId)),
-        [transactions]
+        () => new Set(classifyTransactions(transactions, settings.industry).filter(v => v.confidence !== 'confident').map(v => v.transactionId)),
+        [transactions, settings.industry]
     );
 
     const personalReport = useMemo(

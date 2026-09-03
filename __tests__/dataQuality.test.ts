@@ -117,6 +117,18 @@ describe('classifyTransactions', () => {
         const verdicts = classifyTransactions(txs);
         expect(verdicts.find(v => v.transactionId === 'c')!.confidence).toBe('needs_review');
     });
+
+    it('treats a furniture retailer\'s own restocking as confident without an industry, but needs_review once its industry is known', () => {
+        // Without `industry`, "Furniture purchase for resale" still matches
+        // the (industry-blind) Asset Purchase rule -- same as before
+        // transactionCategorization.ts learned about industries. Passing
+        // 'retail' is what makes this consistent with how the same
+        // description is actually categorized on import (excluded there,
+        // see transactionCategorization.test.ts).
+        const txs = [makeTx({ id: 'a', type: 'expense', description: 'Furniture purchase for resale' })];
+        expect(classifyTransactions(txs)[0].confidence).toBe('confident');
+        expect(classifyTransactions(txs, 'retail')[0].confidence).toBe('needs_review');
+    });
 });
 
 describe('computeDataQuality classification rollup', () => {

@@ -331,7 +331,7 @@ export default function CreditWorthinessScreen() {
     // coverage math dataQuality.ts already computes elsewhere, framed the
     // way a fintech underwriting engine frames it: not "is the score good"
     // but "how much of the business is visible in the first place."
-    const dataQuality = useMemo(() => computeDataQuality(transactions), [transactions]);
+    const dataQuality = useMemo(() => computeDataQuality(transactions, settings.industry), [transactions, settings.industry]);
 
     // Estimated Lending Capacity: an illustrative range, not a real offer —
     // Quad360 has no visibility into any actual lender's pricing, so this
