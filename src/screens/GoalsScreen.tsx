@@ -1,7 +1,8 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
     TouchableOpacity, Modal, StyleSheet, Platform, useWindowDimensions,
+    Animated, Easing,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -932,6 +933,22 @@ const GoalCard = React.memo(function GoalCard({ goal, currency, daysRemaining, f
     const statusColor = STATUS_COLORS[goal.status];
     const isReduction = goal.type === 'cost_reduction' || goal.type === 'reduce_overdue_ar';
     const unit = goal.unit === '%' ? '%' : goal.unit === 'days' ? 'days' : currency;
+
+    // Grows the fill in from 0 rather than snapping straight to its final
+    // width -- same motion language as Dashboard/Scoreboard's gauges, sized
+    // for a linear bar instead of a radial one since this renders in a
+    // list (a RadialGauge per card would be a lot of repeated ink for a
+    // list this size -- see LoansScreen's single hero DSCR card for where
+    // a gauge earns its place instead).
+    const progressAnim = useRef(new Animated.Value(0)).current;
+    useEffect(() => {
+        Animated.timing(progressAnim, {
+            toValue: Math.min(Math.max(goal.progress || 0, 0), 100),
+            duration: 700,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: false,
+        }).start();
+    }, [goal.progress]);
     // '%' and 'days' are suffixes (64.4%, 90 days), currency is a prefix
     // (₦64.4) — unit was being prepended unconditionally throughout this
     // card, so every percentage goal (margin_improvement) displayed as
@@ -992,7 +1009,10 @@ const GoalCard = React.memo(function GoalCard({ goal, currency, daysRemaining, f
             ) : (
                 <View style={cardStyles.progressSection}>
                     <View style={cardStyles.progressTrack}>
-                        <View style={[cardStyles.progressFill, { width: `${Math.min(goal.progress, 100)}%` as any, backgroundColor: statusColor }]} />
+                        <Animated.View style={[cardStyles.progressFill, {
+                            width: progressAnim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }),
+                            backgroundColor: statusColor,
+                        }]} />
                     </View>
                     <Text style={[cardStyles.progressPct, { color: statusColor }]}>{(goal.progress ?? 0).toFixed(0)}%</Text>
                 </View>

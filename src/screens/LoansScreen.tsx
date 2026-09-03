@@ -9,10 +9,11 @@
  * or import MerchantFinancingSection as a separate component.
  */
 
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
     TouchableOpacity, StyleSheet, Modal, Platform, useWindowDimensions,
+    Animated, Easing,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -35,6 +36,8 @@ import { computeProfitCashImpact } from '../utils/impactChain';
 import { monthlyPayment, totalInterest, outstandingLoanBalance, nextLoanPaymentDueDate, isLoanPaymentOverdue } from '../utils/loanMath';
 import { showAlert, confirmAction } from '../utils/webAlert';
 import Icon from '../components/ui/Icon';
+import RadialGauge from '../components/RadialGauge';
+import PressScale from '../components/ui/PressScale';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { t } from '../utils/i18n';
 import PinConfirmModal from '../components/PinConfirmModal';
@@ -234,6 +237,21 @@ export default function LoansScreen() {
     const showDebtStrategy = activeLoans.length >= 2;
     const dscrStatusColor = dscr.status === 'healthy' ? Colors.income : dscr.status === 'warning' ? Colors.warning : Colors.expense;
 
+    // Count-up animation for the DSCR gauge -- same non-resetting pattern
+    // Dashboard/Scoreboard's own health-score gauges use (animate from
+    // whatever it currently is to the new value, never reset to 0), since
+    // DSCR can shift after every transaction, not just on a discrete user
+    // action. The "no debt" (> 100, effectively infinite) case skips
+    // animation entirely -- there's nothing meaningful to count up to.
+    const dscrAnim = useRef(new Animated.Value(0)).current;
+    const [animatedDscr, setAnimatedDscr] = useState(0);
+    useEffect(() => {
+        if (dscr.dscr > 100) { setAnimatedDscr(dscr.dscr); return; }
+        const id = dscrAnim.addListener(({ value }) => setAnimatedDscr(value));
+        Animated.timing(dscrAnim, { toValue: dscr.dscr, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
+        return () => dscrAnim.removeListener(id);
+    }, [dscr.dscr]);
+
     // Interest Rate Shock -- a forward-looking "what if my loans repriced
     // higher" stress test, distinct from the payoff strategy above (which
     // only reorders payments against today's rates). A user-set
@@ -294,20 +312,29 @@ export default function LoansScreen() {
                                 <Icon name="shield" size={14} color={Colors.textPrimary} />
                                 <Text style={s.strategyTitle}>Can You Afford Your Loans?</Text>
                             </View>
-                            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
-                                <Text style={[s.dscrBigNum, { color: dscrStatusColor }]}>{dscr.dscr > 100 ? '∞' : dscr.dscr.toFixed(2)}x</Text>
-                                <Text style={[s.dscrStatusBadge, { backgroundColor: dscrStatusColor + '20', color: dscrStatusColor }]}>
-                                    {dscr.status === 'healthy' ? 'HEALTHY' : dscr.status === 'warning' ? 'BORDERLINE' : 'AT RISK'}
-                                </Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 8 }}>
+                                <RadialGauge
+                                    displayValue={dscr.dscr > 100 ? '∞' : `${animatedDscr.toFixed(2)}x`}
+                                    label="DSCR"
+                                    progress={dscr.dscr > 100 ? 1 : Math.min(animatedDscr / 3, 1)}
+                                    color={dscrStatusColor}
+                                    size={76}
+                                    strokeWidth={7}
+                                />
+                                <View style={{ flex: 1 }}>
+                                    <Text style={[s.dscrStatusBadge, { backgroundColor: dscrStatusColor + '20', color: dscrStatusColor, alignSelf: 'flex-start' }]}>
+                                        {dscr.status === 'healthy' ? 'HEALTHY' : dscr.status === 'warning' ? 'BORDERLINE' : 'AT RISK'}
+                                    </Text>
+                                    <Text style={[s.strategyRecommendation, { marginTop: 6 }]}>
+                                        {dscr.status === 'healthy'
+                                            ? '✓ Your income comfortably covers loan repayments.'
+                                            : dscr.status === 'warning'
+                                            ? '⚠ Your income barely covers loan repayments. Reduce debt or increase revenue.'
+                                            : '✗ Income may not cover loan repayments. Act now.'}
+                                        {' '}Above 1.0x = you cover repayments. Above 2.0x = excellent buffer.
+                                    </Text>
+                                </View>
                             </View>
-                            <Text style={s.strategyRecommendation}>
-                                {dscr.status === 'healthy'
-                                    ? '✓ Your income comfortably covers loan repayments.'
-                                    : dscr.status === 'warning'
-                                    ? '⚠ Your income barely covers loan repayments. Reduce debt or increase revenue.'
-                                    : '✗ Income may not cover loan repayments. Act now.'}
-                                {' '}Above 1.0x = you cover repayments. Above 2.0x = excellent buffer.
-                            </Text>
                             <View style={s.dscrDetailRow}>
                                 <Text style={s.dscrDetailLabel}>Net Operating Income</Text>
                                 <Text style={[s.dscrDetailVal, { color: Colors.income }]}>{currency}{Math.round(dscr.netOperatingIncome).toLocaleString()}</Text>
