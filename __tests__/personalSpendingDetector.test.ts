@@ -97,4 +97,34 @@ describe('detectPersonalSpending', () => {
         const report = detectPersonalSpending(txs, '₦', [], 'food-service');
         expect(report.flaggedCount).toBe(1);
     });
+
+    it('flags celebration-sounding spending by default (no industry given)', () => {
+        const txs = [makeTx({ id: 'a', description: 'Owambe outfit for the weekend', amount: 60000 })];
+        const report = detectPersonalSpending(txs, '₦', [], undefined);
+        expect(report.flaggedCount).toBe(1);
+    });
+
+    it('flags celebration-sounding spending for manufacturing, where it has no legitimate business reading', () => {
+        const txs = [makeTx({ id: 'a', description: 'Aso ebi fabric for my sister\'s wedding', amount: 45000 })];
+        const report = detectPersonalSpending(txs, '₦', [], 'manufacturing');
+        expect(report.flaggedCount).toBe(1);
+    });
+
+    it('does not flag an events & entertainment business\'s own owambe/aso-ebi/party-booking revenue-generating work, across the industries it could plausibly register under', () => {
+        const txs = [
+            makeTx({ id: 'a', description: 'Owambe event equipment rental', amount: 300000 }),
+            makeTx({ id: 'b', description: 'Aso ebi fabric supply for client', amount: 220000 }),
+            makeTx({ id: 'c', description: 'Birthday party decor booking', amount: 95000 }),
+        ];
+        for (const industry of ['retail', 'food-service', 'professional-services']) {
+            const report = detectPersonalSpending(txs, '₦', [], industry);
+            expect(report.flaggedCount).toBe(0);
+        }
+    });
+
+    it('still flags genuinely unrelated personal spending for an events-plausible industry', () => {
+        const txs = [makeTx({ id: 'a', description: 'Netflix subscription', amount: 5000 })];
+        const report = detectPersonalSpending(txs, '₦', [], 'professional-services');
+        expect(report.flaggedCount).toBe(1);
+    });
 });

@@ -51,12 +51,27 @@ export interface PersonalSpendingReport {
 // retailer, manufacturer, or professional-services firm.
 const NIGHTLIFE_RULE = { keywords: ['nightclub', 'night club', 'lounge', 'bar tab', 'club vip'], reason: 'Looks like personal nightlife spending' };
 
+// Same reasoning as NIGHTLIFE_RULE, but for a wider band of industries:
+// "owambe"/"aso ebi"/"birthday party" are core vocabulary for an events &
+// entertainment business (a planner, a caterer doing party bookings, an
+// aso-ebi fabric vendor, a party-rental supplier) -- "Owambe event
+// equipment rental", "Aso ebi fabric supply for client", "Birthday party
+// decor booking" are all real revenue-generating work, not a personal
+// celebration paid for from business funds. That business could plausibly
+// register under Retail (fabric/rental supplies), Food Service
+// (catering), or Professional Services (planning/coordination) -- none of
+// the five options fits "events & entertainment" specifically -- so this
+// is excluded for all three rather than guessing which one. Kept active
+// for General and Manufacturing, where this vocabulary genuinely has no
+// legitimate business reading.
+const CELEBRATION_RULE = { keywords: ['owambe', 'birthday party', 'wedding contribution', 'aso ebi', 'wedding gift'], reason: 'Looks like a personal social/celebration expense' };
+const CELEBRATION_RULE_EXCLUDED_INDUSTRIES = new Set(['retail', 'food-service', 'professional-services']);
+
 const PERSONAL_RULES: { keywords: string[]; reason: string }[] = [
     { keywords: ['school fees', 'school fee', 'tuition'], reason: 'Looks like a school-fees payment' },
     { keywords: ['family support', 'family upkeep', 'send family', 'family expense', 'family feeding'], reason: 'Looks like a family expense' },
     { keywords: ['salon', 'spa', 'barbing', 'barber', 'hairdresser', 'manicure', 'pedicure'], reason: 'Looks like personal grooming' },
     { keywords: ['netflix', 'spotify', 'dstv', 'gotv', 'showmax', 'amazon prime', 'apple music'], reason: 'Looks like a personal entertainment subscription' },
-    { keywords: ['owambe', 'birthday party', 'wedding contribution', 'aso ebi', 'wedding gift'], reason: 'Looks like a personal social/celebration expense' },
     { keywords: ['gym membership', 'fitness club'], reason: 'Looks like a personal gym/fitness expense' },
     { keywords: ['personal shopping', 'personal purchase'], reason: 'Looks like personal shopping' },
     { keywords: ['home rent', 'apartment rent', 'house rent', 'residential rent'], reason: 'Looks like personal (home) rent, not business rent' },
@@ -72,14 +87,18 @@ function normalise(s: string): string {
  * confirmed are real business spending -- excluded from the report so a
  * false positive doesn't keep nagging every time the list re-renders.
  * @param industry settings.industry -- gates out the nightlife rule for a
- * food-service business (see NIGHTLIFE_RULE's own comment). Every other
- * industry, and the unset/undefined default, keeps that rule active.
+ * food-service business (see NIGHTLIFE_RULE's own comment) and the
+ * celebration rule for Retail/Food Service/Professional Services (see
+ * CELEBRATION_RULE's own comment). Every other industry, and the
+ * unset/undefined default, keeps both rules active.
  */
 export function detectPersonalSpending(transactions: Transaction[], currency: string = '₦', dismissedIds: string[] = [], industry?: string): PersonalSpendingReport {
     const dismissed = new Set(dismissedIds);
     const flagged: PersonalSpendingFlag[] = [];
     let estimatedPersonalAmount = 0;
-    const rules = industry === 'food-service' ? PERSONAL_RULES : [...PERSONAL_RULES, NIGHTLIFE_RULE];
+    const rules = [...PERSONAL_RULES];
+    if (industry !== 'food-service') rules.push(NIGHTLIFE_RULE);
+    if (!industry || !CELEBRATION_RULE_EXCLUDED_INDUSTRIES.has(industry)) rules.push(CELEBRATION_RULE);
 
     for (const t of transactions) {
         if (t.type !== 'expense' || dismissed.has(t.id)) continue;
