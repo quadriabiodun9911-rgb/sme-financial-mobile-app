@@ -1,12 +1,13 @@
 /**
- * Expiring Stock -- Food Service's own version of "slow moving stock is a
- * problem." For a durable good, unsold stock ties up cash; for a
- * perishable ingredient, it can go from an asset to a write-off entirely
- * on its own, with no sale involved at all. computeInventoryHealth's
- * "slow moving value" signal (inventoryIntelligence.ts) doesn't capture
- * this -- an ingredient bought yesterday and expiring tomorrow can be
- * moving perfectly normally and still be the single most urgent thing on
- * the shelf.
+ * Expiring Stock -- perishable goods' own version of "slow moving stock is
+ * a problem" (Food Service, and Retail/Wholesale for a produce or
+ * fresh-goods business -- see InventoryScreen's Expiry Date field). For a
+ * durable good, unsold stock ties up cash; for a perishable one, it can go
+ * from an asset to a write-off entirely on its own, with no sale involved
+ * at all. computeInventoryHealth's "slow moving value" signal
+ * (inventoryIntelligence.ts) doesn't capture this -- an item bought
+ * yesterday and expiring tomorrow can be moving perfectly normally and
+ * still be the single most urgent thing on the shelf.
  *
  * Only ever computed from a real expiryDate the owner entered themselves
  * (InventoryItem.expiryDate) -- never inferred or estimated, matching

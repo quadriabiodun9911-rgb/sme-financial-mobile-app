@@ -617,12 +617,16 @@ export default function InventoryScreen() {
                 {/* ── ANALYTICS TAB ──────────────────────────────────────── */}
                 {activeTab === 'analytics' && (
                     <>
-                        {/* Expiring Stock -- Food Service only, and only when
-                            there's something to actually warn about. Placed
+                        {/* Expiring Stock -- shown purely on whether there's
+                            an expiryDate to warn about, not on industry:
+                            that field is only ever enterable for Food
+                            Service/Retail (see the Add/Edit form below), so
+                            this naturally never fires for a business that
+                            has no perishable stock to begin with. Placed
                             ahead of Inventory Health: a batch that's about
                             to spoil is more urgent than cash tied up in
                             stock that's merely slow to sell. */}
-                        {settings.industry === 'food-service' && (expiringStock.itemsExpired.length > 0 || expiringStock.itemsExpiringSoon.length > 0) && (
+                        {(expiringStock.itemsExpired.length > 0 || expiringStock.itemsExpiringSoon.length > 0) && (
                             <View style={[styles.analyticsCard, { borderColor: Colors.expense, borderWidth: 1 }]}>
                                 <Text style={styles.analyticsCardTitle}>⏰ Expiring Stock</Text>
                                 <Text style={styles.cardSubtitle}>
@@ -995,13 +999,20 @@ export default function InventoryScreen() {
                             onChangeText={v => setForm(f => ({ ...f, lowStockThreshold: v }))}
                         />
 
-                        {/* Expiry Date — Food Service only. Perishability is
-                            THIS industry's version of "slow moving stock":
-                            an ingredient can go from asset to write-off on
-                            its own, with no sale involved, which
+                        {/* Expiry Date — Food Service and Retail/Wholesale.
+                            Perishability isn't unique to prepared food: it's
+                            about the GOODS, not the business category, and
+                            a produce farm or fresh-goods wholesaler (which
+                            has no better fit than Retail/Wholesale among
+                            these five options) carries exactly the same
+                            spoilage risk as a restaurant's ingredients --
+                            an item can go from asset to write-off on its
+                            own, with no sale involved, which
                             inventoryHealth's cash-tied-up framing doesn't
-                            capture. See foodExpiry.ts. */}
-                        {settings.industry === 'food-service' && (
+                            capture. See foodExpiry.ts. Manufacturing/
+                            Professional Services excluded: durable
+                            components and billable time don't spoil. */}
+                        {(settings.industry === 'food-service' || settings.industry === 'retail') && (
                             <View style={{ marginBottom: 12 }}>
                                 <Text style={styles.discountLabel}>Expiry Date (optional)</Text>
                                 <DateInput value={form.expiryDate} onChange={v => setForm(f => ({ ...f, expiryDate: v }))} />

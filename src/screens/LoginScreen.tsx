@@ -193,7 +193,18 @@ export default function LoginScreen() {
     const [confirmPin, setConfirm]  = useState('');
     const [currency, setCurrency]   = useState(detectLocaleCurrency);
     const [currencyCode, setCurrencyCode] = useState(detectLocaleCurrencyCode);
-    const [industry, setIndustry]   = useState<Industry>('general');
+    // Pre-filled from the guest session's own industry when converting
+    // from Guest Mode, not a hardcoded 'general' -- unlike currency
+    // (correctly locale-detected below, since the demo business's country
+    // has nothing to do with a real guest's actual location), a guest
+    // typically picked a demo close to their own real business on
+    // purpose, and industry has no independent "fresh" signal the way
+    // locale does. Without this, converting silently discarded whatever
+    // real industry the guest session had -- e.g. exploring the Food
+    // Service demo, then signing up with industry reset to General unless
+    // the owner happened to notice and re-pick it here. Still fully
+    // editable via the picker below either way.
+    const [industry, setIndustry]   = useState<Industry>(() => (isDemoMode && settings.industry) ? settings.industry : 'general');
     const [setupLang, setSetupLang] = useState<Language>(language);
     const [submitting, setSubmitting] = useState(false);
     const [agreedToTerms, setAgreedToTerms] = useState(false);
