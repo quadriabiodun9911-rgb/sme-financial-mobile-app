@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text,
-    TouchableOpacity, StyleSheet, TextInput,
+    TouchableOpacity, StyleSheet, TextInput, Animated, Easing,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -65,9 +65,43 @@ const RATIO_TIER_COLOR: Record<RatioTier, string> = {
 
 // Mini horizontal bar
 function MiniBar({ pct, color }: { pct: number; color: string }) {
+    const anim = useRef(new Animated.Value(0)).current;
+    useEffect(() => {
+        Animated.timing(anim, {
+            toValue: Math.min(100, Math.max(0, pct)),
+            duration: 500,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: false,
+        }).start();
+    }, [pct]);
     return (
         <View style={{ height: 5, backgroundColor: Colors.border, borderRadius: 3, flex: 1, marginLeft: 8 }}>
-            <View style={{ height: 5, width: `${Math.min(100, pct)}%` as any, backgroundColor: color, borderRadius: 3 }} />
+            <Animated.View style={{
+                height: 5, borderRadius: 3, backgroundColor: color,
+                width: anim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }),
+            }} />
+        </View>
+    );
+}
+
+// The Revenue Forecast row's fill bar -- owns its own Animated.Value so it
+// grows in independently, matching the motion language used across the app.
+function ForecastBar({ pct }: { pct: number }) {
+    const anim = useRef(new Animated.Value(0)).current;
+    useEffect(() => {
+        Animated.timing(anim, {
+            toValue: Math.min(100, Math.max(0, pct)),
+            duration: 600,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: false,
+        }).start();
+    }, [pct]);
+    return (
+        <View style={{ height: 8, backgroundColor: Colors.border, borderRadius: 4 }}>
+            <Animated.View style={{
+                height: 8, borderRadius: 4, backgroundColor: Colors.primary + '80',
+                width: anim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }),
+            }} />
         </View>
     );
 }
@@ -359,9 +393,7 @@ function ForecastTab() {
                         <View key={i} style={s.forecastRow}>
                             <Text style={s.forecastMonth}>{f.month}</Text>
                             <View style={{ flex: 1, marginHorizontal: 10 }}>
-                                <View style={{ height: 8, backgroundColor: Colors.border, borderRadius: 4 }}>
-                                    <View style={{ height: 8, width: `${barPct}%` as any, backgroundColor: Colors.primary + '80', borderRadius: 4 }} />
-                                </View>
+                                <ForecastBar pct={barPct} />
                                 <Text style={s.forecastRange}>
                                     Best {currency}{Math.round(f.bestCase / 1000)}k · Worst {currency}{Math.round(f.worstCase / 1000)}k
                                 </Text>

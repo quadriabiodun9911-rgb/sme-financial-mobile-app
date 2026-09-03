@@ -1,5 +1,5 @@
-import React, { useMemo, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity } from 'react-native';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity, Animated, Easing } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -44,6 +44,29 @@ function trailingSnapshot(transactions: { type: string; amount: number; date: st
   // thrown off by an unrelated loan payment landing inside the window.
   const expense = recent.filter(t => t.type === 'expense').reduce((s, t) => s + (t.amount ?? 0) - (t.principalPortion || 0), 0);
   return { income, expense, profit: income - expense };
+}
+
+// The success-probability bar in one expanded action's detail panel -- owns
+// its own Animated.Value so it grows in when the panel opens, matching the
+// motion language used for the equivalent bars elsewhere in the app.
+function ProbabilityBar({ pct, color }: { pct: number; color: string }) {
+  const anim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(anim, {
+      toValue: Math.min(Math.max(pct, 0), 100),
+      duration: 500,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [pct]);
+  return (
+    <View style={styles.probabilityBar}>
+      <Animated.View style={[styles.probabilityFill, {
+        backgroundColor: color,
+        width: anim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }),
+      }]} />
+    </View>
+  );
 }
 
 export default function ActionTrackerScreen() {
@@ -503,17 +526,10 @@ export default function ActionTrackerScreen() {
 
                     <View style={styles.detailSection}>
                       <Text style={styles.detailLabel}>Success Probability</Text>
-                      <View style={styles.probabilityBar}>
-                        <View
-                          style={[
-                            styles.probabilityFill,
-                            {
-                              width: `${action.successProbability * 100}%`,
-                              backgroundColor: action.successProbability > 0.7 ? Colors.income : action.successProbability > 0.4 ? Colors.warning : Colors.expense,
-                            },
-                          ]}
-                        />
-                      </View>
+                      <ProbabilityBar
+                        pct={action.successProbability * 100}
+                        color={action.successProbability > 0.7 ? Colors.income : action.successProbability > 0.4 ? Colors.warning : Colors.expense}
+                      />
                       <Text style={styles.probabilityText}>
                         {(action.successProbability * 100).toFixed(0)}% likely to succeed
                       </Text>
