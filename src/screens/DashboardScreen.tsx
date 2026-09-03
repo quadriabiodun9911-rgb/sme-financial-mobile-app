@@ -837,7 +837,7 @@ export default function DashboardScreen() {
                 type: qaType,
                 amount: amt,
                 description: qaDesc.trim(),
-                category: qaCategory || (qaType === 'income' ? 'Sales' : 'General'),
+                category: qaCategory.trim() || (qaType === 'income' ? 'Sales' : 'Other'),
                 date: new Date().toISOString().split('T')[0],
                 paymentMethod: qaPaymentMethod,
             });
@@ -1828,6 +1828,20 @@ export default function DashboardScreen() {
                             </TouchableOpacity>
                         ))}
                     </ScrollView>
+
+                    {/* Same fixed-list problem TransactionsScreen's own category
+                        picker had -- these chips don't fit every industry (a
+                        retailer's "Product Sales", a manufacturer's "Raw
+                        Materials"), so a free-text fallback lets any business
+                        name its own category instead of silently landing on
+                        "Sales"/"Other" whenever nothing here fits. */}
+                    <TextInput
+                        style={styles.modalInput}
+                        placeholder="Or type your own category..."
+                        placeholderTextColor={Colors.textMuted}
+                        value={qaCategory}
+                        onChangeText={setQaCategory}
+                    />
 
                     <TextInput
                         style={styles.modalInput}
