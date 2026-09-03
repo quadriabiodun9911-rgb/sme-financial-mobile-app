@@ -51,6 +51,16 @@ export interface CashPositionSummaryInput {
     topCostCategory: string | null;
     topCostPctPointChange: number | null;
     topCostCurrentPctOfRevenue: number | null;
+    // Phase 2 -- see 029_proactive_alerts_push_v2.sql. All optional so a
+    // caller that only has the original cash/cost-exposure signals (or a
+    // caller mid-migration) doesn't have to fabricate the rest.
+    overdueRemindersCount?: number | null;
+    loanPaymentDueDays?: number | null;
+    loanPaymentDueOtherCount?: number | null;
+    payrollStatus?: 'overdue' | 'due_soon' | null;
+    payrollDaysLeft?: number | null;
+    payrollPeriodLabel?: string | null;
+    taxShortfall?: number | null;
 }
 
 export async function syncCashPositionSummary(input: CashPositionSummaryInput): Promise<void> {
@@ -67,6 +77,13 @@ export async function syncCashPositionSummary(input: CashPositionSummaryInput): 
                 top_cost_category: input.topCostCategory,
                 top_cost_pct_point_change: input.topCostPctPointChange,
                 top_cost_current_pct_of_revenue: input.topCostCurrentPctOfRevenue,
+                overdue_reminders_count: input.overdueRemindersCount ?? null,
+                loan_payment_due_days: input.loanPaymentDueDays ?? null,
+                loan_payment_due_other_count: input.loanPaymentDueOtherCount ?? null,
+                payroll_status: input.payrollStatus ?? null,
+                payroll_days_left: input.payrollDaysLeft ?? null,
+                payroll_period_label: input.payrollPeriodLabel ?? null,
+                tax_shortfall: input.taxShortfall ?? null,
                 updated_at: new Date().toISOString(),
             },
             { onConflict: 'user_id' },

@@ -968,22 +968,34 @@ export default function DashboardScreen() {
     // Keeps the server's cash_position_summary row current so
     // send-proactive-alerts (a scheduled Edge Function) can push to this
     // user even when they haven't opened the app in days -- the tier-2
-    // counterpart to the two local-notification effects above, which only
-    // fire while the app is open. Runs regardless of whether either
-    // threshold is currently crossed, so the server always has a fresh
-    // picture (including "things got better") rather than only ever
-    // hearing about bad news.
+    // counterpart to the local-notification effects above, which only fire
+    // while the app is open. Runs regardless of whether any threshold is
+    // currently crossed, so the server always has a fresh picture
+    // (including "things got better") rather than only ever hearing about
+    // bad news. Phase 2 (see 029_proactive_alerts_push_v2.sql) folds in the
+    // same overdue-reminders/loan-payment/payroll/tax-shortfall signals
+    // their local-notification counterparts already use just above and in
+    // the effect near taxAbilityToPay below -- one row, one sync, rather
+    // than four separate round-trips.
     useEffect(() => {
         if (isDemoMode) return;
         const top = costExposure.available ? costExposure.topCategory : null;
+        const soonestLoan = loansDueSoon[0];
         syncCashPositionSummary({
             currency: settings?.currency ?? '₦',
             runwayDays,
             topCostCategory: top?.category ?? null,
             topCostPctPointChange: top?.pctPointChange ?? null,
             topCostCurrentPctOfRevenue: top?.currentPctOfRevenue ?? null,
+            overdueRemindersCount: remindersDueCount > 0 ? remindersDueCount : null,
+            loanPaymentDueDays: soonestLoan ? soonestLoan.daysUntilDue : null,
+            loanPaymentDueOtherCount: soonestLoan ? loansDueSoon.length - 1 : null,
+            payrollStatus: payrollStatus.kind === 'none' ? null : payrollStatus.kind,
+            payrollDaysLeft: payrollStatus.kind === 'due_soon' ? payrollStatus.daysLeftInMonth : null,
+            payrollPeriodLabel: payrollStatus.kind === 'overdue' ? payrollStatus.missedPeriod : payrollStatus.kind === 'due_soon' ? payrollStatus.period : null,
+            taxShortfall: taxAbilityToPay.canCover ? null : taxAbilityToPay.shortfall,
         }).catch(() => {});
-    }, [isDemoMode, runwayDays, settings?.currency, costExposure]);
+    }, [isDemoMode, runwayDays, settings?.currency, costExposure, remindersDueCount, loansDueSoon, payrollStatus, taxAbilityToPay]);
 
     // Last 30 days of cash balance, reconstructed by walking today's real
     // balance (finance.cashBalance) backward through paid transactions in
