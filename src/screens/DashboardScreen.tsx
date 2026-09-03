@@ -1962,10 +1962,51 @@ export default function DashboardScreen() {
                         placeholder="Description (e.g. Client payment, Rent)"
                         placeholderTextColor={Colors.textMuted}
                         value={qaDesc}
-                        onChangeText={setQaDesc}
+                        onChangeText={v => { setQaDesc(v); setQaAiSuggestion(null); setQaAiError(null); }}
                     />
 
-                    <Text style={styles.catLabel}>Cash or bank? (optional)</Text>
+                    {/* Same opt-in AI category suggester as TransactionsScreen's
+                        edit form (see aiCategorization.ts) -- a tap, never
+                        automatic, since Quick Add is built for speed and a
+                        wrong keyword-only guess is already the fallback if
+                        this is skipped. */}
+                    <TouchableOpacity
+                        style={[styles.aiSuggestBtn, (!qaDesc.trim() || qaAiSuggesting) && { opacity: 0.5 }]}
+                        onPress={suggestQaCategoryWithAI}
+                        disabled={!qaDesc.trim() || qaAiSuggesting}
+                    >
+                        {qaAiSuggesting
+                            ? <ActivityIndicator size="small" color={Colors.primary} />
+                            : <Icon name="zap" size={14} color={Colors.primary} />}
+                        <Text style={styles.aiSuggestBtnText}>
+                            {qaAiSuggesting ? 'Asking AI…' : 'Suggest category with AI'}
+                        </Text>
+                    </TouchableOpacity>
+                    {!qaDesc.trim() && (
+                        <Text style={styles.aiSuggestHint}>Add a description above first</Text>
+                    )}
+
+                    {qaAiError && <Text style={styles.aiError}>{qaAiError}</Text>}
+
+                    {qaAiSuggestion && (
+                        <View style={styles.aiSuggestionBox}>
+                            <View style={styles.aiSuggestionTop}>
+                                <Text style={styles.aiSuggestionCategory}>✨ {qaAiSuggestion.category}</Text>
+                                <Text style={[
+                                    styles.aiConfidenceBadge,
+                                    qaAiSuggestion.confidence === 'high' && styles.aiConfidenceHigh,
+                                    qaAiSuggestion.confidence === 'low' && styles.aiConfidenceLow,
+                                ]}>
+                                    {qaAiSuggestion.confidence} confidence
+                                </Text>
+                            </View>
+                            {qaAiSuggestion.reasoning ? (
+                                <Text style={styles.aiSuggestionReason}>{qaAiSuggestion.reasoning}</Text>
+                            ) : null}
+                        </View>
+                    )}
+
+                    <Text style={[styles.catLabel, { marginTop: 12 }]}>Cash or bank? (optional)</Text>
                     <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
                         {(['cash', 'bank'] as const).map(m => (
                             <TouchableOpacity
@@ -2719,6 +2760,20 @@ const styles = StyleSheet.create({
     catChip:          { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.bg, marginRight: 8 },
     catChipText:      { fontSize: 12, color: Colors.textSecondary },
     modalInput:       { backgroundColor: Colors.bg, borderColor: Colors.border, borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 11, color: Colors.textPrimary, fontSize: 14, marginBottom: 12 },
+    // Same "Suggest with AI" treatment as TransactionsScreen's edit form --
+    // kept visually identical rather than reinvented, since it's the same
+    // feature (aiCategorization.ts) in a second place.
+    aiSuggestBtn:     { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: -4, marginBottom: 8, paddingHorizontal: Spacing.md, paddingVertical: 8, borderWidth: 1, borderColor: Colors.primary, borderRadius: Radius.pill },
+    aiSuggestBtnText: { color: Colors.primary, fontSize: 12.5, fontWeight: '600' },
+    aiSuggestHint:    { fontSize: 11, color: Colors.textMuted, marginBottom: 8, marginTop: -4 },
+    aiError:          { fontSize: 12, color: Colors.expense, marginBottom: Spacing.sm },
+    aiSuggestionBox:  { marginBottom: 12, backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm, padding: Spacing.sm },
+    aiSuggestionTop:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm },
+    aiSuggestionCategory: { fontSize: 13.5, fontWeight: '700', color: Colors.textPrimary, flexShrink: 1 },
+    aiConfidenceBadge: { fontSize: 10.5, fontWeight: '600', color: Colors.textMuted, textTransform: 'uppercase' },
+    aiConfidenceHigh: { color: Colors.income },
+    aiConfidenceLow:  { color: Colors.warning },
+    aiSuggestionReason: { fontSize: 12, color: Colors.textMuted, marginTop: 4, lineHeight: 17 },
     eodPaymentChip:       { flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.bg, alignItems: 'center' },
     eodPaymentChipActive: { backgroundColor: Colors.primary + '22', borderColor: Colors.primary },
     eodPaymentChipText:       { fontSize: 13, color: Colors.textSecondary, fontWeight: '600' },
