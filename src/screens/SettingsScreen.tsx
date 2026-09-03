@@ -428,7 +428,7 @@ export default function SettingsScreen() {
                             retailer's or consultant's app with tools that don't apply. */}
                         <Section title="Industry">
                             <Text style={styles.hint}>
-                                Unlocks tools built for how your industry actually works — e.g. food cost costing for Food Service.
+                                Unlocks tools built for how your industry actually works — e.g. food cost costing for Food Service, expiry tracking for Retail/Wholesale (pharmacies, fresh produce, and anything else perishable).
                             </Text>
                             <View style={styles.optRow}>
                                 {INDUSTRIES.map(ind => (
