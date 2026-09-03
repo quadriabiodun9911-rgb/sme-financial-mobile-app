@@ -59,6 +59,7 @@ import { computeAssetsNearingReplacement, computeAssetCurrentValue, getMonthlyEx
 import { computeBusinessHealthIntelligence } from '../utils/metricIntelligence';
 import { computeStockVelocity, computeInventoryValue } from '../utils/stockVelocity';
 import { computeDataQuality } from '../utils/dataQuality';
+import { categorizeTransactionAI, AICategorizationResult } from '../utils/aiCategorization';
 import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
 import { computeTaxAbilityToPay } from '../utils/taxFilingReadiness';
 import { detectFinancialAlerts, DEFAULT_THRESHOLDS } from '../utils/alertEngine';
@@ -168,6 +169,9 @@ export default function DashboardScreen() {
     const [qaCategory, setQaCategory]     = useState('');
     const [qaSubmitting, setQaSubmitting] = useState(false);
     const [qaPaymentMethod, setQaPaymentMethod] = useState<'cash' | 'bank' | undefined>(undefined);
+    const [qaAiSuggesting, setQaAiSuggesting]   = useState(false);
+    const [qaAiSuggestion, setQaAiSuggestion]   = useState<AICategorizationResult | null>(null);
+    const [qaAiError, setQaAiError]             = useState<string | null>(null);
     const [showMore, setShowMore]               = useState(false);
     // Collapsed by default -- the #1 priority gets hero treatment (Next
     // Best Action) below, so re-showing the full ranked list right under it
@@ -801,6 +805,8 @@ export default function DashboardScreen() {
         setQaAmount('');
         setQaDesc('');
         setQaPaymentMethod(undefined);
+        setQaAiSuggestion(null);
+        setQaAiError(null);
         setFabOpen(true);
     };
 
@@ -824,6 +830,36 @@ export default function DashboardScreen() {
         setShowDailyReport(true);
     };
 
+    // Same idea as TransactionsScreen's own AI category suggester -- the
+    // business's own most-recently-used categories, so the model prefers
+    // reusing "Sales" over inventing a near-duplicate the first time it
+    // sees slightly different wording.
+    const qaRecentCategories = useMemo(() => {
+        const seen = new Set<string>();
+        const ordered: string[] = [];
+        for (let i = transactions.length - 1; i >= 0 && ordered.length < 20; i--) {
+            const c = transactions[i].category?.trim();
+            if (c && !seen.has(c)) { seen.add(c); ordered.push(c); }
+        }
+        return ordered;
+    }, [transactions]);
+
+    const suggestQaCategoryWithAI = async () => {
+        if (!qaDesc.trim() || qaAiSuggesting) return;
+        setQaAiSuggesting(true);
+        setQaAiError(null);
+        setQaAiSuggestion(null);
+        try {
+            const result = await categorizeTransactionAI(qaDesc.trim(), qaType, settings.industry, qaRecentCategories);
+            setQaAiSuggestion(result);
+            setQaCategory(result.category);
+        } catch (err: any) {
+            setQaAiError(err?.message || 'Could not reach AI categorization.');
+        } finally {
+            setQaAiSuggesting(false);
+        }
+    };
+
     const submitQuickAdd = () => {
         const amt = parseFloat(qaAmount);
         const amountError = validateAmount(amt);
@@ -841,7 +877,8 @@ export default function DashboardScreen() {
                 date: new Date().toISOString().split('T')[0],
                 paymentMethod: qaPaymentMethod,
             });
-            setQaAmount(''); setQaDesc(''); setQaCategory(''); setQaPaymentMethod(undefined); setFabOpen(false);
+            setQaAmount(''); setQaDesc(''); setQaCategory(''); setQaPaymentMethod(undefined);
+            setQaAiSuggestion(null); setQaAiError(null); setFabOpen(false);
             const newProfit = finance.profit + (qaType === 'income' ? amt : -amt);
             showToast(`Saved! This month's profit: ${settings.currency}${(isNaN(newProfit) ? 0 : newProfit).toLocaleString()}`);
         } finally {
