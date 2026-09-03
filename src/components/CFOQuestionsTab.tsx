@@ -6,6 +6,8 @@ import { computeCashRunway } from '../utils/cashRunway';
 import { computeAgingBuckets, getTaxRatePercent, getMonthlyExpenseAverage } from '../utils/finance';
 import { computeInventoryValue } from '../utils/stockVelocity';
 import { totalMonthlyLoanBurden } from '../utils/loanMath';
+import { computeInventoryDecisions } from '../utils/inventoryDecisions';
+import { computeIdleCashAllocation } from '../utils/idleCashAllocation';
 import {
     computeFreeCashFlow,
     computeCashConversionCycle,
@@ -140,6 +142,19 @@ export default function CFOQuestionsTab() {
         [finance.cashBalance, upcoming30dayAP, upcoming30dayDebtService, reserveTarget],
     );
 
+    // "Where should this actually go?" -- the other half of Q1, reusing its
+    // own deployableCash figure (already net of upcoming bills, debt
+    // service, and the reserve target) so this can never suggest deploying
+    // cash Q1 itself says isn't free to spend.
+    const reorderDecisions = useMemo(
+        () => computeInventoryDecisions(inventory, transactions, finance.cashBalance, currency).filter(d => d.action === 'reorder'),
+        [inventory, transactions, finance.cashBalance, currency],
+    );
+    const idleCashAllocation = useMemo(
+        () => computeIdleCashAllocation(freeCashFlow.deployableCash, loans, reorderDecisions, currency),
+        [freeCashFlow.deployableCash, loans, reorderDecisions, currency],
+    );
+
     // Q2
     const ccc = useMemo(
         () => computeCashConversionCycle(unpaidIncome, trailing30AccrualRevenue, unpaidExpenses, trailing30AccrualExpenses, inventoryValue),
@@ -211,6 +226,33 @@ export default function CFOQuestionsTab() {
                 <Row label="Due within 30 days (loan repayments)" value={`− ${fmt(currency, freeCashFlow.upcoming30dayDebtService)}`} negative />
                 <Row label="Reserve target" value={`− ${fmt(currency, freeCashFlow.reserveTarget)}`} negative />
                 <Text style={s.qNote}>What's left after upcoming payables, loan repayments, and your reserve target — the number that's actually yours to spend.</Text>
+
+                {idleCashAllocation.length > 0 && (
+                    <View style={s.allocationBlock}>
+                        <Text style={s.allocationHeading}>Where should it go?</Text>
+                        {idleCashAllocation.map(opt => (
+                            <View key={opt.key} style={s.allocationRow}>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={s.allocationLabel}>{opt.label}</Text>
+                                    <Text style={s.allocationDetail}>{opt.detail}</Text>
+                                    <Text style={s.allocationBenefit}>{opt.benefitLabel}</Text>
+                                </View>
+                                <View style={{ alignItems: 'flex-end' }}>
+                                    <Text style={s.allocationAmount}>{fmt(currency, opt.amount)}</Text>
+                                    {opt.destination === 'debt_paydown' && (
+                                        <TouchableOpacity onPress={() => navigate('loans')}><Text style={s.allocationGo}>Go →</Text></TouchableOpacity>
+                                    )}
+                                    {opt.destination === 'restock' && (
+                                        <TouchableOpacity onPress={() => navigate('inventory', { tab: 'pricing' })}><Text style={s.allocationGo}>Go →</Text></TouchableOpacity>
+                                    )}
+                                    {opt.destination === 'undeployed' && (
+                                        <TouchableOpacity onPress={() => navigate('before-you-decide')}><Text style={s.allocationGo}>Test an idea →</Text></TouchableOpacity>
+                                    )}
+                                </View>
+                            </View>
+                        ))}
+                    </View>
+                )}
             </View>
 
             {/* Q2 */}
@@ -407,6 +449,15 @@ const s = StyleSheet.create({
     qTitle: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, marginBottom: 8 },
     qResult: { fontSize: 24, fontWeight: '800', color: Colors.textPrimary, marginBottom: 8 },
     qNote: { fontSize: 11, color: Colors.textMuted, lineHeight: 16, marginTop: 8, fontStyle: 'italic' },
+
+    allocationBlock: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: Colors.border },
+    allocationHeading: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 8 },
+    allocationRow: { flexDirection: 'row', gap: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: Colors.border },
+    allocationLabel: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
+    allocationDetail: { fontSize: 11.5, color: Colors.textSecondary, marginTop: 2, lineHeight: 16 },
+    allocationBenefit: { fontSize: 11, color: Colors.income, marginTop: 3, fontWeight: '600' },
+    allocationAmount: { fontSize: 13, fontWeight: '800', color: Colors.textPrimary },
+    allocationGo: { fontSize: 11.5, fontWeight: '700', color: Colors.primary, marginTop: 4 },
 
     simpleRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
     simpleRowLabel: { fontSize: 12.5, color: Colors.textSecondary },
