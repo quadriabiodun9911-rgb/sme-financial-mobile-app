@@ -1,7 +1,8 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
     TouchableOpacity, StyleSheet, Modal, Platform, useWindowDimensions,
+    Animated, Easing,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -202,6 +203,14 @@ export default function AssetsScreen() {
         [activeAssets],
     );
 
+    const totalValueAnim = useRef(new Animated.Value(0)).current;
+    const [animatedTotalValue, setAnimatedTotalValue] = useState(0);
+    useEffect(() => {
+        const id = totalValueAnim.addListener(({ value }) => setAnimatedTotalValue(value));
+        Animated.timing(totalValueAnim, { toValue: totalActiveValue, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
+        return () => totalValueAnim.removeListener(id);
+    }, [totalActiveValue]);
+
     // "How long before this purchase pays for itself" -- how many months of
     // the business's own real average monthly profit this asset's cost
     // represents, and whether that many months have already passed since
@@ -250,7 +259,7 @@ export default function AssetsScreen() {
                 {/* Summary */}
                 <View style={s.summaryCard}>
                     <Text style={s.summaryLabel}>{t(language, 'totalActiveValue')}</Text>
-                    <Text style={s.summaryValue}>{currency}{totalActiveValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                    <Text style={s.summaryValue}>{currency}{Math.round(animatedTotalValue).toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
                     <Text style={s.summaryMeta}>{activeAssets.length} active · {disposedCount} disposed</Text>
                 </View>
 
@@ -549,6 +558,16 @@ const AssetCard = React.memo(function AssetCard({ asset, currency, language, onE
     const valueRetained = asset.purchaseCost > 0 ? (currentVal / asset.purchaseCost) * 100 : 0;
     const healthColor = valueRetained > 60 ? Colors.income : valueRetained > 25 ? Colors.warning : Colors.expense;
 
+    const barAnim = useRef(new Animated.Value(0)).current;
+    useEffect(() => {
+        Animated.timing(barAnim, {
+            toValue: Math.max(2, Math.min(valueRetained, 100)),
+            duration: 700,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: false,
+        }).start();
+    }, [valueRetained]);
+
     return (
         <View style={[s.card, disposed && s.cardDisposed]}>
             <View style={s.cardHeader}>
@@ -569,7 +588,10 @@ const AssetCard = React.memo(function AssetCard({ asset, currency, language, onE
                 <>
                     {/* Value health bar */}
                     <View style={s.healthBarBg}>
-                        <View style={[s.healthBarFill, { width: `${Math.max(2, valueRetained)}%` as any, backgroundColor: healthColor }]} />
+                        <Animated.View style={[s.healthBarFill, {
+                            backgroundColor: healthColor,
+                            width: barAnim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }),
+                        }]} />
                     </View>
                     <Text style={[s.healthLabel, { color: healthColor }]}>
                         {valueRetained.toFixed(0)}% value retained · {t(language, 'annualDepreciation')}: {currency}{annualDep.toLocaleString(undefined, { maximumFractionDigits: 0 })}/yr

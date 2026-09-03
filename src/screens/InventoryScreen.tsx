@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text,
     TouchableOpacity, StyleSheet, Modal,
     TextInput, KeyboardAvoidingView, Platform, useWindowDimensions,
+    Animated, Easing,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -10,6 +11,7 @@ import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
+import RadialGauge from '../components/RadialGauge';
 import NextStepLink from '../components/NextStepLink';
 import PeriodComparisonTable from '../components/PeriodComparisonTable';
 import { suggestSolution } from '../utils/impactChain';
@@ -100,6 +102,33 @@ const PRICE_CHANGE_REASONS = [
     'Business decision',
     'Other',
 ];
+
+// A stock-level fill bar for one item card. "Full" is set at 3x the item's
+// own low-stock threshold -- comfortably above the 1.2x point stockColor()
+// already treats as a warning -- so the bar reads as "how much runway above
+// the reorder line" rather than an arbitrary absolute scale. Owns its own
+// Animated.Value so it grows in independently, same pattern as GoalsScreen.
+function StockBar({ quantity, threshold, color }: { quantity: number; threshold: number; color: string }) {
+    const full = Math.max(threshold * 3, 1);
+    const pct = Math.min(quantity / full, 1) * 100;
+    const anim = useRef(new Animated.Value(0)).current;
+    useEffect(() => {
+        Animated.timing(anim, {
+            toValue: pct,
+            duration: 600,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: false,
+        }).start();
+    }, [pct]);
+    return (
+        <View style={styles.stockBarTrack}>
+            <Animated.View style={[styles.stockBarFill, {
+                backgroundColor: color,
+                width: anim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }),
+            }]} />
+        </View>
+    );
+}
 
 export default function InventoryScreen() {
     const { inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem, stockInInventory, settings, navigate, addTransaction, transactions, finance, navParams } = useApp();
@@ -239,6 +268,14 @@ export default function InventoryScreen() {
     let stockHealth = 100 - (outOfStockCount > 0 ? 20 : 0) - lowStockCount * 10;
     stockHealth = Math.max(0, Math.min(100, stockHealth));
     const healthColor = stockHealth >= 80 ? Colors.income : stockHealth >= 50 ? Colors.warning : Colors.expense;
+
+    const stockHealthAnim = useRef(new Animated.Value(0)).current;
+    const [animatedStockHealth, setAnimatedStockHealth] = useState(0);
+    useEffect(() => {
+        const id = stockHealthAnim.addListener(({ value }) => setAnimatedStockHealth(value));
+        Animated.timing(stockHealthAnim, { toValue: stockHealth, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
+        return () => stockHealthAnim.removeListener(id);
+    }, [stockHealth]);
 
     // ── Modal helpers ─────────────────────────────────────────────────────────
     const openAdd = () => {
@@ -586,6 +623,8 @@ export default function InventoryScreen() {
                                         </View>
                                     </View>
 
+                                    <StockBar quantity={item.quantity} threshold={item.lowStockThreshold} color={stockColor(item)} />
+
                                     <View style={styles.itemFooter}>
                                         <Text style={styles.stockValLabel}>Stock value: </Text>
                                         <Text style={styles.stockValNum}>{currency}{stockVal.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</Text>
@@ -867,8 +906,14 @@ export default function InventoryScreen() {
                                 How close you are to running OUT of things — counts items low or out of stock. A different question from Inventory Health above, which is about cash tied up in stock that isn't selling.
                             </Text>
                             <View style={styles.healthRow}>
-                                <Text style={[styles.healthScore, { color: healthColor }]}>{stockHealth}</Text>
-                                <Text style={styles.healthOutOf}>/100</Text>
+                                <RadialGauge
+                                    displayValue={`${Math.round(animatedStockHealth)}`}
+                                    label="/100"
+                                    progress={stockHealth / 100}
+                                    color={healthColor}
+                                    size={96}
+                                    strokeWidth={8}
+                                />
                             </View>
                             {outOfStockCount > 0 && (
                                 <Text style={styles.healthNote}>• {outOfStockCount} item{outOfStockCount !== 1 ? 's' : ''} out of stock (-20)</Text>
@@ -1590,10 +1635,11 @@ const styles = StyleSheet.create({
     marginBadge:     { paddingHorizontal: 10, paddingVertical: Spacing.xs, borderRadius: Radius.md },
     marginBadgeText: { fontSize: 12, fontWeight: 'bold' },
 
-    healthRow:  { flexDirection: 'row', alignItems: 'baseline', marginBottom: Spacing.sm },
-    healthScore:{ fontSize: 48, fontWeight: 'bold' },
-    healthOutOf:{ fontSize: 18, color: Colors.textMuted, marginLeft: Spacing.xs },
+    healthRow:  { alignItems: 'center', marginVertical: Spacing.sm },
     healthNote: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
+
+    stockBarTrack: { height: 6, backgroundColor: Colors.border, borderRadius: 3, overflow: 'hidden', marginBottom: 10 },
+    stockBarFill:  { height: '100%', borderRadius: 3 },
 
     reportsBtn:     { backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginTop: 4, marginBottom: Spacing.sm, ...Shadow.sm },
     reportsBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
