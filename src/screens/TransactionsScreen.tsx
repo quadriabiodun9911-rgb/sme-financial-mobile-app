@@ -25,6 +25,7 @@ import { detectPersonalSpending, DISMISSED_PERSONAL_KEY } from '../utils/persona
 import CostExposureTab from '../components/CostExposureTab';
 import RevenueExposureTab from '../components/RevenueExposureTab';
 import { canDeleteTransactions } from '../utils/rolePermissions';
+import { convertToBaseCurrency } from '../utils/foreignCurrency';
 
 type FilterType   = 'all' | 'income' | 'expense' | 'collect';
 type StatusFilter = 'all' | 'paid' | 'pending' | 'overdue';
@@ -51,7 +52,16 @@ type FormState = {
     date: string;
     isRecurring: boolean;
     recurringFrequency: RecurringFrequency;
+    foreignCurrency: boolean;
+    originalCurrencyCode: string;
+    originalAmount: string;
+    exchangeRate: string;
 };
+
+// Common trading currencies an SME actually gets paid or pays suppliers in --
+// not the full ISO 4217 list, just the ones that show up across the same
+// countries CURRENCIES (SettingsScreen) already supports as a base currency.
+const FOREIGN_CURRENCY_CODES = ['USD', 'GBP', 'EUR', 'NGN', 'ZAR', 'KES', 'GHS', 'EGP', 'AED', 'INR', 'CNY', 'CAD', 'AUD'];
 
 // Parse vendorCustomer "Name | phone" → { name, phone }
 function parseVendorCustomer(raw: string | undefined): { name: string; phone: string } {
@@ -95,6 +105,10 @@ const EMPTY_FORM: FormState = {
     date: todayStr(),
     isRecurring: false,
     recurringFrequency: 'monthly',
+    foreignCurrency: false,
+    originalCurrencyCode: FOREIGN_CURRENCY_CODES[0],
+    originalAmount: '',
+    exchangeRate: '',
 };
 
 function formFromTx(tx: Transaction): FormState {
@@ -113,6 +127,10 @@ function formFromTx(tx: Transaction): FormState {
         date:               tx.date,
         isRecurring:        tx.isRecurring ?? false,
         recurringFrequency: tx.recurringFrequency ?? 'monthly',
+        foreignCurrency:     tx.originalCurrencyCode != null,
+        originalCurrencyCode: tx.originalCurrencyCode ?? FOREIGN_CURRENCY_CODES[0],
+        originalAmount:      tx.originalAmount != null ? String(tx.originalAmount) : '',
+        exchangeRate:        tx.exchangeRate != null ? String(tx.exchangeRate) : '',
     };
 }
 
@@ -329,6 +347,17 @@ export default function TransactionsScreen() {
         // and its alert-bell/Dashboard/notification counterpart for every
         // real user. Same formula as taxPreview above.
         const taxRateNum = form.taxRate ? parseFloat(form.taxRate) : undefined;
+
+        // Only persist the foreign-currency fields when the toggle is on
+        // AND both numbers actually parse -- a half-filled foreign-currency
+        // section (e.g. code picked but amount left blank) must not record
+        // a misleading conversion. `undefined` on all three here correctly
+        // clears them on save if the owner had them set on this transaction
+        // before and switched the toggle back off.
+        const origAmt = form.foreignCurrency ? parseFloat(form.originalAmount) : NaN;
+        const rate    = form.foreignCurrency ? parseFloat(form.exchangeRate) : NaN;
+        const hasValidForeignCurrency = form.foreignCurrency && !isNaN(origAmt) && origAmt > 0 && !isNaN(rate) && rate > 0;
+
         const payload = {
             description:        form.description.trim(),
             amount:             amt,
@@ -343,6 +372,9 @@ export default function TransactionsScreen() {
             date:               form.date || todayStr(),
             isRecurring:        form.isRecurring,
             recurringFrequency: form.isRecurring ? form.recurringFrequency : undefined,
+            originalCurrencyCode: hasValidForeignCurrency ? form.originalCurrencyCode : undefined,
+            originalAmount:       hasValidForeignCurrency ? origAmt : undefined,
+            exchangeRate:         hasValidForeignCurrency ? rate : undefined,
         };
 
         if (editingId) {
@@ -648,6 +680,11 @@ export default function TransactionsScreen() {
                                 {/* Second row: category + vendor */}
                                 <View style={styles.txRow2}>
                                     <Text style={styles.catChip}>{tx.category}</Text>
+                                    {tx.originalCurrencyCode ? (
+                                        <Text style={styles.metaText}>
+                                            {tx.originalCurrencyCode} {(tx.originalAmount ?? 0).toLocaleString()} @ {tx.exchangeRate}
+                                        </Text>
+                                    ) : null}
                                     {tx.vendorCustomer ? (
                                         <Text style={styles.metaText} numberOfLines={1}>{parseVendorCustomer(tx.vendorCustomer).name || tx.vendorCustomer}</Text>
                                     ) : null}
@@ -862,6 +899,74 @@ export default function TransactionsScreen() {
                                         activeColor={form.type === 'income' ? Colors.income : Colors.expense}
                                     />
                                 </Field>
+                            </Section>
+
+                            {/* ── Foreign currency ─────────────────────── */}
+                            <Section label="Foreign Currency">
+                                <View style={styles.recurringRow}>
+                                    <Text style={styles.recurringLabel}>Paid or received in a different currency?</Text>
+                                    <TouchableOpacity
+                                        style={[styles.toggleBtn, form.foreignCurrency && styles.toggleBtnOn]}
+                                        onPress={() => setForm(f => ({ ...f, foreignCurrency: !f.foreignCurrency }))}
+                                    >
+                                        <Text style={[styles.toggleBtnText, form.foreignCurrency && styles.toggleBtnTextOn]}>{form.foreignCurrency ? t(language, 'onLabel') : t(language, 'offLabel')}</Text>
+                                    </TouchableOpacity>
+                                </View>
+
+                                {form.foreignCurrency && (
+                                    <>
+                                        <Field label="Currency">
+                                            <View style={styles.categoryGrid}>
+                                                {FOREIGN_CURRENCY_CODES.map(code => (
+                                                    <TouchableOpacity
+                                                        key={code}
+                                                        style={[styles.opt, form.originalCurrencyCode === code && styles.optActive]}
+                                                        onPress={() => setForm(f => ({ ...f, originalCurrencyCode: code }))}
+                                                    >
+                                                        <Text style={[styles.optText, form.originalCurrencyCode === code && styles.optTextActive]}>{code}</Text>
+                                                    </TouchableOpacity>
+                                                ))}
+                                            </View>
+                                        </Field>
+
+                                        <Field label={`Amount in ${form.originalCurrencyCode}`}>
+                                            <TextInput
+                                                style={styles.input}
+                                                placeholder="0.00"
+                                                placeholderTextColor={Colors.muted}
+                                                keyboardType="numeric"
+                                                value={form.originalAmount}
+                                                onChangeText={v => setForm(f => {
+                                                    const rate = parseFloat(f.exchangeRate);
+                                                    const orig = parseFloat(v);
+                                                    const computed = !isNaN(rate) && !isNaN(orig) ? String(convertToBaseCurrency(orig, rate)) : f.amount;
+                                                    return { ...f, originalAmount: v, amount: computed };
+                                                })}
+                                            />
+                                        </Field>
+
+                                        <Field label={`Exchange rate (1 ${form.originalCurrencyCode} = ? ${currency})`}>
+                                            <TextInput
+                                                style={styles.input}
+                                                placeholder="0.00"
+                                                placeholderTextColor={Colors.muted}
+                                                keyboardType="numeric"
+                                                value={form.exchangeRate}
+                                                onChangeText={v => setForm(f => {
+                                                    const rate = parseFloat(v);
+                                                    const orig = parseFloat(f.originalAmount);
+                                                    const computed = !isNaN(rate) && !isNaN(orig) ? String(convertToBaseCurrency(orig, rate)) : f.amount;
+                                                    return { ...f, exchangeRate: v, amount: computed };
+                                                })}
+                                            />
+                                            {form.originalAmount && form.exchangeRate && !isNaN(parseFloat(form.originalAmount)) && !isNaN(parseFloat(form.exchangeRate)) && (
+                                                <Text style={styles.taxPreview}>
+                                                    = {form.originalCurrencyCode} {form.originalAmount} × {form.exchangeRate} = {currency}{form.amount} — adjust the {t(language, 'amountLabel')} field above if the amount actually settled differs
+                                                </Text>
+                                            )}
+                                        </Field>
+                                    </>
+                                )}
                             </Section>
 
                             {/* ── Status ────────────────────────────────── */}

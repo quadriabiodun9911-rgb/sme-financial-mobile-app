@@ -234,6 +234,22 @@ export interface Transaction {
     // happened, which matters most right when reconciling a batch of same-
     // day online payments against what a customer says they paid.
     paidAt?: string;
+    // Set only when the owner explicitly recorded this transaction as having
+    // been paid/received in a currency other than the business's own
+    // `settings.currencyCode` (e.g. a Dubai-based agency paid in USD, a
+    // Lagos importer invoiced in GBP). `amount` is ALWAYS the business's own
+    // base currency -- exactly as before this existed -- so every existing
+    // consumer (forecasts, credit scoring, budgets, reports, cash runway)
+    // keeps summing/reading it with zero changes. These three fields exist
+    // purely so the transaction can also show its foreign-currency origin:
+    // `originalAmount` in `originalCurrencyCode`, converted at `exchangeRate`
+    // (units of the business's base currency per 1 unit of the original
+    // currency) to arrive at `amount`. All three are set together or not at
+    // all; undefined on every transaction recorded in the business's own
+    // currency, which remains the overwhelming majority case.
+    originalCurrencyCode?: string;
+    originalAmount?: number;
+    exchangeRate?: number;
 }
 
 export interface FinanceData {
