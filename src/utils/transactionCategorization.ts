@@ -96,16 +96,33 @@ export function normalise(s: string): string {
     return (s || '').toLowerCase().trim();
 }
 
+// Whether a rule's category is even plausible for the statement row's own
+// credit/debit direction -- 'cost'/'asset'/'expense' are all outflow-shaped,
+// 'income' is inflow-shaped. Without this, a rule's keywords could win
+// regardless of direction: "POS Trxn — customer cash withdrawal" or "Loan
+// repayment received from customer" are ordinary INCOME for a POS
+// agent/agent-banking business or a moneylender/microfinance business --
+// the exact activity those keyword rules assume is always an expense, for
+// every other business. Forcing an expense-shaped category onto a real
+// income transaction (or vice-versa) is worse than not matching at all --
+// it silently mixes that revenue into an expense-looking bucket in Category
+// Breakdown/Cost Exposure. Falling through to the next rule, and ultimately
+// to the honest flagged default, is strictly safer.
+function ruleMatchesDirection(category: TxCategory, direction: 'income' | 'expense'): boolean {
+    return category === 'income' ? direction === 'income' : direction === 'expense';
+}
+
 export function classifyByDescription(desc: string, direction: 'income' | 'expense'): CategoryResult {
     const d = normalise(desc);
 
-    // Check learned rules first
+    // Check learned rules first -- a user's own explicit correction is
+    // never gated by direction; they taught the app this exact mapping.
     for (const [pattern, result] of learnedRules.entries()) {
         if (d.includes(pattern)) return { ...result, flagged: false };
     }
 
     for (const rule of CATEGORY_RULES) {
-        if (rule.keywords.some(k => d.includes(k))) {
+        if (rule.keywords.some(k => d.includes(k)) && ruleMatchesDirection(rule.category, direction)) {
             return { category: rule.category, subCategory: rule.subCategory, flagged: false };
         }
     }

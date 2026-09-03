@@ -54,6 +54,27 @@ describe('classifyByDescription', () => {
         expect(r.category).toBe('income');
     });
 
+    it('does not force an expense-shaped category onto a POS agent\'s own income (agent banking business)', () => {
+        // "POS Trxn"/"POS Payment" match the POS Purchase rule -- an
+        // expense category for most businesses, but the literal core
+        // income of a POS/agent-banking business (dispensing cash for a
+        // fee). Direction stays authoritative: the rule must not win here.
+        const r = classifyByDescription('POS Trxn - customer cash withdrawal', 'income');
+        expect(r.subCategory).not.toBe('POS Purchase');
+        expect(r.category).toBe('income');
+    });
+
+    it('does not force an expense-shaped category onto a moneylender\'s own income (loan repayments received)', () => {
+        const r = classifyByDescription('Loan Repayment received - customer #204', 'income');
+        expect(r.subCategory).not.toBe('Loan Repayment');
+        expect(r.category).toBe('income');
+    });
+
+    it('still recognizes a POS terminal fee as a Bank Charges expense for an ordinary business', () => {
+        const r = classifyByDescription('POS Trxn Charge', 'expense');
+        expect(r.subCategory).toBe('POS Purchase');
+    });
+
     it('never memorizes an "unknown" (Not Sure) correction', () => {
         learnCategory('Totally Ambiguous Row', 'unknown', 'Uncategorized');
         const r = classifyByDescription('Totally Ambiguous Row', 'income');
