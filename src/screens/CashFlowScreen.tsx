@@ -1,13 +1,14 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
     ScrollView, View, Text,
-    TouchableOpacity, StyleSheet,
+    TouchableOpacity, StyleSheet, Animated, Easing,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
+import RadialGauge from '../components/RadialGauge';
 import { computeCashFlowForecast, computeDSCR } from '../utils/finance';
 import { computeCashRunway } from '../utils/cashRunway';
 import { computeCashRunwayIntelligence } from '../utils/metricIntelligence';
@@ -23,6 +24,29 @@ type Tab = 'forecast' | 'runway' | 'ar' | 'breakeven';
 
 const TAB_ICON: Record<Tab, IconName> = { forecast: 'calendar', runway: 'clock', ar: 'mail', breakeven: 'crosshair' };
 const TAB_LABEL: Record<Tab, string> = { forecast: 'Forecast', runway: 'Runway', ar: 'AR Risk', breakeven: 'Break-Even' };
+
+// One animated inflow/outflow bar in the weekly forecast chart -- owns its
+// own Animated.Value so each row grows in from 0 independently, the same
+// pattern GoalsScreen's progress bars use.
+function WeekBar({ pct, color }: { pct: number; color: string }) {
+    const anim = useRef(new Animated.Value(0)).current;
+    useEffect(() => {
+        Animated.timing(anim, {
+            toValue: Math.min(Math.max(pct, 0), 1) * 100,
+            duration: 600,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: false,
+        }).start();
+    }, [pct]);
+    return (
+        <View style={styles.barTrack}>
+            <Animated.View style={[styles.barFill, {
+                backgroundColor: color,
+                width: anim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }),
+            }]} />
+        </View>
+    );
+}
 
 export default function CashFlowScreen() {
     const { transactions, loans, invoices, budgets, finance, settings, setCurrentScreen, navigate, navParams } = useApp();
@@ -56,6 +80,15 @@ export default function CashFlowScreen() {
     );
 
     const runwayColor = runwayDays < 30 ? Colors.expense : runwayDays < 90 ? Colors.warning : Colors.income;
+
+    const runwayAnim = useRef(new Animated.Value(0)).current;
+    const [animatedRunwayDays, setAnimatedRunwayDays] = useState(0);
+    useEffect(() => {
+        if (!Number.isFinite(runwayDays)) { setAnimatedRunwayDays(0); return; }
+        const id = runwayAnim.addListener(({ value }) => setAnimatedRunwayDays(value));
+        Animated.timing(runwayAnim, { toValue: runwayDays, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
+        return () => runwayAnim.removeListener(id);
+    }, [runwayDays]);
 
     // Metric Intelligence pilot -- same Definition/Owner-confidence/Trigger
     // treatment as the Dashboard's Business Health Score. See
@@ -223,12 +256,8 @@ export default function CashFlowScreen() {
                                         <View key={i} style={[styles.weekRow, w.alert && styles.weekRowAlert]}>
                                             <Text style={styles.weekLabel}>{w.week}</Text>
                                             <View style={styles.barCol}>
-                                                <View style={styles.barTrack}>
-                                                    <View style={[styles.barFill, { width: `${inflowPct * 100}%`, backgroundColor: Colors.income }]} />
-                                                </View>
-                                                <View style={styles.barTrack}>
-                                                    <View style={[styles.barFill, { width: `${outflowPct * 100}%`, backgroundColor: Colors.expense }]} />
-                                                </View>
+                                                <WeekBar pct={inflowPct} color={Colors.income} />
+                                                <WeekBar pct={outflowPct} color={Colors.expense} />
                                             </View>
                                             <View style={styles.weekNums}>
                                                 <Text style={[styles.weekNet, { color: w.netCash >= 0 ? Colors.income : Colors.expense }]}>
@@ -312,9 +341,14 @@ export default function CashFlowScreen() {
                     <>
                         <View style={[styles.runwayCard, { borderColor: runwayColor }]}>
                             <Text style={styles.runwayLabel}>Cash Runway</Text>
-                            <Text style={[styles.runwayDays, { color: runwayColor }]}>
-                                {Number.isFinite(runwayDays) ? runwayDays : '∞'} days
-                            </Text>
+                            <RadialGauge
+                                displayValue={Number.isFinite(runwayDays) ? `${Math.round(animatedRunwayDays)}` : '∞'}
+                                label="days"
+                                progress={Number.isFinite(runwayDays) ? Math.min(runwayDays / 90, 1) : 1}
+                                color={runwayColor}
+                                size={128}
+                                strokeWidth={10}
+                            />
                             <View style={styles.runwaySubRow}>
                                 <Icon
                                     name={runwayDays < 30 ? 'alert-circle' : runwayDays < 90 ? 'alert-triangle' : 'check-circle'}
@@ -621,7 +655,6 @@ const styles = StyleSheet.create({
     // Runway
     runwayCard:   { backgroundColor: Colors.card, borderRadius: Radius.lg, padding: Spacing.xxl, borderWidth: 2, marginBottom: Spacing.lg, alignItems: 'center', ...Shadow.sm },
     runwayLabel:  { fontSize: 13, color: Colors.muted, marginBottom: Spacing.sm },
-    runwayDays:   { fontSize: 52, fontWeight: '900' },
     runwaySubRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, marginTop: Spacing.sm },
     runwaySub:    { fontSize: 13, color: Colors.muted, textAlign: 'center' },
     runwayWhyBtn: { alignSelf: 'stretch', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.border },
