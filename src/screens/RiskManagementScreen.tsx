@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { SafeAreaView, ScrollView, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { SafeAreaView, ScrollView, View, Text, TouchableOpacity, StyleSheet, Animated, Easing } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
@@ -51,9 +51,21 @@ function tierColor(risk: 'low' | 'medium' | 'high'): string {
 }
 
 function MiniBar({ pct, color }: { pct: number; color: string }) {
+    const anim = useRef(new Animated.Value(0)).current;
+    useEffect(() => {
+        Animated.timing(anim, {
+            toValue: Math.min(100, Math.max(pct, 0)),
+            duration: 500,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: false,
+        }).start();
+    }, [pct]);
     return (
         <View style={s.miniBarTrack}>
-            <View style={[s.miniBarFill, { width: `${Math.min(100, pct)}%`, backgroundColor: color }]} />
+            <Animated.View style={[s.miniBarFill, {
+                backgroundColor: color,
+                width: anim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }),
+            }]} />
         </View>
     );
 }

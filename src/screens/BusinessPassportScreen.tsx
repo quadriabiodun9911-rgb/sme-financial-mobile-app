@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity, Animated, Easing } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
+import RadialGauge from '../components/RadialGauge';
 import LowDataNotice from '../components/LowDataNotice';
 import MissionVisionCard from '../components/MissionVisionCard';
 import { generatePDF, sharePDF } from '../utils/pdfExport';
@@ -62,6 +63,22 @@ export default function BusinessPassportScreen() {
 
     const maxTrendRevenue = Math.max(1, ...passport.growth.trend.map(m => Math.max(m.revenue, m.expense)));
     const snapshot = passport.structuralSnapshot;
+
+    const healthScoreAnim = useRef(new Animated.Value(0)).current;
+    const [animatedHealthScore, setAnimatedHealthScore] = useState(0);
+    useEffect(() => {
+        const id = healthScoreAnim.addListener(({ value }) => setAnimatedHealthScore(value));
+        Animated.timing(healthScoreAnim, { toValue: passport.health.score, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
+        return () => healthScoreAnim.removeListener(id);
+    }, [passport.health.score]);
+
+    const creditReadinessAnim = useRef(new Animated.Value(0)).current;
+    const [animatedCreditReadiness, setAnimatedCreditReadiness] = useState(0);
+    useEffect(() => {
+        const id = creditReadinessAnim.addListener(({ value }) => setAnimatedCreditReadiness(value));
+        Animated.timing(creditReadinessAnim, { toValue: passport.creditReadiness.score, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
+        return () => creditReadinessAnim.removeListener(id);
+    }, [passport.creditReadiness.score]);
 
     const handleExport = async () => {
         setExporting(true);
@@ -182,9 +199,17 @@ export default function BusinessPassportScreen() {
 
                 {/* 3. Health */}
                 <Section title="Health" subtitle="Is the business healthy?" teaser={`${passport.health.score}/100 — ${passport.health.band}`}>
-                    <Text style={[s.scoreValue, { color: BAND_COLOR[passport.health.band] }]}>
-                        {passport.health.score}/100 — {passport.health.band}
-                    </Text>
+                    <View style={s.scoreGaugeRow}>
+                        <RadialGauge
+                            displayValue={`${Math.round(animatedHealthScore)}`}
+                            label="/100"
+                            progress={passport.health.score / 100}
+                            color={BAND_COLOR[passport.health.band]}
+                            size={88}
+                            strokeWidth={7}
+                        />
+                        <Text style={[s.scoreBandLabel, { color: BAND_COLOR[passport.health.band] }]}>{passport.health.band}</Text>
+                    </View>
                     {passport.health.categories.map(f => (
                         <View key={f.name} style={s.dotRow}>
                             <Icon name="circle" size={10} color={STATUS_COLOR[f.status]} />
@@ -248,9 +273,17 @@ export default function BusinessPassportScreen() {
                         Same score as Health above, read the way a lender's own assessment would read it — not a
                         pre-approval, and not a promise of funding.
                     </Text>
-                    <Text style={[s.scoreValue, { color: BAND_COLOR[passport.creditReadiness.band] }]}>
-                        {passport.creditReadiness.score}/100 — {passport.creditReadiness.band}
-                    </Text>
+                    <View style={s.scoreGaugeRow}>
+                        <RadialGauge
+                            displayValue={`${Math.round(animatedCreditReadiness)}`}
+                            label="/100"
+                            progress={passport.creditReadiness.score / 100}
+                            color={BAND_COLOR[passport.creditReadiness.band]}
+                            size={88}
+                            strokeWidth={7}
+                        />
+                        <Text style={[s.scoreBandLabel, { color: BAND_COLOR[passport.creditReadiness.band] }]}>{passport.creditReadiness.band}</Text>
+                    </View>
                     <Row label="Supporting documents" value={`${passport.creditReadiness.documentsReady} of ${passport.creditReadiness.documentsTotal} ready`} />
                     <TouchableOpacity onPress={() => navigate('credit-worthiness', { tab: 'funding-pack' })}>
                         <Text style={s.linkText}>See the full Funding Readiness Pack →</Text>
@@ -563,7 +596,8 @@ const s = StyleSheet.create({
     rowLabel: { fontSize: 12.5, color: Colors.textSecondary, textTransform: 'capitalize' },
     rowValue: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary, textTransform: 'capitalize' },
     profileGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 10 },
-    scoreValue: { fontSize: 24, fontWeight: '800', marginBottom: 10 },
+    scoreGaugeRow: { alignItems: 'center', marginBottom: 14 },
+    scoreBandLabel: { fontSize: 14, fontWeight: '700', marginTop: Spacing.sm },
     dotRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: Colors.border },
     dotLabel: { flex: 1, fontSize: 12, color: Colors.textSecondary, fontWeight: '600' },
     dotStatus: { fontSize: 12, fontWeight: '700' },
