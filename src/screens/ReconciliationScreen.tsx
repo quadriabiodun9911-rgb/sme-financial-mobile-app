@@ -11,10 +11,11 @@ import FooterNav from '../components/FooterNav';
 import Icon from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { Transaction } from '../types';
-import { autoDetectColumns, parseCSVWithMapping } from '../utils/flexibleBankStatementParser';
+import { autoDetectColumns, parseCSVWithMapping, parseCSVRow, ColumnMapping } from '../utils/flexibleBankStatementParser';
 import { isDuplicateTransaction } from '../utils/transactionDedup';
 import { showAlert, confirmAction } from '../utils/webAlert';
 import { classifyByDescription, loadLearnedRules } from '../utils/transactionCategorization';
+import { findMatchingProfile, saveBankProfile, updateProfileLastUsed } from '../utils/bankProfileManager';
 
 // Bank transaction as imported from a statement or manual entry
 interface BankTx {
@@ -85,6 +86,37 @@ const SAMPLE_CSV = `date,description,amount,type
 2024-01-18,BANK CHARGES,1500,debit
 2024-01-20,TRANSFER FROM CLIENT,75000,credit`;
 
+// One chip per CSV column, used by the manual column-mapping modal below --
+// shown only when auto-detection can't recognize a statement's headers.
+function ColumnPicker({ label, required, headers, sample, selected, onSelect }: {
+    label: string;
+    required?: boolean;
+    headers: string[];
+    sample: string[];
+    selected: number | undefined;
+    onSelect: (index: number) => void;
+}) {
+    return (
+        <View style={{ marginTop: 14 }}>
+            <Text style={styles.fieldLabel}>{label}{required ? ' *' : ' (optional)'}</Text>
+            <View style={styles.chipWrap}>
+                {headers.map((h, i) => (
+                    <TouchableOpacity
+                        key={i}
+                        style={[styles.chip, selected === i && styles.chipActive]}
+                        onPress={() => onSelect(i)}
+                        activeOpacity={0.75}
+                    >
+                        <Text style={[styles.chipText, selected === i && styles.chipTextActive]} numberOfLines={1}>
+                            {h || `Column ${i + 1}`}{sample[i] ? ` · ${sample[i]}` : ''}
+                        </Text>
+                    </TouchableOpacity>
+                ))}
+            </View>
+        </View>
+    );
+}
+
 export default function ReconciliationScreen() {
     const { transactions, addTransaction, settings, setCurrentScreen } = useApp();
 
@@ -102,6 +134,16 @@ export default function ReconciliationScreen() {
     const [manualForm, setManualForm] = useState({ date: new Date().toISOString().split('T')[0], description: '', amount: '', type: 'credit' as 'credit' | 'debit' });
     const [addManualModal, setAddManualModal] = useState(false);
 
+    // Manual column-mapping -- opens only when a pasted statement's headers
+    // don't match any saved bank profile and autoDetectColumns can't guess them.
+    const [manualMapModal, setManualMapModal] = useState(false);
+    const [pendingCsvText, setPendingCsvText] = useState('');
+    const [pendingHeaders, setPendingHeaders] = useState<string[]>([]);
+    const [pendingSample, setPendingSample] = useState<string[]>([]);
+    const [manualMapping, setManualMapping] = useState<Partial<ColumnMapping>>({});
+    const [manualAmountMode, setManualAmountMode] = useState<'single' | 'creditDebit'>('single');
+    const [manualBankName, setManualBankName] = useState('');
+
     const sym = settings.currency || '₦';
     const fmt = (n: number) => `${sym}${(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
@@ -110,7 +152,47 @@ export default function ReconciliationScreen() {
         return matchTransactions(bankTxs, transactions);
     }, [bankTxs, transactions]);
 
-    const parseCSV = () => {
+    // Shared completion path for all three ways a mapping can be obtained
+    // (a saved bank profile, auto-detection, or the manual-mapping modal) so
+    // the dedupe/state-update/success-alert logic exists in exactly one place.
+    const finishImport = (mapping: ColumnMapping, sourceCsvText: string) => {
+        const result = parseCSVWithMapping(sourceCsvText, mapping);
+        const parsed: BankTx[] = result.transactions.map((t, i) => ({
+            id: `bank-${Date.now()}-${i}`,
+            date: normalizeDate(t.date),
+            description: t.description || 'Bank Transaction',
+            amount: t.amount,
+            type: t.type === 'income' ? 'credit' : 'debit',
+        }));
+
+        if (parsed.length === 0) { showAlert('No valid rows found'); return; }
+
+        // How many pasted rows already match a recorded app transaction.
+        // We do NOT drop these — reconciliation needs them to show as "Matched" —
+        // but we tell the user so overlap with the Dashboard import is visible.
+        const alreadyRecorded = parsed.filter(p =>
+            isDuplicateTransaction(
+                { date: p.date, description: p.description, amount: p.amount, type: p.type === 'credit' ? 'income' : 'expense' },
+                transactions as any
+            )
+        ).length;
+
+        let addedCount = 0;
+        setBankTxs(prev => {
+            const existingIds = new Set(prev.map(b => `${b.date}-${b.amount}-${b.description}`));
+            const newOnes = parsed.filter(p => !existingIds.has(`${p.date}-${p.amount}-${p.description}`));
+            addedCount = newOnes.length;
+            return [...prev, ...newOnes];
+        });
+        setCsvText('');
+        setTab('matched');
+        const recordedNote = alreadyRecorded > 0
+            ? `\n\n${alreadyRecorded} of these are already in your recorded transactions and will appear under "Matched".`
+            : '';
+        showAlert('Imported', `${parsed.length} rows parsed, ${addedCount} new bank transactions added.${recordedNote}`);
+    };
+
+    const parseCSV = async () => {
         if (!csvText.trim()) { showAlert('Paste your CSV first'); return; }
         try {
             const rows = csvText.trim().split('\n').filter(l => l.trim());
@@ -119,52 +201,80 @@ export default function ReconciliationScreen() {
                 return;
             }
 
+            const headers = parseCSVRow(rows[0]);
+
+            // A previously-saved bank profile (see bankProfileManager.ts) wins
+            // over auto-detection -- it's a mapping the user already confirmed
+            // once for this exact header layout, so reusing it means repeat
+            // imports from the same bank never need remapping.
+            const savedProfile = await findMatchingProfile(headers);
+            if (savedProfile) {
+                updateProfileLastUsed(savedProfile.id);
+                finishImport(savedProfile.columnMapping, csvText);
+                return;
+            }
+
             // Use the shared flexible parser so Reconciliation understands the same
             // bank formats as the Dashboard import (auto-detects columns, credit/debit
             // variants, multiple date formats, etc.)
             const mapping = autoDetectColumns(rows);
-            if (!mapping) {
-                showAlert('CSV Error', 'Could not detect columns. Ensure the file has date, description, and amount columns.');
+            if (mapping) {
+                finishImport(mapping, csvText);
                 return;
             }
 
-            const result = parseCSVWithMapping(csvText, mapping);
-            const parsed: BankTx[] = result.transactions.map((t, i) => ({
-                id: `bank-${Date.now()}-${i}`,
-                date: normalizeDate(t.date),
-                description: t.description || 'Bank Transaction',
-                amount: t.amount,
-                type: t.type === 'income' ? 'credit' : 'debit',
-            }));
-
-            if (parsed.length === 0) { showAlert('No valid rows found'); return; }
-
-            // How many pasted rows already match a recorded app transaction.
-            // We do NOT drop these — reconciliation needs them to show as "Matched" —
-            // but we tell the user so overlap with the Dashboard import is visible.
-            const alreadyRecorded = parsed.filter(p =>
-                isDuplicateTransaction(
-                    { date: p.date, description: p.description, amount: p.amount, type: p.type === 'credit' ? 'income' : 'expense' },
-                    transactions as any
-                )
-            ).length;
-
-            let addedCount = 0;
-            setBankTxs(prev => {
-                const existingIds = new Set(prev.map(b => `${b.date}-${b.amount}-${b.description}`));
-                const newOnes = parsed.filter(p => !existingIds.has(`${p.date}-${p.amount}-${p.description}`));
-                addedCount = newOnes.length;
-                return [...prev, ...newOnes];
-            });
-            setCsvText('');
-            setTab('matched');
-            const recordedNote = alreadyRecorded > 0
-                ? `\n\n${alreadyRecorded} of these are already in your recorded transactions and will appear under "Matched".`
-                : '';
-            showAlert('Imported', `${parsed.length} rows parsed, ${addedCount} new bank transactions added.${recordedNote}`);
+            // Couldn't recognize the columns automatically -- ask the user to map
+            // them by hand instead of just failing the import outright.
+            setPendingCsvText(csvText);
+            setPendingHeaders(headers);
+            setPendingSample(parseCSVRow(rows[1]));
+            setManualMapping({});
+            setManualAmountMode('single');
+            setManualBankName('');
+            setManualMapModal(true);
         } catch {
             showAlert('Parse Error', 'Could not parse the CSV. Check format.');
         }
+    };
+
+    const confirmManualMapping = () => {
+        if (manualMapping.dateColumn === undefined || manualMapping.descriptionColumn === undefined) {
+            showAlert('Missing columns', 'Pick a column for both Date and Description.');
+            return;
+        }
+        if (manualAmountMode === 'single' && manualMapping.amountColumn === undefined) {
+            showAlert('Missing column', 'Pick a column for Amount.');
+            return;
+        }
+        if (manualAmountMode === 'creditDebit' && (manualMapping.creditColumn === undefined || manualMapping.debitColumn === undefined)) {
+            showAlert('Missing columns', 'Pick a column for both Credit and Debit.');
+            return;
+        }
+
+        const mapping: ColumnMapping = manualAmountMode === 'single'
+            ? {
+                dateColumn: manualMapping.dateColumn,
+                descriptionColumn: manualMapping.descriptionColumn,
+                amountColumn: manualMapping.amountColumn!,
+                typeColumn: manualMapping.typeColumn,
+            }
+            : {
+                dateColumn: manualMapping.dateColumn,
+                descriptionColumn: manualMapping.descriptionColumn,
+                amountColumn: -1, // unused by parseCSVWithMapping when credit/debit columns are set
+                creditColumn: manualMapping.creditColumn,
+                debitColumn: manualMapping.debitColumn,
+            };
+
+        // Remembering this mapping is optional -- only saved when the user
+        // names the bank, since an unnamed profile would be useless to pick
+        // out later from the saved-profiles list.
+        if (manualBankName.trim()) {
+            saveBankProfile(manualBankName.trim(), mapping, pendingHeaders);
+        }
+
+        setManualMapModal(false);
+        finishImport(mapping, pendingCsvText);
     };
 
     const addManualBankTx = () => {
@@ -454,6 +564,99 @@ export default function ReconciliationScreen() {
                 </SafeAreaView>
             </Modal>
 
+            {/* ── Manual Column Mapping Modal ─────────────────────────────── */}
+            <Modal visible={manualMapModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setManualMapModal(false)}>
+                <SafeAreaView style={styles.modalSafe}>
+                    <View style={[{ flex: 1, width: '100%' }, constrainModalWidth && styles.modalConstrainedColumn]}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Map Your Columns</Text>
+                            <TouchableOpacity onPress={() => setManualMapModal(false)} activeOpacity={0.7}>
+                                <Icon name="x" size={20} color={Colors.textMuted} />
+                            </TouchableOpacity>
+                        </View>
+                        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+                            <Text style={styles.cardSubtitle}>
+                                We couldn't recognize this statement's columns automatically. Tap the column that matches each field below — each chip shows the header name and a sample value.
+                            </Text>
+
+                            <ColumnPicker
+                                label="Date"
+                                required
+                                headers={pendingHeaders}
+                                sample={pendingSample}
+                                selected={manualMapping.dateColumn}
+                                onSelect={i => setManualMapping(p => ({ ...p, dateColumn: i }))}
+                            />
+                            <ColumnPicker
+                                label="Description"
+                                required
+                                headers={pendingHeaders}
+                                sample={pendingSample}
+                                selected={manualMapping.descriptionColumn}
+                                onSelect={i => setManualMapping(p => ({ ...p, descriptionColumn: i }))}
+                            />
+
+                            <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Amount Format</Text>
+                            <View style={styles.segmentRow}>
+                                <TouchableOpacity style={[styles.segment, manualAmountMode === 'single' && styles.segmentActive]} onPress={() => setManualAmountMode('single')} activeOpacity={0.75}>
+                                    <Text style={[styles.segmentText, manualAmountMode === 'single' && styles.segmentTextActive]}>Single Amount Column</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={[styles.segment, manualAmountMode === 'creditDebit' && styles.segmentActive]} onPress={() => setManualAmountMode('creditDebit')} activeOpacity={0.75}>
+                                    <Text style={[styles.segmentText, manualAmountMode === 'creditDebit' && styles.segmentTextActive]}>Separate Credit / Debit Columns</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            {manualAmountMode === 'single' ? (
+                                <>
+                                    <ColumnPicker
+                                        label="Amount"
+                                        required
+                                        headers={pendingHeaders}
+                                        sample={pendingSample}
+                                        selected={manualMapping.amountColumn}
+                                        onSelect={i => setManualMapping(p => ({ ...p, amountColumn: i }))}
+                                    />
+                                    <ColumnPicker
+                                        label="Type (credit/debit) — leave unpicked to guess from the amount sign"
+                                        headers={pendingHeaders}
+                                        sample={pendingSample}
+                                        selected={manualMapping.typeColumn}
+                                        onSelect={i => setManualMapping(p => ({ ...p, typeColumn: i }))}
+                                    />
+                                </>
+                            ) : (
+                                <>
+                                    <ColumnPicker
+                                        label="Credit (money in)"
+                                        required
+                                        headers={pendingHeaders}
+                                        sample={pendingSample}
+                                        selected={manualMapping.creditColumn}
+                                        onSelect={i => setManualMapping(p => ({ ...p, creditColumn: i }))}
+                                    />
+                                    <ColumnPicker
+                                        label="Debit (money out)"
+                                        required
+                                        headers={pendingHeaders}
+                                        sample={pendingSample}
+                                        selected={manualMapping.debitColumn}
+                                        onSelect={i => setManualMapping(p => ({ ...p, debitColumn: i }))}
+                                    />
+                                </>
+                            )}
+
+                            <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Bank Name (optional)</Text>
+                            <Text style={styles.cardSubtitle}>Name it to remember this mapping — next time you paste a statement from this bank, it's applied automatically.</Text>
+                            <TextInput style={styles.input} value={manualBankName} onChangeText={setManualBankName} placeholder="e.g. GTBank, Access Bank" placeholderTextColor={Colors.textMuted} />
+
+                            <TouchableOpacity style={[styles.primaryBtn, { marginTop: 24 }]} onPress={confirmManualMapping} activeOpacity={0.8}>
+                                <Text style={styles.primaryBtnText}>Import with This Mapping</Text>
+                            </TouchableOpacity>
+                        </ScrollView>
+                    </View>
+                </SafeAreaView>
+            </Modal>
+
             <FooterNav />
         </SafeAreaView>
     );
@@ -534,5 +737,11 @@ const styles = StyleSheet.create({
     segmentActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + '15' },
     segmentText:   { fontSize: 12, color: Colors.textMuted, fontWeight: '600', textAlign: 'center' },
     segmentTextActive: { color: Colors.primary, fontWeight: '800' },
+
+    chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginTop: 6 },
+    chip: { paddingHorizontal: Spacing.md, paddingVertical: 8, borderRadius: Radius.sm, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface, maxWidth: 220 },
+    chipActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + '15' },
+    chipText: { fontSize: 11, color: Colors.textMuted, fontWeight: '600' },
+    chipTextActive: { color: Colors.primary, fontWeight: '800' },
 
 });

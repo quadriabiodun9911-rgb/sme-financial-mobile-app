@@ -341,7 +341,12 @@ function categorizeTransactionFlex(description: string, type: 'income' | 'expens
   return 'Other';
 }
 
-function parseCSVRow(line: string): string[] {
+// Exported so a caller that needs the raw header cells for something
+// beyond parsing rows into transactions -- e.g. ReconciliationScreen's
+// manual column-mapping UI, or a bank-profile header signature (see
+// bankProfileManager.ts's createHeaderSignature) -- doesn't have to
+// re-implement quoted-CSV splitting a second time.
+export function parseCSVRow(line: string): string[] {
   const result: string[] = [];
   let current = '';
   let inQuotes = false;
