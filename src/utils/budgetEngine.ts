@@ -61,6 +61,13 @@ export function generateAutoBudget(
     transactions: Transaction[],
     finance: FinanceData,
     loans: Loan[],
+    // Lets a caller substitute Smart Budget Builder's own conservative/base/
+    // growth revenue scenario (smartBudget.ts) for the internally-computed
+    // forecast below -- e.g. BudgetScreen's scenario picker, so choosing
+    // "Growth" actually re-scales these suggestions instead of only
+    // changing a number displayed next to them. Omit to keep the original
+    // forecast-only behavior.
+    revenueOverride?: number,
 ): AutoBudgetResult {
     const categoryAverages = computeTrailingCategoryAverages(transactions);
 
@@ -70,7 +77,9 @@ export function generateAutoBudget(
     // Anchored to the latest transaction date, not real-world "now" -- see
     // latestTransactionDate's comment.
     const forecast = computeRevenueForecast(transactions, 3, latestTransactionDate(transactions) ?? undefined);
-    const projectedRevenue = forecast.length > 0 && forecast[0].projected > 0
+    const projectedRevenue = revenueOverride !== undefined && revenueOverride > 0
+        ? revenueOverride
+        : forecast.length > 0 && forecast[0].projected > 0
         ? forecast[0].projected
         : finance.income;
 

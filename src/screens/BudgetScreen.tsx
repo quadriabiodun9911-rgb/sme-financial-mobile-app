@@ -74,18 +74,25 @@ export default function BudgetScreen() {
     const [excludedCats, setExcludedCats] = useState<Set<string>>(new Set());
     const [adjustMode, setAdjustMode] = useState(false);
     const [adjustedAmounts, setAdjustedAmounts] = useState<Record<string, string>>({});
+    // Which of Smart Budget Builder's three revenue scenarios is currently
+    // driving Budget Intelligence's actual-vs-target check and the
+    // Auto-Generated Budget's category scaling below -- tapping a scenario
+    // cell re-runs both against that number instead of always the base
+    // case. Defaults to 'base' to match this screen's prior fixed behavior.
+    const [selectedScenario, setSelectedScenario] = useState<'conservative' | 'base' | 'growth'>('base');
 
     const bva = useMemo(() => computeBudgetVsActual(transactions, budgets, currentMonth), [transactions, budgets, currentMonth]);
 
     // Smart Budget Builder's revenue half -- see smartBudget.ts's own doc
-    // comment. No revenue-budget UI exists yet, so the Base scenario also
-    // doubles as the revenue figure Budget Intelligence below measures
+    // comment. No revenue-budget UI exists yet, so the selected scenario
+    // also doubles as the revenue figure Budget Intelligence below measures
     // actual revenue against, unless/until an owner-set revenue target
     // exists elsewhere in the app.
     const smartRevenue = useMemo(() => computeSmartBudgetRevenue(transactions, currency), [transactions, currency]);
+    const selectedRevenue = smartRevenue.available ? smartRevenue.scenarios[selectedScenario] : 0;
     const budgetIntel = useMemo(
-        () => computeBudgetIntelligence(transactions, budgets, currentMonth, smartRevenue.available ? smartRevenue.scenarios.base : 0, currency),
-        [transactions, budgets, currentMonth, smartRevenue, currency],
+        () => computeBudgetIntelligence(transactions, budgets, currentMonth, selectedRevenue, currency),
+        [transactions, budgets, currentMonth, selectedRevenue, currency],
     );
     // Budget Health: a separate 0-100 indicator for "how much should this
     // business trust its own budget/forecast right now" -- distinct from
@@ -245,13 +252,16 @@ export default function BudgetScreen() {
         return generateExpenseReductionActions(diagnosis, diagnosis.metrics, settings.currency).slice(0, 3);
     }, [transactions, invoices, finance.cashBalance, finance.expense, settings.currency, loans, inventory, assets]);
 
-    // Auto-generated budget: sized against forward-looking revenue (via
-    // computeRevenueForecast inside generateAutoBudget), scaled down if
-    // trailing spend would exceed a safe share of that projection, so it's
-    // an actual affordable plan and not just relabeled spending history.
+    // Auto-generated budget: sized against forward-looking revenue, scaled
+    // down if trailing spend would exceed a safe share of that projection,
+    // so it's an actual affordable plan and not just relabeled spending
+    // history. Once Smart Budget Builder has a real scenario available,
+    // the selected one (see selectedScenario above) drives this directly --
+    // picking "Growth" actually re-scales these suggestions, not just the
+    // number shown next to them.
     const autoBudget = useMemo(
-        () => generateAutoBudget(transactions, finance, loans ?? []),
-        [transactions, finance, loans]
+        () => generateAutoBudget(transactions, finance, loans ?? [], smartRevenue.available ? selectedRevenue : undefined),
+        [transactions, finance, loans, smartRevenue.available, selectedRevenue]
     );
 
     function openAutoGen() {
@@ -630,7 +640,7 @@ export default function BudgetScreen() {
 
                         {smartRevenue.available && (
                             <Text style={s.intelFootnote}>
-                                Revenue target is Quad360's suggested base case ({currency}{Math.round(smartRevenue.scenarios.base).toLocaleString()}/mo) — not yet something you've set yourself.
+                                Revenue target is Quad360's suggested {selectedScenario} case ({currency}{Math.round(selectedRevenue).toLocaleString()}/mo) — not yet something you've set yourself. Change it in Auto-Generate Budget below.
                             </Text>
                         )}
 
@@ -849,25 +859,29 @@ export default function BudgetScreen() {
 
                     {/* Smart Budget Builder's revenue half -- "don't ask the
                         owner what revenue to expect, suggest a realistic
-                        starting point instead" (smartBudget.ts). Informational
-                        here, not yet wired to re-scale the expense suggestions
-                        below against a chosen scenario. */}
+                        starting point instead" (smartBudget.ts). Tapping a
+                        scenario re-scales the category suggestions below
+                        against it (via generateAutoBudget's revenueOverride)
+                        and updates Budget Intelligence's actual-vs-target
+                        check above to match, instead of always measuring
+                        against a fixed "Base" case. */}
                     {smartRevenue.available && (
                         <View style={s.revenueScenarioBox}>
                             <Text style={s.revenueScenarioTitle}>{smartRevenue.recommendationLabel}</Text>
                             <View style={s.revenueScenarioRow}>
-                                <View style={s.revenueScenarioCell}>
-                                    <Text style={s.revenueScenarioLabel}>Conservative</Text>
-                                    <Text style={s.revenueScenarioVal}>{currency}{Math.round(smartRevenue.scenarios.conservative).toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
-                                </View>
-                                <View style={[s.revenueScenarioCell, s.revenueScenarioCellBase]}>
-                                    <Text style={s.revenueScenarioLabel}>Base</Text>
-                                    <Text style={[s.revenueScenarioVal, { color: Colors.primary }]}>{currency}{Math.round(smartRevenue.scenarios.base).toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
-                                </View>
-                                <View style={s.revenueScenarioCell}>
-                                    <Text style={s.revenueScenarioLabel}>Growth</Text>
-                                    <Text style={s.revenueScenarioVal}>{currency}{Math.round(smartRevenue.scenarios.growth).toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
-                                </View>
+                                {(['conservative', 'base', 'growth'] as const).map(key => (
+                                    <TouchableOpacity
+                                        key={key}
+                                        style={[s.revenueScenarioCell, selectedScenario === key && s.revenueScenarioCellBase]}
+                                        onPress={() => setSelectedScenario(key)}
+                                        activeOpacity={0.7}
+                                    >
+                                        <Text style={s.revenueScenarioLabel}>{key === 'conservative' ? 'Conservative' : key === 'base' ? 'Base' : 'Growth'}</Text>
+                                        <Text style={[s.revenueScenarioVal, selectedScenario === key && { color: Colors.primary }]}>
+                                            {currency}{Math.round(smartRevenue.scenarios[key]).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
                             </View>
                             <Text style={s.revenueScenarioFootnote}>
                                 Based on your last {smartRevenue.windowMonths} month{smartRevenue.windowMonths !== 1 ? 's' : ''} (revenue {smartRevenue.volatility}

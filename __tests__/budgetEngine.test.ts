@@ -104,4 +104,42 @@ describe('generateAutoBudget', () => {
         const result = generateAutoBudget([], makeFinance(), []);
         expect(result.suggestions).toHaveLength(0);
     });
+
+    describe('revenueOverride', () => {
+        it('uses the override instead of the internally-forecast revenue when provided', () => {
+            const txs = [
+                makeTx({ category: 'Rent', amount: 1000, date: monthsAgo(0) }),
+                makeTx({ type: 'income', category: 'Sales', amount: 50000, date: monthsAgo(0) }),
+                makeTx({ type: 'income', category: 'Sales', amount: 50000, date: monthsAgo(1) }),
+            ];
+            const finance = makeFinance({ income: 50000 });
+            const result = generateAutoBudget(txs, finance, [], 200000);
+            expect(result.projectedRevenue).toBe(200000);
+        });
+
+        it('re-scales suggestions tighter under a lower (conservative) override than a higher (growth) one', () => {
+            const txs = [
+                makeTx({ category: 'Rent', amount: 40000, date: monthsAgo(0) }),
+                makeTx({ type: 'income', category: 'Sales', amount: 50000, date: monthsAgo(0) }),
+                makeTx({ type: 'income', category: 'Sales', amount: 50000, date: monthsAgo(1) }),
+            ];
+            const finance = makeFinance({ income: 50000 });
+            const conservative = generateAutoBudget(txs, finance, [], 20000);
+            const growth = generateAutoBudget(txs, finance, [], 100000);
+            expect(conservative.safeCap).toBeLessThan(growth.safeCap);
+            expect(conservative.totalSuggested).toBeLessThanOrEqual(growth.totalSuggested);
+        });
+
+        it('falls back to the internal forecast when the override is zero or omitted', () => {
+            const txs = [
+                makeTx({ category: 'Rent', amount: 1000, date: monthsAgo(0) }),
+                makeTx({ type: 'income', category: 'Sales', amount: 50000, date: monthsAgo(0) }),
+                makeTx({ type: 'income', category: 'Sales', amount: 50000, date: monthsAgo(1) }),
+            ];
+            const finance = makeFinance({ income: 50000 });
+            const withoutOverride = generateAutoBudget(txs, finance, []);
+            const withZeroOverride = generateAutoBudget(txs, finance, [], 0);
+            expect(withZeroOverride.projectedRevenue).toBe(withoutOverride.projectedRevenue);
+        });
+    });
 });
