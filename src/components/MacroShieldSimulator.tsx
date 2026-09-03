@@ -16,6 +16,7 @@ interface Props {
     minReserve: number;
     macroAssumptions: MacroAssumption[];
     onAddMacroAssumption: () => void;
+    onSeeFullImpact: (shock: { inflationPct: number; fxDevaluationPct: number; revenueImpactPct: number }) => void;
 }
 
 function fmt(currency: string, n: number): string {
@@ -54,7 +55,7 @@ function latestOf(assumptions: MacroAssumption[], driver: MacroDriver): MacroAss
 // macroShield.ts for exactly what this reuses, why both cost sliders are
 // modeled as a uniform cost increase, and why the revenue slider is a
 // plain user-set assumption rather than a derived formula.
-export default function MacroShieldSimulator({ currency, transactions, loans, finance, staff, minReserve, macroAssumptions, onAddMacroAssumption }: Props) {
+export default function MacroShieldSimulator({ currency, transactions, loans, finance, staff, minReserve, macroAssumptions, onAddMacroAssumption, onSeeFullImpact }: Props) {
     const inflationAssumption = useMemo(() => latestOf(macroAssumptions, 'inflation'), [macroAssumptions]);
     const fxAssumption = useMemo(() => latestOf(macroAssumptions, 'fx'), [macroAssumptions]);
     const demandAssumption = useMemo(() => latestOf(macroAssumptions, 'demand'), [macroAssumptions]);
@@ -230,6 +231,14 @@ export default function MacroShieldSimulator({ currency, transactions, loans, fi
                         This assumes ALL your costs rise together, not just the ones actually affected — a rough, worst-case estimate, not an exact forecast.
                         {revenueImpactPct > 0 && ' The revenue drop is your own estimate, not calculated from the sliders above.'}
                     </Text>
+
+                    <TouchableOpacity
+                        style={s.detailLink}
+                        onPress={() => onSeeFullImpact({ inflationPct, fxDevaluationPct, revenueImpactPct })}
+                        activeOpacity={0.7}
+                    >
+                        <Text style={s.detailLinkText}>See full month-by-month impact, and what to do about it →</Text>
+                    </TouchableOpacity>
                 </View>
             )}
         </View>
@@ -267,4 +276,7 @@ const s = StyleSheet.create({
     reserveNote: { fontSize: 11.5, color: Colors.warning, marginTop: 6, lineHeight: 16 },
 
     caveat: { fontSize: 10.5, color: Colors.textMuted, fontStyle: 'italic', marginTop: Spacing.sm, lineHeight: 15 },
+
+    detailLink: { marginTop: Spacing.md, paddingTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.border },
+    detailLinkText: { fontSize: 12, fontWeight: '700', color: Colors.primary },
 });

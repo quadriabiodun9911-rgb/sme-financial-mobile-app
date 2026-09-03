@@ -44,6 +44,7 @@ import BusinessPassportScreen from './src/screens/BusinessPassportScreen';
 import ScoreboardScreen from './src/screens/ScoreboardScreen';
 import RiskManagementScreen from './src/screens/RiskManagementScreen';
 import MacroAssumptionsScreen from './src/screens/MacroAssumptionsScreen';
+import MacroShieldDetailScreen from './src/screens/MacroShieldDetailScreen';
 import FutureEventsScreen from './src/screens/FutureEventsScreen';
 import FinancialAssessmentScreen from './src/screens/FinancialAssessmentScreen';
 import ActionTrackerScreen from './src/screens/ActionTrackerScreen';
@@ -201,6 +202,7 @@ function NavigatorContent() {
             {currentScreen === 'scoreboard'    && <ScoreboardScreen />}
             {currentScreen === 'risk-management' && <RiskManagementScreen />}
             {currentScreen === 'macro-assumptions' && <MacroAssumptionsScreen />}
+            {currentScreen === 'macroshield-detail' && <MacroShieldDetailScreen />}
             {currentScreen === 'future-events' && <FutureEventsScreen />}
             {currentScreen === 'financial-assessment' && <FinancialAssessmentScreen />}
             {currentScreen === 'action-tracker' && <ActionTrackerScreen />}

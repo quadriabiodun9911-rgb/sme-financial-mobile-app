@@ -121,7 +121,7 @@ const EXTERNAL_ACCOUNTANT_ALLOWED_SCREENS: Screen[] = [
     'dashboard', 'reports', 'transactions', 'reconciliation', 'import-transactions',
     'scoreboard', 'cashflow', 'analysis', 'future-statements', 'insights',
     'business-passport', 'financial-assessment', 'financial-health',
-    'risk-management', 'macro-assumptions', 'audit-log', 'business-timeline', 'data-integrity',
+    'risk-management', 'macro-assumptions', 'macroshield-detail', 'audit-log', 'business-timeline', 'data-integrity',
 ];
 
 // Screens a pure viewer can open -- EXTERNAL_ACCOUNTANT_ALLOWED_SCREENS

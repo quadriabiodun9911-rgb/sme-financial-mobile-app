@@ -1133,6 +1133,11 @@ export default function DashboardScreen() {
                     minReserve={parseFloat(settings?.minReserve || '') || DEFAULT_THRESHOLDS.lowCashThreshold}
                     macroAssumptions={settings?.macroAssumptions ?? []}
                     onAddMacroAssumption={() => setCurrentScreen('macro-assumptions')}
+                    onSeeFullImpact={(shock) => navigate('macroshield-detail', {
+                        macroShieldInflationPct: shock.inflationPct,
+                        macroShieldFxDevaluationPct: shock.fxDevaluationPct,
+                        macroShieldRevenueImpactPct: shock.revenueImpactPct,
+                    })}
                   />
                 )}
 

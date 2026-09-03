@@ -45,7 +45,8 @@ export type Screen =
     | 'security-center'
     | 'business-timeline'
     | 'data-permission-centre'
-    | 'before-you-decide';
+    | 'before-you-decide'
+    | 'macroshield-detail';
 
 export interface Budget {
     id: string;
@@ -387,6 +388,12 @@ export interface NavParams {
     openWeeklyReport?: boolean; // open the Weekly Dashboard modal on the Dashboard screen
     openMonthlyReview?: boolean; // open the Monthly Review modal on the Dashboard screen
     openDailyReport?: boolean; // open the Daily (End of Day) Report modal on the Dashboard screen
+    // Carries the exact scenario the owner was testing on the Dashboard's
+    // MacroShield card into macroshield-detail, so the detail page never
+    // shows a different shock than the one just explored.
+    macroShieldInflationPct?: number;
+    macroShieldFxDevaluationPct?: number;
+    macroShieldRevenueImpactPct?: number;
     // Payment link pre-fill from invoice
     amount?: number;
     description?: string;
