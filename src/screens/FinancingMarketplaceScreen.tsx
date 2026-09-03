@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { SafeAreaView, ScrollView, View, Text, TouchableOpacity, StyleSheet, TextInput } from 'react-native';
+import { SafeAreaView, ScrollView, View, Text, TouchableOpacity, StyleSheet, TextInput, Animated, Easing } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { Spacing, Radius } from '../theme/tokens';
@@ -196,6 +196,29 @@ function ProductCard({ result, currency, expanded, onToggle }: { result: Financi
                 </View>
             )}
         </ExpandableCard>
+    );
+}
+
+// One factor's fill bar in the "What lenders would see" breakdown -- owns
+// its own Animated.Value so it grows in independently, matching the motion
+// language used for the equivalent factor bars on Credit-Worthiness.
+function FactorBar({ pct, color }: { pct: number; color: string }) {
+    const anim = useRef(new Animated.Value(0)).current;
+    useEffect(() => {
+        Animated.timing(anim, {
+            toValue: Math.min(Math.max(pct, 0), 100),
+            duration: 500,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: false,
+        }).start();
+    }, [pct]);
+    return (
+        <View style={s.factorRowTrack}>
+            <Animated.View style={[s.factorRowFill, {
+                backgroundColor: color,
+                width: anim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }),
+            }]} />
+        </View>
     );
 }
 
@@ -682,12 +705,10 @@ export default function FinancingMarketplaceScreen() {
                             {risk.factors.map(f => (
                                 <View key={f.name} style={s.factorRow}>
                                     <Text style={s.factorRowName}>{f.name}</Text>
-                                    <View style={s.factorRowTrack}>
-                                        <View style={[s.factorRowFill, {
-                                            width: `${f.score}%` as any,
-                                            backgroundColor: f.status === 'good' ? Colors.income : f.status === 'warning' ? Colors.warning : Colors.expense,
-                                        }]} />
-                                    </View>
+                                    <FactorBar
+                                        pct={f.score}
+                                        color={f.status === 'good' ? Colors.income : f.status === 'warning' ? Colors.warning : Colors.expense}
+                                    />
                                     <Text style={s.factorRowScore}>{f.score}</Text>
                                 </View>
                             ))}

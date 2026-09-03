@@ -91,6 +91,28 @@ const GOAL_STATUS_META: Record<GoalStatus, { label: string; color: string }> = {
  * screen, and links onward to each one's full detail screen rather than
  * duplicating it.
  */
+// One active goal's progress bar -- owns its own Animated.Value so it grows
+// in independently, matching the motion language used elsewhere.
+function GoalBar({ pct, color }: { pct: number; color: string }) {
+    const anim = useRef(new Animated.Value(0)).current;
+    useEffect(() => {
+        Animated.timing(anim, {
+            toValue: Math.min(100, Math.max(0, pct)),
+            duration: 600,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: false,
+        }).start();
+    }, [pct]);
+    return (
+        <View style={s.goalBarTrack}>
+            <Animated.View style={[s.goalBarFill, {
+                backgroundColor: color,
+                width: anim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }),
+            }]} />
+        </View>
+    );
+}
+
 export default function ScoreboardScreen() {
     const { transactions, invoices, loans, inventory, finance, settings, goals, readinessHistory, navigate, setCurrentScreen, assets } = useApp();
     const { currency } = settings;
@@ -585,9 +607,7 @@ export default function ScoreboardScreen() {
                                                 </View>
                                             )}
                                         </View>
-                                        <View style={s.goalBarTrack}>
-                                            <View style={[s.goalBarFill, { width: `${Math.min(100, Math.max(0, g.progress))}%`, backgroundColor: GOAL_STATUS_META[g.status].color }]} />
-                                        </View>
+                                        <GoalBar pct={g.progress} color={GOAL_STATUS_META[g.status].color} />
                                     </View>
                                 );
                             })}
