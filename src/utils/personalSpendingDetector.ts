@@ -79,11 +79,21 @@ const CELEBRATION_RULE_EXCLUDED_INDUSTRIES = new Set(['retail', 'food-service', 
 const GROOMING_RULE = { keywords: ['salon', 'spa', 'barbing', 'barber', 'hairdresser', 'manicure', 'pedicure'], reason: 'Looks like personal grooming' };
 const GROOMING_RULE_EXCLUDED_INDUSTRIES = new Set(['retail', 'professional-services']);
 
+// Same reasoning again: a gym or fitness club's own trade name typically
+// IS "... Fitness Club" or "... Gym", so its normal expense descriptions
+// -- "Fitness Club rent", "Fitness Club equipment maintenance", "Gym
+// membership management software" -- carry the exact phrases meant to
+// catch an owner expensing their own personal gym membership. Closest fit
+// is Professional Services (a fitness/training service), with Retail
+// plausible if supplements or gym wear are sold too -- same exclusion set
+// as GROOMING_RULE, the closest analogous business shape.
+const FITNESS_RULE = { keywords: ['gym membership', 'fitness club'], reason: 'Looks like a personal gym/fitness expense' };
+const FITNESS_RULE_EXCLUDED_INDUSTRIES = new Set(['retail', 'professional-services']);
+
 const PERSONAL_RULES: { keywords: string[]; reason: string }[] = [
     { keywords: ['school fees', 'school fee', 'tuition'], reason: 'Looks like a school-fees payment' },
     { keywords: ['family support', 'family upkeep', 'send family', 'family expense', 'family feeding'], reason: 'Looks like a family expense' },
     { keywords: ['netflix', 'spotify', 'dstv', 'gotv', 'showmax', 'amazon prime', 'apple music'], reason: 'Looks like a personal entertainment subscription' },
-    { keywords: ['gym membership', 'fitness club'], reason: 'Looks like a personal gym/fitness expense' },
     { keywords: ['personal shopping', 'personal purchase'], reason: 'Looks like personal shopping' },
     { keywords: ['home rent', 'apartment rent', 'house rent', 'residential rent'], reason: 'Looks like personal (home) rent, not business rent' },
     { keywords: ['owner withdrawal', 'personal withdrawal', 'director drawing', "owner's drawing", 'proprietor drawing', "owner's personal"], reason: 'Recorded as an owner drawing from the business' },
@@ -100,9 +110,10 @@ function normalise(s: string): string {
  * @param industry settings.industry -- gates out the nightlife rule for a
  * food-service business (see NIGHTLIFE_RULE's own comment), the
  * celebration rule for Retail/Food Service/Professional Services (see
- * CELEBRATION_RULE's own comment), and the grooming rule for Retail/
- * Professional Services (see GROOMING_RULE's own comment). Every other
- * industry, and the unset/undefined default, keeps all three rules active.
+ * CELEBRATION_RULE's own comment), and the grooming and fitness rules for
+ * Retail/Professional Services (see GROOMING_RULE/FITNESS_RULE's own
+ * comments). Every other industry, and the unset/undefined default, keeps
+ * all four rules active.
  */
 export function detectPersonalSpending(transactions: Transaction[], currency: string = '₦', dismissedIds: string[] = [], industry?: string): PersonalSpendingReport {
     const dismissed = new Set(dismissedIds);
@@ -112,6 +123,7 @@ export function detectPersonalSpending(transactions: Transaction[], currency: st
     if (industry !== 'food-service') rules.push(NIGHTLIFE_RULE);
     if (!industry || !CELEBRATION_RULE_EXCLUDED_INDUSTRIES.has(industry)) rules.push(CELEBRATION_RULE);
     if (!industry || !GROOMING_RULE_EXCLUDED_INDUSTRIES.has(industry)) rules.push(GROOMING_RULE);
+    if (!industry || !FITNESS_RULE_EXCLUDED_INDUSTRIES.has(industry)) rules.push(FITNESS_RULE);
 
     for (const t of transactions) {
         if (t.type !== 'expense' || dismissed.has(t.id)) continue;

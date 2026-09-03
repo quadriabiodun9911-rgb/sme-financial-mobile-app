@@ -161,4 +161,36 @@ describe('detectPersonalSpending', () => {
         const report = detectPersonalSpending(txs, '₦', [], 'retail');
         expect(report.flaggedCount).toBe(1);
     });
+
+    it('flags fitness-sounding spending by default (no industry given)', () => {
+        const txs = [makeTx({ id: 'a', description: 'Monthly gym membership', amount: 15000 })];
+        const report = detectPersonalSpending(txs, '₦', [], undefined);
+        expect(report.flaggedCount).toBe(1);
+    });
+
+    it('flags fitness-sounding spending for food-service and manufacturing, where it has no legitimate business reading', () => {
+        for (const industry of ['food-service', 'manufacturing']) {
+            const txs = [makeTx({ id: 'a', description: 'Fitness club dues', amount: 12000 })];
+            const report = detectPersonalSpending(txs, '₦', [], industry);
+            expect(report.flaggedCount).toBe(1);
+        }
+    });
+
+    it('does not flag a gym & fitness business\'s own trade-name/operating expenses, across the industries it could plausibly register under', () => {
+        const txs = [
+            makeTx({ id: 'a', description: 'Fitness Club rent', amount: 250000 }),
+            makeTx({ id: 'b', description: 'Fitness Club equipment maintenance', amount: 80000 }),
+            makeTx({ id: 'c', description: 'Gym membership management software', amount: 30000 }),
+        ];
+        for (const industry of ['retail', 'professional-services']) {
+            const report = detectPersonalSpending(txs, '₦', [], industry);
+            expect(report.flaggedCount).toBe(0);
+        }
+    });
+
+    it('still flags genuinely unrelated personal spending for a fitness-plausible industry', () => {
+        const txs = [makeTx({ id: 'a', description: 'Home rent payment', amount: 300000 })];
+        const report = detectPersonalSpending(txs, '₦', [], 'professional-services');
+        expect(report.flaggedCount).toBe(1);
+    });
 });
