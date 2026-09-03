@@ -611,6 +611,9 @@ export default function InventoryScreen() {
                                     <Text style={styles.inventoryHealthBadgeText}>{inventoryHealth.score}/100</Text>
                                 </View>
                             </View>
+                            <Text style={styles.cardSubtitle}>
+                                How much of your stock's VALUE is stuck not selling — a cash-flow question, not a running-out-of-stock one (see Stock Health below for that).
+                            </Text>
                             <Text style={styles.intelligenceAdvisory}>{inventoryHealth.narrative}</Text>
 
                             {inventoryHealth.topDecisions.length > 0 && (
@@ -808,6 +811,9 @@ export default function InventoryScreen() {
                         {/* Stock Health Score */}
                         <View style={styles.analyticsCard}>
                             <Text style={styles.analyticsCardTitle}>Stock Health</Text>
+                            <Text style={styles.cardSubtitle}>
+                                How close you are to running OUT of things — counts items low or out of stock. A different question from Inventory Health above, which is about cash tied up in stock that isn't selling.
+                            </Text>
                             <View style={styles.healthRow}>
                                 <Text style={[styles.healthScore, { color: healthColor }]}>{stockHealth}</Text>
                                 <Text style={styles.healthOutOf}>/100</Text>
@@ -1454,6 +1460,10 @@ const styles = StyleSheet.create({
     // Analytics
     analyticsCard:      { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 14, marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     analyticsCardTitle: { fontSize: 14, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 10 },
+    // Distinguishes Inventory Health from Stock Health -- two separately
+    // computed scores that otherwise sit right next to each other on this
+    // tab with near-identical names, easy to mistake for duplicates.
+    cardSubtitle: { fontSize: 11.5, color: Colors.textMuted, marginTop: -6, marginBottom: 8, lineHeight: 15, fontStyle: 'italic' },
     inventoryHealthHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
     inventoryHealthBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
     inventoryHealthBadgeText: { fontSize: 12, fontWeight: '800', color: '#fff' },
