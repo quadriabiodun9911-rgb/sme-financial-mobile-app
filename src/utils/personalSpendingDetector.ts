@@ -67,10 +67,21 @@ const NIGHTLIFE_RULE = { keywords: ['nightclub', 'night club', 'lounge', 'bar ta
 const CELEBRATION_RULE = { keywords: ['owambe', 'birthday party', 'wedding contribution', 'aso ebi', 'wedding gift'], reason: 'Looks like a personal social/celebration expense' };
 const CELEBRATION_RULE_EXCLUDED_INDUSTRIES = new Set(['retail', 'food-service', 'professional-services']);
 
+// Same reasoning again: "salon"/"spa"/"barbing"/"barber"/"hairdresser"/
+// "manicure"/"pedicure" are the core vocabulary of a salon & beauty
+// business's own expenses -- "Salon chair repair", "Barbing clippers
+// restock", "Spa towels and product supplies", "Hairdresser training
+// course" are real operating costs, not the owner treating themselves.
+// That business sells a personal-care SERVICE (closest fit: Professional
+// Services) but may also register as Retail if beauty products are a real
+// part of the business. Food Service and Manufacturing keep this rule
+// active -- neither has a plausible reading for this vocabulary.
+const GROOMING_RULE = { keywords: ['salon', 'spa', 'barbing', 'barber', 'hairdresser', 'manicure', 'pedicure'], reason: 'Looks like personal grooming' };
+const GROOMING_RULE_EXCLUDED_INDUSTRIES = new Set(['retail', 'professional-services']);
+
 const PERSONAL_RULES: { keywords: string[]; reason: string }[] = [
     { keywords: ['school fees', 'school fee', 'tuition'], reason: 'Looks like a school-fees payment' },
     { keywords: ['family support', 'family upkeep', 'send family', 'family expense', 'family feeding'], reason: 'Looks like a family expense' },
-    { keywords: ['salon', 'spa', 'barbing', 'barber', 'hairdresser', 'manicure', 'pedicure'], reason: 'Looks like personal grooming' },
     { keywords: ['netflix', 'spotify', 'dstv', 'gotv', 'showmax', 'amazon prime', 'apple music'], reason: 'Looks like a personal entertainment subscription' },
     { keywords: ['gym membership', 'fitness club'], reason: 'Looks like a personal gym/fitness expense' },
     { keywords: ['personal shopping', 'personal purchase'], reason: 'Looks like personal shopping' },
@@ -87,10 +98,11 @@ function normalise(s: string): string {
  * confirmed are real business spending -- excluded from the report so a
  * false positive doesn't keep nagging every time the list re-renders.
  * @param industry settings.industry -- gates out the nightlife rule for a
- * food-service business (see NIGHTLIFE_RULE's own comment) and the
+ * food-service business (see NIGHTLIFE_RULE's own comment), the
  * celebration rule for Retail/Food Service/Professional Services (see
- * CELEBRATION_RULE's own comment). Every other industry, and the
- * unset/undefined default, keeps both rules active.
+ * CELEBRATION_RULE's own comment), and the grooming rule for Retail/
+ * Professional Services (see GROOMING_RULE's own comment). Every other
+ * industry, and the unset/undefined default, keeps all three rules active.
  */
 export function detectPersonalSpending(transactions: Transaction[], currency: string = '₦', dismissedIds: string[] = [], industry?: string): PersonalSpendingReport {
     const dismissed = new Set(dismissedIds);
@@ -99,6 +111,7 @@ export function detectPersonalSpending(transactions: Transaction[], currency: st
     const rules = [...PERSONAL_RULES];
     if (industry !== 'food-service') rules.push(NIGHTLIFE_RULE);
     if (!industry || !CELEBRATION_RULE_EXCLUDED_INDUSTRIES.has(industry)) rules.push(CELEBRATION_RULE);
+    if (!industry || !GROOMING_RULE_EXCLUDED_INDUSTRIES.has(industry)) rules.push(GROOMING_RULE);
 
     for (const t of transactions) {
         if (t.type !== 'expense' || dismissed.has(t.id)) continue;

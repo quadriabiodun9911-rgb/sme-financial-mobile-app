@@ -127,4 +127,38 @@ describe('detectPersonalSpending', () => {
         const report = detectPersonalSpending(txs, '₦', [], 'professional-services');
         expect(report.flaggedCount).toBe(1);
     });
+
+    it('flags grooming-sounding spending by default (no industry given)', () => {
+        const txs = [makeTx({ id: 'a', description: 'Salon visit', amount: 20000 })];
+        const report = detectPersonalSpending(txs, '₦', [], undefined);
+        expect(report.flaggedCount).toBe(1);
+    });
+
+    it('flags grooming-sounding spending for food-service and manufacturing, where it has no legitimate business reading', () => {
+        for (const industry of ['food-service', 'manufacturing']) {
+            const txs = [makeTx({ id: 'a', description: 'Barber shop visit', amount: 8000 })];
+            const report = detectPersonalSpending(txs, '₦', [], industry);
+            expect(report.flaggedCount).toBe(1);
+        }
+    });
+
+    it('does not flag a salon & beauty business\'s own grooming-supply/equipment operating expenses, across the industries it could plausibly register under', () => {
+        const txs = [
+            makeTx({ id: 'a', description: 'Salon chair repair', amount: 45000 }),
+            makeTx({ id: 'b', description: 'Barbing clippers restock', amount: 30000 }),
+            makeTx({ id: 'c', description: 'Spa towels and product supplies', amount: 60000 }),
+            makeTx({ id: 'd', description: 'Hairdresser training course', amount: 25000 }),
+            makeTx({ id: 'e', description: 'Manicure and pedicure supplies restock', amount: 15000 }),
+        ];
+        for (const industry of ['retail', 'professional-services']) {
+            const report = detectPersonalSpending(txs, '₦', [], industry);
+            expect(report.flaggedCount).toBe(0);
+        }
+    });
+
+    it('still flags genuinely unrelated personal spending for a salon-plausible industry', () => {
+        const txs = [makeTx({ id: 'a', description: 'School fees for the kids', amount: 150000 })];
+        const report = detectPersonalSpending(txs, '₦', [], 'retail');
+        expect(report.flaggedCount).toBe(1);
+    });
 });
