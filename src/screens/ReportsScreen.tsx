@@ -122,6 +122,18 @@ export default function ReportsScreen() {
     const [section, setSection]       = useState<SectionKey>('statements');
     const [activeTab, setActiveTab]   = useState<SubTab>('balancesheet');
 
+    // A business registered as pure "Service" (not "Product"/"Both") has no
+    // physical stock, by definition -- Stock and Best Products are a
+    // permanent dead end for it, not tabs that just happen to be empty
+    // today. Filters the STATIC SECTION_TABS definition at render time
+    // rather than forking it, so every other lookup against SECTION_TABS
+    // (deep-link validation, section switching) stays a single source of
+    // truth.
+    const isServiceOnly = settings?.businessType === 'service';
+    const visibleTabsFor = (s: SectionKey) => isServiceOnly
+        ? SECTION_TABS[s].filter(t => t.key !== 'inventory' && t.key !== 'products')
+        : SECTION_TABS[s];
+
     // Fires on every tab switch, including the initial default tab, so it's
     // one effect rather than adding a track call to each of the ~20 tab
     // buttons individually.
@@ -238,10 +250,10 @@ export default function ReportsScreen() {
             const validSection = SECTIONS.find(sec => sec.key === s);
             if (!validSection) return;
             setSection(s);
-            if (navParams.reportTab && SECTION_TABS[s].some((t: { key: SubTab; label: string }) => t.key === navParams.reportTab)) {
+            if (navParams.reportTab && visibleTabsFor(s).some((t: { key: SubTab; label: string }) => t.key === navParams.reportTab)) {
                 setActiveTab(navParams.reportTab as SubTab);
             } else {
-                setActiveTab(SECTION_TABS[s][0].key);
+                setActiveTab(visibleTabsFor(s)[0].key);
             }
             setShowLanding(false);
         }
@@ -249,10 +261,12 @@ export default function ReportsScreen() {
     }, []);
 
     const periodActive = PERIOD_AWARE.includes(activeTab);
-    const visibleSections = SECTIONS;
+    const visibleSections = isServiceOnly
+        ? SECTIONS.map(s => s.key === 'statements' ? { ...s, desc: 'Balance Sheet, P&L, Cash Flow' } : s)
+        : SECTIONS;
 
     const handleSectionChange = (s: SectionKey) => {
-        const tabs = SECTION_TABS[s] ?? SECTION_TABS.statements;
+        const tabs = visibleTabsFor(SECTION_TABS[s] ? s : 'statements');
         setSection(SECTION_TABS[s] ? s : 'statements');
         setActiveTab(tabs[0].key);
     };
@@ -444,7 +458,7 @@ export default function ReportsScreen() {
                 style={styles.subTabBar}
                 contentContainerStyle={styles.subTabContent}
             >
-                {SECTION_TABS[section].map(tab => (
+                {visibleTabsFor(section).map(tab => (
                     <TouchableOpacity
                         key={tab.key}
                         style={[styles.subTab, activeTab === tab.key && styles.subTabActive]}

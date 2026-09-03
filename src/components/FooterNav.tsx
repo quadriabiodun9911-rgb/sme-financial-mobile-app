@@ -114,7 +114,7 @@ const TABS: { label: string; screen: Screen; icon: IconName }[] = [
 ];
 
 export default function FooterNav() {
-    const { currentScreen, setCurrentScreen, navigate, user, pendingSyncCount, transactions, goals, invoices, finance, userRole, canViewFinancials } = useApp();
+    const { currentScreen, setCurrentScreen, navigate, user, pendingSyncCount, transactions, goals, invoices, finance, userRole, canViewFinancials, settings } = useApp();
     const [moreOpen, setMoreOpen] = useState(false);
     // Modal renders via a portal on web (react-native-web), completely
     // outside App.tsx's centeredAppColumn wrapper -- so unlike every
@@ -168,7 +168,17 @@ export default function FooterNav() {
         [enableReports, userRole]
     );
 
-    const visibleUnderstand = useMemo(() => UNDERSTAND_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
+    // A business that registered as pure "Service" (no "Product"/"Both")
+    // has, by definition, no physical stock to hold -- Inventory is a
+    // permanent dead end for it, not a screen that's merely empty today.
+    // Gated on the explicit choice, not on inventory.length, so a service
+    // business that hasn't logged any items yet doesn't lose the entry
+    // point it would actually need the first time it does.
+    const isServiceOnly = settings?.businessType === 'service';
+    const visibleUnderstand = useMemo(
+        () => UNDERSTAND_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole) && !(isServiceOnly && i.screen === 'inventory')),
+        [userRole, isServiceOnly],
+    );
     const visibleAnticipate = useMemo(() => ANTICIPATE_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
     const visibleDecide = useMemo(() => DECIDE_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
     const visibleImprove = useMemo(() => IMPROVE_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);

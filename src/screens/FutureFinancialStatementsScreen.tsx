@@ -612,7 +612,12 @@ export default function FutureFinancialStatementsScreen() {
                             </View>
                         )}
 
-                        {/* Inventory Forecast */}
+                        {/* Inventory Forecast -- a pure "Service" business
+                            (settings.businessType) has no physical stock, by
+                            definition; showing this card would only ever
+                            read ₦0 across every row, a permanent irrelevant
+                            card rather than one that's just empty today. */}
+                        {!(settings?.businessType === 'service' && inventory.length === 0) && (
                         <View style={s.card}>
                             <Text style={s.cardTitle}>📦 Inventory Forecast</Text>
                             <Row label="Current inventory value" value={fmt(forecastSummary.inventoryForecast.currentInventoryValue)} />
@@ -632,6 +637,7 @@ export default function FutureFinancialStatementsScreen() {
                                 </Text>
                             )}
                         </View>
+                        )}
 
                         {/* Financial Health Forecast */}
                         <View style={s.card}>
