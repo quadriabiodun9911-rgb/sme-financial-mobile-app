@@ -182,12 +182,12 @@ const styles = StyleSheet.create({
     emptyText: { fontSize: 13, color: Colors.textMuted, lineHeight: 19 },
 
     scenarioCard: {
-        backgroundColor: Colors.warning + '14', borderRadius: Radius.lg, padding: Spacing.lg, marginBottom: Spacing.lg,
-        borderWidth: 1, borderColor: Colors.warning,
+        backgroundColor: Colors.primary + '0d', borderRadius: Radius.lg, padding: Spacing.lg, marginBottom: Spacing.lg,
+        borderWidth: 1, borderColor: Colors.primary + '33',
     },
-    scenarioTitle: { fontSize: 12, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
-    scenarioChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 },
-    scenarioChip: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary, backgroundColor: Colors.surface, borderRadius: Radius.pill, paddingVertical: 5, paddingHorizontal: 10, borderWidth: 1, borderColor: Colors.border },
+    scenarioTitle: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 10 },
+    scenarioChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+    scenarioChip: { fontSize: 12.5, fontWeight: '700', color: Colors.primary, backgroundColor: Colors.surface, borderRadius: Radius.pill, paddingVertical: 6, paddingHorizontal: 12, borderWidth: 1, borderColor: Colors.primary + '33' },
     scenarioSub: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
 
     hint: { fontSize: 11, color: Colors.textMuted, marginTop: Spacing.sm, lineHeight: 15 },

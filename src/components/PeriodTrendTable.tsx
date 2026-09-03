@@ -75,11 +75,20 @@ export default function PeriodTrendTable({ columns, rows, labelColumnWidth = 140
                     <Text style={s.rowLabelHeader}>Breakdown</Text>
                 </View>
                 {rows.map(row => {
+                    // A row with getSubValue renders a second line under the
+                    // main figure on the scrolling side (see below) -- since
+                    // the frozen column and the scrolling columns are two
+                    // separate view trees, a row that's taller on one side
+                    // than the other drifts the two out of alignment for
+                    // every row beneath it. This invisible spacer keeps both
+                    // sides the same height without needing to measure
+                    // actual rendered heights.
                     const content = (
                         <View style={[rowContainerStyle(row), s.cell, { width: labelColumnWidth, alignItems: 'flex-start' }, row.indent && s.rowLabelIndent]}>
                             <Text style={[s.rowLabel, row.bold && s.rowLabelBold, row.muted && s.rowLabelMuted]} numberOfLines={1}>
                                 {row.label}
                             </Text>
+                            {row.getSubValue && <Text style={s.subValSpacer}> </Text>}
                         </View>
                     );
                     return row.onPress ? (
@@ -148,4 +157,5 @@ const s = StyleSheet.create({
     valBold: { fontWeight: '700' },
     valMuted: { color: Colors.textMuted, fontStyle: 'italic', fontSize: 11.5 },
     subVal: { fontSize: 10.5, color: Colors.textMuted, fontStyle: 'italic', fontVariant: ['tabular-nums'], marginTop: 2 },
+    subValSpacer: { fontSize: 10.5, marginTop: 2, opacity: 0 },
 });
