@@ -30,8 +30,14 @@ import { convertToBaseCurrency } from '../utils/foreignCurrency';
 type FilterType   = 'all' | 'income' | 'expense' | 'collect';
 type StatusFilter = 'all' | 'paid' | 'pending' | 'overdue';
 
+// A generic-enough starting point for any industry -- not exhaustive for
+// any of them (a retailer's "Product Sales", a restaurant's "Food Sales",
+// a manufacturer's "Raw Materials" all need their own wording), which is
+// exactly why the category field below also accepts free text: this list
+// is a convenience shortlist, never the only categories a transaction can
+// carry.
 const CATEGORIES: string[] = [
-    'Software sales', 'Consulting', 'Personnel expenses', 'Marketing',
+    'Sales', 'Consulting', 'Rent', 'Personnel expenses', 'Marketing',
     'Office & Admin', 'Equipment', 'Travel', 'Utilities', 'Tax', 'Other',
 ];
 
@@ -56,6 +62,7 @@ type FormState = {
     originalCurrencyCode: string;
     originalAmount: string;
     exchangeRate: string;
+    customCategory: string;
 };
 
 // Common trading currencies an SME actually gets paid or pays suppliers in --
@@ -109,6 +116,7 @@ const EMPTY_FORM: FormState = {
     originalCurrencyCode: FOREIGN_CURRENCY_CODES[0],
     originalAmount: '',
     exchangeRate: '',
+    customCategory: '',
 };
 
 function formFromTx(tx: Transaction): FormState {
@@ -131,6 +139,7 @@ function formFromTx(tx: Transaction): FormState {
         originalCurrencyCode: tx.originalCurrencyCode ?? FOREIGN_CURRENCY_CODES[0],
         originalAmount:      tx.originalAmount != null ? String(tx.originalAmount) : '',
         exchangeRate:        tx.exchangeRate != null ? String(tx.exchangeRate) : '',
+        customCategory:      '',
     };
 }
 
@@ -362,7 +371,7 @@ export default function TransactionsScreen() {
             description:        form.description.trim(),
             amount:             amt,
             type:               form.type,
-            category:           form.category,
+            category:           form.customCategory.trim() || form.category || 'Other',
             reference:          form.reference || undefined,
             vendorCustomer:     joinVendorCustomer(form.vendorCustomer, form.phone) || undefined,
             taxRate:            taxRateNum,
@@ -996,12 +1005,29 @@ export default function TransactionsScreen() {
                                         <TouchableOpacity
                                             key={c}
                                             style={[styles.opt, form.category === c && styles.optActive]}
-                                            onPress={() => setForm(f => ({ ...f, category: c }))}
+                                            onPress={() => setForm(f => ({ ...f, category: c, customCategory: '' }))}
                                         >
                                             <Text style={[styles.optText, form.category === c && styles.optTextActive]}>{c}</Text>
                                         </TouchableOpacity>
                                     ))}
                                 </View>
+                                {/* This fixed list was written around a professional-
+                                    services/software business's own categories --
+                                    "Software sales", "Consulting" -- and has no
+                                    equivalent for a retailer's "Product Sales", a
+                                    restaurant's "Food Sales", a manufacturer's "Raw
+                                    Materials", and so on, with no way to type one in
+                                    instead. Same "pick a preset OR type your own"
+                                    pattern BudgetScreen's category picker already
+                                    uses, so every industry -- not just the ones this
+                                    list happens to fit -- can name its own category. */}
+                                <TextInput
+                                    style={[styles.input, { marginTop: Spacing.sm }]}
+                                    placeholder="Or type your own category..."
+                                    placeholderTextColor={Colors.muted}
+                                    value={form.customCategory}
+                                    onChangeText={v => setForm(f => ({ ...f, customCategory: v, category: v ? '' : f.category }))}
+                                />
                             </Section>
 
                             {/* ── Tax ───────────────────────────────────── */}
