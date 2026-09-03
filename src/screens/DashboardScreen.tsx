@@ -42,7 +42,7 @@ import NextStepLink from '../components/NextStepLink';
 import { buildFinancingFitInput } from '../utils/financingFit';
 import { recommendFinancingTypes } from '../utils/financingRecommendation';
 import { computeReadinessDelta } from '../utils/readinessHistory';
-import { notifyFinancingOpportunity, notifyFinancingQualificationProgress, notifyOverdueRemindersDue, notifyLoanPaymentDueSoon, notifyPayrollDue, notifyOverdueTransactionsFound, notifyTaxDeadline, notifyGoalAlerts, notifyRecurringTransactionAlerts, notifyBudgetPeriodLapsed, notifyAssetsNearingReplacement, notifyStockoutRisk, notifyTaxAbilityToPayShortfall, notifySlowMovingStock, requestNotificationPermission, scheduleWeeklySummaryReminder, scheduleDailyReminder, scheduleMorningBriefing, scheduleEveningRecap, scheduleMonthlyBrief } from '../utils/notifications';
+import { notifyFinancingOpportunity, notifyFinancingQualificationProgress, notifyOverdueRemindersDue, notifyLoanPaymentDueSoon, notifyPayrollDue, notifyOverdueTransactionsFound, notifyTaxDeadline, notifyGoalAlerts, notifyRecurringTransactionAlerts, notifyBudgetPeriodLapsed, notifyAssetsNearingReplacement, notifyStockoutRisk, notifyTaxAbilityToPayShortfall, notifySlowMovingStock, notifyLowCashRunway, notifyRisingCostCategory, requestNotificationPermission, scheduleWeeklySummaryReminder, scheduleDailyReminder, scheduleMorningBriefing, scheduleEveningRecap, scheduleMonthlyBrief } from '../utils/notifications';
 import { computeWeekdayPattern } from '../utils/weekdayPattern';
 import { buildDailyBriefing } from '../utils/dailyBriefing';
 import { buildDailyRecap } from '../utils/dailyRecap';
@@ -60,6 +60,7 @@ import { computeAssetsNearingReplacement, computeAssetCurrentValue, getMonthlyEx
 import { computeBusinessHealthIntelligence } from '../utils/metricIntelligence';
 import { computeStockVelocity, computeInventoryValue } from '../utils/stockVelocity';
 import { computeDataQuality } from '../utils/dataQuality';
+import { computeCostExposure, MODEL as COST_EXPOSURE_MODEL } from '../utils/costExposure';
 import { categorizeTransactionAI, AICategorizationResult } from '../utils/aiCategorization';
 import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
 import { computeTaxAbilityToPay } from '../utils/taxFilingReadiness';
@@ -937,6 +938,26 @@ export default function DashboardScreen() {
     );
     const runwayDays = dashboardDailyBurn > 0 ? computedRunwayDays : null;
     const runwayColor = runwayDays === null ? Colors.income : runwayDays < 30 ? Colors.expense : runwayDays < 60 ? Colors.warning : Colors.income;
+
+    // Same <30-day threshold that already drives runwayColor above -- reuse
+    // it here rather than introduce a second, independently-tuned "low
+    // cash" number.
+    useEffect(() => {
+        if (isDemoMode || runwayDays === null || runwayDays >= 30) return;
+        notifyLowCashRunway(runwayDays, settings?.currency ?? '₦', finance.cashBalance).catch(() => {});
+    }, [isDemoMode, runwayDays, settings?.currency, finance.cashBalance]);
+
+    // Reuses costExposure.ts's own significance gate (MODEL.breadthThresholdPctPoints)
+    // for "is this category's shift big enough to interrupt someone about" --
+    // the same 2-point-of-revenue bar the Cost Exposure tab itself uses to
+    // flag a category, rather than a separately tuned notification threshold.
+    const costExposure = useMemo(() => computeCostExposure(transactions), [transactions]);
+    useEffect(() => {
+        if (isDemoMode || !costExposure.available) return;
+        const top = costExposure.topCategory;
+        if (!top || top.pctPointChange <= COST_EXPOSURE_MODEL.breadthThresholdPctPoints) return;
+        notifyRisingCostCategory(top.category, top.pctPointChange, top.currentPctOfRevenue).catch(() => {});
+    }, [isDemoMode, costExposure]);
 
     // Last 30 days of cash balance, reconstructed by walking today's real
     // balance (finance.cashBalance) backward through paid transactions in

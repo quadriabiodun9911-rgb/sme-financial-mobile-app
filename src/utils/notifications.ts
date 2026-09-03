@@ -32,6 +32,8 @@ const KEYS = {
     stockoutRiskId: '@quad360/notif_stockout_risk_id',
     taxAbilityToPayId: '@quad360/notif_tax_ability_to_pay_id',
     slowMovingStockId: '@quad360/notif_slow_moving_stock_id',
+    lowCashRunwayId: '@quad360/notif_low_cash_runway_id',
+    risingCostCategoryId: '@quad360/notif_rising_cost_category_id',
     morningBriefingId: '@quad360/notif_morning_briefing_id',
     eveningRecapId: '@quad360/notif_evening_recap_id',
     monthlyBriefId: '@quad360/notif_monthly_brief_id',
@@ -440,6 +442,67 @@ export async function notifySlowMovingStock(count: number, totalValue: number, c
         });
 
         await AsyncStorage.setItem(KEYS.slowMovingStockId, Date.now().toString());
+    } catch {
+        // Fail silently
+    }
+}
+
+// Mirrors DashboardScreen's own Cash Runway gauge -- same <30-day threshold
+// that already turns the gauge red there (see runwayColor), so this never
+// introduces a second, independently-tuned number for "low." Throttled to
+// once a day, same reasoning as the other reminder notifications here: the
+// underlying runway figure barely moves hour to hour, so a fresh
+// notification on every recompute would just repeat itself all day.
+export async function notifyLowCashRunway(runwayDays: number, currency: string, cashBalance: number): Promise<void> {
+    try {
+        if (Platform.OS === 'web' || runwayDays >= 30) return;
+
+        const prevNotified = await AsyncStorage.getItem(KEYS.lowCashRunwayId);
+        if (prevNotified) {
+            const daysSinceLastNotif = (Date.now() - parseInt(prevNotified, 10)) / (1000 * 60 * 60 * 24);
+            if (daysSinceLastNotif < 1) return;
+        }
+
+        await Notifications.scheduleNotificationAsync({
+            content: {
+                title: 'Cash runway getting short ⏳',
+                body: `At your current burn rate, ${currency}${Math.round(cashBalance).toLocaleString()} in the bank covers about ${runwayDays} more day${runwayDays === 1 ? '' : 's'}. Worth slowing spend or chasing outstanding invoices.`,
+            },
+            trigger: null,
+        });
+
+        await AsyncStorage.setItem(KEYS.lowCashRunwayId, Date.now().toString());
+    } catch {
+        // Fail silently
+    }
+}
+
+// Mirrors Cost Exposure's own "which expense category is quietly eating a
+// bigger share of revenue" signal (costExposure.ts) -- the caller decides
+// how large a pctPointChange counts as worth interrupting the owner for
+// (see DashboardScreen's own call site, which matches costExposure.ts's own
+// MODEL.breadthThresholdPctPoints rather than picking a second, unrelated
+// number here); this function only guards against a non-positive change
+// (nothing rising, nothing to say) and throttles to once a day.
+export async function notifyRisingCostCategory(category: string, pctPointChange: number, currentPctOfRevenue: number): Promise<void> {
+    try {
+        if (Platform.OS === 'web' || pctPointChange <= 0) return;
+
+        const prevNotified = await AsyncStorage.getItem(KEYS.risingCostCategoryId);
+        if (prevNotified) {
+            const daysSinceLastNotif = (Date.now() - parseInt(prevNotified, 10)) / (1000 * 60 * 60 * 24);
+            if (daysSinceLastNotif < 1) return;
+        }
+
+        await Notifications.scheduleNotificationAsync({
+            content: {
+                title: `"${category}" is taking a bigger bite of revenue 📈`,
+                body: `Up ${pctPointChange.toFixed(1)} points to ${currentPctOfRevenue.toFixed(1)}% of revenue over the last 3 months. Check Cost Exposure for what's driving it.`,
+            },
+            trigger: null,
+        });
+
+        await AsyncStorage.setItem(KEYS.risingCostCategoryId, Date.now().toString());
     } catch {
         // Fail silently
     }
