@@ -59,13 +59,24 @@ const NIGHTLIFE_RULE = { keywords: ['nightclub', 'night club', 'lounge', 'bar ta
 // decor booking" are all real revenue-generating work, not a personal
 // celebration paid for from business funds. That business could plausibly
 // register under Retail (fabric/rental supplies), Food Service
-// (catering), or Professional Services (planning/coordination) -- none of
-// the five options fits "events & entertainment" specifically -- so this
-// is excluded for all three rather than guessing which one. Kept active
-// for General and Manufacturing, where this vocabulary genuinely has no
-// legitimate business reading.
-const CELEBRATION_RULE = { keywords: ['owambe', 'birthday party', 'wedding contribution', 'aso ebi', 'wedding gift'], reason: 'Looks like a personal social/celebration expense' };
-const CELEBRATION_RULE_EXCLUDED_INDUSTRIES = new Set(['retail', 'food-service', 'professional-services']);
+// (catering), Professional Services (planning/coordination), or
+// Manufacturing (a tailor/fashion designer producing aso-ebi and event
+// attire -- "Aso ebi fabric purchase for order #245" is exactly the kind
+// of transaction a garment-production business logs every week) -- none
+// of the five options fits "events & entertainment" specifically -- so
+// this is excluded for all four rather than guessing which one. Kept
+// active for General, where this vocabulary genuinely has no legitimate
+// business reading.
+const EVENT_SUPPLY_RULE = { keywords: ['owambe', 'birthday party', 'aso ebi'], reason: 'Looks like a personal social/celebration expense' };
+const EVENT_SUPPLY_RULE_EXCLUDED_INDUSTRIES = new Set(['retail', 'food-service', 'professional-services', 'manufacturing']);
+
+// Split out from EVENT_SUPPLY_RULE above -- "wedding contribution" and
+// "wedding gift" describe a cash gift or contribution to someone else's
+// wedding, not fabric, catering, decor, or any other billable event work.
+// Unlike "owambe"/"aso ebi"/"birthday party", no industry gives this
+// wording a legitimate business reading, so it stays active everywhere,
+// with no exclusion set at all.
+const GIFT_RULE = { keywords: ['wedding contribution', 'wedding gift'], reason: 'Looks like a personal social/celebration expense' };
 
 // Same reasoning again: "salon"/"spa"/"barbing"/"barber"/"hairdresser"/
 // "manicure"/"pedicure" are the core vocabulary of a salon & beauty
@@ -138,18 +149,19 @@ function normalise(s: string): string {
  * false positive doesn't keep nagging every time the list re-renders.
  * @param industry settings.industry -- gates out several rules for the one
  * or two industries whose own normal vocabulary would otherwise collide
- * with them (see each rule's own comment: NIGHTLIFE_RULE, CELEBRATION_RULE,
+ * with them (see each rule's own comment: NIGHTLIFE_RULE, EVENT_SUPPLY_RULE,
  * GROOMING_RULE, FITNESS_RULE, SUBSCRIPTION_RESELLER_RULE, CONCIERGE_RULE,
- * RENTAL_AGENCY_RULE). Every other industry, and the unset/undefined
+ * RENTAL_AGENCY_RULE). GIFT_RULE has no exclusion at all -- it stays active
+ * for every industry. Every other industry, and the unset/undefined
  * default, keeps all of them active.
  */
 export function detectPersonalSpending(transactions: Transaction[], currency: string = '₦', dismissedIds: string[] = [], industry?: string): PersonalSpendingReport {
     const dismissed = new Set(dismissedIds);
     const flagged: PersonalSpendingFlag[] = [];
     let estimatedPersonalAmount = 0;
-    const rules = [...PERSONAL_RULES];
+    const rules = [...PERSONAL_RULES, GIFT_RULE];
     if (industry !== 'food-service') rules.push(NIGHTLIFE_RULE);
-    if (!industry || !CELEBRATION_RULE_EXCLUDED_INDUSTRIES.has(industry)) rules.push(CELEBRATION_RULE);
+    if (!industry || !EVENT_SUPPLY_RULE_EXCLUDED_INDUSTRIES.has(industry)) rules.push(EVENT_SUPPLY_RULE);
     if (!industry || !GROOMING_RULE_EXCLUDED_INDUSTRIES.has(industry)) rules.push(GROOMING_RULE);
     if (!industry || !FITNESS_RULE_EXCLUDED_INDUSTRIES.has(industry)) rules.push(FITNESS_RULE);
     if (!industry || !SUBSCRIPTION_RESELLER_RULE_EXCLUDED_INDUSTRIES.has(industry)) rules.push(SUBSCRIPTION_RESELLER_RULE);

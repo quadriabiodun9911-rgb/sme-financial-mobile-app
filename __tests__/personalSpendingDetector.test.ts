@@ -104,10 +104,22 @@ describe('detectPersonalSpending', () => {
         expect(report.flaggedCount).toBe(1);
     });
 
-    it('flags celebration-sounding spending for manufacturing, where it has no legitimate business reading', () => {
-        const txs = [makeTx({ id: 'a', description: 'Aso ebi fabric for my sister\'s wedding', amount: 45000 })];
+    it('flags a wedding-gift/contribution expense for every industry, including one where owambe/aso-ebi/birthday-party wording has a legitimate business reading', () => {
+        for (const industry of [undefined, 'manufacturing', 'retail', 'food-service', 'professional-services']) {
+            const txs = [makeTx({ id: 'a', description: 'Wedding gift for my sister', amount: 45000 })];
+            const report = detectPersonalSpending(txs, '₦', [], industry);
+            expect(report.flaggedCount).toBe(1);
+        }
+    });
+
+    it('does not flag a tailoring/fashion-production business\'s own aso-ebi/event-attire operating expenses when registered as Manufacturing', () => {
+        const txs = [
+            makeTx({ id: 'a', description: 'Aso ebi fabric purchase for order #245', amount: 180000 }),
+            makeTx({ id: 'b', description: 'Owambe outfit production — client order', amount: 95000 }),
+            makeTx({ id: 'c', description: 'Birthday party outfit — bulk order', amount: 60000 }),
+        ];
         const report = detectPersonalSpending(txs, '₦', [], 'manufacturing');
-        expect(report.flaggedCount).toBe(1);
+        expect(report.flaggedCount).toBe(0);
     });
 
     it('does not flag an events & entertainment business\'s own owambe/aso-ebi/party-booking revenue-generating work, across the industries it could plausibly register under', () => {
@@ -116,7 +128,7 @@ describe('detectPersonalSpending', () => {
             makeTx({ id: 'b', description: 'Aso ebi fabric supply for client', amount: 220000 }),
             makeTx({ id: 'c', description: 'Birthday party decor booking', amount: 95000 }),
         ];
-        for (const industry of ['retail', 'food-service', 'professional-services']) {
+        for (const industry of ['retail', 'food-service', 'professional-services', 'manufacturing']) {
             const report = detectPersonalSpending(txs, '₦', [], industry);
             expect(report.flaggedCount).toBe(0);
         }
