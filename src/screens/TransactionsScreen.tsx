@@ -1,7 +1,8 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
     TouchableOpacity, Modal, StyleSheet, Share, Linking, FlatList, Platform, useWindowDimensions, ActivityIndicator,
+    Animated, Easing,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../contexts/AppContext';
@@ -1241,6 +1242,30 @@ const CHART_COLORS = [
     '#06B6D4', '#F97316', '#84CC16', '#EC4899', '#6366F1',
 ];
 
+// One category's row bar in the breakdown -- owns its own Animated.Value so
+// it grows in independently when the section opens or the filter/tab
+// changes, same pattern as the other screens' list-of-bars (e.g. Cash
+// Flow's weekly forecast).
+function CategoryBar({ pct, color }: { pct: number; color: string }) {
+    const anim = useRef(new Animated.Value(0)).current;
+    useEffect(() => {
+        Animated.timing(anim, {
+            toValue: Math.min(Math.max(pct, 0), 100),
+            duration: 500,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: false,
+        }).start();
+    }, [pct]);
+    return (
+        <View style={chartStyles.barTrack}>
+            <Animated.View style={[chartStyles.barFill, {
+                backgroundColor: color,
+                width: anim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }),
+            }]} />
+        </View>
+    );
+}
+
 function CategoryChart({
     incomeMap, expenseMap, totalIncome, totalExpense, currency, typeFilter, language,
 }: {
@@ -1327,9 +1352,7 @@ function CategoryChart({
                             <View key={cat} style={chartStyles.row}>
                                 <View style={[chartStyles.dot, { backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }]} />
                                 <Text style={chartStyles.catName} numberOfLines={1}>{cat}</Text>
-                                <View style={chartStyles.barTrack}>
-                                    <View style={[chartStyles.barFill, { width: `${pct}%` as any, backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }]} />
-                                </View>
+                                <CategoryBar pct={pct} color={CHART_COLORS[i % CHART_COLORS.length]} />
                                 <Text style={chartStyles.pctLabel}>{Math.round(pct)}%</Text>
                                 <Text style={chartStyles.amtLabel}>{currency}{amt.toLocaleString()}</Text>
                             </View>
