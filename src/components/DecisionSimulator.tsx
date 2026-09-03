@@ -103,6 +103,9 @@ export default function DecisionSimulator({ currency, transactions, currentCashB
                             <Text style={[s.readinessLabel, { color: READINESS_META[expansionReadiness.band].color }]}>
                                 Expansion Readiness: {expansionReadiness.band}
                             </Text>
+                            <Text style={s.readinessSubtext}>
+                                Your weakest Financial Health pillar right now, since that's what would break first under added strain.
+                            </Text>
                             <Text style={s.downsideText}>
                                 {Number.isFinite(result.monthsOfReserveForAddedCost)
                                     ? `Your current cash position can support approximately ${result.monthsOfReserveForAddedCost.toFixed(1)} months of this additional fixed cost on its own.`
@@ -152,6 +155,7 @@ const s = StyleSheet.create({
 
     readinessBox: { borderRadius: 10, borderWidth: 1.5, padding: 12, marginTop: 10 },
     readinessLabel: { fontSize: 13, fontWeight: '800', marginBottom: 4 },
+    readinessSubtext: { fontSize: 10.5, color: Colors.textMuted, fontStyle: 'italic', marginBottom: 4 },
 
     emptyHint: { fontSize: 12, color: Colors.textMuted, fontStyle: 'italic' },
 });

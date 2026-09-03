@@ -29,6 +29,7 @@ import { computeRiskRadar } from '../utils/riskRadar';
 import { computeForecastSummary } from '../utils/forecastSummary';
 import { computeForwardFinancingReadiness } from '../utils/forwardFinancingReadiness';
 import { computeQualityOfGrowth } from '../utils/qualityOfGrowth';
+import { computeAllTimeMonthlyBuckets } from '../utils/trendAnalysis';
 import { computeDynamicFinancingReadiness, ReadinessDirection } from '../utils/dynamicFinancingReadiness';
 import { computeFinancialChangeExplanation } from '../utils/financialChangeExplanation';
 import { computeFinancingReadinessIntelligence, computeLendingCapacityIntelligence } from '../utils/metricIntelligence';
@@ -213,17 +214,39 @@ export default function CreditWorthinessScreen() {
             ],
         });
 
-        // 10% weight for each factor = 100% total
-        // Let's add Profitability & Growth (10% weight)
-        const monthlyGrowth = user?.avgMonthlyRevenue || 0;
-        const growthScore = monthlyGrowth >= 200000 ? 100 : (monthlyGrowth / 200000) * 100;
+        // Revenue Growth (10% weight) -- a genuine trend (trailing 3-month
+        // average vs. the 3 months before that), not the revenue LEVEL used
+        // by the Revenue Level lender checkpoint below. A business with
+        // flat but high revenue used to score "Strong Growth" here purely
+        // because it was already big, which stated something false about
+        // what the number meant.
+        const revenueMonths = computeAllTimeMonthlyBuckets(transactions);
+        let growthScore = 50;
+        let growthStatus = 'Not Yet Scored';
+        let growthDescription = 'Needs at least 6 months of revenue history to measure a trend';
+        if (revenueMonths.length >= 6) {
+            const recent3 = revenueMonths.slice(-3);
+            const prior3 = revenueMonths.slice(-6, -3);
+            const recentAvg = recent3.reduce((s, m) => s + m.revenue, 0) / 3;
+            const priorAvg = prior3.reduce((s, m) => s + m.revenue, 0) / 3;
+            if (priorAvg > 0) {
+                const growthPct = ((recentAvg - priorAvg) / priorAvg) * 100;
+                growthScore = Math.max(0, Math.min(100, 50 + growthPct * 2.5)); // +/-20% growth maps to 0/100
+                growthStatus = growthPct >= 10 ? 'Strong Growth' : growthPct >= -5 ? 'Moderate' : 'Needs Growth';
+                growthDescription = `Revenue trending ${growthPct >= 0 ? 'up' : 'down'} ${Math.abs(growthPct).toFixed(0)}% (last 3 months vs. the 3 before)`;
+            } else {
+                growthScore = recentAvg > 0 ? 100 : 50;
+                growthStatus = recentAvg > 0 ? 'Strong Growth' : 'Not Yet Scored';
+                growthDescription = recentAvg > 0 ? 'New revenue where there was none before' : 'No revenue recorded yet';
+            }
+        }
 
         factors.push({
             name: 'Revenue Growth',
             score: growthScore,
             weight: 0.1,
-            description: 'Business revenue trends',
-            status: growthScore >= 80 ? 'Strong Growth' : growthScore >= 50 ? 'Moderate' : 'Needs Growth',
+            description: growthDescription,
+            status: growthStatus,
             tips: [
                 'Increase sales channels',
                 'Expand customer base',
@@ -284,6 +307,13 @@ export default function CreditWorthinessScreen() {
         return map;
     }, [transactions, invoices, finance, currency, loans, inventory, assets, activeGoals, settings?.macroAssumptions]);
 
+    // Same currency-aware ratio Payment History above already uses (₦500k
+    // : $5k) -- a business's monthly revenue and "Revenue Growth" trend
+    // above are compared against a real amount, not a Naira figure that
+    // silently makes the bar 100x too high or too low once someone isn't
+    // pricing in Naira.
+    const revenueLevelThreshold = currency === '₦' ? 200000 : 2000;
+
     // Same conditions rendered by the "What Lenders Look For" checkpoints
     // below — kept in one place so the exported summary and the on-screen
     // checklist can never disagree.
@@ -291,10 +321,10 @@ export default function CreditWorthinessScreen() {
         { label: 'Credit Score', met: overallCreditScore >= 70, description: '70+ score increases approval odds' },
         { label: 'Payment History', met: (creditFactors[0]?.score ?? 0) >= 80, description: 'On-time payment record' },
         { label: 'Cash Flow', met: !!(finance.runway && finance.runway >= 90), description: '3+ months runway' },
-        { label: 'Revenue Level', met: (user?.avgMonthlyRevenue || 0) >= 200000, description: `${currency}200k+ monthly revenue` },
+        { label: 'Revenue Level', met: (user?.avgMonthlyRevenue || 0) >= revenueLevelThreshold, description: `${currency}${revenueLevelThreshold.toLocaleString()}+ monthly revenue -- a different check from the Revenue Growth factor above, which looks at trend rather than size` },
         { label: 'Business Age', met: (user?.daysActive || 0) >= 90, description: '90+ days operating history' },
         { label: 'Debt Ratio', met: (creditFactors[1]?.score ?? 0) >= 70, description: 'Debt < 30% of available credit' },
-    ], [overallCreditScore, creditFactors, finance.runway, user?.avgMonthlyRevenue, user?.daysActive, currency]);
+    ], [overallCreditScore, creditFactors, finance.runway, user?.avgMonthlyRevenue, user?.daysActive, currency, revenueLevelThreshold]);
 
     // Visibility Score: how much of this business's real history the app
     // (and by extension a lender) can actually see — reuses the same

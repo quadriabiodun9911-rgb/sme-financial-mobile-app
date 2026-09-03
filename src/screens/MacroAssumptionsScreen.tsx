@@ -181,8 +181,8 @@ export default function MacroAssumptionsScreen() {
                 <Text style={s.subtitle}>
                     Quad360 has no live feed for energy prices, FX, interest rates or inflation — so tell it what
                     you're seeing. Link an assumption to the expense categories it affects, and when that category
-                    is also rising in your own transactions, Cost Exposure turns the two into a specific, actionable
-                    warning instead of a generic headline.
+                    is also rising in your own transactions, the Cost Exposure tab (Transactions screen) turns the
+                    two into a specific, actionable warning instead of a generic headline.
                 </Text>
 
                 {assumptions.length === 0 ? (

@@ -6,6 +6,7 @@ import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { getWorkspaceOwnerId, loadTransactions } from '../utils/storage';
 import { claimIncomingPayments } from '../utils/incomingPayments';
 import { loadPendingPayment, clearPendingPayment, PendingPayment } from '../utils/pendingPayment';
+import { localDateStr } from '../utils/localDate';
 
 const POLL_INTERVAL_MS = 5000;
 const POLL_MAX_ATTEMPTS = 18; // ~90s total before offering the manual fallback
@@ -125,7 +126,7 @@ export default function PaymentCompleteScreen() {
         addTransaction({
             type: 'income', amount: pending.amount,
             description: pending.description,
-            category: 'Sales', date: new Date().toISOString().split('T')[0],
+            category: 'Sales', date: localDateStr(),
             vendorCustomer: pending.customerName,
             status: 'paid',
             reference: pending.reference,
@@ -166,11 +167,11 @@ export default function PaymentCompleteScreen() {
                 )}
                 {phase === 'manual' && (
                     <>
-                        <Text style={styles.icon}>✓</Text>
-                        <Text style={styles.title}>Payment successful</Text>
+                        <Text style={styles.icon}>⏳</Text>
+                        <Text style={styles.title}>Still confirming your payment</Text>
                         <Text style={styles.subtitle}>
                             {pending
-                                ? 'It’s taking longer than usual to confirm automatically. You can record it yourself now — it won’t be double-counted if the automatic confirmation arrives afterward.'
+                                ? 'It’s taking longer than usual to confirm automatically — this isn’t a confirmed payment yet. You can record it yourself now; it won’t be double-counted if the automatic confirmation arrives afterward.'
                                 : 'It’s taking longer than usual to confirm automatically. Check Transactions in a minute, or log it yourself if it doesn’t show up.'}
                         </Text>
                         {pending && (

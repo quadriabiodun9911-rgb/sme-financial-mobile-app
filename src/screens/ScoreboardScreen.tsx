@@ -451,7 +451,7 @@ export default function ScoreboardScreen() {
                             </Text>
                         </View>
                     </View>
-                    <Text style={s.cardBodyText}>How much a single bad event — a lost customer, a rate move, slow-moving stock — would hurt the business right now.</Text>
+                    <Text style={s.cardBodyText}>How much a single bad event — a lost customer, a rate move, slow-moving stock — would hurt the business right now. (Risk Radar below draws on some of the same underlying numbers, but reports their CURRENT level rather than the damage a shock would do.)</Text>
                     <View style={[s.factorChipsRow, { marginTop: Spacing.sm }]}>
                         {exposure.factors.map(f => {
                             const key = `exposure:${f.key}`;
@@ -491,6 +491,7 @@ export default function ScoreboardScreen() {
                             </Text>
                         </View>
                     </View>
+                    <Text style={s.cardBodyText}>Where things stand right now across debt, concentration, seasonality and cash flow — Shock Resilience above uses some of the same signals to ask a different question: how much a bad event would hurt.</Text>
                     <View style={s.factorChipsRow}>
                         {riskRadar.categories.map(c => {
                             const key = `radar:${c.key}`;

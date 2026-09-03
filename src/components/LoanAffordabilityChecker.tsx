@@ -109,6 +109,7 @@ export default function LoanAffordabilityChecker({
                         <View style={s.stat}>
                             <Text style={s.statLabel}>Repayment Capacity</Text>
                             <Text style={s.statVal}>{isFinite(result.repaymentCapacityMultiple) ? `${result.repaymentCapacityMultiple.toFixed(1)}x` : '∞'}</Text>
+                            <Text style={s.statHint}>monthly profit ÷ total debt payments</Text>
                         </View>
                         <View style={s.stat}>
                             <Text style={s.statLabel}>Cash Runway After</Text>
@@ -176,6 +177,7 @@ const s = StyleSheet.create({
     stat: { flex: 1, backgroundColor: Colors.bg, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, padding: 10 },
     statLabel: { fontSize: 10.5, color: Colors.textMuted, marginBottom: 4, lineHeight: 14 },
     statVal: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary },
+    statHint: { fontSize: 9.5, color: Colors.textMuted, marginTop: 2, fontStyle: 'italic' },
 
     verdictBox: { borderRadius: 10, borderWidth: 1.5, padding: 12, marginTop: 12 },
     verdictLabel: { fontSize: 13, fontWeight: '800', marginBottom: 4 },

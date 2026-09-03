@@ -257,7 +257,7 @@ export default function InventoryPricingTab() {
             {inventoryDecisions.length > 0 && (
                 <View style={s.card}>
                     <Text style={s.cardTitle}>Inventory Decisions</Text>
-                    <Text style={s.disc}>What to do next, based on how fast each item is actually selling — not a forecast, a call.</Text>
+                    <Text style={s.disc}>What to do next, based on how fast each item is actually selling — not a forecast, a call. (Same underlying call as "What to do about it" on the Analytics tab's Inventory Health card, just the full list.)</Text>
                     {inventoryDecisions.map(d => (
                         <View key={d.itemId} style={[s.insightRow, { borderLeftColor: DECISION_COLOR[d.action] }]}>
                             <Text style={s.insightText}>

@@ -311,8 +311,9 @@ export default function FutureFinancialStatementsScreen() {
                     <Text style={s.title}>Financial Forecast</Text>
                 </View>
                 <Text style={s.subtitle}>
-                    See where your business is heading before you make your next decision. A projection, not a
-                    guarantee — built from your recent revenue and costs, plus whatever adjustments you enter below.
+                    See where your business is heading before you make your next decision.{' '}
+                    <Text style={{ fontWeight: '800', color: Colors.textPrimary }}>A projection, not a guarantee</Text>
+                    {' '}— built from your recent revenue and costs, plus whatever adjustments you enter below. Every number below carries this same caveat, even where it isn't repeated.
                 </Text>
 
                 {notEnoughData ? (
@@ -962,7 +963,7 @@ export default function FutureFinancialStatementsScreen() {
                                 </Text>
                                 {(whatIfDscr.base !== null || whatIfDscr.adjusted !== null) && (
                                     <Text style={s.impactLine}>
-                                        Debt capacity (DSCR): {whatIfDscr.base !== null ? `${whatIfDscr.base.toFixed(2)}x` : 'No debt'} → {whatIfDscr.adjusted !== null ? `${whatIfDscr.adjusted.toFixed(2)}x` : 'No debt'}
+                                        Debt capacity (Debt Service Coverage Ratio -- income ÷ debt payments, 1.0x+ means income covers them): {whatIfDscr.base !== null ? `${whatIfDscr.base.toFixed(2)}x` : 'No debt'} → {whatIfDscr.adjusted !== null ? `${whatIfDscr.adjusted.toFixed(2)}x` : 'No debt'}
                                     </Text>
                                 )}
                                 <Text style={s.impactLine}>

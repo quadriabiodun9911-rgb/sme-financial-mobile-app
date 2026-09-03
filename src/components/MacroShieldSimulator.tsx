@@ -194,33 +194,44 @@ export default function MacroShieldSimulator({ currency, transactions, loans, fi
                         </Text>
                     </View>
 
-                    {showCashGap && (
+                    {/* One warning box, not two -- showCashGap and
+                        runOutMonthLabel are already mutually exclusive (see
+                        showCashGap's own guard above), and the reserve note
+                        used to float as a separate line below whichever one
+                        rendered. Folding it into the same box keeps this to
+                        at most one result warning instead of stacking two. */}
+                    {(showCashGap || result.shocked.runOutMonthLabel) && (
                         <View style={s.warningBox}>
-                            <View style={s.resultRow}>
-                                <Text style={s.resultLabel}>Cash on hand by {horizonMonth!.monthLabel}</Text>
-                                <Text style={s.resultValue}>{fmt(currency, shockedEndingCash)}</Text>
-                            </View>
-                            <Text style={s.cashGapNote}>
-                                {cashGapAtHorizon > 0
-                                    ? `That's ${fmt(currency, cashGapAtHorizon)} less than the ${fmt(currency, baselineEndingCash)} you'd otherwise have by then — cash doesn't run out at this level, but it's still a real, growing cost.`
-                                    : 'No meaningful difference from this at your current numbers.'}
-                            </Text>
+                            {showCashGap ? (
+                                <>
+                                    <View style={s.resultRow}>
+                                        <Text style={s.resultLabel}>Cash on hand by {horizonMonth!.monthLabel}</Text>
+                                        <Text style={s.resultValue}>{fmt(currency, shockedEndingCash)}</Text>
+                                    </View>
+                                    <Text style={s.cashGapNote}>
+                                        {cashGapAtHorizon > 0
+                                            ? `That's ${fmt(currency, cashGapAtHorizon)} less than the ${fmt(currency, baselineEndingCash)} you'd otherwise have by then — cash doesn't run out at this level, but it's still a real, growing cost.`
+                                            : 'No meaningful difference from this at your current numbers.'}
+                                    </Text>
+                                </>
+                            ) : (
+                                <Text style={s.warningText}>
+                                    {result.baseline.runOutMonthLabel === null
+                                        ? `🔴 This alone would push your cash negative by ${result.shocked.runOutMonthLabel} — something today's numbers, without it, don't show.`
+                                        : result.monthsOfRunwayLost !== null && result.monthsOfRunwayLost > 0
+                                            ? `🔴 This costs you ${result.monthsOfRunwayLost} month${result.monthsOfRunwayLost !== 1 ? 's' : ''} of runway.`
+                                            : `🔴 Cash still runs out, but not meaningfully sooner than it already would.`}
+                                </Text>
+                            )}
+                            {result.shocked.reserveBreach && (
+                                <Text style={s.reserveNote}>
+                                    Falls below your {fmt(currency, result.shocked.reserveBreach.minReserve)} reserve target in {result.shocked.reserveBreach.monthLabel}
+                                    {result.baseline.reserveBreach ? '' : ' — not currently projected to happen without this'}.
+                                </Text>
+                            )}
                         </View>
                     )}
-
-                    {result.shocked.runOutMonthLabel && (
-                        <View style={s.warningBox}>
-                            <Text style={s.warningText}>
-                                {result.baseline.runOutMonthLabel === null
-                                    ? `🔴 This alone would push your cash negative by ${result.shocked.runOutMonthLabel} — something today's numbers, without it, don't show.`
-                                    : result.monthsOfRunwayLost !== null && result.monthsOfRunwayLost > 0
-                                        ? `🔴 This costs you ${result.monthsOfRunwayLost} month${result.monthsOfRunwayLost !== 1 ? 's' : ''} of runway.`
-                                        : `🔴 Cash still runs out, but not meaningfully sooner than it already would.`}
-                            </Text>
-                        </View>
-                    )}
-
-                    {result.shocked.reserveBreach && (
+                    {!showCashGap && !result.shocked.runOutMonthLabel && result.shocked.reserveBreach && (
                         <Text style={s.reserveNote}>
                             Falls below your {fmt(currency, result.shocked.reserveBreach.minReserve)} reserve target in {result.shocked.reserveBreach.monthLabel}
                             {result.baseline.reserveBreach ? '' : ' — not currently projected to happen without this'}.

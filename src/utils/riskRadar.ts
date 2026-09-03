@@ -61,10 +61,10 @@ export function computeRiskRadar(
         summary: !hasDebtService
             ? 'No active loan repayments to cover.'
             : dscr.status === 'danger'
-                ? `Income doesn't cover current debt payments (DSCR ${dscr.dscr.toFixed(2)}).`
+                ? `Income doesn't cover current debt payments (Debt Service Coverage Ratio ${dscr.dscr.toFixed(2)}x -- below 1.0x means income falls short).`
                 : dscr.status === 'warning'
-                    ? `Debt payments leave little margin for a bad month (DSCR ${dscr.dscr.toFixed(2)}).`
-                    : `Income comfortably covers debt payments (DSCR ${dscr.dscr.toFixed(2)}).`,
+                    ? `Debt payments leave little margin for a bad month (Debt Service Coverage Ratio ${dscr.dscr.toFixed(2)}x).`
+                    : `Income comfortably covers debt payments (Debt Service Coverage Ratio ${dscr.dscr.toFixed(2)}x).`,
     });
 
     // Operating Cash Flow -- is the business actually converting its own

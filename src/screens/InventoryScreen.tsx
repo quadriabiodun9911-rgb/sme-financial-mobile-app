@@ -29,6 +29,7 @@ import DateInput from '../components/DateInput';
 import { InventoryItem } from '../types';
 import { showAlert, confirmAction } from '../utils/webAlert';
 import InventoryPricingTab from '../components/InventoryPricingTab';
+import { localDateStr } from '../utils/localDate';
 
 type InventoryTab = 'stock' | 'analytics' | 'pricing';
 
@@ -68,7 +69,7 @@ const emptyStockInForm = (item: InventoryItem): StockInForm => ({
     quantityAdded: '',
     costPerUnit: item.costPrice != null ? String(item.costPrice) : '',
     supplier: item.supplier ?? '',
-    purchaseDate: new Date().toISOString().split('T')[0],
+    purchaseDate: localDateStr(),
     recordCashPurchase: true,
 });
 
@@ -80,7 +81,7 @@ type PriceChangeForm = {
 
 const emptyPriceChangeForm = (item: InventoryItem): PriceChangeForm => ({
     newPrice: item.sellingPrice != null ? String(item.sellingPrice) : '',
-    effectiveDate: new Date().toISOString().split('T')[0],
+    effectiveDate: localDateStr(),
     reason: '',
 });
 
@@ -321,7 +322,7 @@ export default function InventoryScreen() {
             amount: subtotal - discAmount,
             description: `Sale: ${item.name}`,
             category: 'Sales',
-            date: new Date().toISOString().split('T')[0],
+            date: localDateStr(),
             status: 'paid',
             transactionCategory: 'sale',
             costOfGoodsSold: qty * (item.costPrice ?? 0),
@@ -349,7 +350,7 @@ export default function InventoryScreen() {
             quantityAdded: qtyAdded,
             costPerUnit: cost,
             supplier: stockInForm.supplier.trim() || undefined,
-            purchaseDate: stockInForm.purchaseDate || new Date().toISOString().split('T')[0],
+            purchaseDate: stockInForm.purchaseDate || localDateStr(),
             recordCashPurchase: stockInForm.recordCashPurchase,
         });
         setStockInModal(null);
@@ -368,7 +369,7 @@ export default function InventoryScreen() {
         const newPrice = parseFloat(priceForm.newPrice);
         if (isNaN(newPrice) || newPrice < 0) { showAlert('Validation', 'Enter a valid selling price.'); return; }
         if (newPrice === item.sellingPrice) { showAlert('Validation', 'Enter a price different from the current one.'); return; }
-        const priceHistory = appendPriceChange(item, newPrice, priceForm.effectiveDate || new Date().toISOString().split('T')[0], priceForm.reason || undefined);
+        const priceHistory = appendPriceChange(item, newPrice, priceForm.effectiveDate || localDateStr(), priceForm.reason || undefined);
         updateInventoryItem(item.id, { sellingPrice: newPrice, priceHistory });
         setPriceModal(null);
         setPriceForm(null);
@@ -386,7 +387,7 @@ export default function InventoryScreen() {
         const { item } = countModal;
         const actual = parseFloat(countQty);
         if (isNaN(actual) || actual < 0) { showAlert('Validation', 'Enter what you actually counted.'); return; }
-        const entry = appendStockCount(item, actual, new Date().toISOString().split('T')[0], countNote.trim() || undefined);
+        const entry = appendStockCount(item, actual, localDateStr(), countNote.trim() || undefined);
         updateInventoryItem(item.id, {
             quantity: actual,
             stockCountHistory: [...(item.stockCountHistory ?? []), entry],
@@ -619,6 +620,7 @@ export default function InventoryScreen() {
                             {inventoryHealth.topDecisions.length > 0 && (
                                 <>
                                     <Text style={[styles.discountLabel, { marginTop: Spacing.md, marginBottom: 4 }]}>What to do about it</Text>
+                                    <Text style={styles.cardSubtitle}>Top items only -- see Inventory Decisions on the Pricing tab for the full list.</Text>
                                     {inventoryHealth.topDecisions.map(decision => (
                                         <View key={decision.itemId} style={[styles.insightBanner, { borderColor: decision.action === 'reorder' ? Colors.income : decision.action === 'reduce' ? Colors.warning : Colors.expense }]}>
                                             <Text style={[styles.insightTitle, { color: decision.action === 'reorder' ? Colors.income : decision.action === 'reduce' ? Colors.warning : Colors.expense }]}>
@@ -743,6 +745,9 @@ export default function InventoryScreen() {
                         {/* Category Breakdown */}
                         <View style={styles.analyticsCard}>
                             <Text style={styles.analyticsCardTitle}>Category Breakdown</Text>
+                            <Text style={styles.cardSubtitle}>
+                                Margin here is the plain average across a category's items -- it can look very different from "Overall Margin %" above, which weights by each item's actual stock value.
+                            </Text>
                             {categories.length === 0 && (
                                 <Text style={styles.analyticsEmpty}>No items to analyse yet.</Text>
                             )}

@@ -1580,7 +1580,7 @@ export default function LoginScreen() {
                         placeholder="admin@yourbusiness.com" placeholderTextColor={Colors.muted}
                         autoCapitalize="none" keyboardType="email-address" />
                 </Field>
-                <Field label="Phone Number (for financial health score)">
+                <Field label="Phone Number (for cash-flow alerts)">
                     <TextInput style={styles.input} value={phone} onChangeText={setPhone}
                         placeholder="+1 555 000 1234" placeholderTextColor={Colors.muted}
                         keyboardType="phone-pad" />

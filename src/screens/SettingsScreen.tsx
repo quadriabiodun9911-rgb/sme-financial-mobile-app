@@ -165,6 +165,9 @@ export default function SettingsScreen() {
     };
 
     const handleSave = () => {
+        if (!form.businessName.trim()) {
+            showAlert('Required', 'Business name can\'t be blank -- it\'s shown on invoices, payment links, and team invites.'); return;
+        }
         if (isNaN(parseFloat(form.minReserve)) || parseFloat(form.minReserve) < 0) {
             showAlert('Invalid value', 'Minimum reserve must be a non-negative number.'); return;
         }
@@ -184,9 +187,26 @@ export default function SettingsScreen() {
         if (phone.trim() && !/^\+?[\d\s\-().]{7,20}$/.test(phone.trim())) {
             showAlert('Invalid phone', 'Enter your number with country code, e.g. +1 555 000 1234 (USA), +44 7700 900123 (UK), +234 801 234 5678 (Nigeria).'); return;
         }
-        // Warn if currency changed
+        // Warn if currency changed -- but save every OTHER edit made in this
+        // session regardless of what the owner decides here. This dialog
+        // used to gate doSave() (which saves the entire form) behind
+        // confirming the currency change specifically; tapping Cancel on
+        // just the currency warning silently discarded every unrelated
+        // field the owner had also changed (business name, tax rate,
+        // opening balances), with no indication that happened.
         if (form.currency !== settings.currency) {
-            confirmAction(t(language, 'currencyChangeTitle'), t(language, 'currencyChangeWarning'), t(language, 'confirm'), doSave, false);
+            updateSettings({ ...form, currency: settings.currency });
+            if (updateProfile && phone !== (user?.phone || '')) updateProfile({ phone: phone.trim() });
+            confirmAction(
+                t(language, 'currencyChangeTitle'),
+                `${t(language, 'currencyChangeWarning')}\n\nYour other changes on this screen have already been saved either way -- this only decides whether the currency itself also changes.`,
+                t(language, 'confirm'),
+                () => {
+                    updateSettings({ currency: form.currency });
+                    showAlert(t(language, 'success'), 'Currency updated.', () => setCurrentScreen('dashboard'));
+                },
+                false,
+            );
             return;
         }
         doSave();
@@ -419,7 +439,7 @@ export default function SettingsScreen() {
                         </Section>
 
                         <Section title="Phone Number">
-                            <Text style={styles.hint}>Include your country code — e.g. +1 (USA/Canada), +44 (UK), +234 (Nigeria), +27 (South Africa), +254 (Kenya), +233 (Ghana)</Text>
+                            <Text style={styles.hint}>Used to send you cash-flow alerts (low cash, overdue invoices, large upcoming expenses). Include your country code — e.g. +1 (USA/Canada), +44 (UK), +234 (Nigeria), +27 (South Africa), +254 (Kenya), +233 (Ghana)</Text>
                             <TextInput
                                 style={styles.input}
                                 value={phone}
@@ -430,6 +450,7 @@ export default function SettingsScreen() {
                             />
                         </Section>
 
+                        <Text style={styles.saveScopeHint}>Saves every section on this screen, not just this one.</Text>
                         <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
                             <Text style={styles.saveBtnText}>Save Settings</Text>
                         </TouchableOpacity>
@@ -486,6 +507,7 @@ export default function SettingsScreen() {
                         </Section>
 
                         <Section title={t(language, 'currency')}>
+                            <Text style={styles.hint}>Unlike Theme and Language above, this only takes effect once you tap "Save Settings" below.</Text>
                             <View style={styles.optRow}>
                                 {CURRENCIES.map(c => (
                                     <Opt key={c.value} label={c.label} active={form.currency === c.value}
@@ -494,6 +516,7 @@ export default function SettingsScreen() {
                             </View>
                         </Section>
 
+                        <Text style={styles.saveScopeHint}>Saves every section on this screen, not just this one.</Text>
                         <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
                             <Text style={styles.saveBtnText}>Save Settings</Text>
                         </TouchableOpacity>
@@ -562,7 +585,7 @@ export default function SettingsScreen() {
 
                         <Section title="Macro Assumptions">
                             <Text style={styles.hint}>
-                                Quad360 has no live feed for energy prices, FX, interest rates, inflation or other external factors — tell it what you're seeing, linked to the expense categories it affects. When a linked category is also rising in your own transactions, Cost Exposure turns that into a specific early warning instead of a generic headline.
+                                Quad360 has no live feed for energy prices, FX, interest rates, inflation or other external factors — tell it what you're seeing, linked to the expense categories it affects. When a linked category is also rising in your own transactions, the Cost Exposure tab (Transactions screen) turns that into a specific early warning instead of a generic headline.
                             </Text>
                             <TouchableOpacity style={styles.dataBtn} onPress={() => setCurrentScreen('macro-assumptions')}>
                                 <Text style={styles.dataBtnText}>
@@ -588,6 +611,7 @@ export default function SettingsScreen() {
                             </TouchableOpacity>
                         </Section>
 
+                        <Text style={styles.saveScopeHint}>Saves every section on this screen, not just this one.</Text>
                         <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
                             <Text style={styles.saveBtnText}>Save Settings</Text>
                         </TouchableOpacity>
@@ -601,7 +625,7 @@ export default function SettingsScreen() {
                     <CollapsibleSection title="Security" icon="shield" defaultOpen={false}>
                         <Section title="Your Financial Data">
                             <Text style={styles.hint}>
-                                See what's actually protecting your data — encryption, data isolation, two-factor authentication and lender data sharing, all in one place.
+                                A read-only overview of what's protecting your data — encryption, data isolation, two-factor authentication and who currently has access. To actually revoke a lender or team member's access, use Data Permission Centre below instead.
                             </Text>
                             <TouchableOpacity style={styles.dataBtn} onPress={() => setCurrentScreen('security-center')}>
                                 <Text style={styles.dataBtnText}>Open Security Center</Text>
@@ -610,12 +634,16 @@ export default function SettingsScreen() {
 
                         <Section title="Data Permission Centre">
                             <Text style={styles.hint}>
-                                See everyone and everything with an ongoing view of your data — team members, lenders, and marketplace listings — and revoke access anytime.
+                                Where you actually grant or revoke access — team members, lenders, and marketplace listings — each with a control to remove it.
                             </Text>
                             <TouchableOpacity style={styles.dataBtn} onPress={() => setCurrentScreen('data-permission-centre')}>
                                 <Text style={styles.dataBtnText}>Open Data Permission Centre</Text>
                             </TouchableOpacity>
                         </Section>
+
+                        <Text style={styles.hint}>
+                            These three work together, not as alternatives: your PIN is what you type to open the app on THIS device; your Backup Password is what verifies you when you set up a NEW device or reset a forgotten PIN; Extra Security Lock (2FA) adds a second, separate code on top of either one at login.
+                        </Text>
 
                         <Section title="Change PIN">
                             <FieldLabel>Current PIN</FieldLabel>
@@ -776,6 +804,7 @@ export default function SettingsScreen() {
                                 keyboardType="numeric" placeholder="0" placeholderTextColor={Colors.muted} />
                         </Section>
 
+                        <Text style={styles.saveScopeHint}>Saves every section on this screen, not just this one.</Text>
                         <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
                             <Text style={styles.saveBtnText}>Save Settings</Text>
                         </TouchableOpacity>
@@ -878,12 +907,12 @@ export default function SettingsScreen() {
 
                         <Section title="Export & Import">
                             <Text style={styles.hint}>
-                                Export a full JSON backup of your account — transactions, invoices, assets, loans, budgets, inventory, staff, payroll, goals, settings, and activity history. Import to restore on a new device.
+                                Download a JSON data file of your account — transactions, invoices, assets, loans, budgets, inventory, staff, payroll, goals, settings, and activity history. Import to restore it elsewhere. (Not the same as your Backup Password above -- that's a login credential, this is a data file.)
                             </Text>
                             <TouchableOpacity style={styles.dataBtn} onPress={handleExport}>
                                 <View style={styles.btnIconRow}>
                                     <Icon name="package" size={14} color={Colors.primary} />
-                                    <Text style={styles.dataBtnText}>Export All Data (JSON Backup)</Text>
+                                    <Text style={styles.dataBtnText}>Export All Data (JSON File)</Text>
                                 </View>
                             </TouchableOpacity>
                             <TouchableOpacity style={[styles.dataBtn, { marginTop: 8, backgroundColor: '#10b981' }]} onPress={handleAccountantExport}>
@@ -1468,6 +1497,7 @@ const styles = StyleSheet.create({
     optActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
     optText:   { color: Colors.textSecondary, fontSize: 13 },
 
+    saveScopeHint: { fontSize: 11, color: Colors.textMuted, textAlign: 'center', marginBottom: Spacing.sm, fontStyle: 'italic' },
     saveBtn:     { backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginBottom: Spacing.md },
     saveBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
     cancelBtn:   { paddingVertical: Spacing.md, alignItems: 'center' },

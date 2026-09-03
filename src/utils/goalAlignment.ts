@@ -29,7 +29,7 @@
 import { FinancialGoal, Budget, Transaction, FinanceData, Loan } from '../types';
 import { activeBudgetsForPeriod, currentPeriodString } from './budgetPeriod';
 import { computeMonthlyBaseline } from './analysis';
-import { loanMonthlyPayment, CashFlowForecastWeek, ForecastPoint } from './finance';
+import { loanMonthlyPayment, CashFlowForecastWeek, ForecastPoint, latestTransactionDate } from './finance';
 
 // ─── Goal ↔ Budget ──────────────────────────────────────────────────────────
 
@@ -283,7 +283,14 @@ export function computeRevenueMarginForecastAlignment(
     const projectedMonthlyRevenue = revenueForecast[0].projected;
 
     if (goal.type === 'revenue_growth') {
-        const today = new Date();
+        // Anchored to the latest transaction date, not real-world "now" --
+        // same reasoning as goalForecastGap.ts's computeGoalForecastGap,
+        // which answers a related pace question for the same goal type.
+        // Anchoring the two on different dates let this "on pace" verdict
+        // silently disagree with that gap figure whenever the business's
+        // data was stale (e.g. no recent transactions logged, or demo
+        // data), since "months remaining" would differ between them.
+        const today = latestTransactionDate(transactions) ?? new Date();
         const deadline = new Date(goal.deadline);
         const monthsRemaining = Math.max(1 / 30, (deadline.getTime() - today.getTime()) / (86400000 * 30));
         const requiredMonthlyRevenue = (goal.targetValue - goal.currentValue) / monthsRemaining;

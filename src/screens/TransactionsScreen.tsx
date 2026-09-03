@@ -449,10 +449,12 @@ export default function TransactionsScreen() {
 
             {screenTab === 'exposure' ? (
                 <ScrollView style={styles.scroll} contentContainerStyle={styles.pad}>
+                    <Text style={styles.exposureTabIntro}>How much of every {settings.currency}1 of revenue your costs are eating, and which categories are driving that.</Text>
                     <CostExposureTab />
                 </ScrollView>
             ) : screenTab === 'revenue' ? (
                 <ScrollView style={styles.scroll} contentContainerStyle={styles.pad}>
+                    <Text style={styles.exposureTabIntro}>The other side of Cost Exposure -- concentration risk in WHERE your revenue comes from (top customers, channels), not what's eating it.</Text>
                     <RevenueExposureTab />
                 </ScrollView>
             ) : (
@@ -668,8 +670,8 @@ export default function TransactionsScreen() {
                                         </Text>
                                     </View>
                                     {tx.status === 'pending' && tx.dueDate && new Date(tx.dueDate + 'T00:00:00') < new Date() ? (
-                                        <Text style={[styles.dueBadge, { color: Colors.expense, backgroundColor: 'rgba(239,68,68,0.12)' }]}>
-                                            {Math.ceil((Date.now() - new Date(tx.dueDate + 'T00:00:00').getTime()) / 86400000)} days overdue
+                                        <Text style={[styles.dueBadge, styles.overdueBadge]}>
+                                            ⚠ {Math.ceil((Date.now() - new Date(tx.dueDate + 'T00:00:00').getTime()) / 86400000)} days overdue
                                         </Text>
                                     ) : tx.dueDate ? (
                                         <Text style={styles.dueBadge}>Due {tx.dueDate}</Text>
@@ -1209,6 +1211,7 @@ const styles = StyleSheet.create({
     safe:    { flex: 1, backgroundColor: Colors.bg },
     scroll:  { flex: 1 },
     pad:     { padding: Spacing.md },
+    exposureTabIntro: { fontSize: 12.5, color: Colors.textMuted, lineHeight: 18, marginBottom: Spacing.md },
     recurringSection: { marginTop: Spacing.lg, marginBottom: Spacing.sm },
 
     screenTabBar: { flexDirection: 'row', backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border },
@@ -1268,7 +1271,11 @@ const styles = StyleSheet.create({
     statusDot:   { width: 6, height: 6, borderRadius: 3 },
     statusText:  { fontSize: 11, fontWeight: '600' },
     dueBadge:  { fontSize: 10, color: Colors.warning, paddingHorizontal: 6, paddingVertical: 2, borderRadius: Radius.sm, backgroundColor: 'rgba(245,158,11,0.12)' },
-    taxBadge:  { fontSize: 10, color: Colors.warning, paddingHorizontal: 6, paddingVertical: 2, borderRadius: Radius.sm, backgroundColor: 'rgba(245,158,11,0.12)' },
+    // Overdue is the one badge here that genuinely needs to grab attention
+    // ahead of tax/recurring/personal decoration -- bold, red, with its own
+    // icon so it doesn't read as just another same-weight pill in a row of five.
+    overdueBadge: { fontWeight: '800', color: Colors.expense, backgroundColor: 'rgba(239,68,68,0.16)' },
+    taxBadge:  { fontSize: 10, color: '#7c3aed', paddingHorizontal: 6, paddingVertical: 2, borderRadius: Radius.sm, backgroundColor: 'rgba(124,58,237,0.12)' },
     recurBadge:{ fontSize: 10, color: Colors.primary, paddingHorizontal: 6, paddingVertical: 2, borderRadius: Radius.sm, backgroundColor: 'rgba(37,99,235,0.12)' },
     personalBadge: { fontSize: 10, color: Colors.warning, paddingHorizontal: 6, paddingVertical: 2, borderRadius: Radius.sm, backgroundColor: 'rgba(245,158,11,0.14)' },
     txActions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

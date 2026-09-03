@@ -12,6 +12,7 @@ import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { LoanPurpose, FinancingOutcomeInput } from '../types';
 import { computeDSCR } from '../utils/finance';
 import { monthlyPayment } from '../utils/loanMath';
+import { localDateStr } from '../utils/localDate';
 
 // Shared between the purpose picker grid and the review step so the label
 // shown for a selection never disagrees with what's actually submitted.
@@ -43,13 +44,19 @@ export default function MerchantFinancingSection() {
     // "PRE-QUALIFIED -- Start Application".
     const dscr = useMemo(() => computeDSCR(transactions, loans), [transactions, loans]);
 
+    // Same currency-aware ratio CreditWorthinessScreen's Payment History
+    // factor uses (₦500k : $5k) -- an unadjusted ₦200,000 figure would
+    // silently make this far easier or harder to hit for a business
+    // pricing in a different currency.
+    const revenueThreshold = currency === '₦' ? 200000 : 2000;
+
     // Check qualification
     const isQualified = useMemo(() => {
         return (user?.daysActive || 0) >= 90
-            && (user?.avgMonthlyRevenue || 0) >= 200000
+            && (user?.avgMonthlyRevenue || 0) >= revenueThreshold
             && (user?.financialHealthScore || 0) >= 50
             && dscr.dscr >= 1;
-    }, [user?.daysActive, user?.avgMonthlyRevenue, user?.financialHealthScore, dscr.dscr]);
+    }, [user?.daysActive, user?.avgMonthlyRevenue, user?.financialHealthScore, dscr.dscr, revenueThreshold]);
 
     const hasApplied = financing?.applicationStatus !== null;
     const isApproved = financing?.applicationStatus === 'approved';
@@ -118,6 +125,7 @@ export default function MerchantFinancingSection() {
                     healthScore={user?.financialHealthScore || 0}
                     dscr={dscr.dscr}
                     currency={currency}
+                    revenueThreshold={revenueThreshold}
                 />
             ) : null}
 
@@ -204,7 +212,7 @@ function PreQualificationWidget({ maxLoan, minLoan, readinessScore, currency, on
                 <View>
                     <View style={[s.badgeRow, { marginBottom: Spacing.xs }]}>
                         <Icon name="check-circle" size={12} color={Colors.income} />
-                        <Text style={s.preQualBadge}>PRE-QUALIFIED</Text>
+                        <Text style={s.preQualBadge}>MEETS OUR CRITERIA</Text>
                     </View>
                     <Text style={s.preQualTitle}>Inventory Financing Available</Text>
                 </View>
@@ -233,14 +241,14 @@ function PreQualificationWidget({ maxLoan, minLoan, readinessScore, currency, on
             {/* CTA */}
             <TouchableOpacity style={s.preQualCTA} onPress={onApply}>
                 <Text style={s.preQualCTAText}>Start Application</Text>
-                <Text style={s.preQualCTASubtext}>~5 min · Instant approval</Text>
+                <Text style={s.preQualCTASubtext}>~5 min · sent to a lender for review</Text>
             </TouchableOpacity>
 
             {/* Info Box */}
             <View style={s.infoBox}>
                 <Icon name="info" size={16} color={Colors.primary} />
                 <Text style={s.infoText}>
-                    We're pre-approving you based on your Quad360 financial data. No collateral required.
+                    Your Quad360 data meets the criteria to apply. Applying does not guarantee approval -- a lender still reviews it, which is why every application starts as "Under Review." No collateral required.
                 </Text>
             </View>
         </View>
@@ -305,7 +313,7 @@ function ApplicationStatusCard({ application, currency, onRecordOutcome, onConfi
                     </View>
                     <TouchableOpacity
                         style={[s.reapplyBtn, { backgroundColor: Colors.income }]}
-                        onPress={() => onConfirmFunded(new Date().toISOString().split('T')[0])}
+                        onPress={() => onConfirmFunded(localDateStr())}
                     >
                         <Text style={s.reapplyBtnText}>Confirm Funds Received →</Text>
                     </TouchableOpacity>
@@ -371,12 +379,13 @@ function PastApplicationCard({ application, currency, onReapply }: {
  * NOT QUALIFIED STATE
  * Shows what SME needs to reach qualification
  */
-function NotQualifiedState({ daysActive, monthlyRevenue, healthScore, dscr, currency }: {
+function NotQualifiedState({ daysActive, monthlyRevenue, healthScore, dscr, currency, revenueThreshold }: {
     daysActive: number;
     monthlyRevenue: number;
     healthScore: number;
     dscr: number;
     currency: string;
+    revenueThreshold: number;
 }) {
     const daysRemaining = Math.max(0, 90 - daysActive);
     const estimatedQualificationDate = useMemo(() => {
@@ -398,14 +407,14 @@ function NotQualifiedState({ daysActive, monthlyRevenue, healthScore, dscr, curr
             progress: Math.min(100, (daysActive / 90) * 100),
         },
         {
-            met: monthlyRevenue >= 200000,
+            met: monthlyRevenue >= revenueThreshold,
             label: 'Monthly Revenue',
             current: monthlyRevenue,
-            needed: 200000,
+            needed: revenueThreshold,
             type: 'currency',
             currency,
-            hint: monthlyRevenue >= 200000 ? 'Complete ✅' : `Need ${currency}${(200000 - monthlyRevenue).toLocaleString()} more`,
-            progress: Math.min(100, (monthlyRevenue / 200000) * 100),
+            hint: monthlyRevenue >= revenueThreshold ? 'Complete ✅' : `Need ${currency}${(revenueThreshold - monthlyRevenue).toLocaleString()} more`,
+            progress: Math.min(100, (monthlyRevenue / revenueThreshold) * 100),
         },
         {
             met: healthScore >= 50,
@@ -487,7 +496,7 @@ function NotQualifiedState({ daysActive, monthlyRevenue, healthScore, dscr, curr
                     {daysActive < 90 && (
                         <Text style={s.infoText}>• Log transactions consistently for {daysRemaining} more days</Text>
                     )}
-                    {monthlyRevenue < 200000 && (
+                    {monthlyRevenue < revenueThreshold && (
                         <Text style={s.infoText}>• Increase sales and log all transactions (invoices, payments, transfers)</Text>
                     )}
                     {healthScore < 50 && (
@@ -514,7 +523,7 @@ function QualifiedEmptyState({ onApply }: { onApply: () => void }) {
             </View>
             <Text style={s.emptyStateTitle}>Ready to Scale Your Business?</Text>
             <Text style={s.emptyStateSubtitle}>
-                You're pre-qualified for merchant financing. Apply now to get inventory or equipment capital.
+                Your business meets the criteria for merchant financing. Apply now for inventory or equipment capital.
             </Text>
 
             <TouchableOpacity style={s.emptyStateCTA} onPress={onApply}>
@@ -524,7 +533,7 @@ function QualifiedEmptyState({ onApply }: { onApply: () => void }) {
             <View style={[s.infoBox, { marginTop: Spacing.lg }]}>
                 <Icon name="star" size={16} color={Colors.income} />
                 <Text style={s.infoText}>
-                    Approval takes ~2 hours. Funds arrive within 24 hours. No collateral needed.
+                    A lender reviews every application -- this isn't a guaranteed approval. No collateral needed.
                 </Text>
             </View>
         </View>

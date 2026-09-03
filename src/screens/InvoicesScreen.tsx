@@ -9,6 +9,7 @@ import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { Invoice, InvoiceLineItem, InvoiceStatus } from '../types';
 import { generateId } from '../utils/uuid';
+import { localDateStr } from '../utils/localDate';
 import DateInput from '../components/DateInput';
 import { sendInvoiceReminderViaWhatsApp, sendPaymentRequestViaWhatsApp, isWhatsAppInstalled } from '../utils/whatsappIntegration';
 import { getInvoicesDueForReminder, loadReminderState, markReminderSent, InvoiceReminderState, ReminderDue } from '../utils/invoiceReminders';
@@ -301,7 +302,7 @@ export default function InvoicesScreen() {
             return;
         }
 
-        const today = new Date().toISOString().split('T')[0];
+        const today = localDateStr();
         const payload = {
             invoiceNumber: editId ? (invoices.find(i => i.id === editId)?.invoiceNumber ?? nextInvoiceNumber()) : nextInvoiceNumber(),
             clientName: clientName.trim(),

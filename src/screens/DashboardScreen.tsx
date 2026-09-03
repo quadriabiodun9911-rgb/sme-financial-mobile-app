@@ -1288,7 +1288,7 @@ export default function DashboardScreen() {
                     scrolling through. Nothing new is computed here. */}
                 {priorities.length > 0 && (
                   <View style={styles.topPrioritiesCard}>
-                    <Text style={styles.topPrioritiesEyebrow}>YOUR TOP PRIORIT{priorities.length > 1 ? 'IES' : 'Y'}</Text>
+                    <Text style={styles.topPrioritiesEyebrow}>👉 START HERE — YOUR TOP PRIORIT{priorities.length > 1 ? 'IES' : 'Y'}</Text>
                     {priorities.slice(0, TOP_PRIORITY_COUNT).map((item, i, arr) => {
                       const kindMeta = PRIORITY_KIND_META[item.kind];
                       const tierMeta = PRIORITY_TIER_META[item.tier];

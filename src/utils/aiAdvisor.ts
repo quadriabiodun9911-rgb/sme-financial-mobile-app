@@ -29,7 +29,14 @@ import { BehavioralProfile } from './behavioralProfile';
 export interface AdvisorContext {
     currency: string;
     cashBalance: number;
-    reserveTarget: number;
+    // null (not 0) when the owner has never set one in Settings -- a real
+    // 0 target and "never set" both used to arrive here as the same number,
+    // so a question like "am I above my reserve target?" could get a
+    // confidently reassuring answer grounded in a target the owner never
+    // actually chose. The system prompt (advisor edge function) already
+    // tells the model to say so plainly instead of assuming a value for
+    // any field that's genuinely absent.
+    reserveTarget: number | null;
     healthScore: number;
     healthStatus: 'critical' | 'warning' | 'healthy';
     narrativeSummary: string;
@@ -66,7 +73,11 @@ export function buildAdvisorContext(
     return {
         currency: settings.currency,
         cashBalance: finance.cashBalance,
-        reserveTarget: parseFloat(settings.minReserve) || 0,
+        reserveTarget: (() => {
+            if (!settings.minReserve || !settings.minReserve.trim()) return null;
+            const parsed = parseFloat(settings.minReserve);
+            return isNaN(parsed) ? null : parsed;
+        })(),
         healthScore: diagnosis.overallHealth,
         healthStatus: diagnosis.healthStatus,
         narrativeSummary: diagnosis.narrativeSummary,
