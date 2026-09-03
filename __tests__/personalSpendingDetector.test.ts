@@ -189,8 +189,59 @@ describe('detectPersonalSpending', () => {
     });
 
     it('still flags genuinely unrelated personal spending for a fitness-plausible industry', () => {
-        const txs = [makeTx({ id: 'a', description: 'Home rent payment', amount: 300000 })];
+        const txs = [makeTx({ id: 'a', description: 'School fees for the kids', amount: 150000 })];
         const report = detectPersonalSpending(txs, '₦', [], 'professional-services');
         expect(report.flaggedCount).toBe(1);
+    });
+
+    it('flags subscription-sounding spending by default and for professional-services (no legitimate reading there)', () => {
+        for (const industry of [undefined, 'professional-services']) {
+            const txs = [makeTx({ id: 'a', description: 'Netflix subscription', amount: 5000 })];
+            const report = detectPersonalSpending(txs, '₦', [], industry);
+            expect(report.flaggedCount).toBe(1);
+        }
+    });
+
+    it('does not flag a subscription-reseller (DSTV/GOTV agent) business\'s own renewal transactions when registered as Retail', () => {
+        const txs = [
+            makeTx({ id: 'a', description: 'DSTV subscription renewal for customer', amount: 25000 }),
+            makeTx({ id: 'b', description: 'GOTV top-up — client', amount: 8000 }),
+        ];
+        const report = detectPersonalSpending(txs, '₦', [], 'retail');
+        expect(report.flaggedCount).toBe(0);
+    });
+
+    it('flags personal-shopping-sounding spending by default and for retail (no legitimate reading there)', () => {
+        for (const industry of [undefined, 'retail']) {
+            const txs = [makeTx({ id: 'a', description: 'Personal shopping trip', amount: 30000 })];
+            const report = detectPersonalSpending(txs, '₦', [], industry);
+            expect(report.flaggedCount).toBe(1);
+        }
+    });
+
+    it('does not flag a personal shopper/concierge business\'s own client-billable work when registered as Professional Services', () => {
+        const txs = [
+            makeTx({ id: 'a', description: 'Personal shopping trip — client X', amount: 45000 }),
+            makeTx({ id: 'b', description: 'Personal purchase reimbursement — client order', amount: 60000 }),
+        ];
+        const report = detectPersonalSpending(txs, '₦', [], 'professional-services');
+        expect(report.flaggedCount).toBe(0);
+    });
+
+    it('flags home-rent-sounding spending by default and for retail (no legitimate reading there)', () => {
+        for (const industry of [undefined, 'retail']) {
+            const txs = [makeTx({ id: 'a', description: 'Home rent payment', amount: 300000 })];
+            const report = detectPersonalSpending(txs, '₦', [], industry);
+            expect(report.flaggedCount).toBe(1);
+        }
+    });
+
+    it('does not flag a property management/letting agency\'s own tenant rent transactions when registered as Professional Services', () => {
+        const txs = [
+            makeTx({ id: 'a', description: 'House rent collected for landlord — Flat 3B', amount: 450000 }),
+            makeTx({ id: 'b', description: 'Residential rent remittance — March', amount: 620000 }),
+        ];
+        const report = detectPersonalSpending(txs, '₦', [], 'professional-services');
+        expect(report.flaggedCount).toBe(0);
     });
 });

@@ -90,12 +90,41 @@ const GROOMING_RULE_EXCLUDED_INDUSTRIES = new Set(['retail', 'professional-servi
 const FITNESS_RULE = { keywords: ['gym membership', 'fitness club'], reason: 'Looks like a personal gym/fitness expense' };
 const FITNESS_RULE_EXCLUDED_INDUSTRIES = new Set(['retail', 'professional-services']);
 
+// DSTV/GOTV/streaming-subscription reselling and renewal is a real,
+// common small business (an "airtime & subscriptions" agent, the same
+// shape as "Phone & airtime" retail) -- "DSTV subscription renewal for
+// customer" or "GOTV top-up — client" are real, repeated revenue-
+// generating transactions for that business, not the owner's own TV
+// subscription. Excluded for Retail only -- no other industry plausibly
+// resells subscriptions as its core business.
+const SUBSCRIPTION_RESELLER_RULE = { keywords: ['netflix', 'spotify', 'dstv', 'gotv', 'showmax', 'amazon prime', 'apple music'], reason: 'Looks like a personal entertainment subscription' };
+const SUBSCRIPTION_RESELLER_RULE_EXCLUDED_INDUSTRIES = new Set(['retail']);
+
+// "Personal shopping"/"personal purchase" is the literal service a
+// personal shopper or concierge business sells -- "Personal shopping
+// trip — client X", "Personal purchase reimbursement — client order" are
+// real client-billable work, not the owner's own retail therapy.
+// Excluded for Professional Services only, the one industry that fits a
+// concierge/personal-shopping service.
+const CONCIERGE_RULE = { keywords: ['personal shopping', 'personal purchase'], reason: 'Looks like personal shopping' };
+const CONCIERGE_RULE_EXCLUDED_INDUSTRIES = new Set(['professional-services']);
+
+// "Home rent"/"apartment rent"/"house rent"/"residential rent" exists
+// specifically to distinguish the owner's OWN home rent from the
+// business's premises rent (see this file's top comment) -- but for a
+// property management company or rental/letting agency, collecting or
+// remitting a TENANT's residential rent is the entire business: "House
+// rent collected for landlord — Flat 3B", "Residential rent remittance
+// — March" are real client transactions passing through the business
+// account, not the owner paying their own rent. Excluded for
+// Professional Services only, the closest fit for a property/letting
+// management service.
+const RENTAL_AGENCY_RULE = { keywords: ['home rent', 'apartment rent', 'house rent', 'residential rent'], reason: 'Looks like personal (home) rent, not business rent' };
+const RENTAL_AGENCY_RULE_EXCLUDED_INDUSTRIES = new Set(['professional-services']);
+
 const PERSONAL_RULES: { keywords: string[]; reason: string }[] = [
     { keywords: ['school fees', 'school fee', 'tuition'], reason: 'Looks like a school-fees payment' },
     { keywords: ['family support', 'family upkeep', 'send family', 'family expense', 'family feeding'], reason: 'Looks like a family expense' },
-    { keywords: ['netflix', 'spotify', 'dstv', 'gotv', 'showmax', 'amazon prime', 'apple music'], reason: 'Looks like a personal entertainment subscription' },
-    { keywords: ['personal shopping', 'personal purchase'], reason: 'Looks like personal shopping' },
-    { keywords: ['home rent', 'apartment rent', 'house rent', 'residential rent'], reason: 'Looks like personal (home) rent, not business rent' },
     { keywords: ['owner withdrawal', 'personal withdrawal', 'director drawing', "owner's drawing", 'proprietor drawing', "owner's personal"], reason: 'Recorded as an owner drawing from the business' },
 ];
 
@@ -107,13 +136,12 @@ function normalise(s: string): string {
  * @param dismissedIds transaction ids the owner has already reviewed and
  * confirmed are real business spending -- excluded from the report so a
  * false positive doesn't keep nagging every time the list re-renders.
- * @param industry settings.industry -- gates out the nightlife rule for a
- * food-service business (see NIGHTLIFE_RULE's own comment), the
- * celebration rule for Retail/Food Service/Professional Services (see
- * CELEBRATION_RULE's own comment), and the grooming and fitness rules for
- * Retail/Professional Services (see GROOMING_RULE/FITNESS_RULE's own
- * comments). Every other industry, and the unset/undefined default, keeps
- * all four rules active.
+ * @param industry settings.industry -- gates out several rules for the one
+ * or two industries whose own normal vocabulary would otherwise collide
+ * with them (see each rule's own comment: NIGHTLIFE_RULE, CELEBRATION_RULE,
+ * GROOMING_RULE, FITNESS_RULE, SUBSCRIPTION_RESELLER_RULE, CONCIERGE_RULE,
+ * RENTAL_AGENCY_RULE). Every other industry, and the unset/undefined
+ * default, keeps all of them active.
  */
 export function detectPersonalSpending(transactions: Transaction[], currency: string = '₦', dismissedIds: string[] = [], industry?: string): PersonalSpendingReport {
     const dismissed = new Set(dismissedIds);
@@ -124,6 +152,9 @@ export function detectPersonalSpending(transactions: Transaction[], currency: st
     if (!industry || !CELEBRATION_RULE_EXCLUDED_INDUSTRIES.has(industry)) rules.push(CELEBRATION_RULE);
     if (!industry || !GROOMING_RULE_EXCLUDED_INDUSTRIES.has(industry)) rules.push(GROOMING_RULE);
     if (!industry || !FITNESS_RULE_EXCLUDED_INDUSTRIES.has(industry)) rules.push(FITNESS_RULE);
+    if (!industry || !SUBSCRIPTION_RESELLER_RULE_EXCLUDED_INDUSTRIES.has(industry)) rules.push(SUBSCRIPTION_RESELLER_RULE);
+    if (!industry || !CONCIERGE_RULE_EXCLUDED_INDUSTRIES.has(industry)) rules.push(CONCIERGE_RULE);
+    if (!industry || !RENTAL_AGENCY_RULE_EXCLUDED_INDUSTRIES.has(industry)) rules.push(RENTAL_AGENCY_RULE);
 
     for (const t of transactions) {
         if (t.type !== 'expense' || dismissed.has(t.id)) continue;
