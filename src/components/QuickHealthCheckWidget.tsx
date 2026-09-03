@@ -14,13 +14,37 @@
  * factors (Working Capital, Debt, Efficiency, Inventory, Concentration,
  * Operating Cash Flow) genuinely require.
  */
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Animated, Easing } from 'react-native';
 import { Colors } from '../theme/colors';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
-import Icon from './ui/Icon';
+import Icon, { IconName } from './ui/Icon';
+import RadialGauge from './RadialGauge';
 import { RiskScore } from '../utils/finance';
 import { computeQuickHealthCheck, QuickHealthCheckResult } from '../utils/quickHealthCheck';
+
+// A pressable that gives real tactile feedback (a slight scale-down on
+// press, springing back on release) instead of TouchableOpacity's flat
+// opacity dim -- the same Animated API SkeletonLoader.tsx/RetentionNudges.tsx
+// already use elsewhere in this app, no new dependency.
+function PressScale({ children, onPress, disabled, style }: { children: React.ReactNode; onPress?: () => void; disabled?: boolean; style?: any }) {
+    const scale = useRef(new Animated.Value(1)).current;
+    const animateTo = (v: number) => Animated.spring(scale, { toValue: v, useNativeDriver: true, speed: 40, bounciness: 6 }).start();
+    return (
+        <Animated.View style={{ transform: [{ scale }] }}>
+            <TouchableOpacity
+                activeOpacity={0.9}
+                onPress={onPress}
+                disabled={disabled}
+                onPressIn={() => !disabled && animateTo(0.97)}
+                onPressOut={() => animateTo(1)}
+                style={style}
+            >
+                {children}
+            </TouchableOpacity>
+        </Animated.View>
+    );
+}
 
 // Same band->color convention every other score-band screen in the app
 // defines locally (Colors are theme-dependent, so this isn't shared from
@@ -61,6 +85,36 @@ export default function QuickHealthCheckWidget({ onWantFullPicture, onTryDemo, i
     const [cashText, setCashText] = useState('');
     const [result, setResult] = useState<QuickHealthCheckResult | null>(null);
     const [stressOpen, setStressOpen] = useState(false);
+    const [focusedField, setFocusedField] = useState<string | null>(null);
+
+    // Genuine motion, not decoration: the card settles in on first paint
+    // (mountFade), and the result view fades/lifts in each time a new score
+    // is generated (cardFade) rather than snapping into place. Same
+    // Animated API SkeletonLoader.tsx/RetentionNudges.tsx already use
+    // elsewhere -- no new dependency.
+    const mountFade = useRef(new Animated.Value(0)).current;
+    const cardFade = useRef(new Animated.Value(0)).current;
+    const scoreAnim = useRef(new Animated.Value(0)).current;
+    const [animatedScore, setAnimatedScore] = useState(0);
+
+    useEffect(() => {
+        Animated.timing(mountFade, { toValue: 1, duration: 420, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+    }, []);
+
+    useEffect(() => {
+        if (!result) return;
+        cardFade.setValue(0);
+        Animated.timing(cardFade, { toValue: 1, duration: 380, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+
+        // Counts the gauge up from 0 to the real score instead of snapping
+        // to it -- the single highest-visibility motion moment on the page,
+        // since it's the first thing a visitor's eye follows after tapping
+        // Generate.
+        scoreAnim.setValue(0);
+        const id = scoreAnim.addListener(({ value }) => setAnimatedScore(Math.round(value)));
+        Animated.timing(scoreAnim, { toValue: result.partialScore, duration: 900, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
+        return () => scoreAnim.removeListener(id);
+    }, [result]);
 
     const revenue = parseAmount(revenueText);
     const expenses = parseAmount(expensesText);
@@ -79,18 +133,22 @@ export default function QuickHealthCheckWidget({ onWantFullPicture, onTryDemo, i
 
     if (result) {
         return (
-            <View style={[s.card, isWide && s.cardWide]}>
+            <Animated.View style={[s.card, isWide && s.cardWide, { opacity: cardFade, transform: [{ translateY: cardFade.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }] }]}>
                 <Text style={s.resultEyebrow}>YOUR 60-SECOND SNAPSHOT</Text>
 
-                <View style={s.resultRow}>
-                    <Text style={s.resultIcon}>📈</Text>
+                <View style={[s.resultRow, s.scoreRow]}>
+                    <RadialGauge
+                        displayValue={String(animatedScore)}
+                        label="/ 100"
+                        progress={animatedScore / 100}
+                        color={BAND_COLOR[result.partialBand]}
+                        size={84}
+                        strokeWidth={8}
+                    />
                     <View style={[s.resultRowBody, isWide && s.wideTextCap]}>
                         <Text style={s.resultLabel}>Partial Business Health Score</Text>
-                        <View style={s.scoreLine}>
-                            <Text style={[s.resultValue, { color: BAND_COLOR[result.partialBand] }]}>{result.partialScore}/100</Text>
-                            <View style={[s.riskPill, { borderColor: BAND_COLOR[result.partialBand] }]}>
-                                <Text style={[s.riskPillText, { color: BAND_COLOR[result.partialBand] }]}>{result.partialBand}</Text>
-                            </View>
+                        <View style={[s.riskPill, { borderColor: BAND_COLOR[result.partialBand] }]}>
+                            <Text style={[s.riskPillText, { color: BAND_COLOR[result.partialBand] }]}>{result.partialBand}</Text>
                         </View>
                         <Text style={s.resultSub}>
                             Built from 2 of the 8 real factors — Profitability and Liquidity. The other 6
@@ -171,24 +229,24 @@ export default function QuickHealthCheckWidget({ onWantFullPicture, onTryDemo, i
                         to do next.
                     </Text>
                     <View style={s.upsellBtnRow}>
-                        <TouchableOpacity onPress={onWantFullPicture} style={s.upsellPrimaryBtn}>
+                        <PressScale onPress={onWantFullPicture} style={s.upsellPrimaryBtn}>
                             <Text style={s.upsellPrimaryText}>Get My Full Health Score →</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity onPress={onTryDemo} style={s.upsellSecondaryBtn}>
+                        </PressScale>
+                        <PressScale onPress={onTryDemo} style={s.upsellSecondaryBtn}>
                             <Text style={s.upsellSecondaryText}>Try Guest Demo</Text>
-                        </TouchableOpacity>
+                        </PressScale>
                     </View>
                 </View>
 
                 <TouchableOpacity onPress={handleReset} style={s.tryAgainBtn}>
                     <Text style={s.tryAgainText}>← Check different numbers</Text>
                 </TouchableOpacity>
-            </View>
+            </Animated.View>
         );
     }
 
     return (
-        <View style={[s.card, isWide && s.cardWide]}>
+        <Animated.View style={[s.card, isWide && s.cardWide, { opacity: mountFade, transform: [{ translateY: mountFade.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }] }]}>
             <View style={s.cardHeader}>
                 <Icon name="activity" size={18} color={Colors.primary} />
                 <Text style={s.cardTitle}>Check Your Business Health — Free</Text>
@@ -196,51 +254,40 @@ export default function QuickHealthCheckWidget({ onWantFullPicture, onTryDemo, i
             <Text style={s.cardSub}>Get an instant snapshot using just three numbers you already know.</Text>
 
             <View style={[s.fieldsWrap, isWide && s.fieldsWrapWide]}>
-                <View style={[s.field, isWide && s.fieldWide]}>
-                    <Text style={s.fieldLabel}>Last Month's Revenue</Text>
-                    <TextInput
-                        style={s.input}
-                        value={revenueText}
-                        onChangeText={setRevenueText}
-                        placeholder="e.g. 45,000"
-                        placeholderTextColor={Colors.textMuted}
-                        keyboardType="decimal-pad"
-                    />
-                </View>
-                <View style={[s.field, isWide && s.fieldWide]}>
-                    <Text style={s.fieldLabel}>Monthly Expenses</Text>
-                    <TextInput
-                        style={s.input}
-                        value={expensesText}
-                        onChangeText={setExpensesText}
-                        placeholder="e.g. 38,000"
-                        placeholderTextColor={Colors.textMuted}
-                        keyboardType="decimal-pad"
-                    />
-                </View>
-                <View style={[s.field, isWide && s.fieldWide]}>
-                    <Text style={s.fieldLabel}>Cash Currently in Bank</Text>
-                    <TextInput
-                        style={s.input}
-                        value={cashText}
-                        onChangeText={setCashText}
-                        placeholder="e.g. 120,000"
-                        placeholderTextColor={Colors.textMuted}
-                        keyboardType="decimal-pad"
-                    />
-                </View>
+                {([
+                    { key: 'revenue', icon: 'trending-up' as IconName, label: "Last Month's Revenue", placeholder: 'e.g. 45,000', value: revenueText, onChange: setRevenueText },
+                    { key: 'expenses', icon: 'trending-down' as IconName, label: 'Monthly Expenses', placeholder: 'e.g. 38,000', value: expensesText, onChange: setExpensesText },
+                    { key: 'cash', icon: 'credit-card' as IconName, label: 'Cash Currently in Bank', placeholder: 'e.g. 120,000', value: cashText, onChange: setCashText },
+                ]).map(f => (
+                    <View key={f.key} style={[s.field, isWide && s.fieldWide]}>
+                        <View style={s.fieldLabelRow}>
+                            <Icon name={f.icon} size={12.5} color={Colors.textMuted} />
+                            <Text style={s.fieldLabel}>{f.label}</Text>
+                        </View>
+                        <TextInput
+                            style={[s.input, focusedField === f.key && s.inputFocused]}
+                            value={f.value}
+                            onChangeText={f.onChange}
+                            onFocus={() => setFocusedField(f.key)}
+                            onBlur={() => setFocusedField(cur => (cur === f.key ? null : cur))}
+                            placeholder={f.placeholder}
+                            placeholderTextColor={Colors.textMuted}
+                            keyboardType="decimal-pad"
+                        />
+                    </View>
+                ))}
             </View>
 
-            <TouchableOpacity
+            <PressScale
                 onPress={handleGenerate}
                 disabled={!canGenerate}
                 style={[s.generateBtn, !canGenerate && s.generateBtnDisabled]}
             >
                 <Text style={s.generateBtnText}>Generate My Health Score →</Text>
-            </TouchableOpacity>
+            </PressScale>
 
             <Text style={s.reassurance}>No bank connection required  •  Takes less than 60 seconds  •  Your data stays private</Text>
-        </View>
+        </Animated.View>
     );
 }
 
@@ -263,11 +310,18 @@ const s = StyleSheet.create({
     fieldsWrapWide: { flexDirection: 'row', gap: Spacing.md },
     field: { marginBottom: Spacing.sm },
     fieldWide: { flex: 1, marginBottom: 0 },
-    fieldLabel: { fontSize: 11.5, fontWeight: '700', color: Colors.textSecondary, marginBottom: 5 },
+    fieldLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 5 },
+    fieldLabel: { fontSize: 11.5, fontWeight: '700', color: Colors.textSecondary },
     input: {
-        borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, paddingHorizontal: 12, paddingVertical: 11,
+        borderWidth: 1.5, borderColor: Colors.border, borderRadius: Radius.md, paddingHorizontal: 12, paddingVertical: 11,
         fontSize: 14, color: Colors.textPrimary, backgroundColor: Colors.bg,
     },
+    // No focus styling existed at all before -- every field looked
+    // identical whether idle or actively being typed into, which is most of
+    // what "plain inputs" meant. A visible border-color shift plus a soft
+    // tinted halo (a real, not merely color, cue -- reads under
+    // color-vision deficiency too) marks which field has focus right now.
+    inputFocused: { borderColor: Colors.primary, ...Shadow.sm },
 
     generateBtn: { backgroundColor: Colors.primary, borderRadius: Radius.pill, paddingVertical: 14, alignItems: 'center', marginTop: Spacing.sm, ...Shadow.sm },
     generateBtnDisabled: { opacity: 0.45 },
@@ -277,6 +331,7 @@ const s = StyleSheet.create({
 
     resultEyebrow: { fontSize: 10.5, fontWeight: '700', color: Colors.primary, letterSpacing: 0.6, marginBottom: 14 },
     resultRow: { flexDirection: 'row', gap: 12, marginBottom: 16 },
+    scoreRow: { alignItems: 'center' },
     resultIcon: { fontSize: 20, lineHeight: 24 },
     resultRowBody: { flex: 1 },
     // Caps paragraph line length on the widened wide-viewport card --
@@ -296,8 +351,7 @@ const s = StyleSheet.create({
     scenarioLabel: { fontSize: 12, color: Colors.textSecondary },
     scenarioValue: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary },
 
-    scoreLine: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 3 },
-    riskPill: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1.5, borderRadius: Radius.pill, paddingHorizontal: 10, paddingVertical: 4, alignSelf: 'flex-start' },
+    riskPill: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1.5, borderRadius: Radius.pill, paddingHorizontal: 10, paddingVertical: 4, alignSelf: 'flex-start', marginBottom: 6 },
     riskPillText: { fontSize: 12.5, fontWeight: '800' },
 
     disclaimer: { fontSize: 10.5, color: Colors.textMuted, fontStyle: 'italic', marginTop: 5, lineHeight: 15 },
