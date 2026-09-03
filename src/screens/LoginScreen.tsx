@@ -812,8 +812,18 @@ export default function LoginScreen() {
             // Same "Auth session missing!" trap as handleDeviceVerifyComplete
             // -- updateUser() keeps re-saving the same (now server-side
             // invalidated) access token instead of handing back a fresh
-            // one. See that function's comment for the full explanation.
-            await supabase.auth.refreshSession().catch(() => {});
+            // one, and refreshSession() reuses that same session's own
+            // refresh token, which the rotation can invalidate right along
+            // with it -- so it can fail the exact same way, silently. A
+            // fresh signInWithPassword doesn't depend on the old session at
+            // all. See handleDeviceVerifyComplete's comment for the full
+            // explanation.
+            const { error: resignError } = await supabase.auth.signInWithPassword({ email: resetEmail.trim(), password: newAuthSecret });
+            if (resignError) {
+                showAlert('Error', 'Your PIN was reset, but reconnecting this device failed: ' + resignError.message + '. Please try signing in again.');
+                setResetSubmitting(false);
+                return;
+            }
             // See the matching comment in handleWebResetComplete -- must run
             // before the local secret is overwritten below.
             await syncFieldEncryptionKey().catch(() => {});
@@ -945,11 +955,21 @@ export default function LoginScreen() {
             // underlying session Supabase Auth itself tracks server-side --
             // so anything that actually calls the real /user endpoint
             // (getUser(), used by every edge function's own auth check)
-            // starts rejecting it immediately with "Auth session missing!",
-            // even though nothing about the account's data was ever at
-            // risk. Forcing a refresh here is what actually produces a
-            // token the auth service still recognizes as current.
-            await supabase.auth.refreshSession().catch(() => {});
+            // starts rejecting it immediately with "Auth session missing!".
+            // A previous fix called refreshSession() here, but that reuses
+            // THIS SAME session's own refresh token -- which the password
+            // rotation can invalidate right along with the access token, so
+            // it was failing the exact same way and silently (the .catch
+            // swallowed it). A fresh signInWithPassword doesn't depend on
+            // the old session at all -- it's the same mechanism the
+            // ordinary PIN unlock already uses, and is the only thing here
+            // guaranteed to hand back a session Supabase Auth still
+            // recognizes.
+            const { error: resignError } = await supabase.auth.signInWithPassword({ email, password: newAuthSecret });
+            if (resignError) {
+                showAlert('Error', 'Verification succeeded, but reconnecting this device failed: ' + resignError.message + '. Please try signing in again.');
+                return;
+            }
             try { await recoverAccount(email, resetNewPin); } catch {}
             setResetStep('request'); setResetNewPin('');
         } catch (e: any) {
