@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity, useWindowDimensions, Platform } from 'react-native';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity, useWindowDimensions, Platform, Animated, Easing } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
@@ -7,6 +7,7 @@ import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import LowDataNotice from '../components/LowDataNotice';
 import Icon from '../components/ui/Icon';
+import RadialGauge from '../components/RadialGauge';
 import { computeRiskScore, RISK_BAND_STYLE, getMonthlyExpenseAverage } from '../utils/finance';
 import { computeRiskRadar, RiskLevel } from '../utils/riskRadar';
 import { computeReadinessDelta } from '../utils/readinessHistory';
@@ -114,6 +115,21 @@ export default function ScoreboardScreen() {
     const risk = useMemo(() => computeRiskScore(finance, loans, transactions, inventory), [finance, loans, transactions, inventory]);
     const bandMeta = useMemo(() => ({ ...RISK_BAND_STYLE[risk.band], color: BAND_COLOR[risk.band] }), [risk.band]);
     const readinessDelta = useMemo(() => computeReadinessDelta(readinessHistory), [readinessHistory]);
+
+    // Same RadialGauge + count-up treatment DashboardScreen's own Business
+    // Health card already got -- this hero card is exactly where its "See
+    // full breakdown & trend" link lands, so keeping this one flat text
+    // would read as a downgrade on arrival rather than a continuation.
+    // Animates from whatever it currently shows (not a reset-to-0 restart),
+    // since the score is a live value that can shift after every
+    // transaction, not a one-off "generate" event.
+    const scoreAnim = useRef(new Animated.Value(0)).current;
+    const [animatedScore, setAnimatedScore] = useState(0);
+    useEffect(() => {
+        const id = scoreAnim.addListener(({ value }) => setAnimatedScore(Math.round(value)));
+        Animated.timing(scoreAnim, { toValue: Math.round(risk.score), duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
+        return () => scoreAnim.removeListener(id);
+    }, [risk.score]);
 
     const riskRadar = useMemo(
         () => computeRiskRadar(transactions, loans, settings?.macroAssumptions ?? [], new Date(), assets),
@@ -250,7 +266,14 @@ export default function ScoreboardScreen() {
                 <View style={[s.scoreCard, { borderColor: bandMeta.color }]}>
                     <Text style={s.scoreCardLabel}>BUSINESS HEALTH SCORE</Text>
                     <View style={s.scoreRow}>
-                        <Text style={[s.scoreValue, { color: bandMeta.color }]}>{Math.round(risk.score)}</Text>
+                        <RadialGauge
+                            displayValue={String(animatedScore)}
+                            label="/ 100"
+                            progress={animatedScore / 100}
+                            color={bandMeta.color}
+                            size={72}
+                            strokeWidth={7}
+                        />
                         <View style={[s.bandBadge, { backgroundColor: bandMeta.color + '22' }]}>
                             <Text style={[s.bandBadgeText, { color: bandMeta.color }]}>{bandMeta.emoji} {bandMeta.label} · {risk.grade}</Text>
                         </View>
@@ -610,7 +633,6 @@ const s = StyleSheet.create({
     scoreCard: { backgroundColor: Colors.card, borderRadius: Radius.lg, padding: Spacing.lg, marginBottom: Spacing.lg, borderWidth: 1.5, ...Shadow.sm },
     scoreCardLabel: { fontSize: 10.5, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.8, marginBottom: Spacing.sm },
     scoreRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginBottom: Spacing.md },
-    scoreValue: { fontSize: 40, fontWeight: '800' },
     bandBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: Radius.pill },
     bandBadgeText: { fontSize: 12, fontWeight: '800' },
     trendNote: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17, marginTop: Spacing.sm },
