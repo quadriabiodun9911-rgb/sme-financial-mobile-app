@@ -306,7 +306,6 @@ export default function DashboardScreen() {
     const overdueCount = metrics.overdueCount;
     const overdueInvoices = metrics.overdueInvoices;
     const owedToYou = metrics.owedToYou;
-    const todayProfit = metrics.todayProfit;
     const lastMonthProfit = metrics.lastMonthProfit;
     const thisMonthProfit = metrics.thisMonthProfit;
     const profitDelta = metrics.profitDelta;
@@ -1159,50 +1158,14 @@ export default function DashboardScreen() {
                     </View>
                 )}
 
-                {/* Daily Pulse -- the in-app home for dailyBriefing.ts's
-                    content, which until now only ever reached anyone as a
-                    push notification that's easy to miss and gets
-                    truncated by the OS. Deliberately trimmed to ONLY
-                    yesterday's in/out/net -- the one thing genuinely not
-                    shown anywhere else on this screen. Cash and runway
-                    already have their own tile at the very top of this
-                    page and again in Vital Signs below; today's top
-                    priority already gets its own full section further
-                    down (see "What Else Needs Your Attention"). Repeating
-                    either here would be exactly the crowding this card
-                    should avoid, not add to. */}
-                {canViewFinancials && (
-                    <View style={styles.pulseStrip}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                            <Icon name="sunrise" size={15} color={Colors.primary} />
-                            <Text style={styles.pulseGreeting}>{dailyBriefing.greeting}</Text>
-                            <Text style={styles.pulseSubtitle}>· yesterday</Text>
-                        </View>
-                        <View style={styles.pulseRow}>
-                            <View style={styles.pulseStat}>
-                                <Text style={styles.pulseStatLabel}>In</Text>
-                                <Text style={[styles.pulseStatValue, { color: Colors.income }]}>
-                                    {currency}{Math.round(dailyBriefing.pulse.yesterdayRevenue).toLocaleString()}
-                                </Text>
-                            </View>
-                            <View style={styles.pulseStat}>
-                                <Text style={styles.pulseStatLabel}>Out</Text>
-                                <Text style={[styles.pulseStatValue, { color: Colors.expense }]}>
-                                    {currency}{Math.round(dailyBriefing.pulse.yesterdayExpense).toLocaleString()}
-                                </Text>
-                            </View>
-                            <View style={styles.pulseStat}>
-                                <Text style={styles.pulseStatLabel}>Net</Text>
-                                <Text style={[styles.pulseStatValue, { color: dailyBriefing.pulse.netMovement >= 0 ? Colors.income : Colors.expense }]}>
-                                    {dailyBriefing.pulse.netMovement >= 0 ? '+' : '-'}{currency}{Math.round(Math.abs(dailyBriefing.pulse.netMovement)).toLocaleString()}
-                                </Text>
-                            </View>
-                            <PressScale style={styles.pulseAskBtn} onPress={() => navigate('cfo', { tab: 'questions' })}>
-                                <Icon name="message-square" size={13} color={Colors.primary} />
-                            </PressScale>
-                        </View>
-                    </View>
-                )}
+                {/* Daily Pulse's content now lives inside Vital Signs itself
+                    (see the "Yesterday" stat there, replacing the often-
+                    empty "Today's Profit" figure) rather than as its own
+                    block here -- they're both cash-flow snapshots at
+                    different time windows, and a separate strip for one of
+                    them was exactly the fragmentation a decluttered
+                    dashboard shouldn't have. The greeting and the "Ask AI
+                    Advisor" action moved into Vital Signs' own title row. */}
 
                 {/* Business Health and Vital Signs sit side by side on a wide
                     desktop viewport (isWideDashboard) instead of stacking --
@@ -1290,9 +1253,20 @@ export default function DashboardScreen() {
                     'staff', unchanged for 'owner'/'accountant'. */}
                 {canViewFinancials && (
                 <View style={[styles.operationsSection, isWideDashboard && styles.dashboardCol]}>
-                  <View style={styles.sectionTitleRow}>
-                    <Icon name="activity" size={13} color={Colors.textMuted} />
-                    <Text style={styles.operationsSectionTitle}>Vital Signs</Text>
+                  {/* Greeting + "Ask AI Advisor" live in this title row now
+                      -- see the removed standalone Daily Pulse strip's note
+                      above for why: same cash-flow-snapshot content as the
+                      card below, just a different time window, so it
+                      belongs on the same card, not a second one. */}
+                  <View style={[styles.sectionTitleRow, { justifyContent: 'space-between' }]}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Icon name="activity" size={13} color={Colors.textMuted} />
+                      <Text style={styles.operationsSectionTitle}>Vital Signs</Text>
+                      <Text style={styles.vitalGreeting}>· {dailyBriefing.greeting}</Text>
+                    </View>
+                    <PressScale style={styles.vitalAskBtn} onPress={() => navigate('cfo', { tab: 'questions' })}>
+                      <Icon name="message-square" size={13} color={Colors.primary} />
+                    </PressScale>
                   </View>
 
                   {/* Cash Position Card - Most Important */}
@@ -1320,10 +1294,19 @@ export default function DashboardScreen() {
                     )}
                     <View style={styles.vitalDivider} />
                     <View style={styles.vitalCardBottom}>
+                      {/* "Yesterday" replaces the old "Today's Profit" --
+                          that figure reads as ₦0 (uninformative, not
+                          reassuring) for most of any given morning, before
+                          anything's been logged for the day. Yesterday is
+                          always a complete, real number, which is exactly
+                          why dailyBriefing.ts's pulse was built around it. */}
                       <View style={styles.vitalMetric}>
-                        <Text style={styles.vitalLabel}>Today's Profit</Text>
-                        <Text style={[styles.vitalValue, { color: todayProfit >= 0 ? Colors.income : Colors.expense }]}>
-                          {todayProfit >= 0 ? '+' : ''}{currency}{Math.round(todayProfit).toLocaleString()}
+                        <Text style={styles.vitalLabel}>Yesterday</Text>
+                        <Text style={[styles.vitalValue, { color: dailyBriefing.pulse.netMovement >= 0 ? Colors.income : Colors.expense }]}>
+                          {dailyBriefing.pulse.netMovement >= 0 ? '+' : '-'}{currency}{Math.round(Math.abs(dailyBriefing.pulse.netMovement)).toLocaleString()}
+                        </Text>
+                        <Text style={styles.vitalSubtext}>
+                          {currency}{Math.round(dailyBriefing.pulse.yesterdayRevenue).toLocaleString()} in · {currency}{Math.round(dailyBriefing.pulse.yesterdayExpense).toLocaleString()} out
                         </Text>
                       </View>
                       <View style={styles.vitalMetric}>
@@ -2895,19 +2878,11 @@ const styles = StyleSheet.create({
     modalSubmit:      { paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginTop: 4 },
     modalSubmitText:  { color: '#fff', fontWeight: 'bold', fontSize: 15 },
 
-    // Daily Pulse strip -- deliberately not a bordered card like everything
-    // around it (that's exactly the "another box" crowding this was meant
-    // to avoid). A soft tinted background instead of a border/shadow reads
-    // as a single slim band, not a fourth card competing with Business
-    // Health/Vital Signs/MacroShield for attention.
-    pulseStrip:         { backgroundColor: Colors.primary + '0F', borderRadius: Radius.md, paddingVertical: 10, paddingHorizontal: Spacing.md, marginBottom: 14 },
-    pulseGreeting:      { fontSize: 13.5, fontWeight: '700', color: Colors.textPrimary },
-    pulseSubtitle:      { fontSize: 12, color: Colors.textMuted },
-    pulseRow:           { flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 4 },
-    pulseStat:          { flex: 1, alignItems: 'flex-start' },
-    pulseStatLabel:     { fontSize: 10.5, color: Colors.textMuted },
-    pulseStatValue:     { fontSize: 14, fontWeight: '700', color: Colors.textPrimary },
-    pulseAskBtn:        { width: 28, height: 28, borderRadius: Radius.pill, backgroundColor: Colors.surface, alignItems: 'center', justifyContent: 'center' },
+    // Daily Pulse's greeting + "Ask AI Advisor" action, folded into Vital
+    // Signs' own title row rather than a separate card -- see the removed
+    // pulseStrip's replacement comment above the Vital Signs section.
+    vitalGreeting:      { fontSize: 12, color: Colors.textMuted },
+    vitalAskBtn:        { width: 26, height: 26, borderRadius: Radius.pill, backgroundColor: Colors.primary + '14', alignItems: 'center', justifyContent: 'center' },
 
     // Section Styles (7-Section Architecture)
     sectionHeader:    { fontSize: 16, fontWeight: '700', color: Colors.textPrimary, marginBottom: 12, marginTop: 8 },
