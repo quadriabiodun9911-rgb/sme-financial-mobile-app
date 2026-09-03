@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, StyleSheet,
     TouchableOpacity, LayoutAnimation, Platform, UIManager, useWindowDimensions,
+    Animated, Easing,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -96,12 +97,12 @@ export default function InsightsScreen() {
 
                     {/* Quick stat cards */}
                     <View style={styles.statRow}>
-                        <StatCard label="Outstanding AR" value={`${currency}${totalAR.toLocaleString()}`} sub={`${pendingAR.length} invoices`} color={Colors.income} />
-                        <StatCard label="Outstanding AP" value={`${currency}${totalAP.toLocaleString()}`} sub={`${pendingAP.length} bills`} color={Colors.expense} />
+                        <StatCard label="Outstanding AR" value={totalAR} format={n => `${currency}${Math.round(n).toLocaleString()}`} sub={`${pendingAR.length} invoices`} color={Colors.income} />
+                        <StatCard label="Outstanding AP" value={totalAP} format={n => `${currency}${Math.round(n).toLocaleString()}`} sub={`${pendingAP.length} bills`} color={Colors.expense} />
                     </View>
                     <View style={styles.statRow}>
-                        <StatCard label="Recurring Entries" value={`${recurringCount}`} sub="auto-tracked" color={Colors.primary} />
-                        <StatCard label="Overdue Items" value={`${overdueCount}`} sub="need attention" color={overdueCount > 0 ? Colors.expense : Colors.income} />
+                        <StatCard label="Recurring Entries" value={recurringCount} format={n => `${Math.round(n)}`} sub="auto-tracked" color={Colors.primary} />
+                        <StatCard label="Overdue Items" value={overdueCount} format={n => `${Math.round(n)}`} sub="need attention" color={overdueCount > 0 ? Colors.expense : Colors.income} />
                     </View>
 
                     {overdueCount > 0 && (
@@ -292,9 +293,16 @@ export default function InsightsScreen() {
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function ActionBadge({ count, label, color }: { count: number; label: string; color: string }) {
+    const anim = useRef(new Animated.Value(0)).current;
+    const [animatedCount, setAnimatedCount] = useState(0);
+    useEffect(() => {
+        const id = anim.addListener(({ value }) => setAnimatedCount(value));
+        Animated.timing(anim, { toValue: count, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
+        return () => anim.removeListener(id);
+    }, [count]);
     return (
         <View style={[badgeStyles.box, { borderColor: color + '55', backgroundColor: color + '15' }]}>
-            <Text style={[badgeStyles.count, { color }]}>{count}</Text>
+            <Text style={[badgeStyles.count, { color }]}>{Math.round(animatedCount)}</Text>
             <Text style={[badgeStyles.label, { color }]}>{label}</Text>
         </View>
     );
@@ -306,11 +314,18 @@ const badgeStyles = StyleSheet.create({
     label: { fontSize: 10, fontWeight: '600', marginTop: 2 },
 });
 
-function StatCard({ label, value, sub, color }: { label: string; value: string; sub: string; color: string }) {
+function StatCard({ label, value, format, sub, color }: { label: string; value: number; format: (n: number) => string; sub: string; color: string }) {
+    const anim = useRef(new Animated.Value(0)).current;
+    const [animatedValue, setAnimatedValue] = useState(0);
+    useEffect(() => {
+        const id = anim.addListener(({ value: v }) => setAnimatedValue(v));
+        Animated.timing(anim, { toValue: value, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
+        return () => anim.removeListener(id);
+    }, [value]);
     return (
         <View style={[statStyles.card, { borderTopColor: color }]}>
             <Text style={statStyles.label}>{label}</Text>
-            <Text style={[statStyles.value, { color }]}>{value}</Text>
+            <Text style={[statStyles.value, { color }]}>{format(animatedValue)}</Text>
             <Text style={statStyles.sub}>{sub}</Text>
         </View>
     );
