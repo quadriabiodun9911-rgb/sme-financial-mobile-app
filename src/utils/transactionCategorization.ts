@@ -34,7 +34,15 @@ export const CATEGORY_RULES: { keywords: string[]; category: TxCategory; subCate
     { keywords: ['transport', 'uber', 'bolt', 'taxi', 'logistics', 'dispatch', 'delivery'],        category: 'expense',  subCategory: 'Transport' },
     { keywords: ['pos purchase', 'pos payment', 'pos trxn'],                                       category: 'expense',  subCategory: 'POS Purchase' },
     { keywords: ['loan repayment', 'loan payment', 'emi', 'mortgage repayment'],                   category: 'expense',  subCategory: 'Loan Repayment' },
-    { keywords: ['bank charge', 'sms charge', 'maintenance fee', 'card fee', 'vat charge'],        category: 'expense',  subCategory: 'Bank Charges' },
+    // 'paystack'/'flutterwave' bare are deliberately left out -- both also
+    // appear in a genuine incoming-settlement description (e.g. "Paystack
+    // settlement — sales"), which this rule runs before the income rules
+    // below and would wrongly claim as an expense. Only phrasing that
+    // names an actual deducted FEE is safe here -- real gap for any
+    // e-commerce/online-payment business (the app's own Flutterwave/
+    // Paystack checkout, see PaymentLinkScreen), whose every card/transfer
+    // sale carries one of these on the statement.
+    { keywords: ['bank charge', 'sms charge', 'maintenance fee', 'card fee', 'vat charge', 'paystack fee', 'flutterwave fee', 'gateway fee', 'processing fee', 'settlement fee', 'transaction fee'], category: 'expense',  subCategory: 'Bank Charges' },
     // Income signals
     { keywords: ['invoice', 'sales', 'revenue', 'payment received', 'customer payment', 'client payment'], category: 'income', subCategory: 'Sales Revenue' },
     { keywords: ['consulting', 'consultation', 'retainer', 'professional fee', 'service fee', 'contract payment', 'freelance', 'commission'], category: 'income', subCategory: 'Service Income' },

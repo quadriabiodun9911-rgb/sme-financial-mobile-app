@@ -38,6 +38,22 @@ describe('classifyByDescription', () => {
         expect(r.flagged).toBe(false);
     });
 
+    it('recognizes Paystack/Flutterwave gateway fees as Bank Charges', () => {
+        expect(classifyByDescription('Paystack Fee - Txn #4821', 'expense').subCategory).toBe('Bank Charges');
+        expect(classifyByDescription('Flutterwave Fee Deduction', 'expense').subCategory).toBe('Bank Charges');
+        expect(classifyByDescription('Payment Gateway Fee', 'expense').subCategory).toBe('Bank Charges');
+        expect(classifyByDescription('Card Transaction Fee', 'expense').subCategory).toBe('Bank Charges');
+    });
+
+    it('does not claim a genuine Paystack/Flutterwave settlement as a bank charge', () => {
+        // Bare "paystack"/"flutterwave" (no "fee") is deliberately excluded
+        // from the Bank Charges rule -- a real incoming settlement, not a
+        // deducted fee, must still reach the income rules below it.
+        const r = classifyByDescription('Paystack Settlement - Sales', 'income');
+        expect(r.subCategory).not.toBe('Bank Charges');
+        expect(r.category).toBe('income');
+    });
+
     it('never memorizes an "unknown" (Not Sure) correction', () => {
         learnCategory('Totally Ambiguous Row', 'unknown', 'Uncategorized');
         const r = classifyByDescription('Totally Ambiguous Row', 'income');
