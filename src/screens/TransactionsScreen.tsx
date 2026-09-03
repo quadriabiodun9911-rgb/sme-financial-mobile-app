@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
-    TouchableOpacity, Modal, StyleSheet, Share, Linking, FlatList, Platform, useWindowDimensions,
+    TouchableOpacity, Modal, StyleSheet, Share, Linking, FlatList, Platform, useWindowDimensions, ActivityIndicator,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../contexts/AppContext';
@@ -26,6 +26,7 @@ import CostExposureTab from '../components/CostExposureTab';
 import RevenueExposureTab from '../components/RevenueExposureTab';
 import { canDeleteTransactions } from '../utils/rolePermissions';
 import { convertToBaseCurrency } from '../utils/foreignCurrency';
+import { categorizeTransactionAI, AICategorizationResult } from '../utils/aiCategorization';
 
 type FilterType   = 'all' | 'income' | 'expense' | 'collect';
 type StatusFilter = 'all' | 'paid' | 'pending' | 'overdue';
@@ -242,6 +243,9 @@ export default function TransactionsScreen() {
     const [form, setForm]             = useState<FormState>({ ...EMPTY_FORM, taxRate: defaultTaxRate });
     const [csvModalOpen, setCsvModalOpen] = useState(false);
     const [csvText, setCsvText]           = useState('');
+    const [aiSuggesting, setAiSuggesting] = useState(false);
+    const [aiSuggestion, setAiSuggestion] = useState<AICategorizationResult | null>(null);
+    const [aiError, setAiError]           = useState<string | null>(null);
 
     // ── Filtering ────────────────────────────────────────────────────────────
     // Classification confidence per transaction (see dataQuality.ts) --
@@ -251,6 +255,36 @@ export default function TransactionsScreen() {
         () => new Set(classifyTransactions(transactions, settings.industry).filter(v => v.confidence !== 'confident').map(v => v.transactionId)),
         [transactions, settings.industry]
     );
+
+    // The business's own most-recently-used categories -- passed to the AI
+    // suggester so it prefers reusing "Sales" over inventing "Sale Revenue"
+    // the first time it sees a slightly different description, keeping the
+    // category list from silently fragmenting into near-duplicates.
+    const recentCategories = useMemo(() => {
+        const seen = new Set<string>();
+        const ordered: string[] = [];
+        for (let i = transactions.length - 1; i >= 0 && ordered.length < 20; i--) {
+            const c = transactions[i].category?.trim();
+            if (c && !seen.has(c)) { seen.add(c); ordered.push(c); }
+        }
+        return ordered;
+    }, [transactions]);
+
+    const suggestCategoryWithAI = async () => {
+        if (!form.description.trim() || aiSuggesting) return;
+        setAiSuggesting(true);
+        setAiError(null);
+        setAiSuggestion(null);
+        try {
+            const result = await categorizeTransactionAI(form.description.trim(), form.type, settings.industry, recentCategories);
+            setAiSuggestion(result);
+            setForm(f => ({ ...f, customCategory: result.category, category: '' }));
+        } catch (err: any) {
+            setAiError(err?.message || 'Could not reach AI categorization.');
+        } finally {
+            setAiSuggesting(false);
+        }
+    };
 
     const personalReport = useMemo(
         () => detectPersonalSpending(transactions, currency, dismissedPersonalIds, settings?.industry),
@@ -331,12 +365,16 @@ export default function TransactionsScreen() {
     const openNew = () => {
         setEditingId(null);
         setForm({ ...EMPTY_FORM, taxRate: defaultTaxRate, date: todayStr() });
+        setAiSuggestion(null);
+        setAiError(null);
         setModalOpen(true);
     };
 
     const openEdit = (tx: Transaction) => {
         setEditingId(tx.id);
         setForm(formFromTx(tx));
+        setAiSuggestion(null);
+        setAiError(null);
         setModalOpen(true);
     };
 
@@ -1026,8 +1064,55 @@ export default function TransactionsScreen() {
                                     placeholder="Or type your own category..."
                                     placeholderTextColor={Colors.muted}
                                     value={form.customCategory}
-                                    onChangeText={v => setForm(f => ({ ...f, customCategory: v, category: v ? '' : f.category }))}
+                                    onChangeText={v => {
+                                        setAiSuggestion(null);
+                                        setAiError(null);
+                                        setForm(f => ({ ...f, customCategory: v, category: v ? '' : f.category }));
+                                    }}
                                 />
+
+                                {/* Not the keyword-only guess transactionCategorization.ts
+                                    makes elsewhere -- this calls a real model (see
+                                    aiCategorization.ts) that reads the actual description,
+                                    so "Adamu — Tuesday delivery" gets a real answer instead
+                                    of silently landing in "Other Expense". Opt-in (a tap,
+                                    never automatic) since unlike the free instant keyword
+                                    engine, this costs a network round-trip per suggestion. */}
+                                <TouchableOpacity
+                                    style={[styles.aiSuggestBtn, (!form.description.trim() || aiSuggesting) && { opacity: 0.5 }]}
+                                    onPress={suggestCategoryWithAI}
+                                    disabled={!form.description.trim() || aiSuggesting}
+                                >
+                                    {aiSuggesting
+                                        ? <ActivityIndicator size="small" color={Colors.primary} />
+                                        : <Icon name="zap" size={14} color={Colors.primary} />}
+                                    <Text style={styles.aiSuggestBtnText}>
+                                        {aiSuggesting ? 'Asking AI…' : 'Suggest category with AI'}
+                                    </Text>
+                                </TouchableOpacity>
+                                {!form.description.trim() && (
+                                    <Text style={styles.aiSuggestHint}>Add a description above first</Text>
+                                )}
+
+                                {aiError && <Text style={styles.aiError}>{aiError}</Text>}
+
+                                {aiSuggestion && (
+                                    <View style={styles.aiSuggestionBox}>
+                                        <View style={styles.aiSuggestionTop}>
+                                            <Text style={styles.aiSuggestionCategory}>✨ {aiSuggestion.category}</Text>
+                                            <Text style={[
+                                                styles.aiConfidenceBadge,
+                                                aiSuggestion.confidence === 'high' && styles.aiConfidenceHigh,
+                                                aiSuggestion.confidence === 'low' && styles.aiConfidenceLow,
+                                            ]}>
+                                                {aiSuggestion.confidence} confidence
+                                            </Text>
+                                        </View>
+                                        {aiSuggestion.reasoning ? (
+                                            <Text style={styles.aiSuggestionReason}>{aiSuggestion.reasoning}</Text>
+                                        ) : null}
+                                    </View>
+                                )}
                             </Section>
 
                             {/* ── Tax ───────────────────────────────────── */}
@@ -1434,6 +1519,18 @@ const styles = StyleSheet.create({
 
     input:      { backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm, paddingHorizontal: Spacing.md, paddingVertical: 10, color: Colors.textPrimary, fontSize: 14 },
     taxPreview: { fontSize: 11, color: Colors.warning, marginTop: Spacing.xs },
+
+    aiSuggestBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: Spacing.sm, paddingHorizontal: Spacing.md, paddingVertical: 8, borderWidth: 1, borderColor: Colors.primary, borderRadius: Radius.pill },
+    aiSuggestBtnText: { color: Colors.primary, fontSize: 12.5, fontWeight: '600' },
+    aiSuggestHint: { fontSize: 11, color: Colors.textMuted, marginTop: 4 },
+    aiError: { fontSize: 12, color: Colors.expense, marginTop: Spacing.sm },
+    aiSuggestionBox: { marginTop: Spacing.sm, backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm, padding: Spacing.sm },
+    aiSuggestionTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm },
+    aiSuggestionCategory: { fontSize: 13.5, fontWeight: '700', color: Colors.textPrimary, flexShrink: 1 },
+    aiConfidenceBadge: { fontSize: 10.5, fontWeight: '600', color: Colors.textMuted, textTransform: 'uppercase' },
+    aiConfidenceHigh: { color: Colors.income },
+    aiConfidenceLow: { color: Colors.warning },
+    aiSuggestionReason: { fontSize: 12, color: Colors.textMuted, marginTop: 4, lineHeight: 17 },
 
     optRow:        { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
     categoryGrid:  { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
