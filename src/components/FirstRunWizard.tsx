@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { Colors } from '../theme/colors';
 import { useApp } from '../contexts/AppContext';
+import { Industry } from '../types';
 
 interface Props {
     visible: boolean;
@@ -17,8 +18,22 @@ const WHAT_I_SELL = [
     'Phone & airtime', 'Education', 'Health & pharmacy', 'Other',
 ];
 
+// Only the answers with an unambiguous match to a real Industry value --
+// "Hair & beauty"/"Transport"/etc. don't map cleanly to any of the five
+// options (SettingsScreen's INDUSTRIES), so they're deliberately left
+// unmapped rather than guessing wrong. Never used to overwrite a real
+// choice the owner already made during signup (see handleFinish below) --
+// only fills a gap when industry is still sitting at the untouched default.
+const WHAT_I_SELL_TO_INDUSTRY: Partial<Record<string, Industry>> = {
+    'Food & drinks': 'food-service',
+    'Clothes & fashion': 'retail',
+    'Electronics': 'retail',
+    'Retail shop': 'retail',
+    'Phone & airtime': 'retail',
+};
+
 export default function FirstRunWizard({ visible, onDone }: Props) {
-    const { addTransaction, settings } = useApp();
+    const { addTransaction, settings, updateSettings } = useApp();
     const currency = settings.currency;
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
@@ -59,6 +74,15 @@ export default function FirstRunWizard({ visible, onDone }: Props) {
                 status: 'paid',
                 date: today,
             } as any);
+        }
+        // If industry is still sitting at the untouched default -- either
+        // this account skipped LoginScreen's own industry picker, or the
+        // owner genuinely left it at "General/Other" -- a clear match here
+        // fills that gap for real, rather than this whole question being
+        // pure decoration for the transaction description above.
+        const mappedIndustry = WHAT_I_SELL_TO_INDUSTRY[whatISell];
+        if (mappedIndustry && (!settings.industry || settings.industry === 'general')) {
+            updateSettings({ industry: mappedIndustry });
         }
         setDone(true);
     };

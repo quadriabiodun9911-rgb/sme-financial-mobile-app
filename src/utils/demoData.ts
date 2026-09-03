@@ -10,6 +10,13 @@ export interface DemoBusiness {
     currency: string;
     businessName: string;
     industry?: Industry;
+    // Only set for a business with genuinely no physical goods -- lets it
+    // demonstrate the service-only customization (FooterNav/Reports/
+    // Forecast hiding Inventory-only surfaces, see FooterNav.tsx) rather
+    // than every demo defaulting to 'both' and never showing it. Omitted
+    // (defaults to 'both' at hydration) for every business that carries
+    // real inventory, even a nominally "professional services" one.
+    businessType?: 'product' | 'service' | 'both';
     transactions: Transaction[];
     assets: Asset[];
     loans: Loan[];
@@ -21,6 +28,13 @@ const today = new Date();
 const d = (daysAgo: number) => {
     const date = new Date(today);
     date.setDate(date.getDate() - daysAgo);
+    return date.toISOString().split('T')[0];
+};
+// Forward-dated, for InventoryItem.expiryDate demo data -- d() above only
+// ever looks backward.
+const future = (daysAhead: number) => {
+    const date = new Date(today);
+    date.setDate(date.getDate() + daysAhead);
     return date.toISOString().split('T')[0];
 };
 
@@ -82,6 +96,7 @@ export const DEMO_BUSINESSES: DemoBusiness[] = [
         currency: '£',
         businessName: 'Okafor Advisory Ltd',
         industry: 'professional-services',
+        businessType: 'service',
         transactions: [
             { id: 'uk1',  date: d(2),  description: 'Strategy consulting — TechStart Ltd',  type: 'income',  category: 'Consulting',       amount: 3500,  status: 'paid' },
             { id: 'uk2',  date: d(5),  description: 'Monthly retainer — BuildCo',           type: 'income',  category: 'Consulting',       amount: 2000,  status: 'paid', isRecurring: true, recurringFrequency: 'monthly' },
@@ -144,8 +159,12 @@ export const DEMO_BUSINESSES: DemoBusiness[] = [
         ],
         loans: [],
         inventory: [
-            { id: 'zai1', name: 'Maize meal (25kg)', quantity: 6, unit: 'bags', costPrice: 220, sellingPrice: 0, category: 'Ingredients', lowStockThreshold: 4, createdAt: d(30), updatedAt: d(3) },
-            { id: 'zai2', name: 'Cooking oil (5L)', quantity: 4, unit: 'bottles', costPrice: 180, sellingPrice: 0, category: 'Ingredients', lowStockThreshold: 4, createdAt: d(30), updatedAt: d(3) },
+            { id: 'zai1', name: 'Maize meal (25kg)', quantity: 6, unit: 'bags', costPrice: 220, sellingPrice: 0, category: 'Ingredients', lowStockThreshold: 4, createdAt: d(30), updatedAt: d(3), expiryDate: future(60) },
+            { id: 'zai2', name: 'Cooking oil (5L)', quantity: 4, unit: 'bottles', costPrice: 180, sellingPrice: 0, category: 'Ingredients', lowStockThreshold: 4, createdAt: d(30), updatedAt: d(3), expiryDate: future(90) },
+            // Perishables -- shows both halves of the Expiring Stock card
+            // (Analytics tab): one already past its date, one about to be.
+            { id: 'zai3', name: 'Fresh chicken (kg)', quantity: 8, unit: 'kg', costPrice: 65, sellingPrice: 0, category: 'Ingredients', lowStockThreshold: 5, createdAt: d(3), updatedAt: d(1), expiryDate: d(1) },
+            { id: 'zai4', name: 'Fresh vegetables (crate)', quantity: 3, unit: 'crates', costPrice: 95, sellingPrice: 0, category: 'Ingredients', lowStockThreshold: 2, createdAt: d(2), updatedAt: d(1), expiryDate: future(2) },
         ],
         invoices: [
             { id: 'zaiv1', invoiceNumber: 'INV-012', clientName: 'Thabo Nkosi Events', clientEmail: 'thabo@nkosievents.co.za', clientAddress: '', notes: '', lineItems: [{ description: 'Wedding catering 150 pax', quantity: 150, unitPrice: 167, taxRate: 0 }], subtotal: 25000, taxTotal: 0, total: 25000, status: 'sent', issueDate: d(12), dueDate: d(-3), createdAt: d(12) },
@@ -162,8 +181,14 @@ export const DEMO_BUSINESSES: DemoBusiness[] = [
         description: 'Software subscriptions & digital services, Atlanta',
         currency: '$',
         businessName: 'BrightStack Solutions LLC',
+        // Mixed revenue (SaaS MRR + billable dev/consulting projects), but
+        // no inventory at all -- 'professional-services' is the closer fit
+        // of the five options, and lets its project-based revenue lines
+        // (Custom dev, Consulting) show up in Project/Retainer Profitability.
+        industry: 'professional-services',
+        businessType: 'service',
         transactions: [
-            { id: 'us1',  date: d(1),  description: 'SaaS subscriptions — monthly MRR',    type: 'income',  category: 'Software Sales',   amount: 12400, status: 'paid', isRecurring: true, recurringFrequency: 'monthly' },
+            { id: 'us1', date: d(1),  description: 'SaaS subscriptions — monthly MRR',    type: 'income',  category: 'Software Sales',   amount: 12400, status: 'paid', isRecurring: true, recurringFrequency: 'monthly' },
             { id: 'us2',  date: d(3),  description: 'Custom dev project — RetailCo',       type: 'income',  category: 'Software Sales',   amount: 8500,  status: 'paid' },
             { id: 'us3',  date: d(5),  description: 'AWS cloud hosting',                   type: 'expense', category: 'Software',         amount: 1200,  status: 'paid', isRecurring: true, recurringFrequency: 'monthly' },
             { id: 'us4',  date: d(6),  description: 'New enterprise client onboarding',    type: 'income',  category: 'Software Sales',   amount: 5000,  status: 'paid' },
@@ -313,9 +338,13 @@ export const DEMO_BUSINESSES: DemoBusiness[] = [
             { id: 'cnl1', lenderName: 'Bank of China SME Loan', principal: 800000, interestRate: 4.35, termMonths: 36, startDate: d(300), purpose: 'Production line expansion', status: 'active', payments: [{ id: 'p1', date: d(270), amount: 28000, note: 'Month 1' }, { id: 'p2', date: d(240), amount: 28000, note: 'Month 2' }, { id: 'p3', date: d(210), amount: 28000, note: 'Month 3' }], createdAt: d(300) },
         ],
         inventory: [
-            { id: 'cni1', name: 'Assembled phones (units)', quantity: 120, unit: 'units', costPrice: 850, sellingPrice: 1400, category: 'Electronics', lowStockThreshold: 50, createdAt: d(30), updatedAt: d(2) },
-            { id: 'cni2', name: 'Lithium batteries (cells)', quantity: 2000, unit: 'cells', costPrice: 18, sellingPrice: 0, category: 'Components', lowStockThreshold: 500, createdAt: d(30), updatedAt: d(5) },
-            { id: 'cni3', name: 'Earbuds (pairs)', quantity: 80, unit: 'pairs', costPrice: 420, sellingPrice: 720, category: 'Electronics', lowStockThreshold: 30, createdAt: d(30), updatedAt: d(8) },
+            // itemType demos the Production Cost Calculator's material
+            // picker: the two finished products are excluded from it (a
+            // business can't build its own product out of itself), the raw
+            // component still shows up as a valid material.
+            { id: 'cni1', name: 'Assembled phones (units)', quantity: 120, unit: 'units', costPrice: 850, sellingPrice: 1400, category: 'Electronics', lowStockThreshold: 50, createdAt: d(30), updatedAt: d(2), itemType: 'finished_good' },
+            { id: 'cni2', name: 'Lithium batteries (cells)', quantity: 2000, unit: 'cells', costPrice: 18, sellingPrice: 0, category: 'Components', lowStockThreshold: 500, createdAt: d(30), updatedAt: d(5), itemType: 'raw_material' },
+            { id: 'cni3', name: 'Earbuds (pairs)', quantity: 80, unit: 'pairs', costPrice: 420, sellingPrice: 720, category: 'Electronics', lowStockThreshold: 30, createdAt: d(30), updatedAt: d(8), itemType: 'finished_good' },
         ],
         invoices: [
             { id: 'cniv1', invoiceNumber: 'INV-CN-056', clientName: 'TechMart USA LLC', clientEmail: 'orders@techmart.us', clientAddress: '', notes: '', lineItems: [{ description: 'Smartwatches — Model X batch', quantity: 200, unitPrice: 990, taxRate: 0 }], subtotal: 198000, taxTotal: 0, total: 198000, status: 'sent', issueDate: d(8), dueDate: d(-4), createdAt: d(8) },
