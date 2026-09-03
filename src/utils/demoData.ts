@@ -270,6 +270,7 @@ export const DEMO_BUSINESSES: DemoBusiness[] = [
         description: 'Property sales, rentals & management, Dubai',
         currency: 'AED',
         businessName: 'Al Noor Properties LLC',
+        industry: 'professional-services',
         transactions: [
             { id: 're1',  date: d(2),  description: 'Commission — villa sale (Palm Jumeirah)',     type: 'income',  category: 'Sales Commission',  amount: 85000,  status: 'paid' },
             { id: 're2',  date: d(4),  description: 'Rental management fees — 8 units (March)',   type: 'income',  category: 'Management Fees',   amount: 12400,  status: 'paid', isRecurring: true, recurringFrequency: 'monthly' },
