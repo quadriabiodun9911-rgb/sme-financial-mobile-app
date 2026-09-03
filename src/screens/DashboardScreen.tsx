@@ -1161,66 +1161,46 @@ export default function DashboardScreen() {
 
                 {/* Daily Pulse -- the in-app home for dailyBriefing.ts's
                     content, which until now only ever reached anyone as a
-                    push notification (scheduleMorningBriefing) that's easy
-                    to miss or dismiss, and whose OS-truncated body could
-                    only ever show a one-line summary. This is the same
-                    "good morning" content -- yesterday's numbers, cash
-                    position, runway, today's top priority -- with room to
-                    actually show all of it, plus a direct line to the AI
-                    Advisor for a fuller answer. */}
+                    push notification that's easy to miss and gets
+                    truncated by the OS. Deliberately trimmed to ONLY
+                    yesterday's in/out/net -- the one thing genuinely not
+                    shown anywhere else on this screen. Cash and runway
+                    already have their own tile at the very top of this
+                    page and again in Vital Signs below; today's top
+                    priority already gets its own full section further
+                    down (see "What Else Needs Your Attention"). Repeating
+                    either here would be exactly the crowding this card
+                    should avoid, not add to. */}
                 {canViewFinancials && (
-                    <View style={styles.pulseCard}>
+                    <View style={styles.pulseStrip}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                            <Icon name="sunrise" size={16} color={Colors.primary} />
+                            <Icon name="sunrise" size={15} color={Colors.primary} />
                             <Text style={styles.pulseGreeting}>{dailyBriefing.greeting}</Text>
+                            <Text style={styles.pulseSubtitle}>· yesterday</Text>
                         </View>
                         <View style={styles.pulseRow}>
                             <View style={styles.pulseStat}>
-                                <Icon name="trending-up" size={14} color={Colors.income} />
-                                <Text style={styles.pulseStatLabel}>Money in</Text>
+                                <Text style={styles.pulseStatLabel}>In</Text>
                                 <Text style={[styles.pulseStatValue, { color: Colors.income }]}>
                                     {currency}{Math.round(dailyBriefing.pulse.yesterdayRevenue).toLocaleString()}
                                 </Text>
                             </View>
                             <View style={styles.pulseStat}>
-                                <Icon name="trending-down" size={14} color={Colors.expense} />
-                                <Text style={styles.pulseStatLabel}>Money out</Text>
+                                <Text style={styles.pulseStatLabel}>Out</Text>
                                 <Text style={[styles.pulseStatValue, { color: Colors.expense }]}>
                                     {currency}{Math.round(dailyBriefing.pulse.yesterdayExpense).toLocaleString()}
                                 </Text>
                             </View>
                             <View style={styles.pulseStat}>
-                                <Icon name="activity" size={14} color={dailyBriefing.pulse.netMovement >= 0 ? Colors.income : Colors.expense} />
                                 <Text style={styles.pulseStatLabel}>Net</Text>
                                 <Text style={[styles.pulseStatValue, { color: dailyBriefing.pulse.netMovement >= 0 ? Colors.income : Colors.expense }]}>
                                     {dailyBriefing.pulse.netMovement >= 0 ? '+' : '-'}{currency}{Math.round(Math.abs(dailyBriefing.pulse.netMovement)).toLocaleString()}
                                 </Text>
                             </View>
+                            <PressScale style={styles.pulseAskBtn} onPress={() => navigate('cfo', { tab: 'questions' })}>
+                                <Icon name="message-square" size={13} color={Colors.primary} />
+                            </PressScale>
                         </View>
-                        <View style={styles.pulseDivider} />
-                        <View style={styles.pulseRow}>
-                            <View style={styles.pulseStat}>
-                                <Icon name="dollar-sign" size={14} color={Colors.textPrimary} />
-                                <Text style={styles.pulseStatLabel}>Estimated cash</Text>
-                                <Text style={styles.pulseStatValue}>{currency}{Math.round(dailyBriefing.pulse.cashBalance).toLocaleString()}</Text>
-                            </View>
-                            <View style={styles.pulseStat}>
-                                <Icon name="shield" size={14} color={runwayColor} />
-                                <Text style={styles.pulseStatLabel}>Cash runway</Text>
-                                <Text style={[styles.pulseStatValue, { color: runwayColor }]}>
-                                    {dailyBriefing.pulse.runwayDays === null ? '∞' : `${dailyBriefing.pulse.runwayDays} days`}
-                                </Text>
-                            </View>
-                        </View>
-                        {dailyBriefing.topPriorities.length > 0 && (
-                            <Text style={styles.pulsePriorityNote}>
-                                {dailyBriefing.topPriorities[0].title}{dailyBriefing.topPriorities[0].subtitle ? ` — ${dailyBriefing.topPriorities[0].subtitle}` : ''}
-                            </Text>
-                        )}
-                        <TouchableOpacity style={styles.pulseAskBtn} onPress={() => navigate('cfo', { tab: 'questions' })}>
-                            <Icon name="message-square" size={13} color={Colors.primary} />
-                            <Text style={styles.pulseAskBtnText}>Ask: "How is my business doing?"</Text>
-                        </TouchableOpacity>
                     </View>
                 )}
 
@@ -2915,17 +2895,19 @@ const styles = StyleSheet.create({
     modalSubmit:      { paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginTop: 4 },
     modalSubmitText:  { color: '#fff', fontWeight: 'bold', fontSize: 15 },
 
-    // Daily Pulse card
-    pulseCard:          { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.md, marginBottom: 16, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
-    pulseGreeting:      { fontSize: 15, fontWeight: '700', color: Colors.textPrimary },
-    pulseRow:           { flexDirection: 'row', marginTop: 10, gap: 8 },
-    pulseStat:          { flex: 1, alignItems: 'flex-start', gap: 2 },
-    pulseStatLabel:     { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
-    pulseStatValue:     { fontSize: 15, fontWeight: '700', color: Colors.textPrimary },
-    pulseDivider:       { height: 1, backgroundColor: Colors.border, marginTop: 12 },
-    pulsePriorityNote:  { fontSize: 12.5, color: Colors.textSecondary, marginTop: 12, lineHeight: 18 },
-    pulseAskBtn:        { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12, alignSelf: 'flex-start' },
-    pulseAskBtnText:    { fontSize: 12.5, fontWeight: '600', color: Colors.primary },
+    // Daily Pulse strip -- deliberately not a bordered card like everything
+    // around it (that's exactly the "another box" crowding this was meant
+    // to avoid). A soft tinted background instead of a border/shadow reads
+    // as a single slim band, not a fourth card competing with Business
+    // Health/Vital Signs/MacroShield for attention.
+    pulseStrip:         { backgroundColor: Colors.primary + '0F', borderRadius: Radius.md, paddingVertical: 10, paddingHorizontal: Spacing.md, marginBottom: 14 },
+    pulseGreeting:      { fontSize: 13.5, fontWeight: '700', color: Colors.textPrimary },
+    pulseSubtitle:      { fontSize: 12, color: Colors.textMuted },
+    pulseRow:           { flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 4 },
+    pulseStat:          { flex: 1, alignItems: 'flex-start' },
+    pulseStatLabel:     { fontSize: 10.5, color: Colors.textMuted },
+    pulseStatValue:     { fontSize: 14, fontWeight: '700', color: Colors.textPrimary },
+    pulseAskBtn:        { width: 28, height: 28, borderRadius: Radius.pill, backgroundColor: Colors.surface, alignItems: 'center', justifyContent: 'center' },
 
     // Section Styles (7-Section Architecture)
     sectionHeader:    { fontSize: 16, fontWeight: '700', color: Colors.textPrimary, marginBottom: 12, marginTop: 8 },
