@@ -248,6 +248,32 @@ describe('detectPersonalSpending', () => {
         }
     });
 
+    it('flags "family feeding" as personal by default and for a non-food-service industry (no legitimate reading there)', () => {
+        for (const industry of [undefined, 'retail']) {
+            const txs = [makeTx({ id: 'a', description: 'Family feeding money sent home', amount: 40000 })];
+            const report = detectPersonalSpending(txs, '₦', [], industry);
+            expect(report.flaggedCount).toBe(1);
+        }
+    });
+
+    it('does not flag a food vendor\'s own "family feeding" pack orders/ingredient costs when registered as Food Service', () => {
+        const txs = [
+            makeTx({ id: 'a', description: 'Family feeding order - Ganiat', amount: 12000 }),
+            makeTx({ id: 'b', description: 'Ingredients for family feeding pack', amount: 8000 }),
+        ];
+        const report = detectPersonalSpending(txs, '₦', [], 'food-service');
+        expect(report.flaggedCount).toBe(0);
+    });
+
+    it('still flags genuinely unrelated personal spending, and other family-support wording, for a food-service business', () => {
+        const txs = [
+            makeTx({ id: 'a', description: 'School fees for the kids', amount: 150000 }),
+            makeTx({ id: 'b', description: 'Family upkeep for the month', amount: 60000 }),
+        ];
+        const report = detectPersonalSpending(txs, '₦', [], 'food-service');
+        expect(report.flaggedCount).toBe(2);
+    });
+
     it('does not flag a property management/letting agency\'s own tenant rent transactions when registered as Professional Services', () => {
         const txs = [
             makeTx({ id: 'a', description: 'House rent collected for landlord — Flat 3B', amount: 450000 }),

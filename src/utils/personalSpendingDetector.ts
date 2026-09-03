@@ -135,9 +135,19 @@ const RENTAL_AGENCY_RULE_EXCLUDED_INDUSTRIES = new Set(['professional-services']
 
 const PERSONAL_RULES: { keywords: string[]; reason: string }[] = [
     { keywords: ['school fees', 'school fee', 'tuition'], reason: 'Looks like a school-fees payment' },
-    { keywords: ['family support', 'family upkeep', 'send family', 'family expense', 'family feeding'], reason: 'Looks like a family expense' },
+    { keywords: ['family support', 'family upkeep', 'send family', 'family expense'], reason: 'Looks like a family expense' },
     { keywords: ['owner withdrawal', 'personal withdrawal', 'director drawing', "owner's drawing", 'proprietor drawing', "owner's personal"], reason: 'Recorded as an owner drawing from the business' },
 ];
+
+// Split out of the family-expense rule above -- "family feeding" reads as
+// clearly personal everywhere else, but it's also common Nigerian
+// food-vendor product wording ("Family feeding order — Ganiat", "Ingredients
+// for family feeding pack") for a bulk/family-size meal, a real sale or its
+// ingredient cost for a food-service business, not the owner sending money
+// home. Excluded for Food Service only, the one industry where this exact
+// phrase is normal trade vocabulary rather than a personal remittance.
+const FAMILY_MEAL_RULE = { keywords: ['family feeding'], reason: 'Looks like a family expense' };
+const FAMILY_MEAL_RULE_EXCLUDED_INDUSTRIES = new Set(['food-service']);
 
 function normalise(s: string): string {
     return (s || '').toLowerCase().trim();
@@ -150,10 +160,10 @@ function normalise(s: string): string {
  * @param industry settings.industry -- gates out several rules for the one
  * or two industries whose own normal vocabulary would otherwise collide
  * with them (see each rule's own comment: NIGHTLIFE_RULE, EVENT_SUPPLY_RULE,
- * GROOMING_RULE, FITNESS_RULE, SUBSCRIPTION_RESELLER_RULE, CONCIERGE_RULE,
- * RENTAL_AGENCY_RULE). GIFT_RULE has no exclusion at all -- it stays active
- * for every industry. Every other industry, and the unset/undefined
- * default, keeps all of them active.
+ * FAMILY_MEAL_RULE, GROOMING_RULE, FITNESS_RULE, SUBSCRIPTION_RESELLER_RULE,
+ * CONCIERGE_RULE, RENTAL_AGENCY_RULE). GIFT_RULE has no exclusion at all --
+ * it stays active for every industry. Every other industry, and the
+ * unset/undefined default, keeps all of them active.
  */
 export function detectPersonalSpending(transactions: Transaction[], currency: string = '₦', dismissedIds: string[] = [], industry?: string): PersonalSpendingReport {
     const dismissed = new Set(dismissedIds);
@@ -161,6 +171,7 @@ export function detectPersonalSpending(transactions: Transaction[], currency: st
     let estimatedPersonalAmount = 0;
     const rules = [...PERSONAL_RULES, GIFT_RULE];
     if (industry !== 'food-service') rules.push(NIGHTLIFE_RULE);
+    if (!industry || !FAMILY_MEAL_RULE_EXCLUDED_INDUSTRIES.has(industry)) rules.push(FAMILY_MEAL_RULE);
     if (!industry || !EVENT_SUPPLY_RULE_EXCLUDED_INDUSTRIES.has(industry)) rules.push(EVENT_SUPPLY_RULE);
     if (!industry || !GROOMING_RULE_EXCLUDED_INDUSTRIES.has(industry)) rules.push(GROOMING_RULE);
     if (!industry || !FITNESS_RULE_EXCLUDED_INDUSTRIES.has(industry)) rules.push(FITNESS_RULE);
